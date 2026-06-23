@@ -60,8 +60,10 @@ Singleton {
     }
 
     function commitGrabbedMode() {
-        WorkspaceNavigation.commitSelectedWorkspace(true);
+        if (!root.grabbed)
+            return;
         root.grabbed = false;
+        WorkspaceNavigation.commitSelectedWorkspace(true);
         GlobalStates.overviewOpen = false;
     }
 

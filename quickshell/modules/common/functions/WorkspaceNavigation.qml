@@ -2,6 +2,7 @@ pragma Singleton
 
 import qs
 import qs.services
+import qs.modules.common
 import qs.modules.common.functions
 import Quickshell
 import Quickshell.Hyprland

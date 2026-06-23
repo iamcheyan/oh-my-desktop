@@ -39,10 +39,17 @@ o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", "qs -p $HOME/.config/om
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
-o.bind("SUPER + TAB", "Quickshell switcher next", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher next")
-o.bind("SUPER + SHIFT + TAB", "Quickshell switcher previous", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher prev")
-o.bind("SUPER + SUPER_L", "Quickshell switcher commit", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher commit", { release = true })
-o.bind("SUPER + SUPER_R", "Quickshell switcher commit", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher commit", { release = true })
+hl.bind("SUPER + TAB", hl.dsp.global("quickshell:overviewNext"), { description = "Quickshell switcher next" })
+hl.bind("SUPER + SHIFT + TAB", hl.dsp.global("quickshell:overviewPrev"), { description = "Quickshell switcher previous" })
+hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell switcher commit" })
+hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell switcher commit" })
+
+-- Track Super key state directly via Quickshell GlobalShortcut so the overview
+-- process can detect Super release without IPC relay latency.
+hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
+hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true })
+hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
+hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
