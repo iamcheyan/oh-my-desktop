@@ -238,7 +238,6 @@ Item {
                         cache: true
                         mipmap: true
                         visible: !workspace.isTrailingEmpty
-                        opacity: 0.35
                     }
 
                     StyledText {
