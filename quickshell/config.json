@@ -347,7 +347,7 @@
   "tray": {
     "filterPassive": true,
     "invertPinnedItems": true,
-    "monochromeIcons": true,
+    "monochromeIcons": false,
     "pinnedItems": [
       "崩溃处理程序",
       "Fcitx"

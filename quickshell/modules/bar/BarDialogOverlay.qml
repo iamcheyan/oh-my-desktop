@@ -98,14 +98,6 @@ Scope {
                     onDismiss: overlayWindow.close()
                 }
 
-                ClipboardDialog {
-                    id: clipboardDialog
-                    anchors.fill: parent
-                    visible: GlobalStates.barDialogType === "clipboard"
-                    show: visible
-                    onDismiss: overlayWindow.close()
-                }
-
                 VolumeDialog {
                     id: volumeDialog
                     anchors.fill: parent
@@ -125,24 +117,4 @@ Scope {
         }
     }
 
-    IpcHandler {
-        target: "barDialog"
-
-        function clipboard() {
-            root.openDialog("clipboard");
-        }
-    }
-
-    GlobalShortcut {
-        name: "barClipboardToggle"
-        description: "Toggle clipboard history from the bar"
-        onPressed: {
-            if (GlobalStates.barDialogOpen && GlobalStates.barDialogType === "clipboard") {
-                GlobalStates.barDialogOpen = false;
-                GlobalStates.barDialogType = "";
-            } else {
-                root.openDialog("clipboard");
-            }
-        }
-    }
 }

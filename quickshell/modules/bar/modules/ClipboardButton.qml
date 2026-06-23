@@ -1,5 +1,4 @@
 import Quickshell
-import qs.modules.bar
 import qs
 import qs.services
 import qs.modules.common
@@ -12,8 +11,10 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        GlobalStates.barDialogType = "clipboard";
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached([
+            "qs", "-p", FileUtils.trimFileProtocol(Directories.config) + "/omd/apps/omd-clipboard",
+            "ipc", "call", "clipboard", "toggle"
+        ]);
     }
     Item {
         implicitWidth: 20
