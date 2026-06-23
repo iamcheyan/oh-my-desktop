@@ -31,16 +31,6 @@ ShellRoot {
     }
 
     Component.onCompleted: {
-        // Kill stale quickshell processes: keep only the newest PID (us), silently
-        // terminate the rest with SIGTERM, escalating to SIGKILL after 3 seconds.
-        Quickshell.execDetached(["bash", "-c",
-            "newest=$(pgrep -x quickshell -n 2>/dev/null); " +
-            "for pid in $(pgrep -x quickshell 2>/dev/null); do " +
-            "[ \"$pid\" = \"$newest\" ] && continue; " +
-            "kill \"$pid\" 2>/dev/null; " +
-            "( sleep 3; kill -9 \"$pid\" 2>/dev/null ) & " +
-            "done"])
-
         Hyprsunset.load()
         FirstRunExperience.load()
         ConflictKiller.load()

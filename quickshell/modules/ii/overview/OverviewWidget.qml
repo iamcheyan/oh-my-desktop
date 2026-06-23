@@ -4,7 +4,6 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
-import qs.modules.common.functions
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Layouts
@@ -85,34 +84,11 @@ Item {
     }
 
     function cycleOverviewWorkspace(dir) {
-        const model = root.overviewEntries.filter(entry => !entry.isTrailingEmpty);
-        if (model.length === 0)
-            return;
-
-        const ws = GlobalStates.overviewFocusedWorkspaceId > 0
-            ? GlobalStates.overviewFocusedWorkspaceId
-            : effectiveActiveWorkspaceId;
-        let idx = -1;
-        for (let i = 0; i < model.length; ++i) {
-            if (model[i].id === ws) {
-                idx = i;
-                break;
-            }
-        }
-        if (idx === -1)
-            idx = 0;
-        idx = (idx + dir + model.length) % model.length;
-        const newWs = model[idx].id;
-        GlobalStates.overviewFocusedWorkspaceId = newWs;
+        WorkspaceNavigation.navigateByIndex(dir, false);
     }
 
     function dispatchFocusWorkspace(wsId) {
-        if (wsId < 1)
-            return;
-        const ws = HyprlandData.workspaceDataForId(wsId);
-        if (ws?.monitor)
-            Hyprland.dispatch(`hl.dsp.focus({monitor="${ws.monitor}"})`);
-        Hyprland.dispatch(`hl.dsp.focus({ workspace = ${wsId} })`);
+        WorkspaceNavigation.dispatchFocusWorkspace(wsId);
     }
 
     property Component windowComponent: OverviewWindow {}
@@ -239,17 +215,13 @@ Item {
                     DropArea {
                         anchors.fill: parent
                         onEntered: {
-                            GlobalStates.overviewDraggingTargetWorkspace = workspace.workspaceValue
-                            GlobalStates.overviewDraggingTargetIsTrailing = workspace.isTrailingEmpty
+                            WorkspaceNavigation.setDragTarget(workspace.workspaceValue, workspace.isTrailingEmpty)
                             if (GlobalStates.overviewDraggingFromWorkspace == GlobalStates.overviewDraggingTargetWorkspace) return;
                             hoveredWhileDragging = true
                         }
                         onExited: {
                             hoveredWhileDragging = false
-                            if (GlobalStates.overviewDraggingTargetWorkspace == workspace.workspaceValue) {
-                                GlobalStates.overviewDraggingTargetWorkspace = -1
-                                GlobalStates.overviewDraggingTargetIsTrailing = false
-                            }
+                            WorkspaceNavigation.clearDragTarget(workspace.workspaceValue)
                         }
                     }
                 }
@@ -344,7 +316,7 @@ Item {
                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                         drag.target: parent
                         onPressed: (mouse) => {
-                            GlobalStates.overviewDraggingFromWorkspace = windowData?.workspace.id
+                            WorkspaceNavigation.beginWindowDrag(windowData?.workspace.id)
                             window.pressed = true
                             window.Drag.active = true
                             window.Drag.source = window
@@ -357,15 +329,7 @@ Item {
                             const targetIsTrailing = GlobalStates.overviewDraggingTargetIsTrailing
                             window.pressed = false
                             window.Drag.active = false
-                            GlobalStates.overviewDraggingFromWorkspace = -1
-                            GlobalStates.overviewDraggingTargetWorkspace = -1
-                            GlobalStates.overviewDraggingTargetIsTrailing = false
-                            if (targetWorkspace !== -1 && targetWorkspace !== windowData?.workspace.id) {
-                                if (targetIsTrailing) {
-                                    Hyprland.dispatch(`hl.dsp.window.move({ workspace = "empty", follow = false, window = "address:${window.windowData?.address}" })`)
-                                } else {
-                                    Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${window.windowData?.address}" })`)
-                                }
+                            if (WorkspaceNavigation.commitWindowDrag(window.windowData?.address, windowData?.workspace.id, targetWorkspace, targetIsTrailing)) {
                                 updateWindowPosition.restart()
                             }
                             else {
@@ -383,9 +347,7 @@ Item {
 
                             if (event.button === Qt.LeftButton) {
                                 GlobalStates.overviewOpen = false;
-                                if (windowData?.workspace?.id > 0)
-                                    GlobalStates.promoteWorkspaceMru(windowData.workspace.id);
-                                Hyprland.dispatch(`hl.dsp.focus({window = "address:${windowData.address}"})`);
+                                WorkspaceNavigation.focusWindow(windowData);
                                 event.accepted = true;
                             } else if (event.button === Qt.MiddleButton) {
                                 Hyprland.dispatch(`hl.dsp.window.close({window = "address:${windowData.address}"})`)

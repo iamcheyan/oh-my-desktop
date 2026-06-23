@@ -1,6 +1,7 @@
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Controls
@@ -12,10 +13,6 @@ import Quickshell.Hyprland
 
 Scope {
     id: overviewScope
-    property bool overviewGrabbed: false
-    property bool overviewFocusQueued: false
-    property bool grabbedCycleQueued: false
-    property int grabbedCycleDelta: 0
 
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
         ?? Quickshell.screens[0]
@@ -24,76 +21,39 @@ Scope {
     signal requestOverviewFocus()
 
     function overviewModel() {
-        return HyprlandData.overviewWorkspaceEntriesGlobal();
+        return WorkspaceNavigation.overviewModel();
     }
 
     function overviewGridColumnsForModel(model) {
-        return Math.min(Math.max(model.length, 1), Config.options.overview.columns);
+        return WorkspaceNavigation.gridColumnsForModel(model);
     }
 
     function overviewIndexForWorkspace(model, wsId) {
-        const idx = model.findIndex(entry => entry.id === wsId);
-        return idx >= 0 ? idx : 0;
+        return WorkspaceNavigation.indexForWorkspace(model, wsId);
     }
 
     function overviewFocusedWorkspaceId() {
-        if (GlobalStates.overviewFocusedWorkspaceId > 0)
-            return GlobalStates.overviewFocusedWorkspaceId;
-        return overviewScope.currentWorkspaceId();
+        return WorkspaceNavigation.focusedWorkspaceId();
     }
 
     function dispatchFocusWorkspace(wsId) {
-        if (wsId < 1)
-            return;
-        const ws = HyprlandData.workspaceDataForId(wsId);
-        if (ws?.monitor)
-            Hyprland.dispatch(`hl.dsp.focus({monitor="${ws.monitor}"})`);
-        Hyprland.dispatch(`hl.dsp.focus({ workspace = ${wsId} })`);
+        WorkspaceNavigation.dispatchFocusWorkspace(wsId);
     }
 
     function selectOverviewWorkspace(wsId) {
-        if (wsId < 1)
-            return;
-        GlobalStates.overviewFocusedWorkspaceId = wsId;
+        WorkspaceNavigation.selectWorkspace(wsId);
     }
 
     function navigateOverviewByIndex(delta) {
-        const model = overviewScope.overviewModel();
-        if (model.length === 0)
-            return;
-
-        const ws = overviewScope.overviewFocusedWorkspaceId();
-        let idx = overviewScope.overviewIndexForWorkspace(model, ws);
-        idx = (idx + delta + model.length) % model.length;
-        overviewScope.selectOverviewWorkspace(model[idx].id);
+        WorkspaceNavigation.navigateByIndex(delta);
     }
 
     function focusedEntryIsTrailingEmpty() {
-        const wsId = overviewScope.overviewFocusedWorkspaceId();
-        if (wsId < 1)
-            return false;
-        const model = overviewScope.overviewModel();
-        for (let i = 0; i < model.length; i++) {
-            if (model[i].id === wsId)
-                return !!model[i].isTrailingEmpty;
-        }
-        return false;
+        return WorkspaceNavigation.focusedEntryIsTrailingEmpty();
     }
 
     function navigateOverviewGrid(deltaRow, deltaCol) {
-        const model = overviewScope.overviewModel();
-        const n = model.length;
-        if (n === 0)
-            return;
-
-        const cols = overviewScope.overviewGridColumnsForModel(model);
-        const ws = overviewScope.overviewFocusedWorkspaceId();
-        let idx = overviewScope.overviewIndexForWorkspace(model, ws);
-
-        if (deltaCol !== 0)
-            overviewScope.navigateOverviewByIndex(deltaCol);
-        else if (deltaRow !== 0)
-            overviewScope.navigateOverviewByIndex(deltaRow * cols);
+        WorkspaceNavigation.navigateGrid(deltaRow, deltaCol);
     }
 
     function cycleOverviewWorkspace(dir) {
@@ -101,64 +61,23 @@ Scope {
     }
 
     function queueGrabbedCycle(dir) {
-        overviewScope.grabbedCycleDelta += dir;
-        if (overviewScope.grabbedCycleQueued)
-            return;
-
-        overviewScope.grabbedCycleQueued = true;
-        Qt.callLater(() => {
-            const delta = overviewScope.grabbedCycleDelta;
-            overviewScope.grabbedCycleDelta = 0;
-            overviewScope.grabbedCycleQueued = false;
-
-            if (!GlobalStates.overviewOpen || !overviewScope.overviewGrabbed || delta === 0)
-                return;
-
-            overviewScope.cycleOverviewWorkspace(delta);
-        });
+        WorkspaceSwitcherController.queueCycle(dir);
     }
 
     function queueOverviewFocus() {
-        if (overviewScope.overviewFocusQueued)
-            return;
-
-        overviewScope.overviewFocusQueued = true;
-        Qt.callLater(() => {
-            overviewScope.overviewFocusQueued = false;
-            if (GlobalStates.overviewOpen)
-                overviewScope.requestOverviewFocus();
-        });
+        WorkspaceSwitcherController.queueFocus();
     }
 
     function openGrabbedMode(dir) {
-        if (GlobalStates.overviewOpen && overviewScope.overviewGrabbed) {
-            overviewScope.queueGrabbedCycle(dir);
-        } else {
-            overviewScope.overviewGrabbed = true;
-            GlobalStates.overviewOpen = true;
-            overviewScope.queueGrabbedCycle(dir);
-            overviewScope.queueOverviewFocus();
-        }
+        WorkspaceSwitcherController.openGrabbedMode(dir);
     }
 
     function commitGrabbedMode() {
-        if (overviewScope.focusedEntryIsTrailingEmpty()) {
-            // Focus a fresh empty workspace (numbers can be irregular across monitors)
-            // and automatically open the app launcher so the user can pick what to run.
-            Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
-            overviewScope.overviewGrabbed = false;
-            GlobalStates.overviewOpen = false;
-            GlobalStates.appLauncherOpen = true;
-            return;
-        }
-        if (GlobalStates.overviewFocusedWorkspaceId > 0)
-            overviewScope.dispatchFocusWorkspace(GlobalStates.overviewFocusedWorkspaceId);
-        overviewScope.overviewGrabbed = false;
-        GlobalStates.overviewOpen = false;
+        WorkspaceSwitcherController.commitGrabbedMode();
     }
 
     function overviewNavigationActive() {
-        return GlobalStates.overviewOpen;
+        return WorkspaceSwitcherController.navigationOpen();
     }
 
     function handleOverviewNavigationKey(event) {
@@ -185,10 +104,7 @@ Scope {
     }
 
     function currentWorkspaceId() {
-        const monitor = Hyprland.focusedMonitor ?? Hyprland.monitors[0];
-        if (!monitor)
-            return HyprlandData.activeWorkspace?.id ?? 1;
-        return HyprlandData.monitorActiveWorkspaceId(monitor) || HyprlandData.activeWorkspace?.id || 1;
+        return WorkspaceNavigation.currentWorkspaceId();
     }
 
     Connections {
@@ -230,7 +146,7 @@ Scope {
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
-                ? (overviewScope.overviewGrabbed
+                ? (WorkspaceSwitcherController.grabbed
                     ? WlrKeyboardFocus.Exclusive
                     : (GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None))
                 : WlrKeyboardFocus.None
@@ -257,17 +173,15 @@ Scope {
                             : overviewScope.currentWorkspaceId();
                         if (settled > 0)
                             GlobalStates.promoteWorkspaceMru(settled);
-                        overviewScope.overviewGrabbed = false;
+                        WorkspaceSwitcherController.reset();
                         GlobalStates.overviewFocusedWorkspaceId = -1;
-                        GlobalStates.overviewDraggingFromWorkspace = -1;
-                        GlobalStates.overviewDraggingTargetWorkspace = -1;
-                        GlobalStates.overviewDraggingTargetIsTrailing = false;
+                        WorkspaceNavigation.resetOverviewDragState();
                         GlobalFocusGrab.dismiss();
                     } else {
                         GlobalStates.overviewFocusedWorkspaceId = overviewScope.currentWorkspaceId();
                         if (GlobalStates.overviewWorkspaceMru.length === 0)
                             GlobalStates.promoteWorkspaceMru(overviewScope.currentWorkspaceId());
-                        if (panelWindow.isFocusedOverviewWindow && !overviewScope.overviewGrabbed)
+                        if (panelWindow.isFocusedOverviewWindow && !WorkspaceSwitcherController.grabbed)
                             GlobalFocusGrab.addDismissable(panelWindow);
                         overviewScope.queueOverviewFocus();
                     }
@@ -277,7 +191,7 @@ Scope {
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
-                    if (!overviewScope.overviewGrabbed)
+                    if (!WorkspaceSwitcherController.grabbed)
                         GlobalStates.overviewOpen = false;
                 }
             }
@@ -290,7 +204,7 @@ Scope {
                 anchors.fill: parent
                 z: 999
                 focus: panelWindow.isFocusedOverviewWindow
-                    && (overviewScope.overviewNavigationActive() || overviewScope.overviewGrabbed)
+                    && (overviewScope.overviewNavigationActive() || WorkspaceSwitcherController.grabbed)
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
@@ -298,7 +212,7 @@ Scope {
                         event.accepted = true;
                         return;
                     }
-                    if (overviewScope.overviewGrabbed && event.key === Qt.Key_Tab) {
+                    if (WorkspaceSwitcherController.grabbed && event.key === Qt.Key_Tab) {
                         const backward = (event.modifiers & Qt.ShiftModifier) !== 0;
                         overviewScope.queueGrabbedCycle(backward ? -1 : 1);
                         event.accepted = true;
@@ -308,7 +222,7 @@ Scope {
                 }
 
                 Keys.onReleased: event => {
-                    if (overviewScope.overviewGrabbed &&
+                    if (WorkspaceSwitcherController.grabbed &&
                         (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta)) {
                         overviewScope.commitGrabbedMode();
                         event.accepted = true;
@@ -318,7 +232,7 @@ Scope {
                 Connections {
                     target: GlobalStates
                     function onSuperDownChanged() {
-                        if (overviewScope.overviewGrabbed && !GlobalStates.superDown)
+                        if (WorkspaceSwitcherController.grabbed && !GlobalStates.superDown)
                             overviewScope.commitGrabbedMode();
                     }
                 }
@@ -327,11 +241,18 @@ Scope {
                     target: overviewScope
                     function onRequestOverviewFocus() {
                         if (panelWindow.isFocusedOverviewWindow
-                            && (overviewScope.overviewNavigationActive() || overviewScope.overviewGrabbed))
+                            && (overviewScope.overviewNavigationActive() || WorkspaceSwitcherController.grabbed))
                             overviewKeyHandler.forceActiveFocus();
                     }
-                    function onOverviewGrabbedChanged() {
-                        if (panelWindow.isFocusedOverviewWindow && overviewScope.overviewGrabbed)
+                }
+
+                Connections {
+                    target: WorkspaceSwitcherController
+                    function onRequestFocus() {
+                        overviewScope.requestOverviewFocus();
+                    }
+                    function onGrabbedChanged() {
+                        if (panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed)
                             overviewKeyHandler.forceActiveFocus();
                     }
                 }
@@ -402,6 +323,20 @@ Scope {
         }
     }
 
+    IpcHandler {
+        target: "switcher"
+
+        function next() {
+            WorkspaceSwitcherController.openGrabbedMode(1);
+        }
+        function prev() {
+            WorkspaceSwitcherController.openGrabbedMode(-1);
+        }
+        function commit() {
+            WorkspaceSwitcherController.commitGrabbedMode();
+        }
+    }
+
     GlobalShortcut {
         name: "overviewWorkspacesClose"
         description: "Closes overview on press"
@@ -444,5 +379,31 @@ Scope {
         name: "overviewCommit"
         description: "Workspace overview: commit on Win release"
         onPressed: overviewScope.commitGrabbedMode()
+    }
+
+    GlobalShortcut {
+        name: "switcherNext"
+        description: "Workspace switcher: cycle next (Win+Tab)"
+        onPressed: {
+            const now = Date.now();
+            if (now - overviewScope.lastWheelShortcut < 150) return;
+            overviewScope.lastWheelShortcut = now;
+            WorkspaceSwitcherController.openGrabbedMode(1);
+        }
+    }
+    GlobalShortcut {
+        name: "switcherPrev"
+        description: "Workspace switcher: cycle prev (Win+Shift+Tab)"
+        onPressed: {
+            const now = Date.now();
+            if (now - overviewScope.lastWheelShortcut < 150) return;
+            overviewScope.lastWheelShortcut = now;
+            WorkspaceSwitcherController.openGrabbedMode(-1);
+        }
+    }
+    GlobalShortcut {
+        name: "switcherCommit"
+        description: "Workspace switcher: commit on Win release"
+        onPressed: WorkspaceSwitcherController.commitGrabbedMode()
     }
 }

@@ -39,10 +39,10 @@ o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", hl.dsp.global("quickshe
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
-o.bind("SUPER + TAB", "Quickshell overview next", hl.dsp.global("quickshell:overviewNext"))
-o.bind("SUPER + SHIFT + TAB", "Quickshell overview previous", hl.dsp.global("quickshell:overviewPrev"))
-o.bind("SUPER + SUPER_L", "Quickshell overview commit", hl.dsp.global("quickshell:overviewCommit"), { release = true })
-o.bind("SUPER + SUPER_R", "Quickshell overview commit", hl.dsp.global("quickshell:overviewCommit"), { release = true })
+o.bind("SUPER + TAB", "Quickshell switcher next", hl.dsp.global("quickshell:switcherNext"))
+o.bind("SUPER + SHIFT + TAB", "Quickshell switcher previous", hl.dsp.global("quickshell:switcherPrev"))
+o.bind("SUPER + SUPER_L", "Quickshell switcher commit", hl.dsp.global("quickshell:switcherCommit"), { release = true })
+o.bind("SUPER + SUPER_R", "Quickshell switcher commit", hl.dsp.global("quickshell:switcherCommit"), { release = true })
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")

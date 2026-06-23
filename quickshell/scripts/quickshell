@@ -18,9 +18,20 @@ if [ -z "$qs_bin" ]; then
     exit 127
 fi
 
-config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
+config_dir="${1:-${XDG_CONFIG_HOME:-$HOME/.config}/quickshell}"
+case "$config_dir" in
+    /*) ;;
+    *) config_dir="$(pwd)/$config_dir" ;;
+esac
+
 export QS_CONFIG_DIR="$config_dir"
 export QS_COMPOSITOR=hyprland
+export OMD_APP_DIR="$config_dir"
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+export OMD_REPO_ROOT="$repo_root"
+export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
 if pgrep -af "(quickshell|qs).* -p ${config_dir}($| )" >/dev/null 2>&1; then
     exit 0

@@ -38,6 +38,11 @@ Runtime symlinks:
   extra `ii/` directory in the active layout.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
 
+## Planning Docs
+
+- Module split plan: `docs/module-split-plan.md`
+- Agent working agreement: `docs/agent-working-agreement.md`
+
 ## Editing
 
 ### Quickshell
@@ -47,7 +52,9 @@ Runtime symlinks:
 - Prefer existing widgets such as `MaterialSymbol`, `StyledText`,
   `RippleButton`, `IconImage`, and `CosmicIcon`.
 - The shell hot-reloads on QML/config file changes. To force restart:
-  `pkill -x quickshell; ~/.config/quickshell/scripts/quickshell &`.
+  `pkill -f 'quickshell.* -p .*/\\.config/quickshell($| )' || true; ~/.config/quickshell/scripts/quickshell &`.
+- `quickshell/scripts/quickshell` accepts an optional config directory for
+  future split apps, but defaults to `~/.config/quickshell`.
 
 ### Omarchy / Hyprland
 
@@ -60,4 +67,5 @@ Runtime symlinks:
 - Treat `~/development/OMD` as the project root for oh-my-desktop.
 - Do not commit `.migration-backups/`, Quickshell `.state/`, or nested `.git`
   directories from copied upstream configs.
+- Run the privacy checks in `docs/agent-working-agreement.md` before pushing.
 - No test framework; verify by reloading Hyprland and restarting Quickshell.
