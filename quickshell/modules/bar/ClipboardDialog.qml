@@ -25,9 +25,10 @@ WindowDialog {
 
     readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < pageEntries.length) ? pageEntries[keyboardIndex] : ""
 
-    onCurrentEntryChanged: {
+    function loadCurrentPreview() {
         if (currentEntry && !Cliphist.entryIsImage(currentEntry)) {
             textDecoder.running = false;
+            textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(currentEntry)}' | ${Cliphist.cliphistBinary} decode`];
             textDecoder.running = true;
         } else {
             textDecoder.running = false;
@@ -35,10 +36,17 @@ WindowDialog {
         }
     }
 
+    onCurrentEntryChanged: {
+        loadCurrentPreview();
+    }
+
+    Component.onCompleted: {
+        loadCurrentPreview();
+    }
+
     Process {
         id: textDecoder
         property string decodedText: ""
-        command: ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(clipboardDialog.currentEntry)}' | ${Cliphist.cliphistBinary} decode`]
         stdout: StdioCollector {
             onStreamFinished: {
                 textDecoder.decodedText = text;
@@ -54,6 +62,7 @@ WindowDialog {
             pageEntries = Cliphist.entries.slice(0, itemsPerPage);
             clipboardDialog.forceActiveFocus();
             Cliphist.refresh();
+            loadCurrentPreview();
         }
     }
 
@@ -206,7 +215,7 @@ WindowDialog {
             StyledText {
                 text: qsTr("Preview")
                 font.bold: true
-                font.pixelSize: Appearance.font.pixelSize.medium
+                font.pixelSize: Appearance.font.pixelSize.large
                 color: Appearance.colors.colOnSurface
             }
 
@@ -255,7 +264,7 @@ WindowDialog {
                     anchors.centerIn: parent
                     visible: clipboardDialog.currentEntry === ""
                     text: qsTr("No item selected")
-                    color: Appearance.colors.colMuted
+                    color: Appearance.tiling.textDim
                 }
             }
         }

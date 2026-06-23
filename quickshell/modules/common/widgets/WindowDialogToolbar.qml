@@ -14,8 +14,8 @@ RowLayout {
     Layout.topMargin: 4
     Layout.bottomMargin: 4
 
-    property list<QtObject> leadingActions
-    property list<QtObject> trailingActions
+    property var leadingActions: []
+    property var trailingActions: []
     property bool paginationVisible: false
     property int currentPage: 0
     property int totalPages: 1

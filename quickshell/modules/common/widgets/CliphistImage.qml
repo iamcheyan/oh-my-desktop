@@ -48,9 +48,27 @@ Rectangle {
     implicitWidth: imageWidth * scale
     clip: true
 
+    function decodeImage() {
+        if (entry) {
+            imageSource = "";
+            checkAndDecode.running = false;
+            const num = entryNumber;
+            const filePath = `${imageDecodePath}/${num}`;
+            const escaped = StringUtils.shellSingleQuoteEscape(entry);
+            checkAndDecode.command = ["bash", "-c", `if file '${filePath}' 2>/dev/null | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif'; then echo cached; else rm -f '${filePath}' && printf '${escaped}' | ${Cliphist.cliphistBinary} decode > '${filePath}' 2>/dev/null && file '${filePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' && echo decoded; fi`];
+            checkAndDecode.running = true;
+        } else {
+            imageSource = "";
+            checkAndDecode.running = false;
+        }
+    }
+
+    onEntryChanged: {
+        decodeImage();
+    }
+
     Component.onCompleted: {
-        // Check if cached file is a valid image, otherwise decode fresh
-        checkAndDecode.running = true;
+        decodeImage();
     }
 
     Process {
