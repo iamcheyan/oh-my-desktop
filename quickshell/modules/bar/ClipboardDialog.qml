@@ -121,12 +121,14 @@ WindowDialog {
     }
 
     RowLayout {
+        id: layoutRow
         Layout.fillWidth: true
         Layout.fillHeight: true
         spacing: 16
 
         // Left Column: List
         ColumnLayout {
+            Layout.preferredWidth: (layoutRow.width - layoutRow.spacing * 2 - 1) / 2
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
@@ -208,6 +210,7 @@ WindowDialog {
 
         // Right Column: Preview
         ColumnLayout {
+            Layout.preferredWidth: (layoutRow.width - layoutRow.spacing * 2 - 1) / 2
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 8
