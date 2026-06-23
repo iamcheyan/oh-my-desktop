@@ -144,7 +144,7 @@ Scope {
             visible: GlobalStates.overviewOpen
 
             WlrLayershell.namespace: "quickshell:overview"
-            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
                 ? (WorkspaceSwitcherController.grabbed
                     ? WlrKeyboardFocus.Exclusive
@@ -152,10 +152,6 @@ Scope {
                 : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
-
-            mask: Region {
-                item: GlobalStates.overviewOpen ? columnLayout : null
-            }
 
             anchors {
                 top: true
@@ -196,8 +192,26 @@ Scope {
                 }
             }
 
-            implicitWidth: columnLayout.implicitWidth
-            implicitHeight: columnLayout.implicitHeight
+            implicitWidth: panelWindow.width
+            implicitHeight: panelWindow.height
+
+            // ── Overview mode (non-grabbed): full-screen scrim + large grid ──
+            Rectangle {
+                id: scrim
+                anchors.fill: parent
+                color: ColorUtils.transparentize("#000000", 0.45)
+                visible: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed
+
+                Behavior on opacity {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                }
+
+                // Click scrim to close
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: GlobalStates.overviewOpen = false
+                }
+            }
 
             Item {
                 id: overviewKeyHandler
@@ -258,35 +272,36 @@ Scope {
                 }
             }
 
-            StyledFlickable {
-                id: columnLayout
-                visible: GlobalStates.overviewOpen
-                anchors {
-                    horizontalCenter: parent.horizontalCenter
-                    verticalCenter: parent.verticalCenter
-                }
-                clip: true
-                readonly property real availableHeight: panelWindow.height * 0.85
-                implicitWidth: overviewLoader.implicitWidth
-                implicitHeight: visible
-                    ? Math.min(overviewLoader.implicitHeight, Math.max(0, availableHeight))
-                    : 0
-                width: implicitWidth
-                height: implicitHeight
-                contentWidth: width
-                contentHeight: overviewLoader.implicitHeight
-
-                Keys.onPressed: event => {
-                    if (event.key === Qt.Key_Escape)
-                        GlobalStates.overviewOpen = false;
-                }
+            // ── Overview mode: large workspace grid filling the screen ──
+            Item {
+                id: overviewContainer
+                anchors.fill: parent
+                visible: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed
 
                 Loader {
                     id: overviewLoader
-                    active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true)
+                    anchors.fill: parent
+                    active: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed && (Config?.options.overview.enable ?? true)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         visible: GlobalStates.overviewOpen
+                    }
+                }
+            }
+
+            // ── Switcher mode (grabbed): compact centered preview ──
+            Loader {
+                id: switcherLoader
+                anchors.centerIn: parent
+                active: GlobalStates.overviewOpen && WorkspaceSwitcherController.grabbed
+                sourceComponent: Item {
+                    width: switcherWidget.implicitWidth
+                    height: switcherWidget.implicitHeight
+                    OverviewWidget {
+                        id: switcherWidget
+                        screen: panelWindow.screen
+                        visible: true
+                        compactMode: true
                     }
                 }
             }

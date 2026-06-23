@@ -14,6 +14,7 @@ import Quickshell.Hyprland
 Item {
     id: root
     required property var screen
+    property bool compactMode: false
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
@@ -35,27 +36,55 @@ Item {
     property var windowByAddress: HyprlandData.windowByAddress
     property var windowAddresses: HyprlandData.addresses
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
-    property real scale: Config.options.overview.scale
-    property color activeBorderColor: Appearance.colors.colSecondary
 
-    property real workspaceImplicitWidth: (monitorData?.transform % 2 === 1) ? 
-        ((monitor.height - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale) :
-        ((monitor.width - monitorData?.reserved[0] - monitorData?.reserved[2]) * root.scale / monitor.scale)
-    property real workspaceImplicitHeight: (monitorData?.transform % 2 === 1) ? 
-        ((monitor.width - monitorData?.reserved[1] - monitorData?.reserved[3]) * root.scale / monitor.scale) :
-        ((monitor.height - monitorData?.reserved[1] - monitorData?.reserved[3]) * root.scale / monitor.scale)
+    // ── Adaptive scaling ──
+    // In full-screen mode, compute scale to fill the screen with large thumbnails.
+    // In compact mode, use the config scale value.
+    readonly property real screenW: monitorData?.transform % 2 === 1
+        ? (monitor.height - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
+        : (monitor.width - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
+    readonly property real screenH: monitorData?.transform % 2 === 1
+        ? (monitor.width - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
+        : (monitor.height - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
+
+    readonly property real gridPadding: root.compactMode ? 10 : 24
+    readonly property real containerMargin: root.compactMode ? Appearance.sizes.elevationMargin : 48
+
+    readonly property real availableW: root.compactMode
+        ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
+        : (root.width - containerMargin * 2 - gridPadding * (overviewGridColumns - 1))
+    readonly property real availableH: root.compactMode
+        ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
+        : (root.height - containerMargin * 2 - gridPadding * Math.max(0, overviewGridRows - 1))
+
+    // Per-workspace thumbnail size
+    readonly property real workspaceImplicitWidth: root.compactMode
+        ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
+        : Math.floor(availableW / overviewGridColumns)
+    readonly property real workspaceImplicitHeight: root.compactMode
+        ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
+        : Math.floor(availableH / overviewGridRows)
+
+    property real scale: root.compactMode
+        ? Config.options.overview.scale
+        : (workspaceImplicitWidth / (screenW / (monitor.scale ?? 1)))
+
     property real largeWorkspaceRadius: Appearance.rounding.large
     property real smallWorkspaceRadius: Appearance.rounding.verysmall
 
     property real workspaceNumberMargin: 80
-    property real workspaceNumberSize: 250 * monitor.scale
+    property real workspaceNumberSize: 250 * (monitor.scale ?? 1)
     property int workspaceZ: 0
     property int windowZ: 1
     property int windowDraggingZ: 99999
-    property real workspaceSpacing: 5
+    property real workspaceSpacing: root.compactMode ? 5 : gridPadding
 
-    implicitWidth: overviewBackground.implicitWidth + Appearance.sizes.elevationMargin * 2
-    implicitHeight: overviewBackground.implicitHeight + Appearance.sizes.elevationMargin * 2
+    implicitWidth: root.compactMode
+        ? (overviewBackground.implicitWidth + Appearance.sizes.elevationMargin * 2)
+        : root.width
+    implicitHeight: root.compactMode
+        ? (overviewBackground.implicitHeight + Appearance.sizes.elevationMargin * 2)
+        : root.height
 
     readonly property bool overviewNavigationActive: GlobalStates.overviewOpen
 
@@ -91,17 +120,24 @@ Item {
         WorkspaceNavigation.dispatchFocusWorkspace(wsId);
     }
 
+    property color activeBorderColor: Appearance.colors.colSecondary
+
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
 
-    StyledRectangularShadow {
-        target: overviewBackground
+    // ── Compact mode: shadow + rounded background container ──
+    Loader {
+        active: root.compactMode
+        sourceComponent: StyledRectangularShadow {
+            target: overviewBackground
+        }
     }
-    Rectangle { // Background
+    Rectangle { // Background (compact mode only)
         id: overviewBackground
         property real padding: 10
-        anchors.fill: parent
-        anchors.margins: Appearance.sizes.elevationMargin
+        visible: root.compactMode
+        anchors.centerIn: parent
+        anchors.margins: root.compactMode ? Appearance.sizes.elevationMargin : 0
 
         implicitWidth: workspaceColumnLayout.implicitWidth + padding * 2
         implicitHeight: workspaceColumnLayout.implicitHeight + padding * 2
@@ -123,15 +159,34 @@ Item {
                 wheel.accepted = true
             }
         }
+    }
 
-        GridLayout { // Workspaces
-            id: workspaceColumnLayout
+    // ── Full-screen mode: wheel scroll anywhere cycles workspaces ──
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        visible: !root.compactMode
+        acceptedButtons: Qt.NoButton
+        onWheel: wheel => {
+            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+            root.wheelAccum = r.accum
+            if (r.steps > 0)
+                Hyprland.dispatch("hl.dsp.global('quickshell:overviewPrev')")
+            else if (r.steps < 0)
+                Hyprland.dispatch("hl.dsp.global('quickshell:overviewNext')")
+            wheel.accepted = true
+        }
+    }
 
-            z: root.workspaceZ
-            anchors.centerIn: parent
-            columns: root.overviewGridColumns
-            rowSpacing: workspaceSpacing
-            columnSpacing: workspaceSpacing
+    // Workspace grid — centered in both modes
+    GridLayout { // Workspaces
+        id: workspaceColumnLayout
+
+        z: root.workspaceZ
+        anchors.centerIn: parent
+        columns: root.overviewGridColumns
+        rowSpacing: workspaceSpacing
+        columnSpacing: workspaceSpacing
 
             Repeater {
                 model: root.overviewEntries
@@ -228,11 +283,11 @@ Item {
             }
         }
 
-        Item { // Windows & focused workspace indicator
-            id: windowSpace
-            anchors.centerIn: parent
-            implicitWidth: workspaceColumnLayout.implicitWidth
-            implicitHeight: workspaceColumnLayout.implicitHeight
+    Item { // Windows & focused workspace indicator
+        id: windowSpace
+        anchors.centerIn: parent
+        implicitWidth: workspaceColumnLayout.implicitWidth
+        implicitHeight: workspaceColumnLayout.implicitHeight
 
             Repeater { // Window repeater
                 model: ScriptModel {
@@ -406,4 +461,3 @@ Item {
             }
         }
     }
-}
