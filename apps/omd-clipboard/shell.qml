@@ -52,7 +52,7 @@ ShellRoot {
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:clipboard"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             color: "transparent"
 
             function close() {

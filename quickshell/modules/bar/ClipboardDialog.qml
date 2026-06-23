@@ -15,6 +15,13 @@ WindowDialog {
     backgroundWidth: 850
     anchorPosition: 0
     anchorMargin: 8
+    focus: true
+
+    onActiveFocusChanged: {
+        if (!activeFocus && visible && show) {
+            clipboardDialog.forceActiveFocus();
+        }
+    }
 
     property int keyboardIndex: 0
     property int currentPage: 0
@@ -259,6 +266,7 @@ WindowDialog {
                         font.pixelSize: Appearance.font.pixelSize.smallie
                         color: Appearance.colors.colOnSurface
                         background: null
+                        activeFocusOnPress: false
                     }
                 }
 
