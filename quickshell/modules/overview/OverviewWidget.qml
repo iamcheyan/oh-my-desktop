@@ -227,6 +227,19 @@ Item {
                     bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
                     border.width: 2
                     border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
+                    clip: true
+
+                    // Wallpaper background for empty workspaces
+                    Image {
+                        anchors.fill: parent
+                        source: workspace.isTrailingEmpty ? "" : FileUtils.expandHomePath(Config.options.background.wallpaperPath)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        cache: true
+                        mipmap: true
+                        visible: !workspace.isTrailingEmpty
+                        opacity: 0.35
+                    }
 
                     StyledText {
                         anchors.centerIn: parent
