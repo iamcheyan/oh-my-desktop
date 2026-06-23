@@ -13,6 +13,7 @@ import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.schedulePopup
 import qs.modules.sidebarRight
+import qs.modules.regionSelector
 
 import QtQuick
 import Quickshell
@@ -39,6 +40,7 @@ ShellRoot {
             NotificationPopup {}
             OnScreenDisplay {}
             Polkit {}
+            RegionSelector {}
         }
     }
 }
