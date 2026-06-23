@@ -1,4 +1,5 @@
 import Quickshell
+import qs.modules.bar
 import qs
 import qs.services
 import qs.modules.common
