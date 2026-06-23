@@ -57,11 +57,12 @@ Singleton {
         return !ws.name.startsWith("special:");
     }
 
-    // Global overview: workspaces with windows, ordered by MRU (most-recently-used)
-    // like Win11 Alt+Tab Z-order, plus one trailing empty slot.
+    // Global overview: all regular workspaces (including empty ones on active
+    // monitors), ordered by MRU (most-recently-used) like Win11 Alt+Tab Z-order,
+    // plus one trailing empty slot.
     function overviewWorkspaceEntriesGlobal() {
         const regularWorkspaces = root.workspaces
-            .filter(ws => root.isRegularWorkspace(ws) && ws.windows > 0)
+            .filter(ws => root.isRegularWorkspace(ws))
             .sort((a, b) => a.id - b.id);
 
         const seen = {};
