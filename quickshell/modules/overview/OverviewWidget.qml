@@ -25,22 +25,6 @@ Item {
         : effectiveActiveWorkspaceId)
     readonly property var overviewEntries: HyprlandData.overviewWorkspaceEntriesGlobal()
     readonly property var overviewEntryIds: root.overviewEntries.map(entry => entry.id)
-    readonly property int overviewGridColumns: {
-        let n = Math.max(root.overviewEntries.length, 1);
-        let maxCols = Config.options.overview.columns;
-        if (root.compactMode) {
-            // Switcher: row-first, keep in one row like Windows Alt+Tab
-            return Math.min(n, maxCols);
-        }
-        // Overview: prefer more rows to maximize vertical screen space
-        if (n >= 4) {
-            return Math.min(maxCols, Math.max(2, Math.floor(Math.sqrt(n))));
-        }
-        return Math.min(n, maxCols);
-    }
-    readonly property int overviewGridRows: Math.max(
-        1,
-        Math.ceil(root.overviewEntries.length / root.overviewGridColumns))
     property bool monitorIsFocused: (Hyprland.focusedMonitor?.name == monitor?.name)
     property var windows: HyprlandData.windowList
     property var windowByAddress: HyprlandData.windowByAddress
@@ -68,6 +52,33 @@ Item {
     readonly property real availH: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
         : (root.height - containerMargin * 2)
+
+    // Overview: try every column count, pick the one that gives the largest thumbnail
+    readonly property int overviewGridColumns: {
+        let n = Math.max(root.overviewEntries.length, 1);
+        let maxCols = Config.options.overview.columns;
+        if (root.compactMode) {
+            // Switcher: row-first, keep in one row like Windows Alt+Tab
+            return Math.min(n, maxCols);
+        }
+        let bestCols = 1;
+        let bestThumb = 0;
+        let aspect = screenW / screenH;
+        for (let c = 1; c <= Math.min(n, maxCols); c++) {
+            let r = Math.ceil(n / c);
+            let tw = (availW - gridPadding * (c - 1)) / c;
+            let th = (availH - gridPadding * (r - 1)) / r;
+            let constrained = Math.min(tw, th * aspect);
+            if (constrained > bestThumb) {
+                bestThumb = constrained;
+                bestCols = c;
+            }
+        }
+        return bestCols;
+    }
+    readonly property int overviewGridRows: Math.max(
+        1,
+        Math.ceil(root.overviewEntries.length / root.overviewGridColumns))
 
     // How big would each thumbnail be if we fill width vs height?
     // Workspaces keep the real screen aspect ratio (screenW : screenH).
