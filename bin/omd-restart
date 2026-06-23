@@ -10,7 +10,11 @@ start_app() {
     app="$1"
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         systemctl --user stop "$app.service" >/dev/null 2>&1 || true
+        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
+        rm -f "/run/user/$(id -u)/systemd/transient/$app.service" 2>/dev/null || true
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
         systemd-run --user --unit="$app" --collect \
+            --property=KillMode=process \
             /bin/sh -c "exec \"\$HOME/.config/omd/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
     else
         setsid "$HOME/.config/omd/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
