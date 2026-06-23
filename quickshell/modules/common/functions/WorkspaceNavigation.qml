@@ -2,11 +2,20 @@ pragma Singleton
 
 import qs
 import qs.services
+import qs.modules.common.functions
 import Quickshell
 import Quickshell.Hyprland
 
 Singleton {
     id: root
+
+    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
+
+    function openAppLauncher() {
+        Quickshell.execDetached([
+            "qs", "-p", root.appLauncherApp, "ipc", "call", "appLauncher", "open"
+        ]);
+    }
 
     function overviewModel() {
         return HyprlandData.overviewWorkspaceEntriesGlobal();
@@ -93,7 +102,7 @@ Singleton {
         if (root.focusedEntryIsTrailingEmpty()) {
             Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
             if (openLauncher)
-                GlobalStates.appLauncherOpen = true;
+                root.openAppLauncher();
             return;
         }
 

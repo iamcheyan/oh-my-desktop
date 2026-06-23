@@ -14,6 +14,7 @@ Scope {
     id: screenCorners
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
     readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
+    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
 
     function callOverview(method) {
         Quickshell.execDetached([
@@ -21,10 +22,16 @@ Scope {
         ]);
     }
 
+    function callAppLauncher(method) {
+        Quickshell.execDetached([
+            "qs", "-p", screenCorners.appLauncherApp, "ipc", "call", "appLauncher", method
+        ]);
+    }
+
     property var actionForCorner: ({
         [RoundCorner.CornerEnum.TopLeft]: () => screenCorners.callOverview("toggle"),
         [RoundCorner.CornerEnum.BottomLeft]: () => {},
-        [RoundCorner.CornerEnum.TopRight]: () => GlobalStates.appLauncherOpen = !GlobalStates.appLauncherOpen,
+        [RoundCorner.CornerEnum.TopRight]: () => screenCorners.callAppLauncher("toggle"),
         [RoundCorner.CornerEnum.BottomRight]: () => GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
     })
 
@@ -64,13 +71,6 @@ Scope {
                     cooldownTimer.restart();
                 }
             }
-            function onAppLauncherOpenChanged() {
-                if (hotspot.isRight && !GlobalStates.appLauncherOpen) {
-                    hotspot.triggered = false;
-                    hotspot.cooldown = true;
-                    cooldownTimer.restart();
-                }
-            }
         }
 
         MouseArea {
@@ -81,7 +81,9 @@ Scope {
                 if (hotspot.triggered || hotspot.cooldown) return;
                 hotspot.triggered = true;
                 if (hotspot.isRight) {
-                    GlobalStates.appLauncherOpen = true;
+                    screenCorners.callAppLauncher("open");
+                    hotspot.cooldown = true;
+                    cooldownTimer.restart();
                 } else {
                     screenCorners.callOverview("open");
                     hotspot.cooldown = true;

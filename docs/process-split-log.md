@@ -13,12 +13,13 @@ db0e9a3 Fix split process IPC startup
 
 ## What Changed
 
-The active runtime is now split into three Quickshell processes:
+The active runtime is now split into four Quickshell processes:
 
 ```text
 quickshell -p ~/.config/omd/apps/omd-bar
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
+quickshell -p ~/.config/omd/apps/omd-applauncher
 ```
 
 The compatibility monolith still exists at:
@@ -43,13 +44,14 @@ Owns the persistent shell UI:
 - bar dialog overlay
 - right sidebar
 - schedule popup
-- app launcher
 - notification popup
 - OSD
 - screen corner chrome and hot corners
 - polkit UI
 
 The Workspaces button and top-left hot corner now call `omd-overview` over IPC.
+The "Applications" button and top-right hot corner now call `omd-applauncher`
+over IPC instead of toggling `GlobalStates.appLauncherOpen` in-process.
 
 ### `omd-overview`
 
@@ -74,6 +76,23 @@ qs -p ~/.config/omd/apps/omd-overview ipc call switcher commit
 
 Later it can render its own UI while continuing to use the shared workspace
 rules.
+
+### `omd-applauncher`
+
+Owns the app launcher panel (searchable application grid with pinned apps and
+running indicators). It is a standalone process with its own `IpcHandler`
+exposing `appLauncher toggle/open/close`.
+
+Callers that previously toggled `GlobalStates.appLauncherOpen` in-process now
+relay over IPC:
+
+- `quickshell/modules/ii/bar/BarContent.qml` — "Applications" button
+- `quickshell/modules/ii/screenCorners/ScreenCorners.qml` — top-right hot corner
+- `quickshell/modules/common/functions/WorkspaceNavigation.qml` — opens the
+  launcher when committing to a trailing empty workspace
+
+The launcher no longer reads `GlobalStates.appLauncherOpen`; visibility is
+driven by a local `open` property set through the IPC handler.
 
 ## Shared Workspace Rules
 
@@ -104,13 +123,14 @@ Omarchy autostart now launches:
 o.exec_on_start("$HOME/.config/omd/bin/omd-restart")
 ```
 
-`omd-restart` starts the three apps as user systemd transient services when
+`omd-restart` starts the four apps as user systemd transient services when
 available:
 
 ```text
 omd-bar.service
 omd-overview.service
 omd-switcher.service
+omd-applauncher.service
 ```
 
 This matters because plain background shell jobs were cleaned up after
@@ -204,9 +224,9 @@ Result: killing `omd-overview` left `omd-bar` and `omd-switcher` running.
   `common/` layout later.
 - Some singleton services are still imported broadly through shared QML imports.
   Further pruning is needed so each app only loads the services it owns.
-- `omd-bar` currently owns several adjacent surfaces, including app launcher,
-  sidebar, notification popup, OSD, screen corners, and polkit. These can be
-  split later if needed.
+- `omd-bar` currently owns several adjacent surfaces, including sidebar,
+  notification popup, OSD, screen corners, and polkit. These can be split
+  later if needed.
 
 ## Next Steps
 

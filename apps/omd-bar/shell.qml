@@ -7,7 +7,6 @@
 import "modules/common"
 import "services"
 
-import qs.modules.ii.appLauncher
 import qs.modules.ii.bar
 import qs.modules.ii.notificationPopup
 import qs.modules.ii.onScreenDisplay
@@ -50,7 +49,6 @@ ShellRoot {
             BarDialogOverlay {}
             SidebarRight {}
             SchedulePopup {}
-            AppLauncher {}
             NotificationPopup {}
             OnScreenDisplay {}
             ScreenCorners {}

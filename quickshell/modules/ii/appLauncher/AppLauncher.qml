@@ -17,16 +17,17 @@ PanelWindow {
 
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "quickshell:appLauncher"
-    WlrLayershell.keyboardFocus: GlobalStates.appLauncherOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    WlrLayershell.keyboardFocus: launcher.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
     anchors { top: true; left: true; right: true; bottom: true }
 
-    visible: GlobalStates.appLauncherOpen
+    visible: launcher.open
 
     readonly property string stateDir: Quickshell.shellDir + "/.state"
     readonly property string stateFile: stateDir + "/pinned-apps"
 
+    property bool open: false
     property real cardOffsetX: 0
     property real cardOffsetY: 0
     property string focusedAppDescription: ""
@@ -241,7 +242,7 @@ PanelWindow {
         target: DesktopEntries
         function onApplicationsChanged() {
             launcher.appsLoaded = false;
-            if (launcher.visible) launcher.loadApps();
+            launcher.loadApps();
         }
     }
 
@@ -260,6 +261,7 @@ PanelWindow {
 
     onVisibleChanged: {
         if (visible) {
+            if (!appsLoaded) loadApps();
             updateRunningSet();
             cardOffsetX = 0;
             cardOffsetY = 0;
@@ -273,17 +275,9 @@ PanelWindow {
         }
     }
 
-    GlobalShortcut {
-        name: "appLauncherToggle"
-        description: "Toggle app launcher"
-        onPressed: {
-            GlobalStates.appLauncherOpen = !GlobalStates.appLauncherOpen;
-        }
-    }
-
     MouseArea {
         anchors.fill: parent
-        onClicked: GlobalStates.appLauncherOpen = false
+        onClicked: launcher.open = false
     }
 
     Rectangle {
@@ -418,11 +412,11 @@ PanelWindow {
                             padding: 0
                             renderType: Text.NativeRendering
                             onTextChanged: launcher.buildFilteredList()
-                            Keys.onEscapePressed: GlobalStates.appLauncherOpen = false
+                            Keys.onEscapePressed: launcher.open = false
                             Keys.onReturnPressed: {
                                 if (launcher.filteredApps.length > 0) {
                                     launcher.launchApp(launcher.filteredApps[0]);
-                                    GlobalStates.appLauncherOpen = false;
+                                    launcher.open = false;
                                 }
                             }
                         }
@@ -591,7 +585,7 @@ PanelWindow {
                                     return;
                                 }
                                 launcher.launchApp(appItem.modelData);
-                                GlobalStates.appLauncherOpen = false;
+                                launcher.open = false;
                             }
                         }
                     }
@@ -698,15 +692,15 @@ PanelWindow {
         target: "appLauncher"
 
         function toggle(): void {
-            GlobalStates.appLauncherOpen = !GlobalStates.appLauncherOpen;
+            launcher.open = !launcher.open;
         }
 
         function close(): void {
-            GlobalStates.appLauncherOpen = false;
+            launcher.open = false;
         }
 
         function open(): void {
-            GlobalStates.appLauncherOpen = true;
+            launcher.open = true;
         }
     }
 }

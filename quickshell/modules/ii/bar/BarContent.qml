@@ -20,12 +20,18 @@ Item { // Bar content region
     readonly property bool anyChildActive: GlobalStates.barDialogOpen
         || GlobalStates.sidebarRightOpen
         || GlobalStates.scheduleOpen
-        || GlobalStates.appLauncherOpen
         || GlobalStates.overviewOpen
 
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
     readonly property int barActiveWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.barMonitor)
+    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
+
+    function toggleAppLauncher() {
+        Quickshell.execDetached([
+            "qs", "-p", root.appLauncherApp, "ipc", "call", "appLauncher", "toggle"
+        ]);
+    }
     readonly property bool workspaceHasWindows: {
         const wsId = root.barActiveWorkspaceId;
         if (wsId < 1)
@@ -93,7 +99,7 @@ Item { // Bar content region
         BarTextButton {
             Layout.alignment: Qt.AlignVCenter
             text: "Applications"
-            onTriggered: GlobalStates.appLauncherOpen = !GlobalStates.appLauncherOpen
+            onTriggered: root.toggleAppLauncher()
         }
 
         Workspaces {
