@@ -5,13 +5,13 @@ multi-process migration.
 
 ## Current Goal
 
-Separate the bar from workspace overview/switcher failures.
+Separate the bar from workspace overview (工作区概览) / switcher (快速切换) failures.
 
 The first process boundary is:
 
 ```text
 omd-bar       persistent bar and bar-adjacent UI
-omd-overview  overview/switcher visual surface
+omd-overview  overview (工作区概览) / switcher (快速切换) visual surface
 omd-switcher  lightweight Win+Tab shortcut and IPC relay
 ```
 
@@ -73,9 +73,9 @@ Quickshell IPC.
 
 Owns:
 
-- overview panel windows
+- overview (工作区概览) panel windows
 - current overview UI
-- current Win+Tab visual surface
+- current Win+Tab visual surface (Switcher 快速切换)
 - shared workspace/window navigation rules
 
 The process exposes IPC targets:

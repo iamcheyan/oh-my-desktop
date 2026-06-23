@@ -57,8 +57,9 @@ Singleton {
         return !ws.name.startsWith("special:");
     }
 
-    // Global overview: all regular workspaces (including empty ones on active
-    // monitors), ordered by MRU (most-recently-used) like Win11 Alt+Tab Z-order,
+    // Overview (工作区概览) / Switcher (快速切换): all regular workspaces
+    // (including empty ones on active monitors), ordered by MRU
+    // (most-recently-used) like Win11 Alt+Tab Z-order,
     // plus one trailing empty slot.
     function overviewWorkspaceEntriesGlobal() {
         const regularWorkspaces = root.workspaces

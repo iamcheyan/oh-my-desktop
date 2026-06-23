@@ -195,7 +195,7 @@ Scope {
             implicitWidth: panelWindow.width
             implicitHeight: panelWindow.height
 
-            // ── Overview mode (non-grabbed): full-screen scrim + large grid ──
+            // ── Overview (工作区概览): full-screen scrim + large grid ──
             Rectangle {
                 id: scrim
                 anchors.fill: parent
@@ -272,7 +272,7 @@ Scope {
                 }
             }
 
-            // ── Overview mode: large workspace grid filling the screen ──
+            // ── Overview (工作区概览): large workspace grid filling the screen ──
             Item {
                 id: overviewContainer
                 anchors.fill: parent
@@ -289,7 +289,7 @@ Scope {
                 }
             }
 
-            // ── Switcher mode (grabbed): compact centered preview ──
+            // ── Switcher (快速切换): compact centered preview ──
             Loader {
                 id: switcherLoader
                 anchors.centerIn: parent

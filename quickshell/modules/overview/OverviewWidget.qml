@@ -32,9 +32,8 @@ Item {
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
 
     // ── Adaptive scaling ──
-    // In full-screen mode, keep workspace aspect ratio (same as the real screen)
-    // and compute the largest thumbnail that fits, then center the grid.
-    // In compact mode, use the config scale value.
+    // Overview (工作区概览): full-screen grid, auto-select optimal columns
+    // Switcher (快速切换): compact preview, use config scale value
     readonly property real screenW: monitorData?.transform % 2 === 1
         ? (monitor.height - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
         : (monitor.width - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
@@ -53,12 +52,12 @@ Item {
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
         : (root.height - containerMargin * 2)
 
-    // Overview: try every column count, pick the one that gives the largest thumbnail
+    // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
     readonly property int overviewGridColumns: {
         let n = Math.max(root.overviewEntries.length, 1);
         let maxCols = Config.options.overview.columns;
         if (root.compactMode) {
-            // Switcher: row-first, keep in one row like Windows Alt+Tab
+            // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
             return Math.min(n, maxCols);
         }
         let bestCols = 1;
@@ -154,14 +153,14 @@ Item {
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
 
-    // ── Compact mode: shadow + rounded background container ──
+    // ── Switcher (快速切换): shadow + rounded background container ──
     Loader {
         active: root.compactMode
         sourceComponent: StyledRectangularShadow {
             target: overviewBackground
         }
     }
-    Rectangle { // Background (compact mode only)
+    Rectangle { // Background (Switcher only)
         id: overviewBackground
         property real padding: 10
         visible: root.compactMode
@@ -190,7 +189,7 @@ Item {
         }
     }
 
-    // ── Full-screen mode: wheel scroll anywhere cycles workspaces ──
+    // ── Overview (工作区概览): wheel scroll anywhere cycles workspaces ──
     MouseArea {
         anchors.fill: parent
         z: -1

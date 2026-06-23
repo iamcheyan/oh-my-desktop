@@ -31,6 +31,12 @@ o.bind("SUPER + SHIFT + ALT + X", "X Post", { webapp = "https://x.com/compose/po
 -- Add extra bindings below.
 -- o.bind("SUPER + SHIFT + R", "SSH", "alacritty -e ssh your-server")
 
+-- Change window move/resize modifier from SUPER to ALT.
+hl.unbind("SUPER + mouse:272")
+hl.unbind("SUPER + mouse:273")
+o.bind("ALT + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
+o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
+
 -- Overwrite existing bindings with hl.unbind() first if needed.
 -- hl.unbind("SUPER + SPACE")
 -- o.bind("SUPER + SPACE", "Omarchy menu", "omarchy-menu")

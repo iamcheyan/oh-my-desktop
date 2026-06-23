@@ -123,8 +123,8 @@ Follow `docs/module-split-plan.md`.
 Short version:
 
 - First split `omd-bar`.
-- Then split `omd-overview`.
-- Then split `omd-switcher`.
+- Then split `omd-overview` (工作区概览).
+- Then split `omd-switcher` (快速切换).
 - Keep shared code in `common`.
 - Do not duplicate DBus/listener-heavy services across multiple Quickshell
   processes.

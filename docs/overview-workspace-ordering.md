@@ -1,4 +1,9 @@
-# Overview 工作区切换：Win11 Alt+Tab 逻辑
+# 工作区切换：Win11 Alt+Tab 逻辑
+
+## 术语定义
+
+- **Overview (工作区概览)**：全屏工作区网格，由热区触发，用于浏览和管理工作区布局
+- **Switcher (快速切换)**：紧凑型工作区预览，由 Win+Tab 触发，用于快速切换工作区
 
 ## Win11 Alt+Tab 核心机制
 
@@ -63,13 +68,13 @@ Alt+Tab+Tab+Tab+Tab (光标移到E) → 释放 → 切换到E
 #### MRU 列表维护
 
 - **初始化**：首次启动/锚点未初始化时，按 id 升序填充所有可见工作区
-- **切换工作区时**（overview 关闭、点击工作区格、点击窗口）：
+- **切换工作区时**（Overview/Switcher 关闭、点击工作区格、点击窗口）：
   1. 从 MRU 列表中移除选中的工作区 id
   2. 将其 `unshift` 到列表头部
-- **overview 打开期间**：MRU 列表**冻结**，不随高亮变化
+- **Overview/Switcher 打开期间**：MRU 列表**冻结**，不随高亮变化
   （等价于 Win11 "列表顺序在打开期间不变"）
 
-#### overview 渲染
+#### Overview/Switcher 渲染
 
 `overviewWorkspaceEntriesGlobal()` 按 MRU 顺序排列工作区：
 
@@ -91,21 +96,21 @@ function overviewWorkspaceEntriesGlobal() {
 #### 光标初始位置
 
 Win11 打开 Alt+Tab 时光标在**第二位**（不是第一位）。
-当前 overview 打开时 `overviewFocusedWorkspaceId = currentWorkspaceId()`，
+当前 Switcher 打开时 `overviewFocusedWorkspaceId = currentWorkspaceId()`，
 即光标在第一位（当前工作区）。
 
 要完全模拟 Win11，需要：
-- overview 打开时光标初始在 **MRU 第二位**（次最近的工作区）
+- Switcher 打开时光标初始在 **MRU 第二位**（次最近的工作区）
 - 这样快速 Tab+释放 = 切到次最近的工作区
 - 再次打开 = 刚切换到的工作区成第一位，之前的成第二位 → 来回切换
 
-但当前 overview 的 grab 模式已经实现了类似行为：
+但当前 Switcher 的 grab 模式已经实现了类似行为：
 `openGrabbedMode(dir)` 会立即 cycle 一次，等价于光标从第一位移到第二位。
 所以保持现有 grab 模式即可。
 
 #### 锚点更新时机
 
-与之前一致，只在 overview 关闭时更新 MRU：
+与之前一致，只在 Overview/Switcher 关闭时更新 MRU：
 - `Overview.qml onOverviewOpenChanged` 关闭分支：
   把停留的工作区移到 MRU 头部
 - `OverviewWidget.qml` 点击工作区格/窗口：

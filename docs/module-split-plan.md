@@ -117,7 +117,7 @@ Likely services:
 
 ### `omd-overview`
 
-Owns workspace and window overview.
+Owns workspace and window overview (工作区概览).
 
 Initial contents:
 
@@ -130,7 +130,7 @@ edge cases and should not take down the bar.
 
 ### `omd-switcher`
 
-Owns a lightweight window switcher, separate from overview.
+Owns a lightweight window switcher (快速切换), separate from overview.
 
 This should be designed as a smaller module instead of overloading overview.
 Use the spelling `switcher`, not `swither`.

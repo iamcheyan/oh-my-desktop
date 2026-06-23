@@ -57,10 +57,10 @@ over IPC instead of toggling `GlobalStates.appLauncherOpen` in-process.
 
 ### `omd-overview`
 
-Owns the current overview visual surface:
+Owns the current overview (工作区概览) visual surface:
 
 - workspace overview windows
-- current Win+Tab visual surface
+- current Win+Tab visual surface (Switcher 快速切换)
 - overview IPC target
 - switcher IPC target used by `omd-switcher`
 
