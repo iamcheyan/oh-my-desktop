@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-bar($| )" || true
+pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-overview($| )" || true
+pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-switcher($| )" || true
+
+"$HOME/.config/omd/bin/omd-bar" &
+"$HOME/.config/omd/bin/omd-overview" &
+"$HOME/.config/omd/bin/omd-switcher" &

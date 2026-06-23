@@ -13,8 +13,16 @@ import Quickshell.Hyprland
 Scope {
     id: screenCorners
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
+    readonly property string overviewApp: `${Directories.config}/omd/apps/omd-overview`
+
+    function callOverview(method) {
+        Quickshell.execDetached([
+            "qs", "-p", screenCorners.overviewApp, "ipc", "call", "overview", method
+        ]);
+    }
+
     property var actionForCorner: ({
-        [RoundCorner.CornerEnum.TopLeft]: () => GlobalStates.overviewOpen = !GlobalStates.overviewOpen,
+        [RoundCorner.CornerEnum.TopLeft]: () => screenCorners.callOverview("toggle"),
         [RoundCorner.CornerEnum.BottomLeft]: () => {},
         [RoundCorner.CornerEnum.TopRight]: () => GlobalStates.appLauncherOpen = !GlobalStates.appLauncherOpen,
         [RoundCorner.CornerEnum.BottomRight]: () => GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
@@ -72,10 +80,13 @@ Scope {
             onEntered: {
                 if (hotspot.triggered || hotspot.cooldown) return;
                 hotspot.triggered = true;
-                if (hotspot.isRight)
+                if (hotspot.isRight) {
                     GlobalStates.appLauncherOpen = true;
-                else
-                    GlobalStates.overviewOpen = true;
+                } else {
+                    screenCorners.callOverview("open");
+                    hotspot.cooldown = true;
+                    cooldownTimer.restart();
+                }
             }
             onExited: {
                 hotspot.triggered = false;

@@ -25,6 +25,7 @@ Runtime symlinks:
 ```
 ~/.config/quickshell -> ~/development/OMD/quickshell
 ~/.config/omarchy    -> ~/development/OMD/omarchy
+~/.config/omd        -> ~/development/OMD
 ```
 
 `~/.config/hypr` is legacy and not part of the current Omarchy session.
@@ -33,9 +34,9 @@ Runtime symlinks:
 
 - Hyprland loads Omarchy config from `~/.config/omarchy/hypr/hyprland.lua`.
 - Omarchy autostart launches Quickshell via
-  `~/.config/quickshell/scripts/quickshell`.
-- Quickshell launches with `quickshell -p ~/.config/quickshell`, so there is no
-  extra `ii/` directory in the active layout.
+  `~/.config/omd/bin/omd-restart`.
+- Quickshell runs as three app processes: `omd-bar`, `omd-overview`, and
+  `omd-switcher`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
 
 ## Planning Docs
@@ -52,9 +53,9 @@ Runtime symlinks:
 - Prefer existing widgets such as `MaterialSymbol`, `StyledText`,
   `RippleButton`, `IconImage`, and `CosmicIcon`.
 - The shell hot-reloads on QML/config file changes. To force restart:
-  `pkill -f 'quickshell.* -p .*/\\.config/quickshell($| )' || true; ~/.config/quickshell/scripts/quickshell &`.
+  `~/.config/omd/bin/omd-restart`.
 - `quickshell/scripts/quickshell` accepts an optional config directory for
-  future split apps, but defaults to `~/.config/quickshell`.
+  split apps, but defaults to `~/.config/quickshell`.
 
 ### Omarchy / Hyprland
 

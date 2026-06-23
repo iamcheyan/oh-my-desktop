@@ -380,30 +380,4 @@ Scope {
         description: "Workspace overview: commit on Win release"
         onPressed: overviewScope.commitGrabbedMode()
     }
-
-    GlobalShortcut {
-        name: "switcherNext"
-        description: "Workspace switcher: cycle next (Win+Tab)"
-        onPressed: {
-            const now = Date.now();
-            if (now - overviewScope.lastWheelShortcut < 150) return;
-            overviewScope.lastWheelShortcut = now;
-            WorkspaceSwitcherController.openGrabbedMode(1);
-        }
-    }
-    GlobalShortcut {
-        name: "switcherPrev"
-        description: "Workspace switcher: cycle prev (Win+Shift+Tab)"
-        onPressed: {
-            const now = Date.now();
-            if (now - overviewScope.lastWheelShortcut < 150) return;
-            overviewScope.lastWheelShortcut = now;
-            WorkspaceSwitcherController.openGrabbedMode(-1);
-        }
-    }
-    GlobalShortcut {
-        name: "switcherCommit"
-        description: "Workspace switcher: commit on Win release"
-        onPressed: WorkspaceSwitcherController.commitGrabbedMode()
-    }
 }

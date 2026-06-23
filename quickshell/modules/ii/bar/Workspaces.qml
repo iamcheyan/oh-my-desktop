@@ -8,6 +8,13 @@ Item {
 
     property bool vertical: false
     property int widgetPadding: 0
+    readonly property string overviewApp: `${Directories.config}/omd/apps/omd-overview`
+
+    function toggleOverview() {
+        Quickshell.execDetached([
+            "qs", "-p", root.overviewApp, "ipc", "call", "overview", "toggle"
+        ]);
+    }
 
     implicitWidth: workspacesButton.implicitWidth
     implicitHeight: workspacesButton.implicitHeight
@@ -15,6 +22,6 @@ Item {
     BarTextButton {
         id: workspacesButton
         text: "Workspaces"
-        onTriggered: GlobalStates.overviewOpen = !GlobalStates.overviewOpen
+        onTriggered: root.toggleOverview()
     }
 }

@@ -22,25 +22,26 @@ The old path `~/.config/hypr` is legacy. Do not use it for current work.
 
 ## Current State
 
-Current runtime is still a single Quickshell config:
+Current runtime is split into three Quickshell processes:
 
 ```sh
-quickshell -p ~/.config/quickshell
+quickshell -p ~/.config/omd/apps/omd-bar
+quickshell -p ~/.config/omd/apps/omd-overview
+quickshell -p ~/.config/omd/apps/omd-switcher
 ```
 
-The launcher at `quickshell/scripts/quickshell` also accepts an optional
-config directory:
+The launcher at `quickshell/scripts/quickshell` accepts an optional config
+directory:
 
 ```sh
 quickshell/scripts/quickshell ~/.config/quickshell
 ```
 
-Future split modules should use the same launcher with their own app root so
-Wayland/Hyprland session discovery stays consistent.
+Split modules use the same launcher with their own app root so Wayland/Hyprland
+session discovery stays consistent.
 
-The future target is split apps under `apps/`, but that has not been performed
-yet. Do not assume `apps/omd-bar` exists until it is created in a migration
-commit.
+The legacy monolithic root `~/.config/quickshell` remains as source/fallback
+during migration. Omarchy autostart should use `~/.config/omd/bin/omd-restart`.
 
 ## Privacy Rules
 
@@ -92,8 +93,7 @@ For Quickshell changes:
 ```sh
 python -m json.tool quickshell/config.json >/tmp/omd-config-check.json
 sh -n quickshell/scripts/quickshell
-pkill -f 'quickshell.* -p .*/\\.config/quickshell($| )' || true
-~/.config/quickshell/scripts/quickshell &
+~/.config/omd/bin/omd-restart
 ```
 
 For Omarchy/Hyprland changes:
@@ -111,7 +111,9 @@ pgrep -af 'quickshell|qs -p'
 Expected current process:
 
 ```text
-quickshell -p $HOME/.config/quickshell
+quickshell -p $HOME/.config/omd/apps/omd-bar
+quickshell -p $HOME/.config/omd/apps/omd-overview
+quickshell -p $HOME/.config/omd/apps/omd-switcher
 ```
 
 ## Module Split Direction

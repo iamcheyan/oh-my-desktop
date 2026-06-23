@@ -19,18 +19,21 @@ Current active paths:
 ```text
 ~/.config/quickshell -> ~/development/OMD/quickshell
 ~/.config/omarchy    -> ~/development/OMD/omarchy
+~/.config/omd        -> ~/development/OMD
 ```
 
-Current Quickshell is still one process:
+Current Quickshell runtime is split into three processes:
 
 ```sh
-quickshell -p ~/.config/quickshell
+quickshell -p ~/.config/omd/apps/omd-bar
+quickshell -p ~/.config/omd/apps/omd-overview
+quickshell -p ~/.config/omd/apps/omd-switcher
 ```
 
 Current Omarchy autostart entry:
 
 ```lua
-o.exec_on_start("$HOME/.config/quickshell/scripts/quickshell")
+o.exec_on_start("$HOME/.config/omd/bin/omd-restart")
 ```
 
 ## Target Layout
@@ -136,8 +139,8 @@ Current migration state:
 
 - `SUPER+TAB`, `SUPER+SHIFT+TAB`, and Super release now use logical
   `switcherNext`, `switcherPrev`, and `switcherCommit` shortcut names.
-- The switcher still displays the current overview UI while the shared
-  workspace/window rules are being extracted.
+- `omd-switcher` is a separate Quickshell process and currently relays to
+  `omd-overview` for the visual surface.
 - Shared rules live under `quickshell/modules/common/functions/`, currently
   `WorkspaceNavigation.qml` and `WorkspaceSwitcherController.qml`.
 
