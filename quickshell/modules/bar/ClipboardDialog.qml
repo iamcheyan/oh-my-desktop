@@ -111,10 +111,20 @@ WindowDialog {
         if (event.key === Qt.Key_Down) {
             event.accepted = true;
             if (pageEntries.length === 0) return;
-            keyboardIndex = Math.min(keyboardIndex + 1, pageEntries.length - 1);
+            if (keyboardIndex < pageEntries.length - 1) {
+                keyboardIndex++;
+            } else if (currentPage < totalPages - 1) {
+                nextPage();
+                keyboardIndex = 0;
+            }
         } else if (event.key === Qt.Key_Up) {
             event.accepted = true;
-            keyboardIndex = Math.max(keyboardIndex - 1, 0);
+            if (keyboardIndex > 0) {
+                keyboardIndex--;
+            } else if (currentPage > 0) {
+                prevPage();
+                keyboardIndex = pageEntries.length - 1;
+            }
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true;
             copySelected();
@@ -186,18 +196,22 @@ WindowDialog {
                             for (let i = 0; i < steps; i++) {
                                 if (clipboardDialog.keyboardIndex > 0) {
                                     clipboardDialog.keyboardIndex--;
-                                } else {
+                                } else if (clipboardDialog.currentPage > 0) {
                                     clipboardDialog.prevPage();
                                     clipboardDialog.keyboardIndex = Math.min(clipboardDialog.pageEntries.length - 1, clipboardDialog.itemsPerPage - 1);
+                                } else {
+                                    break;
                                 }
                             }
                         } else {
                             for (let i = 0; i < -steps; i++) {
                                 if (clipboardDialog.keyboardIndex < clipboardDialog.pageEntries.length - 1) {
                                     clipboardDialog.keyboardIndex++;
-                                } else {
+                                } else if (clipboardDialog.currentPage < clipboardDialog.totalPages - 1) {
                                     clipboardDialog.nextPage();
                                     clipboardDialog.keyboardIndex = 0;
+                                } else {
+                                    break;
                                 }
                             }
                         }
