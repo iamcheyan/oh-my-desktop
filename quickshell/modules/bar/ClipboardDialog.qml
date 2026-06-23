@@ -127,7 +127,7 @@ WindowDialog {
 
         // Left Column: List
         ColumnLayout {
-            Layout.preferredWidth: 360
+            Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
