@@ -25,9 +25,19 @@ Item {
         : effectiveActiveWorkspaceId)
     readonly property var overviewEntries: HyprlandData.overviewWorkspaceEntriesGlobal()
     readonly property var overviewEntryIds: root.overviewEntries.map(entry => entry.id)
-    readonly property int overviewGridColumns: Math.min(
-        Math.max(root.overviewEntries.length, 1),
-        Config.options.overview.columns)
+    readonly property int overviewGridColumns: {
+        let n = Math.max(root.overviewEntries.length, 1);
+        let maxCols = Config.options.overview.columns;
+        if (root.compactMode) {
+            // Switcher: row-first, keep in one row like Windows Alt+Tab
+            return Math.min(n, maxCols);
+        }
+        // Overview: multi-row to maximize screen space
+        if (n <= maxCols && n >= 4) {
+            return Math.ceil(n / 2);
+        }
+        return Math.min(n, maxCols);
+    }
     readonly property int overviewGridRows: Math.max(
         1,
         Math.ceil(root.overviewEntries.length / root.overviewGridColumns))
