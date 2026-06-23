@@ -1,0 +1,14 @@
+.migration-backups/
+*.bak
+*.bak.*
+*.backup
+*.backup-*
+quickshell/.state/
+quickshell/.cache/
+omarchy/.git/
+omarchy/.deployed
+omarchy/chromium/Default/
+omarchy/current/background
+omarchy/fcitx5/conf/cached_layouts
+omarchy/opencode/
+**/.DS_Store
