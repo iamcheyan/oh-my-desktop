@@ -7,7 +7,7 @@
 import "modules/common"
 import "services"
 
-import qs.modules.ii.overview
+import qs.modules.overview
 
 import Quickshell
 

@@ -7,7 +7,7 @@
 import "modules/common"
 import "services"
 
-import qs.modules.ii.appLauncher
+import qs.modules.appLauncher
 
 import QtQuick
 import Quickshell

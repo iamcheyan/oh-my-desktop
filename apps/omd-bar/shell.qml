@@ -7,13 +7,13 @@
 import "modules/common"
 import "services"
 
-import qs.modules.ii.bar
-import qs.modules.ii.notificationPopup
-import qs.modules.ii.onScreenDisplay
-import qs.modules.ii.polkit
-import qs.modules.ii.schedulePopup
-import qs.modules.ii.screenCorners
-import qs.modules.ii.sidebarRight
+import qs.modules.bar
+import qs.modules.notificationPopup
+import qs.modules.onScreenDisplay
+import qs.modules.polkit
+import qs.modules.schedulePopup
+import qs.modules.screenCorners
+import qs.modules.sidebarRight
 
 import QtQuick
 import Quickshell
