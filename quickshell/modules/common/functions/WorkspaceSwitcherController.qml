@@ -63,7 +63,7 @@ Singleton {
         if (!root.grabbed)
             return;
         root.grabbed = false;
-        WorkspaceNavigation.commitSelectedWorkspace(true);
+        WorkspaceNavigation.commitSelectedWorkspace(false);
         GlobalStates.overviewOpen = false;
     }
 

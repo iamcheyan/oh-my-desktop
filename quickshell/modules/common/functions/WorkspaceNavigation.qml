@@ -99,7 +99,7 @@ Singleton {
     }
 
     function commitSelectedWorkspace(openLauncherOnTrailing) {
-        const openLauncher = openLauncherOnTrailing ?? true;
+        const openLauncher = openLauncherOnTrailing ?? false;
         if (root.focusedEntryIsTrailingEmpty()) {
             Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
             if (openLauncher)

@@ -32,9 +32,9 @@ Item {
             // Switcher: row-first, keep in one row like Windows Alt+Tab
             return Math.min(n, maxCols);
         }
-        // Overview: multi-row to maximize screen space
-        if (n <= maxCols && n >= 4) {
-            return Math.ceil(n / 2);
+        // Overview: prefer more rows to maximize vertical screen space
+        if (n >= 4) {
+            return Math.min(maxCols, Math.max(2, Math.floor(Math.sqrt(n))));
         }
         return Math.min(n, maxCols);
     }
