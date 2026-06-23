@@ -53,11 +53,11 @@ Item {
         : (root.height - containerMargin * 2)
 
     // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
+    // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
     readonly property int overviewGridColumns: {
         let n = Math.max(root.overviewEntries.length, 1);
         let maxCols = Config.options.overview.columns;
         if (root.compactMode) {
-            // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
             return Math.min(n, maxCols);
         }
         let bestCols = 1;
@@ -241,10 +241,10 @@ Item {
                     property bool workspaceAtRight: colIndex === root.overviewGridColumns - 1
                     property bool workspaceAtTop: rowIndex === 0
                     property bool workspaceAtBottom: rowIndex === root.overviewGridRows - 1
-                    topLeftRadius: (workspaceAtLeft && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                    topRightRadius: (workspaceAtRight && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                    bottomLeftRadius: (workspaceAtLeft && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                    bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
+                    topLeftRadius: root.largeWorkspaceRadius
+                    topRightRadius: root.largeWorkspaceRadius
+                    bottomLeftRadius: root.largeWorkspaceRadius
+                    bottomRightRadius: root.largeWorkspaceRadius
                     border.width: 2
                     border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
                     clip: true
@@ -367,14 +367,14 @@ Item {
 
                     // Radius
                     property real minRadius: Appearance.rounding.small
-                    property bool workspaceAtLeft: workspaceColIndex === 0
-                    property bool workspaceAtRight: workspaceColIndex === root.overviewGridColumns - 1
-                    property bool workspaceAtTop: workspaceRowIndex === 0
-                    property bool workspaceAtBottom: workspaceRowIndex === Config.options.overview.rows - 1
-                    property bool workspaceAtTopLeft: (workspaceAtLeft && workspaceAtTop) 
-                    property bool workspaceAtTopRight: (workspaceAtRight && workspaceAtTop) 
-                    property bool workspaceAtBottomLeft: (workspaceAtLeft && workspaceAtBottom) 
-                    property bool workspaceAtBottomRight: (workspaceAtRight && workspaceAtBottom) 
+                    property bool workspaceAtLeft: true
+                    property bool workspaceAtRight: true
+                    property bool workspaceAtTop: true
+                    property bool workspaceAtBottom: true
+                    property bool workspaceAtTopLeft: true
+                    property bool workspaceAtTopRight: true
+                    property bool workspaceAtBottomLeft: true
+                    property bool workspaceAtBottomRight: true 
                     property real distanceFromLeftEdge: xWithinWorkspaceWidget
                     property real distanceFromRightEdge: root.workspaceImplicitWidth - (xWithinWorkspaceWidget + targetWindowWidth)
                     property real distanceFromTopEdge: yWithinWorkspaceWidget
@@ -470,14 +470,14 @@ Item {
                 width: root.workspaceImplicitWidth
                 height: root.workspaceImplicitHeight
                 color: "transparent"
-                property bool workspaceAtLeft: colIndex === 0
-                property bool workspaceAtRight: colIndex === root.overviewGridColumns - 1
-                property bool workspaceAtTop: rowIndex === 0
-                property bool workspaceAtBottom: rowIndex === root.overviewGridRows - 1
-                topLeftRadius: (workspaceAtLeft && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                topRightRadius: (workspaceAtRight && workspaceAtTop) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                bottomLeftRadius: (workspaceAtLeft && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
-                bottomRightRadius: (workspaceAtRight && workspaceAtBottom) ? root.largeWorkspaceRadius : root.smallWorkspaceRadius
+                property bool workspaceAtLeft: true
+                property bool workspaceAtRight: true
+                property bool workspaceAtTop: true
+                property bool workspaceAtBottom: true
+                topLeftRadius: root.largeWorkspaceRadius
+                topRightRadius: root.largeWorkspaceRadius
+                bottomLeftRadius: root.largeWorkspaceRadius
+                bottomRightRadius: root.largeWorkspaceRadius
                 border.width: 2
                 border.color: root.activeBorderColor
                 Behavior on x {
