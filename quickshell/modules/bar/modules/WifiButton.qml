@@ -12,8 +12,7 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        GlobalStates.barDialogType = "wifi";
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached(["omarchy-launch-or-focus-tui", "omarchy-wifi-tui"]);
     }
     Item {
         implicitWidth: 20

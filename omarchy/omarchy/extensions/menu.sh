@@ -22,14 +22,16 @@
 launch_wifi_controls() {
   rfkill unblock wifi 2>/dev/null || true
 
-  if command -v impala >/dev/null 2>&1; then
+  if command -v omarchy-wifi-tui >/dev/null 2>&1; then
+    omarchy-launch-or-focus-tui omarchy-wifi-tui
+  elif command -v impala >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui impala
   elif command -v nmtui >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui nmtui
   elif command -v iwctl >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui iwctl
   else
-    notify-send -u critical "Wi-Fi controls unavailable" "Install impala or nmtui."
+    notify-send -u critical "Wi-Fi controls unavailable" "No Wi-Fi tool found."
   fi
 }
 
@@ -43,7 +45,7 @@ launch_bluetooth_controls() {
   elif command -v bluetoothctl >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui bluetoothctl
   else
-    notify-send -u critical "Bluetooth controls unavailable" "Install bluetui or blueman."
+    notify-send -u critical "Bluetooth controls unavailable" "No Bluetooth tool found."
   fi
 }
 

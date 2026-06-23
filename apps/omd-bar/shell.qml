@@ -12,7 +12,6 @@ import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.schedulePopup
-import qs.modules.screenCorners
 import qs.modules.sidebarRight
 
 import QtQuick
@@ -51,7 +50,6 @@ ShellRoot {
             SchedulePopup {}
             NotificationPopup {}
             OnScreenDisplay {}
-            ScreenCorners {}
             Polkit {}
         }
     }

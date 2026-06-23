@@ -1,7 +1,9 @@
 launch_wifi_controls() {
   rfkill unblock wifi 2>/dev/null || true
 
-  if command -v impala >/dev/null 2>&1; then
+  if command -v omarchy-wifi-tui >/dev/null 2>&1; then
+    omarchy-launch-or-focus-tui omarchy-wifi-tui
+  elif command -v impala >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui impala
   elif command -v nmtui >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui nmtui
@@ -10,7 +12,7 @@ launch_wifi_controls() {
   elif command -v iwctl >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui iwctl
   else
-    notify-send -u critical "Wi-Fi controls unavailable" "Install NetworkManager-tui, impala, or iwd."
+    notify-send -u critical "Wi-Fi controls unavailable" "No Wi-Fi tool found."
   fi
 }
 
@@ -24,7 +26,7 @@ launch_bluetooth_controls() {
   elif command -v bluetoothctl >/dev/null 2>&1; then
     omarchy-launch-or-focus-tui bluetoothctl
   else
-    notify-send -u critical "Bluetooth controls unavailable" "Install bluetui or blueman."
+    notify-send -u critical "Bluetooth controls unavailable" "No Bluetooth tool found."
   fi
 }
 
@@ -77,14 +79,13 @@ open_input_config() {
 }
 
 show_setup_config_menu() {
-  case $(menu "Setup" "  Hyprland\n  Hypridle\n  Hyprlock\n  Hyprsunset\n  Swayosd\n󰌧  Walker\n󰍜  Waybar\n󰞅  XCompose") in
+  case $(menu "Setup" "  Hyprland\n  Hypridle\n  Hyprlock\n  Hyprsunset\n  Swayosd\n󰌧  Walker\n󰞅  XCompose") in
   *Hyprland*) open_in_editor ~/.config/hypr/hyprland.lua ;;
   *Hypridle*) open_in_editor ~/.config/hypr/hypridle.conf && omarchy-restart-hypridle ;;
   *Hyprlock*) open_in_editor ~/.config/hypr/hyprlock.conf ;;
   *Hyprsunset*) open_in_editor ~/.config/hypr/hyprsunset.conf && omarchy-restart-hyprsunset ;;
   *Swayosd*) open_in_editor ~/.config/swayosd/config.toml && omarchy-restart-swayosd ;;
   *Walker*) open_in_editor ~/.config/walker/config.toml && omarchy-restart-walker ;;
-  *Waybar*) open_in_editor ~/.config/waybar/config.jsonc && omarchy-restart-waybar ;;
   *XCompose*) open_in_editor ~/.XCompose && omarchy-restart-xcompose ;;
   *) show_setup_menu ;;
   esac

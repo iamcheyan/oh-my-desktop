@@ -11,6 +11,9 @@ hl.config({
 -- Override default-opacity window rule (Omarchy sets 0.97/0.9 for all windows).
 o.window(".*", { tag = "-default-opacity", opacity = "1.0 1.0" })
 
+-- Float and center our new Wi-Fi TUI manager
+o.window("org.omarchy.omarchy-wifi-tui", { tag = "+floating-window" })
+
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
 -- hl.config({
 --   general = {
