@@ -1,5 +1,16 @@
 -- Change the default Omarchy look'n'feel.
 
+-- Disable opacity on inactive windows (keep all windows fully opaque).
+hl.config({
+  decoration = {
+    active_opacity = 1.0,
+    inactive_opacity = 1.0,
+  },
+})
+
+-- Override default-opacity window rule (Omarchy sets 0.97/0.9 for all windows).
+o.window(".*", { tag = "-default-opacity", opacity = "1.0 1.0" })
+
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
 -- hl.config({
 --   general = {
