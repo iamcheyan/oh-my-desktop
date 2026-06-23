@@ -10,7 +10,8 @@ import Quickshell
 import Quickshell.Hyprland
 
 Item {
-    Layout.alignment: Qt.AlignVCenter
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     implicitWidth: screenshotButton.implicitWidth
     implicitHeight: screenshotButton.implicitHeight
     property bool hovered: screenshotButton.hovered

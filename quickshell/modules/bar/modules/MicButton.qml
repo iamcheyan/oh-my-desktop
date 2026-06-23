@@ -10,7 +10,8 @@ import Quickshell
 import Quickshell.Services.Pipewire
 
 CircleUtilButton {
-    Layout.alignment: Qt.AlignVCenter
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     onClicked: Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_SOURCE@", "toggle"])
     Item {
         implicitWidth: 20

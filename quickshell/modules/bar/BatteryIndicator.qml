@@ -7,6 +7,8 @@ import QtQuick.Layouts
 
 MouseArea {
     id: root
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     property bool borderless: Config.options.bar.borderless
     readonly property var chargeState: Battery.chargeState
     readonly property bool isCharging: Battery.isCharging

@@ -9,7 +9,8 @@ import QtQuick.Layouts
 import Quickshell
 
 CircleUtilButton {
-    Layout.alignment: Qt.AlignVCenter
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     onClicked: Quickshell.execDetached(["hyprpicker", "-a"])
     Item {
         implicitWidth: 20

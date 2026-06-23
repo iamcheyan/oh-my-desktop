@@ -2,35 +2,29 @@
 set -eu
 
 omd_root="${OMD_ROOT:-$HOME/.config/omd}"
-legacy_root="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
 
 stop_quickshell() {
-    if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
-        systemctl --user stop omd-bar.service >/dev/null 2>&1 || true
-        systemctl --user stop omd-overview.service >/dev/null 2>&1 || true
-        systemctl --user stop omd-switcher.service >/dev/null 2>&1 || true
-    fi
+    for app in omd-bar omd-overview omd-switcher omd-applauncher omd-corners omd-clipboard; do
+        systemctl --user stop "$app.service" >/dev/null 2>&1 || true
+        pkill -f "quickshell.* -p $omd_root/apps/$app($| )" || true
+    done
+}
 
-    pkill -f "quickshell.* -p $omd_root/apps/omd-bar($| )" || true
-    pkill -f "quickshell.* -p $omd_root/apps/omd-overview($| )" || true
-    pkill -f "quickshell.* -p $omd_root/apps/omd-switcher($| )" || true
-    pkill -f "quickshell.* -p $legacy_root($| )" || true
+stop_waybar() {
+    pkill -x waybar 2>/dev/null || true
 }
 
 start_quickshell() {
     if [ -x "$omd_root/bin/omd-restart" ]; then
         "$omd_root/bin/omd-restart"
-    elif [ -x "$legacy_root/scripts/quickshell" ]; then
-        setsid "$legacy_root/scripts/quickshell" >/tmp/omd-quickshell.log 2>&1 < /dev/null &
     else
-        printf 'No Quickshell launcher found.\n' >&2
-        printf 'Checked: %s/bin/omd-restart\n' "$omd_root" >&2
-        printf 'Checked: %s/scripts/quickshell\n' "$legacy_root" >&2
+        printf 'No Quickshell launcher found at %s/bin/omd-restart\n' "$omd_root" >&2
         exit 1
     fi
 }
 
 stop_quickshell
+stop_waybar
 start_quickshell
 
 sleep 1
