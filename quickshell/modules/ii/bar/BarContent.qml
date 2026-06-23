@@ -25,13 +25,7 @@ Item { // Bar content region
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
     readonly property int barActiveWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.barMonitor)
-    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
 
-    function toggleAppLauncher() {
-        Quickshell.execDetached([
-            "qs", "-p", root.appLauncherApp, "ipc", "call", "appLauncher", "toggle"
-        ]);
-    }
     readonly property bool workspaceHasWindows: {
         const wsId = root.barActiveWorkspaceId;
         if (wsId < 1)
@@ -89,6 +83,10 @@ Item { // Bar content region
         }
     }
 
+    LeftModuleRegistry {
+        id: leftModuleRegistry
+    }
+
     RowLayout {
         id: leftSectionRowLayout
         anchors.left: parent.left
@@ -96,44 +94,49 @@ Item { // Bar content region
         anchors.verticalCenter: parent.verticalCenter
         spacing: 14
 
-        BarTextButton {
-            Layout.alignment: Qt.AlignVCenter
-            text: "Applications"
-            onTriggered: root.toggleAppLauncher()
-        }
-
-        Workspaces {
-            id: workspacesWidget
-            Layout.alignment: Qt.AlignVCenter
-        }
-
-        ActiveWindow {
-            id: activeWindowItem
-            Layout.alignment: Qt.AlignVCenter
-            titleAreaWidth: root.titleAreaWidth
-            visible: root.useShortenedForm === 0
+        Repeater {
+            model: Config.options.bar.leftModules
+            delegate: Loader {
+                required property string modelData
+                Layout.alignment: Qt.AlignVCenter
+                sourceComponent: {
+                    const comp = leftModuleRegistry.componentForName(modelData);
+                    return comp;
+                }
+                active: sourceComponent !== null
+            }
         }
     }
 
-    MouseArea { // Center clock
-        id: centerClock
+    // Center section — centered between left and right content
+    Item {
+        id: centerSection
         z: 1
         anchors {
             top: parent.top
             bottom: parent.bottom
             horizontalCenter: parent.horizontalCenter
         }
-        width: Math.max(centerClockWidget.implicitWidth + 24, 140)
-        implicitHeight: centerClockWidget.implicitHeight
+        width: centerRowLayout.implicitWidth
+        implicitHeight: centerRowLayout.implicitHeight
 
-        onClicked: {
-            GlobalStates.scheduleOpen = !GlobalStates.scheduleOpen;
-        }
+        RowLayout {
+            id: centerRowLayout
+            anchors.centerIn: parent
+            spacing: 0
 
-        ClockWidget {
-            id: centerClockWidget
-            anchors.verticalCenter: parent.verticalCenter
-            showHoverPopup: false
+            Repeater {
+                model: Config.options.bar.centerModules
+                delegate: Loader {
+                    required property string modelData
+                    Layout.alignment: Qt.AlignVCenter
+                    sourceComponent: {
+                        const comp = leftModuleRegistry.componentForName(modelData);
+                        return comp;
+                    }
+                    active: sourceComponent !== null
+                }
+            }
         }
     }
 
@@ -143,7 +146,7 @@ Item { // Bar content region
         anchors {
             top: parent.top
             bottom: parent.bottom
-            left: centerClock.right
+            left: centerSection.right
             right: parent.right
             rightMargin: root.barSidePadding
         }

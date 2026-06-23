@@ -12,6 +12,7 @@ Item {
     id: root
 
     property int titleAreaWidth: 280
+    property bool hideOnShortScreen: true
 
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.QsWindow.window?.screen)
     readonly property int activeWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.monitor)
@@ -21,9 +22,12 @@ Item {
     readonly property string windowTitle: root.displayClient?.title ?? ""
     readonly property string windowIconClass: root.displayClient?.class ?? ""
 
+    readonly property var screen: root.QsWindow.window?.screen
+    readonly property real useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen?.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen?.width) ? 1 : 0
+
     implicitWidth: root.hasWindowOnWorkspace ? titleAreaWidth : 0
     implicitHeight: 28
-    visible: root.hasWindowOnWorkspace
+    visible: root.hasWindowOnWorkspace && (!root.hideOnShortScreen || root.useShortenedForm === 0)
 
     function fallbackLetter(appId, title) {
         const source = (appId && appId.length > 0) ? appId : (title ?? "");

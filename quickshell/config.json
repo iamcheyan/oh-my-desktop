@@ -125,6 +125,14 @@
       "swapWarningThreshold": 85
     },
     "rightModuleSpacing": 10,
+    "leftModules": [
+      "appLauncher",
+      "workspaces",
+      "activeWindow"
+    ],
+    "centerModules": [
+      "clock"
+    ],
     "rightModules": [
       "sidebar",
       "util:audio",

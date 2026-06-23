@@ -200,6 +200,14 @@ Singleton {
                 property bool showBackground: true
                 property bool vertical: false
                 property int rightModuleSpacing: 8 // pixels between right-side modules
+                property list<string> leftModules: [
+                    "appLauncher",
+                    "workspaces",
+                    "activeWindow"
+                ]
+                property list<string> centerModules: [
+                    "clock"
+                ]
                 property list<string> rightModules: [
                     "sidebar",
                     "util:audio",

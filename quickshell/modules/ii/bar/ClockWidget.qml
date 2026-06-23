@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -50,6 +51,8 @@ Item {
         id: mouseArea
         anchors.fill: parent
         hoverEnabled: root.showHoverPopup && !Config.options.bar.tooltips.clickToShow
+        cursorShape: Qt.PointingHandCursor
+        onClicked: GlobalStates.scheduleOpen = !GlobalStates.scheduleOpen
 
         ClockWidgetPopup {
             hoverTarget: root.showHoverPopup ? mouseArea : null
