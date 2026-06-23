@@ -38,7 +38,8 @@ Item {
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
 
     // ── Adaptive scaling ──
-    // In full-screen mode, compute scale to fill the screen with large thumbnails.
+    // In full-screen mode, keep workspace aspect ratio (same as the real screen)
+    // and compute the largest thumbnail that fits, then center the grid.
     // In compact mode, use the config scale value.
     readonly property real screenW: monitorData?.transform % 2 === 1
         ? (monitor.height - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
@@ -48,22 +49,29 @@ Item {
         : (monitor.height - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
 
     readonly property real gridPadding: root.compactMode ? 10 : 24
-    readonly property real containerMargin: root.compactMode ? Appearance.sizes.elevationMargin : 48
+    readonly property real containerMargin: root.compactMode ? Appearance.sizes.elevationMargin : 64
 
-    readonly property real availableW: root.compactMode
+    // Usable area for the grid (after margins)
+    readonly property real availW: root.compactMode
         ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.width - containerMargin * 2 - gridPadding * (overviewGridColumns - 1))
-    readonly property real availableH: root.compactMode
+        : (root.width - containerMargin * 2)
+    readonly property real availH: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.height - containerMargin * 2 - gridPadding * Math.max(0, overviewGridRows - 1))
+        : (root.height - containerMargin * 2)
 
-    // Per-workspace thumbnail size
-    readonly property real workspaceImplicitWidth: root.compactMode
+    // How big would each thumbnail be if we fill width vs height?
+    // Workspaces keep the real screen aspect ratio (screenW : screenH).
+    readonly property real thumbByWidth: root.compactMode
         ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
-        : Math.floor(availableW / overviewGridColumns)
-    readonly property real workspaceImplicitHeight: root.compactMode
+        : ((availW - gridPadding * (overviewGridColumns - 1)) / overviewGridColumns)
+    readonly property real thumbByHeight: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : Math.floor(availableH / overviewGridRows)
+        : ((availH - gridPadding * (overviewGridRows - 1)) / overviewGridRows)
+
+    // Pick the smaller so the aspect ratio is preserved — thumbnails shrink
+    // when there are many workspaces, grow when there are few.
+    readonly property real workspaceImplicitWidth: Math.floor(Math.min(thumbByWidth, thumbByHeight * (screenW / screenH)))
+    readonly property real workspaceImplicitHeight: Math.floor(workspaceImplicitWidth * (screenH / screenW))
 
     property real scale: root.compactMode
         ? Config.options.overview.scale
