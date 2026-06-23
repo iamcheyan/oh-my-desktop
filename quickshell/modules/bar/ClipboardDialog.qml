@@ -6,12 +6,14 @@ import QtQuick
 import QtQuick.Layouts
 import qs.modules.common.functions
 import Quickshell
+import Quickshell.Io
+import QtQuick.Controls
 
 WindowDialog {
     id: clipboardDialog
-    backgroundHeight: itemsPerPage * 23 + 56
-    backgroundWidth: 380
-    anchorPosition: 1
+    backgroundHeight: 520
+    backgroundWidth: 850
+    anchorPosition: 0
     anchorMargin: 8
 
     property int keyboardIndex: 0
@@ -20,6 +22,29 @@ WindowDialog {
     property real wheelAccum: 0
     property var pageEntries: Cliphist.entries.slice(currentPage * itemsPerPage, currentPage * itemsPerPage + itemsPerPage)
     property int totalPages: Math.max(1, Math.ceil(Cliphist.entries.length / itemsPerPage))
+
+    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < pageEntries.length) ? pageEntries[keyboardIndex] : ""
+
+    onCurrentEntryChanged: {
+        if (currentEntry && !Cliphist.entryIsImage(currentEntry)) {
+            textDecoder.running = false;
+            textDecoder.running = true;
+        } else {
+            textDecoder.running = false;
+            textDecoder.decodedText = "";
+        }
+    }
+
+    Process {
+        id: textDecoder
+        property string decodedText: ""
+        command: ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(clipboardDialog.currentEntry)}' | ${Cliphist.cliphistBinary} decode`]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                textDecoder.decodedText = text;
+            }
+        }
+    }
 
     onCurrentPageChanged: pageEntries = Cliphist.entries.slice(currentPage * itemsPerPage, currentPage * itemsPerPage + itemsPerPage)
     onVisibleChanged: {
@@ -86,68 +111,152 @@ WindowDialog {
         }
     }
 
-    ListView {
-        id: clipboardList
+    RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.topMargin: 2
-        Layout.bottomMargin: 2
-        Layout.leftMargin: 0
-        Layout.rightMargin: 0
+        spacing: 16
 
-        clip: true
-        spacing: 0
-        boundsBehavior: Flickable.StopAtBounds
-        boundsMovement: Flickable.StopAtBounds
-        highlightMoveDuration: 0
-        interactive: false
+        // Left Column: List
+        ColumnLayout {
+            Layout.preferredWidth: 360
+            Layout.fillHeight: true
+            spacing: 0
 
-        model: ScriptModel {
-            values: clipboardDialog.pageEntries
-        }
+            ListView {
+                id: clipboardList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.topMargin: 2
+                Layout.bottomMargin: 2
+                Layout.leftMargin: 0
+                Layout.rightMargin: 0
 
-        delegate: ClipboardItem {
-            required property string modelData
-            required property int index
-            entry: modelData
-            width: ListView.view.width
-            selected: clipboardDialog.keyboardIndex === index
-            onItemClicked: clipboardDialog.dismiss()
-            onHoveredChanged: {
-                if (hovered) {
-                    clipboardDialog.keyboardIndex = index;
+                clip: true
+                spacing: 0
+                boundsBehavior: Flickable.StopAtBounds
+                boundsMovement: Flickable.StopAtBounds
+                highlightMoveDuration: 0
+                interactive: false
+
+                model: ScriptModel {
+                    values: clipboardDialog.pageEntries
+                }
+
+                delegate: ClipboardItem {
+                    required property string modelData
+                    required property int index
+                    entry: modelData
+                    width: ListView.view.width
+                    selected: clipboardDialog.keyboardIndex === index
+                    onItemClicked: clipboardDialog.dismiss()
+                    onHoveredChanged: {
+                        if (hovered) {
+                            clipboardDialog.keyboardIndex = index;
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: (event) => {
+                        const r = WheelUtils.getSteps(event.angleDelta.y, clipboardDialog.wheelAccum)
+                        clipboardDialog.wheelAccum = r.accum
+                        const steps = r.steps
+                        if (steps === 0) return
+                        if (steps > 0) {
+                            for (let i = 0; i < steps; i++) {
+                                if (clipboardDialog.keyboardIndex > 0) {
+                                    clipboardDialog.keyboardIndex--;
+                                } else {
+                                    clipboardDialog.prevPage();
+                                    clipboardDialog.keyboardIndex = Math.min(clipboardDialog.pageEntries.length - 1, clipboardDialog.itemsPerPage - 1);
+                                }
+                            }
+                        } else {
+                            for (let i = 0; i < -steps; i++) {
+                                if (clipboardDialog.keyboardIndex < clipboardDialog.pageEntries.length - 1) {
+                                    clipboardDialog.keyboardIndex++;
+                                } else {
+                                    clipboardDialog.nextPage();
+                                    clipboardDialog.keyboardIndex = 0;
+                                }
+                            }
+                        }
+                        event.accepted = true;
+                    }
                 }
             }
         }
 
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-            onWheel: (event) => {
-                const r = WheelUtils.getSteps(event.angleDelta.y, clipboardDialog.wheelAccum)
-                clipboardDialog.wheelAccum = r.accum
-                const steps = r.steps
-                if (steps === 0) return
-                if (steps > 0) {
-                    for (let i = 0; i < steps; i++) {
-                        if (clipboardDialog.keyboardIndex > 0) {
-                            clipboardDialog.keyboardIndex--;
-                        } else {
-                            clipboardDialog.prevPage();
-                            clipboardDialog.keyboardIndex = Math.min(clipboardDialog.pageEntries.length - 1, clipboardDialog.itemsPerPage - 1);
-                        }
-                    }
-                } else {
-                    for (let i = 0; i < -steps; i++) {
-                        if (clipboardDialog.keyboardIndex < clipboardDialog.pageEntries.length - 1) {
-                            clipboardDialog.keyboardIndex++;
-                        } else {
-                            clipboardDialog.nextPage();
-                            clipboardDialog.keyboardIndex = 0;
-                        }
+        // Vertical separator
+        Rectangle {
+            Layout.fillHeight: true
+            width: 1
+            color: Appearance.tiling.border
+            opacity: 0.5
+        }
+
+        // Right Column: Preview
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 8
+
+            StyledText {
+                text: qsTr("Preview")
+                font.bold: true
+                font.pixelSize: Appearance.font.pixelSize.medium
+                color: Appearance.colors.colOnSurface
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Appearance.tiling.border
+                opacity: 0.3
+            }
+
+            Item {
+                id: previewContainer
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                // Image Preview
+                CliphistImage {
+                    anchors.centerIn: parent
+                    visible: clipboardDialog.currentEntry !== "" && Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                    entry: visible ? clipboardDialog.currentEntry : ""
+                    maxWidth: parent.width - 20
+                    maxHeight: parent.height - 20
+                }
+
+                // Text Preview
+                ScrollView {
+                    anchors.fill: parent
+                    visible: clipboardDialog.currentEntry !== "" && !Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                    clip: true
+
+                    TextArea {
+                        readOnly: true
+                        selectByMouse: true
+                        wrapMode: TextEdit.Wrap
+                        text: textDecoder.decodedText
+                        font.family: "monospace"
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        color: Appearance.colors.colOnSurface
+                        background: null
                     }
                 }
-                event.accepted = true;
+
+                // Empty State
+                StyledText {
+                    anchors.centerIn: parent
+                    visible: clipboardDialog.currentEntry === ""
+                    text: qsTr("No item selected")
+                    color: Appearance.colors.colMuted
+                }
             }
         }
     }
