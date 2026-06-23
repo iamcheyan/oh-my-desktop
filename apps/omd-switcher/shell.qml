@@ -4,6 +4,7 @@
 //@ pragma Env QT_IM_MODULE=fcitx
 
 import "modules/common"
+import qs.modules.common.functions
 
 import Quickshell
 import Quickshell.Hyprland
@@ -12,7 +13,7 @@ import Quickshell.Io
 ShellRoot {
     id: root
 
-    readonly property string overviewApp: `${Directories.config}/omd/apps/omd-overview`
+    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
     property real lastShortcut: 0
 
     function relay(method) {

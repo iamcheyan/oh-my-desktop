@@ -1,5 +1,6 @@
 import qs
 import qs.modules.common
+import qs.modules.common.functions
 import QtQuick
 import Quickshell
 
@@ -8,7 +9,7 @@ Item {
 
     property bool vertical: false
     property int widgetPadding: 0
-    readonly property string overviewApp: `${Directories.config}/omd/apps/omd-overview`
+    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
 
     function toggleOverview() {
         Quickshell.execDetached([

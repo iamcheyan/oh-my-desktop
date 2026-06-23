@@ -35,14 +35,14 @@ o.bind("SUPER + SHIFT + ALT + X", "X Post", { webapp = "https://x.com/compose/po
 -- hl.unbind("SUPER + SPACE")
 -- o.bind("SUPER + SPACE", "Omarchy menu", "omarchy-menu")
 hl.unbind("SUPER + SHIFT + SPACE")
-o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", hl.dsp.global("quickshell:barToggle"))
+o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", "qs -p $HOME/.config/omd/apps/omd-bar ipc call bar toggle")
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
-o.bind("SUPER + TAB", "Quickshell switcher next", hl.dsp.global("quickshell:switcherNext"))
-o.bind("SUPER + SHIFT + TAB", "Quickshell switcher previous", hl.dsp.global("quickshell:switcherPrev"))
-o.bind("SUPER + SUPER_L", "Quickshell switcher commit", hl.dsp.global("quickshell:switcherCommit"), { release = true })
-o.bind("SUPER + SUPER_R", "Quickshell switcher commit", hl.dsp.global("quickshell:switcherCommit"), { release = true })
+o.bind("SUPER + TAB", "Quickshell switcher next", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher next")
+o.bind("SUPER + SHIFT + TAB", "Quickshell switcher previous", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher prev")
+o.bind("SUPER + SUPER_L", "Quickshell switcher commit", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher commit", { release = true })
+o.bind("SUPER + SUPER_R", "Quickshell switcher commit", "qs -p $HOME/.config/omd/apps/omd-switcher ipc call switcher commit", { release = true })
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")

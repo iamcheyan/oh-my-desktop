@@ -13,7 +13,7 @@ import Quickshell.Hyprland
 Scope {
     id: screenCorners
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
-    readonly property string overviewApp: `${Directories.config}/omd/apps/omd-overview`
+    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
 
     function callOverview(method) {
         Quickshell.execDetached([

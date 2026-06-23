@@ -5,6 +5,17 @@ pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-bar($| )" || true
 pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-overview($| )" || true
 pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-switcher($| )" || true
 
-"$HOME/.config/omd/bin/omd-bar" &
-"$HOME/.config/omd/bin/omd-overview" &
-"$HOME/.config/omd/bin/omd-switcher" &
+start_app() {
+    app="$1"
+    if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
+        systemctl --user stop "$app.service" >/dev/null 2>&1 || true
+        systemd-run --user --unit="$app" --collect \
+            /bin/sh -c "exec \"\$HOME/.config/omd/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
+    else
+        setsid "$HOME/.config/omd/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
+    fi
+}
+
+start_app omd-bar
+start_app omd-overview
+start_app omd-switcher
