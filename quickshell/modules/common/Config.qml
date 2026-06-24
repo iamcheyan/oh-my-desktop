@@ -200,8 +200,10 @@ Singleton {
                 property bool showBackground: true
                 property bool vertical: false
                 property int rightModuleSpacing: 8 // pixels between right-side modules
+                property int centerModuleSpacing: 8 // pixels between center modules
                 property int rightIconSlotWidth: 28 // width of right-side icon-only slots
                 property int rightIconSize: 16 // size of right-side bar icons
+                property int centerIconSize: 14 // size of center-side bar icons
                 property list<string> leftModules: [
                     "appLauncher",
                     "workspaces",

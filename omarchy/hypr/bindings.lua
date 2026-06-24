@@ -53,6 +53,26 @@ hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
+-- Interrupt Super-alone overview toggle: any SUPER+key press clears the
+-- "might trigger" flag via a non-consuming transparent bind.
+-- We use a catch-all approach: bind common keys with non_consuming so they
+-- fire alongside the real bind without intercepting it.
+local interrupt_keys = {
+  "RETURN", "TAB", "SPACE", "BACKSPACE", "ESCAPE",
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+  "LEFT", "RIGHT", "UP", "DOWN",
+  "GRAVE", "MINUS", "EQUAL",
+  "SEMICOLON", "APOSTROPHE", "COMMA", "PERIOD", "SLASH",
+  "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+}
+for _, key in ipairs(interrupt_keys) do
+  hl.bind("SUPER + " .. key, hl.dsp.global("quickshell:superInterrupt"), {
+    non_consuming = true, transparent = true, description = "Interrupt Super-alone"
+  })
+end
+
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")

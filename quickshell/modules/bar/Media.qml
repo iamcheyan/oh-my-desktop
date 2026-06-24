@@ -14,11 +14,13 @@ Item {
     property bool borderless: Config.options.bar.borderless
     property real wheelAccum: 0
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
     readonly property bool hasActivePlayer: activePlayer !== null && activePlayer !== undefined
+    readonly property bool isPlaying: activePlayer?.isPlaying ?? false
+    readonly property real trackPosition: activePlayer?.position ?? 0
+    readonly property real trackLength: activePlayer?.length ?? 0
 
     Layout.fillHeight: true
-    implicitWidth: hasActivePlayer ? rowLayout.implicitWidth : Config.options.bar.rightIconSlotWidth
+    implicitWidth: Config.options.bar.centerIconSize
     implicitHeight: Appearance.sizes.barHeight
 
     Timer {
@@ -29,7 +31,9 @@ Item {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
+        hoverEnabled: true
         acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton | Qt.RightButton | Qt.LeftButton
         onPressed: (event) => {
             if (event.button === Qt.MiddleButton) {
@@ -39,7 +43,11 @@ Item {
             } else if (event.button === Qt.ForwardButton || event.button === Qt.RightButton) {
                 activePlayer.next();
             } else if (event.button === Qt.LeftButton) {
-                GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
+                if (root.hasActivePlayer) {
+                    MprisController.togglePlaying();
+                } else {
+                    GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
+                }
             }
         }
         onWheel: wheel => {
@@ -56,15 +64,15 @@ Item {
     RowLayout { // Real content
         id: rowLayout
 
-        spacing: Config.options.bar.rightModuleSpacing
-        anchors.fill: parent
+        spacing: Config.options.bar.centerModuleSpacing
+        anchors.centerIn: parent
 
         CosmicIcon {
             id: noMediaIcon
             visible: !root.hasActivePlayer
             Layout.alignment: Qt.AlignVCenter
             name: "apps/multimedia-audio-player-symbolic"
-            iconSize: Config.options.bar.rightIconSize
+            iconSize: Config.options.bar.centerIconSize
             color: Appearance.colors.colBarText
         }
 
@@ -73,8 +81,8 @@ Item {
             visible: root.hasActivePlayer
             Layout.alignment: Qt.AlignVCenter
             lineWidth: Appearance.rounding.unsharpen
-            value: activePlayer?.position / activePlayer?.length
-            implicitSize: 20
+            value: root.trackLength > 0 ? root.trackPosition / root.trackLength : 0
+            implicitSize: Config.options.bar.centerIconSize
             colPrimary: Appearance.colors.colBarText
             enableAnimation: false
 
@@ -82,28 +90,20 @@ Item {
                 anchors.centerIn: parent
                 width: mediaCircProg.implicitSize
                 height: mediaCircProg.implicitSize
-                
+
                 CosmicIcon {
                     anchors.centerIn: parent
-                    name: activePlayer?.isPlaying ? "actions/media-playback-pause-symbolic" : "actions/media-playback-start-symbolic"
-                    iconSize: Appearance.font.pixelSize.normal
+                    name: root.isPlaying ? "actions/media-playback-pause-symbolic" : "actions/media-playback-start-symbolic"
+                    iconSize: Config.options.bar.centerIconSize - 4
                     color: Appearance.colors.colBarText
                 }
             }
         }
 
-        StyledText {
-            visible: root.hasActivePlayer
-            width: rowLayout.width - (CircularProgress.size + rowLayout.spacing * 2)
-            Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true // Ensures the text takes up available space
-            Layout.rightMargin: rowLayout.spacing
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight // Truncates the text on the right
-            color: Appearance.colors.colBarText
-            text: `${cleanedTitle}${activePlayer?.trackArtist ? ' • ' + activePlayer.trackArtist : ''}`
-        }
-
     }
 
+    MediaHoverPopup {
+        id: mediaHoverPopup
+        hoverTarget: mouseArea
+    }
 }

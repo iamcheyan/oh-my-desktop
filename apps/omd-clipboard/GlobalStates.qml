@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.common.functions
 import qs.services
 import QtQuick
 import Quickshell
@@ -16,6 +17,7 @@ Singleton {
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool overviewOpen: false
+    property bool overviewSearchMode: false
     property int overviewFocusedWorkspaceId: -1
     property var overviewWorkspaceMru: []
     property int overviewDraggingFromWorkspace: -1
@@ -37,15 +39,7 @@ Singleton {
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
             GlobalStates.appLauncherOpen = false;
-        }
-    }
-
-    GlobalShortcut {
-        name: "barClipboardToggle"
-        description: "Toggle clipboard history"
-
-        onPressed: {
-            root.clipboardOpen = !root.clipboardOpen
+            GlobalStates.overviewSearchMode = false;
         }
     }
 
@@ -67,14 +61,44 @@ Singleton {
     }
 
     GlobalShortcut {
+        name: "barClipboardToggle"
+        description: "Toggle clipboard history"
+
+        onPressed: {
+            root.clipboardOpen = !root.clipboardOpen
+        }
+    }
+
+    GlobalShortcut {
         name: "workspaceNumber"
         description: "Hold to show workspace numbers, release to show icons"
 
         onPressed: {
             root.superDown = true
+            root.superReleaseMightTrigger = true
         }
         onReleased: {
             root.superDown = false
+            if (root.superReleaseMightTrigger) {
+                root.superReleaseMightTrigger = false
+                Qt.callLater(() => {
+                    if (!GlobalStates.overviewOpen)
+                        GlobalStates.overviewOpen = true
+                    else if (GlobalStates.overviewSearchMode)
+                        GlobalStates.overviewSearchMode = false
+                    else if (!WorkspaceSwitcherController.grabbed)
+                        GlobalStates.overviewOpen = false
+                })
+            }
+        }
+    }
+
+    GlobalShortcut {
+        name: "superInterrupt"
+        description: "Interrupt Super-alone overview toggle"
+
+        onPressed: {
+            root.superReleaseMightTrigger = false
         }
     }
 }

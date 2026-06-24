@@ -205,7 +205,12 @@ Scope {
                 // Click scrim to close
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: GlobalStates.overviewOpen = false
+                    onClicked: {
+                        if (GlobalStates.overviewSearchMode)
+                            GlobalStates.overviewSearchMode = false;
+                        else
+                            GlobalStates.overviewOpen = false;
+                    }
                 }
             }
 
@@ -213,10 +218,15 @@ Scope {
                 id: overviewKeyHandler
                 anchors.fill: parent
                 z: 999
-                focus: panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed
+                focus: panelWindow.isFocusedOverviewWindow
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
+                        if (GlobalStates.overviewSearchMode) {
+                            GlobalStates.overviewSearchMode = false;
+                            event.accepted = true;
+                            return;
+                        }
                         GlobalStates.overviewOpen = false;
                         event.accepted = true;
                         return;
@@ -227,7 +237,29 @@ Scope {
                         event.accepted = true;
                         return;
                     }
-                    overviewScope.handleOverviewNavigationKey(event);
+                    if (WorkspaceSwitcherController.grabbed) {
+                        overviewScope.handleOverviewNavigationKey(event);
+                        return;
+                    }
+                    // In workspace mode, any printable character enters search mode
+                    if (!GlobalStates.overviewSearchMode
+                        && event.text.length > 0
+                        && !(event.modifiers & Qt.ControlModifier)
+                        && !(event.modifiers & Qt.AltModifier)
+                        && !(event.modifiers & Qt.MetaModifier)
+                        && event.key !== Qt.Key_Backspace
+                        && event.key !== Qt.Key_Delete
+                        && event.key !== Qt.Key_Tab
+                        && event.key !== Qt.Key_Space) {
+                        overviewSearch.seedText = event.text;
+                        GlobalStates.overviewSearchMode = true;
+                        event.accepted = true;
+                        return;
+                    }
+                    // Arrow keys navigate workspaces in workspace mode
+                    if (!GlobalStates.overviewSearchMode) {
+                        overviewScope.handleOverviewNavigationKey(event);
+                    }
                 }
 
                 Keys.onReleased: event => {
@@ -240,6 +272,20 @@ Scope {
 
                 Connections {
                     target: GlobalStates
+                    function onOverviewOpenChanged() {
+                        if (GlobalStates.overviewOpen
+                            && panelWindow.isFocusedOverviewWindow
+                            && !WorkspaceSwitcherController.grabbed
+                            && !GlobalStates.overviewSearchMode)
+                            overviewKeyHandler.forceActiveFocus();
+                    }
+                    function onOverviewSearchModeChanged() {
+                        if (!GlobalStates.overviewSearchMode
+                            && panelWindow.isFocusedOverviewWindow
+                            && GlobalStates.overviewOpen
+                            && !WorkspaceSwitcherController.grabbed)
+                            Qt.callLater(() => { overviewKeyHandler.forceActiveFocus(); });
+                    }
                     function onSuperDownChanged() {
                         if (WorkspaceSwitcherController.grabbed && !GlobalStates.superDown)
                             overviewScope.commitGrabbedMode();
@@ -280,6 +326,10 @@ Scope {
                         screen: panelWindow.screen
                         visible: GlobalStates.overviewOpen
                     }
+                    opacity: GlobalStates.overviewSearchMode ? 0 : 1
+                    Behavior on opacity {
+                        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    }
                 }
 
                 OverviewSearch {
@@ -293,6 +343,40 @@ Scope {
                     z: 1000
                     active: GlobalStates.overviewOpen
                         && !WorkspaceSwitcherController.grabbed
+                }
+
+                // Subtle "Type to search" hint in workspace mode
+                Item {
+                    anchors {
+                        top: parent.top
+                        horizontalCenter: parent.horizontalCenter
+                        topMargin: 28
+                    }
+                    z: 1000
+                    visible: !GlobalStates.overviewSearchMode
+                    opacity: !GlobalStates.overviewSearchMode ? 1 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                    }
+
+                    Row {
+                        spacing: 7
+
+                        MaterialSymbol {
+                            text: "search"
+                            iconSize: 14
+                            color: "#8f98a8"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            text: Translation.tr("Type to search")
+                            color: "#8f98a8"
+                            font.pixelSize: 13
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
                 }
             }
 
@@ -381,6 +465,7 @@ Scope {
         name: "overviewNext"
         description: "Workspace overview: cycle next (Win+Tab)"
         onPressed: {
+            GlobalStates.superReleaseMightTrigger = false;
             const now = Date.now();
             if (now - overviewScope.lastWheelShortcut < 150) return;
             overviewScope.lastWheelShortcut = now;
@@ -391,6 +476,7 @@ Scope {
         name: "overviewPrev"
         description: "Workspace overview: cycle prev (Win+Shift+Tab)"
         onPressed: {
+            GlobalStates.superReleaseMightTrigger = false;
             const now = Date.now();
             if (now - overviewScope.lastWheelShortcut < 150) return;
             overviewScope.lastWheelShortcut = now;
@@ -400,6 +486,9 @@ Scope {
     GlobalShortcut {
         name: "overviewCommit"
         description: "Workspace overview: commit on Win release"
-        onPressed: overviewScope.commitGrabbedMode()
+        onPressed: {
+            GlobalStates.superReleaseMightTrigger = false;
+            overviewScope.commitGrabbedMode()
+        }
     }
 }

@@ -15,12 +15,13 @@ Item {
     id: root
 
     property bool active: true
-    property bool searchActive: active && input.activeFocus
+    property string seedText: "" // Initial char forwarded from workspace mode
     property string query: input.text.trim()
     property int selectedFlatIndex: 0
     property int maxAppResults: 5
     property int maxWindowResults: 8
     property int focusAttempts: 0
+    readonly property bool searchMode: GlobalStates.overviewSearchMode
     readonly property bool hasQuery: query.length > 0
     readonly property var appResults: hasQuery ? AppSearch.fuzzyQuery(query).slice(0, maxAppResults) : []
     readonly property var windowResults: root.filterWindows(query).slice(0, maxWindowResults)
@@ -140,25 +141,39 @@ Item {
 
     onTotalResultsChanged: clampSelection()
     onQueryChanged: selectedFlatIndex = 0
+
     function requestInputFocus() {
-        if (!active || !GlobalStates.overviewOpen)
+        if (!active || !GlobalStates.overviewOpen || !GlobalStates.overviewSearchMode)
             return;
         focusAttempts = 0;
         input.forceActiveFocus();
         focusRetryTimer.restart();
     }
 
-    onActiveChanged: {
-        if (active && GlobalStates.overviewOpen)
+    onSearchModeChanged: {
+        if (searchMode) {
+            if (seedText.length > 0) {
+                input.text = seedText;
+                seedText = "";
+            }
             Qt.callLater(requestInputFocus);
+        } else {
+            input.text = "";
+            selectedFlatIndex = 0;
+        }
+    }
+
+    onSeedTextChanged: {
+        if (searchMode && seedText.length > 0) {
+            input.text = seedText;
+            seedText = "";
+        }
     }
 
     Connections {
         target: GlobalStates
         function onOverviewOpenChanged() {
-            if (GlobalStates.overviewOpen) {
-                Qt.callLater(root.requestInputFocus);
-            } else {
+            if (!GlobalStates.overviewOpen) {
                 focusRetryTimer.stop();
                 input.text = "";
                 selectedFlatIndex = 0;
@@ -169,7 +184,7 @@ Item {
     Connections {
         target: Hyprland
         function onFocusedMonitorChanged() {
-            if (GlobalStates.overviewOpen)
+            if (GlobalStates.overviewOpen && GlobalStates.overviewSearchMode)
                 Qt.callLater(root.requestInputFocus);
         }
     }
@@ -179,7 +194,7 @@ Item {
         interval: 45
         repeat: true
         onTriggered: {
-            if (!root.active || !GlobalStates.overviewOpen || input.activeFocus || root.focusAttempts >= 8) {
+            if (!root.active || !GlobalStates.overviewOpen || !GlobalStates.overviewSearchMode || input.activeFocus || root.focusAttempts >= 8) {
                 stop();
                 return;
             }
@@ -197,6 +212,12 @@ Item {
         color: "#151821"
         border.width: 1
         border.color: input.activeFocus ? "#aab8dd" : "#3d4452"
+        visible: root.searchMode
+        opacity: root.searchMode ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
 
         RowLayout {
             anchors.fill: parent
@@ -226,7 +247,7 @@ Item {
                 TextField {
                     id: input
                     anchors.fill: parent
-                    focus: root.active && GlobalStates.overviewOpen
+                    focus: root.searchMode
                     background: null
                     padding: 0
                     color: Appearance.colors.colOnLayer2
@@ -240,10 +261,12 @@ Item {
 
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Escape) {
-                            if (input.text.length > 0)
-                                input.text = "";
-                            else
-                                GlobalStates.overviewOpen = false;
+                            GlobalStates.overviewSearchMode = false;
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_Backspace && input.text.length === 0) {
+                            GlobalStates.overviewSearchMode = false;
                             event.accepted = true;
                             return;
                         }
@@ -289,11 +312,16 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         width: root.popoverWidth
         implicitHeight: resultsLayout.implicitHeight + 24
-        visible: root.hasQuery
+        visible: root.searchMode && root.hasQuery
+        opacity: visible ? 1 : 0
         radius: 14
         color: "#171a22"
         border.width: 1
         border.color: "#3f4655"
+
+        Behavior on opacity {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
 
         Rectangle {
             anchors.fill: parent
