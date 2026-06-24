@@ -10,6 +10,23 @@ import QtQuick.Layouts
 
 CircleUtilButton {
     readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
+    readonly property string tooltipText: {
+        if (!BluetoothStatus.available)
+            return Translation.tr("Bluetooth unavailable");
+        if (!BluetoothStatus.enabled)
+            return Translation.tr("Bluetooth disabled");
+        if (!BluetoothStatus.connected)
+            return Translation.tr("Bluetooth not connected");
+
+        const devices = BluetoothStatus.connectedDevices.map(device => {
+            const name = device?.name || Translation.tr("Unknown device");
+            if (!device?.batteryAvailable)
+                return name;
+            return `${name} • ${Math.round(device.battery * 100)}%`;
+        });
+
+        return devices.join(", ");
+    }
 
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
@@ -27,7 +44,7 @@ CircleUtilButton {
             color: Appearance.colors.colBarText
         }
         PopupToolTip {
-            text: Translation.tr("Bluetooth")
+            text: tooltipText
             anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
         }
     }
