@@ -150,8 +150,7 @@
             "util:bluetooth",
             "battery",
             "systray",
-            "spacer",
-            "weather"
+            "spacer"
         ],
         "screenList": [
         ],
@@ -160,14 +159,7 @@
         "tooltips": {
             "clickToShow": true
         },
-        "vertical": false,
-        "weather": {
-            "city": "tokyo",
-            "enable": true,
-            "enableGPS": true,
-            "fetchInterval": 10,
-            "useUSCS": false
-        }
+        "vertical": false
     },
     "battery": {
         "automaticSuspend": true,
@@ -175,6 +167,13 @@
         "full": 101,
         "low": 20,
         "suspend": 3
+    },
+    "weather": {
+        "city": "tokyo",
+        "enable": true,
+        "enableGPS": true,
+        "fetchInterval": 10,
+        "useUSCS": false
     },
     "calendar": {
         "locale": "en-GB"

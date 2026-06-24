@@ -10,12 +10,12 @@ import qs.modules.common
 Singleton {
     id: root
     // 10 minute
-    readonly property int fetchInterval: Config.options.bar.weather.fetchInterval * 60 * 1000
-    readonly property string city: Config.options.bar.weather.city
-    readonly property bool useUSCS: Config.options.bar.weather.useUSCS
+    readonly property int fetchInterval: Config.options.weather.fetchInterval * 60 * 1000
+    readonly property string city: Config.options.weather.city
+    readonly property bool useUSCS: Config.options.weather.useUSCS
     // When true, wttr.in is queried without a location so it falls back to
     // IP-based geolocation. When false, the configured city is used.
-    property bool useIpLocation: Config.options.bar.weather.enableGPS
+    property bool useIpLocation: Config.options.weather.enableGPS
 
     onUseUSCSChanged: {
         root.getData();

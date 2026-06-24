@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import qs
-import qs.modules.bar.weather
 import qs.modules.bar.modules
 
 QtObject {
@@ -15,7 +14,6 @@ QtObject {
     }
 
     readonly property var entries: ({
-        "weather": { component: Qt.createComponent("weather/WeatherBar.qml"), description: qsTr("Weather") },
         "systray": { component: Qt.createComponent("SysTray.qml"), description: qsTr("System tray") },
         "media": { component: Qt.createComponent("Media.qml"), description: qsTr("Media controls") },
         "battery": { component: Qt.createComponent("BatteryIndicator.qml"), description: qsTr("Battery") },

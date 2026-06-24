@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import qs
-import qs.modules.bar.weather
 
 QtObject {
     id: registry
@@ -18,6 +17,7 @@ QtObject {
         "workspaces": { component: Qt.createComponent("Workspaces.qml"), description: qsTr("Workspaces button") },
         "activeWindow": { component: Qt.createComponent("ActiveWindow.qml"), description: qsTr("Active window icon and title") },
         "clock": { component: Qt.createComponent("ClockWidget.qml"), description: qsTr("Clock (click to open schedule)") },
+        "media": { component: Qt.createComponent("Media.qml"), description: qsTr("Media controls") },
         "spacer": { component: Qt.createComponent("SpacerItem.qml"), description: qsTr("Flexible spacer") }
     })
 

@@ -1,4 +1,3 @@
-import qs.modules.bar.weather
 import qs.modules.bar.modules
 import QtQuick
 import QtQuick.Layouts
@@ -123,7 +122,7 @@ Item { // Bar content region
         RowLayout {
             id: centerRowLayout
             anchors.centerIn: parent
-            spacing: 0
+            spacing: Config.options.bar.centerModuleSpacing
 
             Repeater {
                 model: Config.options.bar.centerModules
