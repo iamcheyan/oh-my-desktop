@@ -20,7 +20,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: Pipewire.defaultAudioSource?.audio?.muted ? "status/microphone-sensitivity-muted-symbolic" : "status/microphone-sensitivity-high-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

@@ -80,8 +80,8 @@ Item {
 
             Layout.fillHeight: !root.vertical
             Layout.fillWidth: root.vertical
-            implicitWidth: 24
-            implicitHeight: 24
+            implicitWidth: Config.options.bar.rightIconSlotWidth
+            implicitHeight: Config.options.bar.rightIconSlotWidth
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             acceptedButtons: Qt.LeftButton
@@ -91,7 +91,7 @@ Item {
             CosmicIcon {
                 anchors.centerIn: parent
                 name: "actions/pan-down-symbolic"
-                iconSize: Appearance.font.pixelSize.larger
+                iconSize: Config.options.bar.rightIconSize
                 color: Appearance.colors.colBarText
                 opacity: root.trayOverflowOpen || trayOverflowButton.containsMouse ? 1 : 0.75
                 rotation: (root.trayOverflowOpen ? 180 : 0) - (90 * root.vertical) + (180 * root.invertSide)

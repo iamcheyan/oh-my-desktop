@@ -22,7 +22,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: Hyprsunset.temperatureActive ? "status/weather-clear-night-symbolic" : "status/display-brightness-off-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

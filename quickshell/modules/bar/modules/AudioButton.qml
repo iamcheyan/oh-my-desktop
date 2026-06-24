@@ -22,7 +22,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: Audio.sink?.audio?.muted ? "status/audio-volume-muted-symbolic" : "status/audio-volume-high-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

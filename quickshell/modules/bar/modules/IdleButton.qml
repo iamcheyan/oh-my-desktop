@@ -19,7 +19,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: Idle.inhibit ? "actions/document-properties-symbolic" : "actions/image-red-eye-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

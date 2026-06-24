@@ -12,13 +12,15 @@ import Quickshell.Hyprland
 Item {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
-    implicitWidth: screenshotButton.implicitWidth
-    implicitHeight: screenshotButton.implicitHeight
+    implicitWidth: Config.options.bar.rightIconSlotWidth
+    implicitHeight: Config.options.bar.rightIconSlotWidth
     property bool hovered: screenshotButton.hovered
 
     RippleButton {
         id: screenshotButton
         anchors.centerIn: parent
+        width: Config.options.bar.rightIconSlotWidth
+        height: Config.options.bar.rightIconSlotWidth
         buttonRadius: Appearance.rounding.full
         colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
@@ -42,7 +44,7 @@ Item {
     CosmicIcon {
         anchors.centerIn: screenshotButton
         name: "apps/accessories-screenshot-symbolic"
-        iconSize: Appearance.font.pixelSize.larger + 1
+        iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }
 

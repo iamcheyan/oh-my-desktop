@@ -8,7 +8,7 @@ RippleButton {
 
     required default property Item content
     property bool extraActiveCondition: false
-    readonly property int slotSize: 28
+    readonly property int slotSize: Config.options.bar.rightIconSlotWidth
 
     padding: 0
     implicitHeight: slotSize

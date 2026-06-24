@@ -106,6 +106,8 @@
     "cornerStyle": 0,
     "borderless": false,
     "rightModuleSpacing": 8,
+    "rightIconSlotWidth": 28,
+    "rightIconSize": 16,
     "rightModules": ["sidebar", "util:audio", "..."],
     "screenList": [],
     "showOnFocusedMonitorOnly": true,
@@ -127,6 +129,8 @@
 | `borderless` | 无边框模式 |
 | `rightModules` | 右侧模块列表（顺序即显示顺序） |
 | `rightModuleSpacing` | 右侧模块间距(px) |
+| `rightIconSlotWidth` | 右侧纯图标槽位宽度(px) |
+| `rightIconSize` | 右侧图标尺寸(px) |
 | `screenList` | 空数组=所有屏幕；填屏幕名则只在指定屏幕显示 |
 | `showOnFocusedMonitorOnly` | 只在聚焦屏幕显示 |
 | `weather.city` | 天气城市 |

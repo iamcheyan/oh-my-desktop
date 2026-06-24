@@ -17,7 +17,7 @@ MouseArea {
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
     readonly property color colIcon: Appearance.colors.colBarText
 
-    implicitWidth: rowLayout.implicitWidth
+    implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Appearance.sizes.barHeight
 
     hoverEnabled: !Config.options.bar.tooltips.clickToShow
@@ -40,7 +40,7 @@ MouseArea {
         CosmicIcon {
             Layout.alignment: Qt.AlignVCenter
             name: isCharging ? "status/plugged-into-power-symbolic" : "devices/battery-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: root.colIcon
         }
     }

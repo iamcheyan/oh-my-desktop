@@ -40,7 +40,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: BluetoothStatus.connected ? "status/bluetooth-active-symbolic" : BluetoothStatus.enabled ? "devices/bluetooth-symbolic" : "status/bluetooth-disabled-symbolic"
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

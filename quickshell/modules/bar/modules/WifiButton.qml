@@ -52,7 +52,7 @@ CircleUtilButton {
         CosmicIcon {
             anchors.centerIn: parent
             name: Network.cosmicIcon
-            iconSize: Appearance.font.pixelSize.larger + 1
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
         PopupToolTip {

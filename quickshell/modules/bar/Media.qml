@@ -15,9 +15,10 @@ Item {
     property real wheelAccum: 0
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    readonly property bool hasActivePlayer: activePlayer !== null && activePlayer !== undefined
 
     Layout.fillHeight: true
-    implicitWidth: rowLayout.implicitWidth
+    implicitWidth: hasActivePlayer ? rowLayout.implicitWidth : Config.options.bar.rightIconSlotWidth
     implicitHeight: Appearance.sizes.barHeight
 
     Timer {
@@ -60,16 +61,16 @@ Item {
 
         CosmicIcon {
             id: noMediaIcon
-            visible: !(activePlayer !== null && activePlayer !== undefined)
+            visible: !root.hasActivePlayer
             Layout.alignment: Qt.AlignVCenter
             name: "apps/multimedia-audio-player-symbolic"
-            iconSize: Appearance.font.pixelSize.larger
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
 
         ClippedFilledCircularProgress {
             id: mediaCircProg
-            visible: (activePlayer !== null && activePlayer !== undefined)
+            visible: root.hasActivePlayer
             Layout.alignment: Qt.AlignVCenter
             lineWidth: Appearance.rounding.unsharpen
             value: activePlayer?.position / activePlayer?.length
@@ -92,7 +93,7 @@ Item {
         }
 
         StyledText {
-            visible: (activePlayer !== null && activePlayer !== undefined)
+            visible: root.hasActivePlayer
             width: rowLayout.width - (CircularProgress.size + rowLayout.spacing * 2)
             Layout.alignment: Qt.AlignVCenter
             Layout.fillWidth: true // Ensures the text takes up available space

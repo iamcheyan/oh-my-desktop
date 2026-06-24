@@ -14,7 +14,7 @@ Item {
         id: notificationIcon
         anchors.fill: parent
         name: Notifications.silent ? "status/notification-disabled-symbolic" : "status/notification-symbolic"
-        iconSize: Appearance.font.pixelSize.larger
+        iconSize: Config.options.bar.rightIconSize
         color: root.color
     }
 

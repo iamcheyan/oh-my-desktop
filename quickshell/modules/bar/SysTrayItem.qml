@@ -19,8 +19,8 @@ MouseArea {
 
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton
-    implicitWidth: 18
-    implicitHeight: 18
+    implicitWidth: Config.options.bar.rightIconSlotWidth
+    implicitHeight: Config.options.bar.rightIconSlotWidth
     onPressed: (event) => {
         switch (event.button) {
         case Qt.LeftButton:
@@ -73,8 +73,8 @@ MouseArea {
         visible: !Config.options.tray.monochromeIcons
         source: root.item.icon
         anchors.centerIn: parent
-        width: 15
-        height: 15
+        width: Config.options.bar.rightIconSize
+        height: Config.options.bar.rightIconSize
     }
 
     Loader {

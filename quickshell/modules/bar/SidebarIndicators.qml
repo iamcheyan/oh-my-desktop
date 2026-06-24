@@ -26,6 +26,18 @@ RippleButton {
     toggled: GlobalStates.sidebarRightOpen
     property color colText: Appearance.colors.colBarText
 
+    component IconSlot: Item {
+        default property alias contents: slotContent.data
+
+        implicitWidth: Config.options.bar.rightIconSlotWidth
+        implicitHeight: Config.options.bar.rightIconSlotWidth
+
+        Item {
+            id: slotContent
+            anchors.centerIn: parent
+        }
+    }
+
     Behavior on colText {
         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
     }
@@ -42,39 +54,56 @@ RippleButton {
         Revealer {
             reveal: Audio.sink?.audio?.muted ?? false
             Layout.fillHeight: true
-            CosmicIcon {
-                name: "status/audio-volume-muted-symbolic"
-                iconSize: Appearance.font.pixelSize.larger
-                color: root.colText
+            IconSlot {
+                CosmicIcon {
+                    anchors.centerIn: parent
+                    name: "status/audio-volume-muted-symbolic"
+                    iconSize: Config.options.bar.rightIconSize
+                    color: root.colText
+                }
             }
         }
         Revealer {
             reveal: Audio.source?.audio?.muted ?? false
             Layout.fillHeight: true
-            CosmicIcon {
-                name: "status/microphone-sensitivity-muted-symbolic"
-                iconSize: Appearance.font.pixelSize.larger
-                color: root.colText
+            IconSlot {
+                CosmicIcon {
+                    anchors.centerIn: parent
+                    name: "status/microphone-sensitivity-muted-symbolic"
+                    iconSize: Config.options.bar.rightIconSize
+                    color: root.colText
+                }
             }
         }
-        HyprlandXkbIndicator {
-            Layout.alignment: Qt.AlignVCenter
-            color: root.colText
+        IconSlot {
+            visible: xkbIndicator.active
+            implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
+            HyprlandXkbIndicator {
+                id: xkbIndicator
+                anchors.centerIn: parent
+                color: root.colText
+            }
         }
         Revealer {
             reveal: Notifications.silent || Notifications.unread > 0
             Layout.fillHeight: true
-            implicitHeight: reveal ? notificationUnreadCount.implicitHeight : 0
-            implicitWidth: reveal ? notificationUnreadCount.implicitWidth : 0
-            NotificationUnreadCount {
-                id: notificationUnreadCount
-                color: root.colText
+            implicitHeight: reveal ? Config.options.bar.rightIconSlotWidth : 0
+            implicitWidth: reveal ? Config.options.bar.rightIconSlotWidth : 0
+            IconSlot {
+                NotificationUnreadCount {
+                    id: notificationUnreadCount
+                    anchors.centerIn: parent
+                    color: root.colText
+                }
             }
         }
-        CosmicIcon {
-            name: "actions/system-shutdown-symbolic"
-            iconSize: Appearance.font.pixelSize.larger
-            color: root.colText
+        IconSlot {
+            CosmicIcon {
+                anchors.centerIn: parent
+                name: "actions/system-shutdown-symbolic"
+                iconSize: Config.options.bar.rightIconSize
+                color: root.colText
+            }
         }
     }
 }

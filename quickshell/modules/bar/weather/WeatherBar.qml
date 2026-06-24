@@ -36,7 +36,7 @@ MouseArea {
 
         CosmicIcon {
             name: Icons.getWeatherCosmicIcon(Weather.data.wCode)
-            iconSize: Appearance.font.pixelSize.larger
+            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
             Layout.alignment: Qt.AlignVCenter
         }
