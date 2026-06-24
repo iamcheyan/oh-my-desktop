@@ -96,6 +96,9 @@ WindowDialog {
             if (item?.wifiNetwork)
                 Network.connectToWifiNetwork(item.wifiNetwork);
             event.accepted = true;
+        } else if (event.key === Qt.Key_Escape) {
+            root.dismiss();
+            event.accepted = true;
         }
     }
 
