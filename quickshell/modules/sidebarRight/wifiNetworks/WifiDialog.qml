@@ -102,6 +102,8 @@ WindowDialog {
         }
     }
 
+    focus: true
+
     onVisibleChanged: {
         if (visible) {
             root.forceActiveFocus();
@@ -184,7 +186,30 @@ WindowDialog {
                             spacing: 0
                             boundsBehavior: Flickable.StopAtBounds
                             highlightMoveDuration: 80
-                            keyNavigationEnabled: true
+                            keyNavigationEnabled: false
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
+                                    networkList.incrementCurrentIndex();
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
+                                    networkList.decrementCurrentIndex();
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_Escape) {
+                                    root.dismiss();
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_R) {
+                                    Network.rescanWifi();
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_S) {
+                                    root.openSettings();
+                                    event.accepted = true;
+                                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    const item = networkList.currentItem;
+                                    if (item?.wifiNetwork)
+                                        Network.connectToWifiNetwork(item.wifiNetwork);
+                                    event.accepted = true;
+                                }
+                            }
                             model: ScriptModel {
                                 values: Network.friendlyWifiNetworks
                             }
