@@ -15,7 +15,7 @@ MouseArea { // Right side | scroll to change volume
     property real moveThreshold: 20
     property real wheelAccum: 0
 
-    acceptedButtons: Qt.LeftButton
+    acceptedButtons: Qt.NoButton
     hoverEnabled: true
 
     onEntered: {

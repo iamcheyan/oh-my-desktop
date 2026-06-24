@@ -153,11 +153,8 @@ Item { // Bar content region
         implicitWidth: rightSectionRowLayout.implicitWidth
         implicitHeight: Appearance.sizes.baseBarHeight
 
-        onPressed: event => {
-            if (event.button === Qt.LeftButton) {
-                GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
-            }
-        }
+        // onPressed removed — clicking individual modules should not
+        // toggle the sidebar. Use the SidebarIndicators button instead.
 
         RightModuleRegistry {
             id: rightModuleRegistry

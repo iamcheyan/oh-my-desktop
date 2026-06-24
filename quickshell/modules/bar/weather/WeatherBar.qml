@@ -9,6 +9,8 @@ import QtQuick.Layouts
 
 MouseArea {
     id: root
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     property bool hovered: false
     implicitWidth: rowLayout.implicitWidth + Config.options.bar.rightModuleSpacing
     implicitHeight: Appearance.sizes.barHeight

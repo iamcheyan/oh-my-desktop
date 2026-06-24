@@ -9,6 +9,8 @@ import qs.modules.common.widgets
 
 Item {
     id: root
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
     implicitWidth: gridLayout.implicitWidth
     implicitHeight: gridLayout.implicitHeight
     property bool vertical: false

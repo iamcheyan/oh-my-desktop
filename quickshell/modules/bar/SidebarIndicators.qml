@@ -11,6 +11,7 @@ RippleButton {
 
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillWidth: false
+    Layout.fillHeight: true
 
     implicitWidth: indicatorsRowLayout.implicitWidth
     implicitHeight: indicatorsRowLayout.implicitHeight
