@@ -10,14 +10,73 @@ import Quickshell
 WindowDialog {
     id: root
 
-    readonly property string statusText: Network.wifiScanning
-        ? Translation.tr("scanning")
-        : Network.wifiStatus
+    readonly property color tuiBg: "#000000"
+    readonly property color tuiFg: "#f8f8f2"
+    readonly property color tuiDim: "#8a8a8a"
+    readonly property color tuiGreen: "#32ff6a"
+    readonly property color tuiYellow: "#f1fa8c"
+    readonly property color tuiBlue: "#8ec7ff"
+    readonly property color tuiPurple: "#c792ea"
+    readonly property color tuiSelection: "#687bad"
     readonly property string activeName: Network.active?.ssid || Network.networkName || Translation.tr("none")
+    readonly property string statusText: Network.wifiScanning ? Translation.tr("scanning") : Network.wifiStatus
 
-    backgroundWidth: Math.min(700, Math.max(520, width - 32))
-    backgroundHeight: Math.min(620, Math.max(440, height - 96))
+    function openSettings() {
+        Quickshell.execDetached(["bash", "-c", `${Network.ethernet ? Config.options.apps.networkEthernet : Config.options.apps.network}`]);
+    }
+
+    backgroundWidth: Math.min(860, Math.max(680, width - 32))
+    backgroundHeight: Math.min(660, Math.max(500, height - 96))
     anchorPosition: 0
+
+    component TuiText: StyledText {
+        color: root.tuiFg
+        font.family: Appearance.font.family.monospace
+        font.pixelSize: Appearance.font.pixelSize.small
+        textFormat: Text.PlainText
+    }
+
+    component TuiSection: Item {
+        id: section
+
+        required property string title
+        property color borderColor: root.tuiGreen
+        default property alias content: sectionContent.data
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.topMargin: 10
+            color: root.tuiBg
+            border.width: 2
+            border.color: section.borderColor
+        }
+
+        Rectangle {
+            x: 18
+            y: 0
+            height: 22
+            width: sectionTitle.implicitWidth + 20
+            color: root.tuiBg
+
+            TuiText {
+                id: sectionTitle
+                anchors.centerIn: parent
+                text: section.title
+                color: section.borderColor
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.Bold
+            }
+        }
+
+        Item {
+            id: sectionContent
+            anchors.fill: parent
+            anchors.topMargin: 24
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.bottomMargin: 12
+        }
+    }
 
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
@@ -28,6 +87,9 @@ WindowDialog {
             event.accepted = true;
         } else if (event.key === Qt.Key_R) {
             Network.rescanWifi();
+            event.accepted = true;
+        } else if (event.key === Qt.Key_S) {
+            root.openSettings();
             event.accepted = true;
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             const item = networkList.currentItem;
@@ -46,226 +108,160 @@ WindowDialog {
 
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: 30
-        color: Appearance.tiling.bgTitlebar
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            StyledText {
-                text: "omd-wifi"
-                color: Appearance.tiling.textBright
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.Bold
-            }
-
-            StyledText {
-                text: `[${root.statusText}]`
-                color: Network.wifiStatus === "connected" ? Appearance.tiling.success
-                    : Network.wifiStatus === "disabled" ? Appearance.tiling.error
-                    : Appearance.tiling.accentBright
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            Item { Layout.fillWidth: true }
-
-            StyledText {
-                text: `${Network.friendlyWifiNetworks.length} aps`
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-        }
-    }
-
-    Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 34
-        color: Appearance.tiling.bg
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            StyledText {
-                text: "current:"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: root.activeName
-                elide: Text.ElideRight
-                color: Network.wifiStatus === "connected" ? Appearance.tiling.textBright : Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                text: Network.wifiEnabled ? "radio:on" : "radio:off"
-                color: Network.wifiEnabled ? Appearance.tiling.success : Appearance.tiling.error
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-        }
-    }
-
-    Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 24
-        color: Appearance.tiling.bgInput
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            StyledText {
-                Layout.fillWidth: true
-                text: "SSID"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                Layout.preferredWidth: 54
-                horizontalAlignment: Text.AlignRight
-                text: "SIGNAL"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                Layout.preferredWidth: 34
-                horizontalAlignment: Text.AlignRight
-                text: "%"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                Layout.preferredWidth: 30
-                horizontalAlignment: Text.AlignRight
-                text: "BAND"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            StyledText {
-                Layout.preferredWidth: 72
-                horizontalAlignment: Text.AlignRight
-                text: "SECURITY"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-        }
-    }
-
-    StackLayout {
         Layout.fillHeight: true
-        Layout.fillWidth: true
-        currentIndex: Network.friendlyWifiNetworks.length > 0 ? 0 : 1
+        color: root.tuiBg
 
-        ListView {
-            id: networkList
-            Layout.fillHeight: true
-            Layout.fillWidth: true
-            clip: true
-            spacing: 0
-            boundsBehavior: Flickable.StopAtBounds
-            highlightMoveDuration: 80
-            keyNavigationEnabled: true
-            model: ScriptModel {
-                values: Network.friendlyWifiNetworks
-            }
-            delegate: WifiNetworkItem {
-                required property WifiAccessPoint modelData
-                wifiNetwork: modelData
-                width: ListView.view.width
-                onDismiss: root.dismiss()
-            }
-        }
-
-        Rectangle {
-            color: "transparent"
-
-            StyledText {
-                anchors.centerIn: parent
-                text: Network.wifiScanning
-                    ? Translation.tr("scanning for networks...")
-                    : Translation.tr("no networks found")
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-        }
-    }
-
-    Rectangle {
-        Layout.fillWidth: true
-        implicitHeight: 32
-        color: Appearance.tiling.bgTitlebar
-
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
+            anchors.margins: 18
+            spacing: 10
 
-            StyledText {
-                text: "↑/k ↓/j move"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
+            TuiSection {
+                title: Translation.tr("Wi-Fi Networks")
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                borderColor: root.tuiGreen
 
-            StyledText {
-                text: "enter connect"
-                color: Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
 
-            StyledText {
-                text: "r rescan"
-                color: Network.wifiScanning ? Appearance.tiling.accentBright : Appearance.tiling.textDim
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 30
+                        spacing: 8
 
-            Item { Layout.fillWidth: true }
+                        TuiText {
+                            Layout.preferredWidth: 220
+                            text: "Name"
+                            color: root.tuiYellow
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.Bold
+                        }
 
-            DialogButton {
-                implicitHeight: 26
-                buttonText: Translation.tr("Settings")
-                onClicked: {
-                    Quickshell.execDetached(["bash", "-c", `${Network.ethernet ? Config.options.apps.networkEthernet : Config.options.apps.network}`]);
+                        TuiText {
+                            Layout.preferredWidth: 88
+                            text: "Signal"
+                            color: root.tuiYellow
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.Bold
+                        }
+
+                        TuiText {
+                            Layout.preferredWidth: 64
+                            text: "Band"
+                            color: root.tuiYellow
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.Bold
+                        }
+
+                        TuiText {
+                            Layout.fillWidth: true
+                            text: "Security"
+                            color: root.tuiYellow
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.Bold
+                        }
+                    }
+
+                    StackLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: Network.friendlyWifiNetworks.length > 0 ? 0 : 1
+
+                        ListView {
+                            id: networkList
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            spacing: 0
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightMoveDuration: 80
+                            keyNavigationEnabled: true
+                            model: ScriptModel {
+                                values: Network.friendlyWifiNetworks
+                            }
+                            delegate: WifiNetworkItem {
+                                required property WifiAccessPoint modelData
+                                wifiNetwork: modelData
+                                width: ListView.view.width
+                                selectionColor: root.tuiSelection
+                                foregroundColor: root.tuiFg
+                                dimColor: root.tuiDim
+                                greenColor: root.tuiGreen
+                                blueColor: root.tuiBlue
+                                bgColor: root.tuiBg
+                            }
+                        }
+
+                        Rectangle {
+                            color: "transparent"
+
+                            TuiText {
+                                anchors.centerIn: parent
+                                text: Network.wifiScanning
+                                    ? Translation.tr("scanning for networks...")
+                                    : Translation.tr("no networks found")
+                                color: root.tuiDim
+                            }
+                        }
+                    }
                 }
             }
 
-            DialogButton {
-                implicitHeight: 26
-                buttonText: Translation.tr("Close")
-                onClicked: root.dismiss()
+            TuiSection {
+                title: Translation.tr("Adapter")
+                Layout.fillWidth: true
+                Layout.preferredHeight: 116
+                borderColor: root.tuiFg
+
+                GridLayout {
+                    anchors.fill: parent
+                    columns: 4
+                    rowSpacing: 14
+                    columnSpacing: 24
+
+                    TuiText { text: "Name"; color: root.tuiFg; font.weight: Font.Bold }
+                    TuiText { text: "Connection"; color: root.tuiFg; font.weight: Font.Bold }
+                    TuiText { text: "Power"; color: root.tuiFg; font.weight: Font.Bold }
+                    TuiText { text: "State"; color: root.tuiFg; font.weight: Font.Bold }
+
+                    TuiText { text: "wld0"; color: root.tuiFg }
+                    TuiText {
+                        Layout.fillWidth: true
+                        text: root.activeName
+                        elide: Text.ElideRight
+                        color: Network.wifiStatus === "connected" ? root.tuiFg : root.tuiDim
+                    }
+                    TuiText {
+                        text: Network.wifiEnabled ? "On" : "Off"
+                        color: Network.wifiEnabled ? root.tuiGreen : Appearance.tiling.error
+                    }
+                    TuiText {
+                        text: root.statusText
+                        color: Network.wifiStatus === "connected" ? root.tuiGreen
+                            : Network.wifiStatus === "disabled" ? Appearance.tiling.error
+                            : root.tuiYellow
+                    }
+                }
+            }
+
+            Flow {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 54
+                spacing: 18
+                layoutDirection: Qt.LeftToRight
+
+                TuiText { text: "↵ connect"; color: root.tuiPurple }
+                TuiText { text: "r rescan"; color: root.tuiPurple }
+                TuiText { text: "k,↑ up"; color: root.tuiPurple }
+                TuiText { text: "j,↓ down"; color: root.tuiPurple }
+                TuiText { text: "s settings"; color: root.tuiPurple }
+                TuiText { text: "esc close"; color: root.tuiPurple }
             }
         }
     }

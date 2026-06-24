@@ -135,12 +135,14 @@ Singleton {
             onRead: line => {
                 // print("err:", line)
                 if (line.includes("Secrets were required")) {
-                    root.wifiConnectTarget.askingPassword = true
+                    if (root.wifiConnectTarget)
+                        root.wifiConnectTarget.askingPassword = true
                 }
             }
         }
         onExited: (exitCode, exitStatus) => {
-            root.wifiConnectTarget.askingPassword = (exitCode !== 0)
+            if (root.wifiConnectTarget)
+                root.wifiConnectTarget.askingPassword = (exitCode !== 0)
             root.wifiConnectTarget = null
         }
     }
