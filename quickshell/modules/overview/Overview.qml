@@ -280,6 +280,7 @@ Scope {
                     active: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed && (Config?.options.overview.enable ?? true)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
+                        topInset: 82
                         visible: GlobalStates.overviewOpen
                     }
                 }

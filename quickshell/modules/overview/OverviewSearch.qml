@@ -24,7 +24,7 @@ Item {
     readonly property var appResults: hasQuery ? AppSearch.fuzzyQuery(query).slice(0, maxAppResults) : []
     readonly property var windowResults: root.filterWindows(query).slice(0, maxWindowResults)
     readonly property int totalResults: appResults.length + windowResults.length
-    readonly property int popoverWidth: Math.min(720, Math.max(460, root.width - 48))
+    readonly property int popoverWidth: Math.min(740, Math.max(500, root.width - 64))
 
     implicitWidth: parent ? parent.width : 720
     implicitHeight: searchShell.implicitHeight + (resultsPopup.visible ? resultsPopup.implicitHeight + 10 : 0)
@@ -161,24 +161,24 @@ Item {
 
     Rectangle {
         id: searchShell
-        width: Math.min(420, Math.max(280, root.width - 48))
-        height: 38
+        width: Math.min(430, Math.max(300, root.width - 64))
+        height: 40
         anchors.horizontalCenter: parent.horizontalCenter
-        radius: 19
-        color: "#17191dcc"
-        border.width: input.activeFocus ? 1 : 0
-        border.color: Appearance.colors.colSecondary
+        radius: 20
+        color: "#151821"
+        border.width: 1
+        border.color: input.activeFocus ? "#aab8dd" : "#3d4452"
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
+            anchors.leftMargin: 14
             anchors.rightMargin: 12
-            spacing: 8
+            spacing: 9
 
             MaterialSymbol {
                 text: "search"
                 iconSize: 18
-                color: input.activeFocus ? Appearance.colors.colSecondary : "#c7c7c7"
+                color: input.activeFocus ? "#c8d6ff" : "#aeb6c4"
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -189,9 +189,9 @@ Item {
                 StyledText {
                     anchors.fill: parent
                     text: Translation.tr("Type to search")
-                    color: "#a8adb7"
+                    color: "#8f98a8"
                     opacity: input.text.length === 0 ? 0.9 : 0
-                    font.pixelSize: 12
+                    font.pixelSize: 13
                 }
 
                 TextField {
@@ -204,7 +204,7 @@ Item {
                     selectedTextColor: Appearance.colors.colOnPrimary
                     selectionColor: Appearance.colors.colSecondary
                     font.family: Appearance.font.family.main
-                    font.pixelSize: 12
+                    font.pixelSize: 13
                     verticalAlignment: TextInput.AlignVCenter
                     clip: true
                     renderType: Text.NativeRendering
@@ -239,7 +239,7 @@ Item {
             MaterialSymbol {
                 text: "close"
                 iconSize: 16
-                color: "#c7c7c7"
+                color: "#b9c1ce"
                 opacity: input.text.length > 0 ? 1 : 0
                 Layout.alignment: Qt.AlignVCenter
 
@@ -256,21 +256,30 @@ Item {
     Rectangle {
         id: resultsPopup
         anchors.top: searchShell.bottom
-        anchors.topMargin: 10
+        anchors.topMargin: 12
         anchors.horizontalCenter: parent.horizontalCenter
         width: root.popoverWidth
-        implicitHeight: resultsLayout.implicitHeight + 20
+        implicitHeight: resultsLayout.implicitHeight + 24
         visible: root.hasQuery
-        radius: 12
-        color: "#202124ee"
+        radius: 14
+        color: "#171a22"
         border.width: 1
-        border.color: "#4a4d55"
+        border.color: "#3f4655"
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: parent.radius - 1
+            color: "transparent"
+            border.width: 1
+            border.color: "#242936"
+        }
 
         ColumnLayout {
             id: resultsLayout
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 8
+            anchors.margins: 12
+            spacing: 7
 
             SearchSectionHeader {
                 label: Translation.tr("Applications")
@@ -321,12 +330,12 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 34
+                Layout.preferredHeight: 38
                 text: Translation.tr("No matches")
-                color: "#9da3ad"
+                color: "#9ea7b6"
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 12
+                font.pixelSize: 13
                 visible: root.totalResults === 0
             }
         }
@@ -338,7 +347,7 @@ Item {
         property int topPadding: 0
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 22 + topPadding
+        Layout.preferredHeight: 24 + topPadding
 
         StyledText {
             anchors.left: parent.left
@@ -346,8 +355,8 @@ Item {
             anchors.bottom: parent.bottom
             height: 18
             text: `${label}  ${count}`
-            color: Appearance.colors.colSecondary
-            font.pixelSize: 11
+            color: "#c6d2f3"
+            font.pixelSize: 12
             font.weight: Font.DemiBold
         }
     }
@@ -362,28 +371,28 @@ Item {
         property bool selected: false
         signal activated()
 
-        implicitHeight: 46
-        radius: 8
-        color: selected ? "#5f75a8" : "transparent"
-        border.width: selected ? 1 : 0
-        border.color: "#8aa2d9"
+        implicitHeight: 50
+        radius: 9
+        color: selected ? "#6177a8" : "#202531"
+        border.width: 1
+        border.color: selected ? "#a9b9e3" : "#2d3442"
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 10
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 11
 
             Rectangle {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                radius: 6
-                color: selected ? "#ffffff22" : "#ffffff12"
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
+                radius: 7
+                color: selected ? "#ffffff26" : "#2b3241"
 
                 Image {
                     anchors.centerIn: parent
-                    width: 22
-                    height: 22
+                    width: 23
+                    height: 23
                     source: row.iconSource
                     fillMode: Image.PreserveAspectFit
                     smooth: true
@@ -393,8 +402,8 @@ Item {
                 MaterialSymbol {
                     anchors.centerIn: parent
                     text: "apps"
-                    iconSize: 20
-                    color: "#dadce5"
+                    iconSize: 21
+                    color: "#dfe5f2"
                     visible: row.iconSource.length === 0
                 }
             }
@@ -406,8 +415,8 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     text: row.title
-                    color: "#f2f4f8"
-                    font.pixelSize: 13
+                    color: "#f4f7ff"
+                    font.pixelSize: 14
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
@@ -415,8 +424,8 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     text: row.subtitle
-                    color: selected ? "#e4e9ff" : "#aeb4bf"
-                    font.pixelSize: 11
+                    color: selected ? "#e7ecff" : "#a9b2c1"
+                    font.pixelSize: 12
                     elide: Text.ElideRight
                     maximumLineCount: 1
                     visible: text.length > 0
@@ -426,8 +435,8 @@ Item {
             StyledText {
                 Layout.maximumWidth: 230
                 text: row.meta
-                color: selected ? "#edf1ff" : "#aeb4bf"
-                font.pixelSize: 11
+                color: selected ? "#f0f4ff" : "#a8b1c0"
+                font.pixelSize: 12
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight
                 maximumLineCount: 1

@@ -15,6 +15,7 @@ Item {
     id: root
     required property var screen
     property bool compactMode: false
+    property real topInset: 0
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
@@ -50,7 +51,7 @@ Item {
         : (root.width - containerMargin * 2)
     readonly property real availH: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.height - containerMargin * 2)
+        : (root.height - containerMargin * 2 - root.topInset)
 
     // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
     // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
@@ -211,7 +212,9 @@ Item {
         id: workspaceColumnLayout
 
         z: root.workspaceZ
-        anchors.centerIn: parent
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.verticalCenterOffset: root.compactMode ? 0 : root.topInset / 2
         columns: root.overviewGridColumns
         rowSpacing: workspaceSpacing
         columnSpacing: workspaceSpacing
