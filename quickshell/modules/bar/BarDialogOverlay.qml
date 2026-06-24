@@ -21,6 +21,27 @@ Scope {
         GlobalStates.barDialogOpen = true;
     }
 
+    IpcHandler {
+        target: "barDialog"
+
+        function open(type: string): void {
+            root.openDialog(type);
+        }
+
+        function close(): void {
+            GlobalStates.barDialogOpen = false;
+            GlobalStates.barDialogType = "";
+        }
+
+        function toggle(type: string): void {
+            if (GlobalStates.barDialogOpen && GlobalStates.barDialogType === type) {
+                close();
+            } else {
+                open(type);
+            }
+        }
+    }
+
     Loader {
         id: overlayLoader
         active: GlobalStates.barDialogOpen
