@@ -20,6 +20,7 @@ Item {
     property int selectedFlatIndex: 0
     property int maxAppResults: 5
     property int maxWindowResults: 8
+    property int focusAttempts: 0
     readonly property bool hasQuery: query.length > 0
     readonly property var appResults: hasQuery ? AppSearch.fuzzyQuery(query).slice(0, maxAppResults) : []
     readonly property var windowResults: root.filterWindows(query).slice(0, maxWindowResults)
@@ -139,23 +140,51 @@ Item {
 
     onTotalResultsChanged: clampSelection()
     onQueryChanged: selectedFlatIndex = 0
+    function requestInputFocus() {
+        if (!active || !GlobalStates.overviewOpen)
+            return;
+        focusAttempts = 0;
+        input.forceActiveFocus();
+        focusRetryTimer.restart();
+    }
+
     onActiveChanged: {
         if (active && GlobalStates.overviewOpen)
-            Qt.callLater(() => input.forceActiveFocus());
+            Qt.callLater(requestInputFocus);
     }
 
     Connections {
         target: GlobalStates
         function onOverviewOpenChanged() {
             if (GlobalStates.overviewOpen) {
-                Qt.callLater(() => {
-                    if (root.active)
-                        input.forceActiveFocus();
-                });
+                Qt.callLater(root.requestInputFocus);
             } else {
+                focusRetryTimer.stop();
                 input.text = "";
                 selectedFlatIndex = 0;
             }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            if (GlobalStates.overviewOpen)
+                Qt.callLater(root.requestInputFocus);
+        }
+    }
+
+    Timer {
+        id: focusRetryTimer
+        interval: 45
+        repeat: true
+        onTriggered: {
+            if (!root.active || !GlobalStates.overviewOpen || input.activeFocus || root.focusAttempts >= 8) {
+                stop();
+                return;
+            }
+            root.focusAttempts++;
+            input.forceActiveFocus();
         }
     }
 

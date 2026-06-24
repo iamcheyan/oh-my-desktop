@@ -145,9 +145,7 @@ Scope {
 
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
-                ? (GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None)
-                : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
@@ -280,7 +278,6 @@ Scope {
                     active: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed && (Config?.options.overview.enable ?? true)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
-                        topInset: 82
                         visible: GlobalStates.overviewOpen
                     }
                 }
@@ -294,8 +291,7 @@ Scope {
                         topMargin: 24
                     }
                     z: 1000
-                    active: panelWindow.isFocusedOverviewWindow
-                        && GlobalStates.overviewOpen
+                    active: GlobalStates.overviewOpen
                         && !WorkspaceSwitcherController.grabbed
                 }
             }
