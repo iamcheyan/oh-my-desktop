@@ -24,13 +24,9 @@ WindowDialog {
     }
 
     property int keyboardIndex: 0
-    property int currentPage: 0
-    property int itemsPerPage: 20
     property real wheelAccum: 0
-    property var pageEntries: Cliphist.entries.slice(currentPage * itemsPerPage, currentPage * itemsPerPage + itemsPerPage)
-    property int totalPages: Math.max(1, Math.ceil(Cliphist.entries.length / itemsPerPage))
 
-    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < pageEntries.length) ? pageEntries[keyboardIndex] : ""
+    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) ? Cliphist.entries[keyboardIndex] : ""
 
     function loadCurrentPreview() {
         if (currentEntry && !Cliphist.entryIsImage(currentEntry)) {
@@ -61,12 +57,9 @@ WindowDialog {
         }
     }
 
-    onCurrentPageChanged: pageEntries = Cliphist.entries.slice(currentPage * itemsPerPage, currentPage * itemsPerPage + itemsPerPage)
     onVisibleChanged: {
         if (visible) {
-            currentPage = 0;
             keyboardIndex = 0;
-            pageEntries = Cliphist.entries.slice(0, itemsPerPage);
             clipboardDialog.forceActiveFocus();
             Cliphist.refresh();
             loadCurrentPreview();
@@ -76,33 +69,15 @@ WindowDialog {
     Connections {
         target: Cliphist
         function onEntriesChanged() {
-            const newTotalPages = Math.max(1, Math.ceil(Cliphist.entries.length / itemsPerPage));
-            if (currentPage >= newTotalPages) {
-                currentPage = newTotalPages - 1;
-                keyboardIndex = 0;
+            if (keyboardIndex >= Cliphist.entries.length) {
+                keyboardIndex = Math.max(0, Cliphist.entries.length - 1);
             }
-            pageEntries = Cliphist.entries.slice(currentPage * itemsPerPage, currentPage * itemsPerPage + itemsPerPage);
-        }
-    }
-
-    function nextPage() {
-        if (currentPage < totalPages - 1) {
-            currentPage++;
-            keyboardIndex = 0;
-        }
-    }
-
-    function prevPage() {
-        if (currentPage > 0) {
-            currentPage--;
-            keyboardIndex = 0;
         }
     }
 
     function copySelected() {
-        const absIndex = currentPage * itemsPerPage + keyboardIndex;
-        if (absIndex >= 0 && absIndex < Cliphist.entries.length) {
-            Cliphist.copy(Cliphist.entries[absIndex]);
+        if (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) {
+            Cliphist.copy(Cliphist.entries[keyboardIndex]);
             clipboardDialog.dismiss();
         }
     }
@@ -110,30 +85,18 @@ WindowDialog {
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_Down) {
             event.accepted = true;
-            if (pageEntries.length === 0) return;
-            if (keyboardIndex < pageEntries.length - 1) {
+            if (Cliphist.entries.length === 0) return;
+            if (keyboardIndex < Cliphist.entries.length - 1) {
                 keyboardIndex++;
-            } else if (currentPage < totalPages - 1) {
-                nextPage();
-                keyboardIndex = 0;
             }
         } else if (event.key === Qt.Key_Up) {
             event.accepted = true;
             if (keyboardIndex > 0) {
                 keyboardIndex--;
-            } else if (currentPage > 0) {
-                prevPage();
-                keyboardIndex = pageEntries.length - 1;
             }
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true;
             copySelected();
-        } else if (event.key === Qt.Key_PageDown || event.key === Qt.Key_Right) {
-            event.accepted = true;
-            nextPage();
-        } else if (event.key === Qt.Key_PageUp || event.key === Qt.Key_Left) {
-            event.accepted = true;
-            prevPage();
         }
     }
 
@@ -143,7 +106,7 @@ WindowDialog {
         Layout.fillHeight: true
         spacing: 16
 
-        // Left Column: List
+        // Left Column: Scrollable List
         ColumnLayout {
             Layout.preferredWidth: (layoutRow.width - layoutRow.spacing * 2 - 1) / 2
             Layout.fillWidth: true
@@ -163,11 +126,12 @@ WindowDialog {
                 spacing: 0
                 boundsBehavior: Flickable.StopAtBounds
                 boundsMovement: Flickable.StopAtBounds
-                highlightMoveDuration: 0
-                interactive: false
+                highlightMoveDuration: 100
+                highlightResizeDuration: 0
+                interactive: true
 
                 model: ScriptModel {
-                    values: clipboardDialog.pageEntries
+                    values: Cliphist.entries
                 }
 
                 delegate: ClipboardItem {
@@ -184,38 +148,12 @@ WindowDialog {
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-                    onWheel: (event) => {
-                        const r = WheelUtils.getSteps(event.angleDelta.y, clipboardDialog.wheelAccum)
-                        clipboardDialog.wheelAccum = r.accum
-                        const steps = r.steps
-                        if (steps === 0) return
-                        if (steps > 0) {
-                            for (let i = 0; i < steps; i++) {
-                                if (clipboardDialog.keyboardIndex > 0) {
-                                    clipboardDialog.keyboardIndex--;
-                                } else if (clipboardDialog.currentPage > 0) {
-                                    clipboardDialog.prevPage();
-                                    clipboardDialog.keyboardIndex = Math.min(clipboardDialog.pageEntries.length - 1, clipboardDialog.itemsPerPage - 1);
-                                } else {
-                                    break;
-                                }
-                            }
-                        } else {
-                            for (let i = 0; i < -steps; i++) {
-                                if (clipboardDialog.keyboardIndex < clipboardDialog.pageEntries.length - 1) {
-                                    clipboardDialog.keyboardIndex++;
-                                } else if (clipboardDialog.currentPage < clipboardDialog.totalPages - 1) {
-                                    clipboardDialog.nextPage();
-                                    clipboardDialog.keyboardIndex = 0;
-                                } else {
-                                    break;
-                                }
-                            }
+                Connections {
+                    target: clipboardDialog
+                    function onKeyboardIndexChanged() {
+                        if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count) {
+                            clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
                         }
-                        event.accepted = true;
                     }
                 }
             }
@@ -298,11 +236,7 @@ WindowDialog {
     WindowDialogSeparator {}
 
     WindowDialogToolbar {
-        paginationVisible: clipboardDialog.totalPages > 1
-        currentPage: clipboardDialog.currentPage
-        totalPages: clipboardDialog.totalPages
-        onPageUp: clipboardDialog.prevPage()
-        onPageDown: clipboardDialog.nextPage()
+        paginationVisible: false
         leadingActions: [
             { type: "icon", icon: "close", callback: () => clipboardDialog.dismiss() }
         ]
