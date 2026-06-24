@@ -9,10 +9,12 @@ import QtQuick
 import QtQuick.Layouts
 
 CircleUtilButton {
+    readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
+
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        Quickshell.execDetached([Directories.scriptPath + "/../scripts/launch-tui-tool", "wifi"]);
+        Quickshell.execDetached([tuiLauncher, "wifi"]);
     }
     Item {
         implicitWidth: 20

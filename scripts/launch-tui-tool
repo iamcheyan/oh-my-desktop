@@ -1,6 +1,29 @@
 #!/bin/sh
 set -eu
 
+if [ "${1:-}" = "--run" ]; then
+    tool_label="${2:-tool}"
+    binary="${3:-}"
+
+    if [ -z "$binary" ]; then
+        printf 'Missing binary for %s\n' "$tool_label" >&2
+        exit 2
+    fi
+
+    set +e
+    "$binary"
+    status=$?
+    set -e
+
+    if [ "$status" -ne 0 ]; then
+        printf '\n%s exited with status %s.\n' "$tool_label" "$status" >&2
+        printf 'Press Enter to close...' >&2
+        read _ || true
+    fi
+
+    exit "$status"
+fi
+
 tool="${1:-}"
 
 case "$tool" in
@@ -51,6 +74,12 @@ find_binary() {
     return 1
 }
 
+shell_quote() {
+    printf "'"
+    printf '%s' "$1" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+
 download_binary() {
     if ! command -v curl >/dev/null 2>&1; then
         printf 'curl is required to download %s\n' "$bin_name" >&2
@@ -87,18 +116,24 @@ if [ -z "$binary" ]; then
     binary="$(find_binary)"
 fi
 
+self="$(readlink -f "$0" 2>/dev/null || printf '%s\n' "$0")"
+runner_cmd="$(shell_quote "$self") --run $(shell_quote "$bin_name") $(shell_quote "$binary")"
+
 if command -v kitty >/dev/null 2>&1; then
-    terminal_cmd="kitty --class $class --title '$title' -e '$binary'"
+    terminal_cmd="kitty --class $(shell_quote "$class") --title $(shell_quote "$title") -e $runner_cmd"
 elif command -v alacritty >/dev/null 2>&1; then
-    terminal_cmd="alacritty --class $class -T '$title' -e '$binary'"
+    terminal_cmd="alacritty --class $(shell_quote "$class") -T $(shell_quote "$title") -e $runner_cmd"
 else
     printf 'No supported terminal found. Install kitty or alacritty.\n' >&2
     exit 1
 fi
 
 if command -v hyprctl >/dev/null 2>&1; then
-    hyprctl dispatch exec "[float; center; size 1000 700] $terminal_cmd" >/dev/null
+    if ! hyprctl dispatch "hl.dsp.exec_cmd([[$terminal_cmd]])" >/dev/null 2>&1; then
+        if ! hyprctl dispatch exec -- "$terminal_cmd" >/dev/null 2>&1; then
+            sh -c "exec $terminal_cmd" &
+        fi
+    fi
 else
-    # shellcheck disable=SC2086
     sh -c "exec $terminal_cmd" &
 fi
