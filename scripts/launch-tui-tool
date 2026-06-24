@@ -1,0 +1,104 @@
+#!/bin/sh
+set -eu
+
+tool="${1:-}"
+
+case "$tool" in
+    wifi|impala)
+        bin_name="impala"
+        repo="pythops/impala"
+        title="Impala Wi-Fi"
+        class="org.omd.impala"
+        ;;
+    bluetooth|bluetui)
+        bin_name="bluetui"
+        repo="pythops/bluetui"
+        title="BlueTUI"
+        class="org.omd.bluetui"
+        ;;
+    *)
+        printf 'Usage: %s wifi|bluetooth\n' "$0" >&2
+        exit 2
+        ;;
+esac
+
+install_dir="${OMD_TUI_BIN_DIR:-$HOME/.local/bin}"
+mkdir -p "$install_dir"
+
+arch="$(uname -m)"
+case "$bin_name:$arch" in
+    impala:aarch64|impala:arm64) asset="impala-aarch64-unknown-linux-musl" ;;
+    impala:x86_64|impala:amd64) asset="impala-x86_64-unknown-linux-musl" ;;
+    bluetui:aarch64|bluetui:arm64) asset="bluetui-aarch64-linux-musl" ;;
+    bluetui:x86_64|bluetui:amd64) asset="bluetui-x86_64-linux-musl" ;;
+    *)
+        printf 'Unsupported architecture for %s: %s\n' "$bin_name" "$arch" >&2
+        exit 1
+        ;;
+esac
+
+find_binary() {
+    if command -v "$bin_name" >/dev/null 2>&1; then
+        command -v "$bin_name"
+        return 0
+    fi
+
+    if [ -x "$install_dir/$bin_name" ]; then
+        printf '%s\n' "$install_dir/$bin_name"
+        return 0
+    fi
+
+    return 1
+}
+
+download_binary() {
+    if ! command -v curl >/dev/null 2>&1; then
+        printf 'curl is required to download %s\n' "$bin_name" >&2
+        exit 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        printf 'jq is required to resolve GitHub release assets for %s\n' "$bin_name" >&2
+        exit 1
+    fi
+
+    api_url="https://api.github.com/repos/$repo/releases/latest"
+    download_url="$(
+        curl -fsSL "$api_url" |
+            jq -r --arg asset "$asset" '.assets[] | select(.name == $asset) | .browser_download_url' |
+            sed -n '1p'
+    )"
+
+    if [ -z "$download_url" ] || [ "$download_url" = "null" ]; then
+        printf 'Could not find release asset %s in %s\n' "$asset" "$api_url" >&2
+        exit 1
+    fi
+
+    tmp="$(mktemp "${TMPDIR:-/tmp}/$bin_name.XXXXXX")"
+    trap 'rm -f "$tmp"' EXIT
+    curl -fsSL "$download_url" -o "$tmp"
+    chmod 0755 "$tmp"
+    mv "$tmp" "$install_dir/$bin_name"
+    trap - EXIT
+}
+
+binary="$(find_binary || true)"
+if [ -z "$binary" ]; then
+    download_binary
+    binary="$(find_binary)"
+fi
+
+if command -v kitty >/dev/null 2>&1; then
+    terminal_cmd="kitty --class $class --title '$title' -e '$binary'"
+elif command -v alacritty >/dev/null 2>&1; then
+    terminal_cmd="alacritty --class $class -T '$title' -e '$binary'"
+else
+    printf 'No supported terminal found. Install kitty or alacritty.\n' >&2
+    exit 1
+fi
+
+if command -v hyprctl >/dev/null 2>&1; then
+    hyprctl dispatch exec "[float; center; size 1000 700] $terminal_cmd" >/dev/null
+else
+    # shellcheck disable=SC2086
+    sh -c "exec $terminal_cmd" &
+fi

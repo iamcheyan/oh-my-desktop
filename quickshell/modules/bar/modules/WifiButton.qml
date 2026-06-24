@@ -12,7 +12,7 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        Quickshell.execDetached(["omarchy-launch-or-focus-tui", "omarchy-wifi-tui"]);
+        Quickshell.execDetached([Directories.scriptPath + "/../scripts/launch-tui-tool", "wifi"]);
     }
     Item {
         implicitWidth: 20

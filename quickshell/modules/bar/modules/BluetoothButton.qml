@@ -12,8 +12,7 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        GlobalStates.barDialogType = "bluetooth";
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached([Directories.scriptPath + "/../scripts/launch-tui-tool", "bluetooth"]);
     }
     Item {
         implicitWidth: 20

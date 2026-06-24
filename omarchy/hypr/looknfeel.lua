@@ -21,6 +21,8 @@ hl.config({
 
 -- Float and center our new Wi-Fi TUI manager with premium sizing
 o.window("org.omarchy.omarchy-wifi-tui", { tag = "+floating-window", size = { 1000, 700 } })
+o.window("org.omd.impala", { tag = "+floating-window", size = { 1000, 700 } })
+o.window("org.omd.bluetui", { tag = "+floating-window", size = { 1000, 700 } })
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
 -- hl.config({
