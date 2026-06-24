@@ -146,9 +146,7 @@ Scope {
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
-                ? (WorkspaceSwitcherController.grabbed
-                    ? WlrKeyboardFocus.Exclusive
-                    : (GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None))
+                ? (GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None)
                 : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
@@ -217,8 +215,7 @@ Scope {
                 id: overviewKeyHandler
                 anchors.fill: parent
                 z: 999
-                focus: panelWindow.isFocusedOverviewWindow
-                    && (overviewScope.overviewNavigationActive() || WorkspaceSwitcherController.grabbed)
+                focus: panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
@@ -254,8 +251,7 @@ Scope {
                 Connections {
                     target: overviewScope
                     function onRequestOverviewFocus() {
-                        if (panelWindow.isFocusedOverviewWindow
-                            && (overviewScope.overviewNavigationActive() || WorkspaceSwitcherController.grabbed))
+                        if (panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed)
                             overviewKeyHandler.forceActiveFocus();
                     }
                 }
@@ -286,6 +282,20 @@ Scope {
                         screen: panelWindow.screen
                         visible: GlobalStates.overviewOpen
                     }
+                }
+
+                OverviewSearch {
+                    id: overviewSearch
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                        topMargin: 24
+                    }
+                    z: 1000
+                    active: panelWindow.isFocusedOverviewWindow
+                        && GlobalStates.overviewOpen
+                        && !WorkspaceSwitcherController.grabbed
                 }
             }
 

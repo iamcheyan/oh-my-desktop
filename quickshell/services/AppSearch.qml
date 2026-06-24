@@ -57,6 +57,35 @@ Singleton {
         entry: a
     }))
 
+    function launchApp(desktopEntry) {
+        if (!desktopEntry || !desktopEntry.command || desktopEntry.command.length === 0)
+            return false;
+
+        const cmd = desktopEntry.command;
+        const program = cmd[0];
+        const args = [];
+        for (let i = 1; i < cmd.length; i++) {
+            if (cmd[i].startsWith("%"))
+                continue;
+            args.push(cmd[i]);
+        }
+
+        if (program.includes("/")) {
+            Quickshell.execDetached({
+                command: [program].concat(args),
+                workingDirectory: desktopEntry.workingDirectory || ""
+            });
+        } else {
+            const quote = s => "'" + s.replace(/'/g, "'\\''") + "'";
+            Quickshell.execDetached([
+                "sh", "-c",
+                'p=$(echo ":$PATH:" | sed "s|:$HOME/.local/bin:|:|g" | sed "s/^://; s/:$//") && ' +
+                'exec "$(PATH="$p" command -v ' + quote(program) + ')" ' + args.map(quote).join(" ")
+            ]);
+        }
+        return true;
+    }
+
     function fuzzyQuery(search: string): var { // Idk why list<DesktopEntry> doesn't work
         return Fuzzy.go(search, preppedNames, {
             all: true,
