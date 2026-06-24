@@ -8,10 +8,11 @@ RippleButton {
 
     required default property Item content
     property bool extraActiveCondition: false
+    readonly property int slotSize: 28
 
     padding: 0
-    implicitHeight: Math.max(content.implicitHeight, 20)
-    implicitWidth: Math.max(content.implicitWidth, 20)
+    implicitHeight: slotSize
+    implicitWidth: slotSize
     contentItem: content
 
     colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)

@@ -177,7 +177,12 @@ Item { // Bar content region
                 model: Config.options.bar.rightModules
                 delegate: Loader {
                     required property string modelData
+                    readonly property bool fixedIconSlot: modelData.startsWith("util:")
+                    readonly property int iconSlotWidth: 28
+
                     Layout.fillHeight: true
+                    Layout.minimumWidth: fixedIconSlot ? iconSlotWidth : 0
+                    Layout.preferredWidth: fixedIconSlot ? Math.max(iconSlotWidth, item?.implicitWidth ?? iconSlotWidth) : -1
                     sourceComponent: {
                         const comp = rightModuleRegistry.componentForName(modelData);
                         return comp;
