@@ -12,7 +12,10 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        Quickshell.execDetached(["bash", "-c", "~/.config/omd/bin/omd-clipboard-pick"]);
+        Quickshell.execDetached([
+            "qs", "-p", FileUtils.trimFileProtocol(Directories.config) + "/omd/apps/omd-clipboard",
+            "ipc", "call", "clipboard", "toggle"
+        ]);
     }
     Item {
         implicitWidth: 20
