@@ -1,32 +1,24 @@
 #!/bin/sh
 # Launch walker clipboard picker; auto-paste selection into focused window.
 # dmenu mode: cliphist list piped to stdin, selection output to stdout.
-# Replaces ID with type icons (📝 text / 🖼 image); uses temp map to decode.
+# Prepends type icons (📝 text / 🖼 image) for visual distinction.
 
-tmpmap=$(mktemp)
-
-# Build a map: displayed_line\toriginal_line
-cliphist list | while IFS=	read -r line; do
-    rest=${line#*	}
-    case "$rest" in
-        "[["*binary*) printf '🖼 %s\t%s\n' "$rest" "$line" ;;
-        *)            printf '📝 %s\t%s\n' "$rest" "$line" ;;
-    esac
-done > "$tmpmap"
-
-# Show only the displayed column (icon + content) to walker.
-selection=$(cut -f1 "$tmpmap" | \
+selection=$(cliphist list | sed \
+    -e 's/^[0-9]*\t\[\[ binary data/🖼 [[ binary data/' \
+    -e 's/^[0-9]*\t\(.*\)/📝 \1/' | \
     walker --dmenu --width 720 --maxheight 400 \
     -p "Search clipboard history..." 2>/dev/null) || true
 
-if [ -n "$selection" ]; then
-    # Look up the original cliphist line from the map.
-    orig=$(grep -F	"$selection" "$tmpmap" | cut -f2- | head -1)
-    if [ -n "$orig" ]; then
-        printf '%s\n' "$orig" | cliphist decode | wl-copy
-        sleep 0.05
-        wtype -M ctrl -k v -m ctrl
-    fi
+if [ -z "$selection" ]; then
+    exit 0
 fi
 
-rm -f "$tmpmap"
+# Strip icon prefix, then find the matching original cliphist line.
+content=$(printf '%s\n' "$selection" | sed 's/^[📝🖼] //')
+orig=$(cliphist list | grep -F	"$content" | head -1)
+
+if [ -n "$orig" ]; then
+    printf '%s\n' "$orig" | cliphist decode | wl-copy
+    sleep 0.05
+    wtype -M ctrl -k v -m ctrl
+fi
