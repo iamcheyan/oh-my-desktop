@@ -11,11 +11,21 @@ Unified desktop configuration for the current Omarchy + Quickshell session.
 │   ├── config.json          Quickshell runtime/user options
 │   ├── modules/             bars, dialogs, overview, sidebars, settings
 │   ├── services/            QML singleton services
-│   ├── panelFamilies/       panel loaders
+│   ├── panelFamilies/        panel loaders
 │   ├── scripts/             shell-side helper scripts and launcher
 │   ├── assets/              icons/images
 │   └── translations/        i18n JSON
 ├── omarchy/                 Active ~/.config/omarchy contents
+├── share/                   Active ~/.local/share/omarchy contents (Omarchy framework)
+│   ├── bin/                 306 omarchy-* command scripts
+│   ├── themes/              20 themes (colors, wallpapers, app styles)
+│   ├── default/             Framework Lua modules (loaded via require in hyprland.lua)
+│   ├── config/              Default config templates (used by omarchy-refresh-config)
+│   ├── install/             Install/first-run scripts
+│   └── version              Omarchy version
+├── apps/                    Split Quickshell app processes
+├── bin/                     OMD launcher scripts (omd-bar, omd-restart, etc.)
+├── scripts/                 Helper scripts
 ├── docs/                    Project notes
 └── .migration-backups/      Local migration backups, not source
 ```
@@ -23,12 +33,17 @@ Unified desktop configuration for the current Omarchy + Quickshell session.
 Runtime symlinks:
 
 ```
-~/.config/quickshell -> ~/development/OMD/quickshell
-~/.config/omarchy    -> ~/development/OMD/omarchy
-~/.config/omd        -> ~/development/OMD
+~/.config/quickshell     -> ~/development/OMD/quickshell
+~/.config/omarchy        -> ~/development/OMD/omarchy
+~/.config/omd            -> ~/development/OMD
+~/.local/share/omarchy   -> ~/development/OMD/share
 ```
 
 `~/.config/hypr` is legacy and not part of the current Omarchy session.
+
+All runtime files now live under `~/development/OMD/` — both the user
+config (`omarchy/`, `quickshell/`) and the Omarchy framework (`share/`).
+No Omarchy files are installed outside the repo.
 
 ## Runtime
 
