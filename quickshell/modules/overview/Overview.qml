@@ -141,11 +141,13 @@ Scope {
             screen: overviewPanelLoader.modelData
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
             readonly property bool isFocusedOverviewWindow: overviewScope.isFocusedScreen(panelWindow.screen)
-            visible: GlobalStates.overviewOpen
+            visible: GlobalStates.overviewOpen && panelWindow.isFocusedOverviewWindow
 
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
+                ? (GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None)
+                : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
@@ -341,7 +343,8 @@ Scope {
                         topMargin: 24
                     }
                     z: 1000
-                    active: GlobalStates.overviewOpen
+                    active: panelWindow.isFocusedOverviewWindow
+                        && GlobalStates.overviewOpen
                         && !WorkspaceSwitcherController.grabbed
                 }
 
@@ -418,13 +421,32 @@ Scope {
         function toggleReleaseInterrupt() {
             GlobalStates.superReleaseMightTrigger = false;
         }
+        function superDown() {
+            GlobalStates.superDown = true;
+            GlobalStates.superReleaseMightTrigger = true;
+        }
+        function superUp() {
+            GlobalStates.superDown = false;
+            if (GlobalStates.superReleaseMightTrigger) {
+                GlobalStates.superReleaseMightTrigger = false;
+                if (!GlobalStates.overviewOpen)
+                    GlobalStates.overviewOpen = true;
+                else if (GlobalStates.overviewSearchMode)
+                    GlobalStates.overviewSearchMode = false;
+                else if (!WorkspaceSwitcherController.grabbed)
+                    GlobalStates.overviewOpen = false;
+            }
+        }
         function overviewNext() {
+            GlobalStates.superReleaseMightTrigger = false;
             overviewScope.openGrabbedMode(1);
         }
         function overviewPrev() {
+            GlobalStates.superReleaseMightTrigger = false;
             overviewScope.openGrabbedMode(-1);
         }
         function overviewCommit() {
+            GlobalStates.superReleaseMightTrigger = false;
             overviewScope.commitGrabbedMode();
         }
     }
