@@ -7,8 +7,6 @@
     </style>
     <property name="resizable">false</property>
     <property name="title">Walker</property>
-    <property name="halign">center</property>
-    <property name="valign">center</property>
     <child>
       <object class="GtkBox" id="BoxWrapper">
         <style>
