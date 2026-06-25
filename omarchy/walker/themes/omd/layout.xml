@@ -55,6 +55,7 @@
                 </style>
                 <property name="orientation">horizontal</property>
                 <property name="spacing">12</property>
+                <property name="homogeneous">true</property>
                 <property name="vexpand">true</property>
                 <property name="vexpand-set">true</property>
                 <child>
@@ -107,6 +108,7 @@
                     <style>
                       <class name="preview"></class>
                     </style>
+                    <property name="hexpand">true</property>
                   </object>
                 </child>
               </object>
