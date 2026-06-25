@@ -9,7 +9,7 @@ Item {
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
     property color color: Appearance?.tiling?.text ?? "#c5c8c6"
 
-    readonly property string source: "file://" + Directories.assetsPath + "/cosmic-icons/" + name + ".svg"
+    readonly property string source: name !== "" ? ("file://" + Directories.assetsPath + "/cosmic-icons/" + name + ".svg") : ""
 
     implicitWidth: iconSize
     implicitHeight: iconSize

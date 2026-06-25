@@ -161,26 +161,26 @@ Item { // Bar content region
 
         // Visual content
 
-        RowLayout {
+        Row {
             id: rightSectionRowLayout
             anchors {
                 top: parent.top
                 bottom: parent.bottom
                 right: parent.right
             }
-            width: implicitWidth
             spacing: Config.options.bar.rightModuleSpacing
- 
+            layoutDirection: Qt.RightToLeft
+
             Repeater {
-                model: Config.options.bar.rightModules.slice().reverse()
+                model: Config.options.bar.rightModules
                 delegate: Loader {
                     required property string modelData
                     readonly property bool fixedIconSlot: modelData.startsWith("util:") || modelData === "battery"
                     readonly property int iconSlotWidth: Config.options.bar.rightIconSlotWidth
 
-                    Layout.fillHeight: true
-                    Layout.minimumWidth: fixedIconSlot ? iconSlotWidth : 0
-                    Layout.preferredWidth: fixedIconSlot ? Math.max(iconSlotWidth, item?.implicitWidth ?? iconSlotWidth) : -1
+                    height: parent.height
+                    width: fixedIconSlot ? Math.max(iconSlotWidth, item?.implicitWidth ?? iconSlotWidth) : (item?.implicitWidth ?? 0)
+
                     sourceComponent: {
                         const comp = rightModuleRegistry.componentForName(modelData);
                         return comp;
