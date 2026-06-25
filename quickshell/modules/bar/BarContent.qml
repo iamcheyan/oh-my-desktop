@@ -170,10 +170,9 @@ Item { // Bar content region
             }
             width: implicitWidth
             spacing: Config.options.bar.rightModuleSpacing
-            layoutDirection: Qt.RightToLeft
-
+ 
             Repeater {
-                model: Config.options.bar.rightModules
+                model: Config.options.bar.rightModules.slice().reverse()
                 delegate: Loader {
                     required property string modelData
                     readonly property bool fixedIconSlot: modelData.startsWith("util:") || modelData === "battery"

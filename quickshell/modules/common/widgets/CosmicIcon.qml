@@ -28,6 +28,5 @@ Item {
         anchors.fill: iconImage
         source: iconImage
         color: root.color
-        cached: true
     }
 }

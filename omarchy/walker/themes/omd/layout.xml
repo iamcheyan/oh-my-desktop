@@ -5,14 +5,14 @@
     <style>
       <class name="window"></class>
     </style>
-    <property name="resizable">true</property>
+    <property name="resizable">false</property>
     <property name="title">Walker</property>
     <child>
       <object class="GtkBox" id="BoxWrapper">
         <style>
           <class name="box-wrapper"></class>
         </style>
-        <property name="width-request">760</property>
+        <property name="width-request">520</property>
         <property name="overflow">hidden</property>
         <property name="orientation">horizontal</property>
         <property name="valign">center</property>
@@ -85,11 +85,10 @@
                     <property name="hexpand">true</property>
                     <property name="can_focus">false</property>
                     <property name="overlay-scrolling">true</property>
-                    <property name="max-content-width">720</property>
-                    <property name="max-content-height">430</property>
-                    <property name="min-content-height">0</property>
+                    <property name="max-content-width">500</property>
+                    <property name="max-content-height">400</property>
                     <property name="propagate-natural-height">true</property>
-                    <property name="propagate-natural-width">true</property>
+                    <property name="propagate-natural-width">false</property>
                     <property name="hscrollbar-policy">never</property>
                     <property name="vscrollbar-policy">automatic</property>
                     <child>
