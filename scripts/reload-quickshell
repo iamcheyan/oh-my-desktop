@@ -27,6 +27,7 @@ start_quickshell() {
 stop_quickshell
 stop_waybar
 start_quickshell
+omarchy-restart-walker
 
 sleep 1
 pgrep -af 'quickshell|qs -p' || true
