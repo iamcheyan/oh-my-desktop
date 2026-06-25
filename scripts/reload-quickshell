@@ -4,10 +4,11 @@ set -eu
 omd_root="${OMD_ROOT:-$HOME/.config/omd}"
 
 stop_quickshell() {
-    for app in omd-bar omd-overview omd-switcher omd-applauncher omd-corners omd-clipboard; do
+    for app in omd-bar omd-overview omd-switcher omd-applauncher omd-corners omd-clipboard omd-clipboard-store; do
         systemctl --user stop "$app.service" >/dev/null 2>&1 || true
         pkill -f "quickshell.* -p $omd_root/apps/$app($| )" || true
     done
+    pkill -f "wl-paste --watch cliphist store" || true
 }
 
 stop_waybar() {
