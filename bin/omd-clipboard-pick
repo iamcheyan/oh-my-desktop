@@ -1,9 +1,11 @@
 #!/bin/sh
 # Launch walker clipboard picker; auto-paste selection into focused window.
 # dmenu mode: cliphist list piped to stdin, selection output to stdout.
-# Image entries get an icon prefix for visual distinction.
+# Prepends type icons (📝 text / 🖼 image) before the ID for visual distinction.
 
-selection=$(cliphist list | sed 's/^\([0-9]*\)\t\[\[ binary data/\1\t🖼 /' | \
+selection=$(cliphist list | sed \
+    -e 's/^\([0-9]*\)\t\[\[ binary data/🖼 \1\t[[ binary data/' \
+    -e 's/^\([0-9]*\)\t\(.*\)/📝 \1\t\2/' | \
     walker --dmenu --width 720 --maxheight 400 \
     -p "Search clipboard history..." 2>/dev/null) || true
 
@@ -11,9 +13,8 @@ if [ -z "$selection" ]; then
     exit 0
 fi
 
-# Remove the icon prefix if present, then decode.
-printf '%s\n' "$selection" | sed 's/^\([0-9]*\)\t🖼 /\1\t[[ binary data/' | \
-    cliphist decode | wl-copy
+# Strip the icon prefix to recover the original cliphist line.
+printf '%s\n' "$selection" | sed 's/^[📝🖼] //' | cliphist decode | wl-copy
 
 sleep 0.05
 wtype -M ctrl -k v -m ctrl
