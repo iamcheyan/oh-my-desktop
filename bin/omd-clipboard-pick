@@ -2,8 +2,9 @@
 # Launch walker clipboard picker; auto-paste selection into focused window.
 set -eu
 
-selection=$(walker -m clipboard -t omd-clipboard --width 720 --maxheight 400 \
-    -p "Search clipboard history..." </dev/null 2>/dev/null) || true
+selection=$(cliphist list | walker --dmenu -m clipboard -t omd \
+    --width 720 --maxheight 400 -p "Search clipboard history..." \
+    </dev/null 2>/dev/null) || true
 
 if [ -z "$selection" ]; then
     exit 0
