@@ -1,0 +1,130 @@
+@import "../../../../../../../.config/omarchy/current/theme/walker.css";
+
+* {
+  all: unset;
+  font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font", monospace;
+  font-size: 16px;
+  color: @text;
+}
+
+scrollbar {
+  opacity: 0;
+}
+
+.normal-icons {
+  -gtk-icon-size: 18px;
+}
+
+.large-icons {
+  -gtk-icon-size: 28px;
+}
+
+.box-wrapper {
+  background: alpha(@base, 0.96);
+  border: 1px solid alpha(@border, 0.42);
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 18px 60px alpha(black, 0.42);
+}
+
+.box {
+  border-radius: 7px;
+}
+
+.search-container {
+  background: alpha(@foreground, 0.07);
+  border: 1px solid alpha(@border, 0.22);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.input {
+  caret-color: @selected-text;
+}
+
+.input placeholder {
+  opacity: 0.58;
+}
+
+.input:focus,
+.input:active {
+  box-shadow: none;
+  outline: none;
+}
+
+.content-container {
+  min-height: 120px;
+}
+
+.placeholder,
+.elephant-hint,
+.error {
+  color: alpha(@text, 0.62);
+  padding: 18px;
+}
+
+.scroll {
+  border-radius: 6px;
+}
+
+.list {
+  background: transparent;
+}
+
+child {
+  border-radius: 6px;
+}
+
+child:selected {
+  background: alpha(@selected-text, 0.22);
+}
+
+child:hover {
+  background: alpha(@foreground, 0.08);
+}
+
+child:selected .item-box * {
+  color: @text;
+}
+
+.item-box {
+  padding: 0 10px;
+}
+
+.item-text-box {
+  padding: 10px 0;
+}
+
+.item-text {
+  font-weight: 600;
+}
+
+.item-subtext {
+  color: alpha(@text, 0.58);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.item-image {
+  margin-right: 12px;
+  -gtk-icon-transform: scale(0.9);
+}
+
+.current {
+  font-style: italic;
+}
+
+.keybinds {
+  color: alpha(@text, 0.54);
+}
+
+.keybind-hints {
+  background: alpha(@foreground, 0.07);
+  border: 1px solid alpha(@border, 0.16);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.preview {
+  border-radius: 6px;
+}

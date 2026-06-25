@@ -75,3 +75,5 @@ end
 -- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, { omarchy = "walker -m symbols" })
+hl.unbind("SUPER + CTRL + V")
+o.bind("SUPER + CTRL + V", "Clipboard manager", { omarchy = "walker -m clipboard -t omd --width 760 --maxheight 520 -p 'Search clipboard history...'" })
