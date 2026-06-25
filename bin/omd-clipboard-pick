@@ -2,12 +2,13 @@
 # Launch walker clipboard picker; auto-paste selection into focused window.
 # Uses -m clipboard (not dmenu) to get the preview pane.
 # Walker copies to clipboard on selection; we paste after it exits.
-set -eu
 
 walker -m clipboard --width 720 --maxheight 400 \
     -p "Search clipboard history..." 2>/dev/null || true
 
+# Give the compositor time to restore focus to the previous window.
+sleep 0.1
+
 # Walker's clipboard provider copies the selected entry to the clipboard
 # on Enter. Simulate Ctrl+V to paste into the previously focused window.
-sleep 0.05
-wtype -M ctrl -k v -m ctrl
+wtype -M ctrl -k v -m ctrl 2>/dev/null || true
