@@ -16,18 +16,24 @@ The live desktop uses symlinks:
 ```text
 ~/.config/quickshell -> ~/development/OMD/quickshell
 ~/.config/omarchy    -> ~/development/OMD/omarchy
+~/.config/walker     -> ~/development/OMD/omarchy/walker
+~/.config/omd        -> ~/development/OMD
+~/.local/share/omarchy -> ~/development/OMD/share
 ```
 
 The old path `~/.config/hypr` is legacy. Do not use it for current work.
 
 ## Current State
 
-Current runtime is split into three Quickshell processes:
+Current runtime is split into independent Quickshell processes:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
+quickshell -p ~/.config/omd/apps/omd-applauncher
+quickshell -p ~/.config/omd/apps/omd-corners
+quickshell -p ~/.config/omd/apps/omd-clipboard
 ```
 
 The launcher at `quickshell/scripts/quickshell` accepts an optional config
@@ -108,12 +114,15 @@ Then inspect the active process:
 pgrep -af 'quickshell|qs -p'
 ```
 
-Expected current process:
+Expected current processes include:
 
 ```text
 quickshell -p $HOME/.config/omd/apps/omd-bar
 quickshell -p $HOME/.config/omd/apps/omd-overview
 quickshell -p $HOME/.config/omd/apps/omd-switcher
+quickshell -p $HOME/.config/omd/apps/omd-applauncher
+quickshell -p $HOME/.config/omd/apps/omd-corners
+quickshell -p $HOME/.config/omd/apps/omd-clipboard
 ```
 
 ## Module Split Direction

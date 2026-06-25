@@ -116,7 +116,7 @@ symlink targets.
 │   ├── fontconfig/            Font config
 │   ├── git/                   Git config
 │   ├── btop/                  btop config
-│   ├── walker/                Walker (launcher) config
+│   ├── walker/                Walker config (→ ~/.config/walker)
 │   ├── starship.toml           Starship prompt
 │   ├── autostart/              XDG autostart entries
 │   └── omarchy/               Omarchy extensions and hooks
@@ -206,6 +206,7 @@ symlink targets.
 ```
 ~/.config/quickshell     -> ~/development/OMD/quickshell
 ~/.config/omarchy        -> ~/development/OMD/omarchy
+~/.config/walker         -> ~/development/OMD/omarchy/walker
 ~/.config/omd            -> ~/development/OMD
 ~/.local/share/omarchy   -> ~/development/OMD/share
 ```
@@ -223,6 +224,8 @@ symlink targets.
 - Quickshell runs as six independent app processes: `omd-bar`, `omd-overview`,
   `omd-switcher`, `omd-applauncher`, `omd-corners`, `omd-clipboard`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
+- Walker reads launcher/clipboard options from `~/.config/walker`, which is
+  managed by `omarchy/walker`.
 - Themes are stored in `~/.local/share/omarchy/themes/`. The active theme is
   copied to `~/.config/omarchy/current/` by `omarchy-theme-set`.
 - `omarchy-refresh-config` resets a config file by copying from
