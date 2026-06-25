@@ -1,19 +1,13 @@
 #!/bin/sh
 # Launch walker clipboard picker; auto-paste selection into focused window.
+# Uses -m clipboard (not dmenu) to get the preview pane.
+# Walker copies to clipboard on selection; we paste after it exits.
 set -eu
 
-selection=$(cliphist list | walker --dmenu --width 720 --maxheight 400 \
-    -p "Search clipboard history..." 2>/dev/null) || true
+walker -m clipboard --width 720 --maxheight 400 \
+    -p "Search clipboard history..." 2>/dev/null || true
 
-if [ -z "$selection" ]; then
-    exit 0
-fi
-
-# cliphist list lines are "<id>\t<content>"; decode restores the full content.
-printf '%s\n' "$selection" | cliphist decode | wl-copy
-
-# Small delay so the clipboard is updated before we paste.
+# Walker's clipboard provider copies the selected entry to the clipboard
+# on Enter. Simulate Ctrl+V to paste into the previously focused window.
 sleep 0.05
-
-# Simulate Ctrl+V in the previously focused window.
 wtype -M ctrl -k v -m ctrl
