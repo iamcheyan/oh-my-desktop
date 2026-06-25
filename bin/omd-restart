@@ -6,8 +6,6 @@ pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-overview($| )" || true
 pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-switcher($| )" || true
 pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-applauncher($| )" || true
 pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-corners($| )" || true
-pkill -f "quickshell.* -p $HOME/.config/omd/apps/omd-clipboard($| )" || true
-pkill -f "wl-paste --watch cliphist store" || true
 
 start_app() {
     app="$1"
@@ -29,5 +27,3 @@ start_app omd-overview
 start_app omd-switcher
 start_app omd-applauncher
 start_app omd-corners
-start_app omd-clipboard
-start_app omd-clipboard-store

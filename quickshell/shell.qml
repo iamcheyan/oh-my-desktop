@@ -23,23 +23,11 @@ ShellRoot {
     // Stuff for every panel family
     ReloadPopup {}
 
-    Timer {
-        id: deferredBackgroundTasksTimer
-        interval: Config.options?.startup?.backgroundTasksDelayMs ?? 4000
-        repeat: false
-        onTriggered: Cliphist.refresh()
-    }
-
     Component.onCompleted: {
         Hyprsunset.load()
         FirstRunExperience.load()
         ConflictKiller.load()
         Updates.load()
-
-        if (Config.options?.startup?.deferBackgroundTasks ?? true)
-            deferredBackgroundTasksTimer.start()
-        else
-            Cliphist.refresh()
     }
 
 

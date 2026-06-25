@@ -1,4 +1,0 @@
-#!/bin/sh
-set -eu
-
-exec wl-paste --watch cliphist store

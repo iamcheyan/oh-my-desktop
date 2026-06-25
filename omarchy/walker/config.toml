@@ -17,7 +17,9 @@ as_window = true
 quick_activate = []
 
 [columns]
-symbols = 1 # providers to be queried by default
+symbols = 1
+desktopapplications = 6
+websearch = 1
 
 [providers]
 max_results = 256 # 256 should be enough for everyone

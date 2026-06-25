@@ -1,4 +1,4 @@
-@import "../../../../../../../.config/omarchy/current/theme/walker.css";
+@import "../../../current/theme/walker.css";
 
 * {
   all: unset;
@@ -130,24 +130,3 @@ child:selected .item-box * {
 .preview {
   border-radius: 6px;
 }
-
-/* Grid specific styles */
-.item-box-grid {
-  padding: 14px 6px;
-}
-
-.item-image-grid {
-  margin-bottom: 8px;
-  -gtk-icon-transform: scale(1.4);
-}
-
-.item-text-box-grid {
-  padding: 0;
-}
-
-.item-text-grid {
-  font-weight: 600;
-  font-size: 12px;
-  text-align: center;
-}
-
