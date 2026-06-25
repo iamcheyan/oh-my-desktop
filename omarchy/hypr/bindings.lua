@@ -54,9 +54,7 @@ hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
 -- Interrupt Super-alone overview toggle: any SUPER+key press clears the
--- "might trigger" flag via a non-consuming transparent bind.
--- We use a catch-all approach: bind common keys with non_consuming so they
--- fire alongside the real bind without intercepting it.
+-- "might trigger" flag without consuming the real keybind.
 local interrupt_keys = {
   "RETURN", "TAB", "SPACE", "BACKSPACE", "ESCAPE",
   "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
@@ -69,7 +67,7 @@ local interrupt_keys = {
 }
 for _, key in ipairs(interrupt_keys) do
   hl.bind("SUPER + " .. key, hl.dsp.global("quickshell:superInterrupt"), {
-    non_consuming = true, transparent = true, description = "Interrupt Super-alone"
+    ignore_mods = true, non_consuming = true, transparent = true, description = "Interrupt Super-alone"
   })
 end
 

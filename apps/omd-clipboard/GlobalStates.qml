@@ -30,7 +30,7 @@ Singleton {
     property bool screenUnlockFailed: false
     property bool sessionOpen: false
     property bool superDown: false
-    property bool superReleaseMightTrigger: true
+    property bool superReleaseMightTrigger: false
     property bool workspaceShowNumbers: false
     property bool barDialogOpen: false
     property string barDialogType: ""
@@ -81,14 +81,12 @@ Singleton {
             root.superDown = false
             if (root.superReleaseMightTrigger) {
                 root.superReleaseMightTrigger = false
-                Qt.callLater(() => {
-                    if (!GlobalStates.overviewOpen)
-                        GlobalStates.overviewOpen = true
-                    else if (GlobalStates.overviewSearchMode)
-                        GlobalStates.overviewSearchMode = false
-                    else if (!WorkspaceSwitcherController.grabbed)
-                        GlobalStates.overviewOpen = false
-                })
+                if (!GlobalStates.overviewOpen)
+                    GlobalStates.overviewOpen = true
+                else if (GlobalStates.overviewSearchMode)
+                    GlobalStates.overviewSearchMode = false
+                else if (!WorkspaceSwitcherController.grabbed)
+                    GlobalStates.overviewOpen = false
             }
         }
     }
