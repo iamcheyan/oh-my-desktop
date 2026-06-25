@@ -74,7 +74,7 @@ ShellRoot {
 
             ClipboardDialog {
                 id: dialog
-                anchors.fill: parent
+                anchors.centerIn: parent
                 visible: true
                 show: true
                 onDismiss: clipboardWindow.close()

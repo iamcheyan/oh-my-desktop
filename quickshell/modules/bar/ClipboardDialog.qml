@@ -9,12 +9,17 @@ import Quickshell
 import Quickshell.Io
 import QtQuick.Controls
 
-WindowDialog {
+Rectangle {
     id: clipboardDialog
-    backgroundHeight: 520
-    backgroundWidth: 850
-    anchorPosition: 0
-    anchorMargin: 8
+    property bool show: false
+    signal dismiss()
+
+    width: 800
+    height: 480
+    color: "#1a1a1a"
+    border.color: "#444444"
+    border.width: 2
+    radius: 0
     focus: true
 
     onActiveFocusChanged: {
@@ -25,6 +30,13 @@ WindowDialog {
 
     property int keyboardIndex: 0
     property real wheelAccum: 0
+    property string monoFont: "JetBrainsMono Nerd Font, monospace"
+    property color bgColor: "#1a1a1a"
+    property color borderColor: "#444444"
+    property color selectedBg: "#2a4a6a"
+    property color textColor: "#c5c8c6"
+    property color dimColor: "#666666"
+    property color accentColor: "#4c7899"
 
     readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) ? Cliphist.entries[keyboardIndex] : ""
 
@@ -97,151 +109,244 @@ WindowDialog {
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true;
             copySelected();
+        } else if (event.key === Qt.Key_Escape) {
+            event.accepted = true;
+            clipboardDialog.dismiss();
         }
     }
 
-    RowLayout {
-        id: layoutRow
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        spacing: 16
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: 0
+        spacing: 0
 
-        // Left Column: Scrollable List
-        ColumnLayout {
-            Layout.preferredWidth: (layoutRow.width - layoutRow.spacing * 2 - 1) / 2
+        // Title bar
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 28
+            color: "#222222"
+            border.color: borderColor
+            border.width: 1
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: " CLIPBOARD "
+                font.family: monoFont
+                font.pixelSize: 13
+                font.bold: true
+                color: accentColor
+            }
+
+            Text {
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: "[ESC] close  [Enter] paste  [↑↓] navigate"
+                font.family: monoFont
+                font.pixelSize: 11
+                color: dimColor
+            }
+        }
+
+        // Main content area
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: 0
 
-            ListView {
-                id: clipboardList
-                Layout.fillWidth: true
+            // Left panel - List
+            Rectangle {
+                Layout.preferredWidth: 380
                 Layout.fillHeight: true
-                Layout.topMargin: 2
-                Layout.bottomMargin: 2
-                Layout.leftMargin: 0
-                Layout.rightMargin: 0
+                color: bgColor
+                border.color: borderColor
+                border.width: 1
 
-                clip: true
-                spacing: 0
-                boundsBehavior: Flickable.StopAtBounds
-                boundsMovement: Flickable.StopAtBounds
-                highlightMoveDuration: 100
-                highlightResizeDuration: 0
-                interactive: true
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    spacing: 0
 
-                model: ScriptModel {
-                    values: Cliphist.entries
-                }
+                    // List header
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        color: "#222222"
 
-                delegate: ClipboardItem {
-                    required property string modelData
-                    required property int index
-                    entry: modelData
-                    width: ListView.view.width
-                    selected: clipboardDialog.keyboardIndex === index
-                    onItemClicked: clipboardDialog.dismiss()
-                    onHoveredChanged: {
-                        if (hovered) {
-                            clipboardDialog.keyboardIndex = index;
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: " History"
+                            font.family: monoFont
+                            font.pixelSize: 12
+                            color: dimColor
                         }
                     }
-                }
 
-                Connections {
-                    target: clipboardDialog
-                    function onKeyboardIndexChanged() {
-                        if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count) {
-                            clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
+                    // List content
+                    ListView {
+                        id: clipboardList
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        spacing: 0
+                        boundsBehavior: Flickable.StopAtBounds
+                        boundsMovement: Flickable.StopAtBounds
+                        highlightMoveDuration: 100
+                        highlightResizeDuration: 0
+                        interactive: true
+
+                        model: ScriptModel {
+                            values: Cliphist.entries
+                        }
+
+                        delegate: ClipboardItem {
+                            required property string modelData
+                            required property int index
+                            entry: modelData
+                            width: ListView.view.width
+                            selected: clipboardDialog.keyboardIndex === index
+                            onItemClicked: clipboardDialog.dismiss()
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    clipboardDialog.keyboardIndex = index;
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: clipboardDialog
+                            function onKeyboardIndexChanged() {
+                                if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count) {
+                                    clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Vertical separator
-        Rectangle {
-            Layout.fillHeight: true
-            width: 1
-            color: Appearance.tiling.border
-            opacity: 0.5
-        }
-
-        // Right Column: Preview
-        ColumnLayout {
-            Layout.preferredWidth: (layoutRow.width - layoutRow.spacing * 2 - 1) / 2
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 8
-
-            StyledText {
-                text: qsTr("Preview")
-                font.bold: true
-                font.pixelSize: Appearance.font.pixelSize.large
-                color: Appearance.colors.colOnSurface
-            }
-
+            // Right panel - Preview
             Rectangle {
                 Layout.fillWidth: true
-                height: 1
-                color: Appearance.tiling.border
-                opacity: 0.3
-            }
-
-            Item {
-                id: previewContainer
-                Layout.fillWidth: true
                 Layout.fillHeight: true
-                clip: true
+                color: bgColor
+                border.color: borderColor
+                border.width: 1
 
-                // Image Preview
-                CliphistImage {
-                    anchors.centerIn: parent
-                    visible: clipboardDialog.currentEntry !== "" && Cliphist.entryIsImage(clipboardDialog.currentEntry)
-                    entry: visible ? clipboardDialog.currentEntry : ""
-                    maxWidth: parent.width - 20
-                    maxHeight: parent.height - 20
-                }
-
-                // Text Preview
-                ScrollView {
+                ColumnLayout {
                     anchors.fill: parent
-                    visible: clipboardDialog.currentEntry !== "" && !Cliphist.entryIsImage(clipboardDialog.currentEntry)
-                    clip: true
+                    anchors.margins: 1
+                    spacing: 0
 
-                    TextArea {
-                        readOnly: true
-                        selectByMouse: true
-                        wrapMode: TextEdit.Wrap
-                        text: textDecoder.decodedText
-                        font.family: "monospace"
-                        font.pixelSize: Appearance.font.pixelSize.smallie
-                        color: Appearance.colors.colOnSurface
-                        background: null
-                        activeFocusOnPress: false
+                    // Preview header
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        color: "#222222"
+
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: " Preview"
+                            font.family: monoFont
+                            font.pixelSize: 12
+                            color: dimColor
+                        }
                     }
-                }
 
-                // Empty State
-                StyledText {
-                    anchors.centerIn: parent
-                    visible: clipboardDialog.currentEntry === ""
-                    text: qsTr("No item selected")
-                    color: Appearance.tiling.textDim
+                    // Preview content
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+
+                        // Image Preview
+                        CliphistImage {
+                            anchors.centerIn: parent
+                            visible: clipboardDialog.currentEntry !== "" && Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                            entry: visible ? clipboardDialog.currentEntry : ""
+                            maxWidth: parent.width - 20
+                            maxHeight: parent.height - 20
+                        }
+
+                        // Text Preview
+                        ScrollView {
+                            anchors.fill: parent
+                            visible: clipboardDialog.currentEntry !== "" && !Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                            clip: true
+
+                            TextArea {
+                                readOnly: true
+                                selectByMouse: true
+                                wrapMode: TextEdit.Wrap
+                                text: textDecoder.decodedText
+                                font.family: monoFont
+                                font.pixelSize: 13
+                                color: textColor
+                                background: Rectangle {
+                                    color: bgColor
+                                }
+                                activeFocusOnPress: false
+                                padding: 8
+                            }
+                        }
+
+                        // Empty State
+                        Text {
+                            anchors.centerIn: parent
+                            visible: clipboardDialog.currentEntry === ""
+                            text: "No item selected"
+                            font.family: monoFont
+                            font.pixelSize: 13
+                            color: dimColor
+                        }
+                    }
                 }
             }
         }
-    }
 
-    WindowDialogSeparator {}
+        // Status bar
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 22
+            color: "#222222"
+            border.color: borderColor
+            border.width: 1
 
-    WindowDialogToolbar {
-        paginationVisible: false
-        leadingActions: [
-            { type: "icon", icon: "close", callback: () => clipboardDialog.dismiss() }
-        ]
-        trailingActions: [
-            { type: "icon", icon: "delete_sweep", color: Appearance.tiling.error, callback: () => { Cliphist.wipe(); clipboardDialog.dismiss(); } }
-        ]
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 16
+
+                Text {
+                    text: Cliphist.entries.length + " items"
+                    font.family: monoFont
+                    font.pixelSize: 11
+                    color: dimColor
+                }
+
+                Text {
+                    text: clipboardDialog.keyboardIndex >= 0 ? (clipboardDialog.keyboardIndex + 1) + "/" + Cliphist.entries.length : "-/-"
+                    font.family: monoFont
+                    font.pixelSize: 11
+                    color: dimColor
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "cliphist"
+                    font.family: monoFont
+                    font.pixelSize: 11
+                    color: dimColor
+                }
+            }
+        }
     }
 }

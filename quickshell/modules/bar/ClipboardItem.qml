@@ -8,23 +8,24 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 
-DialogListItem {
+Rectangle {
     id: root
     required property string entry
+    property int index: 0
+    property bool selected: false
     signal itemClicked()
+    signal hoveredChanged(bool hovered)
 
-    verticalPadding: 4
-    active: selected
+    property string monoFont: "JetBrainsMono Nerd Font, monospace"
+    property color bgColor: selected ? "#2a4a6a" : (mouseArea.containsMouse ? "#222222" : "#1a1a1a")
+    property color textColor: "#ffffff"
+    property color dimColor: "#888888"
 
-    onClicked: {
-        Cliphist.copy(entry);
-        root.itemClicked();
-    }
+    height: 28
+    color: bgColor
 
     readonly property bool isImage: Cliphist.entryIsImage(entry)
     readonly property string cleanText: StringUtils.cleanCliphistEntry(entry)
-
-    // Image dimensions from entry string
     readonly property int imgW: {
         const match = entry.match(/(\d+)x(\d+)/);
         return match ? parseInt(match[1]) : 0;
@@ -34,38 +35,50 @@ DialogListItem {
         return match ? parseInt(match[2]) : 0;
     }
 
-    contentItem: Item {
-        anchors {
-            fill: parent
-            topMargin: root.verticalPadding
-            bottomMargin: root.verticalPadding
-            leftMargin: root.horizontalPadding
-            rightMargin: root.horizontalPadding
-        }
-        implicitHeight: rowLayout.implicitHeight
-
-        RowLayout {
-            id: rowLayout
-            anchors.fill: parent
-            spacing: 10
-
-            CosmicIcon {
-                iconSize: Appearance.font.pixelSize.larger
-                name: root.isImage ? "actions/insert-image-symbolic" : "actions/document-open-symbolic"
-                color: Appearance.tiling.textDim
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                color: Appearance.tiling.text
-                elide: Text.ElideRight
-                text: root.isImage ? `${root.imgW}x${root.imgH} image` : root.cleanText
-                textFormat: Text.PlainText
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.family: Appearance.font.family.monospace
-            }
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onContainsMouseChanged: root.hoveredChanged(containsMouse)
+        onClicked: {
+            Cliphist.paste(root.entry);
+            root.itemClicked();
         }
     }
 
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
+        spacing: 8
 
+        // Index number
+        Text {
+            text: (root.index + 1).toString().padStart(3, ' ')
+            font.family: root.monoFont
+            font.pixelSize: 12
+            color: root.dimColor
+            Layout.preferredWidth: 30
+        }
+
+        // Type indicator
+        Text {
+            text: root.isImage ? "[IMG]" : "[TXT]"
+            font.family: root.monoFont
+            font.pixelSize: 12
+            color: root.isImage ? "#a3be8c" : "#4c7899"
+            Layout.preferredWidth: 40
+        }
+
+        // Content
+        Text {
+            Layout.fillWidth: true
+            text: root.entry
+            font.family: root.monoFont
+            font.pixelSize: 12
+            color: root.textColor
+            elide: Text.ElideRight
+        }
+    }
 }
