@@ -4,6 +4,7 @@ set -eu
 if [ "${1:-}" = "--run" ]; then
     tool_label="${2:-tool}"
     binary="${3:-}"
+    shift 3 || true
 
     if [ -z "$binary" ]; then
         printf 'Missing binary for %s\n' "$tool_label" >&2
@@ -11,7 +12,7 @@ if [ "${1:-}" = "--run" ]; then
     fi
 
     set +e
-    "$binary"
+    "$binary" "$@"
     status=$?
     set -e
 
@@ -27,12 +28,14 @@ fi
 tool="${1:-}"
 
 case "$tool" in
-    wifi|wifitui)
-        bin_name="wifitui"
-        repo="shazow/wifitui"
-        title="Wi-Fi"
-        class="org.omd.wifitui"
-        archive="tar.gz"
+    wifi|impala)
+        bin_name="impala"
+        repo="pythops/impala"
+        title="Impala Wi-Fi"
+        class="org.omd.impala"
+        archive="raw"
+        extra_args="--backend networkmanager"
+        local_binary="$HOME/development/impala/target/release/impala"
         ;;
     bluetooth|bluetui)
         bin_name="bluetui"
@@ -40,6 +43,8 @@ case "$tool" in
         title="BlueTUI"
         class="org.omd.bluetui"
         archive="raw"
+        extra_args=""
+        local_binary=""
         ;;
     *)
         printf 'Usage: %s wifi|bluetooth\n' "$0" >&2
@@ -52,8 +57,8 @@ mkdir -p "$install_dir"
 
 arch="$(uname -m)"
 case "$bin_name:$arch" in
-    wifitui:aarch64|wifitui:arm64) asset_pattern="wifitui-*-linux-arm64.tar.gz" ;;
-    wifitui:x86_64|wifitui:amd64) asset_pattern="wifitui-*-linux-x86_64.tar.gz" ;;
+    impala:aarch64|impala:arm64) asset="impala-aarch64-linux-gnu" ;;
+    impala:x86_64|impala:amd64) asset="impala-x86_64-linux-gnu" ;;
     bluetui:aarch64|bluetui:arm64) asset="bluetui-aarch64-linux-musl" ;;
     bluetui:x86_64|bluetui:amd64) asset="bluetui-x86_64-linux-musl" ;;
     *)
@@ -63,6 +68,11 @@ case "$bin_name:$arch" in
 esac
 
 find_binary() {
+    if [ -n "${local_binary:-}" ] && [ -x "$local_binary" ]; then
+        printf '%s\n' "$local_binary"
+        return 0
+    fi
+
     if command -v "$bin_name" >/dev/null 2>&1; then
         command -v "$bin_name"
         return 0
@@ -139,7 +149,7 @@ if [ -z "$binary" ]; then
 fi
 
 self="$(readlink -f "$0" 2>/dev/null || printf '%s\n' "$0")"
-runner_cmd="$(shell_quote "$self") --run $(shell_quote "$bin_name") $(shell_quote "$binary")"
+runner_cmd="$(shell_quote "$self") --run $(shell_quote "$bin_name") $(shell_quote "$binary") ${extra_args:-}"
 
 if command -v kitty >/dev/null 2>&1; then
     terminal_cmd="kitty --class $(shell_quote "$class") --title $(shell_quote "$title") -e $runner_cmd"
@@ -150,12 +160,4 @@ else
     exit 1
 fi
 
-if command -v hyprctl >/dev/null 2>&1; then
-    if ! hyprctl dispatch "hl.dsp.exec_cmd([[$terminal_cmd]])" >/dev/null 2>&1; then
-        if ! hyprctl dispatch exec -- "$terminal_cmd" >/dev/null 2>&1; then
-            sh -c "exec $terminal_cmd" &
-        fi
-    fi
-else
-    sh -c "exec $terminal_cmd" &
-fi
+sh -c "exec $terminal_cmd" &

@@ -9,6 +9,7 @@ import QtQuick
 import QtQuick.Layouts
 
 CircleUtilButton {
+    readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
     readonly property string tooltipText: {
         if (Network.ethernet)
             return Network.networkName.length > 0
@@ -42,8 +43,7 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        GlobalStates.barDialogType = "wifi";
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached([tuiLauncher, "wifi"]);
     }
     Item {
         implicitWidth: 20
