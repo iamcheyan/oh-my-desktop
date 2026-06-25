@@ -160,4 +160,12 @@ else
     exit 1
 fi
 
-sh -c "exec $terminal_cmd" &
+log_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omd"
+mkdir -p "$log_dir"
+log_file="$log_dir/$bin_name.log"
+
+if command -v setsid >/dev/null 2>&1; then
+    setsid sh -c "exec $terminal_cmd" >"$log_file" 2>&1 &
+else
+    nohup sh -c "exec $terminal_cmd" >"$log_file" 2>&1 &
+fi
