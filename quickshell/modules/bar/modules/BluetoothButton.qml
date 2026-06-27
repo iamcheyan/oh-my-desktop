@@ -29,12 +29,7 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            GlobalStates.barDialogType = "bluetooth";
-            GlobalStates.barDialogOpen = true;
-        }
-
-        onHoveredChanged: {
-            if (bluetoothButton.hovered)
+            if (!btPopupLoader.active)
                 btPopupLoader.open();
             else
                 btPopupLoader.close();
@@ -112,6 +107,10 @@ Item {
             }
             onMenuClosed: {
                 btPopupLoader.active = false;
+            }
+            onManageRequested: {
+                GlobalStates.barDialogType = "bluetooth";
+                GlobalStates.barDialogOpen = true;
             }
         }
     }

@@ -20,14 +20,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            Quickshell.execDetached([
-                "qs", "-p", FileUtils.trimFileProtocol(Directories.config) + "/omd/apps/omd-clipboard",
-                "ipc", "call", "clipboard", "toggle"
-            ]);
-        }
-
-        onHoveredChanged: {
-            if (clipboardButton.hovered)
+            if (!clipboardPopupLoader.active)
                 clipboardPopupLoader.open();
             else
                 clipboardPopupLoader.close();
@@ -76,6 +69,12 @@ Item {
             }
             onMenuClosed: {
                 clipboardPopupLoader.active = false;
+            }
+            onManageRequested: {
+                Quickshell.execDetached([
+                    "qs", "-p", FileUtils.trimFileProtocol(Directories.config) + "/omd/apps/omd-clipboard",
+                    "ipc", "call", "clipboard", "toggle"
+                ]);
             }
         }
     }

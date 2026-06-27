@@ -46,11 +46,7 @@ Item {
         toggled: GlobalStates.controlCenterOpen
 
         onPressed: {
-            GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
-        }
-
-        onHoveredChanged: {
-            if (button.hovered)
+            if (!batteryPopupLoader.active)
                 batteryPopupLoader.open();
             else
                 batteryPopupLoader.close();
@@ -124,6 +120,9 @@ Item {
             }
             onMenuClosed: {
                 batteryPopupLoader.active = false;
+            }
+            onManageRequested: {
+                GlobalStates.controlCenterOpen = true;
             }
         }
     }

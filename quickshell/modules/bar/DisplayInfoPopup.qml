@@ -12,6 +12,7 @@ import Quickshell.Hyprland
 PopupWindow {
     id: root
     signal menuClosed
+    signal manageRequested
 
     color: "transparent"
     property real padding: Appearance.sizes.elevationMargin
@@ -268,7 +269,26 @@ PopupWindow {
                         }
                     }
 
-                    Item { Layout.preferredHeight: 8 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: TuiStyle.borderWidth
+                        color: root.tuiLine
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Item { Layout.fillWidth: true }
+
+                        TuiActionButton {
+                            label: "SETTINGS"
+                            accent: root.tuiGreen
+                            onClicked: {
+                                root.manageRequested();
+                                root.close();
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -27,12 +27,7 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            GlobalStates.barDialogType = "wifi";
-            GlobalStates.barDialogOpen = true;
-        }
-
-        onHoveredChanged: {
-            if (wifiButton.hovered)
+            if (!wifiPopupLoader.active)
                 wifiPopupLoader.open();
             else
                 wifiPopupLoader.close();
@@ -110,6 +105,10 @@ Item {
             }
             onMenuClosed: {
                 wifiPopupLoader.active = false;
+            }
+            onManageRequested: {
+                GlobalStates.barDialogType = "wifi";
+                GlobalStates.barDialogOpen = true;
             }
         }
     }

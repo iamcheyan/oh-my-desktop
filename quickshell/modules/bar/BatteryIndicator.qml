@@ -20,7 +20,10 @@ MouseArea {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: {
-        GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
+        if (!batteryPopupLoader.active)
+            batteryPopupLoader.open();
+        else
+            batteryPopupLoader.close();
     }
 
     RowLayout {
@@ -69,15 +72,9 @@ MouseArea {
             onMenuClosed: {
                 batteryPopupLoader.active = false;
             }
-        }
-    }
-
-    HoverHandler {
-        onHoveredChanged: {
-            if (hovered)
-                batteryPopupLoader.open();
-            else
-                batteryPopupLoader.close();
+            onManageRequested: {
+                GlobalStates.controlCenterOpen = true;
+            }
         }
     }
 }

@@ -42,12 +42,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.barDialogType = "nightlight";
-            GlobalStates.barDialogOpen = true;
-        }
-
-        onHoveredChanged: {
-            if (nightLightButton.hovered)
+            if (!nightLightPopupLoader.active)
                 nightLightPopupLoader.open();
             else
                 nightLightPopupLoader.close();
@@ -96,6 +91,10 @@ Item {
             }
             onMenuClosed: {
                 nightLightPopupLoader.active = false;
+            }
+            onManageRequested: {
+                GlobalStates.barDialogType = "nightlight";
+                GlobalStates.barDialogOpen = true;
             }
         }
     }

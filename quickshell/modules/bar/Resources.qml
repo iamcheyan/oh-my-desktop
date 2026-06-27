@@ -7,9 +7,12 @@ MouseArea {
     id: root
     property bool borderless: Config.options.bar.borderless
     property bool alwaysShowAllResources: false
+    property bool popupOpen: false
     implicitWidth: rowLayout.implicitWidth + rowLayout.anchors.leftMargin + rowLayout.anchors.rightMargin
     implicitHeight: Appearance.sizes.barHeight
-    hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    hoverEnabled: true
+    cursorShape: Qt.PointingHandCursor
+    onClicked: root.popupOpen = !root.popupOpen
 
     RowLayout {
         id: rowLayout
@@ -49,5 +52,6 @@ MouseArea {
 
     ResourcesPopup {
         hoverTarget: root
+        active: root.popupOpen
     }
 }

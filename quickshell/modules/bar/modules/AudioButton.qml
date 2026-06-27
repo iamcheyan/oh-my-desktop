@@ -42,13 +42,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.barAudioIsSink = true;
-            GlobalStates.barDialogType = "audio";
-            GlobalStates.barDialogOpen = true;
-        }
-
-        onHoveredChanged: {
-            if (audioButton.hovered)
+            if (!audioPopupLoader.active)
                 audioPopupLoader.open();
             else
                 audioPopupLoader.close();
@@ -98,6 +92,11 @@ Item {
             }
             onMenuClosed: {
                 audioPopupLoader.active = false;
+            }
+            onManageRequested: {
+                GlobalStates.barAudioIsSink = true;
+                GlobalStates.barDialogType = "audio";
+                GlobalStates.barDialogOpen = true;
             }
         }
     }

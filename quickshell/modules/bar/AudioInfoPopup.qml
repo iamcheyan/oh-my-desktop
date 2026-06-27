@@ -12,6 +12,7 @@ import Quickshell.Services.Pipewire
 PopupWindow {
     id: root
     signal menuClosed
+    signal manageRequested
 
     color: "transparent"
     property real padding: Appearance.sizes.elevationMargin
@@ -267,7 +268,26 @@ PopupWindow {
                         valueColor: root.tuiDim
                     }
 
-                    Item { Layout.preferredHeight: 8 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: TuiStyle.borderWidth
+                        color: root.tuiLine
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        Item { Layout.fillWidth: true }
+
+                        TuiActionButton {
+                            label: "AUDIOCTL"
+                            accent: root.tuiGreen
+                            onClicked: {
+                                root.manageRequested();
+                                root.close();
+                            }
+                        }
+                    }
                 }
             }
         }
