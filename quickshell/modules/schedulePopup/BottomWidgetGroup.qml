@@ -10,8 +10,8 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    radius: Appearance.rounding.normal
-    color: Appearance.colors.colLayer1
+    radius: 0
+    color: "#06110e"
     clip: true
     property bool popupMode: false
     property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
@@ -107,7 +107,7 @@ Rectangle {
                 text: "keyboard_arrow_up"
                 iconSize: Appearance.font.pixelSize.larger
                 horizontalAlignment: Text.AlignHCenter
-                color: Appearance.colors.colOnLayer1
+                color: "#e8fff3"
             }
         }
 
@@ -115,10 +115,10 @@ Rectangle {
             property int remainingTasks: Todo.list.filter(task => !task.done).length
             Layout.margins: 10
             Layout.leftMargin: 0
-            // text: `${DateTime.collapsedCalendarFormat}   •   ${remainingTasks} task${remainingTasks > 1 ? "s" : ""}`
             text: Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
+            font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.large
-            color: Appearance.colors.colOnLayer1
+            color: "#e8fff3"
         }
     }
 
@@ -185,7 +185,7 @@ Rectangle {
                     text: "keyboard_arrow_down"
                     iconSize: Appearance.font.pixelSize.larger
                     horizontalAlignment: Text.AlignHCenter
-                    color: Appearance.colors.colOnLayer1
+                    color: "#e8fff3"
                 }
             }
         }

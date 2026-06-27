@@ -11,12 +11,12 @@ import Quickshell.Services.Pipewire
 Item {
     id: root
 
-    readonly property color tuiBg: "#030806"
-    readonly property color tuiPanel: "#06110e"
-    readonly property color tuiFg: "#e8fff3"
-    readonly property color tuiDim: "#65736e"
-    readonly property color tuiLine: "#174339"
-    readonly property color tuiYellow: "#e8ff82"
+    readonly property color tuiBg: TuiStyle.bg
+    readonly property color tuiPanel: TuiStyle.panel
+    readonly property color tuiFg: TuiStyle.fg
+    readonly property color tuiDim: TuiStyle.dim
+    readonly property color tuiLine: TuiStyle.line
+    readonly property color tuiYellow: TuiStyle.yellow
 
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
     property var brightnessMonitor: Brightness.getMonitorForScreen(focusedScreen)

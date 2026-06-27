@@ -17,16 +17,17 @@ RippleButton {
     }
 
     background.anchors.fill: button
-    buttonRadius: Appearance.rounding.full
-    colBackground: Appearance.colors.colLayer2
-    colBackgroundHover: Appearance.colors.colLayer2Hover
-    colRipple: Appearance.colors.colLayer2Active
+    buttonRadius: 0
+    colBackground: "#06110e"
+    colBackgroundHover: "#091814"
+    colRipple: "#174339"
 
     contentItem: StyledText {
         text: buttonText
         horizontalAlignment: Text.AlignHCenter
+        font.family: Appearance.font.family.monospace
         font.pixelSize: Appearance.font.pixelSize.larger
-        color: Appearance.colors.colOnLayer1
+        color: "#e8fff3"
     }
 
     StyledToolTip {

@@ -15,17 +15,17 @@ PopupWindow {
     color: "transparent"
     property real padding: Appearance.sizes.elevationMargin
 
-    readonly property color tuiBg: "#030806"
-    readonly property color tuiPanel: "#06110e"
-    readonly property color tuiPanelAlt: "#091814"
-    readonly property color tuiFg: "#e8fff3"
-    readonly property color tuiDim: "#65736e"
-    readonly property color tuiLine: "#174339"
-    readonly property color tuiGreen: "#36ff8b"
-    readonly property color tuiYellow: "#e8ff82"
-    readonly property color tuiBlue: "#7bc7ff"
-    readonly property color tuiPurple: "#c792ea"
-    readonly property color tuiRed: "#ff6b8b"
+    readonly property color tuiBg: TuiStyle.bg
+    readonly property color tuiPanel: TuiStyle.panel
+    readonly property color tuiPanelAlt: TuiStyle.panelAlt
+    readonly property color tuiFg: TuiStyle.fg
+    readonly property color tuiDim: TuiStyle.dim
+    readonly property color tuiLine: TuiStyle.line
+    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiYellow: TuiStyle.yellow
+    readonly property color tuiBlue: TuiStyle.blue
+    readonly property color tuiPurple: TuiStyle.purple
+    readonly property color tuiRed: TuiStyle.red
 
     function wifiStateLabel() {
         if (Network.ethernet)

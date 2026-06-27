@@ -121,8 +121,8 @@ Item {
 
         Rectangle { // Scrim
             anchors.fill: parent
-            radius: Appearance.rounding.small
-            color: Appearance.colors.colScrim
+            radius: 0
+            color: "#80030806"
             MouseArea {
                 hoverEnabled: true
                 anchors.fill: parent
@@ -139,8 +139,10 @@ Item {
             anchors.margins: root.dialogMargins
             implicitHeight: dialogColumnLayout.implicitHeight
 
-            color: Appearance.m3colors.m3surfaceContainerHigh
-            radius: Appearance.rounding.normal
+            color: "#06110e"
+            radius: 0
+            border.width: 1
+            border.color: "#174339"
 
             function addTask() {
                 if (todoInput.text.length > 0) {
@@ -161,7 +163,8 @@ Item {
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
                     Layout.alignment: Qt.AlignLeft
-                    color: Appearance.m3colors.m3onSurface
+                    color: "#e8fff3"
+                    font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.larger
                     text: Translation.tr("Add task")
                 }
@@ -172,26 +175,27 @@ Item {
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
                     padding: 10
-                    color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
+                    color: activeFocus ? "#e8fff3" : "#65736e"
+                    font.family: Appearance.font.family.monospace
                     renderType: Text.NativeRendering
-                    selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
-                    selectionColor: Appearance.colors.colSecondaryContainer
+                    selectedTextColor: "#030806"
+                    selectionColor: "#36ff8b"
                     placeholderText: Translation.tr("Task description")
-                    placeholderTextColor: Appearance.m3colors.m3outline
+                    placeholderTextColor: "#65736e"
                     focus: root.showAddDialog
                     onAccepted: dialog.addTask()
 
                     background: Rectangle {
                         anchors.fill: parent
-                        radius: Appearance.rounding.verysmall
-                        border.width: 2
-                        border.color: todoInput.activeFocus ? Appearance.colors.colPrimary : Appearance.m3colors.m3outline
+                        radius: 0
+                        border.width: 1
+                        border.color: todoInput.activeFocus ? "#36ff8b" : "#174339"
                         color: "transparent"
                     }
 
                     cursorDelegate: Rectangle {
                         width: 1
-                        color: todoInput.activeFocus ? Appearance.colors.colPrimary : "transparent"
+                        color: todoInput.activeFocus ? "#36ff8b" : "transparent"
                         radius: 1
                     }
                 }

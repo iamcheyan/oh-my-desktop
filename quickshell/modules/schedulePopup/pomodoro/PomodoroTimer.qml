@@ -39,20 +39,24 @@ Item {
                         let seconds = Math.floor(TimerService.pomodoroSecondsLeft % 60).toString().padStart(2, '0');
                         return `${minutes}:${seconds}`;
                     }
+                    font.family: Appearance.font.family.monospace
                     font.pixelSize: 40
-                    color: Appearance.m3colors.m3onSurface
+                    color: "#e8fff3"
                 }
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter
                     text: TimerService.pomodoroLongBreak ? Translation.tr("Long break") : TimerService.pomodoroBreak ? Translation.tr("Break") : Translation.tr("Focus")
+                    font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colSubtext
+                    color: "#65736e"
                 }
             }
 
             Rectangle {
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colLayer2
+                radius: 0
+                color: "#06110e"
+                border.width: 1
+                border.color: "#174339"
                 
                 anchors {
                     right: parent.right
@@ -64,7 +68,8 @@ Item {
                 StyledText {
                     id: cycleText
                     anchors.centerIn: parent
-                    color: Appearance.colors.colOnLayer2
+                    font.family: Appearance.font.family.monospace
+                    color: "#36ff8b"
                     text: TimerService.pomodoroCycle + 1
                 }
             }
@@ -79,15 +84,18 @@ Item {
                 contentItem: StyledText {
                     anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter
+                    font.family: Appearance.font.family.monospace
                     text: TimerService.pomodoroRunning ? Translation.tr("Pause") : (TimerService.pomodoroSecondsLeft === TimerService.focusTime) ? Translation.tr("Start") : Translation.tr("Resume")
-                    color: TimerService.pomodoroRunning ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnPrimary
+                    color: TimerService.pomodoroRunning ? "#e8fff3" : "#030806"
                 }
                 implicitHeight: 35
                 implicitWidth: 90
                 font.pixelSize: Appearance.font.pixelSize.larger
                 onClicked: TimerService.togglePomodoro()
-                colBackground: TimerService.pomodoroRunning ? Appearance.colors.colSecondaryContainer : Appearance.colors.colPrimary
-                colBackgroundHover: TimerService.pomodoroRunning ? Appearance.colors.colSecondaryContainer : Appearance.colors.colPrimary
+                buttonRadius: 0
+                colBackground: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
+                colBackgroundHover: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
+                colRipple: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
             }
 
             RippleButton {
@@ -98,15 +106,17 @@ Item {
                 enabled: (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration) || TimerService.pomodoroCycle > 0 || TimerService.pomodoroBreak
 
                 font.pixelSize: Appearance.font.pixelSize.larger
-                colBackground: Appearance.colors.colErrorContainer
-                colBackgroundHover: Appearance.colors.colErrorContainerHover
-                colRipple: Appearance.colors.colErrorContainerActive
+                buttonRadius: 0
+                colBackground: "#3b0f1a"
+                colBackgroundHover: "#3b0f1a"
+                colRipple: "#3b0f1a"
 
                 contentItem: StyledText {
                     anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter
+                    font.family: Appearance.font.family.monospace
                     text: Translation.tr("Reset")
-                    color: Appearance.colors.colOnErrorContainer
+                    color: "#ff6b8b"
                 }
             }
         }

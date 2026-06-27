@@ -10,12 +10,12 @@ Rectangle {
     required property var device
     required property int index
     property color selectionColor: "#123a32"
-    property color foregroundColor: "#e8fff3"
-    property color dimColor: "#65736e"
-    property color greenColor: "#36ff8b"
-    property color yellowColor: "#e8ff82"
-    property color blueColor: "#7bc7ff"
-    property color lineColor: "#174339"
+    property color foregroundColor: TuiStyle.fg
+    property color dimColor: TuiStyle.dim
+    property color greenColor: TuiStyle.green
+    property color yellowColor: TuiStyle.yellow
+    property color blueColor: TuiStyle.blue
+    property color lineColor: TuiStyle.line
 
     signal activated(var device)
 

@@ -100,10 +100,10 @@ Scope {
                 anchors.centerIn: parent
                 implicitWidth: panelWindow.popupWidth
                 implicitHeight: scheduleContent.implicitHeight + 8
-                color: Appearance.colors.colLayer0
+                color: "#030806"
                 border.width: 1
-                border.color: Appearance.colors.colLayer0Border
-                radius: Appearance.rounding.normal
+                border.color: "#174339"
+                radius: 0
 
                 BottomWidgetGroup {
                     id: scheduleContent

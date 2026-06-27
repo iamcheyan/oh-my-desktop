@@ -10,14 +10,14 @@ import Quickshell.Services.Pipewire
 Item {
     id: root
 
-    readonly property color tuiBg: "#030806"
-    readonly property color tuiPanel: "#06110e"
-    readonly property color tuiFg: "#e8fff3"
-    readonly property color tuiDim: "#65736e"
-    readonly property color tuiLine: "#174339"
-    readonly property color tuiGreen: "#36ff8b"
-    readonly property color tuiBlue: "#7bc7ff"
-    readonly property color tuiRed: "#ff6b8b"
+    readonly property color tuiBg: TuiStyle.bg
+    readonly property color tuiPanel: TuiStyle.panel
+    readonly property color tuiFg: TuiStyle.fg
+    readonly property color tuiDim: TuiStyle.dim
+    readonly property color tuiLine: TuiStyle.line
+    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiBlue: TuiStyle.blue
+    readonly property color tuiRed: TuiStyle.red
 
     readonly property PwNode sink: Pipewire.defaultAudioSink
     readonly property real sinkVolume: sink?.audio.volume ?? 0

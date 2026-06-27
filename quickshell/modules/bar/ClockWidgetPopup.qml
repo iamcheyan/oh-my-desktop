@@ -7,14 +7,14 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
 
-    readonly property color tuiBg: "#030806"
-    readonly property color tuiPanel: "#06110e"
-    readonly property color tuiFg: "#e8fff3"
-    readonly property color tuiDim: "#65736e"
-    readonly property color tuiLine: "#174339"
-    readonly property color tuiGreen: "#36ff8b"
-    readonly property color tuiBlue: "#7bc7ff"
-    readonly property color tuiPurple: "#c792ea"
+    readonly property color tuiBg: TuiStyle.bg
+    readonly property color tuiPanel: TuiStyle.panel
+    readonly property color tuiFg: TuiStyle.fg
+    readonly property color tuiDim: TuiStyle.dim
+    readonly property color tuiLine: TuiStyle.line
+    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiBlue: TuiStyle.blue
+    readonly property color tuiPurple: TuiStyle.purple
 
     property string formattedDate: Qt.locale().toString(DateTime.clock.date, "dddd, MMMM dd, yyyy")
     property string formattedTime: DateTime.time

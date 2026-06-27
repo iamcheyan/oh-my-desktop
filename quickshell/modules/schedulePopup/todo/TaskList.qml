@@ -50,8 +50,10 @@ Item {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 implicitHeight: todoContentRowLayout.implicitHeight
-                color: Appearance.colors.colLayer2
-                radius: Appearance.rounding.small
+                color: "#06110e"
+                radius: 0
+                border.width: 1
+                border.color: "#174339"
 
                 ColumnLayout {
                     id: todoContentRowLayout
@@ -66,6 +68,8 @@ Item {
                         Layout.topMargin: todoListItemPadding
                         text: todoItem.modelData.content
                         wrapMode: Text.Wrap
+                        font.family: Appearance.font.family.monospace
+                        color: "#e8fff3"
                     }
                     RowLayout {
                         Layout.leftMargin: 10
@@ -87,7 +91,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: todoItem.modelData.done ? "remove_done" : "check"
                                 iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colOnLayer1
+                                color: todoItem.modelData.done ? "#65736e" : "#36ff8b"
                             }
                         }
                         TodoItemActionButton {
@@ -100,7 +104,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "delete_forever"
                                 iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colOnLayer1
+                                color: "#ff6b8b"
                             }
                         }
                     }
@@ -126,13 +130,14 @@ Item {
             MaterialSymbol {
                 Layout.alignment: Qt.AlignHCenter
                 iconSize: 55
-                color: Appearance.m3colors.m3outline
+                color: "#65736e"
                 text: emptyPlaceholderIcon
             }
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
                 font.pixelSize: Appearance.font.pixelSize.normal
-                color: Appearance.m3colors.m3outline
+                font.family: Appearance.font.family.monospace
+                color: "#65736e"
                 horizontalAlignment: Text.AlignHCenter
                 text: emptyPlaceholderText
             }

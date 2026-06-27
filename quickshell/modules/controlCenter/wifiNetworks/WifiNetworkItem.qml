@@ -12,12 +12,12 @@ Rectangle {
     required property WifiAccessPoint wifiNetwork
     required property int index
     property color selectionColor: "#133a35"
-    property color foregroundColor: "#e8fff3"
+    property color foregroundColor: TuiStyle.fg
     property color dimColor: "#66756f"
-    property color greenColor: "#36ff8b"
-    property color yellowColor: "#e8ff82"
-    property color blueColor: "#7bc7ff"
-    property color bgColor: "#030806"
+    property color greenColor: TuiStyle.green
+    property color yellowColor: TuiStyle.yellow
+    property color blueColor: TuiStyle.blue
+    property color bgColor: TuiStyle.bg
     property color lineColor: "#12332c"
 
     signal activated(var network)
