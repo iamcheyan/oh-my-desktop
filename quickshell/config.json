@@ -113,8 +113,7 @@
         "centerIconSize": 14,
         "centerModuleSpacing": 8,
         "centerModules": [
-            "clock",
-            "media"
+            "clock"
         ],
         "cornerStyle": 0,
         "floatStyleShadow": true,
@@ -143,13 +142,9 @@
             "util:audio",
             "systray",
             "util:wifi",
-            "util:mic",
             "util:clipboard",
-            "util:idle",
             "util:nightlight",
             "util:screenshot",
-            "media",
-            "battery",
             "clock",
             "sidebar"
         ],
@@ -160,7 +155,14 @@
         "tooltips": {
             "clickToShow": true
         },
-        "vertical": false
+        "vertical": false,
+        "weather": {
+            "city": "",
+            "enable": false,
+            "enableGPS": true,
+            "fetchInterval": 10,
+            "useUSCS": false
+        }
     },
     "battery": {
         "automaticSuspend": true,
@@ -168,13 +170,6 @@
         "full": 101,
         "low": 20,
         "suspend": 3
-    },
-    "weather": {
-        "city": "tokyo",
-        "enable": true,
-        "enableGPS": true,
-        "fetchInterval": 10,
-        "useUSCS": false
     },
     "calendar": {
         "locale": "en-GB"
@@ -227,7 +222,7 @@
         },
         "night": {
             "automatic": false,
-            "colorTemperature": 2513,
+            "colorTemperature": 6000,
             "from": "19:00",
             "to": "06:30"
         }

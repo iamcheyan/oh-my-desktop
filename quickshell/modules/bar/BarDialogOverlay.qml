@@ -122,6 +122,7 @@ Scope {
                 VolumeDialog {
                     id: volumeDialog
                     anchors.fill: parent
+                    isSink: GlobalStates.barAudioIsSink
                     visible: GlobalStates.barDialogType === "audio"
                     show: visible
                     onDismiss: overlayWindow.close()

@@ -34,6 +34,7 @@ Singleton {
     property bool workspaceShowNumbers: false
     property bool barDialogOpen: false
     property string barDialogType: ""
+    property bool barAudioIsSink: true
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {

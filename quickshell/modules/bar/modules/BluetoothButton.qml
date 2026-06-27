@@ -9,6 +9,7 @@ import QtQuick
 import QtQuick.Layouts
 
 Item {
+    id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
@@ -47,6 +48,13 @@ Item {
         onClicked: {
             GlobalStates.barDialogType = "bluetooth";
             GlobalStates.barDialogOpen = true;
+        }
+
+        onHoveredChanged: {
+            if (bluetoothButton.hovered)
+                btPopupLoader.open();
+            else
+                btPopupLoader.close();
         }
     }
 
@@ -92,6 +100,40 @@ Item {
             }
             onMenuClosed: {
                 bluetoothMenu.active = false;
+            }
+        }
+    }
+
+    Loader {
+        id: btPopupLoader
+        active: false
+
+        function open() {
+            btPopupTimer.stop();
+            btPopupLoader.active = true;
+        }
+
+        function close() {
+            btPopupTimer.restart();
+        }
+
+        Timer {
+            id: btPopupTimer
+            interval: 300
+            repeat: false
+            onTriggered: btPopupLoader.active = false
+        }
+
+        sourceComponent: BluetoothInfoPopup {
+            Component.onCompleted: this.visible = true
+            anchor {
+                window: root.QsWindow.window
+                item: root.parent?.parent ?? root
+                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+            }
+            onMenuClosed: {
+                btPopupLoader.active = false;
             }
         }
     }

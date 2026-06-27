@@ -222,7 +222,6 @@ Singleton {
                     "util:clipboard",
                     "util:wifi",
                     "util:bluetooth",
-                    "battery",
                     "media",
                     "clock",
                     "systray",

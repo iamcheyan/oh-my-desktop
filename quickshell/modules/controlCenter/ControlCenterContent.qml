@@ -108,7 +108,7 @@ Item {
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: `battery=${Battery.available ? Math.round(Battery.percentage * 100) + "%" : "--"}  profile=${PowerProfiles.currentProfile}  notifications=${Notifications.list.length}`
+                            text: `battery=${Battery.available ? Math.round(Battery.percentage * 100) + "%" : "--"}  profile=${PowerProfiles.currentProfile}  sleep=${Idle.inhibit ? "blocked" : "allowed"}  notifications=${Notifications.list.length}`
                             font.family: Appearance.font.family.monospace
                             font.pixelSize: Appearance.font.pixelSize.small
                             color: root.tuiDim
@@ -276,6 +276,12 @@ Item {
                             valueColor: root.tuiDim
                         }
 
+                        DetailRow {
+                            keyText: "SLEEP"
+                            valueText: Idle.inhibit ? "blocked" : "allowed"
+                            valueColor: Idle.inhibit ? root.tuiYellow : root.tuiGreen
+                        }
+
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -291,6 +297,12 @@ Item {
                                 label: "refresh"
                                 accent: root.tuiPurple
                                 onClicked: PowerProfiles.refresh()
+                            }
+
+                            ActionButton {
+                                label: Idle.inhibit ? "allow sleep" : "keep awake"
+                                accent: Idle.inhibit ? root.tuiGreen : root.tuiYellow
+                                onClicked: Idle.toggleInhibit()
                             }
                         }
                     }

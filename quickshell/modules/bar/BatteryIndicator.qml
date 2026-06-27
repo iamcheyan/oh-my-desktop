@@ -9,10 +9,7 @@ MouseArea {
     id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
-    property bool borderless: Config.options.bar.borderless
-    readonly property var chargeState: Battery.chargeState
     readonly property bool isCharging: Battery.isCharging
-    readonly property bool isPluggedIn: Battery.isPluggedIn
     readonly property real percentage: Battery.percentage
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
     readonly property color colIcon: Appearance.colors.colBarText
@@ -20,16 +17,10 @@ MouseArea {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Appearance.sizes.barHeight
 
-    hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: {
-        if (GlobalStates.barDialogOpen && GlobalStates.barDialogType === "battery") {
-            GlobalStates.barDialogOpen = false;
-            GlobalStates.barDialogType = "";
-        } else {
-            GlobalStates.barDialogType = "battery";
-            GlobalStates.barDialogOpen = true;
-        }
+        GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
     }
 
     RowLayout {
@@ -45,8 +36,48 @@ MouseArea {
         }
     }
 
-    BatteryHoverPopup {
-        id: batteryHoverPopup
-        hoverTarget: root
+    Loader {
+        id: batteryPopupLoader
+        active: false
+
+        function open() {
+            batteryPopupTimer.stop();
+            batteryPopupLoader.active = true;
+        }
+
+        function close() {
+            batteryPopupTimer.restart();
+        }
+
+        Timer {
+            id: batteryPopupTimer
+            interval: 300
+            repeat: false
+            onTriggered: batteryPopupLoader.active = false
+        }
+
+        sourceComponent: BatteryInfoPopup {
+            Component.onCompleted: {
+                this.visible = true;
+                this.anchor {
+                    window: root.QsWindow.window
+                    item: root
+                    gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+                    edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+                }
+            }
+            onMenuClosed: {
+                batteryPopupLoader.active = false;
+            }
+        }
+    }
+
+    HoverHandler {
+        onHoveredChanged: {
+            if (hovered)
+                batteryPopupLoader.open();
+            else
+                batteryPopupLoader.close();
+        }
     }
 }

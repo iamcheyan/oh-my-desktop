@@ -9,11 +9,12 @@ import QtQuick
 import QtQuick.Layouts
 
 Item {
-    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-    Layout.fillHeight: true
-    implicitWidth: Config.options.bar.rightIconSlotWidth
-    implicitHeight: Config.options.bar.rightIconSlotWidth
-    property bool hovered: wifiButton.hovered
+        id: root
+        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+        Layout.fillHeight: true
+        implicitWidth: Config.options.bar.rightIconSlotWidth
+        implicitHeight: Config.options.bar.rightIconSlotWidth
+        property bool hovered: wifiButton.hovered
 
     readonly property string tooltipText: {
         if (Network.ethernet)
@@ -59,6 +60,13 @@ Item {
             GlobalStates.barDialogType = "wifi";
             GlobalStates.barDialogOpen = true;
         }
+
+        onHoveredChanged: {
+            if (wifiButton.hovered)
+                wifiPopupLoader.open();
+            else
+                wifiPopupLoader.close();
+        }
     }
 
     MouseArea {
@@ -103,6 +111,40 @@ Item {
             }
             onMenuClosed: {
                 wifiMenu.active = false;
+            }
+        }
+    }
+
+    Loader {
+        id: wifiPopupLoader
+        active: false
+
+        function open() {
+            wifiPopupTimer.stop();
+            wifiPopupLoader.active = true;
+        }
+
+        function close() {
+            wifiPopupTimer.restart();
+        }
+
+        Timer {
+            id: wifiPopupTimer
+            interval: 300
+            repeat: false
+            onTriggered: wifiPopupLoader.active = false
+        }
+
+        sourceComponent: WifiInfoPopup {
+            Component.onCompleted: this.visible = true
+            anchor {
+                window: root.QsWindow.window
+                item: root.parent?.parent ?? root
+                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+            }
+            onMenuClosed: {
+                wifiPopupLoader.active = false;
             }
         }
     }

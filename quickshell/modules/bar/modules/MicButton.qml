@@ -12,7 +12,11 @@ import Quickshell.Services.Pipewire
 CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
-    onClicked: Quickshell.execDetached(["wpctl", "set-mute", "@DEFAULT_SOURCE@", "toggle"])
+    onClicked: {
+        GlobalStates.barAudioIsSink = false;
+        GlobalStates.barDialogType = "audio";
+        GlobalStates.barDialogOpen = true;
+    }
     Item {
         implicitWidth: 20
         implicitHeight: 20
@@ -22,10 +26,6 @@ CircleUtilButton {
             name: Pipewire.defaultAudioSource?.audio?.muted ? "status/microphone-sensitivity-muted-symbolic" : "status/microphone-sensitivity-high-symbolic"
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
-        }
-        PopupToolTip {
-            text: Translation.tr("Microphone")
-            anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
         }
     }
 }

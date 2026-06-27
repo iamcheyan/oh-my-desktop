@@ -5,25 +5,17 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
-RippleButton {
-    id: root
-
+Item {
+    id: container
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillWidth: false
     Layout.fillHeight: true
 
-    implicitWidth: indicatorsRowLayout.implicitWidth
-    implicitHeight: indicatorsRowLayout.implicitHeight
+    implicitWidth: button.implicitWidth
+    implicitHeight: button.implicitHeight
 
-    buttonRadius: Appearance.rounding.full
-    colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-    colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
-    colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
-    colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
-    colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
-    toggled: GlobalStates.controlCenterOpen
     property color colText: Appearance.colors.colBarText
 
     component IconSlot: Item {
@@ -38,71 +30,100 @@ RippleButton {
         }
     }
 
-    Behavior on colText {
-        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-    }
-
-    onPressed: {
-        GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
-    }
-
-    RowLayout {
-        id: indicatorsRowLayout
+    RippleButton {
+        id: button
         anchors.centerIn: parent
-        spacing: Config.options.bar.rightModuleSpacing
+        width: indicatorsRowLayout.implicitWidth
+        height: indicatorsRowLayout.implicitHeight
 
-        Revealer {
-            reveal: Audio.sink?.audio?.muted ?? false
-            Layout.fillHeight: true
+        buttonRadius: Appearance.rounding.full
+        colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
+        colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
+        colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
+        colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
+        toggled: GlobalStates.controlCenterOpen
+
+        onPressed: {
+            GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
+        }
+
+        onHoveredChanged: {
+            if (button.hovered)
+                batteryPopupLoader.open();
+            else
+                batteryPopupLoader.close();
+        }
+
+        RowLayout {
+            id: indicatorsRowLayout
+            anchors.centerIn: parent
+            spacing: Config.options.bar.rightModuleSpacing
+
+            Revealer {
+                reveal: Audio.sink?.audio?.muted ?? false
+                Layout.fillHeight: true
+                IconSlot {
+                    CosmicIcon {
+                        anchors.centerIn: parent
+                        name: "status/audio-volume-muted-symbolic"
+                        iconSize: Config.options.bar.rightIconSize
+                        color: container.colText
+                    }
+                }
+            }
             IconSlot {
+                visible: xkbIndicator.active
+                implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
+                HyprlandXkbIndicator {
+                    id: xkbIndicator
+                    anchors.centerIn: parent
+                    color: container.colText
+                }
+            }
+            IconSlot {
+                id: batteryIconSlot
                 CosmicIcon {
                     anchors.centerIn: parent
-                    name: "status/audio-volume-muted-symbolic"
+                    name: Battery.isCharging ? "status/plugged-into-power-symbolic" : "devices/battery-symbolic"
                     iconSize: Config.options.bar.rightIconSize
-                    color: root.colText
+                    color: container.colText
                 }
             }
         }
-        Revealer {
-            reveal: Audio.source?.audio?.muted ?? false
-            Layout.fillHeight: true
-            IconSlot {
-                CosmicIcon {
-                    anchors.centerIn: parent
-                    name: "status/microphone-sensitivity-muted-symbolic"
-                    iconSize: Config.options.bar.rightIconSize
-                    color: root.colText
-                }
-            }
+    }
+
+    Loader {
+        id: batteryPopupLoader
+        active: false
+
+        function open() {
+            batteryPopupTimer.stop();
+            batteryPopupLoader.active = true;
         }
-        IconSlot {
-            visible: xkbIndicator.active
-            implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
-            HyprlandXkbIndicator {
-                id: xkbIndicator
-                anchors.centerIn: parent
-                color: root.colText
-            }
+
+        function close() {
+            batteryPopupTimer.restart();
         }
-        Revealer {
-            reveal: Notifications.silent || Notifications.unread > 0
-            Layout.fillHeight: true
-            implicitHeight: reveal ? Config.options.bar.rightIconSlotWidth : 0
-            implicitWidth: reveal ? Config.options.bar.rightIconSlotWidth : 0
-            IconSlot {
-                NotificationUnreadCount {
-                    id: notificationUnreadCount
-                    anchors.centerIn: parent
-                    color: root.colText
-                }
-            }
+
+        Timer {
+            id: batteryPopupTimer
+            interval: 300
+            repeat: false
+            onTriggered: batteryPopupLoader.active = false
         }
-        IconSlot {
-            CosmicIcon {
-                anchors.centerIn: parent
-                name: "actions/system-shutdown-symbolic"
-                iconSize: Config.options.bar.rightIconSize
-                color: root.colText
+
+        sourceComponent: BatteryInfoPopup {
+            Component.onCompleted: this.visible = true
+            anchor {
+                window: container.QsWindow.window
+                item: container
+                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
+            }
+            onMenuClosed: {
+                batteryPopupLoader.active = false;
             }
         }
     }
