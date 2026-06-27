@@ -109,10 +109,10 @@ WindowDialog {
 
     Keys.onPressed: (event) => {
         if (root.actionOpen) {
-            if (event.key === Qt.Key_Escape) {
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
                 root.closeAction();
                 event.accepted = true;
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 root.connectSelected();
                 event.accepted = true;
             }
@@ -124,6 +124,21 @@ WindowDialog {
             event.accepted = true;
         } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
             deviceList.decrementCurrentIndex();
+            event.accepted = true;
+        } else if (event.key === Qt.Key_PageDown) {
+            deviceList.currentIndex = Math.min(deviceList.count - 1, deviceList.currentIndex + 5);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_PageUp) {
+            deviceList.currentIndex = Math.max(0, deviceList.currentIndex - 5);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_G) {
+            deviceList.currentIndex = event.modifiers & Qt.ShiftModifier ? deviceList.count - 1 : 0;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Home) {
+            deviceList.currentIndex = 0;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_End) {
+            deviceList.currentIndex = deviceList.count - 1;
             event.accepted = true;
         } else if (event.key === Qt.Key_R) {
             if (Bluetooth.defaultAdapter) {
@@ -138,10 +153,10 @@ WindowDialog {
         } else if (event.key === Qt.Key_S) {
             root.openSettings();
             event.accepted = true;
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || event.key === Qt.Key_L) {
             root.openAction(root.selectedOrCurrentDevice());
             event.accepted = true;
-        } else if (event.key === Qt.Key_Escape) {
+        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
             root.dismiss();
             event.accepted = true;
         }
@@ -500,14 +515,15 @@ WindowDialog {
                     anchors.rightMargin: 12
                     spacing: 18
 
-                    FooterHint { text: "enter manage" }
+                    FooterHint { text: "enter/space/l manage" }
                     FooterHint { text: "r scan" }
                     FooterHint { text: "p power" }
                     FooterHint { text: "s settings" }
-                    FooterHint { text: "j/k navigate" }
+                    FooterHint { text: "j/k/↑/↓ navigate" }
+                    FooterHint { text: "g/G jump" }
                     Item { Layout.fillWidth: true }
                     FooterHint {
-                        text: "esc close"
+                        text: "q/esc close"
                         color: root.tuiYellow
                     }
                 }
@@ -522,10 +538,10 @@ WindowDialog {
             z: 20
 
             Keys.onPressed: (event) => {
-                if (event.key === Qt.Key_Escape) {
+                if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
                     root.closeAction();
                     event.accepted = true;
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                     root.connectSelected();
                     event.accepted = true;
                 }

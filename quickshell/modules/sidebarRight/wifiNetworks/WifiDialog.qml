@@ -110,10 +110,10 @@ WindowDialog {
 
     Keys.onPressed: (event) => {
         if (root.detailsOpen) {
-            if (event.key === Qt.Key_Escape) {
+            if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
                 root.closeDetails();
                 event.accepted = true;
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                 root.connectSelected();
                 event.accepted = true;
             }
@@ -126,16 +126,31 @@ WindowDialog {
         } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
             networkList.decrementCurrentIndex();
             event.accepted = true;
+        } else if (event.key === Qt.Key_PageDown) {
+            networkList.currentIndex = Math.min(networkList.count - 1, networkList.currentIndex + 5);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_PageUp) {
+            networkList.currentIndex = Math.max(0, networkList.currentIndex - 5);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_G) {
+            networkList.currentIndex = event.modifiers & Qt.ShiftModifier ? networkList.count - 1 : 0;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Home) {
+            networkList.currentIndex = 0;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_End) {
+            networkList.currentIndex = networkList.count - 1;
+            event.accepted = true;
         } else if (event.key === Qt.Key_R) {
             Network.rescanWifi();
             event.accepted = true;
         } else if (event.key === Qt.Key_S) {
             root.openSettings();
             event.accepted = true;
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space || event.key === Qt.Key_L) {
             root.openDetails(root.selectedOrCurrentNetwork());
             event.accepted = true;
-        } else if (event.key === Qt.Key_Escape) {
+        } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
             root.dismiss();
             event.accepted = true;
         }
@@ -479,13 +494,14 @@ WindowDialog {
                     anchors.rightMargin: 12
                     spacing: 18
 
-                    FooterHint { text: "enter manage" }
+                    FooterHint { text: "enter/space/l manage" }
                     FooterHint { text: "r rescan" }
                     FooterHint { text: "s settings" }
-                    FooterHint { text: "j/k navigate" }
+                    FooterHint { text: "j/k/↑/↓ navigate" }
+                    FooterHint { text: "g/G jump" }
                     Item { Layout.fillWidth: true }
                     FooterHint {
-                        text: "esc close"
+                        text: "q/esc close"
                         color: root.tuiYellow
                     }
                 }
@@ -500,10 +516,10 @@ WindowDialog {
             z: 20
 
             Keys.onPressed: (event) => {
-                if (event.key === Qt.Key_Escape) {
+                if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q || event.key === Qt.Key_H) {
                     root.closeDetails();
                     event.accepted = true;
-                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                     root.connectSelected();
                     event.accepted = true;
                 }
