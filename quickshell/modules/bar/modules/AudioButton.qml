@@ -9,19 +9,28 @@ import QtQuick
 import QtQuick.Layouts
 
 Item {
-    id: root
-    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-    Layout.fillHeight: true
-    implicitWidth: Config.options.bar.rightIconSlotWidth
-    implicitHeight: Config.options.bar.rightIconSlotWidth
+        id: root
+        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+        Layout.fillHeight: true
+        implicitWidth: Config.options.bar.rightIconSlotWidth
+        implicitHeight: Config.options.bar.rightIconSlotWidth
+        property real wheelAccum: 0
 
-    WheelHandler {
-        acceptedDevices: PointerDevice.Mouse
-        onWheel: (event) => {
-            if (event.angleDelta.y > 0)
-                Audio.incrementVolume();
-            else if (event.angleDelta.y < 0)
-                Audio.decrementVolume();
+    MouseArea {
+        id: wheelArea
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+        onWheel: wheel => {
+            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+            root.wheelAccum = r.accum
+            for (let i = 0; i < Math.abs(r.steps); i++) {
+                if (r.steps > 0)
+                    Audio.incrementVolume();
+                else if (r.steps < 0)
+                    Audio.decrementVolume();
+            }
+            wheel.accepted = true;
             if (!audioPopupLoader.active)
                 audioPopupLoader.open();
             audioPopupTimer.restart();
