@@ -84,7 +84,6 @@ Item {
                         HeaderButton {
                             iconName: "restart_alt"
                             accent: root.tuiYellow
-                            tooltipText: Translation.tr("Reload Hyprland & Quickshell")
                             onClicked: {
                                 Quickshell.execDetached(["hyprctl", "reload"])
                                 Quickshell.reload(true);
@@ -94,7 +93,6 @@ Item {
                         HeaderButton {
                             iconName: "settings"
                             accent: root.tuiBlue
-                            tooltipText: Translation.tr("Settings")
                             onClicked: {
                                 GlobalStates.sidebarRightOpen = false;
                                 Quickshell.execDetached(["qs", "-p", root.settingsQmlPath]);
@@ -104,7 +102,6 @@ Item {
                         HeaderButton {
                             iconName: "power_settings_new"
                             accent: root.tuiRed
-                            tooltipText: Translation.tr("Session")
                             onClicked: {
                                 GlobalStates.sessionOpen = true;
                             }
@@ -175,7 +172,6 @@ Item {
         id: button
 
         property string iconName: ""
-        property string tooltipText: ""
         property color accent: root.tuiYellow
         signal clicked()
 
@@ -202,8 +198,5 @@ Item {
             onClicked: button.clicked()
         }
 
-        StyledToolTip {
-            text: button.tooltipText
-        }
     }
 }
