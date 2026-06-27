@@ -37,11 +37,6 @@ Item {
         onTriggered: root.displayText = root.formatDateTime()
     }
 
-    RowLayout {
-        id: rowLayout
-        visible: false
-    }
-
     Rectangle {
         id: clockFrame
         anchors.centerIn: parent

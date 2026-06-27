@@ -34,13 +34,13 @@ PopupWindow {
     readonly property int gamma: Hyprsunset.gamma
     readonly property var screens: Quickshell.screens
     readonly property int screenCount: screens.length
+    property real wheelAccum: 0
+
+    readonly property var brightnessMonitor: Brightness.getMonitorForScreen(Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0])
+    readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
 
     function brightnessPercent() {
-        const monitors = Brightness.monitors;
-        if (!monitors || monitors.length === 0)
-            return "--";
-        const monitor = monitors.find(m => m.screen.name === Hyprland.focusedMonitor?.name) ?? monitors[0];
-        return `${Math.round((monitor?.brightness ?? 0) * 100)}%`;
+        return `${Math.round(root.brightnessValue * 100)}%`;
     }
 
     function screenResolution(screen) {
@@ -157,11 +157,69 @@ PopupWindow {
                     anchors.margins: 14
                     spacing: 14
 
-                    DetailRow {
+                    RowLayout {
+                        Layout.fillWidth: true
                         Layout.topMargin: 14
-                        keyText: "BRIGHTNESS"
-                        valueText: root.brightnessPercent()
-                        valueColor: root.tuiBlue
+                        spacing: 12
+
+                        CosmicIcon {
+                            Layout.alignment: Qt.AlignVCenter
+                            name: "status/display-brightness-symbolic"
+                            iconSize: 24
+                            color: root.tuiYellow
+                        }
+
+                        StyledText {
+                            text: root.brightnessPercent()
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.large
+                            font.weight: Font.Bold
+                            color: root.tuiFg
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        StyledText {
+                            text: "BRIGHTNESS"
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.Bold
+                            color: root.tuiYellow
+                        }
+                    }
+
+                    MeterBar {
+                        id: brightnessMeter
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 10
+                        value: root.brightnessValue * 100
+                        accent: root.tuiYellow
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.NoButton
+                            onWheel: wheel => {
+                                const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+                                root.wheelAccum = r.accum
+                                for (let i = 0; i < Math.abs(r.steps); i++) {
+                                    if (r.steps > 0)
+                                        Brightness.increaseBrightness();
+                                    else if (r.steps < 0)
+                                        Brightness.decreaseBrightness();
+                                }
+                                wheel.accepted = true;
+                            }
+                            onPressed: {
+                                const ratio = mouseX / width;
+                                root.brightnessMonitor?.setBrightness(Math.max(0, Math.min(1, ratio)));
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: root.tuiLine
                     }
 
                     DetailRow {
