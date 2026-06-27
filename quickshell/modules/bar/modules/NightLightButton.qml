@@ -14,6 +14,28 @@ Item {
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
+    property real wheelAccum: 0
+
+    MouseArea {
+        id: wheelArea
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+        onWheel: wheel => {
+            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+            root.wheelAccum = r.accum
+            for (let i = 0; i < Math.abs(r.steps); i++) {
+                if (r.steps > 0)
+                    Brightness.increaseBrightness();
+                else if (r.steps < 0)
+                    Brightness.decreaseBrightness();
+            }
+            wheel.accepted = true;
+            if (!nightLightPopupLoader.active)
+                nightLightPopupLoader.open();
+            nightLightPopupTimer.restart();
+        }
+    }
 
     CircleUtilButton {
         id: nightLightButton
