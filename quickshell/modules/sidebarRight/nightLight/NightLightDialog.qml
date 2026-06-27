@@ -25,10 +25,11 @@ WindowDialog {
     readonly property color tuiPurple: "#c792ea"
     readonly property color tuiRed: "#ff6b8b"
     readonly property color tuiSelection: "#123a32"
-    readonly property int controlCount: 7
+    readonly property int controlCount: 8
     readonly property string selectedTitle: controlTitle(selectedControl)
     readonly property string selectedDescription: controlDescription(selectedControl)
-    readonly property bool selectedIsToggle: selectedControl === 0 || selectedControl === 1 || selectedControl === 4 || selectedControl === 5
+    readonly property bool selectedIsToggle: selectedControl === 1 || selectedControl === 4 || selectedControl === 5 || selectedControl === 6
+    readonly property bool selectedIsAction: selectedControl === 7
     readonly property real selectedValue: controlValue(selectedControl)
 
     backgroundWidth: Math.min(980, Math.max(860, width - 36))
@@ -42,118 +43,136 @@ WindowDialog {
 
     function controlTitle(index) {
         return [
+            "DISPLAY BRIGHTNESS",
             "NIGHT LIGHT",
-            "AUTO SCHEDULE",
             "TEMPERATURE",
             "GAMMA",
+            "AUTO SCHEDULE",
             "CONTENT SHADER",
             "AUTO BRIGHTNESS",
-            "DISPLAY BRIGHTNESS"
+            "RESET TONE"
         ][index] ?? "";
     }
 
     function controlKey(index) {
         return [
-            "NLIGHT",
-            "AUTO",
+            "BRIGHT",
+            "NIGHT",
             "TEMP",
             "GAMMA",
+            "AUTO",
             "SHADER",
             "ABRIGHT",
-            "BRIGHT"
+            "RESET"
         ][index] ?? "";
     }
 
     function controlDescription(index) {
         return [
+            "Current display brightness for the focused screen.",
             "Manual hyprsunset color temperature override.",
-            `Automatic schedule ${Hyprsunset.from} -> ${Hyprsunset.to}.`,
             "Warmer values reduce blue light more aggressively.",
             "Hyprsunset gamma curve for screen dimming.",
+            `Automatic schedule ${Hyprsunset.from} -> ${Hyprsunset.to}.`,
             "Hyprland screen shader that dims bright content.",
             "Automatic physical brightness adjustment.",
-            "Current display brightness for the focused screen."
+            "Restore neutral temperature and gamma values."
         ][index] ?? "";
     }
 
     function controlStatus(index) {
         if (index === 0)
-            return Hyprsunset.temperatureActive ? "ON" : "OFF";
+            return `${Math.round(root.brightnessMonitor.brightness * 100)}%`;
         if (index === 1)
-            return Config.options.light.night.automatic ? "AUTO" : "MANUAL";
+            return Hyprsunset.temperatureActive ? "ON" : "OFF";
         if (index === 2)
             return `${Math.round(Config.options.light.night.colorTemperature)}K`;
         if (index === 3)
             return `${Math.round(Hyprsunset.gamma)}%`;
         if (index === 4)
-            return HyprlandAntiFlashbangShader.enabled ? "ON" : "OFF";
+            return Config.options.light.night.automatic ? "AUTO" : "MANUAL";
         if (index === 5)
-            return Config.options.light.antiFlashbang.enable ? "ON" : "OFF";
+            return HyprlandAntiFlashbangShader.enabled ? "ON" : "OFF";
         if (index === 6)
-            return `${Math.round(root.brightnessMonitor.brightness * 100)}%`;
+            return Config.options.light.antiFlashbang.enable ? "ON" : "OFF";
+        if (index === 7)
+            return "READY";
         return "";
     }
 
     function controlValue(index) {
         if (index === 0)
-            return Hyprsunset.temperatureActive ? 100 : 0;
+            return root.brightnessMonitor.brightness * 100;
         if (index === 1)
-            return Config.options.light.night.automatic ? 100 : 0;
+            return Hyprsunset.temperatureActive ? 100 : 0;
         if (index === 2)
             return (6500 - Config.options.light.night.colorTemperature) / (6500 - 1200) * 100;
         if (index === 3)
             return (Hyprsunset.gamma - Hyprsunset.gammaLowerLimit) / (100 - Hyprsunset.gammaLowerLimit) * 100;
         if (index === 4)
-            return HyprlandAntiFlashbangShader.enabled ? 100 : 0;
+            return Config.options.light.night.automatic ? 100 : 0;
         if (index === 5)
-            return Config.options.light.antiFlashbang.enable ? 100 : 0;
+            return HyprlandAntiFlashbangShader.enabled ? 100 : 0;
         if (index === 6)
-            return root.brightnessMonitor.brightness * 100;
+            return Config.options.light.antiFlashbang.enable ? 100 : 0;
+        if (index === 7)
+            return 0;
         return 0;
     }
 
     function controlTone(index) {
         if (index === 0)
-            return Hyprsunset.temperatureActive ? root.tuiYellow : root.tuiDim;
+            return root.tuiBlue;
         if (index === 1)
-            return Config.options.light.night.automatic ? root.tuiBlue : root.tuiDim;
+            return Hyprsunset.temperatureActive ? root.tuiYellow : root.tuiDim;
         if (index === 2)
             return root.tuiYellow;
         if (index === 3)
             return root.tuiPurple;
         if (index === 4)
-            return HyprlandAntiFlashbangShader.enabled ? root.tuiGreen : root.tuiDim;
+            return Config.options.light.night.automatic ? root.tuiBlue : root.tuiDim;
         if (index === 5)
-            return Config.options.light.antiFlashbang.enable ? root.tuiGreen : root.tuiDim;
+            return HyprlandAntiFlashbangShader.enabled ? root.tuiGreen : root.tuiDim;
         if (index === 6)
-            return root.tuiBlue;
+            return Config.options.light.antiFlashbang.enable ? root.tuiGreen : root.tuiDim;
+        if (index === 7)
+            return root.tuiRed;
         return root.tuiFg;
     }
 
     function toggleControl(index) {
-        if (index === 0) {
+        if (index === 1) {
             Hyprsunset.toggleTemperature(!Hyprsunset.temperatureActive);
-        } else if (index === 1) {
-            Config.options.light.night.automatic = !Config.options.light.night.automatic;
         } else if (index === 4) {
+            Config.options.light.night.automatic = !Config.options.light.night.automatic;
+        } else if (index === 5) {
             if (HyprlandAntiFlashbangShader.enabled)
                 HyprlandAntiFlashbangShader.disable();
             else
                 HyprlandAntiFlashbangShader.enable();
-        } else if (index === 5) {
+        } else if (index === 6) {
             Config.options.light.antiFlashbang.enable = !Config.options.light.antiFlashbang.enable;
         }
     }
 
+    function resetTone() {
+        Config.options.light.night.colorTemperature = Hyprsunset.defaultColorTemperature;
+        Hyprsunset.setGamma(100);
+        if (Hyprsunset.temperatureActive)
+            Hyprsunset.disableTemperature();
+    }
+
     function adjustControl(index, direction) {
-        if (index === 0 || index === 1 || index === 4 || index === 5) {
+        if (index === 0) {
+            root.brightnessMonitor.setBrightness(clamp(root.brightnessMonitor.brightness + direction * 0.05, 0, 1));
+        } else if (index === 1 || index === 4 || index === 5 || index === 6) {
             toggleControl(index);
         } else if (index === 2) {
             Config.options.light.night.colorTemperature = clamp(Config.options.light.night.colorTemperature - direction * 100, 1200, 6500);
         } else if (index === 3) {
             Hyprsunset.setGamma(clamp(Hyprsunset.gamma + direction * 5, Hyprsunset.gammaLowerLimit, 100));
-        } else if (index === 6) {
-            root.brightnessMonitor.setBrightness(clamp(root.brightnessMonitor.brightness + direction * 0.05, 0, 1));
+        } else if (index === 7) {
+            resetTone();
         }
     }
 
@@ -176,6 +195,8 @@ WindowDialog {
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
             if (selectedIsToggle)
                 toggleControl(selectedControl);
+            else if (selectedIsAction)
+                resetTone();
             event.accepted = true;
         } else if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
             root.dismiss();
@@ -220,22 +241,22 @@ WindowDialog {
                         spacing: 2
 
                         TuiText {
-                            text: "OMD LIGHTCTL"
-                            color: root.tuiYellow
+                            text: "OMD DISPLAYCTL"
+                            color: root.tuiBlue
                             font.pixelSize: Appearance.font.pixelSize.large
                             font.weight: Font.Bold
                         }
 
                         TuiText {
-                            text: `night=${Hyprsunset.temperatureActive ? "on" : "off"}  auto=${Config.options.light.night.automatic ? "on" : "off"}  temp=${Math.round(Config.options.light.night.colorTemperature)}K`
+                            text: `brightness=${Math.round(root.brightnessMonitor.brightness * 100)}%  temp=${Math.round(Config.options.light.night.colorTemperature)}K  gamma=${Math.round(Hyprsunset.gamma)}%`
                             color: root.tuiDim
                             elide: Text.ElideRight
                         }
                     }
 
                     StatusText {
-                        label: Hyprsunset.temperatureActive ? "ACTIVE" : "READY"
-                        tone: Hyprsunset.temperatureActive ? root.tuiYellow : root.tuiBlue
+                        label: "SCREEN"
+                        tone: root.tuiBlue
                     }
                 }
             }
@@ -246,8 +267,8 @@ WindowDialog {
                 spacing: 12
 
                 TuiPanel {
-                    title: "FUNCTION MATRIX"
-                    subtitle: "light deck"
+                    title: "SCREEN CONTROLS"
+                    subtitle: "display deck"
                     Layout.preferredWidth: Math.min(530, Math.max(480, root.backgroundWidth * 0.58))
                     Layout.fillHeight: true
                     accent: root.tuiYellow
@@ -267,44 +288,44 @@ WindowDialog {
                                 spacing: 10
 
                                 ControlGroup {
-                                    title: "NIGHT CORE"
-                                    accent: root.tuiYellow
+                                    title: "DISPLAY"
+                                    accent: root.tuiBlue
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
 
                                     ControlTile {
                                         controlIndex: 0
-                                        title: "Manual"
+                                        title: "Brightness"
                                         valueText: root.controlStatus(0)
-                                        detail: "hyprsunset"
+                                        detail: "focused panel"
                                     }
 
                                     ControlTile {
-                                        controlIndex: 1
-                                        title: "Schedule"
-                                        valueText: root.controlStatus(1)
-                                        detail: `${Hyprsunset.from}-${Hyprsunset.to}`
+                                        controlIndex: 7
+                                        title: "Reset Tone"
+                                        valueText: root.controlStatus(7)
+                                        detail: "neutral color"
                                     }
                                 }
 
                                 ControlGroup {
-                                    title: "PROTECTION"
-                                    accent: root.tuiGreen
+                                    title: "NIGHT"
+                                    accent: root.tuiYellow
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
 
                                     ControlTile {
-                                        controlIndex: 4
-                                        title: "Shader"
-                                        valueText: root.controlStatus(4)
-                                        detail: "content dim"
+                                        controlIndex: 1
+                                        title: "Night Light"
+                                        valueText: root.controlStatus(1)
+                                        detail: "manual"
                                     }
 
                                     ControlTile {
-                                        controlIndex: 5
-                                        title: "Auto Bright"
-                                        valueText: root.controlStatus(5)
-                                        detail: "physical"
+                                        controlIndex: 4
+                                        title: "Schedule"
+                                        valueText: root.controlStatus(4)
+                                        detail: `${Hyprsunset.from}-${Hyprsunset.to}`
                                     }
                                 }
                             }
@@ -336,16 +357,23 @@ WindowDialog {
                                 }
 
                                 ControlGroup {
-                                    title: "DISPLAY"
-                                    accent: root.tuiBlue
+                                    title: "PROTECTION"
+                                    accent: root.tuiGreen
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
 
                                     ControlTile {
+                                        controlIndex: 5
+                                        title: "Shader"
+                                        valueText: root.controlStatus(5)
+                                        detail: "content dim"
+                                    }
+
+                                    ControlTile {
                                         controlIndex: 6
-                                        title: "Brightness"
+                                        title: "Auto Bright"
                                         valueText: root.controlStatus(6)
-                                        detail: "focused panel"
+                                        detail: "physical"
                                     }
 
                                     Rectangle {
@@ -393,7 +421,7 @@ WindowDialog {
 
                     TuiPanel {
                         title: "TARGET"
-                        subtitle: root.selectedIsToggle ? "toggle" : "analog"
+                        subtitle: root.selectedIsAction ? "action" : root.selectedIsToggle ? "toggle" : "analog"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         accent: root.controlTone(root.selectedControl)
@@ -475,6 +503,11 @@ WindowDialog {
                                 DetailValue { text: `${Math.round(Hyprsunset.gamma)}%` }
                                 DetailKey { text: "BRIGHT" }
                                 DetailValue { text: `${Math.round(root.brightnessMonitor.brightness * 100)}%` }
+                                DetailKey { text: "NIGHT" }
+                                DetailValue {
+                                    text: Hyprsunset.temperatureActive ? "active" : "inactive"
+                                    color: Hyprsunset.temperatureActive ? root.tuiYellow : root.tuiDim
+                                }
                             }
 
                             Item { Layout.fillHeight: true }
@@ -484,10 +517,12 @@ WindowDialog {
                                 spacing: 8
 
                                 ActionButton {
-                                    label: root.selectedIsToggle ? "TOGGLE" : "- STEP"
-                                    accent: root.selectedIsToggle ? root.tuiYellow : root.tuiBlue
+                                    label: root.selectedIsAction ? "RESET" : root.selectedIsToggle ? "TOGGLE" : "- STEP"
+                                    accent: root.selectedIsAction ? root.tuiRed : root.selectedIsToggle ? root.tuiYellow : root.tuiBlue
                                     onClicked: {
-                                        if (root.selectedIsToggle)
+                                        if (root.selectedIsAction)
+                                            root.resetTone();
+                                        else if (root.selectedIsToggle)
                                             root.toggleControl(root.selectedControl);
                                         else
                                             root.adjustControl(root.selectedControl, -1);
@@ -495,7 +530,7 @@ WindowDialog {
                                 }
 
                                 ActionButton {
-                                    visible: !root.selectedIsToggle
+                                    visible: !root.selectedIsToggle && !root.selectedIsAction
                                     label: "+ STEP"
                                     accent: root.tuiGreen
                                     onClicked: root.adjustControl(root.selectedControl, 1)
@@ -505,8 +540,8 @@ WindowDialog {
                     }
 
                     TuiPanel {
-                        title: "SCHEDULE"
-                        subtitle: Config.options.light.night.automatic ? "armed" : "manual"
+                        title: "SCREEN STATE"
+                        subtitle: Config.options.light.night.automatic ? "schedule armed" : "manual"
                         Layout.fillWidth: true
                         Layout.preferredHeight: 146
                         accent: Config.options.light.night.automatic ? root.tuiBlue : root.tuiDim
@@ -521,6 +556,11 @@ WindowDialog {
                             DetailValue { text: Hyprsunset.from }
                             DetailKey { text: "TO" }
                             DetailValue { text: Hyprsunset.to }
+                            DetailKey { text: "BRIGHT" }
+                            DetailValue {
+                                text: `${Math.round(root.brightnessMonitor.brightness * 100)}%`
+                                color: root.tuiBlue
+                            }
                             DetailKey { text: "MODE" }
                             DetailValue {
                                 text: Config.options.light.night.automatic ? "automatic" : "manual"
