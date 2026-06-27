@@ -1,19 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Watch clipboard changes and store to cliphist.
-# For images (image/png etc), pipe the raw bytes; for text, use default.
-# After storing, notify the omd-bar Quickshell process to refresh its Cliphist model.
-wl-paste --watch sh -c '
-    types=$(wl-paste --list-types 2>/dev/null)
-    case "$types" in
-        *image/png*)    wl-paste -t image/png    | cliphist store ;;
-        *image/jpeg*)   wl-paste -t image/jpeg   | cliphist store ;;
-        *image/webp*)   wl-paste -t image/webp   | cliphist store ;;
-        *image/bmp*)    wl-paste -t image/bmp    | cliphist store ;;
-        *image/avif*)   wl-paste -t image/avif   | cliphist store ;;
-        *image/tiff*)   wl-paste -t image/tiff  | cliphist store ;;
-        *)              wl-paste                 | cliphist store ;;
-    esac
+exec wl-paste --watch sh -c '
+    cliphist store
     qs -p "$HOME/.config/omd/apps/omd-bar" ipc call cliphistService update 2>/dev/null || true
 '
