@@ -249,6 +249,13 @@ symlink targets.
   `~/.config/omd/bin/omd-restart`.
 - `quickshell/scripts/quickshell` accepts an optional config directory for
   split apps, but defaults to `~/.config/quickshell`.
+- Bar hover popups are called **InfoPopup**. Naming convention: `XxxInfoPopup.qml`
+  placed in `quickshell/modules/bar/`. Each InfoPopup uses `PopupWindow` with TUI
+  style (dark background `#030806`, monospace font, colored accent header).
+  To add a new InfoPopup to a bar button, convert it from `CircleUtilButton` to
+  `Item` + `CircleUtilButton` + `Loader<InfoPopup>` pattern. See existing examples:
+  `AudioInfoPopup`, `WifiInfoPopup`, `BluetoothInfoPopup`, `ClipboardInfoPopup`,
+  `DisplayInfoPopup`, `BatteryInfoPopup`.
 
 ### Omarchy / Hyprland
 
