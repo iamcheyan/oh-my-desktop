@@ -207,7 +207,7 @@ PopupWindow {
 
                     DetailRow {
                         keyText: "DEVICES"
-                        valueText: `${Bluetooth.friendlyDeviceList?.length ?? 0} total`
+                        valueText: `${BluetoothStatus.friendlyDeviceList?.length ?? 0} total`
                         valueColor: root.tuiDim
                     }
 

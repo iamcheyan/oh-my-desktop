@@ -64,7 +64,7 @@ Item {
             onTriggered: nightLightPopupLoader.active = false
         }
 
-        sourceComponent: NightLightInfoPopup {
+        sourceComponent: DisplayInfoPopup {
             Component.onCompleted: this.visible = true
             anchor {
                 window: root.QsWindow.window
