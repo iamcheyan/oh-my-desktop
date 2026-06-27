@@ -160,7 +160,7 @@ Item {
                     }
                 }
 
-                NotificationList {
+                TuiNotificationList {
                     anchors.fill: parent
                     anchors.topMargin: 42
                     anchors.leftMargin: 14
