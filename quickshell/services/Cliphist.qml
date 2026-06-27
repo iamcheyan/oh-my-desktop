@@ -137,6 +137,7 @@ Singleton {
     Connections {
         target: Quickshell
         function onClipboardTextChanged() {
+            console.log("[Cliphist] onClipboardTextChanged fired, refreshing")
             delayedUpdateTimer.restart()
         }
     }

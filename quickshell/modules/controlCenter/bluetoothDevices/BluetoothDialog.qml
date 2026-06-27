@@ -173,7 +173,7 @@ WindowDialog {
         Layout.fillWidth: true
         Layout.fillHeight: true
         color: root.tuiBg
-        border.width: 1
+        border.width: 2
         border.color: root.tuiLine
 
         ColumnLayout {
@@ -185,7 +185,7 @@ WindowDialog {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 58
                 color: root.tuiPanel
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiBlue
 
                 RowLayout {
@@ -382,7 +382,7 @@ WindowDialog {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 82
                                 color: root.tuiPanelAlt
-                                border.width: 1
+                                border.width: 2
                                 border.color: root.tuiLine
 
                                 ColumnLayout {
@@ -506,7 +506,7 @@ WindowDialog {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
                 color: root.tuiPanel
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiLine
 
                 RowLayout {
@@ -563,7 +563,7 @@ WindowDialog {
                 height: 350
                 anchors.centerIn: parent
                 color: root.tuiBg
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiBlue
 
                 MouseArea {
@@ -678,7 +678,7 @@ WindowDialog {
         Rectangle {
             anchors.fill: parent
             color: root.tuiPanel
-            border.width: 1
+            border.width: 2
             border.color: root.tuiLine
         }
 

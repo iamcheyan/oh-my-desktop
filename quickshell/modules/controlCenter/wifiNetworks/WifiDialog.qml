@@ -168,7 +168,7 @@ WindowDialog {
         Layout.fillWidth: true
         Layout.fillHeight: true
         color: root.tuiBg
-        border.width: 1
+        border.width: 2
         border.color: root.tuiLine
 
         ColumnLayout {
@@ -180,7 +180,7 @@ WindowDialog {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 58
                 color: root.tuiPanel
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiAccent
 
                 RowLayout {
@@ -370,7 +370,7 @@ WindowDialog {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 82
                                 color: root.tuiPanelAlt
-                                border.width: 1
+                                border.width: 2
                                 border.color: root.tuiLine
 
                                 ColumnLayout {
@@ -485,7 +485,7 @@ WindowDialog {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
                 color: root.tuiPanel
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiLine
 
                 RowLayout {
@@ -542,7 +542,7 @@ WindowDialog {
                 height: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false) ? 420 : 350
                 anchors.centerIn: parent
                 color: root.tuiBg
-                border.width: 1
+                border.width: 2
                 border.color: root.tuiAccent
 
                 MouseArea {
@@ -610,7 +610,7 @@ WindowDialog {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 42
                         color: root.tuiPanel
-                        border.width: 1
+                        border.width: 2
                         border.color: passwordField.activeFocus ? root.tuiAccent : root.tuiLine
 
                         RowLayout {
@@ -706,7 +706,7 @@ WindowDialog {
         Rectangle {
             anchors.fill: parent
             color: root.tuiPanel
-            border.width: 1
+            border.width: 2
             border.color: root.tuiLine
         }
 
