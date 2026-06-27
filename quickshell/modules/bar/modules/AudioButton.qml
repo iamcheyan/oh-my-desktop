@@ -15,6 +15,19 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
 
+    WheelHandler {
+        acceptedDevices: PointerDevice.Mouse
+        onWheel: (event) => {
+            if (event.angleDelta.y > 0)
+                Audio.incrementVolume();
+            else if (event.angleDelta.y < 0)
+                Audio.decrementVolume();
+            if (!audioPopupLoader.active)
+                audioPopupLoader.open();
+            audioPopupTimer.restart();
+        }
+    }
+
     CircleUtilButton {
         id: audioButton
         anchors.centerIn: parent
