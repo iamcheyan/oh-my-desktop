@@ -34,6 +34,8 @@ Singleton {
     property bool workspaceShowNumbers: false
     property bool barDialogOpen: false
     property string barDialogType: ""
+    property bool barAudioIsSink: true
+    property string barPopupType: ""
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
@@ -54,9 +56,20 @@ Singleton {
 
     onControlCenterOpenChanged: {
         if (GlobalStates.controlCenterOpen) {
+            GlobalStates.barPopupType = "";
             Notifications.timeoutAll();
             Notifications.markAllRead();
         }
+    }
+
+    onBarDialogOpenChanged: {
+        if (GlobalStates.barDialogOpen)
+            GlobalStates.barPopupType = "";
+    }
+
+    onScheduleOpenChanged: {
+        if (GlobalStates.scheduleOpen)
+            GlobalStates.barPopupType = "";
     }
 
     GlobalShortcut {

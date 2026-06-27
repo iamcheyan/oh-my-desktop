@@ -51,91 +51,121 @@ Scope {
         }
     }
 
-    Loader {
-        id: popupLoader
-        active: root.open && root.focusedScreen
+    IpcHandler {
+        target: "barPopup"
 
-        sourceComponent: PanelWindow {
-            id: popupWindow
-            screen: root.focusedScreen
-            visible: popupLoader.active
-            color: "transparent"
-            exclusionMode: ExclusionMode.Ignore
-            exclusiveZone: 0
-            WlrLayershell.namespace: "quickshell:barstatus"
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: root.activeType === "schedule" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        function toggle(type: string): void {
+            GlobalStates.barPopupType = GlobalStates.barPopupType === type ? "" : type;
+        }
 
-            readonly property bool barOnBottom: Config.options.bar.bottom
-            readonly property bool large: root.activeType === "schedule"
-            readonly property int panelWidth: large ? Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32)) : 348
+        function close(): void {
+            GlobalStates.barPopupType = "";
+        }
 
-            anchors {
-                top: !barOnBottom
-                bottom: barOnBottom
-                right: true
+        function open(type: string): void {
+            GlobalStates.barPopupType = type;
+        }
+    }
+
+    PanelWindow {
+        id: popupWindow
+        screen: root.focusedScreen
+        visible: root.open && root.focusedScreen
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
+        WlrLayershell.namespace: "quickshell:barstatus"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: root.activeType === "schedule" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+
+        readonly property bool barOnBottom: Config.options.bar.bottom
+        readonly property bool large: root.activeType === "schedule"
+        readonly property int panelWidth: large ? Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32)) : 348
+
+        anchors {
+            top: !barOnBottom
+            bottom: barOnBottom
+            right: true
+        }
+
+        margins {
+            top: barOnBottom ? 0 : Appearance.sizes.barHeight
+            bottom: barOnBottom ? Appearance.sizes.barHeight : 0
+            right: 8
+        }
+
+        implicitWidth: panel.implicitWidth
+        implicitHeight: panel.implicitHeight
+
+        mask: Region {
+            item: panel
+        }
+
+        Timer {
+            id: dismissGuard
+            interval: 150
+            repeat: false
+            onTriggered: GlobalFocusGrab.addDismissable(popupWindow)
+        }
+
+        onVisibleChanged: {
+            console.log(`[BarStatusPopup] visible=${visible} activeType=${root.activeType} size=${implicitWidth}x${implicitHeight} screen=${screen?.name}`);
+            if (visible) {
+                popupWindow.screen = root.focusedScreen;
+                dismissGuard.restart();
+            } else {
+                dismissGuard.stop();
+                GlobalFocusGrab.removeDismissable(popupWindow);
             }
+        }
 
-            margins {
-                top: barOnBottom ? 0 : Appearance.sizes.barHeight
-                bottom: barOnBottom ? Appearance.sizes.barHeight : 0
-                right: 8
+        Connections {
+            target: GlobalFocusGrab
+            function onDismissed() {
+                root.close();
             }
+        }
 
-            implicitWidth: panel.implicitWidth
-            implicitHeight: panel.implicitHeight
-
-            mask: Region {
-                item: panel
-            }
-
-            Component.onCompleted: GlobalFocusGrab.addDismissable(popupWindow)
-            Component.onDestruction: GlobalFocusGrab.removeDismissable(popupWindow)
-
-            Connections {
-                target: GlobalFocusGrab
-                function onDismissed() {
-                    root.close();
-                }
-            }
+        Item {
+            id: panel
+            anchors.right: parent.right
+            implicitWidth: panelBg.implicitWidth
+            implicitHeight: panelBg.implicitHeight
+            width: implicitWidth
+            height: implicitHeight
 
             StyledRectangularShadow {
                 target: panelBg
             }
 
-            Item {
-                id: panel
-                anchors.right: parent.right
-                implicitWidth: panelBg.implicitWidth
-                implicitHeight: panelBg.implicitHeight
+            Rectangle {
+                id: panelBg
+                implicitWidth: popupWindow.panelWidth
+                implicitHeight: contentLoader.implicitHeight + 24
+                width: implicitWidth
+                height: implicitHeight
+                color: TuiStyle.bg
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                radius: TuiStyle.radius
+                clip: true
 
-                Rectangle {
-                    id: panelBg
-                    implicitWidth: popupWindow.panelWidth
-                    implicitHeight: contentLoader.implicitHeight + 24
-                    color: TuiStyle.bg
-                    border.width: TuiStyle.borderWidth
-                    border.color: TuiStyle.line
-                    radius: TuiStyle.radius
-                    clip: true
-
-                    Loader {
-                        id: contentLoader
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.margins: 12
-                        sourceComponent: {
-                            if (root.activeType === "wifi") return wifiContent;
-                            if (root.activeType === "bluetooth") return bluetoothContent;
-                            if (root.activeType === "audio") return audioContent;
-                            if (root.activeType === "display") return displayContent;
-                            if (root.activeType === "battery") return batteryContent;
-                            if (root.activeType === "clipboard") return clipboardContent;
-                            if (root.activeType === "resources") return resourcesContent;
-                            if (root.activeType === "schedule") return scheduleContent;
-                            return emptyContent;
-                        }
+                Loader {
+                    id: contentLoader
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 12
+                    sourceComponent: {
+                        if (root.activeType === "wifi") return wifiContent;
+                        if (root.activeType === "bluetooth") return bluetoothContent;
+                        if (root.activeType === "audio") return audioContent;
+                        if (root.activeType === "display") return displayContent;
+                        if (root.activeType === "battery") return batteryContent;
+                        if (root.activeType === "clipboard") return clipboardContent;
+                        if (root.activeType === "resources") return resourcesContent;
+                        if (root.activeType === "schedule") return scheduleContent;
+                        return emptyContent;
                     }
                 }
             }
