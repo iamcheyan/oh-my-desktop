@@ -246,53 +246,141 @@ WindowDialog {
                 spacing: 12
 
                 TuiPanel {
-                    title: "CONTROL BUS"
-                    subtitle: `${root.controlCount} channels`
+                    title: "FUNCTION MATRIX"
+                    subtitle: "light deck"
                     Layout.preferredWidth: Math.min(530, Math.max(480, root.backgroundWidth * 0.58))
                     Layout.fillHeight: true
                     accent: root.tuiYellow
 
                     ColumnLayout {
                         anchors.fill: parent
-                        spacing: 0
+                        spacing: 10
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 30
-                            spacing: 8
+                            Layout.fillHeight: true
+                            spacing: 10
 
-                            HeaderCell {
-                                Layout.preferredWidth: 22
-                                text: ""
-                            }
-                            HeaderCell {
-                                Layout.preferredWidth: 78
-                                text: "KEY"
-                                horizontalAlignment: Text.AlignLeft
-                            }
-                            HeaderCell {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: "CONTROL"
-                                horizontalAlignment: Text.AlignLeft
-                            }
-                            HeaderCell {
-                                Layout.preferredWidth: 92
-                                text: "STATE"
-                                horizontalAlignment: Text.AlignRight
-                            }
-                        }
+                                Layout.fillHeight: true
+                                spacing: 10
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: root.tuiLine
-                        }
+                                ControlGroup {
+                                    title: "NIGHT CORE"
+                                    accent: root.tuiYellow
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
 
-                        Repeater {
-                            model: root.controlCount
-                            delegate: ControlRow {
-                                required property int index
-                                controlIndex: index
+                                    ControlTile {
+                                        controlIndex: 0
+                                        title: "Manual"
+                                        valueText: root.controlStatus(0)
+                                        detail: "hyprsunset"
+                                    }
+
+                                    ControlTile {
+                                        controlIndex: 1
+                                        title: "Schedule"
+                                        valueText: root.controlStatus(1)
+                                        detail: `${Hyprsunset.from}-${Hyprsunset.to}`
+                                    }
+                                }
+
+                                ControlGroup {
+                                    title: "PROTECTION"
+                                    accent: root.tuiGreen
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    ControlTile {
+                                        controlIndex: 4
+                                        title: "Shader"
+                                        valueText: root.controlStatus(4)
+                                        detail: "content dim"
+                                    }
+
+                                    ControlTile {
+                                        controlIndex: 5
+                                        title: "Auto Bright"
+                                        valueText: root.controlStatus(5)
+                                        detail: "physical"
+                                    }
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                spacing: 10
+
+                                ControlGroup {
+                                    title: "TONE CURVE"
+                                    accent: root.tuiPurple
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    ControlTile {
+                                        controlIndex: 2
+                                        title: "Temp"
+                                        valueText: root.controlStatus(2)
+                                        detail: "1200-6500K"
+                                    }
+
+                                    ControlTile {
+                                        controlIndex: 3
+                                        title: "Gamma"
+                                        valueText: root.controlStatus(3)
+                                        detail: "25-100%"
+                                    }
+                                }
+
+                                ControlGroup {
+                                    title: "DISPLAY"
+                                    accent: root.tuiBlue
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+
+                                    ControlTile {
+                                        controlIndex: 6
+                                        title: "Brightness"
+                                        valueText: root.controlStatus(6)
+                                        detail: "focused panel"
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        color: root.tuiPanelAlt
+                                        border.width: 1
+                                        border.color: root.tuiLine
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 10
+                                            spacing: 5
+
+                                            TuiText {
+                                                Layout.fillWidth: true
+                                                text: "Quick Keys"
+                                                color: root.tuiDim
+                                                font.weight: Font.Bold
+                                            }
+
+                                            TuiText {
+                                                Layout.fillWidth: true
+                                                text: "h/l adjust"
+                                                color: root.tuiPurple
+                                            }
+
+                                            TuiText {
+                                                Layout.fillWidth: true
+                                                text: "space toggle"
+                                                color: root.tuiPurple
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -475,80 +563,126 @@ WindowDialog {
         }
     }
 
-    component ControlRow: Rectangle {
-        id: row
+    component TuiText: StyledText {
+        color: root.tuiFg
+        font.family: Appearance.font.family.monospace
+        font.pixelSize: Appearance.font.pixelSize.small
+        textFormat: Text.PlainText
+    }
+
+    component ControlGroup: Rectangle {
+        id: group
+
+        required property string title
+        property color accent: root.tuiYellow
+        default property alias content: groupContent.data
+
+        color: root.tuiPanelAlt
+        border.width: 1
+        border.color: root.tuiLine
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                TuiText {
+                    text: group.title
+                    color: group.accent
+                    font.weight: Font.Bold
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: root.tuiLine
+                }
+            }
+
+            ColumnLayout {
+                id: groupContent
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 8
+            }
+        }
+    }
+
+    component ControlTile: Rectangle {
+        id: tile
 
         required property int controlIndex
+        required property string title
+        required property string valueText
+        property string detail: ""
         readonly property bool selected: root.selectedControl === controlIndex
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 38
-        color: selected ? root.tuiSelection : "transparent"
-        border.width: selected ? 1 : 0
-        border.color: selected ? root.controlTone(controlIndex) : "transparent"
+        Layout.fillHeight: true
+        color: selected ? root.tuiSelection : root.tuiBg
+        border.width: 1
+        border.color: selected ? root.controlTone(controlIndex) : root.tuiLine
 
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                root.selectedControl = row.controlIndex;
+                root.selectedControl = tile.controlIndex;
                 if (root.selectedIsToggle)
-                    root.toggleControl(row.controlIndex);
+                    root.toggleControl(tile.controlIndex);
             }
         }
 
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
+            anchors.margins: 10
+            spacing: 6
 
-            TuiText {
-                Layout.preferredWidth: 22
-                text: row.selected ? ":" : " "
-                color: row.selected ? root.controlTone(row.controlIndex) : root.tuiDim
-                horizontalAlignment: Text.AlignHCenter
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                TuiText {
+                    text: tile.selected ? "::" : "--"
+                    color: tile.selected ? root.controlTone(tile.controlIndex) : root.tuiDim
+                    font.weight: Font.Bold
+                }
+
+                TuiText {
+                    Layout.fillWidth: true
+                    text: tile.title
+                    color: tile.selected ? root.tuiFg : Qt.rgba(root.tuiFg.r, root.tuiFg.g, root.tuiFg.b, 0.78)
+                    elide: Text.ElideRight
+                    font.weight: Font.Bold
+                }
+
+                TuiText {
+                    text: tile.valueText
+                    color: root.controlTone(tile.controlIndex)
+                    horizontalAlignment: Text.AlignRight
+                    font.weight: Font.Bold
+                }
             }
 
-            TuiText {
-                Layout.preferredWidth: 78
-                text: root.controlKey(row.controlIndex)
-                color: row.selected ? root.tuiFg : root.tuiDim
-                font.weight: Font.Bold
+            MeterBar {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 10
+                value: root.controlValue(tile.controlIndex)
+                accent: root.controlTone(tile.controlIndex)
             }
 
             TuiText {
                 Layout.fillWidth: true
-                text: root.controlTitle(row.controlIndex)
-                color: row.selected ? root.tuiFg : Qt.rgba(root.tuiFg.r, root.tuiFg.g, root.tuiFg.b, 0.78)
+                text: tile.detail
+                color: root.tuiDim
                 elide: Text.ElideRight
             }
-
-            TuiText {
-                Layout.preferredWidth: 92
-                text: root.controlStatus(row.controlIndex)
-                color: row.selected ? root.tuiFg : root.controlTone(row.controlIndex)
-                horizontalAlignment: Text.AlignRight
-                font.weight: row.selected ? Font.Bold : Font.Normal
-            }
         }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: root.tuiLine
-            opacity: row.selected ? 0 : 0.55
-        }
-    }
-
-    component TuiText: StyledText {
-        color: root.tuiFg
-        font.family: Appearance.font.family.monospace
-        font.pixelSize: Appearance.font.pixelSize.small
-        textFormat: Text.PlainText
     }
 
     component TuiPanel: Item {
