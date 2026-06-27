@@ -20,13 +20,15 @@ Scope {
         }
 
         exclusiveZone: 0
-        implicitWidth: sidebarWidth
+        implicitWidth: screen?.width ?? sidebarWidth
+        implicitHeight: screen?.height ?? 720
         WlrLayershell.namespace: "quickshell:sidebarRight"
         WlrLayershell.keyboardFocus: GlobalStates.sidebarRightOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         color: "transparent"
 
         anchors {
             top: true
+            left: true
             right: true
             bottom: true
         }
@@ -49,16 +51,14 @@ Scope {
             id: sidebarContentLoader
             active: GlobalStates.sidebarRightOpen || Config?.options.sidebar.keepRightSidebarLoaded
             anchors {
-                fill: parent
-                margins: Appearance.sizes.hyprlandGapsOut
-                leftMargin: Appearance.sizes.elevationMargin
+                centerIn: parent
             }
-            width: sidebarWidth - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin
-            height: parent.height - Appearance.sizes.hyprlandGapsOut * 2
+            width: Math.min(980, Math.max(760, parent.width - Appearance.sizes.hyprlandGapsOut * 8))
+            height: Math.min(700, Math.max(520, parent.height - Appearance.sizes.hyprlandGapsOut * 8))
 
             focus: GlobalStates.sidebarRightOpen
             Keys.onPressed: event => {
-                if (event.key === Qt.Key_Escape) {
+                if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
                     panelWindow.hide();
                 }
             }
