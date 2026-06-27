@@ -27,6 +27,10 @@ hl.config({
       -- Use natural (inverse) scrolling.
       -- natural_scroll = true,
 
+      -- Enable one/two/three-finger tap actions on clickpads.
+      tap_to_click = true,
+      tap_button_map = "lrm",
+
       -- Use two-finger clicks for right-click instead of lower-right corner.
       clickfinger_behavior = true,
 
