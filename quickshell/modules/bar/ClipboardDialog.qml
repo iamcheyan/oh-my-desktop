@@ -16,7 +16,7 @@ Rectangle {
     signal dismiss()
 
     width: 860
-    height: 520
+    height: 640
     color: TuiStyle.bg
     border.color: TuiStyle.line
     border.width: TuiStyle.borderWidth
@@ -110,43 +110,6 @@ Rectangle {
         anchors.margins: 12
         spacing: 10
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 42
-            color: TuiStyle.panel
-            border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.line
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 14
-                anchors.rightMargin: 14
-                spacing: 10
-
-                StyledText {
-                    text: "CLIPBOARD"
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Bold
-                    color: TuiStyle.accent
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: TuiStyle.borderWidth
-                    color: TuiStyle.line
-                }
-
-                StyledText {
-                    text: Cliphist.entries.length > 0 ? "READY" : "EMPTY"
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Bold
-                    color: TuiStyle.muted
-                }
-            }
-        }
-
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -156,8 +119,6 @@ Rectangle {
                 Layout.preferredWidth: 390
                 Layout.fillHeight: true
                 color: TuiStyle.panel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
                 clip: true
 
                 ColumnLayout {
@@ -235,8 +196,6 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: TuiStyle.panel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
                 clip: true
 
                 ColumnLayout {
@@ -253,8 +212,6 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         color: TuiStyle.bg
-                        border.width: TuiStyle.borderWidth
-                        border.color: TuiStyle.line
                         clip: true
 
                         CliphistImage {
