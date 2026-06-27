@@ -26,6 +26,7 @@ WindowDialog {
     readonly property color tuiRed: "#ff6b8b"
     readonly property color tuiSelection: "#123a32"
     readonly property int controlCount: 8
+    readonly property var controlOrder: [0, 7, 1, 4, 2, 3, 5, 6]
     readonly property string selectedTitle: controlTitle(selectedControl)
     readonly property string selectedDescription: controlDescription(selectedControl)
     readonly property bool selectedIsToggle: selectedControl === 1 || selectedControl === 4 || selectedControl === 5 || selectedControl === 6
@@ -176,15 +177,40 @@ WindowDialog {
         }
     }
 
+    function moveSelection(direction) {
+        const currentPosition = controlOrder.indexOf(selectedControl);
+        const nextPosition = clamp(currentPosition + direction, 0, controlOrder.length - 1);
+        selectedControl = controlOrder[nextPosition];
+    }
+
+    function handleControlKey(event, index) {
+        if (event.key === Qt.Key_H || event.key === Qt.Key_Left) {
+            selectedControl = index;
+            adjustControl(index, -1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right) {
+            selectedControl = index;
+            adjustControl(index, 1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            selectedControl = index;
+            if (selectedIsToggle)
+                toggleControl(index);
+            else if (selectedIsAction)
+                resetTone();
+            event.accepted = true;
+        }
+    }
+
     Keys.onPressed: (event) => {
         if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
-            selectedControl = Math.min(controlCount - 1, selectedControl + 1);
+            moveSelection(1);
             event.accepted = true;
         } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
-            selectedControl = Math.max(0, selectedControl - 1);
+            moveSelection(-1);
             event.accepted = true;
         } else if (event.key === Qt.Key_G) {
-            selectedControl = event.modifiers & Qt.ShiftModifier ? controlCount - 1 : 0;
+            selectedControl = event.modifiers & Qt.ShiftModifier ? controlOrder[controlOrder.length - 1] : controlOrder[0];
             event.accepted = true;
         } else if (event.key === Qt.Key_H || event.key === Qt.Key_Left) {
             adjustControl(selectedControl, -1);
@@ -663,16 +689,22 @@ WindowDialog {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
+        focus: selected
+        activeFocusOnTab: true
         color: selected ? root.tuiSelection : root.tuiBg
         border.width: 1
         border.color: selected ? root.controlTone(controlIndex) : root.tuiLine
+
+        Keys.onPressed: (event) => root.handleControlKey(event, tile.controlIndex)
 
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onEntered: root.selectedControl = tile.controlIndex
             onClicked: {
                 root.selectedControl = tile.controlIndex;
+                tile.forceActiveFocus();
                 if (root.selectedIsToggle)
                     root.toggleControl(tile.controlIndex);
             }
