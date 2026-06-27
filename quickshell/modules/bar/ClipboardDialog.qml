@@ -188,7 +188,7 @@ Rectangle {
 
             // History list
             Rectangle {
-                Layout.preferredWidth: 420
+                Layout.preferredWidth: 520
                 Layout.fillHeight: true
                 color: TuiStyle.panel
                 clip: true
