@@ -46,7 +46,7 @@ Item {
         toggled: GlobalStates.controlCenterOpen
 
         onPressed: {
-            GlobalStates.toggleBarPopup("battery");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "battery" ? "" : "battery";
         }
 
         RowLayout {
@@ -87,32 +87,4 @@ Item {
         }
     }
 
-    Loader {
-        id: batteryPopupLoader
-        active: GlobalStates.barPopupType === "battery"
-
-        function open() {
-            GlobalStates.openBarPopup("battery");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("battery");
-        }
-
-        sourceComponent: BatteryInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: container.QsWindow.window
-                item: container
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("battery");
-            }
-            onManageRequested: {
-                GlobalStates.controlCenterOpen = true;
-            }
-        }
-    }
 }

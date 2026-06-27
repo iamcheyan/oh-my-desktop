@@ -31,7 +31,7 @@ Item {
                     Audio.decrementVolume();
             }
             wheel.accepted = true;
-            GlobalStates.openBarPopup("audio");
+            GlobalStates.barPopupType = "audio";
         }
     }
 
@@ -40,7 +40,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.toggleBarPopup("audio");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "audio" ? "" : "audio";
         }
 
         content: Item {
@@ -57,34 +57,4 @@ Item {
         }
     }
 
-    Loader {
-        id: audioPopupLoader
-        active: GlobalStates.barPopupType === "audio"
-
-        function open() {
-            GlobalStates.openBarPopup("audio");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("audio");
-        }
-
-        sourceComponent: AudioInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: root.QsWindow.window
-                item: root.parent?.parent ?? root
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("audio");
-            }
-            onManageRequested: {
-                GlobalStates.barAudioIsSink = true;
-                GlobalStates.barDialogType = "audio";
-                GlobalStates.barDialogOpen = true;
-            }
-        }
-    }
 }

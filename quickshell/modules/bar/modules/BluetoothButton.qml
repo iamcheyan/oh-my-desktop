@@ -29,7 +29,7 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            GlobalStates.toggleBarPopup("bluetooth");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "bluetooth" ? "" : "bluetooth";
         }
     }
 
@@ -74,33 +74,4 @@ Item {
         }
     }
 
-    Loader {
-        id: btPopupLoader
-        active: GlobalStates.barPopupType === "bluetooth"
-
-        function open() {
-            GlobalStates.openBarPopup("bluetooth");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("bluetooth");
-        }
-
-        sourceComponent: BluetoothInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: root.QsWindow.window
-                item: root.parent?.parent ?? root
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("bluetooth");
-            }
-            onManageRequested: {
-                GlobalStates.barDialogType = "bluetooth";
-                GlobalStates.barDialogOpen = true;
-            }
-        }
-    }
 }

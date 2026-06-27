@@ -20,7 +20,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.toggleBarPopup("clipboard");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "clipboard" ? "" : "clipboard";
         }
 
         content: Item {
@@ -36,35 +36,4 @@ Item {
         }
     }
 
-    Loader {
-        id: clipboardPopupLoader
-        active: GlobalStates.barPopupType === "clipboard"
-
-        function open() {
-            GlobalStates.openBarPopup("clipboard");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("clipboard");
-        }
-
-        sourceComponent: ClipboardInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: root.QsWindow.window
-                item: root.parent?.parent ?? root
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("clipboard");
-            }
-            onManageRequested: {
-                Quickshell.execDetached([
-                    "qs", "-p", FileUtils.trimFileProtocol(Directories.config) + "/omd/apps/omd-clipboard",
-                    "ipc", "call", "clipboard", "toggle"
-                ]);
-            }
-        }
-    }
 }

@@ -27,7 +27,7 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            GlobalStates.toggleBarPopup("wifi");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "wifi" ? "" : "wifi";
         }
     }
 
@@ -72,33 +72,4 @@ Item {
         }
     }
 
-    Loader {
-        id: wifiPopupLoader
-        active: GlobalStates.barPopupType === "wifi"
-
-        function open() {
-            GlobalStates.openBarPopup("wifi");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("wifi");
-        }
-
-        sourceComponent: WifiInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: root.QsWindow.window
-                item: root.parent?.parent ?? root
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("wifi");
-            }
-            onManageRequested: {
-                GlobalStates.barDialogType = "wifi";
-                GlobalStates.barDialogOpen = true;
-            }
-        }
-    }
 }

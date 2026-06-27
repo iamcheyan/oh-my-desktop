@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
@@ -87,7 +88,10 @@ Rectangle {
             Persistent.states.sidebar.bottomGroup.tab = root.selectedTab;
             event.accepted = true;
         } else if ((event.key === Qt.Key_Q || event.key === Qt.Key_Escape) && event.modifiers === Qt.NoModifier) {
-            GlobalStates.scheduleOpen = false;
+            if (root.popupMode)
+                GlobalStates.barPopupType = "";
+            else
+                GlobalStates.scheduleOpen = false;
             event.accepted = true;
         }
     }

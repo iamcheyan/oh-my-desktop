@@ -31,7 +31,7 @@ Item {
                     Brightness.decreaseBrightness();
             }
             wheel.accepted = true;
-            GlobalStates.openBarPopup("display");
+            GlobalStates.barPopupType = "display";
         }
     }
 
@@ -40,7 +40,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.toggleBarPopup("display");
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "display" ? "" : "display";
         }
 
         content: Item {
@@ -56,33 +56,4 @@ Item {
         }
     }
 
-    Loader {
-        id: nightLightPopupLoader
-        active: GlobalStates.barPopupType === "display"
-
-        function open() {
-            GlobalStates.openBarPopup("display");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("display");
-        }
-
-        sourceComponent: DisplayInfoPopup {
-            Component.onCompleted: this.visible = true
-            anchor {
-                window: root.QsWindow.window
-                item: root.parent?.parent ?? root
-                gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("display");
-            }
-            onManageRequested: {
-                GlobalStates.barDialogType = "nightlight";
-                GlobalStates.barDialogOpen = true;
-            }
-        }
-    }
 }

@@ -45,6 +45,6 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: GlobalStates.scheduleOpen = !GlobalStates.scheduleOpen
+        onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "schedule" ? "" : "schedule"
     }
 }

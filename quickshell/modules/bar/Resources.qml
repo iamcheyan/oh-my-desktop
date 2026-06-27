@@ -11,7 +11,7 @@ MouseArea {
     implicitHeight: Appearance.sizes.barHeight
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-    onClicked: GlobalStates.toggleBarPopup("resources")
+    onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "resources" ? "" : "resources"
 
     RowLayout {
         id: rowLayout
@@ -47,10 +47,5 @@ MouseArea {
             warningThreshold: Config.options.bar.resources.cpuWarningThreshold
         }
 
-    }
-
-    ResourcesPopup {
-        hoverTarget: root
-        active: GlobalStates.barPopupType === "resources"
     }
 }

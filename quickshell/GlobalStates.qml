@@ -37,19 +37,6 @@ Singleton {
     property bool barAudioIsSink: true
     property string barPopupType: ""
 
-    function toggleBarPopup(type) {
-        GlobalStates.barPopupType = GlobalStates.barPopupType === type ? "" : type;
-    }
-
-    function openBarPopup(type) {
-        GlobalStates.barPopupType = type;
-    }
-
-    function closeBarPopup(type) {
-        if (!type || GlobalStates.barPopupType === type)
-            GlobalStates.barPopupType = "";
-    }
-
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
             GlobalStates.appLauncherOpen = false;

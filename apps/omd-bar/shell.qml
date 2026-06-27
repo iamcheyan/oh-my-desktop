@@ -34,9 +34,9 @@ ShellRoot {
         active: Config.ready
         component: Scope {
             Bar {}
+            BarStatusPopup {}
             BarDialogOverlay {}
             ControlCenter {}
-            SchedulePopup {}
             NotificationPopup {}
             OnScreenDisplay {}
             Polkit {}

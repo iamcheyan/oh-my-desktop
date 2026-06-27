@@ -20,7 +20,7 @@ MouseArea {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: {
-        GlobalStates.toggleBarPopup("battery");
+        GlobalStates.barPopupType = GlobalStates.barPopupType === "battery" ? "" : "battery";
     }
 
     RowLayout {
@@ -36,34 +36,4 @@ MouseArea {
         }
     }
 
-    Loader {
-        id: batteryPopupLoader
-        active: GlobalStates.barPopupType === "battery"
-
-        function open() {
-            GlobalStates.openBarPopup("battery");
-        }
-
-        function close() {
-            GlobalStates.closeBarPopup("battery");
-        }
-
-        sourceComponent: BatteryInfoPopup {
-            Component.onCompleted: {
-                this.visible = true;
-                this.anchor {
-                    window: root.QsWindow.window
-                    item: root
-                    gravity: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                    edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
-                }
-            }
-            onMenuClosed: {
-                GlobalStates.closeBarPopup("battery");
-            }
-            onManageRequested: {
-                GlobalStates.controlCenterOpen = true;
-            }
-        }
-    }
 }
