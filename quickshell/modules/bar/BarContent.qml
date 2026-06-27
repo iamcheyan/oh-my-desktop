@@ -169,7 +169,6 @@ Item { // Bar content region
                 right: parent.right
             }
             spacing: Config.options.bar.rightModuleSpacing
-            layoutDirection: Qt.RightToLeft
 
             Repeater {
                 model: Config.options.bar.rightModules

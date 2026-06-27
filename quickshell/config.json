@@ -139,18 +139,20 @@
         "rightIconSlotWidth": 28,
         "rightModuleSpacing": 2,
         "rightModules": [
-            "sidebar",
-            "battery",
-            "util:wifi",
-            "util:bluetooth",
             "util:audio",
+            "systray",
+            "util:wifi",
             "util:mic",
             "util:clipboard",
             "util:idle",
             "util:nightlight",
             "util:screenshot",
-            "systray",
-            "spacer"
+            "media",
+            "spacer",
+            "battery",
+            "util:bluetooth",
+            "clock",
+            "sidebar"
         ],
         "screenList": [
         ],

@@ -210,7 +210,6 @@ Singleton {
                     "activeWindow"
                 ]
                 property list<string> centerModules: [
-                    "clock"
                 ]
                 property list<string> rightModules: [
                     "sidebar",
@@ -225,6 +224,7 @@ Singleton {
                     "util:bluetooth",
                     "battery",
                     "media",
+                    "clock",
                     "systray",
                     "spacer",
                     "weather"

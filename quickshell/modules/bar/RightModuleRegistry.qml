@@ -17,6 +17,7 @@ QtObject {
         "systray": { component: Qt.createComponent("SysTray.qml"), description: qsTr("System tray") },
         "media": { component: Qt.createComponent("Media.qml"), description: qsTr("Media controls") },
         "battery": { component: Qt.createComponent("BatteryIndicator.qml"), description: qsTr("Battery") },
+        "clock": { component: Qt.createComponent("ClockWidget.qml"), description: qsTr("Clock") },
         "sidebar": { component: Qt.createComponent("SidebarIndicators.qml"), description: qsTr("Sidebar indicators (volume/mic/keyboard/notifications/power)") },
         "spacer": { component: Qt.createComponent("SpacerItem.qml"), description: qsTr("Flexible spacer") },
 
