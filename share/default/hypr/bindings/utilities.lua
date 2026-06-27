@@ -1,4 +1,3 @@
-o.bind("SUPER + SPACE", "Launch apps", { omarchy = "walker" })
 o.bind("SUPER + CTRL + E", "Emoji picker", { omarchy = "walker -m symbols" })
 o.bind_menu("SUPER + CTRL + C", "Capture menu", "capture")
 o.bind_menu("SUPER + CTRL + O", "Toggle menu", "toggle")
