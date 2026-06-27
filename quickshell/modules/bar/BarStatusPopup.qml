@@ -89,9 +89,9 @@ Scope {
         }
 
         margins {
-            top: barOnBottom ? 0 : Appearance.sizes.barHeight
-            bottom: barOnBottom ? Appearance.sizes.barHeight : 0
-            right: 8
+            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 6
+            bottom: barOnBottom ? Appearance.sizes.barHeight + 6 : 0
+            right: 14
         }
 
         implicitWidth: panel.implicitWidth
