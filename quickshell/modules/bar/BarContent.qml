@@ -179,7 +179,7 @@ Item { // Bar content region
                     readonly property int iconSlotWidth: Config.options.bar.rightIconSlotWidth
 
                     height: parent.height
-                    width: fixedIconSlot ? Math.max(iconSlotWidth, item?.implicitWidth ?? iconSlotWidth) : (item?.implicitWidth ?? 0)
+                    width: fixedIconSlot ? iconSlotWidth : (item?.implicitWidth ?? 0)
 
                     sourceComponent: {
                         const comp = rightModuleRegistry.componentForName(modelData);

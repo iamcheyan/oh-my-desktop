@@ -298,6 +298,9 @@ Singleton {
                 property JsonObject deadPixelWorkaround: JsonObject { // Hyprland leaves out 1 pixel on the right for interactions
                     property bool enable: false
                 }
+                property JsonObject hotCorner: JsonObject {
+                    property int triggerDelay: 150 // Delay in ms before hot corner triggers action
+                }
             }
 
             property JsonObject language: JsonObject {

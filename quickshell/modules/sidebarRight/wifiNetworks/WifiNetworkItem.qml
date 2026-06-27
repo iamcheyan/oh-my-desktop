@@ -11,24 +11,27 @@ Rectangle {
 
     required property WifiAccessPoint wifiNetwork
     required property int index
-    property color selectionColor: "#687bad"
-    property color foregroundColor: "#f8f8f2"
-    property color dimColor: "#8a8a8a"
-    property color greenColor: "#32ff6a"
-    property color blueColor: "#8ec7ff"
-    property color bgColor: "#000000"
+    property color selectionColor: "#133a35"
+    property color foregroundColor: "#e8fff3"
+    property color dimColor: "#66756f"
+    property color greenColor: "#36ff8b"
+    property color yellowColor: "#e8ff82"
+    property color blueColor: "#7bc7ff"
+    property color bgColor: "#030806"
+    property color lineColor: "#12332c"
+
+    signal activated(var network)
 
     readonly property bool selected: ListView.isCurrentItem
     readonly property bool activeNetwork: wifiNetwork?.active ?? false
     readonly property bool pending: Network.wifiConnectTarget === wifiNetwork
-    readonly property bool passwordOpen: wifiNetwork?.askingPassword ?? false
 
     function signalBars(strength) {
-        if (strength > 80) return "▇▇▇▇";
-        if (strength > 60) return "▇▇▇▁";
-        if (strength > 40) return "▇▇▁▁";
-        if (strength > 20) return "▇▁▁▁";
-        return "▁▁▁▁";
+        if (strength > 84) return "████";
+        if (strength > 64) return "███░";
+        if (strength > 44) return "██░░";
+        if (strength > 24) return "█░░░";
+        return "░░░░";
     }
 
     function frequencyBand(frequency) {
@@ -40,136 +43,83 @@ Rectangle {
 
     function securityLabel(security) {
         const value = (security ?? "").trim();
-        return value.length > 0 ? value : "OPEN";
+        return value.length > 0 ? value.split(" ")[0].toUpperCase() : "OPEN";
     }
 
-    implicitWidth: ListView.view?.width ?? 680
-    implicitHeight: passwordOpen ? 100 : 34
-    color: selected ? selectionColor : "transparent"
+    implicitWidth: ListView.view?.width ?? 460
+    implicitHeight: 38
+    color: root.selected ? root.selectionColor : root.activeNetwork ? Qt.rgba(root.greenColor.r, root.greenColor.g, root.greenColor.b, 0.08) : "transparent"
+    border.width: root.selected ? 1 : 0
+    border.color: root.selected ? root.greenColor : "transparent"
     clip: true
 
     MouseArea {
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             root.ListView.view.currentIndex = root.index;
-            Network.connectToWifiNetwork(root.wifiNetwork);
+            root.activated(root.wifiNetwork);
         }
     }
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        anchors.topMargin: 2
-        anchors.bottomMargin: 2
-        spacing: 6
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        spacing: 8
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 30
-            spacing: 8
-
-            TuiCell {
-                Layout.preferredWidth: 28
-                text: root.activeNetwork ? "●" : root.pending ? "…" : " "
-                color: root.selected ? root.foregroundColor : root.greenColor
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            TuiCell {
-                Layout.preferredWidth: 220
-                text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
-                elide: Text.ElideRight
-                color: root.selected || root.activeNetwork ? root.foregroundColor : Qt.rgba(root.foregroundColor.r, root.foregroundColor.g, root.foregroundColor.b, 0.78)
-            }
-
-            TuiCell {
-                Layout.preferredWidth: 88
-                text: root.signalBars(root.wifiNetwork?.strength ?? 0)
-                color: root.selected ? root.foregroundColor : root.greenColor
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            TuiCell {
-                Layout.preferredWidth: 64
-                text: `${root.wifiNetwork?.strength ?? 0}%`
-                color: root.selected ? root.foregroundColor : root.dimColor
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            TuiCell {
-                Layout.preferredWidth: 64
-                text: root.frequencyBand(root.wifiNetwork?.frequency ?? 0)
-                color: root.selected ? root.foregroundColor : root.dimColor
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            TuiCell {
-                Layout.fillWidth: true
-                text: root.securityLabel(root.wifiNetwork?.security)
-                elide: Text.ElideRight
-                color: root.selected ? root.foregroundColor
-                    : (root.wifiNetwork?.isSecure ?? false) ? root.blueColor
-                    : root.dimColor
-                horizontalAlignment: Text.AlignHCenter
-            }
+        TuiCell {
+            Layout.preferredWidth: 22
+            text: root.pending ? ">" : root.activeNetwork ? "*" : root.selected ? ":" : " "
+            color: root.pending ? root.yellowColor : root.activeNetwork ? root.greenColor : root.dimColor
+            horizontalAlignment: Text.AlignHCenter
         }
 
-        Rectangle {
-            visible: root.passwordOpen
+        TuiCell {
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
-            color: root.bgColor
-            border.width: 1
-            border.color: root.greenColor
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 8
-                spacing: 8
-
-                TuiCell {
-                    text: "Password"
-                    color: root.dimColor
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 28
-                    color: "#050505"
-                    border.width: 1
-                    border.color: passwordField.activeFocus ? root.greenColor : root.dimColor
-
-                    TextInput {
-                        id: passwordField
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        verticalAlignment: TextInput.AlignVCenter
-                        color: root.foregroundColor
-                        selectionColor: root.selectionColor
-                        selectedTextColor: root.foregroundColor
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        echoMode: TextInput.Password
-                        inputMethodHints: Qt.ImhSensitiveData
-                        focus: root.passwordOpen
-                        onAccepted: Network.changePassword(root.wifiNetwork, text)
-                    }
-                }
-
-                TuiAction {
-                    label: "Cancel"
-                    onClicked: root.wifiNetwork.askingPassword = false
-                }
-
-                TuiAction {
-                    label: "Connect"
-                    onClicked: Network.changePassword(root.wifiNetwork, passwordField.text)
-                }
-            }
+            text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
+            elide: Text.ElideRight
+            color: root.selected || root.activeNetwork ? root.foregroundColor : Qt.rgba(root.foregroundColor.r, root.foregroundColor.g, root.foregroundColor.b, 0.78)
         }
+
+        TuiCell {
+            Layout.preferredWidth: 64
+            text: root.signalBars(root.wifiNetwork?.strength ?? 0)
+            color: root.selected ? root.foregroundColor : root.greenColor
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        TuiCell {
+            Layout.preferredWidth: 42
+            text: `${root.wifiNetwork?.strength ?? 0}`
+            color: root.selected ? root.foregroundColor : root.dimColor
+            horizontalAlignment: Text.AlignRight
+        }
+
+        TuiCell {
+            Layout.preferredWidth: 38
+            text: root.frequencyBand(root.wifiNetwork?.frequency ?? 0)
+            color: root.selected ? root.foregroundColor : root.blueColor
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        TuiCell {
+            Layout.preferredWidth: 72
+            text: root.securityLabel(root.wifiNetwork?.security)
+            elide: Text.ElideRight
+            color: root.selected ? root.foregroundColor : (root.wifiNetwork?.isSecure ?? false) ? root.yellowColor : root.dimColor
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 1
+        color: root.lineColor
+        opacity: root.selected ? 0 : 0.55
     }
 
     component TuiCell: StyledText {
@@ -178,32 +128,5 @@ Rectangle {
         font.pixelSize: Appearance.font.pixelSize.small
         textFormat: Text.PlainText
         verticalAlignment: Text.AlignVCenter
-    }
-
-    component TuiAction: Rectangle {
-        id: action
-
-        property string label: ""
-        signal clicked()
-
-        Layout.preferredWidth: actionText.implicitWidth + 18
-        Layout.preferredHeight: 28
-        color: actionMouse.containsMouse ? root.selectionColor : root.bgColor
-        border.width: 1
-        border.color: root.dimColor
-
-        TuiCell {
-            id: actionText
-            anchors.centerIn: parent
-            text: action.label
-        }
-
-        MouseArea {
-            id: actionMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: action.clicked()
-        }
     }
 }

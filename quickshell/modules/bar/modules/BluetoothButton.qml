@@ -8,7 +8,13 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 
-CircleUtilButton {
+Item {
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
+    implicitWidth: Config.options.bar.rightIconSlotWidth
+    implicitHeight: Config.options.bar.rightIconSlotWidth
+    property bool hovered: bluetoothButton.hovered
+
     readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
     readonly property string tooltipText: {
         if (!BluetoothStatus.available)
@@ -28,24 +34,64 @@ CircleUtilButton {
         return devices.join(", ");
     }
 
-    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-    Layout.fillHeight: true
-    onClicked: {
-        Quickshell.execDetached([tuiLauncher, "bluetooth"]);
-    }
-    Item {
-        implicitWidth: 20
-        implicitHeight: 20
-        property bool hovered: parent.hovered
-        CosmicIcon {
-            anchors.centerIn: parent
-            name: BluetoothStatus.connected ? "status/bluetooth-active-symbolic" : BluetoothStatus.enabled ? "devices/bluetooth-symbolic" : "status/bluetooth-disabled-symbolic"
-            iconSize: Config.options.bar.rightIconSize
-            color: Appearance.colors.colBarText
+    RippleButton {
+        id: bluetoothButton
+        anchors.centerIn: parent
+        width: Config.options.bar.rightIconSlotWidth
+        height: Config.options.bar.rightIconSlotWidth
+        buttonRadius: Appearance.rounding.full
+        colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
+
+        onClicked: {
+            Quickshell.execDetached([tuiLauncher, "bluetooth"]);
         }
-        PopupToolTip {
-            text: tooltipText
-            anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onPressed: (event) => {
+            if (event.button === Qt.RightButton) {
+                bluetoothMenu.open();
+            }
+        }
+    }
+
+    CosmicIcon {
+        anchors.centerIn: bluetoothButton
+        name: BluetoothStatus.connected ? "status/bluetooth-active-symbolic" : BluetoothStatus.enabled ? "devices/bluetooth-symbolic" : "status/bluetooth-disabled-symbolic"
+        iconSize: Config.options.bar.rightIconSize
+        color: Appearance.colors.colBarText
+    }
+
+    PopupToolTip {
+        text: tooltipText
+        anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
+    }
+
+    Loader {
+        id: bluetoothMenu
+        function open() {
+            bluetoothMenu.active = true;
+        }
+        active: false
+        sourceComponent: BluetoothContextMenu {
+            Component.onCompleted: this.open();
+            anchor {
+                window: bluetoothButton.QsWindow.window
+                item: bluetoothButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            onMenuClosed: {
+                bluetoothMenu.active = false;
+            }
         }
     }
 }

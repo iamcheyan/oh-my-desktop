@@ -56,6 +56,21 @@ Scope {
         mask: Region { item: hotspotArea }
 
         Timer {
+            id: triggerDelayTimer
+            interval: Config.options.interactions.hotCorner.triggerDelay
+            repeat: false
+            onTriggered: {
+                if (hotspot.isRight) {
+                    screenCorners.callAppLauncher("open");
+                } else {
+                    screenCorners.callOverview("open");
+                }
+                hotspot.cooldown = true;
+                cooldownTimer.restart();
+            }
+        }
+
+        Timer {
             id: cooldownTimer
             interval: 800
             repeat: false
@@ -80,18 +95,11 @@ Scope {
             onEntered: {
                 if (hotspot.triggered || hotspot.cooldown) return;
                 hotspot.triggered = true;
-                if (hotspot.isRight) {
-                    screenCorners.callAppLauncher("open");
-                    hotspot.cooldown = true;
-                    cooldownTimer.restart();
-                } else {
-                    screenCorners.callOverview("open");
-                    hotspot.cooldown = true;
-                    cooldownTimer.restart();
-                }
+                triggerDelayTimer.restart();
             }
             onExited: {
                 hotspot.triggered = false;
+                triggerDelayTimer.stop();
                 if (!hotspot.cooldown)
                     cooldownTimer.stop();
             }
@@ -157,6 +165,16 @@ Scope {
                     implicitWidth: Config.options.sidebar.cornerOpen.cornerRegionWidth
                     implicitHeight: Config.options.sidebar.cornerOpen.cornerRegionHeight
                     hoverEnabled: true
+
+                    Timer {
+                        id: cornerTriggerDelay
+                        interval: Config.options.interactions.hotCorner.triggerDelay
+                        repeat: false
+                        onTriggered: {
+                            screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                        }
+                    }
+
                     onPositionChanged: {
                         if (!Config.options.sidebar.cornerOpen.clicklessCornerEnd) return;
                         const verticalOffset = Config.options.sidebar.cornerOpen.clicklessCornerVerticalOffset;
@@ -167,9 +185,13 @@ Scope {
                     }
                     onEntered: {
                         if (Config.options.sidebar.cornerOpen.clickless)
-                            screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                            cornerTriggerDelay.restart();
+                    }
+                    onExited: {
+                        cornerTriggerDelay.stop();
                     }
                     onPressed: {
+                        cornerTriggerDelay.stop();
                         screenCorners.actionForCorner[cornerPanelWindow.corner]();
                     }
                     onScrollDown: (steps) => {

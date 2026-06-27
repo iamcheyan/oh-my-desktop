@@ -200,6 +200,9 @@
         "deadPixelWorkaround": {
             "enable": false
         },
+        "hotCorner": {
+            "triggerDelay": 300
+        },
         "scrolling": {
             "fasterTouchpadScroll": false,
             "mouseScrollDeltaThreshold": 120,

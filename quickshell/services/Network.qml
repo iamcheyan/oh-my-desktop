@@ -95,8 +95,30 @@ Singleton {
 
     }
 
+    function connectToWifiNetworkWithPassword(accessPoint: WifiAccessPoint, password: string): void {
+        accessPoint.askingPassword = false;
+        root.wifiConnectTarget = accessPoint;
+        connectProc.exec({
+            "environment": {
+                "SSID": accessPoint.ssid,
+                "PASSWORD": password
+            },
+            "command": ["bash", "-c", 'nmcli dev wifi connect "$SSID" password "$PASSWORD"']
+        });
+    }
+
     function disconnectWifiNetwork(): void {
         if (active) disconnectProc.exec(["nmcli", "connection", "down", active.ssid]);
+    }
+
+    function disconnectAccessPoint(accessPoint: WifiAccessPoint): void {
+        if (accessPoint)
+            disconnectProc.exec(["nmcli", "connection", "down", accessPoint.ssid]);
+    }
+
+    function forgetWifiNetwork(accessPoint: WifiAccessPoint): void {
+        if (accessPoint)
+            forgetProc.exec(["nmcli", "connection", "delete", accessPoint.ssid]);
     }
 
     function openPublicWifiPortal() {
@@ -151,6 +173,20 @@ Singleton {
         id: disconnectProc
         stdout: SplitParser {
             onRead: getNetworks.running = true
+        }
+    }
+
+    Process {
+        id: forgetProc
+        stdout: SplitParser {
+            onRead: getNetworks.running = true
+        }
+        stderr: SplitParser {
+            onRead: getNetworks.running = true
+        }
+        onExited: {
+            getNetworks.running = true;
+            update();
         }
     }
 
