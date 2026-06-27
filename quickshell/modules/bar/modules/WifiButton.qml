@@ -27,10 +27,7 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            if (!wifiPopupLoader.active)
-                wifiPopupLoader.open();
-            else
-                wifiPopupLoader.close();
+            GlobalStates.toggleBarPopup("wifi");
         }
     }
 
@@ -77,22 +74,14 @@ Item {
 
     Loader {
         id: wifiPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "wifi"
 
         function open() {
-            wifiPopupTimer.stop();
-            wifiPopupLoader.active = true;
+            GlobalStates.openBarPopup("wifi");
         }
 
         function close() {
-            wifiPopupTimer.restart();
-        }
-
-        Timer {
-            id: wifiPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: wifiPopupLoader.active = false
+            GlobalStates.closeBarPopup("wifi");
         }
 
         sourceComponent: WifiInfoPopup {
@@ -104,7 +93,7 @@ Item {
                 edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
             }
             onMenuClosed: {
-                wifiPopupLoader.active = false;
+                GlobalStates.closeBarPopup("wifi");
             }
             onManageRequested: {
                 GlobalStates.barDialogType = "wifi";

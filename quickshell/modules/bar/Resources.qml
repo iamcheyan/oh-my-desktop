@@ -7,12 +7,11 @@ MouseArea {
     id: root
     property bool borderless: Config.options.bar.borderless
     property bool alwaysShowAllResources: false
-    property bool popupOpen: false
     implicitWidth: rowLayout.implicitWidth + rowLayout.anchors.leftMargin + rowLayout.anchors.rightMargin
     implicitHeight: Appearance.sizes.barHeight
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
-    onClicked: root.popupOpen = !root.popupOpen
+    onClicked: GlobalStates.toggleBarPopup("resources")
 
     RowLayout {
         id: rowLayout
@@ -52,6 +51,6 @@ MouseArea {
 
     ResourcesPopup {
         hoverTarget: root
-        active: root.popupOpen
+        active: GlobalStates.barPopupType === "resources"
     }
 }

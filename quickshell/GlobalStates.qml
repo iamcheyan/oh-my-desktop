@@ -35,6 +35,20 @@ Singleton {
     property bool barDialogOpen: false
     property string barDialogType: ""
     property bool barAudioIsSink: true
+    property string barPopupType: ""
+
+    function toggleBarPopup(type) {
+        GlobalStates.barPopupType = GlobalStates.barPopupType === type ? "" : type;
+    }
+
+    function openBarPopup(type) {
+        GlobalStates.barPopupType = type;
+    }
+
+    function closeBarPopup(type) {
+        if (!type || GlobalStates.barPopupType === type)
+            GlobalStates.barPopupType = "";
+    }
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
@@ -55,9 +69,20 @@ Singleton {
 
     onControlCenterOpenChanged: {
         if (GlobalStates.controlCenterOpen) {
+            GlobalStates.barPopupType = "";
             Notifications.timeoutAll();
             Notifications.markAllRead();
         }
+    }
+
+    onBarDialogOpenChanged: {
+        if (GlobalStates.barDialogOpen)
+            GlobalStates.barPopupType = "";
+    }
+
+    onScheduleOpenChanged: {
+        if (GlobalStates.scheduleOpen)
+            GlobalStates.barPopupType = "";
     }
 
     GlobalShortcut {

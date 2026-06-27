@@ -20,10 +20,7 @@ MouseArea {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     onClicked: {
-        if (!batteryPopupLoader.active)
-            batteryPopupLoader.open();
-        else
-            batteryPopupLoader.close();
+        GlobalStates.toggleBarPopup("battery");
     }
 
     RowLayout {
@@ -41,22 +38,14 @@ MouseArea {
 
     Loader {
         id: batteryPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "battery"
 
         function open() {
-            batteryPopupTimer.stop();
-            batteryPopupLoader.active = true;
+            GlobalStates.openBarPopup("battery");
         }
 
         function close() {
-            batteryPopupTimer.restart();
-        }
-
-        Timer {
-            id: batteryPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: batteryPopupLoader.active = false
+            GlobalStates.closeBarPopup("battery");
         }
 
         sourceComponent: BatteryInfoPopup {
@@ -70,7 +59,7 @@ MouseArea {
                 }
             }
             onMenuClosed: {
-                batteryPopupLoader.active = false;
+                GlobalStates.closeBarPopup("battery");
             }
             onManageRequested: {
                 GlobalStates.controlCenterOpen = true;

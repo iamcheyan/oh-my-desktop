@@ -31,9 +31,7 @@ Item {
                     Brightness.decreaseBrightness();
             }
             wheel.accepted = true;
-            if (!nightLightPopupLoader.active)
-                nightLightPopupLoader.open();
-            nightLightPopupTimer.restart();
+            GlobalStates.openBarPopup("display");
         }
     }
 
@@ -42,10 +40,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            if (!nightLightPopupLoader.active)
-                nightLightPopupLoader.open();
-            else
-                nightLightPopupLoader.close();
+            GlobalStates.toggleBarPopup("display");
         }
 
         content: Item {
@@ -63,22 +58,14 @@ Item {
 
     Loader {
         id: nightLightPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "display"
 
         function open() {
-            nightLightPopupTimer.stop();
-            nightLightPopupLoader.active = true;
+            GlobalStates.openBarPopup("display");
         }
 
         function close() {
-            nightLightPopupTimer.restart();
-        }
-
-        Timer {
-            id: nightLightPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: nightLightPopupLoader.active = false
+            GlobalStates.closeBarPopup("display");
         }
 
         sourceComponent: DisplayInfoPopup {
@@ -90,7 +77,7 @@ Item {
                 edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
             }
             onMenuClosed: {
-                nightLightPopupLoader.active = false;
+                GlobalStates.closeBarPopup("display");
             }
             onManageRequested: {
                 GlobalStates.barDialogType = "nightlight";

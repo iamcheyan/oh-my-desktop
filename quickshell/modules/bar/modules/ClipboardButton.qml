@@ -20,10 +20,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            if (!clipboardPopupLoader.active)
-                clipboardPopupLoader.open();
-            else
-                clipboardPopupLoader.close();
+            GlobalStates.toggleBarPopup("clipboard");
         }
 
         content: Item {
@@ -41,22 +38,14 @@ Item {
 
     Loader {
         id: clipboardPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "clipboard"
 
         function open() {
-            clipboardPopupTimer.stop();
-            clipboardPopupLoader.active = true;
+            GlobalStates.openBarPopup("clipboard");
         }
 
         function close() {
-            clipboardPopupTimer.restart();
-        }
-
-        Timer {
-            id: clipboardPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: clipboardPopupLoader.active = false
+            GlobalStates.closeBarPopup("clipboard");
         }
 
         sourceComponent: ClipboardInfoPopup {
@@ -68,7 +57,7 @@ Item {
                 edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
             }
             onMenuClosed: {
-                clipboardPopupLoader.active = false;
+                GlobalStates.closeBarPopup("clipboard");
             }
             onManageRequested: {
                 Quickshell.execDetached([

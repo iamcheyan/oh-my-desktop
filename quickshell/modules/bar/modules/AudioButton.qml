@@ -31,9 +31,7 @@ Item {
                     Audio.decrementVolume();
             }
             wheel.accepted = true;
-            if (!audioPopupLoader.active)
-                audioPopupLoader.open();
-            audioPopupTimer.restart();
+            GlobalStates.openBarPopup("audio");
         }
     }
 
@@ -42,10 +40,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            if (!audioPopupLoader.active)
-                audioPopupLoader.open();
-            else
-                audioPopupLoader.close();
+            GlobalStates.toggleBarPopup("audio");
         }
 
         content: Item {
@@ -64,22 +59,14 @@ Item {
 
     Loader {
         id: audioPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "audio"
 
         function open() {
-            audioPopupTimer.stop();
-            audioPopupLoader.active = true;
+            GlobalStates.openBarPopup("audio");
         }
 
         function close() {
-            audioPopupTimer.restart();
-        }
-
-        Timer {
-            id: audioPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: audioPopupLoader.active = false
+            GlobalStates.closeBarPopup("audio");
         }
 
         sourceComponent: AudioInfoPopup {
@@ -91,7 +78,7 @@ Item {
                 edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
             }
             onMenuClosed: {
-                audioPopupLoader.active = false;
+                GlobalStates.closeBarPopup("audio");
             }
             onManageRequested: {
                 GlobalStates.barAudioIsSink = true;

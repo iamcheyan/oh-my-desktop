@@ -46,10 +46,7 @@ Item {
         toggled: GlobalStates.controlCenterOpen
 
         onPressed: {
-            if (!batteryPopupLoader.active)
-                batteryPopupLoader.open();
-            else
-                batteryPopupLoader.close();
+            GlobalStates.toggleBarPopup("battery");
         }
 
         RowLayout {
@@ -92,22 +89,14 @@ Item {
 
     Loader {
         id: batteryPopupLoader
-        active: false
+        active: GlobalStates.barPopupType === "battery"
 
         function open() {
-            batteryPopupTimer.stop();
-            batteryPopupLoader.active = true;
+            GlobalStates.openBarPopup("battery");
         }
 
         function close() {
-            batteryPopupTimer.restart();
-        }
-
-        Timer {
-            id: batteryPopupTimer
-            interval: 300
-            repeat: false
-            onTriggered: batteryPopupLoader.active = false
+            GlobalStates.closeBarPopup("battery");
         }
 
         sourceComponent: BatteryInfoPopup {
@@ -119,7 +108,7 @@ Item {
                 edges: Config.options.bar.bottom ? Edges.Top : Edges.Bottom
             }
             onMenuClosed: {
-                batteryPopupLoader.active = false;
+                GlobalStates.closeBarPopup("battery");
             }
             onManageRequested: {
                 GlobalStates.controlCenterOpen = true;
