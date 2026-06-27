@@ -274,6 +274,24 @@ PopupWindow {
         }
     }
 
+    component MeterBar: Row {
+        id: meter
+
+        property real value: 0
+        property color accent: root.tuiGreen
+
+        spacing: 3
+        Repeater {
+            model: 14
+            Rectangle {
+                required property int index
+                width: Math.max(8, (meter.width - 39) / 14)
+                height: meter.height
+                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
+            }
+        }
+    }
+
     component DetailRow: RowLayout {
         property string keyText: ""
         property string valueText: ""
