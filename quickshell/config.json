@@ -112,9 +112,7 @@
         "bottom": false,
         "centerIconSize": 14,
         "centerModuleSpacing": 8,
-        "centerModules": [
-            "clock"
-        ],
+        "centerModules": [],
         "cornerStyle": 0,
         "floatStyleShadow": true,
         "indicators": {
@@ -145,6 +143,7 @@
             "util:clipboard",
             "util:nightlight",
             "util:screenshot",
+            "clock",
             "sidebar"
         ],
         "screenList": [
