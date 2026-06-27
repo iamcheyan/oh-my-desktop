@@ -16,7 +16,7 @@ import qs.modules.regionSelector
 import qs.modules.schedulePopup
 import qs.modules.screenCorners
 import qs.modules.sessionScreen
-import qs.modules.sidebarRight
+import qs.modules.controlCenter
 
 Scope {
     id: family
@@ -95,7 +95,7 @@ Scope {
         loadTier: 1
         tier1Ready: family.tier1Ready
         tier2Ready: family.tier2Ready
-        component: SidebarRight {}
+        component: ControlCenter {}
     }
 
     // Tier 2 — 低频或重型模块

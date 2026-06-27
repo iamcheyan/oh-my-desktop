@@ -1,7 +1,7 @@
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
-import qs.modules.sidebarRight.notifications
+import qs.modules.controlCenter.notifications
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Controls

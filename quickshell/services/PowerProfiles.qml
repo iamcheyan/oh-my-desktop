@@ -12,6 +12,10 @@ Singleton {
     property var profiles: []
     property bool setting: setProfileProc.running
 
+    readonly property string dbusDest: "net.hadess.PowerProfiles"
+    readonly property string dbusPath: "/net/hadess/PowerProfiles"
+    readonly property string dbusIface: "net.hadess.PowerProfiles"
+
     function refresh() {
         availabilityProc.running = true;
     }
@@ -26,7 +30,14 @@ Singleton {
     function setProfile(profile) {
         if (!available || profile === "" || profile === currentProfile)
             return;
-        setProfileProc.command = ["powerprofilesctl", "set", profile];
+        setProfileProc.command = [
+            "gdbus", "call", "--system",
+            "--dest", root.dbusDest,
+            "--object-path", root.dbusPath,
+            "--method", "org.freedesktop.DBus.Properties.Set",
+            root.dbusIface, "ActiveProfile",
+            `<'${profile}'>`
+        ];
         setProfileProc.running = true;
     }
 
@@ -48,36 +59,56 @@ Singleton {
 
     Process {
         id: availabilityProc
-        command: ["which", "powerprofilesctl"]
-        onExited: (exitCode, exitStatus) => {
-            root.available = exitCode === 0;
-            if (root.available)
-                root.refreshAvailableData();
-            else {
-                root.currentProfile = "unavailable";
-                root.profiles = [];
+        command: ["bash", "-c", "gdbus call --system --dest net.hadess.PowerProfiles --object-path /net/hadess/PowerProfiles --method org.freedesktop.DBus.Properties.Get net.hadess.PowerProfiles ActiveProfile 2>/dev/null && echo OK || echo FAIL"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const output = text.trim();
+                root.available = output.endsWith("OK");
+                if (root.available)
+                    root.refreshAvailableData();
+                else {
+                    root.currentProfile = "unavailable";
+                    root.profiles = [];
+                }
             }
         }
     }
 
     Process {
         id: getProfileProc
-        command: ["powerprofilesctl", "get"]
+        command: [
+            "gdbus", "call", "--system",
+            "--dest", root.dbusDest,
+            "--object-path", root.dbusPath,
+            "--method", "org.freedesktop.DBus.Properties.Get",
+            root.dbusIface, "ActiveProfile"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
-                const value = text.trim();
-                if (value.length > 0)
-                    root.currentProfile = value;
+                const match = text.match(/<'(.*?)'>/);
+                if (match)
+                    root.currentProfile = match[1];
             }
         }
     }
 
     Process {
         id: listProfilesProc
-        command: ["bash", "-c", "powerprofilesctl list 2>/dev/null | awk '/^\\s*[* ]\\s*[a-zA-Z0-9\\-]+:$/ { gsub(/^[*[:space:]]+|:$/,\"\"); print }' | tac"]
+        command: [
+            "gdbus", "call", "--system",
+            "--dest", root.dbusDest,
+            "--object-path", root.dbusPath,
+            "--method", "org.freedesktop.DBus.Properties.Get",
+            root.dbusIface, "Profiles"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.profiles = text.split("\n").map(line => line.trim()).filter(line => line.length > 0);
+                const regex = /'Profile': <'(.*?)'/g;
+                const result = [];
+                let m;
+                while ((m = regex.exec(text)) !== null)
+                    result.push(m[1]);
+                root.profiles = result;
             }
         }
     }

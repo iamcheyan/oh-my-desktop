@@ -1,4 +1,4 @@
-import qs.modules.sidebarRight
+import qs.modules.controlCenter
 
 TuiPanelButton {
     buttonHeight: 28

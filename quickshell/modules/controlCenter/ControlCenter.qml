@@ -13,17 +13,17 @@ Scope {
 
     PanelWindow {
         id: panelWindow
-        visible: GlobalStates.sidebarRightOpen
+        visible: GlobalStates.controlCenterOpen
 
         function hide() {
-            GlobalStates.sidebarRightOpen = false;
+            GlobalStates.controlCenterOpen = false;
         }
 
         exclusiveZone: 0
         implicitWidth: screen?.width ?? sidebarWidth
         implicitHeight: screen?.height ?? 720
-        WlrLayershell.namespace: "quickshell:sidebarRight"
-        WlrLayershell.keyboardFocus: GlobalStates.sidebarRightOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        WlrLayershell.namespace: "quickshell:controlCenter"
+        WlrLayershell.keyboardFocus: GlobalStates.controlCenterOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         color: "transparent"
 
         anchors {
@@ -49,62 +49,60 @@ Scope {
 
         Loader {
             id: sidebarContentLoader
-            active: GlobalStates.sidebarRightOpen || Config?.options.sidebar.keepRightSidebarLoaded
-            anchors {
-                centerIn: parent
-            }
+            active: GlobalStates.controlCenterOpen || Config?.options.sidebar.keepRightSidebarLoaded
+            anchors.centerIn: parent
             width: Math.min(980, Math.max(760, parent.width - Appearance.sizes.hyprlandGapsOut * 8))
-            height: Math.min(700, Math.max(520, parent.height - Appearance.sizes.hyprlandGapsOut * 8))
+            height: Math.min(parent.height - Appearance.sizes.hyprlandGapsOut * 2, sidebarContentLoader.item?.implicitHeight ?? 300)
 
-            focus: GlobalStates.sidebarRightOpen
+            focus: GlobalStates.controlCenterOpen
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
                     panelWindow.hide();
                 }
             }
 
-            sourceComponent: SidebarRightContent {}
+            sourceComponent: ControlCenterContent {}
         }
     }
 
     IpcHandler {
-        target: "sidebarRight"
+        target: "controlCenter"
 
         function toggle(): void {
-            GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
+            GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
         }
 
         function close(): void {
-            GlobalStates.sidebarRightOpen = false;
+            GlobalStates.controlCenterOpen = false;
         }
 
         function open(): void {
-            GlobalStates.sidebarRightOpen = true;
+            GlobalStates.controlCenterOpen = true;
         }
     }
 
     GlobalShortcut {
-        name: "sidebarRightToggle"
+        name: "controlCenterToggle"
         description: "Toggles right sidebar on press"
 
         onPressed: {
-            GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
+            GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
         }
     }
     GlobalShortcut {
-        name: "sidebarRightOpen"
+        name: "controlCenterOpen"
         description: "Opens right sidebar on press"
 
         onPressed: {
-            GlobalStates.sidebarRightOpen = true;
+            GlobalStates.controlCenterOpen = true;
         }
     }
     GlobalShortcut {
-        name: "sidebarRightClose"
+        name: "controlCenterClose"
         description: "Closes right sidebar on press"
 
         onPressed: {
-            GlobalStates.sidebarRightOpen = false;
+            GlobalStates.controlCenterOpen = false;
         }
     }
 }

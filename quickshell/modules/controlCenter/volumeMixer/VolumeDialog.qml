@@ -48,7 +48,7 @@ WindowDialog {
             colRipple: Appearance.tiling.bgActive
             onClicked: {
                 Quickshell.execDetached(["bash", "-c", `${Config.options.apps.volumeMixer}`]);
-                GlobalStates.sidebarRightOpen = false;
+                GlobalStates.controlCenterOpen = false;
             }
             MaterialSymbol {
                 anchors.centerIn: parent

@@ -11,6 +11,8 @@ import Quickshell.Services.Notifications
 Item {
     id: root
 
+    implicitHeight: Notifications.list.length === 0 ? 96 : listView.contentHeight
+
     readonly property color tuiBg: "#030806"
     readonly property color tuiPanel: "#06110e"
     readonly property color tuiPanelAlt: "#091814"
@@ -225,7 +227,7 @@ Item {
                 textFormat: expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {
                     Qt.openUrlExternally(link);
-                    GlobalStates.sidebarRightOpen = false;
+                    GlobalStates.controlCenterOpen = false;
                 }
                 PointingHandLinkHover {}
             }

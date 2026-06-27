@@ -104,7 +104,7 @@ Item {
                 textFormat: root.expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {
                     Qt.openUrlExternally(link);
-                    GlobalStates.sidebarRightOpen = false;
+                    GlobalStates.controlCenterOpen = false;
                 }
                 PointingHandLinkHover {}
             }

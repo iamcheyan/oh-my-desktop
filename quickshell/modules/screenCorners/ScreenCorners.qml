@@ -32,7 +32,7 @@ Scope {
         [RoundCorner.CornerEnum.TopLeft]: () => screenCorners.callOverview("toggle"),
         [RoundCorner.CornerEnum.BottomLeft]: () => {},
         [RoundCorner.CornerEnum.TopRight]: () => screenCorners.callAppLauncher("toggle"),
-        [RoundCorner.CornerEnum.BottomRight]: () => GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
+        [RoundCorner.CornerEnum.BottomRight]: () => GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen
     })
 
     // Dedicated hot corners for top-left (Overview) and top-right (AppLauncher)

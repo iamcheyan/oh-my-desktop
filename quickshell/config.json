@@ -139,6 +139,7 @@
         "rightIconSlotWidth": 28,
         "rightModuleSpacing": 2,
         "rightModules": [
+            "util:bluetooth",
             "util:audio",
             "systray",
             "util:wifi",
@@ -148,9 +149,7 @@
             "util:nightlight",
             "util:screenshot",
             "media",
-            "spacer",
             "battery",
-            "util:bluetooth",
             "clock",
             "sidebar"
         ],

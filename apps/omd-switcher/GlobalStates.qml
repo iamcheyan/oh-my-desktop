@@ -12,7 +12,7 @@ Singleton {
     id: root
     property bool appLauncherOpen: false
     property bool barOpen: true
-    property bool sidebarRightOpen: false
+    property bool controlCenterOpen: false
     property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
@@ -52,8 +52,8 @@ Singleton {
         GlobalStates.overviewWorkspaceMru = next;
     }
 
-    onSidebarRightOpenChanged: {
-        if (GlobalStates.sidebarRightOpen) {
+    onControlCenterOpenChanged: {
+        if (GlobalStates.controlCenterOpen) {
             Notifications.timeoutAll();
             Notifications.markAllRead();
         }

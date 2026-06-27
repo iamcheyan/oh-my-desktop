@@ -2,10 +2,10 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.sidebarRight.bluetoothDevices
-import qs.modules.sidebarRight.wifiNetworks
-import qs.modules.sidebarRight.nightLight
-import qs.modules.sidebarRight.volumeMixer
+import qs.modules.controlCenter.bluetoothDevices
+import qs.modules.controlCenter.wifiNetworks
+import qs.modules.controlCenter.nightLight
+import qs.modules.controlCenter.volumeMixer
 import QtQuick
 import Quickshell
 import Quickshell.Io

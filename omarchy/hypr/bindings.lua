@@ -76,5 +76,5 @@ end
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, { omarchy = "walker -m symbols" })
 hl.unbind("SUPER + CTRL + V")
-o.bind("ALT + V", "Clipboard manager", "qs -p $HOME/.config/omd/apps/omd-clipboard ipc call clipboard toggle")
+o.bind("CTRL + SHIFT + V", "Clipboard manager", "qs -p $HOME/.config/omd/apps/omd-clipboard ipc call clipboard toggle")
 hl.unbind("SUPER + CTRL + V")

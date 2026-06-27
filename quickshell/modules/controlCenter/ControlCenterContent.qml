@@ -2,7 +2,7 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.sidebarRight.notifications
+import qs.modules.controlCenter.notifications
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -54,13 +54,17 @@ Item {
         return root.tuiDim;
     }
 
-    implicitHeight: sidebarRightBackground.implicitHeight
-    implicitWidth: sidebarRightBackground.implicitWidth
+    implicitHeight: controlCenterBackground.implicitHeight
+    implicitWidth: controlCenterBackground.implicitWidth
 
     Rectangle {
-        id: sidebarRightBackground
-        anchors.fill: parent
-        implicitHeight: parent.height
+        id: controlCenterBackground
+        anchors {
+            top: parent.top
+            left: parent.left
+            right: parent.right
+        }
+        implicitHeight: contentColumn.implicitHeight + 32
         implicitWidth: parent.width
         color: root.tuiBg
         border.width: 1
@@ -68,7 +72,12 @@ Item {
         radius: 0
 
         ColumnLayout {
-            anchors.fill: parent
+            id: contentColumn
+            anchors {
+                top: parent.top
+                left: parent.left
+                right: parent.right
+            }
             anchors.margins: 16
             spacing: 12
 
@@ -124,7 +133,7 @@ Item {
                             iconName: "settings"
                             accent: root.tuiBlue
                             onClicked: {
-                                GlobalStates.sidebarRightOpen = false;
+                                GlobalStates.controlCenterOpen = false;
                                 Quickshell.execDetached(["qs", "-p", root.settingsQmlPath]);
                             }
                         }
@@ -142,7 +151,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 156
+                Layout.preferredHeight: 180
                 spacing: 12
 
                 ControlPanel {
@@ -290,7 +299,7 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.preferredHeight: Math.min(notificationList.implicitHeight + 56, 500)
                 color: root.tuiPanel
                 border.width: 1
                 border.color: root.tuiLine
@@ -336,11 +345,17 @@ Item {
                 }
 
                 TuiNotificationList {
-                    anchors.fill: parent
-                    anchors.topMargin: 42
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 12
-                    anchors.bottomMargin: 12
+                    id: notificationList
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: parent.top
+                        bottom: parent.bottom
+                        topMargin: 42
+                        leftMargin: 14
+                        rightMargin: 12
+                        bottomMargin: 12
+                    }
                 }
             }
         }

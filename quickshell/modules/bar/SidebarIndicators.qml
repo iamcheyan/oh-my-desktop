@@ -23,7 +23,7 @@ RippleButton {
     colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
     colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
     colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
-    toggled: GlobalStates.sidebarRightOpen
+    toggled: GlobalStates.controlCenterOpen
     property color colText: Appearance.colors.colBarText
 
     component IconSlot: Item {
@@ -43,7 +43,7 @@ RippleButton {
     }
 
     onPressed: {
-        GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
+        GlobalStates.controlCenterOpen = !GlobalStates.controlCenterOpen;
     }
 
     RowLayout {

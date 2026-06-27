@@ -12,7 +12,7 @@ import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.schedulePopup
-import qs.modules.sidebarRight
+import qs.modules.controlCenter
 import qs.modules.regionSelector
 
 import QtQuick
@@ -35,7 +35,7 @@ ShellRoot {
         component: Scope {
             Bar {}
             BarDialogOverlay {}
-            SidebarRight {}
+            ControlCenter {}
             SchedulePopup {}
             NotificationPopup {}
             OnScreenDisplay {}

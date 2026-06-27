@@ -15,9 +15,9 @@ Item { // Bar content region
 
     readonly property int barSidePadding: 10
     readonly property int titleAreaWidth: 280
-    readonly     property color barOpaqueColor: ColorUtils.transparentize(Appearance.m3colors.m3background, 0.2)
+    readonly     property color barOpaqueColor: "#000000"
     readonly property bool anyChildActive: GlobalStates.barDialogOpen
-        || GlobalStates.sidebarRightOpen
+        || GlobalStates.controlCenterOpen
         || GlobalStates.scheduleOpen
         || GlobalStates.overviewOpen
 
