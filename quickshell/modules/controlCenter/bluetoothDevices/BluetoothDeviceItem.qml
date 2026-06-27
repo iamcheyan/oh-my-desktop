@@ -9,10 +9,10 @@ Rectangle {
 
     required property var device
     required property int index
-    property color selectionColor: "#123a32"
+    property color selectionColor: "#2b2b2b"
     property color foregroundColor: TuiStyle.fg
     property color dimColor: TuiStyle.dim
-    property color greenColor: TuiStyle.green
+    property color accentColor: TuiStyle.accent
     property color yellowColor: TuiStyle.yellow
     property color blueColor: TuiStyle.blue
     property color lineColor: TuiStyle.line
@@ -39,9 +39,9 @@ Rectangle {
 
     implicitWidth: ListView.view?.width ?? 520
     implicitHeight: 38
-    color: root.selected ? root.selectionColor : root.connected ? Qt.rgba(root.greenColor.r, root.greenColor.g, root.greenColor.b, 0.08) : "transparent"
+    color: root.selected ? root.selectionColor : root.connected ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.08) : "transparent"
     border.width: root.selected ? 1 : 0
-    border.color: root.selected ? root.greenColor : "transparent"
+    border.color: root.selected ? root.accentColor : "transparent"
     clip: true
 
     MouseArea {
@@ -63,7 +63,7 @@ Rectangle {
         TuiCell {
             Layout.preferredWidth: 22
             text: root.connected ? "*" : root.selected ? ":" : " "
-            color: root.connected ? root.greenColor : root.dimColor
+            color: root.connected ? root.accentColor : root.dimColor
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -99,7 +99,7 @@ Rectangle {
         TuiCell {
             Layout.preferredWidth: 76
             text: root.stateLabel()
-            color: root.selected ? root.foregroundColor : root.connected ? root.greenColor : root.paired ? root.blueColor : root.dimColor
+            color: root.selected ? root.foregroundColor : root.connected ? root.accentColor : root.paired ? root.blueColor : root.dimColor
             horizontalAlignment: Text.AlignRight
         }
     }

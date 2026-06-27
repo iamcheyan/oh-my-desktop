@@ -10,8 +10,8 @@ import Quickshell.Io
 Rectangle {
     id: root
     property string entry
-    property real maxWidth
-    property real maxHeight
+    property real maxWidth: 0
+    property real maxHeight: 0
     property bool blur: false
     property string blurText: "Image hidden"
 
@@ -39,13 +39,15 @@ Rectangle {
         return match ? parseInt(match[2]) : 0;
     }
     property real scale: {
+        if (root.imageWidth <= 0 || root.imageHeight <= 0 || root.maxWidth <= 0 || root.maxHeight <= 0)
+            return 0;
         return Math.min(root.maxWidth / imageWidth, root.maxHeight / imageHeight, 1);
     }
 
-    color: Appearance.colors.colLayer1
-    radius: Appearance.rounding.small
-    implicitHeight: imageHeight * scale
-    implicitWidth: imageWidth * scale
+    color: TuiStyle.panel
+    radius: TuiStyle.radius
+    implicitHeight: Math.max(0, imageHeight * scale)
+    implicitWidth: Math.max(0, imageWidth * scale)
     clip: true
 
     function decodeImage() {
@@ -94,8 +96,8 @@ Rectangle {
         asynchronous: true
         cache: true
 
-        width: root.imageWidth * root.scale
-        height: root.imageHeight * root.scale
+        width: Math.max(0, root.imageWidth * root.scale)
+        height: Math.max(0, root.imageHeight * root.scale)
     }
 
     Loader {

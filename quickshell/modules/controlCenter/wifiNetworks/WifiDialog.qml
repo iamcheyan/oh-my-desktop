@@ -16,12 +16,12 @@ WindowDialog {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
-    readonly property color tuiSelection: "#123a32"
+    readonly property color tuiSelection: "#2b2b2b"
     readonly property string activeName: Network.active?.ssid || Network.networkName || Translation.tr("none")
     readonly property string statusText: Network.wifiScanning ? Translation.tr("scanning") : Network.wifiStatus
     readonly property var previewNetwork: selectedNetwork || networkList.currentItem?.wifiNetwork || Network.active
@@ -181,7 +181,7 @@ WindowDialog {
                 Layout.preferredHeight: 58
                 color: root.tuiPanel
                 border.width: 1
-                border.color: root.tuiGreen
+                border.color: root.tuiAccent
 
                 RowLayout {
                     anchors.fill: parent
@@ -195,7 +195,7 @@ WindowDialog {
 
                         TuiText {
                             text: "OMD NETCTL"
-                            color: root.tuiGreen
+                            color: root.tuiAccent
                             font.pixelSize: Appearance.font.pixelSize.large
                             font.weight: Font.Bold
                         }
@@ -209,7 +209,7 @@ WindowDialog {
 
                     StatusPill {
                         label: root.statusText.toUpperCase()
-                        tone: Network.wifiStatus === "connected" ? root.tuiGreen : Network.wifiStatus === "disabled" ? root.tuiRed : root.tuiYellow
+                        tone: Network.wifiStatus === "connected" ? root.tuiAccent : Network.wifiStatus === "disabled" ? root.tuiRed : root.tuiYellow
                     }
                 }
             }
@@ -224,7 +224,7 @@ WindowDialog {
                     subtitle: `${Network.friendlyWifiNetworks.length} visible`
                     Layout.preferredWidth: Math.min(530, Math.max(480, root.backgroundWidth * 0.58))
                     Layout.fillHeight: true
-                    accent: root.tuiGreen
+                    accent: root.tuiAccent
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -298,7 +298,7 @@ WindowDialog {
                                     selectionColor: root.tuiSelection
                                     foregroundColor: root.tuiFg
                                     dimColor: root.tuiDim
-                                    greenColor: root.tuiGreen
+                                    accentColor: root.tuiAccent
                                     yellowColor: root.tuiYellow
                                     blueColor: root.tuiBlue
                                     bgColor: root.tuiBg
@@ -341,7 +341,7 @@ WindowDialog {
                         subtitle: root.previewNetwork ? root.linkState(root.previewNetwork) : "no selection"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        accent: root.previewNetwork?.active ? root.tuiGreen : root.tuiBlue
+                        accent: root.previewNetwork?.active ? root.tuiAccent : root.tuiBlue
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -362,7 +362,7 @@ WindowDialog {
 
                                 StatusPill {
                                     label: root.linkState(root.previewNetwork).toUpperCase()
-                                    tone: root.previewNetwork?.active ? root.tuiGreen : root.tuiBlue
+                                    tone: root.previewNetwork?.active ? root.tuiAccent : root.tuiBlue
                                 }
                             }
 
@@ -391,7 +391,7 @@ WindowDialog {
                                         TuiText {
                                             Layout.fillWidth: true
                                             text: root.previewNetwork ? `${root.signalBars(root.previewNetwork.strength)} ${root.previewNetwork.strength}%` : "---- --%"
-                                            color: root.tuiGreen
+                                            color: root.tuiAccent
                                             horizontalAlignment: Text.AlignRight
                                             font.weight: Font.Bold
                                         }
@@ -432,7 +432,7 @@ WindowDialog {
 
                                 TuiActionButton {
                                     label: "MANAGE"
-                                    accent: root.tuiGreen
+                                    accent: root.tuiAccent
                                     enabledState: root.previewNetwork !== null
                                     onClicked: root.openDetails(root.previewNetwork)
                                 }
@@ -451,7 +451,7 @@ WindowDialog {
                         subtitle: "wld0"
                         Layout.fillWidth: true
                         Layout.preferredHeight: 146
-                        accent: Network.wifiEnabled ? root.tuiGreen : root.tuiRed
+                        accent: Network.wifiEnabled ? root.tuiAccent : root.tuiRed
 
                         GridLayout {
                             anchors.fill: parent
@@ -462,19 +462,19 @@ WindowDialog {
                             DetailKey { text: "POWER" }
                             DetailValue {
                                 text: Network.wifiEnabled ? "ON" : "OFF"
-                                color: Network.wifiEnabled ? root.tuiGreen : root.tuiRed
+                                color: Network.wifiEnabled ? root.tuiAccent : root.tuiRed
                             }
                             DetailKey { text: "STATE" }
                             DetailValue {
                                 text: root.statusText
-                                color: Network.wifiStatus === "connected" ? root.tuiGreen : root.tuiYellow
+                                color: Network.wifiStatus === "connected" ? root.tuiAccent : root.tuiYellow
                             }
                             DetailKey { text: "LINK" }
                             DetailValue { text: root.activeName }
                             DetailKey { text: "LEVEL" }
                             DetailValue {
                                 text: Number.isFinite(Network.networkStrength) ? `${Network.networkStrength}%` : "--"
-                                color: Network.wifiStatus === "connected" ? root.tuiGreen : root.tuiDim
+                                color: Network.wifiStatus === "connected" ? root.tuiAccent : root.tuiDim
                             }
                         }
                     }
@@ -527,7 +527,7 @@ WindowDialog {
 
             Rectangle {
                 anchors.fill: parent
-                color: "#010302"
+                color: "#050505"
                 opacity: 0.82
 
                 MouseArea {
@@ -543,7 +543,7 @@ WindowDialog {
                 anchors.centerIn: parent
                 color: root.tuiBg
                 border.width: 1
-                border.color: root.tuiGreen
+                border.color: root.tuiAccent
 
                 MouseArea {
                     anchors.fill: parent
@@ -560,7 +560,7 @@ WindowDialog {
 
                         TuiText {
                             text: "NETCTL::ACTION"
-                            color: root.tuiGreen
+                            color: root.tuiAccent
                             font.weight: Font.Bold
                         }
 
@@ -572,7 +572,7 @@ WindowDialog {
 
                         TuiText {
                             text: root.linkState(root.selectedNetwork).toUpperCase()
-                            color: root.selectedNetwork?.active ? root.tuiGreen : root.tuiYellow
+                            color: root.selectedNetwork?.active ? root.tuiAccent : root.tuiYellow
                             font.weight: Font.Bold
                         }
                     }
@@ -611,7 +611,7 @@ WindowDialog {
                         Layout.preferredHeight: 42
                         color: root.tuiPanel
                         border.width: 1
-                        border.color: passwordField.activeFocus ? root.tuiGreen : root.tuiLine
+                        border.color: passwordField.activeFocus ? root.tuiAccent : root.tuiLine
 
                         RowLayout {
                             anchors.fill: parent
@@ -652,7 +652,7 @@ WindowDialog {
                         TuiActionButton {
                             visible: !(root.selectedNetwork?.active ?? false)
                             label: "CONNECT"
-                            accent: root.tuiGreen
+                            accent: root.tuiAccent
                             onClicked: root.connectSelected()
                         }
 
@@ -700,7 +700,7 @@ WindowDialog {
 
         required property string title
         property string subtitle: ""
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         default property alias content: panelContent.data
 
         Rectangle {
@@ -786,7 +786,7 @@ WindowDialog {
         id: pill
 
         property string label: ""
-        property color tone: root.tuiGreen
+        property color tone: root.tuiAccent
 
         Layout.preferredWidth: Math.max(110, pillText.implicitWidth)
         Layout.preferredHeight: 26

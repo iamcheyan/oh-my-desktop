@@ -177,9 +177,9 @@ Item {
                     TimerService.toggleStopwatch()
                 }
 
-                colBackground: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.green
-                colBackgroundHover: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.green
-                colRipple: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.green
+                colBackground: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.accent
+                colBackgroundHover: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.accent
+                colRipple: TimerService.stopwatchRunning ? TuiStyle.line : TuiStyle.accent
 
                 contentItem: StyledText {
                     horizontalAlignment: Text.AlignHCenter

@@ -91,7 +91,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: todoItem.modelData.done ? "remove_done" : "check"
                                 iconSize: Appearance.font.pixelSize.larger
-                                color: todoItem.modelData.done ? TuiStyle.dim : TuiStyle.green
+                                color: todoItem.modelData.done ? TuiStyle.dim : TuiStyle.accent
                             }
                         }
                         TodoItemActionButton {

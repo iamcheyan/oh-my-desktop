@@ -19,7 +19,7 @@ Item {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
@@ -67,7 +67,7 @@ Item {
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: Appearance.font.pixelSize.large
                 font.weight: Font.Bold
-                color: root.tuiGreen
+                color: root.tuiAccent
             }
 
             StyledText {
@@ -112,10 +112,10 @@ Item {
         }
 
         color: rowTap.pressed ? root.tuiPanelAlt
-            : rowHover.hovered || expanded ? Qt.rgba(root.tuiGreen.r, root.tuiGreen.g, root.tuiGreen.b, 0.08)
+            : rowHover.hovered || expanded ? Qt.rgba(root.tuiAccent.r, root.tuiAccent.g, root.tuiAccent.b, 0.08)
             : root.tuiBg
         border.width: 1
-        border.color: critical ? root.tuiRed : rowHover.hovered || expanded ? root.tuiGreen : root.tuiLine
+        border.color: critical ? root.tuiRed : rowHover.hovered || expanded ? root.tuiAccent : root.tuiLine
         implicitHeight: rowContent.implicitHeight + 18
 
         HoverHandler {
@@ -139,7 +139,7 @@ Item {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: 3
-            color: critical ? root.tuiRed : root.tuiGreen
+            color: critical ? root.tuiRed : root.tuiAccent
         }
 
         ColumnLayout {
@@ -283,7 +283,7 @@ Item {
         id: button
 
         property string label: ""
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         signal clicked()
 
         Layout.preferredHeight: 22

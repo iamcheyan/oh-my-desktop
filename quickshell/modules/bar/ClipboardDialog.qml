@@ -2,88 +2,45 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import QtQuick
-import QtQuick.Layouts
 import qs.modules.common.functions
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import QtQuick.Controls
 
 Rectangle {
     id: clipboardDialog
+
     property bool show: false
     signal dismiss()
 
-    width: 800
-    height: 480
-    color: "#1a1a1a"
-    border.color: "#444444"
-    border.width: 2
-    radius: 0
+    width: 860
+    height: 520
+    color: TuiStyle.bg
+    border.color: TuiStyle.line
+    border.width: TuiStyle.borderWidth
+    radius: TuiStyle.radius
     focus: true
-
-    onActiveFocusChanged: {
-        if (!activeFocus && visible && show) {
-            clipboardDialog.forceActiveFocus();
-        }
-    }
+    clip: true
 
     property int keyboardIndex: 0
-    property real wheelAccum: 0
-    property string monoFont: "JetBrainsMono Nerd Font, monospace"
-    property color bgColor: "#1a1a1a"
-    property color borderColor: "#444444"
-    property color selectedBg: "#2a4a6a"
-    property color textColor: "#c5c8c6"
-    property color dimColor: "#666666"
-    property color accentColor: "#4c7899"
-
     readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) ? Cliphist.entries[keyboardIndex] : ""
+    readonly property bool currentIsImage: currentEntry !== "" && Cliphist.entryIsImage(currentEntry)
+
+    onActiveFocusChanged: {
+        if (!activeFocus && visible && show)
+            clipboardDialog.forceActiveFocus();
+    }
 
     function loadCurrentPreview() {
-        if (currentEntry && !Cliphist.entryIsImage(currentEntry)) {
+        if (currentEntry && !currentIsImage) {
             textDecoder.running = false;
             textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(currentEntry)}' | ${Cliphist.cliphistBinary} decode`];
             textDecoder.running = true;
         } else {
             textDecoder.running = false;
             textDecoder.decodedText = "";
-        }
-    }
-
-    onCurrentEntryChanged: {
-        loadCurrentPreview();
-    }
-
-    Component.onCompleted: {
-        loadCurrentPreview();
-    }
-
-    Process {
-        id: textDecoder
-        property string decodedText: ""
-        stdout: StdioCollector {
-            onStreamFinished: {
-                textDecoder.decodedText = text;
-            }
-        }
-    }
-
-    onVisibleChanged: {
-        if (visible) {
-            keyboardIndex = 0;
-            clipboardDialog.forceActiveFocus();
-            Cliphist.refresh();
-            loadCurrentPreview();
-        }
-    }
-
-    Connections {
-        target: Cliphist
-        function onEntriesChanged() {
-            if (keyboardIndex >= Cliphist.entries.length) {
-                keyboardIndex = Math.max(0, Cliphist.entries.length - 1);
-            }
         }
     }
 
@@ -94,22 +51,55 @@ Rectangle {
         }
     }
 
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Down) {
+    function deleteSelected() {
+        if (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length)
+            Cliphist.deleteEntry(Cliphist.entries[keyboardIndex]);
+    }
+
+    onCurrentEntryChanged: loadCurrentPreview()
+
+    Component.onCompleted: loadCurrentPreview()
+
+    onVisibleChanged: {
+        if (visible) {
+            keyboardIndex = 0;
+            clipboardDialog.forceActiveFocus();
+            Cliphist.refresh();
+            loadCurrentPreview();
+        }
+    }
+
+    Process {
+        id: textDecoder
+        property string decodedText: ""
+        stdout: StdioCollector {
+            onStreamFinished: textDecoder.decodedText = text
+        }
+    }
+
+    Connections {
+        target: Cliphist
+        function onEntriesChanged() {
+            if (keyboardIndex >= Cliphist.entries.length)
+                keyboardIndex = Math.max(0, Cliphist.entries.length - 1);
+        }
+    }
+
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
             event.accepted = true;
-            if (Cliphist.entries.length === 0) return;
-            if (keyboardIndex < Cliphist.entries.length - 1) {
-                keyboardIndex++;
-            }
-        } else if (event.key === Qt.Key_Up) {
+            if (Cliphist.entries.length > 0)
+                keyboardIndex = Math.min(keyboardIndex + 1, Cliphist.entries.length - 1);
+        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
             event.accepted = true;
-            if (keyboardIndex > 0) {
-                keyboardIndex--;
-            }
+            keyboardIndex = Math.max(keyboardIndex - 1, 0);
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true;
             copySelected();
-        } else if (event.key === Qt.Key_Escape) {
+        } else if (event.key === Qt.Key_D && event.modifiers === Qt.NoModifier) {
+            event.accepted = true;
+            deleteSelected();
+        } else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) {
             event.accepted = true;
             clipboardDialog.dismiss();
         }
@@ -117,76 +107,69 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 0
-        spacing: 0
+        anchors.margins: 12
+        spacing: 10
 
-        // Title bar
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 28
-            color: "#222222"
-            border.color: borderColor
-            border.width: 1
+            Layout.preferredHeight: 42
+            color: TuiStyle.panel
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.line
 
-            Text {
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                text: " CLIPBOARD "
-                font.family: monoFont
-                font.pixelSize: 13
-                font.bold: true
-                color: accentColor
-            }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                spacing: 10
 
-            Text {
-                anchors.right: parent.right
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                text: "[ESC] close  [Enter] paste  [↑↓] navigate"
-                font.family: monoFont
-                font.pixelSize: 11
-                color: dimColor
+                StyledText {
+                    text: "CLIPBOARD"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.Bold
+                    color: TuiStyle.accent
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: TuiStyle.borderWidth
+                    color: TuiStyle.line
+                }
+
+                StyledText {
+                    text: Cliphist.entries.length > 0 ? "READY" : "EMPTY"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Bold
+                    color: TuiStyle.muted
+                }
             }
         }
 
-        // Main content area
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
+            spacing: 10
 
-            // Left panel - List
             Rectangle {
-                Layout.preferredWidth: 380
+                Layout.preferredWidth: 390
                 Layout.fillHeight: true
-                color: bgColor
-                border.color: borderColor
-                border.width: 1
+                color: TuiStyle.panel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                clip: true
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 1
-                    spacing: 0
+                    anchors.margins: 10
+                    spacing: 8
 
-                    // List header
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 24
-                        color: "#222222"
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: " History"
-                            font.family: monoFont
-                            font.pixelSize: 12
-                            color: dimColor
-                        }
+                    PanelHeader {
+                        title: "HISTORY"
+                        value: `${Cliphist.entries.length} ITEMS`
                     }
 
-                    // List content
                     ListView {
                         id: clipboardList
                         Layout.fillWidth: true
@@ -195,7 +178,7 @@ Rectangle {
                         spacing: 0
                         boundsBehavior: Flickable.StopAtBounds
                         boundsMovement: Flickable.StopAtBounds
-                        highlightMoveDuration: 100
+                        highlightMoveDuration: 80
                         highlightResizeDuration: 0
                         interactive: true
 
@@ -207,77 +190,85 @@ Rectangle {
                             required property string modelData
                             required property int index
                             entry: modelData
-                            width: ListView.view.width
+                            itemIndex: index
+                            width: clipboardList.width
                             selected: clipboardDialog.keyboardIndex === index
                             onItemClicked: clipboardDialog.dismiss()
                             onHoveredChanged: {
-                                if (hovered) {
+                                if (hovered)
                                     clipboardDialog.keyboardIndex = index;
-                                }
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.centerIn: parent
+                            visible: clipboardList.count === 0
+                            width: emptyText.implicitWidth + 28
+                            height: 34
+                            color: TuiStyle.bg
+                            border.width: TuiStyle.borderWidth
+                            border.color: TuiStyle.line
+
+                            StyledText {
+                                id: emptyText
+                                anchors.centerIn: parent
+                                text: "NO CLIPBOARD HISTORY"
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                font.weight: Font.Bold
+                                color: TuiStyle.dim
                             }
                         }
 
                         Connections {
                             target: clipboardDialog
                             function onKeyboardIndexChanged() {
-                                if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count) {
+                                if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
                                     clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
-                                }
                             }
                         }
                     }
                 }
             }
 
-            // Right panel - Preview
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: bgColor
-                border.color: borderColor
-                border.width: 1
+                color: TuiStyle.panel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                clip: true
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 1
-                    spacing: 0
+                    anchors.margins: 10
+                    spacing: 8
 
-                    // Preview header
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 24
-                        color: "#222222"
-
-                        Text {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: " Preview"
-                            font.family: monoFont
-                            font.pixelSize: 12
-                            color: dimColor
-                        }
+                    PanelHeader {
+                        title: "PREVIEW"
+                        value: clipboardDialog.currentIsImage ? "IMAGE" : clipboardDialog.currentEntry !== "" ? "TEXT" : "--"
                     }
 
-                    // Preview content
-                    Item {
+                    Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        color: TuiStyle.bg
+                        border.width: TuiStyle.borderWidth
+                        border.color: TuiStyle.line
                         clip: true
 
-                        // Image Preview
                         CliphistImage {
                             anchors.centerIn: parent
-                            visible: clipboardDialog.currentEntry !== "" && Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                            visible: clipboardDialog.currentIsImage
                             entry: visible ? clipboardDialog.currentEntry : ""
-                            maxWidth: parent.width - 20
-                            maxHeight: parent.height - 20
+                            maxWidth: parent.width - 24
+                            maxHeight: parent.height - 24
                         }
 
-                        // Text Preview
                         ScrollView {
                             anchors.fill: parent
-                            visible: clipboardDialog.currentEntry !== "" && !Cliphist.entryIsImage(clipboardDialog.currentEntry)
+                            anchors.margins: 8
+                            visible: clipboardDialog.currentEntry !== "" && !clipboardDialog.currentIsImage
                             clip: true
 
                             TextArea {
@@ -285,68 +276,100 @@ Rectangle {
                                 selectByMouse: true
                                 wrapMode: TextEdit.Wrap
                                 text: textDecoder.decodedText
-                                font.family: monoFont
-                                font.pixelSize: 13
-                                color: textColor
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: TuiStyle.fg
+                                selectedTextColor: TuiStyle.bg
+                                selectionColor: TuiStyle.accent
                                 background: Rectangle {
-                                    color: bgColor
+                                    color: TuiStyle.bg
                                 }
                                 activeFocusOnPress: false
                                 padding: 8
                             }
                         }
 
-                        // Empty State
-                        Text {
+                        StyledText {
                             anchors.centerIn: parent
                             visible: clipboardDialog.currentEntry === ""
-                            text: "No item selected"
-                            font.family: monoFont
-                            font.pixelSize: 13
-                            color: dimColor
+                            text: "NO ITEM SELECTED"
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.Bold
+                            color: TuiStyle.dim
                         }
                     }
                 }
             }
         }
 
-        // Status bar
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 22
-            color: "#222222"
-            border.color: borderColor
-            border.width: 1
+            Layout.preferredHeight: 30
+            color: TuiStyle.panel
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.line
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
                 spacing: 16
 
-                Text {
-                    text: Cliphist.entries.length + " items"
-                    font.family: monoFont
-                    font.pixelSize: 11
-                    color: dimColor
+                FooterText {
+                    text: clipboardDialog.keyboardIndex >= 0 && Cliphist.entries.length > 0 ? `${clipboardDialog.keyboardIndex + 1}/${Cliphist.entries.length}` : "-/-"
                 }
-
-                Text {
-                    text: clipboardDialog.keyboardIndex >= 0 ? (clipboardDialog.keyboardIndex + 1) + "/" + Cliphist.entries.length : "-/-"
-                    font.family: monoFont
-                    font.pixelSize: 11
-                    color: dimColor
-                }
-
+                FooterText { text: "ENTER PASTE" }
+                FooterText { text: "D DELETE" }
+                FooterText { text: "J/K NAV" }
+                FooterText { text: "Q CLOSE" }
                 Item { Layout.fillWidth: true }
-
-                Text {
-                    text: "cliphist"
-                    font.family: monoFont
-                    font.pixelSize: 11
-                    color: dimColor
-                }
+                FooterText { text: Cliphist.cliphistBinary.toUpperCase() }
             }
         }
+    }
+
+    component PanelHeader: Rectangle {
+        id: header
+        property string title: ""
+        property string value: ""
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 28
+        color: TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.line
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 8
+
+            StyledText {
+                text: header.title
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Bold
+                color: TuiStyle.accent
+            }
+
+            Item { Layout.fillWidth: true }
+
+            StyledText {
+                text: header.value
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Bold
+                color: TuiStyle.dim
+            }
+        }
+    }
+
+    component FooterText: StyledText {
+        font.family: Appearance.font.family.monospace
+        font.pixelSize: Appearance.font.pixelSize.smaller
+        font.weight: Font.Bold
+        color: TuiStyle.dim
     }
 }

@@ -4,25 +4,17 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
 
 Rectangle {
     id: root
+
     required property string entry
-    property int index: 0
+    property int itemIndex: 0
     property bool selected: false
+
     signal itemClicked()
     signal hoveredChanged(bool hovered)
-
-    property string monoFont: "JetBrainsMono Nerd Font, monospace"
-    property color bgColor: selected ? "#2a4a6a" : (mouseArea.containsMouse ? "#222222" : "#1a1a1a")
-    property color textColor: "#ffffff"
-    property color dimColor: "#888888"
-
-    height: 28
-    color: bgColor
 
     readonly property bool isImage: Cliphist.entryIsImage(entry)
     readonly property string cleanText: StringUtils.cleanCliphistEntry(entry)
@@ -34,6 +26,12 @@ Rectangle {
         const match = entry.match(/(\d+)x(\d+)/);
         return match ? parseInt(match[2]) : 0;
     }
+
+    implicitHeight: 42
+    color: selected ? TuiStyle.selection : mouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
+    border.width: selected ? TuiStyle.borderWidth : 0
+    border.color: selected ? TuiStyle.accent : "transparent"
+    clip: true
 
     MouseArea {
         id: mouseArea
@@ -49,36 +47,70 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        spacing: 10
 
-        // Index number
-        Text {
-            text: (root.index + 1).toString().padStart(3, ' ')
-            font.family: root.monoFont
-            font.pixelSize: 12
-            color: root.dimColor
-            Layout.preferredWidth: 30
+        StyledText {
+            Layout.preferredWidth: 34
+            text: String(root.itemIndex + 1).padStart(3, "0")
+            font.family: Appearance.font.family.monospace
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            font.weight: Font.Bold
+            color: root.selected ? TuiStyle.fg : TuiStyle.dim
+            horizontalAlignment: Text.AlignRight
         }
 
-        // Type indicator
-        Text {
-            text: root.isImage ? "[IMG]" : "[TXT]"
-            font.family: root.monoFont
-            font.pixelSize: 12
-            color: root.isImage ? "#a3be8c" : "#4c7899"
-            Layout.preferredWidth: 40
+        Rectangle {
+            Layout.preferredWidth: 50
+            Layout.preferredHeight: 22
+            color: root.selected ? TuiStyle.panel : TuiStyle.bg
+            border.width: TuiStyle.borderWidth
+            border.color: root.selected ? TuiStyle.accent : TuiStyle.line
+
+            StyledText {
+                anchors.centerIn: parent
+                text: root.isImage ? "IMG" : "TXT"
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Bold
+                color: root.selected ? TuiStyle.fg : TuiStyle.muted
+            }
         }
 
-        // Content
-        Text {
+        ColumnLayout {
             Layout.fillWidth: true
-            text: root.entry
-            font.family: root.monoFont
-            font.pixelSize: 12
-            color: root.textColor
-            elide: Text.ElideRight
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 2
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.isImage ? `${root.imgW}x${root.imgH} image` : root.cleanText
+                elide: Text.ElideRight
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: root.selected ? Font.Bold : Font.Medium
+                color: root.selected ? TuiStyle.fg : TuiStyle.fg
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.isImage ? "binary clipboard entry" : root.entry.replace(/^\s*\S+\s+/, "").slice(0, 96)
+                elide: Text.ElideRight
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: TuiStyle.dim
+                visible: text.length > 0
+            }
         }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: TuiStyle.borderWidth
+        color: TuiStyle.line
+        opacity: root.selected ? 0 : 0.7
     }
 }

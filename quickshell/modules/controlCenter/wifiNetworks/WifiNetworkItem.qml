@@ -11,14 +11,14 @@ Rectangle {
 
     required property WifiAccessPoint wifiNetwork
     required property int index
-    property color selectionColor: "#133a35"
+    property color selectionColor: "#2b2b2b"
     property color foregroundColor: TuiStyle.fg
-    property color dimColor: "#66756f"
-    property color greenColor: TuiStyle.green
+    property color dimColor: "#8a8a8a"
+    property color accentColor: TuiStyle.accent
     property color yellowColor: TuiStyle.yellow
     property color blueColor: TuiStyle.blue
     property color bgColor: TuiStyle.bg
-    property color lineColor: "#12332c"
+    property color lineColor: "#3a3a3a"
 
     signal activated(var network)
 
@@ -48,9 +48,9 @@ Rectangle {
 
     implicitWidth: ListView.view?.width ?? 460
     implicitHeight: 38
-    color: root.selected ? root.selectionColor : root.activeNetwork ? Qt.rgba(root.greenColor.r, root.greenColor.g, root.greenColor.b, 0.08) : "transparent"
+    color: root.selected ? root.selectionColor : root.activeNetwork ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.08) : "transparent"
     border.width: root.selected ? 1 : 0
-    border.color: root.selected ? root.greenColor : "transparent"
+    border.color: root.selected ? root.accentColor : "transparent"
     clip: true
 
     MouseArea {
@@ -72,7 +72,7 @@ Rectangle {
         TuiCell {
             Layout.preferredWidth: 22
             text: root.pending ? ">" : root.activeNetwork ? "*" : root.selected ? ":" : " "
-            color: root.pending ? root.yellowColor : root.activeNetwork ? root.greenColor : root.dimColor
+            color: root.pending ? root.yellowColor : root.activeNetwork ? root.accentColor : root.dimColor
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -86,7 +86,7 @@ Rectangle {
         TuiCell {
             Layout.preferredWidth: 64
             text: root.signalBars(root.wifiNetwork?.strength ?? 0)
-            color: root.selected ? root.foregroundColor : root.greenColor
+            color: root.selected ? root.foregroundColor : root.accentColor
             horizontalAlignment: Text.AlignHCenter
         }
 

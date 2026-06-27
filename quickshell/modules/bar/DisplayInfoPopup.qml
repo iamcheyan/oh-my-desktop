@@ -23,7 +23,7 @@ PopupWindow {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
@@ -256,7 +256,7 @@ PopupWindow {
                     TuiDetailRow {
                         keyText: "SCREENS"
                         valueText: `${root.screenCount}`
-                        valueColor: root.tuiGreen
+                        valueColor: root.tuiAccent
                     }
 
                     Repeater {
@@ -282,7 +282,7 @@ PopupWindow {
 
                         TuiActionButton {
                             label: "SETTINGS"
-                            accent: root.tuiGreen
+                            accent: root.tuiAccent
                             onClicked: {
                                 root.manageRequested();
                                 root.close();

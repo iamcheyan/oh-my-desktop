@@ -34,51 +34,58 @@ ShellRoot {
         }
     }
 
-    Loader {
-        id: clipboardLoader
-        active: GlobalStates.clipboardOpen
+    PanelWindow {
+        id: clipboardWindow
+        visible: GlobalStates.clipboardOpen
 
-        sourceComponent: PanelWindow {
-            id: clipboardWindow
-            visible: clipboardLoader.active
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
 
-            anchors {
-                top: true
-                bottom: true
-                left: true
-                right: true
-            }
+        implicitWidth: screen?.width ?? 1280
+        implicitHeight: screen?.height ?? 720
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.namespace: "quickshell:clipboard"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: GlobalStates.clipboardOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        color: "transparent"
 
-            exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.namespace: "quickshell:clipboard"
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            color: "transparent"
+        function close() {
+            GlobalStates.clipboardOpen = false;
+        }
 
-            function close() {
-                GlobalStates.clipboardOpen = false;
-            }
+        Timer {
+            id: dismissGuard
+            interval: 150
+            repeat: false
+            onTriggered: GlobalFocusGrab.addDismissable(clipboardWindow)
+        }
 
-            Component.onCompleted: {
-                GlobalFocusGrab.addDismissable(clipboardWindow);
-            }
-            Component.onDestruction: {
+        onVisibleChanged: {
+            if (visible) {
+                dismissGuard.restart();
+            } else {
+                dismissGuard.stop();
                 GlobalFocusGrab.removeDismissable(clipboardWindow);
             }
-            Connections {
-                target: GlobalFocusGrab
-                function onDismissed() {
-                    clipboardWindow.close();
-                }
-            }
+        }
 
-            ClipboardDialog {
-                id: dialog
-                anchors.centerIn: parent
-                visible: true
-                show: true
-                onDismiss: clipboardWindow.close()
+        Connections {
+            target: GlobalFocusGrab
+            function onDismissed() {
+                clipboardWindow.close();
             }
+        }
+
+        ClipboardDialog {
+            id: dialog
+            anchors.centerIn: parent
+            visible: GlobalStates.clipboardOpen
+            show: GlobalStates.clipboardOpen
+            onDismiss: clipboardWindow.close()
         }
     }
 

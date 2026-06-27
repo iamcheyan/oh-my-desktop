@@ -38,9 +38,9 @@ RowLayout {
 
             Layout.preferredHeight: 30
             Layout.preferredWidth: Math.max(96, tabRow.implicitWidth + 18)
-            color: active ? TuiStyle.panelAlt : tabMouse.containsMouse ? Qt.rgba(TuiStyle.green.r, TuiStyle.green.g, TuiStyle.green.b, 0.10) : TuiStyle.bg
+            color: active ? TuiStyle.panelAlt : tabMouse.containsMouse ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.10) : TuiStyle.bg
             border.width: TuiStyle.borderWidth
-            border.color: active || tabMouse.containsMouse ? TuiStyle.green : TuiStyle.line
+            border.color: active || tabMouse.containsMouse ? TuiStyle.accent : TuiStyle.line
 
             RowLayout {
                 id: tabRow
@@ -50,7 +50,7 @@ RowLayout {
                 MaterialSymbol {
                     text: tab.modelData.icon
                     iconSize: Appearance.font.pixelSize.small
-                    color: tab.active ? TuiStyle.green : TuiStyle.dim
+                    color: tab.active ? TuiStyle.accent : TuiStyle.dim
                 }
 
                 StyledText {

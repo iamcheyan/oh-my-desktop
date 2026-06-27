@@ -19,12 +19,12 @@ WindowDialog {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
-    readonly property color tuiSelection: "#123a32"
+    readonly property color tuiSelection: "#2b2b2b"
     readonly property int controlCount: 8
     readonly property var controlOrder: [0, 7, 1, 4, 2, 3, 5, 6]
     readonly property string selectedTitle: controlTitle(selectedControl)
@@ -133,9 +133,9 @@ WindowDialog {
         if (index === 4)
             return Config.options.light.night.automatic ? root.tuiBlue : root.tuiDim;
         if (index === 5)
-            return HyprlandAntiFlashbangShader.enabled ? root.tuiGreen : root.tuiDim;
+            return HyprlandAntiFlashbangShader.enabled ? root.tuiAccent : root.tuiDim;
         if (index === 6)
-            return Config.options.light.antiFlashbang.enable ? root.tuiGreen : root.tuiDim;
+            return Config.options.light.antiFlashbang.enable ? root.tuiAccent : root.tuiDim;
         if (index === 7)
             return root.tuiRed;
         return root.tuiFg;
@@ -384,7 +384,7 @@ WindowDialog {
 
                                 ControlGroup {
                                     title: "PROTECTION"
-                                    accent: root.tuiGreen
+                                    accent: root.tuiAccent
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
 
@@ -558,7 +558,7 @@ WindowDialog {
                                 TuiActionButton {
                                     visible: !root.selectedIsToggle && !root.selectedIsAction
                                     label: "+ STEP"
-                                    accent: root.tuiGreen
+                                    accent: root.tuiAccent
                                     onClicked: root.adjustControl(root.selectedControl, 1)
                                 }
                             }
@@ -595,7 +595,7 @@ WindowDialog {
                             DetailKey { text: "SHADER" }
                             DetailValue {
                                 text: HyprlandAntiFlashbangShader.enabled ? "enabled" : "disabled"
-                                color: HyprlandAntiFlashbangShader.enabled ? root.tuiGreen : root.tuiDim
+                                color: HyprlandAntiFlashbangShader.enabled ? root.tuiAccent : root.tuiDim
                             }
                         }
                     }

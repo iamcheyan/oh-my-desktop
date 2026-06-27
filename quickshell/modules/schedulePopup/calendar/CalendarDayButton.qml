@@ -19,9 +19,9 @@ RippleButton {
     colBackground: TuiStyle.panel
     colBackgroundHover: TuiStyle.panelAlt
     colRipple: TuiStyle.line
-    colBackgroundToggled: TuiStyle.green
-    colBackgroundToggledHover: TuiStyle.green
-    colRippleToggled: TuiStyle.green
+    colBackgroundToggled: TuiStyle.accent
+    colBackgroundToggledHover: TuiStyle.accent
+    colRippleToggled: TuiStyle.accent
     
     contentItem: StyledText {
         anchors.fill: parent

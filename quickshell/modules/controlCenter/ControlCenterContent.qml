@@ -18,7 +18,7 @@ Item {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
@@ -50,7 +50,7 @@ Item {
         if (profile === "balanced")
             return root.tuiYellow;
         if (profile === "power-saver")
-            return root.tuiGreen;
+            return root.tuiAccent;
         return root.tuiDim;
     }
 
@@ -157,7 +157,7 @@ Item {
                 ControlPanel {
                     title: "BATTERY"
                     subtitle: root.batteryStateLabel()
-                    accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                    accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiAccent
                     Layout.fillWidth: true
                     Layout.fillHeight: true
 
@@ -177,7 +177,7 @@ Item {
                                 MaterialSymbol {
                                     text: Battery.isCharging ? "bolt" : "battery_android_full"
                                     iconSize: 38
-                                    color: Battery.isLowAndNotCharging ? root.tuiRed : root.tuiGreen
+                                    color: Battery.isLowAndNotCharging ? root.tuiRed : root.tuiAccent
                                     Layout.alignment: Qt.AlignVCenter
                                 }
 
@@ -194,7 +194,7 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 12
                                 value: Battery.available ? Battery.percentage * 100 : 0
-                                accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                                accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiAccent
                             }
                         }
 
@@ -206,7 +206,7 @@ Item {
                             TuiDetailRow {
                                 keyText: "STATE"
                                 valueText: root.batteryStateLabel()
-                                valueColor: Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                                valueColor: Battery.isCharging ? root.tuiYellow : root.tuiAccent
                             }
 
                             TuiDetailRow {
@@ -224,7 +224,7 @@ Item {
                             TuiDetailRow {
                                 keyText: "HEALTH"
                                 valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"
-                                valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiGreen
+                                valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiAccent
                             }
                         }
                     }
@@ -248,7 +248,7 @@ Item {
                             ProfileButton {
                                 profile: "power-saver"
                                 label: "SAVE"
-                                accent: root.tuiGreen
+                                accent: root.tuiAccent
                             }
 
                             ProfileButton {
@@ -279,7 +279,7 @@ Item {
                         TuiDetailRow {
                             keyText: "SLEEP"
                             valueText: Idle.inhibit ? "blocked" : "allowed"
-                            valueColor: Idle.inhibit ? root.tuiYellow : root.tuiGreen
+                            valueColor: Idle.inhibit ? root.tuiYellow : root.tuiAccent
                         }
 
                         RowLayout {
@@ -301,7 +301,7 @@ Item {
 
                             TuiActionButton {
                                 label: Idle.inhibit ? "allow sleep" : "keep awake"
-                                accent: Idle.inhibit ? root.tuiGreen : root.tuiYellow
+                                accent: Idle.inhibit ? root.tuiAccent : root.tuiYellow
                                 onClicked: Idle.toggleInhibit()
                             }
                         }
@@ -321,7 +321,7 @@ Item {
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
                     width: 3
-                    color: root.tuiGreen
+                    color: root.tuiAccent
                 }
 
                 RowLayout {
@@ -338,7 +338,7 @@ Item {
                         font.family: Appearance.font.family.monospace
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.Bold
-                        color: root.tuiGreen
+                        color: root.tuiAccent
                     }
 
                     Rectangle {
@@ -410,7 +410,7 @@ Item {
 
         required property string title
         property string subtitle: ""
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         default property alias content: panelContent.data
 
         Rectangle {
@@ -476,7 +476,7 @@ Item {
 
         required property string profile
         property string label: profile
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         readonly property bool active: PowerProfiles.currentProfile === profile
         readonly property bool available: PowerProfiles.available && PowerProfiles.profiles.indexOf(profile) >= 0
 

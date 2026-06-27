@@ -15,7 +15,7 @@ Item {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiRed: TuiStyle.red
 
@@ -24,7 +24,7 @@ Item {
     readonly property bool sinkMuted: sink?.audio.muted ?? false
 
     function stateTone(muted) {
-        return muted ? root.tuiRed : root.tuiGreen;
+        return muted ? root.tuiRed : root.tuiAccent;
     }
 
     implicitWidth: 300 + Appearance.sizes.elevationMargin * 2

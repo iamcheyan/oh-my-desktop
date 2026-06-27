@@ -22,7 +22,7 @@ PopupWindow {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
@@ -44,7 +44,7 @@ PopupWindow {
 
     function stateTone(state) {
         if (state === "connected" || state === "wired")
-            return root.tuiGreen;
+            return root.tuiAccent;
         if (state === "connecting")
             return root.tuiYellow;
         if (state === "limited")
@@ -237,7 +237,7 @@ PopupWindow {
                     TuiDetailRow {
                         keyText: "ENABLED"
                         valueText: Network.ethernet ? "yes" : (Network.wifiEnabled ? "yes" : "no")
-                        valueColor: Network.ethernet || Network.wifiEnabled ? root.tuiGreen : root.tuiRed
+                        valueColor: Network.ethernet || Network.wifiEnabled ? root.tuiAccent : root.tuiRed
                     }
 
                     TuiDetailRow {
@@ -271,7 +271,7 @@ PopupWindow {
 
                         TuiActionButton {
                             label: "MANAGE"
-                            accent: root.tuiGreen
+                            accent: root.tuiAccent
                             onClicked: {
                                 root.manageRequested();
                                 root.close();

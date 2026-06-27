@@ -155,7 +155,7 @@ Rectangle {
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     font.weight: Font.Bold
-                    color: TuiStyle.green
+                    color: TuiStyle.accent
                 }
 
                 Rectangle {
@@ -245,9 +245,9 @@ Rectangle {
         property string icon: ""
 
         implicitHeight: 34
-        color: active ? TuiStyle.panelAlt : tabMouse.containsMouse ? Qt.rgba(TuiStyle.green.r, TuiStyle.green.g, TuiStyle.green.b, 0.10) : "transparent"
+        color: active ? TuiStyle.panelAlt : tabMouse.containsMouse ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.10) : "transparent"
         border.width: TuiStyle.borderWidth
-        border.color: active || tabMouse.containsMouse ? TuiStyle.green : TuiStyle.line
+        border.color: active || tabMouse.containsMouse ? TuiStyle.accent : TuiStyle.line
 
         RowLayout {
             anchors.fill: parent
@@ -258,7 +258,7 @@ Rectangle {
             MaterialSymbol {
                 text: tabButton.icon
                 iconSize: Appearance.font.pixelSize.normal
-                color: tabButton.active ? TuiStyle.green : TuiStyle.dim
+                color: tabButton.active ? TuiStyle.accent : TuiStyle.dim
             }
 
             StyledText {

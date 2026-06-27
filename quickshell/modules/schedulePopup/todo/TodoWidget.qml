@@ -82,15 +82,15 @@ Item {
         implicitWidth: root.fabSize
         implicitHeight: root.fabSize
         radius: TuiStyle.radius
-        color: fabMouse.containsMouse ? TuiStyle.green : TuiStyle.bg
+        color: fabMouse.containsMouse ? TuiStyle.accent : TuiStyle.bg
         border.width: TuiStyle.borderWidth
-        border.color: TuiStyle.green
+        border.color: TuiStyle.accent
 
         MaterialSymbol {
             anchors.centerIn: parent
             text: "add"
             iconSize: Appearance.font.pixelSize.larger
-            color: fabMouse.containsMouse ? TuiStyle.bg : TuiStyle.green
+            color: fabMouse.containsMouse ? TuiStyle.bg : TuiStyle.accent
         }
 
         MouseArea {
@@ -183,7 +183,7 @@ Item {
                     font.family: Appearance.font.family.monospace
                     renderType: Text.NativeRendering
                     selectedTextColor: TuiStyle.bg
-                    selectionColor: TuiStyle.green
+                    selectionColor: TuiStyle.accent
                     placeholderText: Translation.tr("Task description")
                     placeholderTextColor: TuiStyle.dim
                     focus: root.showAddDialog
@@ -193,13 +193,13 @@ Item {
                         anchors.fill: parent
                         radius: 0
                         border.width: 1
-                        border.color: todoInput.activeFocus ? TuiStyle.green : TuiStyle.line
+                        border.color: todoInput.activeFocus ? TuiStyle.accent : TuiStyle.line
                         color: "transparent"
                     }
 
                     cursorDelegate: Rectangle {
                         width: 1
-                        color: todoInput.activeFocus ? TuiStyle.green : "transparent"
+                        color: todoInput.activeFocus ? TuiStyle.accent : "transparent"
                         radius: 1
                     }
                 }

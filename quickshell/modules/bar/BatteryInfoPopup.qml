@@ -22,7 +22,7 @@ PopupWindow {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiRed: TuiStyle.red
@@ -120,7 +120,7 @@ PopupWindow {
                     Layout.preferredHeight: 40
                     color: root.tuiPanel
                     border.width: 1
-                    border.color: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                    border.color: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiAccent
 
                     RowLayout {
                         anchors.fill: parent
@@ -147,7 +147,7 @@ PopupWindow {
                             font.family: Appearance.font.family.monospace
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             font.weight: Font.Bold
-                            color: Battery.isCharging ? root.tuiYellow : Battery.isLowAndNotCharging ? root.tuiRed : root.tuiGreen
+                            color: Battery.isCharging ? root.tuiYellow : Battery.isLowAndNotCharging ? root.tuiRed : root.tuiAccent
                         }
                     }
                 }
@@ -165,7 +165,7 @@ PopupWindow {
                         MaterialSymbol {
                             text: Battery.isCharging ? "bolt" : "battery_android_full"
                             iconSize: 28
-                            color: Battery.isLowAndNotCharging ? root.tuiRed : root.tuiGreen
+                            color: Battery.isLowAndNotCharging ? root.tuiRed : root.tuiAccent
                             Layout.alignment: Qt.AlignVCenter
                         }
 
@@ -192,7 +192,7 @@ PopupWindow {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
                         value: Battery.available ? Battery.percentage * 100 : 0
-                        accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                        accent: Battery.isLowAndNotCharging ? root.tuiRed : Battery.isCharging ? root.tuiYellow : root.tuiAccent
                     }
 
                     Rectangle {
@@ -204,7 +204,7 @@ PopupWindow {
                     TuiDetailRow {
                         keyText: "STATE"
                         valueText: root.batteryStateLabel()
-                        valueColor: Battery.isCharging ? root.tuiYellow : root.tuiGreen
+                        valueColor: Battery.isCharging ? root.tuiYellow : root.tuiAccent
                     }
 
                     TuiDetailRow {
@@ -216,7 +216,7 @@ PopupWindow {
                     TuiDetailRow {
                         keyText: "HEALTH"
                         valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"
-                        valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiGreen
+                        valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiAccent
                     }
 
                     TuiDetailRow {
@@ -224,7 +224,7 @@ PopupWindow {
                         valueText: PowerProfiles.available ? PowerProfiles.currentProfile : "unavailable"
                         valueColor: PowerProfiles.currentProfile === "performance" ? root.tuiRed
                             : PowerProfiles.currentProfile === "balanced" ? root.tuiYellow
-                            : PowerProfiles.currentProfile === "power-saver" ? root.tuiGreen
+                            : PowerProfiles.currentProfile === "power-saver" ? root.tuiAccent
                             : root.tuiDim
                     }
 
@@ -259,7 +259,7 @@ PopupWindow {
 
                         TuiActionButton {
                             label: "POWER"
-                            accent: root.tuiGreen
+                            accent: root.tuiAccent
                             onClicked: {
                                 root.manageRequested();
                                 root.close();

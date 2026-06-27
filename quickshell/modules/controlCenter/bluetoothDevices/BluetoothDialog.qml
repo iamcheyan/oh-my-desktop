@@ -17,12 +17,12 @@ WindowDialog {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
-    readonly property color tuiSelection: "#123a32"
+    readonly property color tuiSelection: "#2b2b2b"
     readonly property var previewDevice: selectedDevice || deviceList.currentItem?.device || BluetoothStatus.firstActiveDevice
     property var selectedDevice: null
     property bool actionOpen: false
@@ -214,7 +214,7 @@ WindowDialog {
 
                     StatusPill {
                         label: Bluetooth.defaultAdapter?.discovering ? "SCANNING" : BluetoothStatus.connected ? "LINKED" : BluetoothStatus.enabled ? "READY" : "OFFLINE"
-                        tone: Bluetooth.defaultAdapter?.discovering ? root.tuiYellow : BluetoothStatus.connected ? root.tuiGreen : BluetoothStatus.enabled ? root.tuiBlue : root.tuiRed
+                        tone: Bluetooth.defaultAdapter?.discovering ? root.tuiYellow : BluetoothStatus.connected ? root.tuiAccent : BluetoothStatus.enabled ? root.tuiBlue : root.tuiRed
                     }
                 }
             }
@@ -303,7 +303,7 @@ WindowDialog {
                                     selectionColor: root.tuiSelection
                                     foregroundColor: root.tuiFg
                                     dimColor: root.tuiDim
-                                    greenColor: root.tuiGreen
+                                    accentColor: root.tuiAccent
                                     yellowColor: root.tuiYellow
                                     blueColor: root.tuiBlue
                                     lineColor: root.tuiLine
@@ -345,7 +345,7 @@ WindowDialog {
                         subtitle: root.previewDevice ? root.deviceState(root.previewDevice) : "no selection"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        accent: root.previewDevice?.connected ? root.tuiGreen : root.tuiBlue
+                        accent: root.previewDevice?.connected ? root.tuiAccent : root.tuiBlue
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -360,7 +360,7 @@ WindowDialog {
                                     Layout.preferredHeight: 28
                                     iconSize: 26
                                     name: Icons.getBluetoothDeviceCosmicIcon(root.previewDevice?.icon || "")
-                                    color: root.previewDevice?.connected ? root.tuiGreen : root.tuiBlue
+                                    color: root.previewDevice?.connected ? root.tuiAccent : root.tuiBlue
                                 }
 
                                 TuiText {
@@ -374,7 +374,7 @@ WindowDialog {
 
                                 StatusPill {
                                     label: root.deviceState(root.previewDevice).toUpperCase()
-                                    tone: root.previewDevice?.connected ? root.tuiGreen : root.tuiBlue
+                                    tone: root.previewDevice?.connected ? root.tuiAccent : root.tuiBlue
                                 }
                             }
 
@@ -434,7 +434,7 @@ WindowDialog {
                                 DetailKey { text: "LINK" }
                                 DetailValue {
                                     text: root.previewDevice?.connected ? "connected" : "disconnected"
-                                    color: root.previewDevice?.connected ? root.tuiGreen : root.tuiDim
+                                    color: root.previewDevice?.connected ? root.tuiAccent : root.tuiDim
                                 }
                                 DetailKey { text: "BATT" }
                                 DetailValue { text: root.batteryLabel(root.previewDevice) }
@@ -455,7 +455,7 @@ WindowDialog {
 
                                 TuiActionButton {
                                     label: "SCAN"
-                                    accent: root.tuiGreen
+                                    accent: root.tuiAccent
                                     onClicked: {
                                         if (Bluetooth.defaultAdapter) {
                                             Bluetooth.defaultAdapter.enabled = true;
@@ -493,7 +493,7 @@ WindowDialog {
                             DetailKey { text: "LINKED" }
                             DetailValue {
                                 text: `${BluetoothStatus.activeDeviceCount}`
-                                color: BluetoothStatus.activeDeviceCount > 0 ? root.tuiGreen : root.tuiDim
+                                color: BluetoothStatus.activeDeviceCount > 0 ? root.tuiAccent : root.tuiDim
                             }
                             DetailKey { text: "TOTAL" }
                             DetailValue { text: `${BluetoothStatus.friendlyDeviceList.length}` }
@@ -549,7 +549,7 @@ WindowDialog {
 
             Rectangle {
                 anchors.fill: parent
-                color: "#010302"
+                color: "#050505"
                 opacity: 0.82
 
                 MouseArea {
@@ -593,7 +593,7 @@ WindowDialog {
 
                         TuiText {
                             text: root.deviceState(root.selectedDevice).toUpperCase()
-                            color: root.selectedDevice?.connected ? root.tuiGreen : root.tuiYellow
+                            color: root.selectedDevice?.connected ? root.tuiAccent : root.tuiYellow
                             font.weight: Font.Bold
                         }
                     }
@@ -625,7 +625,7 @@ WindowDialog {
                         DetailKey { text: "LINK" }
                         DetailValue {
                             text: root.selectedDevice?.connected ? "connected" : "disconnected"
-                            color: root.selectedDevice?.connected ? root.tuiGreen : root.tuiDim
+                            color: root.selectedDevice?.connected ? root.tuiAccent : root.tuiDim
                         }
                     }
 
@@ -637,7 +637,7 @@ WindowDialog {
 
                         TuiActionButton {
                             label: root.selectedDevice?.connected ? "DISCONNECT" : "CONNECT"
-                            accent: root.selectedDevice?.connected ? root.tuiYellow : root.tuiGreen
+                            accent: root.selectedDevice?.connected ? root.tuiYellow : root.tuiAccent
                             onClicked: root.connectSelected()
                         }
 

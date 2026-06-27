@@ -69,7 +69,7 @@ Item {
                     id: cycleText
                     anchors.centerIn: parent
                     font.family: Appearance.font.family.monospace
-                    color: TuiStyle.green
+                    color: TuiStyle.accent
                     text: TimerService.pomodoroCycle + 1
                 }
             }
@@ -93,9 +93,9 @@ Item {
                 font.pixelSize: Appearance.font.pixelSize.larger
                 onClicked: TimerService.togglePomodoro()
                 buttonRadius: 0
-                colBackground: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
-                colBackgroundHover: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
-                colRipple: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
+                colBackground: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.accent
+                colBackgroundHover: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.accent
+                colRipple: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.accent
             }
 
             RippleButton {

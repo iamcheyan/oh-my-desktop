@@ -16,6 +16,7 @@ Scope {
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
 
     property string currentIndicator: "volume"
+    property string popupIndicatorType: ""
     property var indicators: [
         {
             id: "volume",
@@ -36,6 +37,13 @@ Scope {
         osdTimeout.restart();
     }
 
+    function triggerBarPopup(type) {
+        root.popupIndicatorType = type;
+        GlobalStates.osdVolumeOpen = false;
+        GlobalStates.barPopupType = type;
+        popupTimeout.restart();
+    }
+
     Timer {
         id: osdTimeout
         interval: Config.options.osd.timeout
@@ -47,12 +55,23 @@ Scope {
         }
     }
 
+    Timer {
+        id: popupTimeout
+        interval: Config.options.osd.timeout
+        repeat: false
+        running: false
+        onTriggered: {
+            if (GlobalStates.barPopupType === root.popupIndicatorType)
+                GlobalStates.barPopupType = "";
+            root.popupIndicatorType = "";
+        }
+    }
+
     Connections {
         target: Brightness
         function onBrightnessChanged() {
             root.protectionMessage = "";
-            root.currentIndicator = "brightness";
-            root.triggerOsd();
+            root.triggerBarPopup("display");
         }
     }
 
@@ -71,14 +90,12 @@ Scope {
         function onVolumeChanged() {
             if (!Audio.ready)
                 return;
-            root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerBarPopup("audio");
         }
         function onMutedChanged() {
             if (!Audio.ready)
                 return;
-            root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerBarPopup("audio");
         }
     }
 
@@ -87,8 +104,7 @@ Scope {
         target: Audio
         function onSinkProtectionTriggered(reason) {
             root.protectionMessage = reason;
-            root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerBarPopup("audio");
         }
     }
 
@@ -207,15 +223,17 @@ Scope {
         target: "osdVolume"
 
         function trigger() {
-            root.triggerOsd();
+            root.triggerBarPopup("audio");
         }
 
         function hide() {
             GlobalStates.osdVolumeOpen = false;
+            if (GlobalStates.barPopupType === "audio")
+                GlobalStates.barPopupType = "";
         }
 
         function toggle() {
-            GlobalStates.osdVolumeOpen = !GlobalStates.osdVolumeOpen;
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "audio" ? "" : "audio";
         }
     }
     GlobalShortcut {
@@ -223,7 +241,7 @@ Scope {
         description: "Triggers volume OSD on press"
 
         onPressed: {
-            root.triggerOsd();
+            root.triggerBarPopup("audio");
         }
     }
     GlobalShortcut {
@@ -232,6 +250,8 @@ Scope {
 
         onPressed: {
             GlobalStates.osdVolumeOpen = false;
+            if (GlobalStates.barPopupType === "audio")
+                GlobalStates.barPopupType = "";
         }
     }
 }

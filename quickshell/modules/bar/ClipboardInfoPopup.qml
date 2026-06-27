@@ -22,7 +22,7 @@ PopupWindow {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
@@ -132,7 +132,7 @@ PopupWindow {
                             font.family: Appearance.font.family.monospace
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             font.weight: Font.Bold
-                            color: root.serviceReady ? root.tuiGreen : root.tuiRed
+                            color: root.serviceReady ? root.tuiAccent : root.tuiRed
                         }
                     }
                 }
@@ -152,7 +152,7 @@ PopupWindow {
                     TuiDetailRow {
                         keyText: "STATUS"
                         valueText: root.serviceReady ? "active" : "inactive"
-                        valueColor: root.serviceReady ? root.tuiGreen : root.tuiRed
+                        valueColor: root.serviceReady ? root.tuiAccent : root.tuiRed
                     }
 
                     TuiDetailRow {
@@ -180,7 +180,7 @@ PopupWindow {
 
                         TuiActionButton {
                             label: "HISTORY"
-                            accent: root.tuiGreen
+                            accent: root.tuiAccent
                             onClicked: {
                                 root.manageRequested();
                                 root.close();

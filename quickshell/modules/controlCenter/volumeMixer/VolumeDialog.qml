@@ -23,12 +23,12 @@ WindowDialog {
     readonly property color tuiFg: TuiStyle.fg
     readonly property color tuiDim: TuiStyle.dim
     readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiGreen: TuiStyle.green
+    readonly property color tuiAccent: TuiStyle.accent
     readonly property color tuiYellow: TuiStyle.yellow
     readonly property color tuiBlue: TuiStyle.blue
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
-    readonly property color tuiSelection: "#123a32"
+    readonly property color tuiSelection: "#2b2b2b"
 
     readonly property list<var> appPwNodes: isSink ? Audio.outputAppNodes : Audio.inputAppNodes
     readonly property list<var> devices: isSink ? Audio.outputDevices : Audio.inputDevices
@@ -276,7 +276,7 @@ WindowDialog {
 
                             TuiActionButton {
                                 label: root.masterMuted ? "UNMUTE" : "MUTE"
-                                accent: root.masterMuted ? root.tuiGreen : root.tuiRed
+                                accent: root.masterMuted ? root.tuiAccent : root.tuiRed
                                 onClicked: root.toggleMasterMute()
                             }
 
@@ -288,7 +288,7 @@ WindowDialog {
 
                             TuiActionButton {
                                 label: "+ 5%"
-                                accent: root.tuiGreen
+                                accent: root.tuiAccent
                                 onClicked: root.adjustMaster(1)
                             }
                         }
@@ -409,7 +409,7 @@ WindowDialog {
                         subtitle: root.appPwNodes.length === 0 ? "empty" : `${root.appPwNodes.length} apps`
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        accent: root.tuiGreen
+                        accent: root.tuiAccent
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -430,7 +430,7 @@ WindowDialog {
                                     Layout.preferredHeight: 52
                                     color: selected ? root.tuiSelection : root.tuiBg
                                     border.width: 1
-                                    border.color: selected ? root.tuiGreen : root.tuiLine
+                                    border.color: selected ? root.tuiAccent : root.tuiLine
 
                                     MouseArea {
                                         anchors.fill: parent
@@ -451,7 +451,7 @@ WindowDialog {
 
                                             TuiText {
                                                 text: appRow.selected ? "::" : "--"
-                                                color: appRow.selected ? root.tuiGreen : root.tuiDim
+                                                color: appRow.selected ? root.tuiAccent : root.tuiDim
                                                 font.weight: Font.Bold
                                             }
 
@@ -465,7 +465,7 @@ WindowDialog {
 
                                             TuiText {
                                                 text: appRow.muted ? "MUTE" : `${Math.round(appRow.volume * 100)}%`
-                                                color: appRow.muted ? root.tuiRed : root.tuiGreen
+                                                color: appRow.muted ? root.tuiRed : root.tuiAccent
                                                 horizontalAlignment: Text.AlignRight
                                                 font.weight: Font.Bold
                                             }
@@ -475,7 +475,7 @@ WindowDialog {
                                             Layout.fillWidth: true
                                             Layout.preferredHeight: 10
                                             value: appRow.muted ? 0 : appRow.volume * 100
-                                            accent: appRow.muted ? root.tuiRed : root.tuiGreen
+                                            accent: appRow.muted ? root.tuiRed : root.tuiAccent
                                             interactive: !appRow.muted
                                             onValueModified: function(newValue) {
                                                 appRow.modelData.audio.volume = newValue / 100;
@@ -546,7 +546,7 @@ WindowDialog {
 
         required property string title
         property string subtitle: ""
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         default property alias content: panelContent.data
 
         Rectangle {
@@ -678,7 +678,7 @@ WindowDialog {
         id: meter
 
         property real value: 0
-        property color accent: root.tuiGreen
+        property color accent: root.tuiAccent
         property bool interactive: false
         signal valueModified(real newValue)
 
