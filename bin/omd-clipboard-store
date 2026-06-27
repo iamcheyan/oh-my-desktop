@@ -1,4 +1,8 @@
 #!/bin/sh
 set -eu
 
-exec wl-paste --watch cliphist store
+# Store clipboard content and notify Quickshell to refresh
+wl-paste --watch sh -c '
+    cliphist store
+    qs -p "$HOME/.config/quickshell" ipc call cliphistService update 2>/dev/null || true
+'
