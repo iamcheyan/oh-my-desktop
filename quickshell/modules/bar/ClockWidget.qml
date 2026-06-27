@@ -7,7 +7,13 @@ import QtQuick.Layouts
 Item {
     id: root
     property bool showHoverPopup: true
-    implicitWidth: rowLayout.implicitWidth
+    readonly property color tuiBg: "#030806"
+    readonly property color tuiFg: "#e8fff3"
+    readonly property color tuiDim: "#65736e"
+    readonly property color tuiLine: "#174339"
+    readonly property color tuiGreen: "#36ff8b"
+    readonly property color tuiBlue: "#7bc7ff"
+    implicitWidth: clockFrame.implicitWidth
     implicitHeight: Appearance.sizes.barHeight
 
     readonly property var weekdays: ["日", "月", "火", "水", "木", "金", "土"]
@@ -33,17 +39,45 @@ Item {
 
     RowLayout {
         id: rowLayout
-        anchors.centerIn: parent
-        spacing: 4
+        visible: false
+    }
 
-        StyledText {
-            font.pixelSize: 12
-            font.variableAxes: ({
-                "wght": 500,
-                "wdth": 100,
-            })
-            color: Appearance.colors.colBarText
-            text: root.displayText
+    Rectangle {
+        id: clockFrame
+        anchors.centerIn: parent
+        implicitWidth: clockRow.implicitWidth + 18
+        implicitHeight: 26
+        color: root.tuiBg
+        border.width: 1
+        border.color: mouseArea.containsMouse || GlobalStates.scheduleOpen ? root.tuiGreen : root.tuiLine
+        radius: 0
+
+        RowLayout {
+            id: clockRow
+            anchors.centerIn: parent
+            spacing: 8
+
+            StyledText {
+                text: "TIME"
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Bold
+                color: root.tuiGreen
+            }
+
+            Rectangle {
+                Layout.preferredWidth: 1
+                Layout.preferredHeight: 13
+                color: root.tuiLine
+            }
+
+            StyledText {
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.Bold
+                color: root.tuiFg
+                text: root.displayText
+            }
         }
     }
 

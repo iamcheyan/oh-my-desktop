@@ -145,7 +145,6 @@
             "util:clipboard",
             "util:nightlight",
             "util:screenshot",
-            "clock",
             "sidebar"
         ],
         "screenList": [
