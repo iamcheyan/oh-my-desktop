@@ -491,181 +491,181 @@ WindowDialog {
                 }
             }
         }
-    }
 
-    Item {
-        id: detailLayer
-        anchors.fill: parent
-        visible: root.detailsOpen
-        focus: visible
-        z: 20
-
-        Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Escape) {
-                root.closeDetails();
-                event.accepted = true;
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                root.connectSelected();
-                event.accepted = true;
-            }
-        }
-
-        Rectangle {
+        Item {
+            id: detailLayer
             anchors.fill: parent
-            color: "#010302"
-            opacity: 0.82
+            visible: root.detailsOpen
+            focus: visible
+            z: 20
 
-            MouseArea {
-                anchors.fill: parent
-                onClicked: root.closeDetails()
-            }
-        }
-
-        Rectangle {
-            id: detailBox
-            width: Math.min(620, parent.width - 74)
-            height: root.selectedNetwork?.isSecure && !(root.selectedNetwork?.active ?? false) ? 420 : 350
-            anchors.centerIn: parent
-            color: root.tuiBg
-            border.width: 1
-            border.color: root.tuiGreen
-
-            MouseArea {
-                anchors.fill: parent
+            Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Escape) {
+                    root.closeDetails();
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                    root.connectSelected();
+                    event.accepted = true;
+                }
             }
 
-            ColumnLayout {
+            Rectangle {
                 anchors.fill: parent
-                anchors.margins: 18
-                spacing: 13
+                color: "#010302"
+                opacity: 0.82
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.closeDetails()
+                }
+            }
 
-                    TuiText {
-                        text: "NETCTL::ACTION"
-                        color: root.tuiGreen
-                        font.weight: Font.Bold
-                    }
+            Rectangle {
+                id: detailBox
+                width: Math.min(620, parent.width - 74)
+                height: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false) ? 420 : 350
+                anchors.centerIn: parent
+                color: root.tuiBg
+                border.width: 1
+                border.color: root.tuiGreen
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: root.tuiLine
-                    }
-
-                    TuiText {
-                        text: root.linkState(root.selectedNetwork).toUpperCase()
-                        color: root.selectedNetwork?.active ? root.tuiGreen : root.tuiYellow
-                        font.weight: Font.Bold
-                    }
+                MouseArea {
+                    anchors.fill: parent
                 }
 
-                TuiText {
-                    Layout.fillWidth: true
-                    text: root.selectedNetwork?.ssid ?? ""
-                    color: root.tuiFg
-                    elide: Text.ElideRight
-                    font.pixelSize: Appearance.font.pixelSize.large
-                    font.weight: Font.Bold
-                }
-
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 4
-                    columnSpacing: 14
-                    rowSpacing: 9
-
-                    DetailKey { text: "SIGNAL" }
-                    DetailValue { text: root.selectedNetwork ? `${root.signalBars(root.selectedNetwork.strength)} ${root.selectedNetwork.strength}%` : "--" }
-                    DetailKey { text: "BAND" }
-                    DetailValue { text: root.frequencyBand(root.selectedNetwork?.frequency ?? 0) }
-                    DetailKey { text: "AUTH" }
-                    DetailValue {
-                        text: root.securityLabel(root.selectedNetwork?.security)
-                        color: root.selectedNetwork?.isSecure ? root.tuiYellow : root.tuiDim
-                    }
-                    DetailKey { text: "BSSID" }
-                    DetailValue { text: root.bssidShort(root.selectedNetwork?.bssid) }
-                }
-
-                Rectangle {
-                    visible: root.selectedNetwork?.isSecure && !(root.selectedNetwork?.active ?? false)
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 42
-                    color: root.tuiPanel
-                    border.width: 1
-                    border.color: passwordField.activeFocus ? root.tuiGreen : root.tuiLine
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 18
+                    spacing: 13
 
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
+                        Layout.fillWidth: true
                         spacing: 10
 
                         TuiText {
-                            text: "PSK"
-                            color: root.tuiDim
+                            text: "NETCTL::ACTION"
+                            color: root.tuiGreen
                             font.weight: Font.Bold
                         }
 
-                        TextInput {
-                            id: passwordField
+                        Rectangle {
                             Layout.fillWidth: true
-                            color: root.tuiFg
-                            selectionColor: root.tuiSelection
-                            selectedTextColor: root.tuiFg
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            echoMode: TextInput.Password
-                            inputMethodHints: Qt.ImhSensitiveData
-                            focus: detailLayer.visible && root.selectedNetwork?.isSecure && !(root.selectedNetwork?.active ?? false)
-                            text: root.connectionPassword
-                            onTextChanged: root.connectionPassword = text
-                            onAccepted: root.connectSelected()
+                            Layout.preferredHeight: 1
+                            color: root.tuiLine
                         }
-                    }
-                }
 
-                Item { Layout.fillHeight: true }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    ActionButton {
-                        visible: !(root.selectedNetwork?.active ?? false)
-                        label: "CONNECT"
-                        accent: root.tuiGreen
-                        onClicked: root.connectSelected()
-                    }
-
-                    ActionButton {
-                        visible: root.selectedNetwork?.active ?? false
-                        label: "DISCONNECT"
-                        accent: root.tuiYellow
-                        onClicked: {
-                            Network.disconnectAccessPoint(root.selectedNetwork);
-                            root.closeDetails();
+                        TuiText {
+                            text: root.linkState(root.selectedNetwork).toUpperCase()
+                            color: root.selectedNetwork?.active ? root.tuiGreen : root.tuiYellow
+                            font.weight: Font.Bold
                         }
                     }
 
-                    ActionButton {
-                        label: "FORGET"
-                        accent: root.tuiRed
-                        onClicked: {
-                            Network.forgetWifiNetwork(root.selectedNetwork);
-                            root.closeDetails();
+                    TuiText {
+                        Layout.fillWidth: true
+                        text: root.selectedNetwork?.ssid ?? ""
+                        color: root.tuiFg
+                        elide: Text.ElideRight
+                        font.pixelSize: Appearance.font.pixelSize.large
+                        font.weight: Font.Bold
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 4
+                        columnSpacing: 14
+                        rowSpacing: 9
+
+                        DetailKey { text: "SIGNAL" }
+                        DetailValue { text: root.selectedNetwork ? `${root.signalBars(root.selectedNetwork.strength)} ${root.selectedNetwork.strength}%` : "--" }
+                        DetailKey { text: "BAND" }
+                        DetailValue { text: root.frequencyBand(root.selectedNetwork?.frequency ?? 0) }
+                        DetailKey { text: "AUTH" }
+                        DetailValue {
+                            text: root.securityLabel(root.selectedNetwork?.security)
+                            color: root.selectedNetwork?.isSecure ? root.tuiYellow : root.tuiDim
+                        }
+                        DetailKey { text: "BSSID" }
+                        DetailValue { text: root.bssidShort(root.selectedNetwork?.bssid) }
+                    }
+
+                    Rectangle {
+                        visible: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false)
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 42
+                        color: root.tuiPanel
+                        border.width: 1
+                        border.color: passwordField.activeFocus ? root.tuiGreen : root.tuiLine
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 10
+
+                            TuiText {
+                                text: "PSK"
+                                color: root.tuiDim
+                                font.weight: Font.Bold
+                            }
+
+                            TextInput {
+                                id: passwordField
+                                Layout.fillWidth: true
+                                color: root.tuiFg
+                                selectionColor: root.tuiSelection
+                                selectedTextColor: root.tuiFg
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                echoMode: TextInput.Password
+                                inputMethodHints: Qt.ImhSensitiveData
+                                focus: detailLayer.visible && (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false)
+                                text: root.connectionPassword
+                                onTextChanged: root.connectionPassword = text
+                                onAccepted: root.connectSelected()
+                            }
                         }
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Item { Layout.fillHeight: true }
 
-                    ActionButton {
-                        label: "CANCEL"
-                        accent: root.tuiDim
-                        onClicked: root.closeDetails()
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ActionButton {
+                            visible: !(root.selectedNetwork?.active ?? false)
+                            label: "CONNECT"
+                            accent: root.tuiGreen
+                            onClicked: root.connectSelected()
+                        }
+
+                        ActionButton {
+                            visible: root.selectedNetwork?.active ?? false
+                            label: "DISCONNECT"
+                            accent: root.tuiYellow
+                            onClicked: {
+                                Network.disconnectAccessPoint(root.selectedNetwork);
+                                root.closeDetails();
+                            }
+                        }
+
+                        ActionButton {
+                            label: "FORGET"
+                            accent: root.tuiRed
+                            onClicked: {
+                                Network.forgetWifiNetwork(root.selectedNetwork);
+                                root.closeDetails();
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        ActionButton {
+                            label: "CANCEL"
+                            accent: root.tuiDim
+                            onClicked: root.closeDetails()
+                        }
                     }
                 }
             }
@@ -766,24 +766,24 @@ WindowDialog {
         font.weight: Font.Bold
     }
 
-    component StatusPill: Rectangle {
+    component StatusPill: Item {
         id: pill
 
         property string label: ""
         property color tone: root.tuiGreen
 
-        Layout.preferredWidth: Math.max(92, pillText.implicitWidth + 22)
+        Layout.preferredWidth: Math.max(110, pillText.implicitWidth)
         Layout.preferredHeight: 26
-        color: Qt.rgba(pill.tone.r, pill.tone.g, pill.tone.b, 0.10)
-        border.width: 1
-        border.color: pill.tone
+        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
 
         TuiText {
             id: pillText
-            anchors.centerIn: parent
+            anchors.fill: parent
             text: pill.label
             color: pill.tone
             font.weight: Font.Bold
+            horizontalAlignment: Text.AlignRight
+            verticalAlignment: Text.AlignVCenter
         }
     }
 

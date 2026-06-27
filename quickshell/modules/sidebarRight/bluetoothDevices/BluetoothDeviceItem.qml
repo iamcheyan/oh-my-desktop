@@ -1,118 +1,123 @@
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
-import qs.services
 import QtQuick
 import QtQuick.Layouts
 
-DialogListItem {
+Rectangle {
     id: root
-    required property var device
-    property bool expanded: false
-    pointingHandCursor: !expanded
 
-    onClicked: expanded = !expanded
-    altAction: () => expanded = !expanded
-    
-    component ActionButton: DialogButton {
-        colBackground: Appearance.tiling.accent
-        colBackgroundHover: Appearance.tiling.accentBright
-        colRipple: Appearance.tiling.bgActive
-        colText: Appearance.tiling.textBright
+    required property var device
+    required property int index
+    property color selectionColor: "#123a32"
+    property color foregroundColor: "#e8fff3"
+    property color dimColor: "#65736e"
+    property color greenColor: "#36ff8b"
+    property color yellowColor: "#e8ff82"
+    property color blueColor: "#7bc7ff"
+    property color lineColor: "#174339"
+
+    signal activated(var device)
+
+    readonly property bool selected: ListView.isCurrentItem
+    readonly property bool connected: device?.connected ?? false
+    readonly property bool paired: device?.paired ?? false
+
+    function batteryLabel() {
+        if (!(root.device?.batteryAvailable ?? false))
+            return "--";
+        return `${Math.round((root.device?.battery ?? 0) * 100)}%`;
     }
 
-    contentItem: ColumnLayout {
-        anchors {
-            fill: parent
-            topMargin: root.verticalPadding
-            leftMargin: root.horizontalPadding
-            rightMargin: root.horizontalPadding
+    function stateLabel() {
+        if (root.connected)
+            return "LINKED";
+        if (root.paired)
+            return "PAIRED";
+        return "NEW";
+    }
+
+    implicitWidth: ListView.view?.width ?? 520
+    implicitHeight: 38
+    color: root.selected ? root.selectionColor : root.connected ? Qt.rgba(root.greenColor.r, root.greenColor.g, root.greenColor.b, 0.08) : "transparent"
+    border.width: root.selected ? 1 : 0
+    border.color: root.selected ? root.greenColor : "transparent"
+    clip: true
+
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            root.ListView.view.currentIndex = root.index;
+            root.activated(root.device);
         }
-        spacing: 0
+    }
 
-        RowLayout {
-            // Name
-            spacing: 10
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 10
+        anchors.rightMargin: 10
+        spacing: 8
 
-            CosmicIcon {
-                iconSize: Appearance.font.pixelSize.larger
-                name: Icons.getBluetoothDeviceCosmicIcon(root.device?.icon || "")
-                color: Appearance.tiling.textDim
-            }
-
-            ColumnLayout {
-                spacing: 2
-                Layout.fillWidth: true
-                StyledText {
-                    Layout.fillWidth: true
-                    color: Appearance.tiling.text
-                    elide: Text.ElideRight
-                    text: root.device?.name || Translation.tr("Unknown device")
-                    textFormat: Text.PlainText
-                }
-                StyledText {
-                    visible: (root.device?.connected || root.device?.paired) ?? false
-                    Layout.fillWidth: true
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.tiling.textDim
-                    elide: Text.ElideRight
-                    text: {
-                        if (!root.device?.paired) return "";
-                        let statusText = root.device?.connected ? Translation.tr("Connected") : Translation.tr("Paired");
-                        if (!root.device?.batteryAvailable) return statusText;
-                        statusText += ` • ${Math.round(root.device?.battery * 100)}%`;
-                        return statusText;
-                    }
-                }
-            }
-
-            CosmicIcon {
-                name: "actions/pan-down-symbolic"
-                iconSize: Appearance.font.pixelSize.larger
-                color: Appearance.tiling.textDim
-                rotation: root.expanded ? 180 : 0
-                Behavior on rotation {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-            }
+        TuiCell {
+            Layout.preferredWidth: 22
+            text: root.connected ? "*" : root.selected ? ":" : " "
+            color: root.connected ? root.greenColor : root.dimColor
+            horizontalAlignment: Text.AlignHCenter
         }
 
-        RowLayout {
-            visible: root.expanded
-            Layout.topMargin: 8
-            Item {
-                Layout.fillWidth: true
-            }
-            ActionButton {
-                readonly property bool p: root.device?.paired ?? false
-                colBackground: p ? Appearance.tiling.error : Appearance.tiling.bgActive
-                colBackgroundHover: p ? Appearance.tiling.error : Appearance.tiling.bgHover
-                colRipple: p ? Appearance.tiling.bgActive : Appearance.tiling.bgActive
-                colText: p ? Appearance.tiling.textBright : Appearance.tiling.text
-
-                buttonText: p ? Translation.tr("Forget") : Translation.tr("Always connect")
-                onClicked: {
-                    if (root.device?.paired) {
-                        root.device?.forget();
-                    } else {
-                        root.device?.pair();
-                    }
-                }
-            }
-            ActionButton {
-                buttonText: root.device?.connected ? Translation.tr("Disconnect") : Translation.tr("Connect")
-
-                onClicked: {
-                    if (root.device?.connected) {
-                        root.device.disconnect();
-                    } else {
-                        root.device.connect();
-                    }
-                }
-            }
+        CosmicIcon {
+            Layout.preferredWidth: 20
+            Layout.preferredHeight: 20
+            iconSize: 18
+            name: Icons.getBluetoothDeviceCosmicIcon(root.device?.icon || "")
+            color: root.selected ? root.foregroundColor : root.blueColor
         }
-        Item {
-            Layout.fillHeight: true
+
+        TuiCell {
+            Layout.fillWidth: true
+            text: root.device?.name || Translation.tr("Unknown device")
+            elide: Text.ElideRight
+            color: root.selected || root.connected ? root.foregroundColor : Qt.rgba(root.foregroundColor.r, root.foregroundColor.g, root.foregroundColor.b, 0.78)
         }
+
+        TuiCell {
+            Layout.preferredWidth: 64
+            text: root.batteryLabel()
+            color: root.selected ? root.foregroundColor : (root.device?.batteryAvailable ?? false) ? root.yellowColor : root.dimColor
+            horizontalAlignment: Text.AlignRight
+        }
+
+        TuiCell {
+            Layout.preferredWidth: 72
+            text: root.paired ? "YES" : "NO"
+            color: root.selected ? root.foregroundColor : root.paired ? root.blueColor : root.dimColor
+            horizontalAlignment: Text.AlignHCenter
+        }
+
+        TuiCell {
+            Layout.preferredWidth: 76
+            text: root.stateLabel()
+            color: root.selected ? root.foregroundColor : root.connected ? root.greenColor : root.paired ? root.blueColor : root.dimColor
+            horizontalAlignment: Text.AlignRight
+        }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 1
+        color: root.lineColor
+        opacity: root.selected ? 0 : 0.55
+    }
+
+    component TuiCell: StyledText {
+        color: root.foregroundColor
+        font.family: Appearance.font.family.monospace
+        font.pixelSize: Appearance.font.pixelSize.small
+        textFormat: Text.PlainText
+        verticalAlignment: Text.AlignVCenter
     }
 }

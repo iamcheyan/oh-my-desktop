@@ -45,7 +45,8 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            Quickshell.execDetached([tuiLauncher, "bluetooth"]);
+            GlobalStates.barDialogType = "bluetooth";
+            GlobalStates.barDialogOpen = true;
         }
     }
 
