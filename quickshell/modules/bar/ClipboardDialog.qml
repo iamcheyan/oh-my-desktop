@@ -66,7 +66,8 @@ Rectangle {
         if (visible) {
             keyboardIndex = 0;
             searchText = "";
-            clipboardDialog.forceActiveFocus();
+            searchField.text = "";
+            searchField.forceActiveFocus();
             Cliphist.refresh();
             loadCurrentPreview();
         }
