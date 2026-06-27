@@ -15,17 +15,19 @@ Rectangle {
     property bool show: false
     signal dismiss()
 
-    width: 860
+    width: 1000
     height: 640
     color: TuiStyle.bg
     border.color: TuiStyle.line
     border.width: TuiStyle.borderWidth
-    radius: TuiStyle.radius
+    radius: 0
     focus: true
     clip: true
 
     property int keyboardIndex: 0
-    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) ? Cliphist.entries[keyboardIndex] : ""
+    property string searchText: ""
+    readonly property var filteredEntries: searchText.length > 0 ? Cliphist.fuzzyQuery(searchText) : Cliphist.entries
+    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length) ? filteredEntries[keyboardIndex] : ""
     readonly property bool currentIsImage: currentEntry !== "" && Cliphist.entryIsImage(currentEntry)
 
     onActiveFocusChanged: {
@@ -45,15 +47,15 @@ Rectangle {
     }
 
     function copySelected() {
-        if (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length) {
-            Cliphist.paste(Cliphist.entries[keyboardIndex]);
+        if (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length) {
+            Cliphist.paste(filteredEntries[keyboardIndex]);
             clipboardDialog.dismiss();
         }
     }
 
     function deleteSelected() {
-        if (keyboardIndex >= 0 && keyboardIndex < Cliphist.entries.length)
-            Cliphist.deleteEntry(Cliphist.entries[keyboardIndex]);
+        if (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length)
+            Cliphist.deleteEntry(filteredEntries[keyboardIndex]);
     }
 
     onCurrentEntryChanged: loadCurrentPreview()
@@ -63,6 +65,7 @@ Rectangle {
     onVisibleChanged: {
         if (visible) {
             keyboardIndex = 0;
+            searchText = "";
             clipboardDialog.forceActiveFocus();
             Cliphist.refresh();
             loadCurrentPreview();
@@ -80,16 +83,33 @@ Rectangle {
     Connections {
         target: Cliphist
         function onEntriesChanged() {
-            if (keyboardIndex >= Cliphist.entries.length)
-                keyboardIndex = Math.max(0, Cliphist.entries.length - 1);
+            if (keyboardIndex >= filteredEntries.length)
+                keyboardIndex = Math.max(0, filteredEntries.length - 1);
         }
     }
 
     Keys.onPressed: event => {
+        if (searchField.activeFocus) {
+            if (event.key === Qt.Key_Escape) {
+                if (searchText.length > 0) {
+                    searchText = "";
+                    searchField.text = "";
+                } else {
+                    clipboardDialog.dismiss();
+                }
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                searchField.focus = false;
+                clipboardDialog.forceActiveFocus();
+                event.accepted = true;
+            }
+            return;
+        }
+
         if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
             event.accepted = true;
-            if (Cliphist.entries.length > 0)
-                keyboardIndex = Math.min(keyboardIndex + 1, Cliphist.entries.length - 1);
+            if (filteredEntries.length > 0)
+                keyboardIndex = Math.min(keyboardIndex + 1, filteredEntries.length - 1);
         } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
             event.accepted = true;
             keyboardIndex = Math.max(keyboardIndex - 1, 0);
@@ -99,6 +119,9 @@ Rectangle {
         } else if (event.key === Qt.Key_D && event.modifiers === Qt.NoModifier) {
             event.accepted = true;
             deleteSelected();
+        } else if (event.key === Qt.Key_Slash || event.key === Qt.Key_F) {
+            event.accepted = true;
+            searchField.forceActiveFocus();
         } else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) {
             event.accepted = true;
             clipboardDialog.dismiss();
@@ -107,91 +130,120 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
+        anchors.margins: 10
+        spacing: 6
 
+        // Search bar
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 32
+            color: TuiStyle.panel
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 8
+
+                StyledText {
+                    text: "/"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.Bold
+                    color: TuiStyle.accent
+                }
+
+                TextField {
+                    id: searchField
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    placeholderText: "SEARCH..."
+                    placeholderTextColor: TuiStyle.dim
+                    color: TuiStyle.fg
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    focus: true
+                    background: null
+                    onTextChanged: {
+                        clipboardDialog.searchText = text;
+                        clipboardDialog.keyboardIndex = 0;
+                    }
+                }
+
+                StyledText {
+                    text: clipboardDialog.searchText.length > 0 ? `${filteredEntries.length}/${Cliphist.entries.length}` : `${Cliphist.entries.length}`
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Bold
+                    color: TuiStyle.dim
+                }
+            }
+        }
+
+        // Content
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 10
+            spacing: 6
 
+            // History list
             Rectangle {
-                Layout.preferredWidth: 390
+                Layout.preferredWidth: 420
                 Layout.fillHeight: true
                 color: TuiStyle.panel
                 clip: true
 
-                ColumnLayout {
+                ListView {
+                    id: clipboardList
                     anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 8
+                    anchors.margins: 4
+                    clip: true
+                    spacing: 0
+                    boundsBehavior: Flickable.StopAtBounds
+                    boundsMovement: Flickable.StopAtBounds
+                    highlightMoveDuration: 80
+                    highlightResizeDuration: 0
+                    interactive: true
 
-                    PanelHeader {
-                        title: "HISTORY"
-                        value: `${Cliphist.entries.length} ITEMS`
+                    model: ScriptModel {
+                        values: filteredEntries
                     }
 
-                    ListView {
-                        id: clipboardList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        spacing: 0
-                        boundsBehavior: Flickable.StopAtBounds
-                        boundsMovement: Flickable.StopAtBounds
-                        highlightMoveDuration: 80
-                        highlightResizeDuration: 0
-                        interactive: true
-
-                        model: ScriptModel {
-                            values: Cliphist.entries
+                    delegate: ClipboardItem {
+                        required property string modelData
+                        required property int index
+                        entry: modelData
+                        itemIndex: index
+                        width: clipboardList.width
+                        selected: clipboardDialog.keyboardIndex === index
+                        onItemClicked: clipboardDialog.dismiss()
+                        onHoveredChanged: {
+                            if (hovered)
+                                clipboardDialog.keyboardIndex = index;
                         }
+                    }
 
-                        delegate: ClipboardItem {
-                            required property string modelData
-                            required property int index
-                            entry: modelData
-                            itemIndex: index
-                            width: clipboardList.width
-                            selected: clipboardDialog.keyboardIndex === index
-                            onItemClicked: clipboardDialog.dismiss()
-                            onHoveredChanged: {
-                                if (hovered)
-                                    clipboardDialog.keyboardIndex = index;
-                            }
-                        }
+                    StyledText {
+                        anchors.centerIn: parent
+                        visible: clipboardList.count === 0
+                        text: clipboardDialog.searchText.length > 0 ? "NO MATCHES" : "NO CLIPBOARD HISTORY"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
 
-                        Rectangle {
-                            anchors.centerIn: parent
-                            visible: clipboardList.count === 0
-                            width: emptyText.implicitWidth + 28
-                            height: 34
-                            color: TuiStyle.bg
-                            border.width: TuiStyle.borderWidth
-                            border.color: TuiStyle.line
-
-                            StyledText {
-                                id: emptyText
-                                anchors.centerIn: parent
-                                text: "NO CLIPBOARD HISTORY"
-                                font.family: Appearance.font.family.monospace
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                font.weight: Font.Bold
-                                color: TuiStyle.dim
-                            }
-                        }
-
-                        Connections {
-                            target: clipboardDialog
-                            function onKeyboardIndexChanged() {
-                                if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
-                                    clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
-                            }
+                    Connections {
+                        target: clipboardDialog
+                        function onKeyboardIndexChanged() {
+                            if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
+                                clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
                         }
                     }
                 }
             }
 
+            // Preview
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -203,9 +255,12 @@ Rectangle {
                     anchors.margins: 10
                     spacing: 8
 
-                    PanelHeader {
-                        title: "PREVIEW"
-                        value: clipboardDialog.currentIsImage ? "IMAGE" : clipboardDialog.currentEntry !== "" ? "TEXT" : "--"
+                    StyledText {
+                        text: clipboardDialog.currentIsImage ? "IMAGE" : clipboardDialog.currentEntry !== "" ? "TEXT" : "--"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
                     }
 
                     Rectangle {
@@ -260,65 +315,27 @@ Rectangle {
             }
         }
 
+        // Footer
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 30
-            color: TuiStyle.panel
-            border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.line
+            Layout.preferredHeight: 26
+            color: "transparent"
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: 4
+                anchors.rightMargin: 4
                 spacing: 16
 
                 FooterText {
-                    text: clipboardDialog.keyboardIndex >= 0 && Cliphist.entries.length > 0 ? `${clipboardDialog.keyboardIndex + 1}/${Cliphist.entries.length}` : "-/-"
+                    text: clipboardDialog.keyboardIndex >= 0 && filteredEntries.length > 0 ? `${clipboardDialog.keyboardIndex + 1}/${filteredEntries.length}` : "-/-"
                 }
                 FooterText { text: "ENTER PASTE" }
                 FooterText { text: "D DELETE" }
-                FooterText { text: "J/K NAV" }
+                FooterText { text: "/ SEARCH" }
                 FooterText { text: "Q CLOSE" }
                 Item { Layout.fillWidth: true }
                 FooterText { text: Cliphist.cliphistBinary.toUpperCase() }
-            }
-        }
-    }
-
-    component PanelHeader: Rectangle {
-        id: header
-        property string title: ""
-        property string value: ""
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: 28
-        color: TuiStyle.bg
-        border.width: TuiStyle.borderWidth
-        border.color: TuiStyle.line
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            StyledText {
-                text: header.title
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                font.weight: Font.Bold
-                color: TuiStyle.accent
-            }
-
-            Item { Layout.fillWidth: true }
-
-            StyledText {
-                text: header.value
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                font.weight: Font.Bold
-                color: TuiStyle.dim
             }
         }
     }
