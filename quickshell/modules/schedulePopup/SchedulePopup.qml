@@ -40,11 +40,13 @@ Scope {
         anchors {
             top: !barOnBottom
             bottom: barOnBottom
+            right: true
         }
 
         margins {
             top: barOnBottom ? 0 : Appearance.sizes.barHeight
             bottom: barOnBottom ? Appearance.sizes.barHeight : 0
+            right: 8
         }
 
         implicitWidth: schedulePanel.implicitWidth
@@ -87,7 +89,7 @@ Scope {
 
         Item {
             id: schedulePanel
-            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.right: parent.right
             implicitWidth: panelWindow.popupWidth
             implicitHeight: scheduleContent.implicitHeight + 8
 
@@ -100,10 +102,10 @@ Scope {
                 anchors.centerIn: parent
                 implicitWidth: panelWindow.popupWidth
                 implicitHeight: scheduleContent.implicitHeight + 8
-                color: "#030806"
-                border.width: 1
-                border.color: "#174339"
-                radius: 0
+                color: TuiStyle.bg
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                radius: TuiStyle.radius
 
                 BottomWidgetGroup {
                     id: scheduleContent

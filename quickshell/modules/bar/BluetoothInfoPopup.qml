@@ -187,37 +187,37 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "STATE"
                         valueText: root.btStateLabel()
                         valueColor: root.stateTone(root.btStateLabel())
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "ADAPTER"
                         valueText: BluetoothStatus.available ? "present" : "missing"
                         valueColor: BluetoothStatus.available ? root.tuiGreen : root.tuiRed
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "ENABLED"
                         valueText: BluetoothStatus.enabled ? "yes" : "no"
                         valueColor: BluetoothStatus.enabled ? root.tuiGreen : root.tuiRed
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "DEVICES"
                         valueText: `${BluetoothStatus.friendlyDeviceList?.length ?? 0} total`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "PAIRED"
                         valueText: `${BluetoothStatus.pairedButNotConnectedDevices?.length ?? 0}`
                         valueColor: root.tuiYellow
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "UNPAIRED"
                         valueText: `${BluetoothStatus.unpairedDevices?.length ?? 0}`
                         valueColor: root.tuiDim
@@ -232,7 +232,7 @@ PopupWindow {
 
                     Repeater {
                         model: BluetoothStatus.connectedDevices.slice(0, 5)
-                        delegate: DetailRow {
+                        delegate: TuiDetailRow {
                             required property var modelData
                             keyText: "DEV"
                             valueText: modelData?.name || "Unknown"
@@ -246,32 +246,4 @@ PopupWindow {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 70
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
 }

@@ -15,13 +15,13 @@ RippleButton {
     implicitHeight: 38;
 
     toggled: (isToday == 1)
-    buttonRadius: 0
-    colBackground: "#06110e"
-    colBackgroundHover: "#091814"
-    colRipple: "#174339"
-    colBackgroundToggled: "#36ff8b"
-    colBackgroundToggledHover: "#36ff8b"
-    colRippleToggled: "#36ff8b"
+    buttonRadius: TuiStyle.radius
+    colBackground: TuiStyle.panel
+    colBackgroundHover: TuiStyle.panelAlt
+    colRipple: TuiStyle.line
+    colBackgroundToggled: TuiStyle.green
+    colBackgroundToggledHover: TuiStyle.green
+    colRippleToggled: TuiStyle.green
     
     contentItem: StyledText {
         anchors.fill: parent
@@ -29,13 +29,12 @@ RippleButton {
         horizontalAlignment: Text.AlignHCenter
         font.family: Appearance.font.family.monospace
         font.weight: bold ? Font.DemiBold : Font.Normal
-        color: (isToday == 1) ? "#030806" : 
-            (isToday == 0) ? "#e8fff3" : 
-            "#65736e"
+        color: (isToday == 1) ? TuiStyle.bg :
+            (isToday == 0) ? TuiStyle.fg :
+            TuiStyle.dim
 
         Behavior on color {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
         }
     }
 }
-

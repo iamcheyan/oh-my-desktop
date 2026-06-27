@@ -187,7 +187,7 @@ PopupWindow {
                         }
                     }
 
-                    MeterBar {
+                    TuiMeterBar {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
                         value: Battery.available ? Battery.percentage * 100 : 0
@@ -200,25 +200,25 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "STATE"
                         valueText: root.batteryStateLabel()
                         valueColor: Battery.isCharging ? root.tuiYellow : root.tuiGreen
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: Battery.isCharging ? "TO FULL" : "TO EMPTY"
                         valueText: root.formatBatteryTime(Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty)
                         valueColor: root.tuiFg
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "HEALTH"
                         valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"
                         valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiGreen
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "PROFILE"
                         valueText: PowerProfiles.available ? PowerProfiles.currentProfile : "unavailable"
                         valueColor: PowerProfiles.currentProfile === "performance" ? root.tuiRed
@@ -227,19 +227,19 @@ PopupWindow {
                             : root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "LOW"
                         valueText: `${Config.options.battery.low}%`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "CRITICAL"
                         valueText: `${Config.options.battery.critical}%`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "SUSPEND"
                         valueText: Config.options.battery.automaticSuspend ? `${Config.options.battery.suspend}s` : "off"
                         valueColor: Config.options.battery.automaticSuspend ? root.tuiYellow : root.tuiDim
@@ -251,50 +251,4 @@ PopupWindow {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 70
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
-
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiGreen
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
 }

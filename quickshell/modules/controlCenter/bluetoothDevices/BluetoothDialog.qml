@@ -409,7 +409,7 @@ WindowDialog {
                                         }
                                     }
 
-                                    MeterBar {
+                                    TuiMeterBar {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 18
                                         value: root.previewDevice?.batteryAvailable ? Math.round((root.previewDevice?.battery ?? 0) * 100) : 0
@@ -446,14 +446,14 @@ WindowDialog {
                                 Layout.fillWidth: true
                                 spacing: 8
 
-                                ActionButton {
+                                TuiActionButton {
                                     label: "MANAGE"
                                     accent: root.tuiBlue
                                     enabledState: root.previewDevice !== null
                                     onClicked: root.openAction(root.previewDevice)
                                 }
 
-                                ActionButton {
+                                TuiActionButton {
                                     label: "SCAN"
                                     accent: root.tuiGreen
                                     onClicked: {
@@ -635,13 +635,13 @@ WindowDialog {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        ActionButton {
+                        TuiActionButton {
                             label: root.selectedDevice?.connected ? "DISCONNECT" : "CONNECT"
                             accent: root.selectedDevice?.connected ? root.tuiYellow : root.tuiGreen
                             onClicked: root.connectSelected()
                         }
 
-                        ActionButton {
+                        TuiActionButton {
                             label: root.selectedDevice?.paired ? "FORGET" : "PAIR"
                             accent: root.selectedDevice?.paired ? root.tuiRed : root.tuiBlue
                             onClicked: root.pairSelected()
@@ -649,7 +649,7 @@ WindowDialog {
 
                         Item { Layout.fillWidth: true }
 
-                        ActionButton {
+                        TuiActionButton {
                             label: "CANCEL"
                             accent: root.tuiDim
                             onClicked: root.closeAction()
@@ -775,54 +775,4 @@ WindowDialog {
         }
     }
 
-    component MeterBar: Row {
-        id: meter
-
-        property int value: 0
-        property color accent: root.tuiYellow
-
-        spacing: 3
-        Repeater {
-            model: 12
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 33) / 12)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 12) ? meter.accent : root.tuiLine
-            }
-        }
-    }
-
-    component ActionButton: Rectangle {
-        id: action
-
-        property string label: ""
-        property color accent: root.tuiBlue
-        property bool enabledState: true
-        signal clicked()
-
-        Layout.preferredWidth: Math.max(92, actionText.implicitWidth + 24)
-        Layout.preferredHeight: 32
-        color: action.enabledState && actionMouse.containsMouse ? Qt.rgba(action.accent.r, action.accent.g, action.accent.b, 0.16) : root.tuiPanel
-        border.width: 1
-        border.color: action.enabledState ? action.accent : root.tuiLine
-        opacity: action.enabledState ? 1 : 0.45
-
-        TuiText {
-            id: actionText
-            anchors.centerIn: parent
-            text: action.label
-            color: action.accent
-            font.weight: Font.Bold
-        }
-
-        MouseArea {
-            id: actionMouse
-            anchors.fill: parent
-            enabled: action.enabledState
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: action.clicked()
-        }
-    }
 }

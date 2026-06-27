@@ -188,7 +188,7 @@ PopupWindow {
                         }
                     }
 
-                    MeterBar {
+                    TuiMeterBar {
                         id: brightnessMeter
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
@@ -222,25 +222,25 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "NIGHTLIGHT"
                         valueText: root.nightLightOn ? "ON" : "OFF"
                         valueColor: root.nightLightOn ? root.tuiYellow : root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "COLOR TEMP"
                         valueText: root.nightLightOn ? `${root.colorTemp}K` : "--"
                         valueColor: root.nightLightOn ? root.tuiYellow : root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "GAMMA"
                         valueText: `${root.gamma}%`
                         valueColor: root.gamma < 100 ? root.tuiPurple : root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "MODE"
                         valueText: root.automatic ? "auto" : "manual"
                         valueColor: root.tuiDim
@@ -252,7 +252,7 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "SCREENS"
                         valueText: `${root.screenCount}`
                         valueColor: root.tuiGreen
@@ -260,7 +260,7 @@ PopupWindow {
 
                     Repeater {
                         model: root.screens
-                        DetailRow {
+                        TuiDetailRow {
                             required property var modelData
                             keyText: `  ${modelData.name}`
                             valueText: root.screenResolution(modelData)
@@ -274,50 +274,4 @@ PopupWindow {
         }
     }
 
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiGreen
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
-
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 80
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
 }

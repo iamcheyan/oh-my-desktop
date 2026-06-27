@@ -190,7 +190,7 @@ Item {
                                 }
                             }
 
-                            MeterBar {
+                            TuiMeterBar {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 12
                                 value: Battery.available ? Battery.percentage * 100 : 0
@@ -203,25 +203,25 @@ Item {
                             Layout.fillHeight: true
                             spacing: 8
 
-                            DetailRow {
+                            TuiDetailRow {
                                 keyText: "STATE"
                                 valueText: root.batteryStateLabel()
                                 valueColor: Battery.isCharging ? root.tuiYellow : root.tuiGreen
                             }
 
-                            DetailRow {
+                            TuiDetailRow {
                                 keyText: Battery.isCharging ? "TO FULL" : "TO EMPTY"
                                 valueText: root.formatBatteryTime(Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty)
                                 valueColor: root.tuiFg
                             }
 
-                            DetailRow {
+                            TuiDetailRow {
                                 keyText: "POWER"
                                 valueText: Battery.available && Battery.energyRate > 0.01 ? `${Battery.energyRate.toFixed(1)}W` : "--"
                                 valueColor: root.tuiBlue
                             }
 
-                            DetailRow {
+                            TuiDetailRow {
                                 keyText: "HEALTH"
                                 valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"
                                 valueColor: Battery.health > 0 && Battery.health < 80 ? root.tuiYellow : root.tuiGreen
@@ -264,19 +264,19 @@ Item {
                             }
                         }
 
-                        DetailRow {
+                        TuiDetailRow {
                             keyText: "CURRENT"
                             valueText: PowerProfiles.available ? PowerProfiles.currentProfile : "missing powerprofilesctl"
                             valueColor: root.profileTone(PowerProfiles.currentProfile)
                         }
 
-                        DetailRow {
+                        TuiDetailRow {
                             keyText: "AVAILABLE"
                             valueText: PowerProfiles.available ? PowerProfiles.profiles.join(" / ") : "--"
                             valueColor: root.tuiDim
                         }
 
-                        DetailRow {
+                        TuiDetailRow {
                             keyText: "SLEEP"
                             valueText: Idle.inhibit ? "blocked" : "allowed"
                             valueColor: Idle.inhibit ? root.tuiYellow : root.tuiGreen
@@ -286,20 +286,20 @@ Item {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: "cycle"
                                 accent: root.tuiBlue
                                 enabled: PowerProfiles.available
                                 onClicked: PowerProfiles.cycleProfile()
                             }
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: "refresh"
                                 accent: root.tuiPurple
                                 onClicked: PowerProfiles.refresh()
                             }
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: Idle.inhibit ? "allow sleep" : "keep awake"
                                 accent: Idle.inhibit ? root.tuiGreen : root.tuiYellow
                                 onClicked: Idle.toggleInhibit()
@@ -471,53 +471,6 @@ Item {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 78
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.small
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.small
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
-
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiGreen
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
-
     component ProfileButton: Rectangle {
         id: button
 
@@ -555,36 +508,4 @@ Item {
         }
     }
 
-    component ActionButton: Rectangle {
-        id: button
-
-        property string label: ""
-        property color accent: root.tuiBlue
-        signal clicked()
-
-        Layout.preferredHeight: 26
-        Layout.preferredWidth: Math.max(82, buttonText.implicitWidth + 22)
-        color: button.enabled && actionMouse.containsMouse ? Qt.rgba(button.accent.r, button.accent.g, button.accent.b, 0.12) : "transparent"
-        border.width: 1
-        border.color: button.enabled && actionMouse.containsMouse ? button.accent : root.tuiLine
-
-        StyledText {
-            id: buttonText
-            anchors.centerIn: parent
-            text: button.label
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.small
-            font.weight: Font.Bold
-            color: button.enabled ? button.accent : root.tuiDim
-        }
-
-        MouseArea {
-            id: actionMouse
-            anchors.fill: parent
-            enabled: button.enabled
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
-        }
-    }
 }

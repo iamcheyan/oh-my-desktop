@@ -65,7 +65,7 @@ Item {
                 contentItem: CosmicIcon {
                     name: "actions/go-previous-symbolic"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.colors.colOnLayer1
+                    color: TuiStyle.fg
                 }
             }
             CalendarHeaderButton {
@@ -76,7 +76,7 @@ Item {
                 contentItem: CosmicIcon {
                     name: "actions/go-next-symbolic"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.colors.colOnLayer1
+                    color: TuiStyle.fg
                 }
             }
         }

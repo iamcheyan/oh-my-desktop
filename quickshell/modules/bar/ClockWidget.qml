@@ -6,7 +6,6 @@ import QtQuick.Layouts
 
 Item {
     id: root
-    property bool showHoverPopup: true
     implicitWidth: clockText.implicitWidth + 16
     implicitHeight: Appearance.sizes.barHeight
 
@@ -44,12 +43,8 @@ Item {
     MouseArea {
         id: mouseArea
         anchors.fill: parent
-        hoverEnabled: root.showHoverPopup && !Config.options.bar.tooltips.clickToShow
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: GlobalStates.scheduleOpen = !GlobalStates.scheduleOpen
-
-        ClockWidgetPopup {
-            hoverTarget: root.showHoverPopup ? mouseArea : null
-        }
     }
 }

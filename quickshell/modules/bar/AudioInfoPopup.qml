@@ -200,7 +200,7 @@ PopupWindow {
                         }
                     }
 
-                    MeterBar {
+                    TuiMeterBar {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
                         value: root.sinkMuted ? 0 : root.sinkVolume * 100
@@ -213,25 +213,25 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "OUTPUT"
                         valueText: root.sink ? Audio.friendlyDeviceName(root.sink) : "--"
                         valueColor: root.tuiBlue
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "O LEVEL"
                         valueText: `${Math.round(root.sinkVolume * 100)}%`
                         valueColor: root.sinkMuted ? root.tuiRed : root.tuiFg
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "O APPS"
                         valueText: `${root.sinkApps.length}`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "O DEVICES"
                         valueText: `${root.sinkDevices.length}`
                         valueColor: root.tuiDim
@@ -243,25 +243,25 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "INPUT"
                         valueText: root.source ? Audio.friendlyDeviceName(root.source) : "--"
                         valueColor: root.tuiPurple
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "I LEVEL"
                         valueText: `${Math.round(root.sourceVolume * 100)}%`
                         valueColor: root.sourceMuted ? root.tuiRed : root.tuiFg
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "I APPS"
                         valueText: `${root.sourceApps.length}`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "I DEVICES"
                         valueText: `${root.sourceDevices.length}`
                         valueColor: root.tuiDim
@@ -273,50 +273,4 @@ PopupWindow {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 70
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
-
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiGreen
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
 }

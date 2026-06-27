@@ -141,26 +141,26 @@ PopupWindow {
                     anchors.margins: 14
                     spacing: 14
 
-                    DetailRow {
+                    TuiDetailRow {
                         Layout.topMargin: 14
                         keyText: "SERVICE"
                         valueText: root.serviceName
                         valueColor: root.tuiPurple
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "STATUS"
                         valueText: root.serviceReady ? "active" : "inactive"
                         valueColor: root.serviceReady ? root.tuiGreen : root.tuiRed
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "ENTRIES"
                         valueText: `${root.entryCount}`
                         valueColor: root.tuiBlue
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "DELAY"
                         valueText: `${Math.round(Cliphist.pasteDelay * 1000)}ms`
                         valueColor: root.tuiDim
@@ -172,32 +172,4 @@ PopupWindow {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 70
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
 }

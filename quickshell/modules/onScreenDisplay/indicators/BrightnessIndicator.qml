@@ -114,7 +114,7 @@ Item {
                 Item { Layout.fillWidth: true }
             }
 
-            MeterBar {
+            TuiMeterBar {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 10
                 Layout.topMargin: 10
@@ -125,21 +125,4 @@ Item {
         }
     }
 
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiYellow
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
 }

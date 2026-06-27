@@ -41,35 +41,26 @@ Item {
         }
     }
 
-    ColumnLayout {
+    TuiSegmentedTabs {
+        id: tabBar
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 8
+        anchors.rightMargin: 8
+        tabs: root.tabButtonList
+        onSelected: index => swipeView.currentIndex = index
+    }
+
+    SwipeView {
+        id: swipeView
         anchors.fill: parent
-        spacing: 0
+        anchors.topMargin: tabBar.implicitHeight + 16
+        spacing: 10
+        clip: true
+        currentIndex: tabBar.currentIndex
+        onCurrentIndexChanged: tabBar.currentIndex = currentIndex
 
-        SecondaryTabBar {
-            id: tabBar
-            currentIndex: swipeView.currentIndex
-
-            Repeater {
-                model: root.tabButtonList
-                delegate: SecondaryTabButton {
-                    buttonText: modelData.name
-                    buttonIcon: modelData.icon
-                }
-            }
-        }
-
-        SwipeView {
-            id: swipeView
-            Layout.topMargin: 10
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 10
-            clip: true
-            currentIndex: tabBar.currentIndex
-
-            // Tabs
-            PomodoroTimer {}
-            Stopwatch {}
-        }
+        PomodoroTimer {}
+        Stopwatch {}
     }
 }

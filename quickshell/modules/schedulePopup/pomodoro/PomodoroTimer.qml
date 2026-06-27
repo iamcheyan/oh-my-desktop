@@ -41,22 +41,22 @@ Item {
                     }
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: 40
-                    color: "#e8fff3"
+                    color: TuiStyle.fg
                 }
                 StyledText {
                     Layout.alignment: Qt.AlignHCenter
                     text: TimerService.pomodoroLongBreak ? Translation.tr("Long break") : TimerService.pomodoroBreak ? Translation.tr("Break") : Translation.tr("Focus")
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.normal
-                    color: "#65736e"
+                    color: TuiStyle.dim
                 }
             }
 
             Rectangle {
                 radius: 0
-                color: "#06110e"
+                color: TuiStyle.panel
                 border.width: 1
-                border.color: "#174339"
+                border.color: TuiStyle.line
                 
                 anchors {
                     right: parent.right
@@ -69,7 +69,7 @@ Item {
                     id: cycleText
                     anchors.centerIn: parent
                     font.family: Appearance.font.family.monospace
-                    color: "#36ff8b"
+                    color: TuiStyle.green
                     text: TimerService.pomodoroCycle + 1
                 }
             }
@@ -86,16 +86,16 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     font.family: Appearance.font.family.monospace
                     text: TimerService.pomodoroRunning ? Translation.tr("Pause") : (TimerService.pomodoroSecondsLeft === TimerService.focusTime) ? Translation.tr("Start") : Translation.tr("Resume")
-                    color: TimerService.pomodoroRunning ? "#e8fff3" : "#030806"
+                    color: TimerService.pomodoroRunning ? TuiStyle.fg : TuiStyle.bg
                 }
                 implicitHeight: 35
                 implicitWidth: 90
                 font.pixelSize: Appearance.font.pixelSize.larger
                 onClicked: TimerService.togglePomodoro()
                 buttonRadius: 0
-                colBackground: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
-                colBackgroundHover: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
-                colRipple: TimerService.pomodoroRunning ? "#174339" : "#36ff8b"
+                colBackground: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
+                colBackgroundHover: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
+                colRipple: TimerService.pomodoroRunning ? TuiStyle.line : TuiStyle.green
             }
 
             RippleButton {
@@ -107,16 +107,16 @@ Item {
 
                 font.pixelSize: Appearance.font.pixelSize.larger
                 buttonRadius: 0
-                colBackground: "#3b0f1a"
-                colBackgroundHover: "#3b0f1a"
-                colRipple: "#3b0f1a"
+                colBackground: TuiStyle.dangerPanel
+                colBackgroundHover: TuiStyle.dangerPanel
+                colRipple: TuiStyle.dangerPanel
 
                 contentItem: StyledText {
                     anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter
                     font.family: Appearance.font.family.monospace
                     text: Translation.tr("Reset")
-                    color: "#ff6b8b"
+                    color: TuiStyle.red
                 }
             }
         }

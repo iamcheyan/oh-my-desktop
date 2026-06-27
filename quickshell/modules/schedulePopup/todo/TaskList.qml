@@ -50,10 +50,10 @@ Item {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 implicitHeight: todoContentRowLayout.implicitHeight
-                color: "#06110e"
+                color: TuiStyle.panel
                 radius: 0
                 border.width: 1
-                border.color: "#174339"
+                border.color: TuiStyle.line
 
                 ColumnLayout {
                     id: todoContentRowLayout
@@ -69,7 +69,7 @@ Item {
                         text: todoItem.modelData.content
                         wrapMode: Text.Wrap
                         font.family: Appearance.font.family.monospace
-                        color: "#e8fff3"
+                        color: TuiStyle.fg
                     }
                     RowLayout {
                         Layout.leftMargin: 10
@@ -91,7 +91,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: todoItem.modelData.done ? "remove_done" : "check"
                                 iconSize: Appearance.font.pixelSize.larger
-                                color: todoItem.modelData.done ? "#65736e" : "#36ff8b"
+                                color: todoItem.modelData.done ? TuiStyle.dim : TuiStyle.green
                             }
                         }
                         TodoItemActionButton {
@@ -104,7 +104,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "delete_forever"
                                 iconSize: Appearance.font.pixelSize.larger
-                                color: "#ff6b8b"
+                                color: TuiStyle.red
                             }
                         }
                     }
@@ -130,14 +130,14 @@ Item {
             MaterialSymbol {
                 Layout.alignment: Qt.AlignHCenter
                 iconSize: 55
-                color: "#65736e"
+                color: TuiStyle.dim
                 text: emptyPlaceholderIcon
             }
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
                 font.pixelSize: Appearance.font.pixelSize.normal
                 font.family: Appearance.font.family.monospace
-                color: "#65736e"
+                color: TuiStyle.dim
                 horizontalAlignment: Text.AlignHCenter
                 text: emptyPlaceholderText
             }

@@ -10,8 +10,8 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    radius: 0
-    color: "#06110e"
+    radius: TuiStyle.radius
+    color: TuiStyle.panel
     clip: true
     property bool popupMode: false
     property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
@@ -76,6 +76,18 @@ Rectangle {
             } else if (event.key === Qt.Key_PageUp) {
                 root.selectedTab = Math.max(root.selectedTab - 1, 0);
             }
+            Persistent.states.sidebar.bottomGroup.tab = root.selectedTab;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_H && event.modifiers === Qt.NoModifier) {
+            root.selectedTab = Math.max(root.selectedTab - 1, 0);
+            Persistent.states.sidebar.bottomGroup.tab = root.selectedTab;
+            event.accepted = true;
+        } else if (event.key === Qt.Key_L && event.modifiers === Qt.NoModifier) {
+            root.selectedTab = Math.min(root.selectedTab + 1, root.tabs.length - 1);
+            Persistent.states.sidebar.bottomGroup.tab = root.selectedTab;
+            event.accepted = true;
+        } else if ((event.key === Qt.Key_Q || event.key === Qt.Key_Escape) && event.modifiers === Qt.NoModifier) {
+            GlobalStates.scheduleOpen = false;
             event.accepted = true;
         }
     }
@@ -107,7 +119,7 @@ Rectangle {
                 text: "keyboard_arrow_up"
                 iconSize: Appearance.font.pixelSize.larger
                 horizontalAlignment: Text.AlignHCenter
-                color: "#e8fff3"
+                color: TuiStyle.fg
             }
         }
 
@@ -118,7 +130,7 @@ Rectangle {
             text: Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.large
-            color: "#e8fff3"
+            color: TuiStyle.fg
         }
     }
 
@@ -139,39 +151,70 @@ Rectangle {
 
         anchors.fill: parent
         // implicitHeight: tabStack.implicitHeight
-        spacing: 20
+        spacing: 12
 
         // Navigation rail
-        Item {
+        Rectangle {
             Layout.fillHeight: true
             Layout.fillWidth: false
-            Layout.leftMargin: 10
-            Layout.topMargin: 10
-            implicitWidth: tabBar.implicitWidth
-            // Navigation rail buttons
-            NavigationRailTabArray {
-                id: tabBar
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 5
-                currentIndex: root.selectedTab
-                expanded: false
+            Layout.leftMargin: 8
+            Layout.topMargin: 8
+            Layout.bottomMargin: 8
+            implicitWidth: 112
+            color: TuiStyle.bg
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.line
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 6
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "SCHEDULE"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Bold
+                    color: TuiStyle.green
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: TuiStyle.borderWidth
+                    color: TuiStyle.line
+                }
+
                 Repeater {
                     model: root.tabs
-                    NavigationRailButton {
+                    TuiTabButton {
                         required property int index
                         required property var modelData
-                        showToggledHighlight: false
-                        toggled: root.selectedTab == index
-                        buttonText: modelData.name
-                        buttonIcon: modelData.icon
-                        onPressed: {
+                        Layout.fillWidth: true
+                        active: root.selectedTab == index
+                        label: modelData.name
+                        icon: modelData.icon
+                        onClicked: {
                             root.selectedTab = index;
                             Persistent.states.sidebar.bottomGroup.tab = index;
                         }
                     }
                 }
+
+                Item {
+                    Layout.fillHeight: true
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "q close\nh/l tab"
+                    lineHeight: 1.15
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: TuiStyle.dim
+                }
             }
+
             // Collapse button
             CalendarHeaderButton {
                 visible: !root.popupMode
@@ -185,7 +228,7 @@ Rectangle {
                     text: "keyboard_arrow_down"
                     iconSize: Appearance.font.pixelSize.larger
                     horizontalAlignment: Text.AlignHCenter
-                    color: "#e8fff3"
+                    color: TuiStyle.fg
                 }
             }
         }
@@ -276,6 +319,50 @@ Rectangle {
             script: {
                 root.previousIndex = root.selectedTab;
             }
+        }
+    }
+
+    component TuiTabButton: Rectangle {
+        id: tabButton
+        signal clicked
+        property bool active: false
+        property string label: ""
+        property string icon: ""
+
+        implicitHeight: 34
+        color: active ? TuiStyle.panelAlt : tabMouse.containsMouse ? Qt.rgba(TuiStyle.green.r, TuiStyle.green.g, TuiStyle.green.b, 0.10) : "transparent"
+        border.width: TuiStyle.borderWidth
+        border.color: active || tabMouse.containsMouse ? TuiStyle.green : TuiStyle.line
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 8
+
+            MaterialSymbol {
+                text: tabButton.icon
+                iconSize: Appearance.font.pixelSize.normal
+                color: tabButton.active ? TuiStyle.green : TuiStyle.dim
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: tabButton.label.toUpperCase()
+                elide: Text.ElideRight
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.Bold
+                color: tabButton.active ? TuiStyle.fg : TuiStyle.dim
+            }
+        }
+
+        MouseArea {
+            id: tabMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tabButton.clicked()
         }
     }
 }

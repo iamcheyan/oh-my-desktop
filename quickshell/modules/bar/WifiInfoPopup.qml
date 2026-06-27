@@ -194,7 +194,7 @@ PopupWindow {
                         }
                     }
 
-                    MeterBar {
+                    TuiMeterBar {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
                         visible: !Network.ethernet && Network.wifiStatus === "connected"
@@ -208,50 +208,50 @@ PopupWindow {
                         color: root.tuiLine
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "STATE"
                         valueText: root.wifiStateLabel()
                         valueColor: root.stateTone(root.wifiStateLabel())
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "INTERFACE"
                         valueText: Network.ethernet ? "ethernet" : "wi-fi"
                         valueColor: root.tuiFg
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "SSID"
                         valueText: Network.ethernet ? (Network.networkName || "--") : (Network.active?.ssid || Network.networkName || "--")
                         valueColor: root.tuiFg
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "SIGNAL"
                         valueText: !Network.ethernet && Network.wifiStatus === "connected"
                             ? `${Network.active?.strength ?? Network.networkStrength}%` : "--"
                         valueColor: root.tuiBlue
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "ENABLED"
                         valueText: Network.ethernet ? "yes" : (Network.wifiEnabled ? "yes" : "no")
                         valueColor: Network.ethernet || Network.wifiEnabled ? root.tuiGreen : root.tuiRed
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "SCANNING"
                         valueText: Network.wifiScanning ? "yes" : "no"
                         valueColor: Network.wifiScanning ? root.tuiYellow : root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "NETWORKS"
                         valueText: `${Network.friendlyWifiNetworks.length}`
                         valueColor: root.tuiDim
                     }
 
-                    DetailRow {
+                    TuiDetailRow {
                         keyText: "CONNECTING"
                         valueText: Network.wifiConnecting ? "yes" : "no"
                         valueColor: Network.wifiConnecting ? root.tuiYellow : root.tuiDim
@@ -263,50 +263,4 @@ PopupWindow {
         }
     }
 
-    component DetailRow: RowLayout {
-        property string keyText: ""
-        property string valueText: ""
-        property color valueColor: root.tuiFg
-
-        Layout.fillWidth: true
-        spacing: 10
-
-        StyledText {
-            Layout.preferredWidth: 70
-            text: keyText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.tuiDim
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            text: valueText
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: valueColor
-            horizontalAlignment: Text.AlignRight
-            elide: Text.ElideRight
-        }
-    }
-
-    component MeterBar: Row {
-        id: meter
-
-        property real value: 0
-        property color accent: root.tuiGreen
-
-        spacing: 3
-        Repeater {
-            model: 14
-            Rectangle {
-                required property int index
-                width: Math.max(8, (meter.width - 39) / 14)
-                height: meter.height
-                color: index < Math.ceil(Math.max(0, Math.min(100, meter.value)) / 100 * 14) ? meter.accent : root.tuiLine
-            }
-        }
-    }
 }

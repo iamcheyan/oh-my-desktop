@@ -274,19 +274,19 @@ WindowDialog {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: root.masterMuted ? "UNMUTE" : "MUTE"
                                 accent: root.masterMuted ? root.tuiGreen : root.tuiRed
                                 onClicked: root.toggleMasterMute()
                             }
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: "- 5%"
                                 accent: root.tuiBlue
                                 onClicked: root.adjustMaster(-1)
                             }
 
-                            ActionButton {
+                            TuiActionButton {
                                 label: "+ 5%"
                                 accent: root.tuiGreen
                                 onClicked: root.adjustMaster(1)
@@ -750,33 +750,4 @@ WindowDialog {
         }
     }
 
-    component ActionButton: Rectangle {
-        id: action
-
-        property string label: ""
-        property color accent: root.tuiYellow
-        signal clicked()
-
-        Layout.preferredWidth: Math.max(92, actionText.implicitWidth + 24)
-        Layout.preferredHeight: 32
-        color: actionMouse.containsMouse ? Qt.rgba(action.accent.r, action.accent.g, action.accent.b, 0.16) : root.tuiPanel
-        border.width: 1
-        border.color: action.accent
-
-        TuiText {
-            id: actionText
-            anchors.centerIn: parent
-            text: action.label
-            color: action.accent
-            font.weight: Font.Bold
-        }
-
-        MouseArea {
-            id: actionMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: action.clicked()
-        }
-    }
 }

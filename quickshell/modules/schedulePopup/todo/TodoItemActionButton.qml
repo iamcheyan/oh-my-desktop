@@ -16,13 +16,16 @@ RippleButton {
         }
     }
 
-    buttonRadius: Appearance.rounding.small
+    buttonRadius: TuiStyle.radius
+    colBackground: TuiStyle.panel
+    colBackgroundHover: TuiStyle.panelAlt
+    colRipple: TuiStyle.line
 
     contentItem: StyledText {
         text: buttonText
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: Appearance.font.pixelSize.larger
-        color: Appearance.colors.colOnLayer1
+        color: TuiStyle.fg
     }
 
     StyledToolTip {

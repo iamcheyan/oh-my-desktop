@@ -34,68 +34,72 @@ Item {
         }
     }
 
-    ColumnLayout {
+    TuiSegmentedTabs {
+        id: tabBar
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 8
+        anchors.rightMargin: 8
+        tabs: root.tabButtonList
+        onSelected: index => swipeView.currentIndex = index
+    }
+
+    SwipeView {
+        id: swipeView
         anchors.fill: parent
-        spacing: 0
+        anchors.topMargin: tabBar.implicitHeight + 16
+        spacing: 10
+        clip: true
+        currentIndex: tabBar.currentIndex
+        onCurrentIndexChanged: tabBar.currentIndex = currentIndex
 
-        SecondaryTabBar {
-            id: tabBar
-            currentIndex: swipeView.currentIndex
-
-            Repeater {
-                model: root.tabButtonList
-                delegate: SecondaryTabButton {
-                    buttonText: modelData.name
-                    buttonIcon: modelData.icon
-                }
-            }
+        TaskList {
+            listBottomPadding: root.fabSize + root.fabMargins * 2
+            emptyPlaceholderIcon: "check_circle"
+            emptyPlaceholderText: Translation.tr("Nothing here!")
+            taskList: Todo.list
+                .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
+                .filter(function(item) { return !item.done; })
         }
 
-        SwipeView {
-            id: swipeView
-            Layout.topMargin: 10
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 10
-            clip: true
-            currentIndex: tabBar.currentIndex
-
-            // To Do tab
-            TaskList {
-                listBottomPadding: root.fabSize + root.fabMargins * 2
-                emptyPlaceholderIcon: "check_circle"
-                emptyPlaceholderText: Translation.tr("Nothing here!")
-                taskList: Todo.list
-                    .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
-                    .filter(function(item) { return !item.done; })
-            }
-            TaskList {
-                listBottomPadding: root.fabSize + root.fabMargins * 2
-                emptyPlaceholderIcon: "checklist"
-                emptyPlaceholderText: Translation.tr("Finished tasks will go here")
-                taskList: Todo.list
-                    .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
-                    .filter(function(item) { return item.done; })
-            }
-
+        TaskList {
+            listBottomPadding: root.fabSize + root.fabMargins * 2
+            emptyPlaceholderIcon: "checklist"
+            emptyPlaceholderText: Translation.tr("Finished tasks will go here")
+            taskList: Todo.list
+                .map(function(item, i) { return Object.assign({}, item, {originalIndex: i}); })
+                .filter(function(item) { return item.done; })
         }
     }
 
-    // + FAB
-    StyledRectangularShadow {
-        target: fabButton
-        radius: fabButton.buttonRadius
-        blur: 0.6 * Appearance.sizes.elevationMargin
-    }
-    FloatingActionButton {
+    Rectangle {
         id: fabButton
+        property int buttonRadius: TuiStyle.radius
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: root.fabMargins
         anchors.bottomMargin: root.fabMargins
+        implicitWidth: root.fabSize
+        implicitHeight: root.fabSize
+        radius: TuiStyle.radius
+        color: fabMouse.containsMouse ? TuiStyle.green : TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.green
 
-        onClicked: root.showAddDialog = true
-        iconText: "add"
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: "add"
+            iconSize: Appearance.font.pixelSize.larger
+            color: fabMouse.containsMouse ? TuiStyle.bg : TuiStyle.green
+        }
+
+        MouseArea {
+            id: fabMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.showAddDialog = true
+        }
     }
 
     Item {
@@ -122,7 +126,7 @@ Item {
         Rectangle { // Scrim
             anchors.fill: parent
             radius: 0
-            color: "#80030806"
+            color: TuiStyle.scrim
             MouseArea {
                 hoverEnabled: true
                 anchors.fill: parent
@@ -139,17 +143,17 @@ Item {
             anchors.margins: root.dialogMargins
             implicitHeight: dialogColumnLayout.implicitHeight
 
-            color: "#06110e"
+            color: TuiStyle.panel
             radius: 0
             border.width: 1
-            border.color: "#174339"
+            border.color: TuiStyle.line
 
             function addTask() {
                 if (todoInput.text.length > 0) {
                     Todo.addTask(todoInput.text)
                     todoInput.text = ""
                     root.showAddDialog = false
-                    tabBar.setCurrentIndex(0) // Show unfinished tasks
+                    tabBar.setCurrentIndex(0)
                 }
             }
 
@@ -163,7 +167,7 @@ Item {
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
                     Layout.alignment: Qt.AlignLeft
-                    color: "#e8fff3"
+                    color: TuiStyle.fg
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.larger
                     text: Translation.tr("Add task")
@@ -175,13 +179,13 @@ Item {
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
                     padding: 10
-                    color: activeFocus ? "#e8fff3" : "#65736e"
+                    color: activeFocus ? TuiStyle.fg : TuiStyle.dim
                     font.family: Appearance.font.family.monospace
                     renderType: Text.NativeRendering
-                    selectedTextColor: "#030806"
-                    selectionColor: "#36ff8b"
+                    selectedTextColor: TuiStyle.bg
+                    selectionColor: TuiStyle.green
                     placeholderText: Translation.tr("Task description")
-                    placeholderTextColor: "#65736e"
+                    placeholderTextColor: TuiStyle.dim
                     focus: root.showAddDialog
                     onAccepted: dialog.addTask()
 
@@ -189,13 +193,13 @@ Item {
                         anchors.fill: parent
                         radius: 0
                         border.width: 1
-                        border.color: todoInput.activeFocus ? "#36ff8b" : "#174339"
+                        border.color: todoInput.activeFocus ? TuiStyle.green : TuiStyle.line
                         color: "transparent"
                     }
 
                     cursorDelegate: Rectangle {
                         width: 1
-                        color: todoInput.activeFocus ? "#36ff8b" : "transparent"
+                        color: todoInput.activeFocus ? TuiStyle.green : "transparent"
                         radius: 1
                     }
                 }
