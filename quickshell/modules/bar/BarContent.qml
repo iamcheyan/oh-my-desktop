@@ -175,7 +175,7 @@ Item { // Bar content region
                 model: Config.options.bar.rightModules
                 delegate: Loader {
                     required property string modelData
-                    readonly property bool fixedIconSlot: modelData.startsWith("util:") || modelData === "battery"
+                    readonly property bool fixedIconSlot: modelData.startsWith("util:")
                     readonly property int iconSlotWidth: Config.options.bar.rightIconSlotWidth
 
                     height: parent.height
