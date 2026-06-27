@@ -48,11 +48,6 @@ Item {
         color: Appearance.colors.colBarText
     }
 
-    PopupToolTip {
-        text: Translation.tr("Screenshot tool")
-        anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
-    }
-
     Loader {
         id: screenshotMenu
         function open() {

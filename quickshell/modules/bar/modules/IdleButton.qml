@@ -22,9 +22,6 @@ CircleUtilButton {
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
-        PopupToolTip {
-            text: Idle.inhibit ? Translation.tr("Auto-sleep disabled") : Translation.tr("Auto-sleep enabled")
-            anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
-        }
+
     }
 }

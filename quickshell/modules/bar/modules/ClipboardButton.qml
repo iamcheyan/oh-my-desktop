@@ -27,9 +27,6 @@ CircleUtilButton {
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
-        PopupToolTip {
-            text: Translation.tr("Clipboard")
-            anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
-        }
+
     }
 }
