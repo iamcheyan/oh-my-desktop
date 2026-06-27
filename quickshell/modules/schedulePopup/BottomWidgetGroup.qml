@@ -16,7 +16,6 @@ Rectangle {
     clip: true
     property bool popupMode: false
     property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
-    property int previousIndex: -1
     property bool collapsed: popupMode ? false : Persistent.states.sidebar.bottomGroup.collapsed
     implicitHeight: (!popupMode && collapsed) ? collapsedBottomWidgetGroupRow.implicitHeight : 350
     property var tabs: [
@@ -39,14 +38,6 @@ Rectangle {
             "widget": Qt.resolvedUrl("pomodoro/PomodoroWidget.qml")
         },
     ]
-
-    Behavior on implicitHeight {
-        NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-        }
-    }
 
     function setCollapsed(state) {
         Persistent.states.sidebar.bottomGroup.collapsed = state;
@@ -101,14 +92,6 @@ Rectangle {
         id: collapsedBottomWidgetGroupRow
         visible: !popupMode && opacity > 0
         opacity: collapsed ? 1 : 0
-        Behavior on opacity {
-            NumberAnimation {
-                id: collapsedBottomWidgetGroupRowFade
-                duration: Appearance.animation.elementMove.duration / 2
-                easing.type: Appearance.animation.elementMove.type
-                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-            }
-        }
 
         spacing: 15
 
@@ -144,14 +127,6 @@ Rectangle {
 
         opacity: collapsed ? 0 : 1
         visible: opacity > 0
-        Behavior on opacity {
-            NumberAnimation {
-                id: bottomWidgetGroupRowFade
-                duration: Appearance.animation.elementMove.duration / 2
-                easing.type: Appearance.animation.elementMove.type
-                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-            }
-        }
 
         anchors.fill: parent
         // implicitHeight: tabStack.implicitHeight
@@ -255,73 +230,9 @@ Rectangle {
                 Connections {
                     target: root
                     function onSelectedTabChanged() {
-                        if (root.selectedTab > root.previousIndex)
-                            tabSwitchBehavior.animation.down = true;
-                        else if (root.selectedTab < root.previousIndex)
-                            tabSwitchBehavior.animation.down = false;
                         tabStack.source = root.tabs[root.selectedTab].widget;
                     }
                 }
-
-                Behavior on source {
-                    id: tabSwitchBehavior
-                    animation: TabSwitchAnim {
-                        id: upAnim
-                        down: true
-                    }
-                }
-            }
-        }
-    }
-
-    component TabSwitchAnim: SequentialAnimation {
-        id: switchAnim
-        property bool down: false
-        ParallelAnimation {
-            PropertyAnimation {
-                target: tabStack
-                properties: "opacity"
-                to: 0
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-            PropertyAnimation {
-                target: tabStack.anchors
-                properties: "topMargin"
-                to: 10 * (switchAnim.down ? -1 : 1)
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
-        PropertyAction {
-            target: tabStack
-            property: "source"
-            value: root.tabs[root.selectedTab].widget
-        } // The source change happens here
-        ParallelAnimation {
-            PropertyAnimation {
-                target: tabStack.anchors
-                properties: "topMargin"
-                from: 10 * -(switchAnim.down ? -1 : 1)
-                to: 0
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
-            }
-            PropertyAnimation {
-                target: tabStack
-                properties: "opacity"
-                to: 1
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
-            }
-        }
-        ScriptAction {
-            script: {
-                root.previousIndex = root.selectedTab;
             }
         }
     }
