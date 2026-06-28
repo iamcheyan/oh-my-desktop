@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-OMD Voice Input — Key Capture TUI
-在终端中捕获单键或组合键，并自动将对应的 OMD 绑定格式文本复制到剪贴板。
+OMD Advanced Key Capture — GTK4 Edition
+原生 Wayland 窗口，可捕获包括 Globe/Fn 在内的所有硬件按键与组合键，
+并自动格式化为 OMD 绑定字符串写入系统剪贴板。
 """
 
-import curses
-import os
+import gi
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Gtk, Gdk, Gio, Adw
 import subprocess
 import sys
-import time
 
+# ── 复制到剪贴板 ──
 def copy_to_clipboard(text):
     try:
         process = subprocess.Popen(['wl-copy'], stdin=subprocess.PIPE)
@@ -18,165 +21,272 @@ def copy_to_clipboard(text):
     except Exception:
         return False
 
-def format_curses_key(stdscr, key):
-    # 检测 Alt 组合键 (Esc + key)
-    if key == 27:
-        stdscr.nodelay(True)
-        next_key = stdscr.getch()
-        stdscr.nodelay(False)
-        if next_key != -1:
-            key_name = format_single_key(next_key)
-            return f"ALT + {key_name.upper()}"
-        return "ESC"
+# ── 主窗口 ──
+class KeyTestWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="OMD 高级按键捕获")
+        self.set_default_size(700, 480)
 
-    # 检测 Ctrl 组合键 (ASCII 1-26, 排除 Tab=9, Enter=10, Carriage Return=13)
-    if 1 <= key <= 26 and key not in (9, 10, 13):
-        # 1 -> A, 2 -> B ...
-        char = chr(key + 96)
-        return f"CTRL + {char.upper()}"
+        # ── CSS 样式 ──
+        css_provider = Gtk.CssProvider()
+        css = b"""
+        window {
+            background-color: #0d0e11;
+            color: #f4f4f4;
+        }
+        .main-box {
+            padding: 24px;
+        }
+        .title-label {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 20px;
+            font-weight: 800;
+            color: #00bcd4;
+        }
+        .hint-label {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 13px;
+            color: #a8a8a8;
+            margin-top: 4px;
+        }
+        .display-box {
+            background-color: #16181d;
+            border: 1px solid #2d3139;
+            border-radius: 12px;
+            padding: 28px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .key-display {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 34px;
+            font-weight: 800;
+            color: #f5c542;
+        }
+        .status-label {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 14px;
+            font-weight: 700;
+            color: #4caf50;
+        }
+        .detail-title {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: #00bcd4;
+        }
+        .detail-value {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 13px;
+            color: #dcdccc;
+        }
+        .divider {
+            background-color: #2d3139;
+            min-height: 1px;
+            margin-top: 16px;
+            margin-bottom: 16px;
+        }
+        .info-box {
+            background-color: #101216;
+            border-left: 4px solid #f5c542;
+            padding: 12px 16px;
+            margin-top: 10px;
+        }
+        .info-text {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 12px;
+            color: #b5bd68;
+            line-height: 1.5;
+        }
+        button.quit-btn {
+            background-color: #21252b;
+            color: #f4f4f4;
+            border: 1px solid #2d3139;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-weight: bold;
+        }
+        button.quit-btn:hover {
+            background-color: #2c313c;
+        }
+        """
+        css_provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
 
-    return format_single_key(key)
+        # ── 页面布局 ──
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        main_box.add_css_class("main-box")
+        self.set_child(main_box)
 
-def format_single_key(key):
-    if 32 <= key <= 126:
-        char = chr(key)
-        if char == " ":
-            return "SPACE"
-        return char.upper()
+        # 标题与副标题
+        title = Gtk.Label(label=" OMD Advanced Key Capture — 键盘捕获 ")
+        title.set_halign(Gtk.Align.CENTER)
+        title.add_css_class("title-label")
+        main_box.append(title)
 
-    # Curses 特殊按键
-    special_keys = {
-        10: "RETURN",
-        13: "RETURN",
-        9: "TAB",
-        127: "BACKSPACE",
-        curses.KEY_BACKSPACE: "BACKSPACE",
-        curses.KEY_UP: "UP",
-        curses.KEY_DOWN: "DOWN",
-        curses.KEY_LEFT: "LEFT",
-        curses.KEY_RIGHT: "RIGHT",
-        curses.KEY_PPAGE: "PAGEUP",
-        curses.KEY_NPAGE: "PAGEDOWN",
-        curses.KEY_HOME: "HOME",
-        curses.KEY_END: "END",
-        curses.KEY_DC: "DELETE",
-        curses.KEY_IC: "INSERT",
-    }
+        hint = Gtk.Label(label="请按下任意按键或组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)")
+        hint.set_halign(Gtk.Align.CENTER)
+        hint.add_css_class("hint-label")
+        main_box.append(hint)
 
-    # F1 - F12
-    for f in range(1, 13):
-        special_keys[getattr(curses, f"KEY_F{f}", -1)] = f"F{f}"
+        # 核心键位展示区
+        display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        display_box.add_css_class("display-box")
+        main_box.append(display_box)
 
-    return special_keys.get(key, f"KEY_{key}")
+        self.key_display = Gtk.Label(label="( 等待输入 )")
+        self.key_display.add_css_class("key-display")
+        display_box.append(self.key_display)
 
-# ── 绘制 ──────────────────────────────────────────────────────────────────────
-def draw(stdscr):
-    curses.curs_set(0)
-    stdscr.keypad(True)
+        self.status_label = Gtk.Label(label="")
+        self.status_label.add_css_class("status-label")
+        display_box.append(self.status_label)
 
-    # 颜色
-    curses.start_color()
-    curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_WHITE,   -1)   # 普通
-    curses.init_pair(2, curses.COLOR_RED,     -1)   # 警示
-    curses.init_pair(3, curses.COLOR_GREEN,   -1)   # 成功 / 复制成功
-    curses.init_pair(4, curses.COLOR_YELLOW,  -1)   # 说明
-    curses.init_pair(5, curses.COLOR_CYAN,    -1)   # 标题
-    curses.init_pair(6, curses.COLOR_MAGENTA, -1)   # 键位高亮
+        # 详细参数区
+        details_grid = Gtk.Grid()
+        details_grid.set_column_spacing(24)
+        details_grid.set_row_spacing(8)
+        details_grid.set_halign(Gtk.Align.CENTER)
+        main_box.append(details_grid)
 
-    captured_key = ""
-    copy_status = ""
-    last_action_time = 0
+        def add_row(grid, row, label_text):
+            title_lbl = Gtk.Label(label=label_text)
+            title_lbl.add_css_class("detail-title")
+            title_lbl.set_halign(Gtk.Align.RIGHT)
+            val_lbl = Gtk.Label(label="—")
+            val_lbl.add_css_class("detail-value")
+            val_lbl.set_halign(Gtk.Align.LEFT)
+            grid.attach(title_lbl, 0, row, 1, 1)
+            grid.attach(val_lbl, 1, row, 1, 1)
+            return val_lbl
 
-    while True:
-        h, w = stdscr.getmaxyx()
-        stdscr.erase()
+        self.val_name = add_row(details_grid, 0, "Key Name:")
+        self.val_val = add_row(details_grid, 1, "GDK Keyval:")
+        self.val_code = add_row(details_grid, 2, "Hardware Code:")
 
-        # ── 标题 ──
-        title = " OMD Voice Input — 键盘按键捕获 TUI "
-        stdscr.attron(curses.color_pair(5) | curses.A_BOLD)
-        stdscr.addstr(0, max(0, (w - len(title)) // 2), title[:w])
-        stdscr.attroff(curses.color_pair(5) | curses.A_BOLD)
-        stdscr.addstr(1, 0, "─" * w)
+        # 分割线
+        divider = Gtk.Box()
+        divider.add_css_class("divider")
+        main_box.append(divider)
 
-        # ── 中间提示 ──
-        hint = "请按下您想捕获的按键或组合键 (支持 ALT/CTRL/SHIFT 组合)"
-        stdscr.attron(curses.color_pair(1))
-        stdscr.addstr(3, max(0, (w - len(hint)) // 2), hint[:w])
-        stdscr.attroff(curses.color_pair(1))
+        # 说明文字区
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        info_box.add_css_class("info-box")
+        main_box.append(info_box)
 
-        # ── 捕获结果 ──
-        res_row = 6
-        if captured_key:
-            res_str = f" [ {captured_key} ] "
-            color = curses.color_pair(6) | curses.A_BOLD
-            rx = max(0, (w - len(res_str)) // 2)
-            stdscr.attron(color)
-            stdscr.addstr(res_row, rx, res_str[:w - rx])
-            stdscr.attroff(color)
+        info_text = (
+            "💡 提示:\n"
+            "• 如果按键有友好名称，程序会复制为如 'ALT + A' 的形式。\n"
+            "• 如果是 Fn/Globe 等无名称的底层按键，会直接捕获为硬件码格式 (如 'code:472')，此格式直接兼容 Hyprland 绑定。\n"
+            "• 按 Q 或 ESC 键可快速退出本捕获工具。"
+        )
+        info_lbl = Gtk.Label(label=info_text)
+        info_lbl.set_halign(Gtk.Align.LEFT)
+        info_lbl.set_justify(Gtk.Justification.LEFT)
+        info_lbl.add_css_class("info-text")
+        info_box.append(info_lbl)
 
-            # 复制状态
-            if copy_status:
-                stdscr.attron(curses.color_pair(3) | curses.A_BOLD)
-                stdscr.addstr(res_row + 2, max(0, (w - len(copy_status)) // 2), copy_status[:w])
-                stdscr.attroff(curses.color_pair(3) | curses.A_BOLD)
-        else:
-            res_str = " ( 等待输入... ) "
-            color = curses.color_pair(4)
-            rx = max(0, (w - len(res_str)) // 2)
-            stdscr.attron(color)
-            stdscr.addstr(res_row, rx, res_str[:w - rx])
-            stdscr.attroff(color)
+        # 垫片
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        main_box.append(spacer)
 
-        # ── 底部特殊按键说明 ──
-        desc_start = h - 9
-        if desc_start > res_row + 3:
-            stdscr.addstr(desc_start, 0, "─" * w)
-            desc_start += 1
-            stdscr.attron(curses.color_pair(5))
-            stdscr.addstr(desc_start, 1, "特殊按键说明:")
-            stdscr.attroff(curses.color_pair(5))
-            desc_start += 1
+        # 退出按钮
+        quit_btn = Gtk.Button(label="退出 (Q)")
+        quit_btn.add_css_class("quit-btn")
+        quit_btn.set_halign(Gtk.Align.CENTER)
+        quit_btn.connect("clicked", lambda _: app.quit())
+        main_box.append(quit_btn)
 
-            special_hints = [
-                "• Globe/Fn 键: 终端内无法直接捕获。MacBook 下通常为 'code:472'。",
-                "• Super (Win/Cmd) 键: 会被系统合成器拦截，请直接在 bindings.lua 中用 SUPER + 键。",
-                "• 复制方式: 捕获完成后，系统已自动运行 wl-copy 复制到剪贴板，可直接粘贴。",
-                "• 按 Q 或 ESC 键退出本程序。"
-            ]
-            for i, line in enumerate(special_hints):
-                row = desc_start + i
-                if row < h - 1:
-                    stdscr.attron(curses.color_pair(4))
-                    stdscr.addstr(row, 2, line[:w - 3])
-                    stdscr.attroff(curses.color_pair(4))
+        # ── 键盘事件绑定 ──
+        key_ctrl = Gtk.EventControllerKey()
+        key_ctrl.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_ctrl)
 
-        stdscr.refresh()
-
-        # 读取按键
-        key = stdscr.getch()
+    def on_key_pressed(self, ctrl, keyval, keycode, state):
+        keyname = Gdk.keyval_name(keyval) or ""
         
-        # 退出检查
-        keyname = format_single_key(key)
-        if keyname in ("Q", "ESC"):
-            break
+        # 排除单独按修饰键的情况
+        is_modifier = keyval in (
+            Gdk.KEY_Control_L, Gdk.KEY_Control_R,
+            Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
+            Gdk.KEY_Super_L, Gdk.KEY_Super_R,
+            Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
+            Gdk.KEY_Meta_L, Gdk.KEY_Meta_R
+        )
 
-        # 捕获并转换
-        formatted = format_curses_key(stdscr, key)
-        if formatted:
-            captured_key = formatted
-            if copy_to_clipboard(captured_key):
-                copy_status = "✓ 已自动复制到剪贴板！"
+        # Q/ESC 退出
+        if not is_modifier and keyname in ("q", "Q", "Escape"):
+            self.get_application().quit()
+            return True
+
+        # 解析修饰键
+        mods = []
+        if state & Gdk.ModifierType.SUPER_MASK:
+            mods.append("SUPER")
+        if state & Gdk.ModifierType.CONTROL_MASK:
+            mods.append("CTRL")
+        if state & Gdk.ModifierType.ALT_MASK or state & Gdk.ModifierType.MOD1_MASK:
+            mods.append("ALT")
+        if state & Gdk.ModifierType.SHIFT_MASK:
+            # 只有在有其他修饰键，或者是特殊非字母键时，才添加 SHIFT 标识，避免普通大写字母被写成 SHIFT + A
+            if mods or len(keyname) > 1:
+                mods.append("SHIFT")
+
+        # 格式化输出键名
+        if is_modifier:
+            # 单独按下修饰键只显示，不触发复制
+            display_name = " + ".join(mods) or keyname.upper()
+            self.key_display.set_label(f"[ {display_name} ]")
+            self.status_label.set_label("")
+        else:
+            final_key = ""
+            if keyname:
+                # 键名格式化
+                mapped_name = keyname.upper()
+                if mapped_name == "SPACE":
+                    mapped_name = "SPACE"
+                elif mapped_name in ("RETURN", "KP_ENTER"):
+                    mapped_name = "RETURN"
+                
+                if mods:
+                    final_key = " + ".join(mods) + " + " + mapped_name
+                else:
+                    final_key = mapped_name
             else:
-                copy_status = "✗ 复制到剪贴板失败 (未找到 wl-copy)"
+                # 没有友好键名，使用 code:<keycode> 格式
+                final_key = f"code:{keycode}"
 
-def main():
-    try:
-        curses.wrapper(draw)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print("按键捕获程序已退出。")
+            self.key_display.set_label(f"[ {final_key} ]")
+            
+            # 复制到剪贴板
+            if copy_to_clipboard(final_key):
+                self.status_label.set_label("✓ 已自动复制到剪贴板！")
+            else:
+                self.status_label.set_label("✗ 复制失败 (请检查剪贴板服务)")
+
+        # 更新详细参数面板
+        self.val_name.set_label(keyname or "unknown")
+        self.val_val.set_label(f"0x{keyval:08x} ({keyval})")
+        self.val_code.set_label(str(keycode))
+
+        return True
+
+
+class KeyTestApp(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="org.omarchy.key-test", flags=Gio.ApplicationFlags.FLAGS_NONE)
+
+    def do_activate(self):
+        win = KeyTestWindow(self)
+        win.present()
+
 
 if __name__ == "__main__":
-    main()
+    app = KeyTestApp()
+    sys.exit(app.run(sys.argv))

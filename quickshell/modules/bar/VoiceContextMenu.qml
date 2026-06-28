@@ -172,7 +172,7 @@ PopupWindow {
                     Layout.fillWidth: true
 
                     releaseAction: () => {
-                        Quickshell.execDetached(["omarchy-launch-tui", "/home/tetsuya/development/OMD/scripts/key-test"]);
+                        Quickshell.execDetached(["/home/tetsuya/development/OMD/scripts/key-test"]);
                         root.close();
                     }
 
