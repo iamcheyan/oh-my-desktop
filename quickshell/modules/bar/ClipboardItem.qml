@@ -27,7 +27,8 @@ Rectangle {
         return match ? parseInt(match[2]) : 0;
     }
 
-    implicitHeight: 54
+    readonly property real scaleFactor: (typeof clipboardDialog !== "undefined") ? clipboardDialog.fontScale : 1.0
+    implicitHeight: Math.round(54 * scaleFactor)
     color: selected ? TuiStyle.selection : mouseArea.containsMouse ? "#333333" : "transparent"
     border.width: 0
     radius: TuiStyle.radius
@@ -64,7 +65,7 @@ Rectangle {
                 maximumLineCount: root.isImage ? 1 : 2
                 elide: Text.ElideRight
                 font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.small
+                font.pixelSize: (Appearance?.font.pixelSize.small ?? 15) * scaleFactor
                 font.weight: root.selected ? Font.DemiBold : Font.Medium
                 color: root.selected ? TuiStyle.fg : TuiStyle.fg
             }
@@ -74,7 +75,7 @@ Rectangle {
                 text: root.isImage ? "binary clipboard entry" : root.entry.replace(/^\s*\S+\s+/, "").slice(0, 96)
                 elide: Text.ElideRight
                 font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.pixelSize: (Appearance?.font.pixelSize.smaller ?? 13) * scaleFactor
                 color: TuiStyle.dim
                 visible: root.isImage
             }

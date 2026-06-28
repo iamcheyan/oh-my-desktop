@@ -16,4 +16,4 @@ omarchy/walker/themes/omd-clipboard/
 omarchy/walker/themes/omd/item_*.xml
 share/default/walker/themes/omd-clipboard/
 share/default/walker/themes/omd/item_*.xml
-**/.DS_Store
+quickshell/*.conf

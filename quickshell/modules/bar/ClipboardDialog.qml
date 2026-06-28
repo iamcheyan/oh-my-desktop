@@ -8,9 +8,18 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Qt.labs.settings
 
 Rectangle {
     id: clipboardDialog
+
+    Settings {
+        id: clipboardSettings
+        fileName: Directories.shellConfig + "/clipboard_settings.conf"
+        property real fontScale: 1.0
+    }
+
+    readonly property real fontScale: clipboardSettings.fontScale
 
     property bool show: false
     signal dismiss()
@@ -163,6 +172,15 @@ Rectangle {
             event.accepted = true;
             if (filteredEntries.length > 0)
                 keyboardIndex = filteredEntries.length - 1;
+        } else if (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus) {
+            event.accepted = true;
+            clipboardSettings.fontScale = Math.min(2.0, Math.round((clipboardSettings.fontScale + 0.1) * 10) / 10);
+        } else if (event.key === Qt.Key_Minus) {
+            event.accepted = true;
+            clipboardSettings.fontScale = Math.max(0.6, Math.round((clipboardSettings.fontScale - 0.1) * 10) / 10);
+        } else if (event.key === Qt.Key_0 && event.modifiers === Qt.NoModifier) {
+            event.accepted = true;
+            clipboardSettings.fontScale = 1.0;
         } else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) {
             event.accepted = true;
             clipboardDialog.dismiss();
@@ -432,7 +450,7 @@ Rectangle {
                                 wrapMode: TextEdit.Wrap
                                 text: textDecoder.decodedText
                                 font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.pixelSize: Appearance.font.pixelSize.small * clipboardDialog.fontScale
                                 color: TuiStyle.fg
                                 selectedTextColor: TuiStyle.bg
                                 selectionColor: TuiStyle.accent
@@ -476,6 +494,7 @@ Rectangle {
                 FooterText { text: "ENTER PASTE" }
                 FooterText { text: "D DELETE" }
                 FooterText { text: clipboardDialog.mode === "insert" ? "ESC NORMAL" : "F SEARCH" }
+                FooterText { text: "+/-/0 ZOOM" }
                 FooterText { text: "Q CLOSE" }
                 Item { Layout.fillWidth: true }
                 FooterText { text: Cliphist.cliphistBinary.toUpperCase() }
