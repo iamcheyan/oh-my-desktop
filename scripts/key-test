@@ -26,6 +26,12 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="OMD 高级按键捕获")
         self.set_default_size(700, 480)
+        self.connect("realize", self.on_realize)
+
+    def on_realize(self, widget):
+        surface = widget.get_surface()
+        if surface and hasattr(surface, "inhibit_system_shortcuts"):
+            surface.inhibit_system_shortcuts(None)
 
         # ── CSS 样式 ──
         css_provider = Gtk.CssProvider()
