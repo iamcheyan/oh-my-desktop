@@ -1,86 +1,182 @@
 #!/usr/bin/env python3
 """
-按键码测试工具 — 在 Wayland 下捕获键盘事件
-用法: python3 scripts/key-test
-点击窗口后按任意键，显示 keyval / keyname / hardware keycode。
+OMD Voice Input — Key Capture TUI
+在终端中捕获单键或组合键，并自动将对应的 OMD 绑定格式文本复制到剪贴板。
 """
-import gi
-gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gdk
 
-class KeyTestWindow(Gtk.ApplicationWindow):
-    def __init__(self, app):
-        super().__init__(application=app, title="OMD Key Test — 按任意键")
-        self.set_default_size(480, 320)
+import curses
+import os
+import subprocess
+import sys
+import time
 
-        # 布局
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        box.set_margin_top(24)
-        box.set_margin_bottom(24)
-        box.set_margin_start(24)
-        box.set_margin_end(24)
-        self.set_child(box)
-
-        hint = Gtk.Label(label="点击此窗口后，按任意键（包括 Globe/Fn）")
-        hint.add_css_class("dim-label")
-        box.append(hint)
-
-        self.result_label = Gtk.Label(label="—")
-        self.result_label.set_selectable(True)
-        self.result_label.set_wrap(True)
-        attrs = self.result_label.get_attributes() or None
-        box.append(self.result_label)
-
-        self.history_label = Gtk.Label(label="")
-        self.history_label.set_selectable(True)
-        self.history_label.set_wrap(True)
-        self.history_label.add_css_class("dim-label")
-        box.append(self.history_label)
-
-        quit_btn = Gtk.Button(label="退出 (Q)")
-        quit_btn.connect("clicked", lambda _: app.quit())
-        box.append(quit_btn)
-
-        self.history = []
-
-        # 键盘事件控制器
-        ctrl = Gtk.EventControllerKey()
-        ctrl.connect("key-pressed", self.on_key_pressed)
-        self.add_controller(ctrl)
-
-    def on_key_pressed(self, ctrl, keyval, keycode, state):
-        keyname = Gdk.keyval_name(keyval) or "unknown"
-
-        # 退出
-        if keyname in ("q", "Q", "Escape"):
-            self.get_application().quit()
-            return True
-
-        line = (
-            f"keyname:  {keyname}\n"
-            f"keyval:   0x{keyval:08x}  ({keyval})\n"
-            f"keycode:  {keycode}\n"
-            f"state:    {state}"
-        )
-        self.result_label.set_label(line)
-
-        self.history.insert(0, f"{keyname} (keycode={keycode})")
-        self.history = self.history[:6]
-        self.history_label.set_label("历史: " + " | ".join(self.history))
-
-        print(f"keyname={keyname}  keyval=0x{keyval:x}({keyval})  keycode={keycode}  state={state}")
+def copy_to_clipboard(text):
+    try:
+        process = subprocess.Popen(['wl-copy'], stdin=subprocess.PIPE)
+        process.communicate(input=text.encode('utf-8'))
         return True
+    except Exception:
+        return False
 
+def format_curses_key(stdscr, key):
+    # 检测 Alt 组合键 (Esc + key)
+    if key == 27:
+        stdscr.nodelay(True)
+        next_key = stdscr.getch()
+        stdscr.nodelay(False)
+        if next_key != -1:
+            key_name = format_single_key(next_key)
+            return f"ALT + {key_name.upper()}"
+        return "ESC"
 
-class KeyTestApp(Gtk.Application):
-    def __init__(self):
-        super().__init__(application_id="omd.keytest")
+    # 检测 Ctrl 组合键 (ASCII 1-26, 排除 Tab=9, Enter=10, Carriage Return=13)
+    if 1 <= key <= 26 and key not in (9, 10, 13):
+        # 1 -> A, 2 -> B ...
+        char = chr(key + 96)
+        return f"CTRL + {char.upper()}"
 
-    def do_activate(self):
-        win = KeyTestWindow(self)
-        win.present()
+    return format_single_key(key)
 
+def format_single_key(key):
+    if 32 <= key <= 126:
+        char = chr(key)
+        if char == " ":
+            return "SPACE"
+        return char.upper()
+
+    # Curses 特殊按键
+    special_keys = {
+        10: "RETURN",
+        13: "RETURN",
+        9: "TAB",
+        127: "BACKSPACE",
+        curses.KEY_BACKSPACE: "BACKSPACE",
+        curses.KEY_UP: "UP",
+        curses.KEY_DOWN: "DOWN",
+        curses.KEY_LEFT: "LEFT",
+        curses.KEY_RIGHT: "RIGHT",
+        curses.KEY_PPAGE: "PAGEUP",
+        curses.KEY_NPAGE: "PAGEDOWN",
+        curses.KEY_HOME: "HOME",
+        curses.KEY_END: "END",
+        curses.KEY_DC: "DELETE",
+        curses.KEY_IC: "INSERT",
+    }
+
+    # F1 - F12
+    for f in range(1, 13):
+        special_keys[getattr(curses, f"KEY_F{f}", -1)] = f"F{f}"
+
+    return special_keys.get(key, f"KEY_{key}")
+
+# ── 绘制 ──────────────────────────────────────────────────────────────────────
+def draw(stdscr):
+    curses.curs_set(0)
+    stdscr.keypad(True)
+
+    # 颜色
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE,   -1)   # 普通
+    curses.init_pair(2, curses.COLOR_RED,     -1)   # 警示
+    curses.init_pair(3, curses.COLOR_GREEN,   -1)   # 成功 / 复制成功
+    curses.init_pair(4, curses.COLOR_YELLOW,  -1)   # 说明
+    curses.init_pair(5, curses.COLOR_CYAN,    -1)   # 标题
+    curses.init_pair(6, curses.COLOR_MAGENTA, -1)   # 键位高亮
+
+    captured_key = ""
+    copy_status = ""
+    last_action_time = 0
+
+    while True:
+        h, w = stdscr.getmaxyx()
+        stdscr.erase()
+
+        # ── 标题 ──
+        title = " OMD Voice Input — 键盘按键捕获 TUI "
+        stdscr.attron(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(0, max(0, (w - len(title)) // 2), title[:w])
+        stdscr.attroff(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(1, 0, "─" * w)
+
+        # ── 中间提示 ──
+        hint = "请按下您想捕获的按键或组合键 (支持 ALT/CTRL/SHIFT 组合)"
+        stdscr.attron(curses.color_pair(1))
+        stdscr.addstr(3, max(0, (w - len(hint)) // 2), hint[:w])
+        stdscr.attroff(curses.color_pair(1))
+
+        # ── 捕获结果 ──
+        res_row = 6
+        if captured_key:
+            res_str = f" [ {captured_key} ] "
+            color = curses.color_pair(6) | curses.A_BOLD
+            rx = max(0, (w - len(res_str)) // 2)
+            stdscr.attron(color)
+            stdscr.addstr(res_row, rx, res_str[:w - rx])
+            stdscr.attroff(color)
+
+            # 复制状态
+            if copy_status:
+                stdscr.attron(curses.color_pair(3) | curses.A_BOLD)
+                stdscr.addstr(res_row + 2, max(0, (w - len(copy_status)) // 2), copy_status[:w])
+                stdscr.attroff(curses.color_pair(3) | curses.A_BOLD)
+        else:
+            res_str = " ( 等待输入... ) "
+            color = curses.color_pair(4)
+            rx = max(0, (w - len(res_str)) // 2)
+            stdscr.attron(color)
+            stdscr.addstr(res_row, rx, res_str[:w - rx])
+            stdscr.attroff(color)
+
+        # ── 底部特殊按键说明 ──
+        desc_start = h - 9
+        if desc_start > res_row + 3:
+            stdscr.addstr(desc_start, 0, "─" * w)
+            desc_start += 1
+            stdscr.attron(curses.color_pair(5))
+            stdscr.addstr(desc_start, 1, "特殊按键说明:")
+            stdscr.attroff(curses.color_pair(5))
+            desc_start += 1
+
+            special_hints = [
+                "• Globe/Fn 键: 终端内无法直接捕获。MacBook 下通常为 'code:472'。",
+                "• Super (Win/Cmd) 键: 会被系统合成器拦截，请直接在 bindings.lua 中用 SUPER + 键。",
+                "• 复制方式: 捕获完成后，系统已自动运行 wl-copy 复制到剪贴板，可直接粘贴。",
+                "• 按 Q 或 ESC 键退出本程序。"
+            ]
+            for i, line in enumerate(special_hints):
+                row = desc_start + i
+                if row < h - 1:
+                    stdscr.attron(curses.color_pair(4))
+                    stdscr.addstr(row, 2, line[:w - 3])
+                    stdscr.attroff(curses.color_pair(4))
+
+        stdscr.refresh()
+
+        # 读取按键
+        key = stdscr.getch()
+        
+        # 退出检查
+        keyname = format_single_key(key)
+        if keyname in ("Q", "ESC"):
+            break
+
+        # 捕获并转换
+        formatted = format_curses_key(stdscr, key)
+        if formatted:
+            captured_key = formatted
+            if copy_to_clipboard(captured_key):
+                copy_status = "✓ 已自动复制到剪贴板！"
+            else:
+                copy_status = "✗ 复制到剪贴板失败 (未找到 wl-copy)"
+
+def main():
+    try:
+        curses.wrapper(draw)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("按键捕获程序已退出。")
 
 if __name__ == "__main__":
-    app = KeyTestApp()
-    app.run()
+    main()

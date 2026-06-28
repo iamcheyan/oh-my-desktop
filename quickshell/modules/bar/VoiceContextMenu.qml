@@ -91,7 +91,7 @@ PopupWindow {
                 }
                 spacing: 0
 
-                // 语音设置
+                // 1. 语音识别
                 RippleButton {
                     buttonRadius: popupBackground.radius - popupBackground.padding
                     horizontalPadding: 12
@@ -100,7 +100,7 @@ PopupWindow {
                     Layout.fillWidth: true
 
                     releaseAction: () => {
-                        VoiceInput.openSettings();
+                        VoiceInput.toggle();
                         root.close();
                     }
 
@@ -116,33 +116,27 @@ PopupWindow {
 
                         CosmicIcon {
                             iconSize: 16
-                            name: "categories/preferences-system-symbolic"
+                            name: "status/microphone-sensitivity-high-symbolic"
                             color: Appearance.colors.colOnLayer0
                         }
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: Translation.tr("语音设置")
+                            text: Translation.tr("语音识别")
                         }
                     }
                 }
 
-                // 测试录音
+                // 2. 测试
                 RippleButton {
                     buttonRadius: popupBackground.radius - popupBackground.padding
                     horizontalPadding: 12
                     implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
                     implicitHeight: 36
                     Layout.fillWidth: true
-                    enabled: VoiceInput.state === "idle" || VoiceInput.state === "setup"
-                    opacity: enabled ? 1 : 0.4
 
                     releaseAction: () => {
-                        if (VoiceInput.state === "setup") {
-                            VoiceInput.setup();
-                        } else {
-                            VoiceInput.testRecording();
-                        }
+                        Quickshell.execDetached(["omarchy-launch-tui", "/home/tetsuya/development/OMD/scripts/voice-test-tui"]);
                         root.close();
                     }
 
@@ -159,29 +153,26 @@ PopupWindow {
                         CosmicIcon {
                             iconSize: 16
                             name: "actions/media-record-symbolic"
-                            color: enabled ? TuiStyle.info : TuiStyle.dim
+                            color: TuiStyle.info
                         }
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: VoiceInput.state === "setup" ? Translation.tr("安装并测试") : Translation.tr("测试录音 (3秒)")
-                            color: enabled ? Appearance.colors.colOnLayer0 : TuiStyle.dim
+                            text: Translation.tr("测试语音输入")
                         }
                     }
                 }
 
-                // 清除历史
+                // 3. 按键捕获
                 RippleButton {
                     buttonRadius: popupBackground.radius - popupBackground.padding
                     horizontalPadding: 12
                     implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
                     implicitHeight: 36
                     Layout.fillWidth: true
-                    enabled: VoiceInput.history.length > 0
-                    opacity: enabled ? 1 : 0.4
 
                     releaseAction: () => {
-                        VoiceInput.clearHistory();
+                        Quickshell.execDetached(["omarchy-launch-tui", "/home/tetsuya/development/OMD/scripts/key-test"]);
                         root.close();
                     }
 
@@ -197,14 +188,13 @@ PopupWindow {
 
                         CosmicIcon {
                             iconSize: 16
-                            name: "actions/edit-clear-symbolic"
-                            color: enabled ? TuiStyle.danger : TuiStyle.dim
+                            name: "devices/input-keyboard-symbolic"
+                            color: TuiStyle.warning
                         }
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: Translation.tr("清除历史") + (VoiceInput.history.length > 0 ? ` (${VoiceInput.history.length})` : "")
-                            color: enabled ? TuiStyle.danger : TuiStyle.dim
+                            text: Translation.tr("按键捕获")
                         }
                     }
                 }
@@ -218,7 +208,7 @@ PopupWindow {
                     Layout.bottomMargin: 4
                 }
 
-                // 重新检查状态
+                // 4. 状态测试
                 RippleButton {
                     buttonRadius: popupBackground.radius - popupBackground.padding
                     horizontalPadding: 12
@@ -227,9 +217,7 @@ PopupWindow {
                     Layout.fillWidth: true
 
                     releaseAction: () => {
-                        VoiceInput.checkState();
-                        VoiceInput.refreshModelInfo();
-                        VoiceInput.refreshDaemonStatus();
+                        Quickshell.execDetached(["omarchy-launch-tui", "/home/tetsuya/development/OMD/scripts/voice-diagnose"]);
                         root.close();
                     }
 
@@ -245,13 +233,13 @@ PopupWindow {
 
                         CosmicIcon {
                             iconSize: 16
-                            name: "actions/view-refresh-symbolic"
+                            name: "categories/preferences-system-symbolic"
                             color: TuiStyle.accent
                         }
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: Translation.tr("重新检查状态")
+                            text: Translation.tr("状态测试")
                             color: TuiStyle.accent
                         }
                     }

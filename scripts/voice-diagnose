@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""
+OMD Voice Input — Diagnostic Tool
+检查语音输入系统的运行状态，依赖，模型以及服务。
+"""
+
+import curses
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import threading
+import time
+
+# ── 路径 ──────────────────────────────────────────────────────────────────────
+CACHE_DIR = os.path.expanduser("~/.cache/omd-voice")
+MODEL_DIR = os.path.join(CACHE_DIR, "sense-voice-small-int8")
+VENV_DIR = os.path.join(CACHE_DIR, "venv")
+SOCKET_PATH = "/tmp/omd-voice.sock"
+
+# ── 状态 ──────────────────────────────────────────────────────────────────────
+class TestStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    OK      = "ok"
+    FAIL    = "fail"
+    WARN    = "warn"
+
+tests = [
+    {"id": "venv",      "name": "Python 虚拟环境",   "status": TestStatus.PENDING, "desc": "检查 venv 是否创建于 ~/.cache/omd-voice/venv", "err": ""},
+    {"id": "deps",      "name": "Python 依赖包",     "status": TestStatus.PENDING, "desc": "检查 sherpa-onnx 和 numpy 是否可用", "err": ""},
+    {"id": "model",     "name": "SenseVoice 模型",   "status": TestStatus.PENDING, "desc": "检查模型文件 model.int8.onnx 和 tokens.txt", "err": ""},
+    {"id": "daemon",    "name": "语音后台服务",      "status": TestStatus.PENDING, "desc": "检查 /tmp/omd-voice.sock 守护进程是否在线", "err": ""},
+    {"id": "record",    "name": "录音工具 (parecord)", "status": TestStatus.PENDING, "desc": "检查 system 是否存在 parecord (PulseAudio/PipeWire)", "err": ""},
+    {"id": "ffmpeg",    "name": "音频处理 (ffmpeg)",  "status": TestStatus.PENDING, "desc": "检查 ffmpeg 用于音频增益和重采样", "err": ""},
+    {"id": "paste",     "name": "自动粘贴 (ydotool)", "status": TestStatus.PENDING, "desc": "检查 ydotool 或 wl-copy 自动粘贴支持", "err": ""},
+]
+
+log_lines = []
+lock = threading.Lock()
+redraw_flag = threading.Event()
+diagnostic_done = False
+
+def add_log(msg):
+    ts = time.strftime("%H:%M:%S")
+    with lock:
+        log_lines.append(f"[{ts}] {msg}")
+        if len(log_lines) > 50:
+            log_lines.pop(0)
+    redraw_flag.set()
+
+# ── 诊断逻辑 ──────────────────────────────────────────────────────────────────
+def run_diagnostics():
+    global diagnostic_done
+    add_log("启动系统状态诊断…")
+
+    # 1. venv 检查
+    set_test_state("venv", TestStatus.RUNNING)
+    time.sleep(0.3)
+    venv_python = os.path.join(VENV_DIR, "bin", "python3")
+    if os.path.exists(venv_python):
+        set_test_state("venv", TestStatus.OK, "虚拟环境已就绪")
+        add_log("虚拟环境检测成功。")
+    else:
+        set_test_state("venv", TestStatus.FAIL, f"未找到虚拟环境: {VENV_DIR}\n请右键菜单运行'状态重新检查'或运行 omarchy-voice-setup 进行初始化。", "请运行 omarchy-voice-setup 初始化。")
+        add_log("错误: 虚拟环境未就绪。")
+
+    # 2. 依赖包检查
+    set_test_state("deps", TestStatus.RUNNING)
+    time.sleep(0.3)
+    if os.path.exists(venv_python):
+        try:
+            res = subprocess.run(
+                [venv_python, "-c", "import sherpa_onnx, numpy; print('ok')"],
+                capture_output=True, text=True, timeout=5
+            )
+            if "ok" in res.stdout:
+                set_test_state("deps", TestStatus.OK, "依赖包 (sherpa-onnx, numpy) 导入成功")
+                add_log("依赖包导入正常。")
+            else:
+                set_test_state("deps", TestStatus.FAIL, f"依赖导入失败: {res.stderr.strip()}", "请进入 venv 手动安装 pip install sherpa-onnx numpy")
+                add_log("错误: 依赖包异常。")
+        except Exception as e:
+            set_test_state("deps", TestStatus.FAIL, f"检查异常: {e}")
+            add_log(f"错误: 依赖检查发生异常: {e}")
+    else:
+        set_test_state("deps", TestStatus.FAIL, "跳过（虚拟环境不可用）")
+
+    # 3. 模型检查
+    set_test_state("model", TestStatus.RUNNING)
+    time.sleep(0.3)
+    model_path = os.path.join(MODEL_DIR, "model.int8.onnx")
+    tokens_path = os.path.join(MODEL_DIR, "tokens.txt")
+    if os.path.exists(model_path) and os.path.exists(tokens_path):
+        sz = os.path.getsize(model_path) / (1024*1024)
+        set_test_state("model", TestStatus.OK, f"模型存在 ({sz:.1f} MB)")
+        add_log("模型文件完整性检查通过。")
+    else:
+        set_test_state("model", TestStatus.FAIL, f"模型文件缺失。位置: {MODEL_DIR}\n请运行 omarchy-voice-download 下载模型文件。", "模型未找到。")
+        add_log("错误: 模型文件缺失。")
+
+    # 4. 守护进程检查
+    set_test_state("daemon", TestStatus.RUNNING)
+    time.sleep(0.3)
+    daemon_ok = False
+    if os.path.exists(SOCKET_PATH):
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.connect(SOCKET_PATH)
+            sock.close()
+            daemon_ok = True
+        except Exception:
+            pass
+
+    if daemon_ok:
+        set_test_state("daemon", TestStatus.OK, "语音后台引擎正在运行")
+        add_log("后台服务联通正常。")
+    else:
+        set_test_state("daemon", TestStatus.WARN, "后台服务未启动（在首次录音时会自动拉起守护进程）", "无需处理（自动按需拉起）")
+        add_log("提示: 守护进程未启动（非致命，首次录音会自动拉起）。")
+
+    # 5. 录音工具检查
+    set_test_state("record", TestStatus.RUNNING)
+    time.sleep(0.3)
+    if shutil.which("parecord"):
+        set_test_state("record", TestStatus.OK, "parecord 正常可用")
+        add_log("系统录音命令 parecord 检测成功。")
+    else:
+        set_test_state("record", TestStatus.FAIL, "系统未安装 parecord (通常由 PulseAudio 或 PipeWire-pulse 提供)\n请安装 pulseaudio 或 pipewire-pulse 软件包。", "未找到 parecord！")
+        add_log("错误: 未找到 parecord，无法录音。")
+
+    # 6. ffmpeg 检查
+    set_test_state("ffmpeg", TestStatus.RUNNING)
+    time.sleep(0.3)
+    if shutil.which("ffmpeg"):
+        set_test_state("ffmpeg", TestStatus.OK, "ffmpeg 正常可用")
+        add_log("音频增强工具 ffmpeg 检测成功。")
+    else:
+        set_test_state("ffmpeg", TestStatus.WARN, "未检测到 ffmpeg，录音将不经音量增益和重采样直接识别（识别准确度可能下降）", "建议安装 ffmpeg 软件包。")
+        add_log("警告: 未找到 ffmpeg。")
+
+    # 7. 自动粘贴检查
+    set_test_state("paste", TestStatus.RUNNING)
+    time.sleep(0.3)
+    has_ydotool = shutil.which("ydotool")
+    has_wlcopy = shutil.which("wl-copy")
+    if has_ydotool and has_wlcopy:
+        set_test_state("paste", TestStatus.OK, "ydotool 与 wl-copy 均就绪 (完美支持自动粘贴与剪贴板备份)")
+        add_log("粘贴工具 ydotool + wl-copy 检测成功。")
+    elif has_wlcopy:
+        set_test_state("paste", TestStatus.WARN, "只检测到 wl-copy (只支持复制到剪贴板，无法模拟 Ctrl+V 自动键入)\n建议配置/启动 ydotool 以支持直接粘贴到光标处。", "建议启动 ydotool 守护进程。")
+        add_log("提示: 仅支持剪贴板复制 (无 ydotool)。")
+    else:
+        set_test_state("paste", TestStatus.FAIL, "未检测到 wl-copy，无法将识别文本写入剪贴板。\n请安装 wl-clipboard 软件包。", "未找到 wl-copy。")
+        add_log("错误: 缺失剪贴板工具。")
+
+    add_log("状态诊断完成！")
+    with lock:
+        diagnostic_done = True
+    redraw_flag.set()
+
+def set_test_state(test_id, status, desc=None, err=None):
+    with lock:
+        for t in tests:
+            if t["id"] == test_id:
+                t["status"] = status
+                if desc is not None:
+                    t["desc"] = desc
+                if err is not None:
+                    t["err"] = err
+    redraw_flag.set()
+
+# ── 绘制 ──────────────────────────────────────────────────────────────────────
+def draw(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+
+    # 颜色
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE,   -1)   # 普通
+    curses.init_pair(2, curses.COLOR_RED,     -1)   # 失败
+    curses.init_pair(3, curses.COLOR_GREEN,   -1)   # 成功
+    curses.init_pair(4, curses.COLOR_YELLOW,  -1)   # 警告/进行中
+    curses.init_pair(5, curses.COLOR_CYAN,    -1)   # 标题
+    curses.init_pair(6, curses.COLOR_MAGENTA, -1)   # 其他
+
+    # 在后台启动检测线程
+    threading.Thread(target=run_diagnostics, daemon=True).start()
+
+    while True:
+        redraw_flag.wait(timeout=0.1)
+        redraw_flag.clear()
+
+        # 输入
+        key = stdscr.getch()
+        while key != -1:
+            if key in (ord('q'), ord('Q'), 27): # Q / ESC 退出
+                return
+            if key in (ord('r'), ord('R')): # R 重新检查
+                with lock:
+                    global diagnostic_done
+                    if diagnostic_done:
+                        diagnostic_done = False
+                        for t in tests:
+                            t["status"] = TestStatus.PENDING
+                            t["err"] = ""
+                        threading.Thread(target=run_diagnostics, daemon=True).start()
+            key = stdscr.getch()
+
+        h, w = stdscr.getmaxyx()
+        stdscr.erase()
+
+        with lock:
+            cur_tests = [dict(t) for t in tests]
+            cur_logs  = list(log_lines)
+            done      = diagnostic_done
+
+        # ── 标题 ──
+        title = " OMD Voice Input — 系统状态诊断 "
+        stdscr.attron(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(0, max(0, (w - len(title)) // 2), title[:w])
+        stdscr.attroff(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(1, 0, "─" * w)
+
+        # ── 检测列表 ──
+        start_row = 3
+        for i, t in enumerate(cur_tests):
+            row = start_row + i * 2
+            if row >= h - 10:
+                break
+
+            # 状态标志
+            if t["status"] == TestStatus.PENDING:
+                status_str = "[ 等待 ]"
+                color = curses.color_pair(1)
+            elif t["status"] == TestStatus.RUNNING:
+                status_str = "[ ⏳ ]"
+                color = curses.color_pair(4) | curses.A_BOLD
+            elif t["status"] == TestStatus.OK:
+                status_str = "[ 正常 ]"
+                color = curses.color_pair(3) | curses.A_BOLD
+            elif t["status"] == TestStatus.WARN:
+                status_str = "[ 警告 ]"
+                color = curses.color_pair(4) | curses.A_BOLD
+            else:
+                status_str = "[ 失败 ]"
+                color = curses.color_pair(2) | curses.A_BOLD
+
+            stdscr.attron(color)
+            stdscr.addstr(row, 2, status_str)
+            stdscr.attroff(color)
+
+            # 名称
+            stdscr.attron(curses.color_pair(1) | curses.A_BOLD)
+            stdscr.addstr(row, 12, t["name"][:20])
+            stdscr.attroff(curses.color_pair(1) | curses.A_BOLD)
+
+            # 描述
+            desc_color = curses.color_pair(1) if t["status"] != TestStatus.FAIL else curses.color_pair(2)
+            desc_text = t["desc"].replace("\n", " ")
+            stdscr.attron(desc_color)
+            stdscr.addstr(row + 1, 12, f"└─ {desc_text}"[:w - 15])
+            stdscr.attroff(desc_color)
+
+        # ── 操作提示 ──
+        hint_row = start_row + len(cur_tests) * 2 + 1
+        if hint_row < h - 1:
+            stdscr.addstr(hint_row, 0, "─" * w)
+            hint_row += 1
+            if done:
+                hint = "诊断完成！ 按 R 重新检查  │  按 Q 退出"
+                hint_color = curses.color_pair(3) | curses.A_BOLD
+            else:
+                hint = "诊断运行中，请稍候…"
+                hint_color = curses.color_pair(4) | curses.A_BOLD
+
+            stdscr.attron(hint_color)
+            stdscr.addstr(hint_row, max(0, (w - len(hint)) // 2), hint[:w])
+            stdscr.attroff(hint_color)
+
+        # ── 日志区 ──
+        log_start = hint_row + 2
+        if log_start < h - 1:
+            stdscr.addstr(log_start, 0, "─" * w)
+            log_start += 1
+            stdscr.attron(curses.color_pair(5))
+            stdscr.addstr(log_start, 1, "诊断日志:")
+            stdscr.attroff(curses.color_pair(5))
+            log_start += 1
+
+            avail_lines = h - log_start - 1
+            visible_logs = cur_logs[-avail_lines:] if avail_lines > 0 else []
+            for i, line in enumerate(visible_logs):
+                row = log_start + i
+                if row < h - 1:
+                    stdscr.attron(curses.color_pair(4))
+                    stdscr.addstr(row, 2, line[:w - 3])
+                    stdscr.attroff(curses.color_pair(4))
+
+        stdscr.refresh()
+
+def main():
+    try:
+        curses.wrapper(draw)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("诊断工具已退出。")
+
+if __name__ == "__main__":
+    main()
