@@ -157,10 +157,10 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         def add_row(grid, row, label_text):
             title_lbl = Gtk.Label(label=label_text)
             title_lbl.add_css_class("detail-title")
-            title_lbl.set_halign(Gtk.Align.RIGHT)
+            title_lbl.set_halign(Gtk.Align.END)
             val_lbl = Gtk.Label(label="—")
             val_lbl.add_css_class("detail-value")
-            val_lbl.set_halign(Gtk.Align.LEFT)
+            val_lbl.set_halign(Gtk.Align.START)
             grid.attach(title_lbl, 0, row, 1, 1)
             grid.attach(val_lbl, 1, row, 1, 1)
             return val_lbl
@@ -186,7 +186,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             "• 按 Q 或 ESC 键可快速退出本捕获工具。"
         )
         info_lbl = Gtk.Label(label=info_text)
-        info_lbl.set_halign(Gtk.Align.LEFT)
+        info_lbl.set_halign(Gtk.Align.START)
         info_lbl.set_justify(Gtk.Justification.LEFT)
         info_lbl.add_css_class("info-text")
         info_box.append(info_lbl)
@@ -280,7 +280,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
 class KeyTestApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id="org.omarchy.key-test", flags=Gio.ApplicationFlags.FLAGS_NONE)
+        super().__init__(application_id="org.omarchy.key-test", flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def do_activate(self):
         win = KeyTestWindow(self)
