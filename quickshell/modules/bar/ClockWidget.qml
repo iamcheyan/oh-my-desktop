@@ -9,16 +9,17 @@ Item {
     implicitWidth: clockText.implicitWidth + 16
     implicitHeight: Appearance.sizes.barHeight
 
-    readonly property var weekdays: ["日", "月", "火", "水", "木", "金", "土"]
+    readonly property var weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    readonly property var months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     function formatDateTime() {
         var d = new Date();
-        var month = d.getMonth() + 1;
+        var monthStr = root.months[d.getMonth()];
         var day = d.getDate();
         var wd = root.weekdays[d.getDay()];
         var h = d.getHours().toString().padStart(2, "0");
         var m = d.getMinutes().toString().padStart(2, "0");
-        return month + "月" + day + "日(" + wd + ") " + h + ":" + m;
+        return wd + " " + monthStr + " " + day + " " + h + ":" + m;
     }
 
     property string displayText: formatDateTime()
@@ -34,7 +35,7 @@ Item {
         id: clockText
         anchors.centerIn: parent
         font.family: Appearance.font.family.main
-        font.pixelSize: 11
+        font.pixelSize: Appearance.font.pixelSize.small
         font.weight: Font.Normal
         color: Appearance.colors.colBarText
         text: root.displayText
