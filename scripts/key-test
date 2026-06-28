@@ -30,7 +30,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         # 绑定系统事件
         self.connect("realize", self.on_realize)
         self.connect("notify::is-active", self.on_is_active_changed)
-        self.connect("close-request", self.on_close_request)
+        self.connect("destroy", self.on_destroy)
 
         # ── CSS 样式 ──
         css_provider = Gtk.CssProvider()
@@ -235,10 +235,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             # 窗口失去焦点：立刻重载配置恢复所有全局快捷键
             subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def on_close_request(self, window):
-        # 窗口关闭：确保恢复全局快捷键
+    def on_destroy(self, window):
+        # 窗口关闭/销毁：确保恢复全局快捷键
         subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return False
 
     # ── 键盘捕获处理 ──
     def on_key_pressed(self, ctrl, keyval, keycode, state):
