@@ -27,7 +27,7 @@ Rectangle {
         return match ? parseInt(match[2]) : 0;
     }
 
-    implicitHeight: 42
+    implicitHeight: 54
     color: selected ? TuiStyle.selection : mouseArea.containsMouse ? "#333333" : "transparent"
     border.width: 0
     radius: TuiStyle.radius
@@ -57,8 +57,11 @@ Rectangle {
             spacing: 2
 
             StyledText {
+                id: mainText
                 Layout.fillWidth: true
                 text: root.isImage ? `${root.imgW}x${root.imgH} image` : root.cleanText
+                wrapMode: Text.Wrap
+                maximumLineCount: root.isImage ? 1 : 2
                 elide: Text.ElideRight
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small

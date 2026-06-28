@@ -255,7 +255,7 @@ Rectangle {
                     anchors.fill: parent
                     anchors.margins: 4
                     clip: true
-                    spacing: 0
+                    spacing: 6
                     boundsBehavior: Flickable.StopAtBounds
                     boundsMovement: Flickable.StopAtBounds
                     highlightMoveDuration: 80
