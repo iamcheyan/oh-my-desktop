@@ -42,6 +42,55 @@ If a new component needs a color that does not exist in `TuiStyle.qml`, add a
 named token there first. Avoid duplicating literals such as `#181818`,
 `#303030`, `#8f8f8f`, or ad-hoc opacity values in feature modules.
 
+## Frosted Glass
+
+The frosted glass effect is implemented in two layers:
+
+```text
+QML alpha surface  TuiStyle glass tokens make shell/dialog backgrounds translucent
+Hyprland blur      omarchy/hypr/looknfeel.lua enables blur for quickshell layers
+```
+
+The QML side is controlled from `TuiStyle.qml`:
+
+```text
+bg
+panel / panelAlt
+shellGradientTop / shellGradientMid / shellGradientBottom
+shellBorder
+surfaceSubtle / surfaceRaised / surfaceHover / surfacePressed
+control / controlHover / controlMuted
+meterTrack
+```
+
+`TuiShell` and `WindowDialog` consume the shell gradient and border tokens.
+Bar popups and detailed dialogs should use those shared wrappers instead of
+declaring their own glass backgrounds.
+
+The compositor side is configured in `omarchy/hypr/looknfeel.lua`:
+
+```lua
+hl.layer_rule({ match = { namespace = "quickshell:.*" }, blur = true, ignore_alpha = 0.1 })
+```
+
+`ignore_alpha` prevents Hyprland from blurring fully transparent or near
+transparent pixels. This keeps rounded corners transparent instead of filling
+the corner rectangle with blurred content. Increase the threshold if corner
+pixels still pick up blur; lower it if the panel edge loses too much blur.
+
+Do not add `ignore_zero`, `ignorezero`, or similar guessed fields; they are not
+valid in the current runtime and will make `hyprctl reload` report
+configuration errors.
+
+To tune the glass effect:
+
+```text
+More transparent   lower the alpha in TuiStyle shell/surface/control tokens
+More solid         raise the alpha in those same tokens
+Softer blur        tune decoration.blur in share/default/hypr/looknfeel.lua or an override
+Sharper edges      adjust shellBorder, borderWidth, shellRadius
+```
+
 ## Current Migration State
 
 The main active UI surfaces have been migrated to `TuiStyle`:

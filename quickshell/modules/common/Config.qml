@@ -217,6 +217,7 @@ Singleton {
                     "util:idle",
                     "util:nightlight",
                     "util:mic",
+                    "util:voice",
                     "util:colorpicker",
                     "util:screenshot",
                     "util:clipboard",

@@ -29,7 +29,8 @@ QtObject {
         "util:mic": { component: Qt.createComponent("modules/MicButton.qml"), description: qsTr("Microphone mute toggle") },
         "util:nightlight": { component: Qt.createComponent("modules/NightLightButton.qml"), description: qsTr("Night Light toggle") },
         "util:idle": { component: Qt.createComponent("modules/IdleButton.qml"), description: qsTr("Idle inhibitor toggle") },
-        "util:audio": { component: Qt.createComponent("modules/AudioButton.qml"), description: qsTr("Audio output dialog") }
+        "util:audio": { component: Qt.createComponent("modules/AudioButton.qml"), description: qsTr("Audio output dialog") },
+        "util:voice": { component: Qt.createComponent("modules/VoiceButton.qml"), description: qsTr("Voice input") }
     })
 
     function componentForName(name) {

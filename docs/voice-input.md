@@ -7,8 +7,8 @@ OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspire
 **Key design goals:**
 - Zero-install for the user: first use triggers automatic dependency + model download
 - Fast after warmup: long-lived Python daemon keeps model loaded in memory
-- Clear feedback at every step: button animation, desktop notifications, popup panel
-- Unified TUI style: follows the same GNOME Shell-inspired design system as the rest of OMD
+- Clean, focused feedback: three-state color system on the bar icon with transparent background
+- Unified TUI style & layout: terminal companion tools utilize OMD's TUI design system and open as floating window dialogs
 
 ---
 
@@ -23,7 +23,7 @@ OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspire
 | Model | ARM: SenseVoice ONNX INT8; x86: Whisper GGUF | single model: SenseVoice Small ONNX INT8 (works on both) |
 | Inference | direct Python call each time | long-lived Unix socket daemon |
 | Auto-paste | `wl-copy` + `ydotool` | same, but with clipboard fallback |
-| Feedback | terminal stdout | button animations + desktop notifications + history panel |
+| Feedback | terminal stdout | button colors + hover tooltip + history panel |
 | Integration | standalone binary | integrated into OMD bar module system |
 
 We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
@@ -48,8 +48,7 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
 │  State machine: init → setup → idle → recording →            │
 │                 transcribing → success/error                 │
 │  - Property bindings: state, history[], modelSizeMB, etc.    │
-│  - Desktop notifications via `notify-send`                   │
-│  - History management (max 20 entries)                       │
+│  - ESC key cancellation binding & listener via IPC           │
 └──────────────────────┬──────────────────────────────────────┘
                        │ Process { command: [...] }
                        ▼
@@ -93,12 +92,12 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
                     │   missing)   │        │
                     └──────┬───────┘        │
           click/setup()    │                │
+                           │                │
                            ▼                │
             ┌────────────────────────┐      │
-            │  notify "⬇️ 准备中…"     │      │
-            │  → setupProc (venv)      │      │
-            │  → downloadProc (model)  │      │
-            │  → auto startRecording() │      │
+            │  → setupProc (venv)    │      │
+            │  → downloadProc (model)│      │
+            │  → auto startRecording()│     │
             └───────────┬────────────┘      │
                         │                    │
                         ▼                    │
@@ -109,14 +108,14 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
          toggle()      │
                        ▼
               ┌─────────────────┐
-              │   recording     │ ◄──── 红色脉冲外圈动画
-              │  (parecord)     │       按钮红色半透明背景
+              │   recording     │ ◄──── 黄色脉冲环 (ESC 取消)
+              │  (parecord)     │
               └────────┬────────┘
          toggle()      │
                        ▼
               ┌─────────────────┐
-              │  transcribing   │ ◄──── 图标旋转动画
-              │  (socket →     │       蓝色半透明背景
+              │  transcribing   │ ◄──── 黄色脉冲环
+              │  (socket →      │
               │   daemon)       │
               └────────┬────────┘
                        │
@@ -125,21 +124,67 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
          ▼                           ▼
   ┌────────────┐            ┌─────────────┐
   │   success  │            │    error    │
-  │ 绿色闪烁   │            │ 红色背景    │
-  │ 1.5s后→idle│            │ 点击→check  │
+  │ 图标复位   │            │ 红色闪烁两次│
+  │            │            │ 2.0s后→idle │
   └────────────┘            └─────────────┘
 ```
 
-**State → Visual mapping:**
+### Visual & Interactive Feedback
 
-| State | Button | Background | Animation | Notification |
-|-------|--------|------------|-----------|--------------|
-| `setup` | 灰色离线图标 | 蓝色半透明 | 旋转 | "⬇️ 正在准备语音输入…" |
-| `idle` | 正常麦克风 | 透明 | 无 | 无 |
-| `recording` | 静音麦克风 | 红色半透明 | 外扩脉冲环 | "🎤 开始录音，再次点击停止" |
-| `transcribing` | 传输图标 | 蓝色半透明 | 旋转 | "⏳ 正在转写…" |
-| `success` | 勾选图标 | 绿色半透明 | 闪烁 | "✅ 已粘贴：[文本]" |
-| `error` | 警告图标 | 红色半透明 | 无 | "❌ 语音输入失败：[原因]" |
+The status bar button (`VoiceButton.qml`) uses a simplified three-state indicator with a completely transparent background to reduce UI clutter:
+
+- **Idle (闲置)**: The microphone icon is rendered in the default text color (White).
+- **Active (录音与转写)**: The microphone icon and an outer pulsing ring are colored **Yellow** (`#F5C542`).
+- **Error (失败)**: The microphone icon turns **Bright Red** (`#FF3B30`) and **flashes twice** before automatically resetting back to **Idle** after 2 seconds.
+- **Hover (悬浮)**: Moving the cursor over the icon shows a tooltip with active shortcut bindings: `语音输入 (ALT + A / Globe)`.
+
+---
+
+## Active Key Bindings
+
+| Key | Mode | Description |
+|-----|------|-------------|
+| `ALT + A` | Global | Toggles recording (press to start, press again to transcribe). |
+| `Globe` (MacBook Fn) | Global | Hardware key (keycode `472`) mapped to toggle recording. |
+| `ESC` | Recording-only | Cancels active recording, stops `parecord`, and returns state to `idle` silently. |
+
+### Recording-only ESC Key Hook
+
+To minimize global hotkey conflicts, `escape` is dynamically bound **only during the recording phase**:
+1. When `state` becomes `"recording"`, QML runs `hyprctl eval` to bind `escape` to dispatch `voice cancel`.
+2. When `state` leaves `"recording"` (success, error, or cancel), QML runs `hyprctl eval` to execute `hl.unbind("escape")`.
+3. This ensures the ESC key functions normally in all other applications when not actively recording.
+
+---
+
+## Key Capture Tool (`scripts/key-test`)
+
+Because Wayland input protocols isolate keystrokes, capturing raw hardware events (like the MacBook Fn/Globe key or Super key modifier combos) is impossible within a standard terminal shell.
+
+To resolve this, `scripts/key-test` is written as a native **GTK4 / Libadwaita** application that runs in its own Wayland client window, allowing it to capture raw events from the compositor while styled with custom CSS to look like a premium terminal utility.
+
+**Key features:**
+- **Wayland Shortcut Inhibition**: Calls `surface.inhibit_system_shortcuts(None)` on realize so the compositor passes system events to the window.
+- **Dynamic Hotkey Suspension**: When focused (`is-active = True`), it temporarily runs `hl.unbind` for conflicting OMD hotkeys (`ALT + A`, `code:472`, `ALT + S`, `CTRL + SHIFT + V`, `SUPER + SPACE`, `SUPER + V`) to prevent them from intercepting test keys.
+- **Automatic Restore via `atexit`**: When the window loses focus or the process exits (via window close, pressing Q/ESC, or being killed), a Python exit-hook runs `hyprctl reload` to restore all keybinds instantly.
+- **Clipboard Output**: Formats the captured keys (e.g. `ALT + A` or `code:472`) and runs `wl-copy` to copy them to the clipboard automatically.
+
+---
+
+## Diagnostic Tool (`scripts/voice-diagnose`)
+
+A curses-based terminal application designed to troubleshoot the voice input environment. It runs in a floating window matching OMD's TUI design system.
+
+It runs automated tests for the following components:
+1. **Python Virtual Environment**: Checks that `~/.cache/omd-voice/venv` is present.
+2. **Required Libraries**: Assures `sherpa-onnx` and `numpy` import properly.
+3. **Model Files**: Verifies `model.int8.onnx` and `tokens.txt` integrity.
+4. **Unix Socket Daemon**: Connects to `/tmp/omd-voice.sock` to check engine responsiveness.
+5. **Recording Utilities**: Confirms presence of `parecord`.
+6. **Audio Helper**: Confirms `ffmpeg` is available for audio resampling.
+7. **Clipboard & Paste Support**: Assures `wl-copy` and `ydotool` are configured.
+
+Failed checks display actionable troubleshooting steps at the bottom of the interface.
 
 ---
 
@@ -152,165 +197,23 @@ share/bin/
 ├── omarchy-voice-record         # parecord lifecycle + graceful WAV finalization
 └── omarchy-voice-transcribe     # Python daemon with Unix socket
 
+scripts/
+├── voice-test-tui               # Curses-based TUI recording test
+├── key-test                     # GTK4 Advanced key capture tool (Wayland raw keycodes)
+└── voice-diagnose               # Curses-based voice environment diagnostic tool
+
 quickshell/services/
-└── VoiceInput.qml               # Singleton service: state machine, IPC, history
+└── VoiceInput.qml               # Singleton service: state machine, IPC, ESC hook
 
 quickshell/modules/bar/
-├── VoiceContextMenu.qml         # Right-click popup menu
-├── modules/VoiceButton.qml      # Bar button with animations
+├── VoiceContextMenu.qml         # Right-click popup menu (Start, Test, Capture, Diagnostic)
+├── modules/VoiceButton.qml      # Bar button with simplified state colors + Tooltip
 ├── RightModuleRegistry.qml      # registers "util:voice"
 └── BarStatusPopup.qml           # adds voiceContent settings panel
 
-quickshell/modules/common/
-└── Config.qml                   # default rightModules includes "util:voice"
-
-quickshell/config.json           # user override also includes "util:voice"
-omarchy/hypr/bindings.lua        # ALT + A hotkey
+omarchy/hypr/
+└── looknfeel.lua                # Hyprland window rules for floating TUI tools (1000x700)
 ```
-
----
-
-## Scripts
-
-### `share/bin/omarchy-voice-setup`
-
-```bash
-#!/bin/bash
-set -eu
-MODEL_DIR="${OMD_VOICE_MODEL:-$HOME/.cache/omd-voice/sense-voice-small-int8}"
-VENV_DIR="$HOME/.cache/omd-voice/venv"
-
-# 1. Create venv
-python3 -m venv "$VENV_DIR"
-
-# 2. Install deps
-"$VENV_DIR/bin/pip" install --upgrade pip
-"$VENV_DIR/bin/pip" install sherpa-onnx numpy
-
-echo "venv-ready"
-```
-
-### `share/bin/omarchy-voice-download`
-
-Downloads from HuggingFace:
-- `model.int8.onnx` (~500MB)
-- `tokens.txt` (~1KB)
-
-### `share/bin/omarchy-voice-record`
-
-Controls the temporary WAV recording used by `VoiceInput.qml`.
-
-- `start` stops stale recorders for `/tmp/omd-voice-rec.wav`, removes the old
-  WAV, starts `parecord`, and writes `/tmp/omd-voice-rec.pid`.
-- `stop` sends SIGINT to `parecord`, waits up to roughly two seconds for a
-  graceful exit, then leaves a finalized WAV for transcription.
-
-The SIGINT-and-wait behavior intentionally follows kazamo. `parecord` must exit
-cleanly so it can flush the WAV header; killing it too early can leave a file
-that looks like WAV to `file(1)` but fails in Python with
-`fmt chunk and/or data chunk missing`.
-
-### `share/bin/omarchy-voice-transcribe`
-
-Python script with two modes:
-
-**Client mode** (default, with `wav_path` argument):
-```python
-if not is_daemon_running():
-    start_daemon()  # fork + wait for socket
-result = client_transcribe(wav_path)
-print(json.dumps(result))
-```
-
-**Daemon mode** (forked child):
-```python
-# 1. Load sherpa_onnx.OfflineRecognizer.from_sense_voice()
-# 2. Bind Unix socket /tmp/omd-voice.sock
-# 3. while True:
-#      conn = server.accept()
-#      wav_path = conn.recv(...).decode()
-#      text = transcribe_file(recognizer, wav_path)
-#      conn.send(json.dumps({"text": text}))
-```
-
-The daemon stays warm in memory (~450MB RSS on Asahi M1 Pro) so subsequent calls are sub-second.
-
----
-
-## QML Modules
-
-### `VoiceInput.qml` (Singleton Service)
-
-**Key properties:**
-- `state`: string — current state (init/setup/idle/recording/transcribing/success/error)
-- `recordingDuration`: real — seconds since recording started (updates every 100ms)
-- `history`: list<var> — `{ text: "...", time: "HH:MM" }` entries, max 20
-- `modelSizeMB`: int — du -sm of model dir
-- `daemonRunning`: bool — socket LISTEN check
-- `lastTranscription`: string — most recent result
-- `lastError`: string — most recent error
-
-**Key methods:**
-- `toggle()` — main entry point (handles all states)
-- `setup()` — trigger venv + model download
-- `startRecording()` / `stopRecording()` — parecord control
-- `testRecording()` — 3-second auto-stop test
-- `checkState()` — refresh model/venv status
-- `refreshModelInfo()` / `refreshDaemonStatus()` — update display props
-- `openSettings()` — open BarStatusPopup voice panel
-- `clearHistory()` — empty history list
-
-**Desktop notifications:**
-Every state transition triggers `notify-send` with appropriate icon and timeout (3s). First-time setup shows progress messages.
-
-### `VoiceButton.qml` (Bar Module)
-
-**Layout:** `Item > RippleButton + MouseArea(right-click) + Loader(context menu) + Rectangle(pulse) + CosmicIcon + Rectangle(success flash)`
-
-**Left click:** `VoiceInput.toggle()` — starts/stops recording
-**Right click:** opens `VoiceContextMenu.qml`
-
-**Dynamic styling:**
-- Background color changes per state (transparent → blue → red → green)
-- Pulse ring animates during `recording` (scale 1→1.6, opacity 0.7→0)
-- Icon rotates during `transcribing` / `setup`
-- Success green flash fades over 200ms
-
-### `VoiceContextMenu.qml` (Right-click Menu)
-
-`PopupWindow` with 4 actions:
-1. **语音设置** — opens `VoiceInput.openSettings()` (BarStatusPopup voice panel)
-2. **安装并测试 / 测试录音(3秒)** — `VoiceInput.setup()` or `VoiceInput.testRecording()`
-3. **清除历史 (N)** — `VoiceInput.clearHistory()`
-4. **重新检查状态** — `checkState()` + `refreshModelInfo()` + `refreshDaemonStatus()`
-
-Uses `StyledRectangularShadow` + `RippleButton` with CosmicIcon, following the same pattern as `BluetoothContextMenu.qml`.
-
-### `BarStatusPopup` voiceContent
-
-Added to the existing popup switch statement alongside wifi/bluetooth/audio/etc.
-
-**Sections:**
-1. **Header** — "VOICE INPUT" + current state label
-2. **MODEL STATUS panel** — MODEL size, VENV ready, DAEMON running
-3. **HISTORY panel** — scrollable list of recent transcriptions, click to copy
-4. **ActionRow** — Test/Install, Check, Clear buttons
-
-All styled with `TuiStyle` (bg, panel, line, accent, etc.) matching Control Center.
-
----
-
-## History System
-
-Every successful transcription is appended to `VoiceInput.history` as:
-```javascript
-{ text: "识别出的文本", time: "14:32" }
-```
-
-- Max 20 entries (oldest discarded)
-- Displayed in settings panel with timestamp
-- Click any entry to copy to clipboard
-- Clear via right-click menu or settings panel
 
 ---
 
@@ -320,11 +223,23 @@ Every successful transcription is appended to `VoiceInput.history` as:
 IpcHandler {
     target: "voice"
     function toggle(): void { root.toggle() }
+    function cancel(): void { root.cancel() }
 }
 ```
 
-Called from:
-- `bindings.lua`: `ALT + A` → `qs -p ... ipc call voice toggle`
+The IPC is triggered by global keybinds or the dynamic `escape` hook to control recording states asynchronously.
+
+---
+
+## Related Files
+
+- [bindings.lua](file:///home/tetsuya/development/OMD/omarchy/hypr/bindings.lua) — key bindings definitions
+- [looknfeel.lua](file:///home/tetsuya/development/OMD/omarchy/hypr/looknfeel.lua) — window floating rules
+- [VoiceInput.qml](file:///home/tetsuya/development/OMD/quickshell/services/VoiceInput.qml) — voice service state machine
+- [VoiceButton.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/modules/VoiceButton.qml) — bar status button
+- [key-test](file:///home/tetsuya/development/OMD/scripts/key-test) — GTK4 key capture
+- [voice-diagnose](file:///home/tetsuya/development/OMD/scripts/voice-diagnose) — TUI diagnostic tool
+gs.lua`: `ALT + A` → `qs -p ... ipc call voice toggle`
 - `VoiceButton.qml`: left click
 - `VoiceContextMenu.qml`: test action
 

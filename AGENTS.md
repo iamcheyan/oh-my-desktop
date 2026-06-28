@@ -254,6 +254,13 @@ symlink targets.
 - Bar status popups are unified through `quickshell/modules/bar/BarStatusPopup.qml`.
   Do not add new per-module `XxxInfoPopup.qml` files; add a content component or
   section to `BarStatusPopup.qml` instead.
+- Voice input module at `quickshell/modules/bar/modules/VoiceButton.qml`. Uses
+  `VoiceInput` singleton service for state machine: nomodel → venv → downloading
+  → idle → recording → transcribing → paste (wl-copy + ydotool Ctrl+V). Python
+  inference via sherpa-onnx over Unix socket. Hotkey: ALT+A. Use
+  `qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle` to trigger.
+  Setup scripts: `share/bin/omarchy-voice-{setup,download,transcribe}`.
+  Full docs: `docs/voice-input.md`.
 
 ### Omarchy / Hyprland
 

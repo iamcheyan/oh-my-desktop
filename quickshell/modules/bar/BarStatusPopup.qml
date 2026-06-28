@@ -89,9 +89,9 @@ Scope {
         }
 
         margins {
-            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 6
-            bottom: barOnBottom ? Appearance.sizes.barHeight + 6 : 0
-            right: 6
+            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 4
+            bottom: barOnBottom ? Appearance.sizes.barHeight + 4 : 0
+            right: 4
         }
 
         implicitWidth: panel.implicitWidth
@@ -157,6 +157,7 @@ Scope {
                         if (root.activeType === "clipboard") return clipboardContent;
                         if (root.activeType === "resources") return resourcesContent;
                         if (root.activeType === "schedule") return scheduleContent;
+                        if (root.activeType === "voice") return voiceContent;
                         return emptyContent;
                     }
                 }
@@ -728,6 +729,195 @@ Scope {
         BottomWidgetGroup {
             width: parent?.width ?? implicitWidth
             popupMode: true
+        }
+    }
+
+    Component {
+        id: voiceContent
+        PopupColumn {
+            id: voicePanel
+
+            function stateLabel() {
+                if (VoiceInput.state === "setup") return "未安装";
+                if (VoiceInput.state === "idle") return "就绪";
+                if (VoiceInput.state === "recording") return "录音中";
+                if (VoiceInput.state === "transcribing") return "转写中";
+                if (VoiceInput.state === "success") return "完成";
+                if (VoiceInput.state === "error") return "错误";
+                return VoiceInput.state;
+            }
+            function tone() {
+                if (VoiceInput.state === "idle" || VoiceInput.state === "success") return TuiStyle.success;
+                if (VoiceInput.state === "recording") return TuiStyle.danger;
+                if (VoiceInput.state === "error") return TuiStyle.danger;
+                if (VoiceInput.state === "transcribing" || VoiceInput.state === "setup") return TuiStyle.warning;
+                return TuiStyle.muted;
+            }
+
+            Header { title: "VOICE INPUT"; status: voicePanel.stateLabel().toUpperCase(); tone: voicePanel.tone() }
+
+            // ── 模型状态 ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: modelCol.implicitHeight + 16
+                color: TuiStyle.panel
+                border.width: 0
+                radius: TuiStyle.radius
+                clip: true
+
+                ColumnLayout {
+                    id: modelCol
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 6
+
+                    StyledText {
+                        text: "MODEL STATUS"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+
+                    TuiDetailRow {
+                        keyText: "MODEL"
+                        valueText: VoiceInput.modelSizeMB > 0 ? `${VoiceInput.modelSizeMB} MB` : "missing"
+                        valueColor: VoiceInput.modelSizeMB > 0 ? TuiStyle.success : TuiStyle.danger
+                    }
+
+                    TuiDetailRow {
+                        keyText: "VENV"
+                        valueText: VoiceInput.state === "setup" ? "missing" : "ready"
+                        valueColor: VoiceInput.state === "setup" ? TuiStyle.danger : TuiStyle.success
+                    }
+
+                    TuiDetailRow {
+                        keyText: "DAEMON"
+                        valueText: VoiceInput.daemonRunning ? "running" : "stopped"
+                        valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.warning
+                    }
+                }
+            }
+
+            // ── 识别历史 ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(historyList.implicitHeight + 16, 220)
+                color: TuiStyle.panel
+                border.width: 0
+                radius: TuiStyle.radius
+                clip: true
+                visible: VoiceInput.history.length > 0
+
+                ColumnLayout {
+                    id: historyList
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 6
+
+                    StyledText {
+                        text: `HISTORY (${VoiceInput.history.length})`
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+
+                    ColumnLayout {
+                        spacing: 0
+
+                        Repeater {
+                            model: VoiceInput.history
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 28
+                                color: histMouse.containsMouse ? TuiStyle.panelAlt : "transparent"
+                                clip: true
+
+                                MouseArea {
+                                    id: histMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        Quickshell.execDetached(["bash", "-c",
+                                            `printf '%s' '${StringUtils.shellSingleQuoteEscape(modelData.text)}' | wl-copy`])
+                                        root.close();
+                                    }
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 6
+                                    anchors.rightMargin: 6
+                                    spacing: 8
+
+                                    StyledText {
+                                        text: modelData.time
+                                        font.family: Appearance.font.family.monospace
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        color: TuiStyle.dim
+                                        Layout.preferredWidth: 36
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: modelData.text
+                                        elide: Text.ElideRight
+                                        font.family: Appearance.font.family.main
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        color: histMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                                    }
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    height: TuiStyle.borderWidth
+                                    color: TuiStyle.line
+                                    opacity: 0.5
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 操作按钮 ──
+            ActionRow {
+                TuiActionButton {
+                    label: VoiceInput.state === "setup" ? "安装" : "测试"
+                    accent: TuiStyle.info
+                    onClicked: {
+                        if (VoiceInput.state === "setup") {
+                            VoiceInput.setup();
+                        } else if (VoiceInput.state === "idle") {
+                            VoiceInput.testRecording();
+                        }
+                        root.close();
+                    }
+                }
+
+                TuiActionButton {
+                    label: "检查"
+                    accent: TuiStyle.accent
+                    onClicked: {
+                        VoiceInput.checkState();
+                        VoiceInput.refreshModelInfo();
+                        VoiceInput.refreshDaemonStatus();
+                    }
+                }
+
+                TuiActionButton {
+                    label: "清除"
+                    accent: TuiStyle.danger
+                    visible: VoiceInput.history.length > 0
+                    onClicked: VoiceInput.clearHistory()
+                }
+            }
         }
     }
 }

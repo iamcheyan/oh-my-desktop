@@ -112,7 +112,8 @@
         "bottom": false,
         "centerIconSize": 14,
         "centerModuleSpacing": 8,
-        "centerModules": [],
+        "centerModules": [
+        ],
         "cornerStyle": 0,
         "floatStyleShadow": true,
         "indicators": {
@@ -138,6 +139,7 @@
         "rightModules": [
             "util:bluetooth",
             "util:audio",
+            "util:voice",
             "systray",
             "util:wifi",
             "util:clipboard",
