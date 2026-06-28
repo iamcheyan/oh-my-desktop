@@ -48,4 +48,9 @@ Item {
         cursorShape: Qt.PointingHandCursor
         onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "schedule" ? "" : "schedule"
     }
+
+    ClockHoverPopup {
+        id: clockHoverPopup
+        hoverTarget: mouseArea
+    }
 }
