@@ -41,7 +41,7 @@ Rectangle {
             clipboardDialog.forceActiveFocus();
     }
 
-    function loadCurrentPreview() {
+    function loadCurrentPreviewActual() {
         if (currentEntry && !currentIsImage) {
             textDecoder.running = false;
             textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(currentEntry)}' | ${Cliphist.cliphistBinary} decode`];
@@ -49,6 +49,16 @@ Rectangle {
         } else {
             textDecoder.running = false;
             textDecoder.decodedText = "";
+        }
+    }
+
+    function loadCurrentPreview() {
+        if (!currentEntry || currentIsImage) {
+            previewDebounceTimer.stop();
+            textDecoder.running = false;
+            textDecoder.decodedText = "";
+        } else {
+            previewDebounceTimer.restart();
         }
     }
 
@@ -66,7 +76,7 @@ Rectangle {
 
     onCurrentEntryChanged: loadCurrentPreview()
 
-    Component.onCompleted: loadCurrentPreview()
+    Component.onCompleted: loadCurrentPreviewActual()
 
     onVisibleChanged: {
         if (visible) {
@@ -76,7 +86,7 @@ Rectangle {
             mode = "normal";
             clipboardDialog.forceActiveFocus();
             Cliphist.refresh();
-            loadCurrentPreview();
+            loadCurrentPreviewActual();
         }
     }
 
@@ -86,6 +96,13 @@ Rectangle {
         stdout: StdioCollector {
             onStreamFinished: textDecoder.decodedText = text
         }
+    }
+
+    Timer {
+        id: previewDebounceTimer
+        interval: 100 // 100ms debounce to prevent process spawn storm
+        repeat: false
+        onTriggered: loadCurrentPreviewActual()
     }
 
     Connections {
@@ -208,6 +225,10 @@ Rectangle {
                     font.pixelSize: Appearance.font.pixelSize.small
                     focus: true
                     background: null
+                    onActiveFocusChanged: {
+                        if (activeFocus)
+                            clipboardDialog.enterInsertMode();
+                    }
                     onTextChanged: {
                         clipboardDialog.searchText = text;
                         clipboardDialog.keyboardIndex = 0;
