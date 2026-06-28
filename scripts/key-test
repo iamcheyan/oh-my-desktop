@@ -11,6 +11,13 @@ gi.require_version("Adw", "1")
 from gi.repository import Gtk, Gdk, Gio, Adw
 import subprocess
 import sys
+import atexit
+
+# ── 自动还原热键 ──
+def restore_hotkeys():
+    subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+atexit.register(restore_hotkeys)
 
 # ── 复制到剪贴板 ──
 def copy_to_clipboard(text):
