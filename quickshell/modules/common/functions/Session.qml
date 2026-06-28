@@ -25,7 +25,6 @@ Singleton {
     }
 
     function logout() {
-        closeAllWindows();
         Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
     }
 

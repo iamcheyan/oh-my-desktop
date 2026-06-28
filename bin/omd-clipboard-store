@@ -1,7 +1,18 @@
 #!/bin/sh
 set -eu
 
-exec wl-paste --watch sh -c '
+# wl-paste --watch only fires for the default MIME type (text/plain).
+# Images use image/png etc, so we need a separate watcher for each type.
+# Run text watcher in foreground, image watcher in background.
+
+wl-paste --watch sh -c '
+    cliphist store
+    qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+' &
+
+wl-paste -t image/png --watch sh -c '
     cliphist store
     qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
 '
+
+wait

@@ -33,7 +33,7 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
-if pgrep -af "(quickshell|qs).* -p ${config_dir}($| )" >/dev/null 2>&1; then
+if pgrep -af "(quickshell|qs).* -p ${config_dir}$" >/dev/null 2>&1; then
     exit 0
 fi
 

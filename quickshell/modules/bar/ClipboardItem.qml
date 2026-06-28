@@ -51,16 +51,6 @@ Rectangle {
         anchors.rightMargin: 10
         spacing: 10
 
-        StyledText {
-            Layout.preferredWidth: 34
-            text: String(root.itemIndex + 1).padStart(3, "0")
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: root.selected ? TuiStyle.fg : TuiStyle.dim
-            horizontalAlignment: Text.AlignRight
-        }
-
         Rectangle {
             Layout.preferredWidth: 50
             Layout.preferredHeight: 22

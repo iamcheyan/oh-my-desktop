@@ -4,11 +4,14 @@ set -eu
 omd_root="${OMD_ROOT:-$HOME/.config/omd}"
 
 stop_quickshell() {
-    for app in omd-bar omd-overview omd-switcher omd-applauncher omd-corners omd-clipboard omd-clipboard-store; do
-        systemctl --user stop "$app.service" >/dev/null 2>&1 || true
-        pkill -f "quickshell.* -p $omd_root/apps/$app($| )" || true
-    done
-    pkill -f "wl-paste --watch cliphist store" || true
+    # Kill ALL quickshell processes: split apps + monolith + stray
+    pkill -f "(quickshell|qs) -p " 2>/dev/null || true
+    # Kill clipboard watcher
+    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
+    # Wait for processes to die
+    sleep 0.3
+    # Hard kill any survivors
+    pkill -9 -f "(quickshell|qs) -p " 2>/dev/null || true
 }
 
 stop_waybar() {
@@ -26,8 +29,9 @@ start_quickshell() {
 
 stop_quickshell
 stop_waybar
+sleep 0.2
 start_quickshell
 omarchy-restart-walker
 
 sleep 1
-pgrep -af 'quickshell|qs -p' || true
+pgrep -af '(quickshell|qs|wl-paste)' || true

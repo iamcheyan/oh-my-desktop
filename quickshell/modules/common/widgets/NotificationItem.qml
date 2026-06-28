@@ -38,8 +38,8 @@ Item {
         id: rowBackground
         width: parent.width
         radius: 0
-        color: root.expanded ? Appearance.tiling.bgActive
-            : root.hovered ? Appearance.tiling.bgHover
+        color: root.expanded ? TuiStyle.panelAlt
+            : root.hovered ? TuiStyle.panel
             : "transparent"
         implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
 
@@ -50,7 +50,7 @@ Item {
                 bottom: parent.bottom
             }
             width: root.critical ? 2 : 0
-            color: Appearance.tiling.error
+            color: TuiStyle.danger
         }
 
         ColumnLayout {
@@ -75,7 +75,7 @@ Item {
                     maximumLineCount: 1
                     font.pixelSize: root.fontSize
                     font.family: Appearance.font.family.monospace
-                    color: root.critical ? Appearance.tiling.error : Appearance.tiling.textBright
+                    color: root.critical ? TuiStyle.danger : TuiStyle.fg
                     textFormat: Text.PlainText
                 }
 
@@ -84,7 +84,7 @@ Item {
                     text: `[${root.notificationObject?.actions?.length ?? 0}]`
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     font.family: Appearance.font.family.monospace
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
             }
 
@@ -100,7 +100,7 @@ Item {
                 elide: Text.ElideRight
                 font.pixelSize: root.fontSize
                 font.family: Appearance.font.family.monospace
-                color: Appearance.tiling.text
+                color: TuiStyle.dim
                 textFormat: root.expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {
                     Qt.openUrlExternally(link);
@@ -164,7 +164,7 @@ Item {
                 bottom: parent.bottom
             }
             height: 1
-            color: Appearance.tiling.border
+            color: TuiStyle.line
             opacity: root.expanded ? 0 : 0.55
         }
     }

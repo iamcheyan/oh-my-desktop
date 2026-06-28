@@ -19,9 +19,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 0
-        color: root.hovered ? Appearance.tiling.bgHover : Appearance.tiling.bg
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.expanded ? Appearance.tiling.borderFocus : Appearance.tiling.border
+        color: root.hovered ? TuiStyle.panel : TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: root.expanded ? TuiStyle.accent : TuiStyle.line
     }
 
     RowLayout {
@@ -34,14 +34,14 @@ Item {
             text: root.count
             font.pixelSize: root.fontSize
             font.family: Appearance.font.family.monospace
-            color: Appearance.tiling.text
+            color: TuiStyle.dim
         }
 
         StyledText {
             text: root.expanded ? "-" : "+"
             font.pixelSize: root.fontSize
             font.family: Appearance.font.family.monospace
-            color: Appearance.tiling.textBright
+            color: TuiStyle.fg
         }
     }
 

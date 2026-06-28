@@ -26,12 +26,13 @@ Rectangle {
 
     property int keyboardIndex: 0
     property string searchText: ""
+    property string mode: "insert" // "insert" or "normal"
     readonly property var filteredEntries: searchText.length > 0 ? Cliphist.fuzzyQuery(searchText) : Cliphist.entries
     readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length) ? filteredEntries[keyboardIndex] : ""
     readonly property bool currentIsImage: currentEntry !== "" && Cliphist.entryIsImage(currentEntry)
 
     onActiveFocusChanged: {
-        if (!activeFocus && visible && show)
+        if (!activeFocus && visible && show && mode === "normal")
             clipboardDialog.forceActiveFocus();
     }
 
@@ -67,7 +68,8 @@ Rectangle {
             keyboardIndex = 0;
             searchText = "";
             searchField.text = "";
-            searchField.forceActiveFocus();
+            mode = "normal";
+            clipboardDialog.forceActiveFocus();
             Cliphist.refresh();
             loadCurrentPreview();
         }
@@ -89,29 +91,37 @@ Rectangle {
         }
     }
 
+    function enterInsertMode() {
+        mode = "insert";
+        searchField.forceActiveFocus();
+    }
+
+    function enterNormalMode() {
+        mode = "normal";
+        clipboardDialog.forceActiveFocus();
+    }
+
     Keys.onPressed: event => {
-        if (searchField.activeFocus) {
+        // In insert mode, search field has focus — only handle Escape
+        if (mode === "insert") {
             if (event.key === Qt.Key_Escape) {
                 if (searchText.length > 0) {
                     searchText = "";
                     searchField.text = "";
                 } else {
-                    clipboardDialog.dismiss();
+                    enterNormalMode();
                 }
-                event.accepted = true;
-            } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                searchField.focus = false;
-                clipboardDialog.forceActiveFocus();
                 event.accepted = true;
             }
             return;
         }
 
-        if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
+        // Normal mode — vim-style keybindings
+        if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
             event.accepted = true;
             if (filteredEntries.length > 0)
                 keyboardIndex = Math.min(keyboardIndex + 1, filteredEntries.length - 1);
-        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
+        } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
             event.accepted = true;
             keyboardIndex = Math.max(keyboardIndex - 1, 0);
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -120,9 +130,17 @@ Rectangle {
         } else if (event.key === Qt.Key_D && event.modifiers === Qt.NoModifier) {
             event.accepted = true;
             deleteSelected();
-        } else if (event.key === Qt.Key_Slash || event.key === Qt.Key_F) {
+        } else if (event.key === Qt.Key_F || event.key === Qt.Key_Slash) {
             event.accepted = true;
-            searchField.forceActiveFocus();
+            enterInsertMode();
+        } else if (event.key === Qt.Key_G && event.modifiers === Qt.NoModifier) {
+            event.accepted = true;
+            if (filteredEntries.length > 0)
+                keyboardIndex = 0;
+        } else if (event.key === Qt.Key_G && event.modifiers === Qt.ShiftModifier) {
+            event.accepted = true;
+            if (filteredEntries.length > 0)
+                keyboardIndex = filteredEntries.length - 1;
         } else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) {
             event.accepted = true;
             clipboardDialog.dismiss();
@@ -146,12 +164,30 @@ Rectangle {
                 anchors.rightMargin: 10
                 spacing: 8
 
+                // Mode indicator
+                Rectangle {
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 18
+                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.bg
+                    border.width: TuiStyle.borderWidth
+                    border.color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.line
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: clipboardDialog.mode === "insert" ? "INS" : "NRM"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: clipboardDialog.mode === "insert" ? TuiStyle.bg : TuiStyle.fg
+                    }
+                }
+
                 StyledText {
                     text: "/"
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.Bold
-                    color: TuiStyle.accent
+                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.dim
                 }
 
                 TextField {
@@ -168,6 +204,17 @@ Rectangle {
                     onTextChanged: {
                         clipboardDialog.searchText = text;
                         clipboardDialog.keyboardIndex = 0;
+                    }
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Escape) {
+                            event.accepted = true;
+                            if (clipboardDialog.searchText.length > 0) {
+                                clipboardDialog.searchText = "";
+                                text = "";
+                            } else {
+                                clipboardDialog.enterNormalMode();
+                            }
+                        }
                     }
                 }
 
@@ -239,6 +286,51 @@ Rectangle {
                         function onKeyboardIndexChanged() {
                             if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
                                 clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
+                        }
+                    }
+                }
+
+                // TUI scrollbar — floats above ListView
+                Item {
+                    z: 2
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 6
+                    visible: clipboardList.contentHeight > clipboardList.height
+
+                    Rectangle {
+                        id: scrollbarThumb
+                        anchors.right: parent.right
+                        width: 4
+                        radius: 0
+                        color: TuiStyle.dim
+                        y: {
+                            var trackH = clipboardList.height - 2
+                            var ratio = clipboardList.contentY / clipboardList.contentHeight
+                            return Math.max(0, Math.min(trackH - height, ratio * trackH)) + 1
+                        }
+                        height: {
+                            var trackH = clipboardList.height - 2
+                            var h = clipboardList.height * clipboardList.height / clipboardList.contentHeight
+                            return Math.max(24, Math.min(trackH, h))
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -2
+                            cursorShape: Qt.PointingHandCursor
+                            preventStealing: true
+                            property real startY: 0
+                            property real startContentY: 0
+                            onPressed: {
+                                startY = mouseY
+                                startContentY = clipboardList.contentY
+                            }
+                            onPositionChanged: {
+                                var delta = (mouseY - startY) * clipboardList.contentHeight / clipboardList.height
+                                clipboardList.contentY = Math.max(0, Math.min(clipboardList.contentHeight - clipboardList.height, startContentY + delta))
+                            }
                         }
                     }
                 }
@@ -333,7 +425,7 @@ Rectangle {
                 }
                 FooterText { text: "ENTER PASTE" }
                 FooterText { text: "D DELETE" }
-                FooterText { text: "/ SEARCH" }
+                FooterText { text: clipboardDialog.mode === "insert" ? "ESC NORMAL" : "F SEARCH" }
                 FooterText { text: "Q CLOSE" }
                 Item { Layout.fillWidth: true }
                 FooterText { text: Cliphist.cliphistBinary.toUpperCase() }

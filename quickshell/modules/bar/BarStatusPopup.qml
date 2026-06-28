@@ -326,11 +326,52 @@ Scope {
     Component {
         id: batteryContent
         PopupColumn {
+            id: batteryPanel
             function stateLabel() {
                 if (!Battery.available) return "unavailable";
                 if (Battery.isCharging) return "charging";
                 if (Battery.isPluggedIn) return "plugged";
                 return "battery";
+            }
+            property string confirmAction: ""
+            property string confirmLabel: ""
+            property bool hibernateAvailable: false
+
+            Component.onCompleted: {
+                hibernateCheck.running = true
+            }
+
+            Process {
+                id: hibernateCheck
+                command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        batteryPanel.hibernateAvailable = text.trim() === "YES"
+                    }
+                }
+            }
+
+            function executeAction(action) {
+                if (action === "lock") { Session.lock(); root.close(); return; }
+                if (action === "sleep") { Session.suspend(); root.close(); return; }
+                if (action === "hibernate") { Session.hibernate(); root.close(); return; }
+                if (action === "logout") { Session.logout(); root.close(); return; }
+                if (action === "reboot") { Session.reboot(); root.close(); return; }
+                if (action === "poweroff") { Session.poweroff(); root.close(); return; }
+            }
+
+            function requestAction(action, label) {
+                if (action === "lock" || action === "sleep" || action === "hibernate" || action === "logout") {
+                    executeAction(action)
+                    return
+                }
+                confirmAction = action
+                confirmLabel = label
+            }
+
+            function cancelConfirm() {
+                confirmAction = ""
+                confirmLabel = ""
             }
 
             Header { title: "BATTERY"; status: stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
@@ -339,12 +380,219 @@ Scope {
             TuiDetailRow { keyText: "RATE"; valueText: Battery.available ? `${Battery.energyRate.toFixed(1)}W` : "--"; valueColor: TuiStyle.info }
             TuiDetailRow { keyText: "HEALTH"; valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"; valueColor: Battery.health > 0 && Battery.health < 80 ? TuiStyle.warning : TuiStyle.success }
             TuiDetailRow { keyText: "PROFILE"; valueText: PowerProfiles.available ? PowerProfiles.currentProfile : "unavailable"; valueColor: TuiStyle.muted }
-            ActionRow {
-                TuiActionButton {
-                    label: "POWER"
-                    onClicked: {
-                        root.close();
-                        GlobalStates.controlCenterOpen = true;
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: TuiStyle.borderWidth
+                color: TuiStyle.line
+            }
+
+            // Session controls
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 28
+                color: "transparent"
+                visible: confirmAction === ""
+
+                StyledText {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "SESSION"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Bold
+                    color: TuiStyle.dim
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 72
+                color: TuiStyle.panel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                clip: true
+                visible: confirmAction === ""
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    PowerButton {
+                        icon: "lock"
+                        label: "LOCK"
+                        tone: TuiStyle.accent
+                        onClicked: batteryPanel.requestAction("lock", "Lock")
+                    }
+                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
+                    PowerButton {
+                        icon: "dark_mode"
+                        label: "SLEEP"
+                        tone: TuiStyle.info
+                        onClicked: batteryPanel.requestAction("sleep", "Sleep")
+                    }
+                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
+                    PowerButton {
+                        icon: "downloading"
+                        label: "HIBERNATE"
+                        tone: TuiStyle.purple
+                        visible: batteryPanel.hibernateAvailable
+                        onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
+                    }
+                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line; visible: batteryPanel.hibernateAvailable }
+                    PowerButton {
+                        icon: "logout"
+                        label: "LOGOUT"
+                        tone: TuiStyle.warning
+                        onClicked: batteryPanel.requestAction("logout", "Logout")
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+            }
+
+            // Power controls
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 28
+                color: "transparent"
+                visible: confirmAction === ""
+
+                StyledText {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "POWER"
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.Bold
+                    color: TuiStyle.dim
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 72
+                color: TuiStyle.panel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                clip: true
+                visible: confirmAction === ""
+
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    PowerButton {
+                        icon: "restart_alt"
+                        label: "REBOOT"
+                        tone: TuiStyle.info
+                        onClicked: batteryPanel.requestAction("reboot", "Reboot")
+                    }
+                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
+                    PowerButton {
+                        icon: "power_settings_new"
+                        label: "SHUTDOWN"
+                        tone: TuiStyle.danger
+                        onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
+                    }
+                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
+                    PowerButton {
+                        icon: "refresh"
+                        label: "RELOAD"
+                        tone: TuiStyle.accent
+                        onClicked: {
+                            Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                            root.close();
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+            }
+
+            // Confirm dialog
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: confirmCol.implicitHeight + 16
+                color: TuiStyle.dangerPanel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.danger
+                clip: true
+                visible: confirmAction !== ""
+
+                ColumnLayout {
+                    id: confirmCol
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 6
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: `CONFIRM ${batteryPanel.confirmLabel.toUpperCase()}?`
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Bold
+                        color: TuiStyle.danger
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Item { Layout.fillWidth: true }
+                        TuiActionButton {
+                            label: "CANCEL"
+                            accent: TuiStyle.dim
+                            onClicked: batteryPanel.cancelConfirm()
+                        }
+                        TuiActionButton {
+                            label: "CONFIRM"
+                            accent: TuiStyle.danger
+                            onClicked: batteryPanel.executeAction(batteryPanel.confirmAction)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component PowerButton: Item {
+        id: pb
+        property string icon: ""
+        property string label: ""
+        property color tone: TuiStyle.accent
+        signal clicked()
+        Layout.fillHeight: true
+        Layout.preferredWidth: 80
+
+        Rectangle {
+            anchors.fill: parent
+            color: pbMouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
+            clip: true
+
+            MouseArea {
+                id: pbMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: pb.clicked()
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 4
+
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignHCenter
+                        iconSize: 22
+                        text: pb.icon
+                        color: pbMouseArea.containsMouse ? TuiStyle.fg : pb.tone
+                    }
+
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: pb.label
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
                     }
                 }
             }
@@ -354,11 +602,89 @@ Scope {
     Component {
         id: clipboardContent
         PopupColumn {
+            id: clipPanel
             readonly property bool ready: Cliphist.entries.length > 0 || Cliphist.cliphistBinary.length > 0
+            readonly property var recentEntries: Cliphist.entries.slice(0, 10)
             Header { title: "CLIPBOARD"; status: ready ? "READY" : "UNAVAILABLE"; tone: ready ? TuiStyle.success : TuiStyle.danger }
-            TuiDetailRow { keyText: "SERVICE"; valueText: Cliphist.cliphistBinary; valueColor: TuiStyle.muted }
             TuiDetailRow { keyText: "ENTRIES"; valueText: `${Cliphist.entries.length}`; valueColor: TuiStyle.info }
-            TuiDetailRow { keyText: "DELAY"; valueText: `${Math.round(Cliphist.pasteDelay * 1000)}ms`; valueColor: TuiStyle.muted }
+
+            // Recent entries — click to paste
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: recentList.implicitHeight + 8
+                color: TuiStyle.panel
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
+                clip: true
+                visible: clipPanel.recentEntries.length > 0
+
+                ColumnLayout {
+                    id: recentList
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    spacing: 0
+
+                    Repeater {
+                        model: clipPanel.recentEntries
+                        delegate: Rectangle {
+                            required property string modelData
+                            required property int index
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 28
+                            color: mouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
+                            clip: true
+
+                            readonly property bool isImage: Cliphist.entryIsImage(modelData)
+                            readonly property int imgW: {
+                                var m = modelData.match(/(\d+)x(\d+)/);
+                                return m ? parseInt(m[1]) : 0;
+                            }
+                            readonly property int imgH: {
+                                var m = modelData.match(/(\d+)x(\d+)/);
+                                return m ? parseInt(m[2]) : 0;
+                            }
+                            readonly property string preview: isImage ? `[IMG] ${imgW}x${imgH}` : StringUtils.cleanCliphistEntry(modelData)
+
+                            MouseArea {
+                                id: mouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    Cliphist.paste(modelData);
+                                    root.close();
+                                }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                spacing: 6
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: parent.parent.preview
+                                    elide: Text.ElideRight
+                                    font.family: Appearance.font.family.monospace
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: mouseArea.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: TuiStyle.borderWidth
+                                color: TuiStyle.line
+                                opacity: 0.5
+                            }
+                        }
+                    }
+                }
+            }
+
             ActionRow {
                 TuiActionButton {
                     label: "HISTORY"

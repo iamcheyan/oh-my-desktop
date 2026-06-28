@@ -14,6 +14,7 @@ Singleton {
     property real pasteDelay: 0.05
     property string pressPasteCommand: "YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0"
     property real scoreThreshold: 0.2
+    property int maxEntries: 100
     property list<string> entries: []
     readonly property var preparedEntries: entries.map(a => ({
         name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
@@ -165,7 +166,19 @@ Singleton {
 
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
-                root.entries = readProc.buffer
+                var seen = new Set()
+                var deduped = []
+                var buf = readProc.buffer
+                for (var i = 0; i < buf.length; i++) {
+                    var line = buf[i]
+                    var text = line.replace(/^\s*\S+\s+/, "")
+                    if (text.length === 0) continue
+                    if (seen.has(text)) continue
+                    seen.add(text)
+                    deduped.push(line)
+                    if (deduped.length >= root.maxEntries) break
+                }
+                root.entries = deduped
                 root.precacheImages()
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)

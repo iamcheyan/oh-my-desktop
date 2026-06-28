@@ -106,9 +106,9 @@ MouseArea {
         width: parent.width
         radius: 0
         clip: true
-        color: Appearance.tiling.bg
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.isCritical ? Appearance.tiling.borderCritical : Appearance.tiling.border
+        color: TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: root.isCritical ? TuiStyle.danger : TuiStyle.line
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
         Behavior on anchors.leftMargin {
@@ -127,7 +127,7 @@ MouseArea {
                 bottom: parent.bottom
             }
             width: root.isCritical ? 2 : 0
-            color: Appearance.tiling.error
+            color: TuiStyle.danger
         }
 
         ColumnLayout {
@@ -137,10 +137,10 @@ MouseArea {
             Rectangle {
                 id: titlebar
                 Layout.fillWidth: true
-                implicitHeight: Appearance.tiling.titlebarHeight
+                implicitHeight: 26
                 radius: 0
-                color: root.isCritical ? ColorUtils.mix(Appearance.tiling.error, Appearance.tiling.bgTitlebar, 0.78)
-                    : Appearance.tiling.bgTitlebar
+                color: root.isCritical ? ColorUtils.mix(TuiStyle.danger, TuiStyle.panel, 0.78)
+                    : TuiStyle.panel
 
                 RowLayout {
                     anchors {
@@ -157,7 +157,7 @@ MouseArea {
                         maximumLineCount: 1
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.family: Appearance.font.family.monospace
-                        color: Appearance.tiling.textBright
+                        color: TuiStyle.fg
                     }
 
                     StyledText {
@@ -165,14 +165,14 @@ MouseArea {
                         text: "critical"
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         font.family: Appearance.font.family.monospace
-                        color: Appearance.tiling.error
+                        color: TuiStyle.danger
                     }
 
                     StyledText {
                         text: NotificationUtils.getFriendlyNotifTimeString(notificationGroup?.time)
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         font.family: Appearance.font.family.monospace
-                        color: Appearance.tiling.textDim
+                        color: TuiStyle.dim
                     }
 
                     NotificationGroupExpandButton {
@@ -190,7 +190,7 @@ MouseArea {
                         bottom: parent.bottom
                     }
                     height: 1
-                    color: Appearance.tiling.border
+                    color: TuiStyle.line
                 }
             }
 

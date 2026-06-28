@@ -27,9 +27,9 @@ Item {
         implicitWidth: emptyText.implicitWidth + 18
         implicitHeight: 28
         radius: 0
-        color: Appearance.tiling.bg
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
+        color: TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.line
 
         StyledText {
             id: emptyText
@@ -37,7 +37,7 @@ Item {
             text: "no notifications"
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.tiling.textDim
+            color: TuiStyle.dim
         }
     }
 
@@ -70,16 +70,16 @@ Item {
                 Layout.fillWidth: true
                 implicitHeight: 28
                 radius: 0
-                color: Appearance.tiling.bg
-                border.width: Appearance.tiling.borderWidth
-                border.color: Appearance.tiling.border
+                color: TuiStyle.bg
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.line
 
                 StyledText {
                     anchors.centerIn: parent
                     text: Translation.tr("%1 notifications").arg(Notifications.list.length)
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
             }
 

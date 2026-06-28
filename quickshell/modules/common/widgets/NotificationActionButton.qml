@@ -18,13 +18,13 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 0
-        color: button.pressed ? (button.critical ? Appearance.tiling.borderCritical : Appearance.tiling.bgActive)
-            : button.hovered ? Appearance.tiling.bgHover
+        color: button.pressed ? (button.critical ? TuiStyle.dangerPanel : TuiStyle.panelAlt)
+            : button.hovered ? TuiStyle.panel
             : "transparent"
-        border.width: Appearance.tiling.borderWidth
-        border.color: button.critical ? Appearance.tiling.borderCritical
-            : button.hovered ? Appearance.tiling.borderFocus
-            : Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: button.critical ? TuiStyle.danger
+            : button.hovered ? TuiStyle.accent
+            : TuiStyle.line
     }
 
     StyledText {
@@ -34,9 +34,9 @@ Item {
         font.family: Appearance.font.family.monospace
         font.pixelSize: Appearance.font.pixelSize.small
         text: button.buttonText
-        color: button.critical ? Appearance.tiling.error
-            : button.pressed ? Appearance.tiling.textBright
-            : Appearance.tiling.text
+        color: button.critical ? TuiStyle.danger
+            : button.pressed ? TuiStyle.fg
+            : TuiStyle.dim
     }
 
     MouseArea {

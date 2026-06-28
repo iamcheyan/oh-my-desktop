@@ -12,6 +12,9 @@ debugged independently.
 - Keep shared styling, helpers, services, assets, and translations in one place.
 - Keep Omarchy and Quickshell under one project root: `~/development/OMD`.
 
+Cleanup audit for old monolithic Quickshell code:
+`docs/quickshell-cleanup-audit.md`.
+
 ## Current Runtime
 
 Current active paths:
