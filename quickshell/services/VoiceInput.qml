@@ -44,6 +44,12 @@ Singleton {
     }
 
     onStateChanged: {
+        if (state === "recording") {
+            Quickshell.execDetached(["hyprctl", "eval", "o.bind(\"escape\", \"Cancel voice recording\", \"qs -p $HOME/.config/omd/apps/omd-bar ipc call voice cancel\")"])
+        } else {
+            Quickshell.execDetached(["hyprctl", "eval", "hl.unbind(\"escape\")"])
+        }
+
         if (state === "success") {
             successResetTimer.restart()
         } else if (state === "error") {
@@ -238,6 +244,12 @@ Singleton {
         stopRecProc.running = true
     }
 
+    function cancel() {
+        if (state !== "recording") return
+        state = "idle"
+        stopRecProc.running = true
+    }
+
     function isMeaningfulText(text) {
         var cleaned = text.replace(/<\|[^|]+\|>/g, "").trim()
         if (cleaned.length === 0) return false
@@ -359,6 +371,9 @@ Singleton {
         target: "voice"
         function toggle(): void {
             root.toggle()
+        }
+        function cancel(): void {
+            root.cancel()
         }
     }
 }
