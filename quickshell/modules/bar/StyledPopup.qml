@@ -12,6 +12,7 @@ LazyLoader {
     property Item hoverTarget
     default property Item contentItem
     property real popupBackgroundMargin: 0
+    property bool alignRight: false
 
     active: hoverTarget && hoverTarget.containsMouse
 
@@ -35,10 +36,12 @@ LazyLoader {
         exclusiveZone: 0
         margins {
             left: {
-                if (!Config.options.bar.vertical) return root.QsWindow?.mapFromItem(
-                    root.hoverTarget, 
-                    (root.hoverTarget.width - popupBackground.implicitWidth) / 2, 0
-                ).x;
+                if (!Config.options.bar.vertical) {
+                    var xOffset = root.alignRight
+                        ? (root.hoverTarget.width - popupBackground.implicitWidth)
+                        : (root.hoverTarget.width - popupBackground.implicitWidth) / 2;
+                    return root.QsWindow?.mapFromItem(root.hoverTarget, xOffset, 0).x;
+                }
                 return Appearance.sizes.verticalBarWidth
             }
             top: {

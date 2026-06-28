@@ -7,6 +7,7 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
+    alignRight: true
 
     ColumnLayout {
         id: columnLayout
