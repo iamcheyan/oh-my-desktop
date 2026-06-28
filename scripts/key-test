@@ -264,7 +264,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             mods.append("SUPER")
         if state & Gdk.ModifierType.CONTROL_MASK:
             mods.append("CTRL")
-        if state & Gdk.ModifierType.ALT_MASK or state & Gdk.ModifierType.MOD1_MASK:
+        if state & Gdk.ModifierType.ALT_MASK:
             mods.append("ALT")
         if state & Gdk.ModifierType.SHIFT_MASK:
             # 只有在有其他修饰键，或者是特殊非字母键时，才添加 SHIFT 标识，避免普通大写字母被写成 SHIFT + A
