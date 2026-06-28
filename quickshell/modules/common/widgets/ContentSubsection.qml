@@ -28,7 +28,7 @@ ColumnLayout {
             text: "info"
             iconSize: Appearance.font.pixelSize.large
             
-            color: Appearance.tiling.textDim
+            color: TuiStyle.dim
             MouseArea {
                 id: infoMouseArea
                 anchors.fill: parent

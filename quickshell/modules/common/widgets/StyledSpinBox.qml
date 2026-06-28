@@ -14,10 +14,10 @@ SpinBox {
     opacity: root.enabled ? 1 : 0.4
 
     background: Rectangle {
-        color: Appearance.tiling.bgInput
+        color: "#181818"
         radius: root.radius
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.activeFocus ? Appearance.tiling.borderFocus : Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: root.activeFocus ? TuiStyle.accent : TuiStyle.line
     }
 
     contentItem: Item {
@@ -28,7 +28,7 @@ SpinBox {
             id: labelText
             anchors.centerIn: parent
             text: root.value // displayText would make the numbers weird like 1,000 instead of 1000
-            color: Appearance.tiling.textBright
+            color: TuiStyle.fg
             font.family: Appearance.font.family.numbers
             font.variableAxes: Appearance.font.variableAxes.numbers
             font.pixelSize: Appearance.font.pixelSize.small
@@ -51,17 +51,17 @@ SpinBox {
         topRightRadius: root.innerButtonRadius
         bottomRightRadius: root.innerButtonRadius
 
-        color: root.down.pressed ? Appearance.tiling.bgActive :
-            root.down.hovered ? Appearance.tiling.bgHover :
+        color: root.down.pressed ? "#222222" :
+            root.down.hovered ? "#333333" :
             "transparent"
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.line
 
         MaterialSymbol {
             anchors.centerIn: parent
             text: "remove"
             iconSize: 20
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
 
@@ -77,17 +77,17 @@ SpinBox {
         topLeftRadius: root.innerButtonRadius
         bottomLeftRadius: root.innerButtonRadius
 
-        color: root.up.pressed ? Appearance.tiling.bgActive :
-            root.up.hovered ? Appearance.tiling.bgHover :
+        color: root.up.pressed ? "#222222" :
+            root.up.hovered ? "#333333" :
             "transparent"
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.line
 
         MaterialSymbol {
             anchors.centerIn: parent
             text: "add"
             iconSize: 20
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
 }

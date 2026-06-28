@@ -7,7 +7,7 @@ Loader {
     id: root
     required property string icon
     property real iconSize: Appearance.font.pixelSize.larger
-    property color color: Appearance.tiling.textDim
+    property color color: TuiStyle.dim
     Layout.alignment: Qt.AlignVCenter
 
     active: root.icon && root.icon.length > 0

@@ -15,7 +15,7 @@ RippleButton {
             text: buttonWithIconRoot.mainText
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
     implicitHeight: 35
@@ -23,11 +23,11 @@ RippleButton {
     buttonRadius: 0
     buttonRadiusPressed: 0
     rippleEnabled: false
-    colBackground: Appearance.tiling.bg
-    colBackgroundHover: Appearance.tiling.bgHover
-    colRipple: Appearance.tiling.bgActive
-    borderWidth: Appearance.tiling.borderWidth
-    borderColor: Appearance.tiling.border
+    colBackground: TuiStyle.bg
+    colBackgroundHover: "#333333"
+    colRipple: "#222222"
+    borderWidth: TuiStyle.borderWidth
+    borderColor: TuiStyle.line
 
     contentItem: RowLayout {
         Item {
@@ -40,7 +40,7 @@ RippleButton {
                 sourceComponent: MaterialSymbol {
                     text: buttonWithIconRoot.materialIcon
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.tiling.text
+                    color: TuiStyle.fg
                     fill: buttonWithIconRoot.materialIconFill ? 1 : 0
                 }
             }
@@ -52,7 +52,7 @@ RippleButton {
                     text: buttonWithIconRoot.nerdIcon
                     font.pixelSize: Appearance.font.pixelSize.larger
                     font.family: Appearance.font.family.iconNerd
-                    color: Appearance.tiling.text
+                    color: TuiStyle.fg
                 }
             }
         }

@@ -208,10 +208,9 @@ Item {
         width: Math.min(430, Math.max(300, root.width - 64))
         height: 40
         anchors.horizontalCenter: parent.horizontalCenter
-        radius: 20
-        color: "#151821"
-        border.width: 1
-        border.color: input.activeFocus ? "#aab8dd" : "#3d4452"
+        radius: TuiStyle.radius
+        color: "#181818"
+        border.width: 0
         visible: root.searchMode
         opacity: root.searchMode ? 1 : 0
 
@@ -228,7 +227,7 @@ Item {
             MaterialSymbol {
                 text: "search"
                 iconSize: 18
-                color: input.activeFocus ? "#c8d6ff" : "#aeb6c4"
+                color: input.activeFocus ? TuiStyle.fg : TuiStyle.dim
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -239,7 +238,7 @@ Item {
                 StyledText {
                     anchors.fill: parent
                     text: Translation.tr("Type to search")
-                    color: "#8f98a8"
+                    color: TuiStyle.dim
                     opacity: input.text.length === 0 ? 0.9 : 0
                     font.pixelSize: 13
                 }
@@ -250,9 +249,9 @@ Item {
                     focus: root.searchMode
                     background: null
                     padding: 0
-                    color: Appearance.colors.colOnLayer2
-                    selectedTextColor: Appearance.colors.colOnPrimary
-                    selectionColor: Appearance.colors.colSecondary
+                    color: TuiStyle.fg
+                    selectedTextColor: TuiStyle.bg
+                    selectionColor: TuiStyle.accent
                     font.family: Appearance.font.family.main
                     font.pixelSize: 13
                     verticalAlignment: TextInput.AlignVCenter
@@ -291,7 +290,7 @@ Item {
             MaterialSymbol {
                 text: "close"
                 iconSize: 16
-                color: "#b9c1ce"
+                color: TuiStyle.dim
                 opacity: input.text.length > 0 ? 1 : 0
                 Layout.alignment: Qt.AlignVCenter
 
@@ -314,22 +313,12 @@ Item {
         implicitHeight: resultsLayout.implicitHeight + 24
         visible: root.searchMode && root.hasQuery
         opacity: visible ? 1 : 0
-        radius: 14
-        color: "#171a22"
-        border.width: 1
-        border.color: "#3f4655"
+        radius: TuiStyle.radius
+        color: "#181818"
+        border.width: 0
 
         Behavior on opacity {
             NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: parent.radius - 1
-            color: "transparent"
-            border.width: 1
-            border.color: "#242936"
         }
 
         ColumnLayout {
@@ -389,7 +378,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
                 text: Translation.tr("No matches")
-                color: "#9ea7b6"
+                color: TuiStyle.dim
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 13
@@ -412,7 +401,7 @@ Item {
             anchors.bottom: parent.bottom
             height: 18
             text: `${label}  ${count}`
-            color: "#c6d2f3"
+            color: TuiStyle.dim
             font.pixelSize: 12
             font.weight: Font.DemiBold
         }
@@ -429,10 +418,9 @@ Item {
         signal activated()
 
         implicitHeight: 50
-        radius: 9
-        color: selected ? "#6177a8" : "#202531"
-        border.width: 1
-        border.color: selected ? "#a9b9e3" : "#2d3442"
+        radius: TuiStyle.radius
+        color: selected ? TuiStyle.selection : "#222222"
+        border.width: 0
 
         RowLayout {
             anchors.fill: parent
@@ -443,8 +431,8 @@ Item {
             Rectangle {
                 Layout.preferredWidth: 32
                 Layout.preferredHeight: 32
-                radius: 7
-                color: selected ? "#ffffff26" : "#2b3241"
+                radius: TuiStyle.radius
+                color: selected ? "#ffffff26" : "#2b2b2b"
 
                 Image {
                     anchors.centerIn: parent
@@ -460,7 +448,7 @@ Item {
                     anchors.centerIn: parent
                     text: "apps"
                     iconSize: 21
-                    color: "#dfe5f2"
+                    color: TuiStyle.dim
                     visible: row.iconSource.length === 0
                 }
             }
@@ -472,7 +460,7 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     text: row.title
-                    color: "#f4f7ff"
+                    color: TuiStyle.fg
                     font.pixelSize: 14
                     elide: Text.ElideRight
                     maximumLineCount: 1
@@ -481,7 +469,7 @@ Item {
                 StyledText {
                     Layout.fillWidth: true
                     text: row.subtitle
-                    color: selected ? "#e7ecff" : "#a9b2c1"
+                    color: selected ? TuiStyle.fg : TuiStyle.dim
                     font.pixelSize: 12
                     elide: Text.ElideRight
                     maximumLineCount: 1
@@ -492,7 +480,7 @@ Item {
             StyledText {
                 Layout.maximumWidth: 230
                 text: row.meta
-                color: selected ? "#f0f4ff" : "#a8b1c0"
+                color: selected ? TuiStyle.fg : TuiStyle.dim
                 font.pixelSize: 12
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight

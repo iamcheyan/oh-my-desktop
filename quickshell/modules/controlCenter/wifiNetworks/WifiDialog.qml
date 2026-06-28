@@ -167,21 +167,19 @@ WindowDialog {
     Rectangle {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        color: root.tuiBg
-        border.width: 2
-        border.color: root.tuiLine
+        color: "transparent"
+        border.width: 0
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 12
+            anchors.margins: 0
+            spacing: 14
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 58
-                color: root.tuiPanel
-                border.width: 2
-                border.color: root.tuiAccent
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
@@ -197,7 +195,7 @@ WindowDialog {
                             text: "OMD NETCTL"
                             color: root.tuiAccent
                             font.pixelSize: Appearance.font.pixelSize.large
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
 
                         TuiText {
@@ -301,7 +299,7 @@ WindowDialog {
                                     accentColor: root.tuiAccent
                                     yellowColor: root.tuiYellow
                                     blueColor: root.tuiBlue
-                                    bgColor: root.tuiBg
+                                    bgColor: "#1a1a1a"
                                     lineColor: root.tuiLine
                                     onActivated: network => root.openDetails(network)
                                 }
@@ -318,7 +316,7 @@ WindowDialog {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: Network.wifiScanning ? "SCANNING..." : "NO ACCESS POINTS"
                                         color: root.tuiYellow
-                                        font.weight: Font.Bold
+                                        font.weight: Font.DemiBold
                                     }
                                     TuiText {
                                         Layout.alignment: Qt.AlignHCenter
@@ -357,7 +355,7 @@ WindowDialog {
                                     color: root.previewNetwork ? root.tuiFg : root.tuiDim
                                     elide: Text.ElideRight
                                     font.pixelSize: Appearance.font.pixelSize.large
-                                    font.weight: Font.Bold
+                                    font.weight: Font.DemiBold
                                 }
 
                                 StatusPill {
@@ -369,9 +367,9 @@ WindowDialog {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 82
-                                color: root.tuiPanelAlt
-                                border.width: 2
-                                border.color: root.tuiLine
+                                color: "#222222"
+                                radius: TuiStyle.radius
+                                border.width: 0
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -385,7 +383,7 @@ WindowDialog {
                                         TuiText {
                                             text: "SIGNAL"
                                             color: root.tuiDim
-                                            font.weight: Font.Bold
+                                            font.weight: Font.DemiBold
                                         }
 
                                         TuiText {
@@ -393,7 +391,7 @@ WindowDialog {
                                             text: root.previewNetwork ? `${root.signalBars(root.previewNetwork.strength)} ${root.previewNetwork.strength}%` : "---- --%"
                                             color: root.tuiAccent
                                             horizontalAlignment: Text.AlignRight
-                                            font.weight: Font.Bold
+                                            font.weight: Font.DemiBold
                                         }
                                     }
 
@@ -484,9 +482,8 @@ WindowDialog {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
-                color: root.tuiPanel
-                border.width: 2
-                border.color: root.tuiLine
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
@@ -541,9 +538,9 @@ WindowDialog {
                 width: Math.min(620, parent.width - 74)
                 height: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false) ? 420 : 350
                 anchors.centerIn: parent
-                color: root.tuiBg
-                border.width: 2
-                border.color: root.tuiAccent
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
 
                 MouseArea {
                     anchors.fill: parent
@@ -561,7 +558,7 @@ WindowDialog {
                         TuiText {
                             text: "NETCTL::ACTION"
                             color: root.tuiAccent
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
 
                         Rectangle {
@@ -573,7 +570,7 @@ WindowDialog {
                         TuiText {
                             text: root.linkState(root.selectedNetwork).toUpperCase()
                             color: root.selectedNetwork?.active ? root.tuiAccent : root.tuiYellow
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
                     }
 
@@ -583,7 +580,7 @@ WindowDialog {
                         color: root.tuiFg
                         elide: Text.ElideRight
                         font.pixelSize: Appearance.font.pixelSize.large
-                        font.weight: Font.Bold
+                        font.weight: Font.DemiBold
                     }
 
                     GridLayout {
@@ -609,9 +606,9 @@ WindowDialog {
                         visible: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false)
                         Layout.fillWidth: true
                         Layout.preferredHeight: 42
-                        color: root.tuiPanel
-                        border.width: 2
-                        border.color: passwordField.activeFocus ? root.tuiAccent : root.tuiLine
+                        color: "#222222"
+                        radius: TuiStyle.radius
+                        border.width: 0
 
                         RowLayout {
                             anchors.fill: parent
@@ -622,7 +619,7 @@ WindowDialog {
                             TuiText {
                                 text: "PSK"
                                 color: root.tuiDim
-                                font.weight: Font.Bold
+                                font.weight: Font.DemiBold
                             }
 
                             TextInput {
@@ -631,7 +628,7 @@ WindowDialog {
                                 color: root.tuiFg
                                 selectionColor: root.tuiSelection
                                 selectedTextColor: root.tuiFg
-                                font.family: Appearance.font.family.monospace
+                                font.family: Appearance.font.family.main
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 echoMode: TextInput.Password
                                 inputMethodHints: Qt.ImhSensitiveData
@@ -690,7 +687,7 @@ WindowDialog {
 
     component TuiText: StyledText {
         color: root.tuiFg
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.small
         textFormat: Text.PlainText
     }
@@ -705,9 +702,8 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: root.tuiPanel
-            border.width: 2
-            border.color: root.tuiLine
+            color: "transparent"
+                border.width: 0
         }
 
         Rectangle {
@@ -716,6 +712,7 @@ WindowDialog {
             anchors.bottom: parent.bottom
             width: 3
             color: panel.accent
+            opacity: 0
         }
 
         RowLayout {
@@ -729,14 +726,15 @@ WindowDialog {
 
             TuiText {
                 text: panel.title
-                color: panel.accent
-                font.weight: Font.Bold
+                color: root.tuiFg
+                font.weight: Font.DemiBold
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 color: root.tuiLine
+                opacity: 0.28
             }
 
             TuiText {
@@ -758,7 +756,7 @@ WindowDialog {
 
     component HeaderCell: TuiText {
         color: root.tuiDim
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }
@@ -766,7 +764,7 @@ WindowDialog {
     component DetailKey: TuiText {
         Layout.preferredWidth: 62
         color: root.tuiDim
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignLeft
     }
 
@@ -779,7 +777,7 @@ WindowDialog {
 
     component FooterHint: TuiText {
         color: root.tuiPurple
-        font.weight: Font.Bold
+        font.weight: Font.Medium
     }
 
     component StatusPill: Item {
@@ -797,7 +795,7 @@ WindowDialog {
             anchors.fill: parent
             text: pill.label
             color: pill.tone
-            font.weight: Font.Bold
+            font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignVCenter
         }

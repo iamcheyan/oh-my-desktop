@@ -25,7 +25,6 @@ symlink targets.
 │   ├── shell.qml              ShellRoot, imports modules/services/panelFamilies
 │   ├── config.json            Quickshell runtime/user options
 │   ├── GlobalStates.qml       Shared global state (bar/overview/corners)
-│   ├── settings.qml            Settings panel
 │   ├── killDialog.qml         Quickshell kill dialog
 │   ├── ReloadPopup.qml        Hot-reload notification
 │   ├── welcome.qml            First-run welcome
@@ -45,7 +44,6 @@ symlink targets.
 │   │   ├── schedulePopup/       Schedule/calendar popup
 │   │   ├── screenCorners/       Screen corner rounding overlay
 │   │   ├── sessionScreen/       Logout/shutdown/reboot screen
-│   │   ├── settings/            Settings module
 │   │   └── sidebarRight/        Right sidebar
 │   ├── services/              QML singleton services
 │   │   ├── Audio.qml            Volume control
@@ -249,13 +247,9 @@ symlink targets.
   `~/.config/omd/bin/omd-restart`.
 - `quickshell/scripts/quickshell` accepts an optional config directory for
   split apps, but defaults to `~/.config/quickshell`.
-- Bar hover popups are called **InfoPopup**. Naming convention: `XxxInfoPopup.qml`
-  placed in `quickshell/modules/bar/`. Each InfoPopup uses `PopupWindow` with TUI
-  style (dark background `#030806`, monospace font, colored accent header).
-  To add a new InfoPopup to a bar button, convert it from `CircleUtilButton` to
-  `Item` + `CircleUtilButton` + `Loader<InfoPopup>` pattern. See existing examples:
-  `AudioInfoPopup`, `WifiInfoPopup`, `BluetoothInfoPopup`, `ClipboardInfoPopup`,
-  `DisplayInfoPopup`, `BatteryInfoPopup`.
+- Bar status popups are unified through `quickshell/modules/bar/BarStatusPopup.qml`.
+  Do not add new per-module `XxxInfoPopup.qml` files; add a content component or
+  section to `BarStatusPopup.qml` instead.
 
 ### Omarchy / Hyprland
 

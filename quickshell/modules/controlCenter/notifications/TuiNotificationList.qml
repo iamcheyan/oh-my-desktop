@@ -33,7 +33,7 @@ Item {
         id: listView
         anchors.fill: parent
         clip: true
-        spacing: 6
+        spacing: 0
         boundsBehavior: Flickable.StopAtBounds
         model: ScriptModel {
             values: root.sortedNotifications()
@@ -53,9 +53,9 @@ Item {
         visible: Notifications.list.length === 0
         width: Math.min(parent.width - 24, 360)
         height: 96
-        color: root.tuiPanelAlt
-        border.width: 1
-        border.color: root.tuiLine
+        color: "#202020"
+        radius: TuiStyle.radius
+        border.width: 0
 
         ColumnLayout {
             anchors.centerIn: parent
@@ -64,16 +64,16 @@ Item {
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
                 text: "NO NOTIFICATIONS"
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.large
-                font.weight: Font.Bold
-                color: root.tuiAccent
+                font.weight: Font.DemiBold
+                color: root.tuiFg
             }
 
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
                 text: "queue is clean"
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: root.tuiDim
             }
@@ -111,11 +111,10 @@ Item {
             Notifications.discardNotification(notificationObject.notificationId);
         }
 
-        color: rowTap.pressed ? root.tuiPanelAlt
-            : rowHover.hovered || expanded ? Qt.rgba(root.tuiAccent.r, root.tuiAccent.g, root.tuiAccent.b, 0.08)
-            : root.tuiBg
-        border.width: 1
-        border.color: critical ? root.tuiRed : rowHover.hovered || expanded ? root.tuiAccent : root.tuiLine
+        color: rowTap.pressed ? "#303030"
+            : rowHover.hovered || expanded ? "#242424"
+            : "transparent"
+        border.width: 0
         implicitHeight: rowContent.implicitHeight + 18
 
         HoverHandler {
@@ -138,7 +137,7 @@ Item {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: 3
+            width: critical ? 2 : 0
             color: critical ? root.tuiRed : root.tuiAccent
         }
 
@@ -147,8 +146,8 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 14
-            anchors.rightMargin: 10
+            anchors.leftMargin: critical ? 14 : 12
+            anchors.rightMargin: 8
             spacing: 6
 
             RowLayout {
@@ -159,26 +158,26 @@ Item {
                     text: String(rowIndex + 1).padStart(2, "0")
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Bold
+                    font.weight: Font.DemiBold
                     color: root.tuiDim
                 }
 
                 StyledText {
-                    Layout.preferredWidth: 130
+                    Layout.preferredWidth: 120
                     text: notificationObject?.appName || "notification"
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Bold
-                    color: critical ? root.tuiRed : root.tuiBlue
+                    font.weight: Font.DemiBold
+                    color: critical ? root.tuiFg : root.tuiDim
                     elide: Text.ElideRight
                 }
 
                 StyledText {
                     Layout.fillWidth: true
                     text: notificationObject?.summary || ""
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Bold
+                    font.weight: Font.DemiBold
                     color: root.tuiFg
                     elide: Text.ElideRight
                     maximumLineCount: 1
@@ -190,8 +189,8 @@ Item {
                     text: `A${notificationObject?.actions?.length ?? 0}`
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Bold
-                    color: root.tuiPurple
+                    font.weight: Font.Medium
+                    color: root.tuiDim
                 }
 
                 StyledText {
@@ -218,7 +217,7 @@ Item {
                 Layout.fillWidth: true
                 visible: (notificationObject?.body || "").length > 0
                 text: row.bodyText().replace(/\n/g, expanded ? "<br/>" : " ")
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: root.tuiDim
                 elide: Text.ElideRight
@@ -277,6 +276,15 @@ Item {
             }
         }
 
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: root.tuiLine
+            opacity: 0.22
+        }
+
     }
 
     component MiniButton: Rectangle {
@@ -288,20 +296,20 @@ Item {
 
         Layout.preferredHeight: 22
         Layout.preferredWidth: Math.max(24, labelText.implicitWidth + 12)
-        color: buttonMouse.pressed ? Qt.rgba(button.accent.r, button.accent.g, button.accent.b, 0.22)
-            : buttonMouse.containsMouse ? Qt.rgba(button.accent.r, button.accent.g, button.accent.b, 0.12)
+        radius: 4
+        color: buttonMouse.pressed ? "#3a3a3a"
+            : buttonMouse.containsMouse ? "#303030"
             : "transparent"
-        border.width: 1
-        border.color: buttonMouse.containsMouse ? button.accent : root.tuiLine
+        border.width: 0
 
         StyledText {
             id: labelText
             anchors.centerIn: parent
             text: button.label
-            font.family: Appearance.font.family.monospace
+            font.family: Appearance.font.family.main
             font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Bold
-            color: button.accent
+            font.weight: Font.DemiBold
+            color: buttonMouse.containsMouse ? root.tuiFg : root.tuiDim
             elide: Text.ElideRight
         }
 

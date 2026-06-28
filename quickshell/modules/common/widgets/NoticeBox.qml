@@ -10,9 +10,9 @@ Rectangle {
     default property alias boxData: buttonRow.data
 
     radius: 0
-    color: Appearance.tiling.bgInput
-    border.width: Appearance.tiling.borderWidth
-    border.color: Appearance.tiling.border
+    color: "#181818"
+    border.width: TuiStyle.borderWidth
+    border.color: TuiStyle.line
     implicitWidth: mainRowLayout.implicitWidth + mainRowLayout.anchors.margins * 2
     implicitHeight: mainRowLayout.implicitHeight + mainRowLayout.anchors.margins * 2
 
@@ -28,7 +28,7 @@ Rectangle {
             Layout.alignment: Qt.AlignTop
             text: "info"
             iconSize: Appearance.font.pixelSize.huge
-            color: Appearance.tiling.textDim
+            color: TuiStyle.dim
         }
 
         ColumnLayout {
@@ -39,7 +39,7 @@ Rectangle {
                 id: noticeText
                 Layout.fillWidth: true
                 text: "Notice message"
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: Appearance.font.pixelSize.small
                 wrapMode: Text.WordWrap

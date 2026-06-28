@@ -38,8 +38,8 @@ Item {
         }
 
         color: root.tuiBg
-        radius: Appearance.tiling.dialogRadius
-        border.width: Appearance.tiling.borderWidth
+        radius: TuiStyle.radius
+        border.width: TuiStyle.borderWidth
         border.color: root.tuiLine
         clip: true
 

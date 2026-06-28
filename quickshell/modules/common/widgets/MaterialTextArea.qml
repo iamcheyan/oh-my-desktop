@@ -6,19 +6,19 @@ TextArea {
     id: root
     renderType: Text.QtRendering
 
-    selectedTextColor: Appearance.tiling.bg
-    selectionColor: Appearance.tiling.accent
-    placeholderTextColor: Appearance.tiling.textDim
-    color: Appearance.tiling.textBright
+    selectedTextColor: TuiStyle.bg
+    selectionColor: TuiStyle.accent
+    placeholderTextColor: TuiStyle.dim
+    color: TuiStyle.fg
 
     background: Rectangle {
         implicitHeight: 34
-        color: Appearance.tiling.bgInput
+        color: "#181818"
         radius: 0
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.focus ? Appearance.tiling.borderFocus
-            : root.hovered ? Appearance.tiling.textDim
-            : Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: root.focus ? TuiStyle.accent
+            : root.hovered ? TuiStyle.dim
+            : TuiStyle.line
     }
 
     font {

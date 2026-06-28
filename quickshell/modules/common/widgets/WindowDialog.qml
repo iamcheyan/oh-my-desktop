@@ -15,6 +15,7 @@ Rectangle {
     property real backgroundAnimationMovementDistance: 60
     property int anchorPosition: 0 // 0 = center, 1 = top-right
     property real anchorMargin: 8
+    property int contentPadding: 18
 
     signal dismiss()
     Keys.onPressed: (event) => {
@@ -45,10 +46,15 @@ Rectangle {
         anchors.horizontalCenter: root.anchorPosition === 0 ? parent.horizontalCenter : undefined
         anchors.right: root.anchorPosition === 1 ? parent.right : undefined
         anchors.rightMargin: root.anchorPosition === 1 ? root.anchorMargin : 0
-        radius: Appearance.tiling.dialogRadius
-        color: Appearance.tiling.bg
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
+        radius: 18
+        color: TuiStyle.bg
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#ee151515" }
+            GradientStop { position: 0.42; color: "#e7080808" }
+            GradientStop { position: 1.0; color: "#ef111111" }
+        }
+        border.width: TuiStyle.borderWidth
+        border.color: "#8f8f8f"
         clip: true
 
         property real targetY: root.anchorPosition === 1 ? (Config.options.bar.bottom ? (root.height - Appearance.sizes.barHeight - root.backgroundHeight - root.anchorMargin) : (Appearance.sizes.barHeight + root.anchorMargin)) : (root.height / 2 - root.backgroundHeight / 2)
@@ -80,7 +86,8 @@ Rectangle {
         ColumnLayout {
             id: contentColumn
             anchors.fill: parent
-            spacing: 6
+            anchors.margins: root.contentPadding
+            spacing: 14
             opacity: root.show ? 1 : 0
             Behavior on opacity {
                 animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)

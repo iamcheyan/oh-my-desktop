@@ -12,20 +12,20 @@ GroupButton {
     toggled: false
     buttonRadius: 0
     buttonRadiusPressed: 0
-    colBackground: Appearance.tiling.bg
-    colBackgroundHover: Appearance.tiling.bgHover
-    colBackgroundActive: Appearance.tiling.bgActive
-    colBackgroundToggled: Appearance.tiling.bgTitlebar
-    colBackgroundToggledHover: Appearance.tiling.accent
-    colBackgroundToggledActive: Appearance.tiling.bgActive
-    borderWidth: Appearance.tiling.borderWidth
-    borderColor: toggled ? Appearance.tiling.borderFocus : Appearance.tiling.border
+    colBackground: TuiStyle.bg
+    colBackgroundHover: "#333333"
+    colBackgroundActive: "#222222"
+    colBackgroundToggled: "#181818"
+    colBackgroundToggledHover: TuiStyle.accent
+    colBackgroundToggledActive: "#222222"
+    borderWidth: TuiStyle.borderWidth
+    borderColor: toggled ? TuiStyle.accent : TuiStyle.line
 
     contentItem: MaterialSymbol {
         anchors.centerIn: parent
         iconSize: 22
         fill: toggled ? 1 : 0
-        color: toggled ? Appearance.tiling.textBright : Appearance.tiling.textDim
+        color: toggled ? TuiStyle.fg : TuiStyle.dim
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         text: buttonIcon

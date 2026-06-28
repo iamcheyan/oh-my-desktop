@@ -12,12 +12,12 @@ RippleButton {
     implicitWidth: buttonTextWidget.implicitWidth + padding * 2
     buttonRadius: 0
 
-    property color colText: Appearance.tiling.text
+    property color colText: TuiStyle.fg
     rippleEnabled: false
 
-    colBackground: ColorUtils.transparentize(Appearance.tiling.bg, 1)
-    colBackgroundHover: Appearance.tiling.bgHover
-    colRipple: Appearance.tiling.bgHover
+    colBackground: ColorUtils.transparentize(TuiStyle.bg, 1)
+    colBackgroundHover: "#333333"
+    colRipple: "#333333"
 
     contentItem: StyledText {
         id: buttonTextWidget
@@ -27,7 +27,7 @@ RippleButton {
         text: buttonText
         horizontalAlignment: Text.AlignHCenter
         font.pixelSize: Appearance.font.pixelSize.small
-        color: root.enabled ? root.colText : Appearance.tiling.textDim
+        color: root.enabled ? root.colText : TuiStyle.dim
 
         Behavior on color {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

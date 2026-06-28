@@ -64,10 +64,10 @@ PopupWindow {
                 margins: root.padding
             }
 
-            color: Appearance.tiling.bg
-            radius: Appearance.tiling.dialogRadius
-            border.width: Appearance.tiling.borderWidth
-            border.color: Appearance.tiling.border
+            color: TuiStyle.bg
+            radius: TuiStyle.radius
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.line
             clip: true
 
             opacity: 0
@@ -169,7 +169,7 @@ PopupWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 1
-                    color: Appearance.tiling.border
+                    color: TuiStyle.line
                     Layout.topMargin: 4
                     Layout.bottomMargin: 4
                 }
@@ -200,13 +200,13 @@ PopupWindow {
                         CosmicIcon {
                             iconSize: 16
                             name: Network.wifiEnabled ? "actions/system-shutdown-symbolic" : "actions/system-run-symbolic"
-                            color: Network.wifiEnabled ? Appearance.tiling.error : Appearance.tiling.success
+                            color: Network.wifiEnabled ? TuiStyle.danger : TuiStyle.success
                         }
 
                         StyledText {
                             Layout.fillWidth: true
                             text: Network.wifiEnabled ? Translation.tr("Disable Wi-Fi") : Translation.tr("Enable Wi-Fi")
-                            color: Network.wifiEnabled ? Appearance.tiling.error : Appearance.tiling.success
+                            color: Network.wifiEnabled ? TuiStyle.danger : TuiStyle.success
                         }
                     }
                 }

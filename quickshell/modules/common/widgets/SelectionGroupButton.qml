@@ -20,14 +20,14 @@ GroupButton {
     buttonRadiusPressed: 0
     leftRadius: 0
     rightRadius: 0
-    colBackground: root.toggled ? Appearance.tiling.bgTitlebar : "transparent"
-    colBackgroundHover: Appearance.tiling.bgHover
-    colBackgroundActive: Appearance.tiling.bgActive
-    colBackgroundToggled: Appearance.tiling.bgTitlebar
-    colBackgroundToggledHover: Appearance.tiling.bgActive
-    colBackgroundToggledActive: Appearance.tiling.bgHover
-    borderWidth: Appearance.tiling.borderWidth
-    borderColor: root.toggled ? Appearance.tiling.borderFocus : Appearance.tiling.border
+    colBackground: root.toggled ? "#181818" : "transparent"
+    colBackgroundHover: "#333333"
+    colBackgroundActive: "#222222"
+    colBackgroundToggled: "#181818"
+    colBackgroundToggledHover: "#222222"
+    colBackgroundToggledActive: "#333333"
+    borderWidth: TuiStyle.borderWidth
+    borderColor: root.toggled ? TuiStyle.accent : TuiStyle.line
 
     contentItem: RowLayout {
         spacing: 4 * (root.buttonText?.length > 0)
@@ -43,7 +43,7 @@ GroupButton {
                     anchors.centerIn: parent
                     text: root.buttonIcon
                     iconSize: Appearance.font.pixelSize.larger
-                    color: root.toggled ? Appearance.tiling.textBright : Appearance.tiling.textDim
+                    color: root.toggled ? TuiStyle.fg : TuiStyle.dim
                 }
             }
         }
@@ -63,7 +63,7 @@ GroupButton {
                 anchors.centerIn: parent
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: root.toggled ? Appearance.tiling.textBright : Appearance.tiling.text
+                color: root.toggled ? TuiStyle.fg : TuiStyle.fg
                 text: root.buttonText
             }
         }

@@ -13,9 +13,9 @@ Rectangle {
     implicitWidth: contentColumn.implicitWidth
     implicitHeight: contentColumn.implicitHeight
     radius: 0
-    color: Appearance.tiling.bg
-    border.width: Appearance.tiling.borderWidth
-    border.color: Appearance.tiling.border
+    color: TuiStyle.bg
+    border.width: TuiStyle.borderWidth
+    border.color: TuiStyle.line
 
     ColumnLayout {
         id: contentColumn
@@ -24,9 +24,9 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: Appearance.tiling.titlebarHeight
+            implicitHeight: 44
             radius: 0
-            color: Appearance.tiling.bgTitlebar
+            color: "#181818"
 
             RowLayout {
                 anchors {
@@ -41,7 +41,7 @@ Rectangle {
                     text: root.icon
                     font.family: Appearance.font.family.iconMaterial
                     font.pixelSize: Appearance.font.pixelSize.large
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 StyledText {
@@ -49,7 +49,7 @@ Rectangle {
                     text: root.title
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.tiling.textBright
+                    color: TuiStyle.fg
                     elide: Text.ElideRight
                 }
             }
@@ -61,7 +61,7 @@ Rectangle {
                     bottom: parent.bottom
                 }
                 height: 1
-                color: Appearance.tiling.border
+                color: TuiStyle.line
             }
         }
 

@@ -12,9 +12,9 @@ ComboBox {
 
     property string buttonIcon: ""
     property real buttonRadius: 0
-    property color colBackground: Appearance.tiling.bgInput
-    property color colBackgroundHover: Appearance.tiling.bgHover
-    property color colBackgroundActive: Appearance.tiling.bgActive
+    property color colBackground: "#181818"
+    property color colBackgroundHover: "#333333"
+    property color colBackgroundActive: "#222222"
 
     implicitHeight: 34
     Layout.fillWidth: true
@@ -22,8 +22,8 @@ ComboBox {
     background: Rectangle {
         radius: root.buttonRadius
         color: (root.down && !root.popup.visible) ? root.colBackgroundActive : root.hovered ? root.colBackgroundHover : root.colBackground
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.activeFocus || root.popup.visible ? Appearance.tiling.borderFocus : Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: root.activeFocus || root.popup.visible ? TuiStyle.accent : TuiStyle.line
 
         Behavior on color {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -41,7 +41,7 @@ ComboBox {
         y: root.height / 2 - height / 2
         text: "keyboard_arrow_down"
         iconSize: Appearance.font.pixelSize.larger
-        color: Appearance.tiling.text
+        color: TuiStyle.fg
 
         rotation: root.popup.visible ? 180 : 0
         Behavior on rotation {
@@ -72,14 +72,14 @@ ComboBox {
                         return root.buttonIcon;
                     }
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
             }
 
             StyledText {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: root.displayText
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: Appearance.font.pixelSize.small
@@ -98,23 +98,23 @@ ComboBox {
         required property int index
         property color color: {
             if (root.currentIndex === itemDelegate.index) {
-                if (itemDelegate.down) return Appearance.tiling.bgActive;
-                if (itemDelegate.hovered) return Appearance.tiling.bgHover;
-                return Appearance.tiling.bgActive;
+                if (itemDelegate.down) return "#222222";
+                if (itemDelegate.hovered) return "#333333";
+                return "#222222";
             } else {
-                if (itemDelegate.down) return Appearance.tiling.bgActive;
-                if (itemDelegate.hovered) return Appearance.tiling.bgHover;
-                return Appearance.tiling.bg;
+                if (itemDelegate.down) return "#222222";
+                if (itemDelegate.hovered) return "#333333";
+                return TuiStyle.bg;
             }
         }
-        property color colText: (root.currentIndex === itemDelegate.index) ? Appearance.tiling.textBright : Appearance.tiling.text
+        property color colText: (root.currentIndex === itemDelegate.index) ? TuiStyle.fg : TuiStyle.fg
 
         background: Rectangle {
             anchors.fill: parent
             radius: 0
             color: itemDelegate.color
-            border.width: root.currentIndex === itemDelegate.index ? Appearance.tiling.borderWidth : 0
-            border.color: Appearance.tiling.borderFocus
+            border.width: root.currentIndex === itemDelegate.index ? TuiStyle.borderWidth : 0
+            border.color: TuiStyle.accent
 
             Behavior on color {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -147,7 +147,7 @@ ComboBox {
                         anchors.centerIn: parent
                         text: itemDelegate.model?.icon ?? ""
                         iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.tiling.textDim
+                        color: TuiStyle.dim
                     }
                 }
             }
@@ -194,9 +194,9 @@ ComboBox {
         background: Rectangle {
             anchors.fill: parent
             radius: 0
-            color: Appearance.tiling.bg
-            border.width: Appearance.tiling.borderWidth
-            border.color: Appearance.tiling.borderFocus
+            color: TuiStyle.bg
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.accent
         }
 
         contentItem: StyledListView {

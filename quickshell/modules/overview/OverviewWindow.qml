@@ -158,7 +158,7 @@ Item { // Window
                 anchors.centerIn: parent
                 text: (windowData?.class || windowData?.title || "?").charAt(0).toUpperCase()
                 font.pixelSize: Math.max(10, parent.height * 0.45)
-                font.weight: Font.Bold
+                font.weight: Font.DemiBold
                 color: Appearance.colors.colOnPrimary
             }
         }

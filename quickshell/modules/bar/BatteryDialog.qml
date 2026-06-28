@@ -33,7 +33,7 @@ WindowDialog {
                 Layout.alignment: Qt.AlignHCenter
                 text: Battery.isCharging ? "bolt" : (Battery.percentage > 0.9 ? "battery_full" : Battery.percentage > 0.6 ? "battery_5_bar" : Battery.percentage > 0.4 ? "battery_4_bar" : Battery.percentage > 0.2 ? "battery_2_bar" : "battery_1_bar")
                 iconSize: 48
-                color: (Battery.isLow && !Battery.isCharging) ? Appearance.tiling.error : Appearance.tiling.text
+                color: (Battery.isLow && !Battery.isCharging) ? TuiStyle.danger : TuiStyle.fg
             }
 
             StyledText {
@@ -41,7 +41,7 @@ WindowDialog {
                 text: `${Math.round(Battery.percentage * 100)}%`
                 font.pixelSize: Appearance.font.pixelSize.larger * 1.5
                 font.weight: Font.DemiBold
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
             }
 
             StyledText {
@@ -49,7 +49,7 @@ WindowDialog {
                 visible: Battery.available
                 text: Battery.isCharging ? Translation.tr("Charging") : (Battery.isPluggedIn ? Translation.tr("Plugged in") : Translation.tr("On battery"))
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.tiling.textDim
+                color: TuiStyle.dim
             }
         }
 
@@ -57,7 +57,7 @@ WindowDialog {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1
-            color: Appearance.tiling.border
+            color: TuiStyle.line
         }
 
         // Battery details
@@ -77,13 +77,13 @@ WindowDialog {
                 MaterialSymbol {
                     text: "schedule"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 StyledText {
                     text: Battery.isCharging ? Translation.tr("Time to full:") : Translation.tr("Time to empty:")
                     font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 Item { Layout.fillWidth: true }
@@ -105,7 +105,7 @@ WindowDialog {
                     }
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
-                    color: Appearance.tiling.text
+                    color: TuiStyle.fg
                 }
             }
 
@@ -117,13 +117,13 @@ WindowDialog {
                 MaterialSymbol {
                     text: "flash_on"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 StyledText {
                     text: Translation.tr("Power:")
                     font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 Item { Layout.fillWidth: true }
@@ -132,7 +132,7 @@ WindowDialog {
                     text: `${Battery.energyRate.toFixed(1)}W`
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
-                    color: Appearance.tiling.text
+                    color: TuiStyle.fg
                 }
             }
 
@@ -144,13 +144,13 @@ WindowDialog {
                 MaterialSymbol {
                     text: "favorite"
                     iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 StyledText {
                     text: Translation.tr("Health:")
                     font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.tiling.textDim
+                    color: TuiStyle.dim
                 }
 
                 Item { Layout.fillWidth: true }
@@ -159,7 +159,7 @@ WindowDialog {
                     text: `${Battery.health.toFixed(1)}%`
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
-                    color: Appearance.tiling.text
+                    color: TuiStyle.fg
                 }
             }
         }
@@ -168,7 +168,7 @@ WindowDialog {
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: 1
-            color: Appearance.tiling.border
+            color: TuiStyle.line
         }
     }
 }

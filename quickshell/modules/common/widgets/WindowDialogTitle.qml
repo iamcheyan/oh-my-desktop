@@ -11,7 +11,7 @@ Rectangle {
     height: 26
     Layout.fillWidth: true
     Layout.topMargin: 0
-    color: Appearance.tiling.bgTitlebar
+    color: "#181818"
     radius: 0
 
     StyledText {
@@ -22,7 +22,7 @@ Rectangle {
             verticalCenter: parent.verticalCenter
         }
         text: parent.text
-        color: Appearance.tiling.textBright
+        color: TuiStyle.fg
         font {
             pixelSize: Appearance.font.pixelSize.small
             weight: Font.Bold

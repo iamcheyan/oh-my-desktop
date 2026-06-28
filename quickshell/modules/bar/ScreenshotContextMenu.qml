@@ -63,10 +63,10 @@ PopupWindow {
                 margins: root.padding
             }
 
-            color: Appearance.tiling.bg
-            radius: Appearance.tiling.dialogRadius
-            border.width: Appearance.tiling.borderWidth
-            border.color: Appearance.tiling.border
+            color: TuiStyle.bg
+            radius: TuiStyle.radius
+            border.width: TuiStyle.lineWidth
+            border.color: TuiStyle.line
             clip: true
 
             opacity: 0
@@ -207,7 +207,7 @@ PopupWindow {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: 1
-                    color: Appearance.tiling.border
+                    color: TuiStyle.line
                     Layout.topMargin: 4
                     Layout.bottomMargin: 4
                 }

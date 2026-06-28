@@ -80,7 +80,7 @@ Scope {
 
         readonly property bool barOnBottom: Config.options.bar.bottom
         readonly property bool large: root.activeType === "schedule"
-        readonly property int panelWidth: large ? Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32)) : 348
+        readonly property int panelWidth: large ? Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32)) : 360
 
         anchors {
             top: !barOnBottom
@@ -89,9 +89,9 @@ Scope {
         }
 
         margins {
-            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 6
-            bottom: barOnBottom ? Appearance.sizes.barHeight + 6 : 0
-            right: 14
+            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 10
+            bottom: barOnBottom ? Appearance.sizes.barHeight + 10 : 0
+            right: 16
         }
 
         implicitWidth: panel.implicitWidth
@@ -138,24 +138,16 @@ Scope {
                 target: panelBg
             }
 
-            Rectangle {
+            TuiShell {
                 id: panelBg
                 implicitWidth: popupWindow.panelWidth
-                implicitHeight: contentLoader.implicitHeight + 24
+                implicitHeight: contentLoader.implicitHeight + contentPadding * 2
                 width: implicitWidth
                 height: implicitHeight
-                color: TuiStyle.bg
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
-                radius: TuiStyle.radius
-                clip: true
 
                 Loader {
                     id: contentLoader
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 12
+                    anchors.fill: parent
                     sourceComponent: {
                         if (root.activeType === "wifi") return wifiContent;
                         if (root.activeType === "bluetooth") return bluetoothContent;
@@ -179,43 +171,46 @@ Scope {
         property color tone: TuiStyle.accent
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 40
-        color: TuiStyle.panel
-        border.width: TuiStyle.borderWidth
-        border.color: tone
+        Layout.preferredHeight: 44
+        color: "transparent"
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 14
-            spacing: 8
+            anchors.leftMargin: 4
+            anchors.rightMargin: 4
+            spacing: 10
 
             StyledText {
                 text: header.title
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.Bold
-                color: TuiStyle.accent
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.DemiBold
+                color: TuiStyle.dim
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: TuiStyle.borderWidth
-                color: TuiStyle.line
-            }
+            Item { Layout.fillWidth: true }
 
             StyledText {
                 text: header.status
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.smaller
-                font.weight: Font.Bold
-                color: header.tone
+                font.weight: Font.Medium
+                color: TuiStyle.fg
             }
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: TuiStyle.borderWidth
+            color: TuiStyle.line
+            opacity: 0.28
         }
     }
 
     component PopupColumn: ColumnLayout {
-        spacing: 14
+        spacing: 10
         width: parent?.width ?? implicitWidth
     }
 
@@ -409,8 +404,8 @@ Scope {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 72
                 color: TuiStyle.panel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
+                border.width: 0
+                radius: TuiStyle.radius
                 clip: true
                 visible: confirmAction === ""
 
@@ -472,8 +467,8 @@ Scope {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 72
                 color: TuiStyle.panel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
+                border.width: 0
+                radius: TuiStyle.radius
                 clip: true
                 visible: confirmAction === ""
 
@@ -508,13 +503,26 @@ Scope {
                 }
             }
 
+            ActionRow {
+                Layout.topMargin: 14
+                visible: confirmAction === ""
+                TuiActionButton {
+                    label: "SETTINGS"
+                    accent: TuiStyle.accent
+                    onClicked: {
+                        root.close();
+                        GlobalStates.controlCenterOpen = true;
+                    }
+                }
+            }
+
             // Confirm dialog
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: confirmCol.implicitHeight + 16
                 color: TuiStyle.dangerPanel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.danger
+                border.width: 0
+                radius: TuiStyle.radius
                 clip: true
                 visible: confirmAction !== ""
 
@@ -565,7 +573,10 @@ Scope {
 
         Rectangle {
             anchors.fill: parent
-            color: pbMouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
+            anchors.margins: 4
+            radius: TuiStyle.radius
+            color: pbMouseArea.containsMouse ? "#4d4d4d" : "#2b2b2b"
+            border.width: 0
             clip: true
 
             MouseArea {
@@ -589,9 +600,9 @@ Scope {
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter
                         text: pb.label
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
+                        font.weight: Font.Medium
                         color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
                     }
                 }
@@ -613,8 +624,8 @@ Scope {
                 Layout.fillWidth: true
                 Layout.preferredHeight: recentList.implicitHeight + 8
                 color: TuiStyle.panel
-                border.width: TuiStyle.borderWidth
-                border.color: TuiStyle.line
+                border.width: 0
+                radius: TuiStyle.radius
                 clip: true
                 visible: clipPanel.recentEntries.length > 0
 

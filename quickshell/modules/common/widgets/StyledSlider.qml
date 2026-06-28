@@ -29,11 +29,11 @@ Slider {
 
     property real handleDefaultWidth: 8
     property real handlePressedWidth: 10
-    property color highlightColor: Appearance.tiling.accent
-    property color trackColor: Appearance.tiling.bgInput
-    property color handleColor: Appearance.tiling.textBright
-    property color dotColor: Appearance.tiling.textDim
-    property color dotColorHighlighted: Appearance.tiling.bg
+    property color highlightColor: TuiStyle.accent
+    property color trackColor: "#181818"
+    property color handleColor: TuiStyle.fg
+    property color dotColor: TuiStyle.dim
+    property color dotColorHighlighted: TuiStyle.bg
     property real unsharpenRadius: 0
     property real trackWidth: configuration
     property real trackRadius: 0
@@ -194,8 +194,8 @@ Slider {
         anchors.verticalCenter: parent.verticalCenter
         radius: 0
         color: root.handleColor
-        border.width: Appearance.tiling.borderWidth
-        border.color: Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.line
 
         Behavior on implicitWidth {
             animation: Appearance?.animation.elementMoveFast.numberAnimation.createObject(this)

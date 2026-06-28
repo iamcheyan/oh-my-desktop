@@ -21,13 +21,13 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 0
-        color: root.pressed ? Appearance.tiling.bgActive
-            : root.hovered || root.toggled ? Appearance.tiling.bgHover
+        color: root.pressed ? "#222222"
+            : root.hovered || root.toggled ? "#333333"
             : "transparent"
-        border.width: Appearance.tiling.borderWidth
-        border.color: root.toggled ? Appearance.tiling.borderFocus
-            : root.hovered ? Appearance.tiling.borderFocus
-            : Appearance.tiling.border
+        border.width: TuiStyle.borderWidth
+        border.color: root.toggled ? TuiStyle.accent
+            : root.hovered ? TuiStyle.accent
+            : TuiStyle.line
     }
 
     RowLayout {
@@ -39,7 +39,7 @@ Item {
             visible: root.buttonIcon !== ""
             text: root.buttonIcon
             iconSize: Appearance.font.pixelSize.large
-            color: root.toggled ? Appearance.tiling.textBright : Appearance.tiling.text
+            color: root.toggled ? TuiStyle.fg : TuiStyle.fg
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -49,7 +49,7 @@ Item {
             text: root.buttonText
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: root.toggled ? Appearance.tiling.textBright : Appearance.tiling.text
+            color: root.toggled ? TuiStyle.fg : TuiStyle.fg
         }
     }
 

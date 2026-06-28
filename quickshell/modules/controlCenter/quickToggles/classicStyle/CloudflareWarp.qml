@@ -18,7 +18,7 @@ QuickToggleButton {
         width: 16
         height: 16
         colorize: true
-        color: root.toggled ? Appearance.tiling.textBright : Appearance.tiling.textDim
+        color: root.toggled ? TuiStyle.fg : TuiStyle.dim
 
         Behavior on color {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

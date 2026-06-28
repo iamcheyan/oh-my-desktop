@@ -18,9 +18,14 @@ Rectangle {
     width: 1000
     height: 640
     color: TuiStyle.bg
-    border.color: TuiStyle.line
+    gradient: Gradient {
+        GradientStop { position: 0.0; color: "#ee151515" }
+        GradientStop { position: 0.42; color: "#e7080808" }
+        GradientStop { position: 1.0; color: "#ef111111" }
+    }
+    border.color: "#8f8f8f"
     border.width: TuiStyle.borderWidth
-    radius: 0
+    radius: 18
     focus: true
     clip: true
 
@@ -149,14 +154,16 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 6
+        anchors.margins: 14
+        spacing: 14
 
         // Search bar
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
-            color: TuiStyle.panel
+            color: "#181818"
+            radius: TuiStyle.radius
+            border.width: 0
 
             RowLayout {
                 anchors.fill: parent
@@ -168,25 +175,25 @@ Rectangle {
                 Rectangle {
                     Layout.preferredWidth: 40
                     Layout.preferredHeight: 18
-                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.bg
-                    border.width: TuiStyle.borderWidth
-                    border.color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.line
+                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : "#222222"
+                    border.width: 0
+                    radius: 4
 
                     StyledText {
                         anchors.centerIn: parent
                         text: clipboardDialog.mode === "insert" ? "INS" : "NRM"
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
+                        font.weight: Font.DemiBold
                         color: clipboardDialog.mode === "insert" ? TuiStyle.bg : TuiStyle.fg
                     }
                 }
 
                 StyledText {
                     text: "/"
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Bold
+                    font.weight: Font.DemiBold
                     color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.dim
                 }
 
@@ -197,7 +204,7 @@ Rectangle {
                     placeholderText: "SEARCH..."
                     placeholderTextColor: TuiStyle.dim
                     color: TuiStyle.fg
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
                     focus: true
                     background: null
@@ -220,9 +227,9 @@ Rectangle {
 
                 StyledText {
                     text: clipboardDialog.searchText.length > 0 ? `${filteredEntries.length}/${Cliphist.entries.length}` : `${Cliphist.entries.length}`
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Bold
+                    font.weight: Font.DemiBold
                     color: TuiStyle.dim
                 }
             }
@@ -232,13 +239,15 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 6
+            spacing: 12
 
             // History list
             Rectangle {
                 Layout.preferredWidth: 520
                 Layout.fillHeight: true
-                color: TuiStyle.panel
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
                 clip: true
 
                 ListView {
@@ -275,9 +284,9 @@ Rectangle {
                         anchors.centerIn: parent
                         visible: clipboardList.count === 0
                         text: clipboardDialog.searchText.length > 0 ? "NO MATCHES" : "NO CLIPBOARD HISTORY"
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
+                        font.weight: Font.DemiBold
                         color: TuiStyle.dim
                     }
 
@@ -291,45 +300,63 @@ Rectangle {
                 }
 
                 // TUI scrollbar — floats above ListView
-                Item {
+                Rectangle {
+                    id: scrollbarTrack
                     z: 2
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    width: 6
+                    width: 8
+                    radius: 0
+                    color: "transparent"
                     visible: clipboardList.contentHeight > clipboardList.height
+
+                    readonly property real scrollableHeight: Math.max(0, clipboardList.contentHeight - clipboardList.height)
+                    readonly property real thumbHeight: Math.min(height, Math.max(24, height * clipboardList.height / clipboardList.contentHeight))
+                    readonly property real thumbRange: Math.max(0, height - thumbHeight)
+
+                    // Click on track to jump
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: mouse => {
+                            var target = Math.max(0, mouse.y - scrollbarTrack.thumbHeight / 2)
+                            clipboardList.contentY = Math.max(0, Math.min(1, target / Math.max(1, scrollbarTrack.thumbRange))) * scrollbarTrack.scrollableHeight
+                        }
+                    }
 
                     Rectangle {
                         id: scrollbarThumb
-                        anchors.right: parent.right
-                        width: 4
+                        x: 2
+                        width: parent.width - 4
                         radius: 0
-                        color: TuiStyle.dim
-                        y: {
-                            var trackH = clipboardList.height - 2
-                            var ratio = clipboardList.contentY / clipboardList.contentHeight
-                            return Math.max(0, Math.min(trackH - height, ratio * trackH)) + 1
-                        }
-                        height: {
-                            var trackH = clipboardList.height - 2
-                            var h = clipboardList.height * clipboardList.height / clipboardList.contentHeight
-                            return Math.max(24, Math.min(trackH, h))
+                        color: thumbDrag.containsMouse || thumbDrag.pressed ? TuiStyle.accent : TuiStyle.dim
+                        height: scrollbarTrack.thumbHeight
+
+                        property bool dragging: false
+
+                        Binding on y {
+                            when: !scrollbarThumb.dragging
+                            value: scrollbarTrack.scrollableHeight > 0
+                                ? Math.max(0, Math.min(1, clipboardList.contentY / scrollbarTrack.scrollableHeight)) * scrollbarTrack.thumbRange
+                                : 0
                         }
 
                         MouseArea {
+                            id: thumbDrag
                             anchors.fill: parent
-                            anchors.margins: -2
+                            hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            preventStealing: true
-                            property real startY: 0
-                            property real startContentY: 0
-                            onPressed: {
-                                startY = mouseY
-                                startContentY = clipboardList.contentY
-                            }
+                            drag.target: scrollbarThumb
+                            drag.axis: Drag.YAxis
+                            drag.minimumY: 0
+                            drag.maximumY: scrollbarTrack.thumbRange
+
+                            onPressed: scrollbarThumb.dragging = true
+                            onReleased: scrollbarThumb.dragging = false
+                            onCanceled: scrollbarThumb.dragging = false
                             onPositionChanged: {
-                                var delta = (mouseY - startY) * clipboardList.contentHeight / clipboardList.height
-                                clipboardList.contentY = Math.max(0, Math.min(clipboardList.contentHeight - clipboardList.height, startContentY + delta))
+                                if (!pressed) return
+                                clipboardList.contentY = Math.max(0, Math.min(1, scrollbarThumb.y / Math.max(1, scrollbarTrack.thumbRange))) * scrollbarTrack.scrollableHeight
                             }
                         }
                     }
@@ -340,7 +367,9 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                color: TuiStyle.panel
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
                 clip: true
 
                 ColumnLayout {
@@ -350,16 +379,17 @@ Rectangle {
 
                     StyledText {
                         text: clipboardDialog.currentIsImage ? "IMAGE" : clipboardDialog.currentEntry !== "" ? "TEXT" : "--"
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
+                        font.weight: Font.DemiBold
                         color: TuiStyle.dim
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        color: TuiStyle.bg
+                        color: "#0a0a0a"
+                        radius: TuiStyle.radius
                         clip: true
 
                         CliphistImage {
@@ -381,13 +411,13 @@ Rectangle {
                                 selectByMouse: true
                                 wrapMode: TextEdit.Wrap
                                 text: textDecoder.decodedText
-                                font.family: Appearance.font.family.monospace
+                                font.family: Appearance.font.family.main
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 color: TuiStyle.fg
                                 selectedTextColor: TuiStyle.bg
                                 selectionColor: TuiStyle.accent
                                 background: Rectangle {
-                                    color: TuiStyle.bg
+                                    color: "transparent"
                                 }
                                 activeFocusOnPress: false
                                 padding: 8
@@ -398,9 +428,9 @@ Rectangle {
                             anchors.centerIn: parent
                             visible: clipboardDialog.currentEntry === ""
                             text: "NO ITEM SELECTED"
-                            font.family: Appearance.font.family.monospace
+                            font.family: Appearance.font.family.main
                             font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                             color: TuiStyle.dim
                         }
                     }
@@ -434,9 +464,9 @@ Rectangle {
     }
 
     component FooterText: StyledText {
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.smaller
-        font.weight: Font.Bold
+        font.weight: Font.Medium
         color: TuiStyle.dim
     }
 }

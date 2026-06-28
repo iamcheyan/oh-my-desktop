@@ -9,7 +9,7 @@ Rectangle {
     required property var label
     height: 24
     implicitWidth: row.implicitWidth + 10 * 2
-    color: Appearance.tiling.bgTitlebar
+    color: "#181818"
     radius: 0
 
     Row {
@@ -21,7 +21,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             name: root.icon
             iconSize: Appearance.font.pixelSize.small
-            color: Appearance.tiling.textBright
+            color: TuiStyle.fg
         }
 
         StyledText {
@@ -31,7 +31,7 @@ Rectangle {
                 weight: Font.Bold
                 pixelSize: Appearance.font.pixelSize.small
             }
-            color: Appearance.tiling.textBright
+            color: TuiStyle.fg
         }
     }
 }

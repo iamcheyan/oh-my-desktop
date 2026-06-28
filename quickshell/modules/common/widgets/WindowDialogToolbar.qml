@@ -40,8 +40,8 @@ RowLayout {
         implicitHeight: 28
         implicitWidth: 28
         buttonRadius: 14
-        colBackgroundHover: Appearance.tiling.bgHover
-        colRipple: Appearance.tiling.bgActive
+        colBackgroundHover: "#333333"
+        colRipple: "#222222"
         enabled: root.currentPage > 0
         opacity: enabled ? 1 : 0.3
         onClicked: root.pageUp()
@@ -49,14 +49,14 @@ RowLayout {
             anchors.centerIn: parent
             text: "chevron_left"
             font.pixelSize: Appearance.font.pixelSize.larger
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
 
     StyledText {
         visible: root.paginationVisible
         text: `${root.currentPage + 1} / ${root.totalPages}`
-        color: Appearance.tiling.textDim
+        color: TuiStyle.dim
         font.pixelSize: Appearance.font.pixelSize.small
     }
 
@@ -65,8 +65,8 @@ RowLayout {
         implicitHeight: 28
         implicitWidth: 28
         buttonRadius: 14
-        colBackgroundHover: Appearance.tiling.bgHover
-        colRipple: Appearance.tiling.bgActive
+        colBackgroundHover: "#333333"
+        colRipple: "#222222"
         enabled: root.currentPage < root.totalPages - 1
         opacity: enabled ? 1 : 0.3
         onClicked: root.pageDown()
@@ -74,7 +74,7 @@ RowLayout {
             anchors.centerIn: parent
             text: "chevron_right"
             font.pixelSize: Appearance.font.pixelSize.larger
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
 
@@ -98,8 +98,8 @@ RowLayout {
             implicitHeight: 28
             implicitWidth: 28
             buttonRadius: 14
-            colBackgroundHover: Appearance.tiling.bgHover
-            colRipple: Appearance.tiling.bgActive
+            colBackgroundHover: "#333333"
+            colRipple: "#222222"
             enabled: actionData?.enabled ?? true
             opacity: enabled ? 1 : 0.3
             onClicked: actionData?.callback()
@@ -107,7 +107,7 @@ RowLayout {
                 anchors.centerIn: parent
                 text: actionData?.icon ?? ""
                 font.pixelSize: actionData?.iconSize ?? Appearance.font.pixelSize.small
-                color: actionData?.color ?? Appearance.tiling.text
+                color: actionData?.color ?? TuiStyle.fg
             }
         }
     }

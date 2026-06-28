@@ -7,7 +7,7 @@ import qs.modules.common.widgets
 
 Rectangle {
     implicitHeight: 1
-    color: Appearance.tiling.border
+    color: TuiStyle.line
     Layout.fillWidth: true
     Layout.leftMargin: 0
     Layout.rightMargin: 0

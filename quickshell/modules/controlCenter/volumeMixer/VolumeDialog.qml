@@ -146,21 +146,19 @@ WindowDialog {
     Rectangle {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        color: root.tuiBg
-        border.width: 1
-        border.color: root.tuiLine
+        color: "transparent"
+        border.width: 0
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 12
+            anchors.margins: 0
+            spacing: 14
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 58
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiBlue
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
@@ -176,7 +174,7 @@ WindowDialog {
                             text: "OMD AUDIOCTL"
                             color: root.tuiBlue
                             font.pixelSize: Appearance.font.pixelSize.large
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
 
                         TuiText {
@@ -226,9 +224,9 @@ WindowDialog {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 82
-                            color: root.tuiPanelAlt
-                            border.width: 1
-                            border.color: root.tuiLine
+                            color: "#222222"
+                            radius: TuiStyle.radius
+                            border.width: 0
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -242,7 +240,7 @@ WindowDialog {
                                     TuiText {
                                         text: "LEVEL"
                                         color: root.tuiDim
-                                        font.weight: Font.Bold
+                                        font.weight: Font.DemiBold
                                     }
 
                                     TuiText {
@@ -250,7 +248,7 @@ WindowDialog {
                                         text: `${Math.round(root.masterVolume * 100)}%`
                                         color: root.masterMuted ? root.tuiRed : root.tuiBlue
                                         horizontalAlignment: Text.AlignRight
-                                        font.weight: Font.Bold
+                                        font.weight: Font.DemiBold
                                     }
                                 }
 
@@ -296,9 +294,9 @@ WindowDialog {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            color: root.tuiPanelAlt
-                            border.width: 1
-                            border.color: root.tuiLine
+                            color: "#222222"
+                            radius: TuiStyle.radius
+                            border.width: 0
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -309,7 +307,7 @@ WindowDialog {
                                     Layout.fillWidth: true
                                     text: "Quick Keys"
                                     color: root.tuiDim
-                                    font.weight: Font.Bold
+                                    font.weight: Font.DemiBold
                                 }
 
                                 TuiText {
@@ -368,8 +366,8 @@ WindowDialog {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 28
                                     color: active ? Qt.rgba(root.tuiYellow.r, root.tuiYellow.g, root.tuiYellow.b, 0.12) : "transparent"
-                                    border.width: 1
-                                    border.color: active ? root.tuiYellow : root.tuiLine
+                                    border.width: 0
+                                    radius: TuiStyle.radius
 
                                     RowLayout {
                                         anchors.fill: parent
@@ -380,7 +378,7 @@ WindowDialog {
                                         TuiText {
                                             text: deviceRow.active ? "::" : "--"
                                             color: deviceRow.active ? root.tuiYellow : root.tuiDim
-                                            font.weight: Font.Bold
+                                            font.weight: Font.DemiBold
                                         }
 
                                         TuiText {
@@ -428,8 +426,9 @@ WindowDialog {
 
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 52
-                                    color: selected ? root.tuiSelection : root.tuiBg
-                                    border.width: 1
+                                    color: selected ? root.tuiSelection : "#1a1a1a"
+                                    radius: TuiStyle.radius
+                                    border.width: 0
                                     border.color: selected ? root.tuiAccent : root.tuiLine
 
                                     MouseArea {
@@ -452,7 +451,7 @@ WindowDialog {
                                             TuiText {
                                                 text: appRow.selected ? "::" : "--"
                                                 color: appRow.selected ? root.tuiAccent : root.tuiDim
-                                                font.weight: Font.Bold
+                                                font.weight: Font.DemiBold
                                             }
 
                                             TuiText {
@@ -460,14 +459,14 @@ WindowDialog {
                                                 text: root.appDisplayName(appRow.modelData)
                                                 color: appRow.muted ? root.tuiRed : (appRow.selected ? root.tuiFg : Qt.rgba(root.tuiFg.r, root.tuiFg.g, root.tuiFg.b, 0.78))
                                                 elide: Text.ElideRight
-                                                font.weight: Font.Bold
+                                                font.weight: Font.DemiBold
                                             }
 
                                             TuiText {
                                                 text: appRow.muted ? "MUTE" : `${Math.round(appRow.volume * 100)}%`
                                                 color: appRow.muted ? root.tuiRed : root.tuiAccent
                                                 horizontalAlignment: Text.AlignRight
-                                                font.weight: Font.Bold
+                                                font.weight: Font.DemiBold
                                             }
                                         }
 
@@ -489,15 +488,15 @@ WindowDialog {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 visible: root.appPwNodes.length === 0
-                                color: root.tuiPanelAlt
-                                border.width: 1
-                                border.color: root.tuiLine
+                                color: "#222222"
+                                radius: TuiStyle.radius
+                                border.width: 0
 
                                 TuiText {
                                     anchors.centerIn: parent
                                     text: root.isSink ? "NO ACTIVE APPS" : "NO INPUT STREAMS"
                                     color: root.tuiDim
-                                    font.weight: Font.Bold
+                                    font.weight: Font.DemiBold
                                 }
                             }
                         }
@@ -508,9 +507,8 @@ WindowDialog {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiLine
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
@@ -536,7 +534,7 @@ WindowDialog {
 
     component TuiText: StyledText {
         color: root.tuiFg
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.small
         textFormat: Text.PlainText
     }
@@ -551,9 +549,8 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: root.tuiPanel
-            border.width: 1
-            border.color: root.tuiLine
+            color: "transparent"
+                border.width: 0
         }
 
         Rectangle {
@@ -562,6 +559,7 @@ WindowDialog {
             anchors.bottom: parent.bottom
             width: 3
             color: panel.accent
+            opacity: 0
         }
 
         RowLayout {
@@ -575,14 +573,15 @@ WindowDialog {
 
             TuiText {
                 text: panel.title
-                color: panel.accent
-                font.weight: Font.Bold
+                color: root.tuiFg
+                font.weight: Font.DemiBold
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 color: root.tuiLine
+                opacity: 0.28
             }
 
             TuiText {
@@ -605,7 +604,7 @@ WindowDialog {
     component DetailKey: TuiText {
         Layout.preferredWidth: 62
         color: root.tuiDim
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignLeft
     }
 
@@ -618,7 +617,7 @@ WindowDialog {
 
     component FooterHint: TuiText {
         color: root.tuiPurple
-        font.weight: Font.Bold
+        font.weight: Font.Medium
     }
 
     component StatusText: Item {
@@ -636,7 +635,7 @@ WindowDialog {
             anchors.fill: parent
             text: status.label
             color: status.tone
-            font.weight: Font.Bold
+            font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignVCenter
         }
@@ -655,14 +654,14 @@ WindowDialog {
         color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.18)
             : modeMouse.containsMouse ? Qt.rgba(accent.r, accent.g, accent.b, 0.10)
             : "transparent"
-        border.width: 1
-        border.color: active || modeMouse.containsMouse ? accent : root.tuiLine
+        border.width: 0
+        radius: TuiStyle.radius
 
         TuiText {
             anchors.centerIn: parent
             text: modeButton.label
             color: modeButton.active ? modeButton.accent : root.tuiDim
-            font.weight: Font.Bold
+            font.weight: Font.DemiBold
         }
 
         MouseArea {

@@ -17,7 +17,7 @@ Singleton {
     }
 
     function lock() {
-        Quickshell.execDetached(["loginctl", "lock-session"]);
+        Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-lock\" || loginctl lock-session"]);
     }
 
     function suspend() {
@@ -25,7 +25,7 @@ Singleton {
     }
 
     function logout() {
-        Quickshell.execDetached(["hyprctl", "dispatch", "exit"]);
+        Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-logout\" || hyprctl dispatch exit"]);
     }
 
     function launchTaskManager() {

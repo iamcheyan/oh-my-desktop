@@ -14,22 +14,23 @@ Rectangle {
     readonly property bool actuallyEnabled: enabled && enabledState
     signal clicked()
 
-    Layout.preferredWidth: Math.max(92, buttonText.implicitWidth + horizontalPadding)
+    Layout.preferredWidth: Math.max(104, buttonText.implicitWidth + horizontalPadding)
     Layout.preferredHeight: preferredHeight
     radius: TuiStyle.radius
-    color: actuallyEnabled && actionMouse.containsMouse ? Qt.rgba(accent.r, accent.g, accent.b, 0.16) : filled ? TuiStyle.panel : "transparent"
-    border.width: TuiStyle.borderWidth
-    border.color: actuallyEnabled ? (actionMouse.containsMouse ? accent : TuiStyle.line) : TuiStyle.line
+    color: filled
+        ? (actuallyEnabled && actionMouse.containsMouse ? "#4d4d4d" : "#2b2b2b")
+        : "transparent"
+    border.width: 0
     opacity: actuallyEnabled ? 1 : 0.45
 
     StyledText {
         id: buttonText
         anchors.centerIn: parent
         text: root.label
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.small
-        font.weight: Font.Bold
-        color: root.actuallyEnabled ? root.accent : TuiStyle.dim
+        font.weight: Font.Medium
+        color: root.actuallyEnabled ? TuiStyle.fg : TuiStyle.dim
     }
 
     MouseArea {

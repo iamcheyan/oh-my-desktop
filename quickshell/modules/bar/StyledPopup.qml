@@ -66,12 +66,12 @@ LazyLoader {
             }
             implicitWidth: root.contentItem.implicitWidth + margin * 2
             implicitHeight: root.contentItem.implicitHeight + margin * 2
-            color: Appearance.tiling.bg
-            radius: Appearance.tiling.dialogRadius
+            color: TuiStyle.bg
+            radius: TuiStyle.radius
             children: [root.contentItem]
 
-            border.width: Appearance.tiling.borderWidth
-            border.color: Appearance.tiling.border
+            border.width: TuiStyle.lineWidth
+            border.color: TuiStyle.line
         }
     }
 }

@@ -14,6 +14,7 @@ import qs.modules.polkit
 import qs.modules.schedulePopup
 import qs.modules.controlCenter
 import qs.modules.regionSelector
+import qs.modules.sessionScreen
 
 import QtQuick
 import Quickshell
@@ -41,6 +42,7 @@ ShellRoot {
             OnScreenDisplay {}
             Polkit {}
             RegionSelector {}
+            SessionScreen {}
         }
     }
 }

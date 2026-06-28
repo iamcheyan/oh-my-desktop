@@ -28,9 +28,9 @@ Rectangle {
     }
 
     implicitHeight: 42
-    color: selected ? TuiStyle.selection : mouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
-    border.width: selected ? TuiStyle.borderWidth : 0
-    border.color: selected ? TuiStyle.accent : "transparent"
+    color: selected ? TuiStyle.selection : mouseArea.containsMouse ? "#333333" : "transparent"
+    border.width: 0
+    radius: TuiStyle.radius
     clip: true
 
     MouseArea {
@@ -49,24 +49,7 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: 10
         anchors.rightMargin: 10
-        spacing: 10
-
-        Rectangle {
-            Layout.preferredWidth: 50
-            Layout.preferredHeight: 22
-            color: root.selected ? TuiStyle.panel : TuiStyle.bg
-            border.width: TuiStyle.borderWidth
-            border.color: root.selected ? TuiStyle.accent : TuiStyle.line
-
-            StyledText {
-                anchors.centerIn: parent
-                text: root.isImage ? "IMG" : "TXT"
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                font.weight: Font.Bold
-                color: root.selected ? TuiStyle.fg : TuiStyle.muted
-            }
-        }
+        spacing: 0
 
         ColumnLayout {
             Layout.fillWidth: true
@@ -77,9 +60,9 @@ Rectangle {
                 Layout.fillWidth: true
                 text: root.isImage ? `${root.imgW}x${root.imgH} image` : root.cleanText
                 elide: Text.ElideRight
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: root.selected ? Font.Bold : Font.Medium
+                font.weight: root.selected ? Font.DemiBold : Font.Medium
                 color: root.selected ? TuiStyle.fg : TuiStyle.fg
             }
 
@@ -87,7 +70,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: root.isImage ? "binary clipboard entry" : root.entry.replace(/^\s*\S+\s+/, "").slice(0, 96)
                 elide: Text.ElideRight
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 color: TuiStyle.dim
                 visible: text.length > 0
@@ -99,8 +82,8 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        height: TuiStyle.borderWidth
+        height: 1
         color: TuiStyle.line
-        opacity: root.selected ? 0 : 0.7
+        opacity: root.selected ? 0 : 0.3
     }
 }

@@ -10,8 +10,6 @@ import Quickshell
 Item {
     id: root
 
-    property string settingsQmlPath: Quickshell.shellPath("settings.qml")
-
     readonly property color tuiBg: TuiStyle.bg
     readonly property color tuiPanel: TuiStyle.panel
     readonly property color tuiPanelAlt: TuiStyle.panelAlt
@@ -57,41 +55,31 @@ Item {
     implicitHeight: controlCenterBackground.implicitHeight
     implicitWidth: controlCenterBackground.implicitWidth
 
-    Rectangle {
+    TuiShell {
         id: controlCenterBackground
         anchors {
             top: parent.top
             left: parent.left
             right: parent.right
         }
-        implicitHeight: contentColumn.implicitHeight + 32
+        implicitHeight: contentColumn.implicitHeight + contentPadding * 2
         implicitWidth: parent.width
-        color: root.tuiBg
-        border.width: 1
-        border.color: root.tuiLine
-        radius: 0
 
         ColumnLayout {
             id: contentColumn
-            anchors {
-                top: parent.top
-                left: parent.left
-                right: parent.right
-            }
-            anchors.margins: 16
-            spacing: 12
+            anchors.fill: parent
+            spacing: 14
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 58
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiYellow
+                Layout.preferredHeight: 54
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 10
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 6
                     spacing: 12
 
                     ColumnLayout {
@@ -100,16 +88,16 @@ Item {
 
                         StyledText {
                             text: "OMD CONTROLCTL"
-                            font.family: Appearance.font.family.monospace
+                            font.family: Appearance.font.family.main
                             font.pixelSize: Appearance.font.pixelSize.large
-                            font.weight: Font.Bold
-                            color: root.tuiBlue
+                            font.weight: Font.DemiBold
+                            color: root.tuiFg
                         }
 
                         StyledText {
                             Layout.fillWidth: true
                             text: `battery=${Battery.available ? Math.round(Battery.percentage * 100) + "%" : "--"}  profile=${PowerProfiles.currentProfile}  sleep=${Idle.inhibit ? "blocked" : "allowed"}  notifications=${Notifications.list.length}`
-                            font.family: Appearance.font.family.monospace
+                            font.family: Appearance.font.family.main
                             font.pixelSize: Appearance.font.pixelSize.small
                             color: root.tuiDim
                             elide: Text.ElideRight
@@ -130,15 +118,6 @@ Item {
                         }
 
                         HeaderButton {
-                            iconName: "settings"
-                            accent: root.tuiBlue
-                            onClicked: {
-                                GlobalStates.controlCenterOpen = false;
-                                Quickshell.execDetached(["qs", "-p", root.settingsQmlPath]);
-                            }
-                        }
-
-                        HeaderButton {
                             iconName: "power_settings_new"
                             accent: root.tuiRed
                             onClicked: {
@@ -147,11 +126,20 @@ Item {
                         }
                     }
                 }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: root.tuiLine
+                    opacity: 0.35
+                }
             }
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 180
+                Layout.preferredHeight: 220
                 spacing: 12
 
                 ControlPanel {
@@ -282,6 +270,10 @@ Item {
                             valueColor: Idle.inhibit ? root.tuiYellow : root.tuiAccent
                         }
 
+                        Item {
+                            Layout.fillHeight: true
+                        }
+
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -290,18 +282,21 @@ Item {
                                 label: "cycle"
                                 accent: root.tuiBlue
                                 enabled: PowerProfiles.available
+                                preferredHeight: 32
                                 onClicked: PowerProfiles.cycleProfile()
                             }
 
                             TuiActionButton {
                                 label: "refresh"
                                 accent: root.tuiPurple
+                                preferredHeight: 32
                                 onClicked: PowerProfiles.refresh()
                             }
 
                             TuiActionButton {
                                 label: Idle.inhibit ? "allow sleep" : "keep awake"
                                 accent: Idle.inhibit ? root.tuiAccent : root.tuiYellow
+                                preferredHeight: 32
                                 onClicked: Idle.toggleInhibit()
                             }
                         }
@@ -312,9 +307,10 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(notificationList.implicitHeight + 56, 500)
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiLine
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
+                clip: true
 
                 Rectangle {
                     anchors.left: parent.left
@@ -322,6 +318,7 @@ Item {
                     anchors.bottom: parent.bottom
                     width: 3
                     color: root.tuiAccent
+                    opacity: 0
                 }
 
                 RowLayout {
@@ -335,21 +332,22 @@ Item {
 
                     StyledText {
                         text: "NOTIFICATIONS"
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Bold
-                        color: root.tuiAccent
+                        font.weight: Font.DemiBold
+                        color: root.tuiFg
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
                         color: root.tuiLine
+                        opacity: 0.28
                     }
 
                     StyledText {
                         text: Notifications.list.length === 0 ? "empty" : `${Notifications.list.length} entries`
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
                         color: root.tuiDim
                         horizontalAlignment: Text.AlignRight
@@ -415,9 +413,9 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            color: root.tuiPanel
-            border.width: 1
-            border.color: root.tuiLine
+            color: "#181818"
+            radius: TuiStyle.radius
+            border.width: 0
         }
 
         Rectangle {
@@ -426,6 +424,7 @@ Item {
             anchors.bottom: parent.bottom
             width: 3
             color: panel.accent
+            opacity: 0
         }
 
         RowLayout {
@@ -439,21 +438,22 @@ Item {
 
             StyledText {
                 text: panel.title
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
-                font.weight: Font.Bold
-                color: panel.accent
+                font.weight: Font.DemiBold
+                color: root.tuiFg
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 color: root.tuiLine
+                opacity: 0.28
             }
 
             StyledText {
                 text: panel.subtitle
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: root.tuiDim
                 horizontalAlignment: Text.AlignRight
@@ -484,18 +484,19 @@ Item {
         Layout.preferredHeight: 34
         opacity: available ? 1 : 0.4
         color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.18)
-            : profileMouse.containsMouse ? Qt.rgba(accent.r, accent.g, accent.b, 0.10)
-            : "transparent"
-        border.width: 1
-        border.color: active || profileMouse.containsMouse ? accent : root.tuiLine
+            : profileMouse.containsMouse ? "#303030"
+            : "#222222"
+        radius: 8
+        border.width: active ? 1 : 0
+        border.color: "#9a9a9a"
 
         StyledText {
             anchors.centerIn: parent
             text: button.label
-            font.family: Appearance.font.family.monospace
+            font.family: Appearance.font.family.main
             font.pixelSize: Appearance.font.pixelSize.small
-            font.weight: Font.Bold
-            color: button.active ? button.accent : root.tuiFg
+            font.weight: Font.DemiBold
+            color: button.active ? root.tuiFg : root.tuiDim
         }
 
         MouseArea {

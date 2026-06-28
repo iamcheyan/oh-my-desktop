@@ -20,9 +20,9 @@ RippleButton {
     }
 
     rippleEnabled: false
-    colBackground: root.selected ? Appearance.colors.colSecondaryContainer : ColorUtils.transparentize(Appearance.tiling.bg, 1)
-    colBackgroundHover: active ? colBackground : Appearance.tiling.bgHover
-    colRipple: Appearance.tiling.bgHover
+    colBackground: root.selected ? Appearance.colors.colSecondaryContainer : ColorUtils.transparentize(TuiStyle.bg, 1)
+    colBackgroundHover: active ? colBackground : "#333333"
+    colRipple: "#333333"
     buttonRadius: 0
     borderWidth: 0
 }

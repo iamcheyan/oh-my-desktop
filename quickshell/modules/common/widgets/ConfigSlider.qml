@@ -29,7 +29,7 @@ RowLayout {
             id: iconWidget
             icon: root.buttonIcon
             iconSize: Appearance.font.pixelSize.larger
-            color: Appearance.tiling.textDim
+            color: TuiStyle.dim
         }
         StyledText {
             id: labelWidget
@@ -37,7 +37,7 @@ RowLayout {
             text: root.text
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
         }
     }
     

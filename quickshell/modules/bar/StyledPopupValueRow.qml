@@ -12,19 +12,19 @@ RowLayout {
 
     CosmicIcon {
         name: root.icon
-        color: Appearance.tiling.accent
+        color: TuiStyle.accent
         iconSize: Appearance.font.pixelSize.small
     }
     StyledText {
         text: root.label
-        color: Appearance.tiling.text
+        color: TuiStyle.fg
         font.pixelSize: Appearance.font.pixelSize.smaller
     }
     StyledText {
         Layout.fillWidth: true
         horizontalAlignment: Text.AlignRight
         visible: root.value !== ""
-        color: Appearance.tiling.textBright
+        color: TuiStyle.fg
         text: root.value
         font.pixelSize: Appearance.font.pixelSize.smaller
     }

@@ -172,50 +172,78 @@ WindowDialog {
     Rectangle {
         Layout.fillWidth: true
         Layout.fillHeight: true
-        color: root.tuiBg
-        border.width: 2
-        border.color: root.tuiLine
+        color: "transparent"
+        border.width: 0
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 12
+            spacing: 14
 
+            // Header
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 58
-                color: root.tuiPanel
-                border.width: 2
-                border.color: root.tuiBlue
+                Layout.preferredHeight: 54
+                color: "transparent"
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 16
-                    spacing: 14
+                    anchors.leftMargin: 4
+                    anchors.rightMargin: 6
+                    spacing: 12
 
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 2
 
-                        TuiText {
+                        StyledText {
                             text: "OMD BTCTL"
-                            color: root.tuiBlue
+                            font.family: Appearance.font.family.main
                             font.pixelSize: Appearance.font.pixelSize.large
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
+                            color: root.tuiFg
                         }
 
-                        TuiText {
+                        StyledText {
+                            Layout.fillWidth: true
                             text: `radio=${BluetoothStatus.enabled ? "on" : "off"}  scan=${Bluetooth.defaultAdapter?.discovering ? "running" : "ready"}  linked=${BluetoothStatus.activeDeviceCount}`
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.small
                             color: root.tuiDim
                             elide: Text.ElideRight
                         }
                     }
 
-                    StatusPill {
-                        label: Bluetooth.defaultAdapter?.discovering ? "SCANNING" : BluetoothStatus.connected ? "LINKED" : BluetoothStatus.enabled ? "READY" : "OFFLINE"
-                        tone: Bluetooth.defaultAdapter?.discovering ? root.tuiYellow : BluetoothStatus.connected ? root.tuiAccent : BluetoothStatus.enabled ? root.tuiBlue : root.tuiRed
+                    RowLayout {
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        spacing: 6
+
+                        HeaderButton {
+                            iconName: "restart_alt"
+                            accent: root.tuiYellow
+                            onClicked: {
+                                if (Bluetooth.defaultAdapter) {
+                                    Bluetooth.defaultAdapter.enabled = true;
+                                    Bluetooth.defaultAdapter.discovering = true;
+                                }
+                            }
+                        }
+
+                        HeaderButton {
+                            iconName: "power_settings_new"
+                            accent: root.tuiRed
+                            onClicked: root.dismiss()
+                        }
                     }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: root.tuiLine
+                    opacity: 0.35
                 }
             }
 
@@ -322,7 +350,7 @@ WindowDialog {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: Bluetooth.defaultAdapter?.discovering ? "SCANNING..." : "NO DEVICES"
                                         color: root.tuiYellow
-                                        font.weight: Font.Bold
+                                        font.weight: Font.DemiBold
                                     }
                                     TuiText {
                                         Layout.alignment: Qt.AlignHCenter
@@ -369,7 +397,7 @@ WindowDialog {
                                     color: root.previewDevice ? root.tuiFg : root.tuiDim
                                     elide: Text.ElideRight
                                     font.pixelSize: Appearance.font.pixelSize.large
-                                    font.weight: Font.Bold
+                                    font.weight: Font.DemiBold
                                 }
 
                                 StatusPill {
@@ -381,9 +409,9 @@ WindowDialog {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 82
-                                color: root.tuiPanelAlt
-                                border.width: 2
-                                border.color: root.tuiLine
+                                color: "#222222"
+                                radius: TuiStyle.radius
+                                border.width: 0
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -397,7 +425,7 @@ WindowDialog {
                                         TuiText {
                                             text: "BATTERY"
                                             color: root.tuiDim
-                                            font.weight: Font.Bold
+                                            font.weight: Font.DemiBold
                                         }
 
                                         TuiText {
@@ -405,7 +433,7 @@ WindowDialog {
                                             text: root.batteryLabel(root.previewDevice)
                                             color: root.previewDevice?.batteryAvailable ? root.tuiYellow : root.tuiDim
                                             horizontalAlignment: Text.AlignRight
-                                            font.weight: Font.Bold
+                                            font.weight: Font.DemiBold
                                         }
                                     }
 
@@ -502,17 +530,27 @@ WindowDialog {
                 }
             }
 
+            // Footer
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 34
-                color: root.tuiPanel
-                border.width: 2
-                border.color: root.tuiLine
+                color: "transparent"
+                border.width: 0
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: 1
+                    color: root.tuiLine
+                    opacity: 0.28
+                }
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
+                    anchors.topMargin: 8
+                    anchors.leftMargin: 4
+                    anchors.rightMargin: 6
                     spacing: 18
 
                     FooterHint { text: "enter/space/l manage" }
@@ -562,9 +600,9 @@ WindowDialog {
                 width: Math.min(620, parent.width - 74)
                 height: 350
                 anchors.centerIn: parent
-                color: root.tuiBg
-                border.width: 2
-                border.color: root.tuiBlue
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
 
                 MouseArea {
                     anchors.fill: parent
@@ -582,7 +620,7 @@ WindowDialog {
                         TuiText {
                             text: "BTCTL::ACTION"
                             color: root.tuiBlue
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
 
                         Rectangle {
@@ -594,7 +632,7 @@ WindowDialog {
                         TuiText {
                             text: root.deviceState(root.selectedDevice).toUpperCase()
                             color: root.selectedDevice?.connected ? root.tuiAccent : root.tuiYellow
-                            font.weight: Font.Bold
+                            font.weight: Font.DemiBold
                         }
                     }
 
@@ -604,7 +642,7 @@ WindowDialog {
                         color: root.tuiFg
                         elide: Text.ElideRight
                         font.pixelSize: Appearance.font.pixelSize.large
-                        font.weight: Font.Bold
+                        font.weight: Font.DemiBold
                     }
 
                     GridLayout {
@@ -662,7 +700,7 @@ WindowDialog {
 
     component TuiText: StyledText {
         color: root.tuiFg
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.small
         textFormat: Text.PlainText
     }
@@ -677,9 +715,9 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: root.tuiPanel
-            border.width: 2
-            border.color: root.tuiLine
+            color: "#181818"
+            radius: TuiStyle.radius
+            border.width: 0
         }
 
         Rectangle {
@@ -688,6 +726,7 @@ WindowDialog {
             anchors.bottom: parent.bottom
             width: 3
             color: panel.accent
+            opacity: 0
         }
 
         RowLayout {
@@ -696,32 +735,38 @@ WindowDialog {
             anchors.top: parent.top
             anchors.leftMargin: 14
             anchors.rightMargin: 12
-            height: 32
+            height: 30
             spacing: 8
 
-            TuiText {
+            StyledText {
                 text: panel.title
-                color: panel.accent
-                font.weight: Font.Bold
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.DemiBold
+                color: root.tuiFg
             }
 
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 color: root.tuiLine
+                opacity: 0.28
             }
 
-            TuiText {
+            StyledText {
                 text: panel.subtitle
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.small
                 color: root.tuiDim
                 horizontalAlignment: Text.AlignRight
+                elide: Text.ElideRight
             }
         }
 
         Item {
             id: panelContent
             anchors.fill: parent
-            anchors.topMargin: 42
+            anchors.topMargin: 40
             anchors.leftMargin: 14
             anchors.rightMargin: 12
             anchors.bottomMargin: 12
@@ -730,7 +775,7 @@ WindowDialog {
 
     component HeaderCell: TuiText {
         color: root.tuiDim
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }
@@ -738,7 +783,7 @@ WindowDialog {
     component DetailKey: TuiText {
         Layout.preferredWidth: 62
         color: root.tuiDim
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
         horizontalAlignment: Text.AlignLeft
     }
 
@@ -751,7 +796,7 @@ WindowDialog {
 
     component FooterHint: TuiText {
         color: root.tuiPurple
-        font.weight: Font.Bold
+        font.weight: Font.DemiBold
     }
 
     component StatusPill: Item {
@@ -764,14 +809,47 @@ WindowDialog {
         Layout.preferredHeight: 26
         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
 
-        TuiText {
+        StyledText {
             id: pillText
             anchors.fill: parent
             text: pill.label
             color: pill.tone
-            font.weight: Font.Bold
+            font.family: Appearance.font.family.main
+            font.pixelSize: Appearance.font.pixelSize.small
+            font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignRight
             verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    component HeaderButton: Rectangle {
+        id: button
+
+        property string iconName: ""
+        property color accent: root.tuiYellow
+        signal clicked()
+
+        Layout.preferredWidth: 34
+        Layout.preferredHeight: 34
+        color: buttonMouse.pressed ? "#4d4d4d" : buttonMouse.containsMouse ? "#3a3a3a" : "transparent"
+        radius: TuiStyle.radius
+        border.width: 0
+
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: button.iconName
+            iconSize: 22
+            color: button.accent
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        MouseArea {
+            id: buttonMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: button.clicked()
         }
     }
 

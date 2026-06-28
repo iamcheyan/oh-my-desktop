@@ -6,7 +6,7 @@ import qs.modules.common.widgets
 
 StyledText {
     text: "Some body content"
-    color: Appearance.tiling.text
+    color: TuiStyle.fg
     font.pixelSize: Appearance.font.pixelSize.smaller
     wrapMode: Text.Wrap
 }

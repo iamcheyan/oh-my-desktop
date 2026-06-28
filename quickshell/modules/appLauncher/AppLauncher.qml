@@ -286,10 +286,15 @@ PanelWindow {
         y: (parent.height - height) / 2 + launcher.cardOffsetY
         width: Math.min(parent.width * 0.72, 960)
         height: Math.min(parent.height * 0.80, 720)
-        color: Appearance.tiling.bg
-        radius: Appearance.tiling.dialogRadius
-        border.color: Appearance.tiling.border
-        border.width: Appearance.tiling.borderWidth
+        color: TuiStyle.bg
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#ee151515" }
+            GradientStop { position: 0.42; color: "#e7080808" }
+            GradientStop { position: 1.0; color: "#ef111111" }
+        }
+        radius: 18
+        border.color: "#8f8f8f"
+        border.width: TuiStyle.borderWidth
         clip: true
 
         MouseArea { anchors.fill: parent; onClicked: {} }
@@ -302,8 +307,8 @@ PanelWindow {
             Rectangle {
                 id: titlebar
                 Layout.fillWidth: true
-                implicitHeight: Appearance.tiling.titlebarHeight
-                color: Appearance.tiling.bg
+                implicitHeight: 44
+                color: "transparent"
                 border.width: 0
 
                 MouseArea {
@@ -332,14 +337,14 @@ PanelWindow {
                     CosmicIcon {
                         name: "actions/application-menu-symbolic"
                         iconSize: Appearance.font.pixelSize.small
-                        color: Appearance.tiling.textBright
+                        color: TuiStyle.fg
                     }
 
                     StyledText {
                         text: "App Launcher"
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: Appearance.font.family.monospace
-                        color: Appearance.tiling.textBright
+                        font.family: Appearance.font.family.main
+                        color: TuiStyle.fg
                     }
 
                     Item { Layout.fillWidth: true }
@@ -347,8 +352,8 @@ PanelWindow {
                     StyledText {
                         text: launcher.filteredApps.length + " apps"
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.monospace
-                        color: Appearance.tiling.textBright
+                        font.family: Appearance.font.family.main
+                        color: TuiStyle.fg
                     }
                 }
 
@@ -356,8 +361,9 @@ PanelWindow {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    height: Appearance.tiling.borderWidth
-                    color: Appearance.tiling.border
+                    height: 1
+                    color: TuiStyle.line
+                    opacity: 0.35
                 }
             }
 
@@ -368,10 +374,9 @@ PanelWindow {
                 Layout.topMargin: 8
                 Layout.bottomMargin: 8
                 Layout.alignment: Qt.AlignHCenter
-                color: Appearance.tiling.bgInput
-                radius: 20
-                border.width: searchField.activeFocus ? 1 : Appearance.tiling.borderWidth
-                border.color: searchField.activeFocus ? Appearance.tiling.borderFocus : Appearance.tiling.border
+                color: "#181818"
+                radius: TuiStyle.radius
+                border.width: 0
 
                 RowLayout {
                     anchors.fill: parent
@@ -382,7 +387,7 @@ PanelWindow {
                     CosmicIcon {
                         name: "actions/system-search-symbolic"
                         iconSize: Appearance.font.pixelSize.small
-                        color: Appearance.tiling.textDim
+                        color: TuiStyle.dim
                     }
 
                     Item {
@@ -395,17 +400,17 @@ PanelWindow {
                             visible: searchField.text === ""
                             text: "Type to search..."
                             font.pixelSize: Appearance.font.pixelSize.normal
-                            font.family: Appearance.font.family.monospace
-                            color: Appearance.tiling.textDim
+                            font.family: Appearance.font.family.main
+                            color: TuiStyle.dim
                         }
 
                         TextField {
                             id: searchField
                             anchors.fill: parent
-                            color: Appearance.tiling.textBright
-                            selectionColor: Appearance.tiling.accent
-                            selectedTextColor: Appearance.tiling.bg
-                            font.family: Appearance.font.family.monospace
+                            color: TuiStyle.fg
+                            selectionColor: TuiStyle.accent
+                            selectedTextColor: TuiStyle.bg
+                            font.family: Appearance.font.family.main
                             font.pixelSize: Appearance.font.pixelSize.normal
                             verticalAlignment: TextInput.AlignVCenter
                             background: null
@@ -464,10 +469,9 @@ PanelWindow {
                         Rectangle {
                             anchors.fill: parent
                             anchors.margins: 2
-                            radius: Appearance.tiling.dialogRadius
-                            color: ma.containsMouse ? Appearance.tiling.bgHover : "transparent"
-                            border.width: ma.containsMouse ? Appearance.tiling.borderWidth : 0
-                            border.color: ma.containsMouse ? Appearance.tiling.border : "transparent"
+                            radius: TuiStyle.radius
+                            color: ma.containsMouse ? "#333333" : "transparent"
+                            border.width: 0
                         }
 
                         // Pin badge
@@ -480,16 +484,15 @@ PanelWindow {
                             anchors.rightMargin: 3
                             width: 18; height: 18
                             radius: 9
-                            color: appItem.isPinned ? Appearance.tiling.accent : Appearance.tiling.bgActive
-                            border.color: appItem.isPinned ? Appearance.tiling.borderFocus : Appearance.tiling.border
-                            border.width: Appearance.tiling.borderWidth
+                            color: appItem.isPinned ? TuiStyle.accent : "#222222"
+                            border.width: 0
                             z: 2
 
                             CosmicIcon {
                                 anchors.centerIn: parent
                                 name: "actions/pin-symbolic"
                                 iconSize: 11
-                                color: appItem.isPinned ? Appearance.tiling.textBright : Appearance.tiling.textDim
+                                color: appItem.isPinned ? TuiStyle.bg : TuiStyle.dim
                             }
                         }
 
@@ -506,17 +509,16 @@ PanelWindow {
                                 visible: appItem.resolvedIconSource === "" || appIcon.status === Image.Error
                                 anchors.fill: parent
                                 radius: 8
-                                color: Appearance.tiling.bgActive
-                                border.width: Appearance.tiling.borderWidth
-                                border.color: Appearance.tiling.border
+                                color: "#222222"
+                                border.width: 0
 
                                 StyledText {
                                     anchors.centerIn: parent
                                     text: (appItem.modelData && appItem.modelData.name) ? appItem.modelData.name.charAt(0).toUpperCase() : "?"
                                     font.pixelSize: Appearance.font.pixelSize.large
-                                    font.family: Appearance.font.family.monospace
-                                    font.weight: Font.Bold
-                                    color: Appearance.tiling.accentBright
+                                    font.family: Appearance.font.family.main
+                                    font.weight: Font.DemiBold
+                                    color: TuiStyle.fg
                                 }
                             }
 
@@ -559,8 +561,8 @@ PanelWindow {
                             elide: Text.ElideRight
                             text: appItem.modelData ? appItem.modelData.name : ""
                             font.pixelSize: Appearance.font.pixelSize.smaller
-                            font.family: Appearance.font.family.monospace
-                            color: ma.containsMouse ? Appearance.tiling.textBright : Appearance.tiling.text
+                            font.family: Appearance.font.family.main
+                            color: ma.containsMouse ? TuiStyle.fg : TuiStyle.dim
                             lineHeight: 1.1
                         }
 
@@ -607,9 +609,8 @@ PanelWindow {
                     anchors.right: parent.right
                     width: 8
                     radius: 4
-                    color: Appearance.tiling.bgInput
-                    border.width: Appearance.tiling.borderWidth
-                    border.color: Appearance.tiling.border
+                    color: "transparent"
+                    border.width: 0
 
                     MouseArea {
                         anchors.fill: parent
@@ -625,7 +626,7 @@ PanelWindow {
                         x: 1
                         height: scrollTrack.thumbHeight
                         radius: 3
-                        color: thumbDrag.containsMouse || thumbDrag.pressed ? Appearance.tiling.accent : Appearance.tiling.textDim
+                        color: thumbDrag.containsMouse || thumbDrag.pressed ? TuiStyle.accent : TuiStyle.dim
 
                         property bool dragging: false
 
@@ -661,22 +662,23 @@ PanelWindow {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 22
-                color: Appearance.tiling.bg
+                color: "transparent"
 
                 Rectangle {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    height: Appearance.tiling.borderWidth
-                    color: Appearance.tiling.border
+                    height: 1
+                    color: TuiStyle.line
+                    opacity: 0.35
                 }
 
                 StyledText {
                     anchors.centerIn: parent
                     text: launcher.focusedAppDescription || launcher.filteredApps.length + " apps"
                     font.pixelSize: Appearance.font.pixelSize.smallest
-                    font.family: Appearance.font.family.monospace
-                    color: Appearance.tiling.textBright
+                    font.family: Appearance.font.family.main
+                    color: TuiStyle.fg
                     elide: Text.ElideRight
                     anchors.left: parent.left
                     anchors.right: parent.right

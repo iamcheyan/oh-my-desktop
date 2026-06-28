@@ -70,7 +70,7 @@ Item {
                 visible: root.node?.audio.muted ?? false
                 text: root.node?.isSink ? "volume_off" : "mic_off"
                 iconSize: 22
-                color: Appearance.tiling.textDim
+                color: TuiStyle.dim
             }
         }
 
@@ -81,7 +81,7 @@ Item {
             StyledText {
                 Layout.fillWidth: true
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.tiling.textDim
+                color: TuiStyle.dim
                 elide: Text.ElideRight
                 text: {
                     // application.name -> description -> name

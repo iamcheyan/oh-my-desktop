@@ -13,24 +13,27 @@ RowLayout {
     property int fontPixelSize: Appearance.font.pixelSize.smaller
 
     Layout.fillWidth: true
-    spacing: 10
+    spacing: 12
+    Layout.preferredHeight: TuiStyle.rowHeight
 
     StyledText {
         Layout.preferredWidth: root.keyWidth
+        Layout.alignment: Qt.AlignVCenter
         text: root.keyText
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: root.fontPixelSize
-        font.weight: Font.Bold
+        font.weight: Font.Medium
         color: root.keyColor
         elide: Text.ElideRight
     }
 
     StyledText {
         Layout.fillWidth: true
+        Layout.alignment: Qt.AlignVCenter
         text: root.valueText
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: root.fontPixelSize
-        font.weight: Font.Bold
+        font.weight: Font.Medium
         color: root.valueColor
         horizontalAlignment: Text.AlignRight
         elide: Text.ElideRight

@@ -38,7 +38,7 @@ StyledPopup {
         StyledText {
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
-            color: Appearance.tiling.textBright
+            color: TuiStyle.fg
             font {
                 weight: Font.Bold
                 pixelSize: Appearance.font.pixelSize.normal
@@ -53,7 +53,7 @@ StyledPopup {
             visible: root.artist.length > 0
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
             font.pixelSize: Appearance.font.pixelSize.smaller
             text: root.artist
             elide: Text.ElideRight
@@ -67,19 +67,19 @@ StyledPopup {
             spacing: 6
 
             MaterialSymbol {
-                color: Appearance.tiling.accent
+                color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
                 text: "album"
             }
             StyledText {
                 text: Translation.tr("Album:")
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
             StyledText {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: root.album
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 elide: Text.ElideRight
@@ -93,19 +93,19 @@ StyledPopup {
             spacing: 6
 
             MaterialSymbol {
-                color: Appearance.tiling.accent
+                color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
                 text: "graphic_eq"
             }
             StyledText {
                 text: Translation.tr("Player:")
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
             StyledText {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: root.playerName
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 elide: Text.ElideRight
@@ -119,19 +119,19 @@ StyledPopup {
             spacing: 6
 
             MaterialSymbol {
-                color: Appearance.tiling.accent
+                color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
                 text: "timer"
             }
             StyledText {
                 text: Translation.tr("Position:")
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
             StyledText {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: `${StringUtils.friendlyTimeForSeconds(root.position)} / ${StringUtils.friendlyTimeForSeconds(root.length)}`
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
@@ -144,19 +144,19 @@ StyledPopup {
             spacing: 6
 
             MaterialSymbol {
-                color: Appearance.tiling.accent
+                color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
                 text: "repeat"
             }
             StyledText {
                 text: Translation.tr("Loop:")
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
             StyledText {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: {
                     switch (root.loopState) {
                         case MprisLoopState.None:
@@ -180,19 +180,19 @@ StyledPopup {
             spacing: 6
 
             MaterialSymbol {
-                color: Appearance.tiling.accent
+                color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
                 text: "shuffle"
             }
             StyledText {
                 text: Translation.tr("Shuffle:")
-                color: Appearance.tiling.text
+                color: TuiStyle.fg
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
             StyledText {
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
-                color: Appearance.tiling.textBright
+                color: TuiStyle.fg
                 text: root.hasShuffle ? Translation.tr("On") : Translation.tr("Off")
                 font.pixelSize: Appearance.font.pixelSize.smaller
             }
@@ -203,7 +203,7 @@ StyledPopup {
             visible: !root.hasActivePlayer
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
             font.pixelSize: Appearance.font.pixelSize.small
             text: Translation.tr("Make sure your player has MPRIS support")
         }

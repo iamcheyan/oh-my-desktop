@@ -6,7 +6,7 @@ import qs.modules.common.widgets
 
 StyledText {
     text: "Section"
-    color: Appearance.tiling.accentBright
+    color: TuiStyle.fg
     font {
         pixelSize: Appearance.font.pixelSize.small
         weight: Font.Bold

@@ -18,9 +18,9 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 0
-        color: root.hovered ? Appearance.tiling.bgHover : "transparent"
-        border.width: root.hovered ? Appearance.tiling.borderWidth : 0
-        border.color: Appearance.tiling.border
+        color: root.hovered ? "#333333" : "transparent"
+        border.width: root.hovered ? TuiStyle.borderWidth : 0
+        border.color: TuiStyle.line
     }
 
     RowLayout {
@@ -38,7 +38,7 @@ Item {
             text: root.checked ? "[x]" : "[ ]"
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: root.checked ? Appearance.tiling.accentBright : Appearance.tiling.textDim
+            color: root.checked ? TuiStyle.fg : TuiStyle.dim
         }
 
         StyledText {
@@ -47,7 +47,7 @@ Item {
             text: root.buttonIcon
             font.family: Appearance.font.family.iconMaterial
             font.pixelSize: Appearance.font.pixelSize.large
-            color: Appearance.tiling.textDim
+            color: TuiStyle.dim
         }
 
         StyledText {
@@ -55,7 +55,7 @@ Item {
             text: root.text
             font.family: Appearance.font.family.monospace
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.tiling.text
+            color: TuiStyle.fg
             elide: Text.ElideRight
         }
     }

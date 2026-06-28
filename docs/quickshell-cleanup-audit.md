@@ -34,11 +34,10 @@ quickshell/panelFamilies/
 They should only be deleted after deciding that the monolithic fallback is no
 longer needed.
 
-## Low-Risk Cleanup Candidates
+## Removed Low-Risk Cleanup
 
 The top bar now uses the unified `BarStatusPopup.qml` for status popups. These
-old per-module info popups are likely removable after checking that no active
-button or IPC path still instantiates them:
+old per-module info popups have been removed:
 
 ```text
 quickshell/modules/bar/WifiInfoPopup.qml
@@ -65,7 +64,7 @@ time popup is hosted by `BarStatusPopup.qml` and embeds:
 quickshell/modules/schedulePopup/BottomWidgetGroup.qml
 ```
 
-Potential cleanup:
+Removed old standalone shell:
 
 ```text
 quickshell/modules/schedulePopup/SchedulePopup.qml
@@ -76,19 +75,13 @@ still uses `BottomWidgetGroup`, calendar, todo, and pomodoro components.
 
 ## Settings
 
-`quickshell/settings.qml` and `quickshell/modules/settings/` are not persistent
-runtime processes, but they are still reachable from the control center:
+The old Illogical Impulse settings UI has been retired. The control-center
+settings button was removed, along with:
 
 ```text
-quickshell/modules/controlCenter/ControlCenterContent.qml
+quickshell/settings.qml
+quickshell/modules/settings/
 ```
-
-The settings button currently launches `settings.qml` with `qs`. Therefore:
-
-- If the settings button stays, keep `quickshell/settings.qml` and
-  `quickshell/modules/settings/`.
-- If the old settings UI is retired, first remove or replace the control-center
-  settings button, then remove these settings files.
 
 ## Session Screen
 
@@ -155,16 +148,11 @@ unless explicitly told to edit them.
 
 ## Recommended Cleanup Order
 
-1. Remove old `*InfoPopup.qml` files after a final `rg` confirms no active
-   loaders reference them.
-2. Remove `SchedulePopup.qml` only, keeping `BottomWidgetGroup` and children.
-3. Decide settings fate; remove the control-center settings button before
-   deleting `settings.qml`.
-4. Decide session fate; either wire `SessionScreen` into `omd-bar` or remove
+1. Decide session fate; either wire `SessionScreen` into `omd-bar` or remove
    the dead button and module.
-5. Decide whether to migrate or retire background, cheatsheet, lock, and media
+2. Decide whether to migrate or retire background, cheatsheet, lock, and media
    controls.
-6. Delete `quickshell/shell.qml` and `quickshell/panelFamilies/` only after the
+3. Delete `quickshell/shell.qml` and `quickshell/panelFamilies/` only after the
    monolithic fallback is intentionally retired.
 
 ## Verification Before Deleting
