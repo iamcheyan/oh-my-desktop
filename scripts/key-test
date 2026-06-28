@@ -21,39 +21,16 @@ def copy_to_clipboard(text):
     except Exception:
         return False
 
+# ── 主窗口 ──
 class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="OMD 高级按键捕获")
         self.set_default_size(700, 480)
+        
+        # 绑定系统事件
         self.connect("realize", self.on_realize)
         self.connect("notify::is-active", self.on_is_active_changed)
         self.connect("close-request", self.on_close_request)
-
-    def on_realize(self, widget):
-        surface = widget.get_surface()
-        if surface and hasattr(surface, "inhibit_system_shortcuts"):
-            surface.inhibit_system_shortcuts(None)
-
-    def on_is_active_changed(self, window, param):
-        if window.get_property("is-active"):
-            # 窗口获得焦点：暂时解绑冲突的全局快捷键，让事件能传递到窗口
-            subprocess.run([
-                "hyprctl", "eval",
-                'hl.unbind("ALT + A"); '
-                'hl.unbind("code:472"); '
-                'hl.unbind("ALT + S"); '
-                'hl.unbind("CTRL + SHIFT + V"); '
-                'hl.unbind("SUPER + SPACE"); '
-                'hl.unbind("SUPER + V")'
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            # 窗口失去焦点：立刻重载配置恢复所有全局快捷键
-            subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    def on_close_request(self, window):
-        # 窗口关闭：确保恢复全局快捷键
-        subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return False
 
         # ── CSS 样式 ──
         css_provider = Gtk.CssProvider()
@@ -157,7 +134,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         title.add_css_class("title-label")
         main_box.append(title)
 
-        hint = Gtk.Label(label="请按下任意按键或组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)")
+        hint = Gtk.Label(label="请按下任意按键 or 组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)")
         hint.set_halign(Gtk.Align.CENTER)
         hint.add_css_class("hint-label")
         main_box.append(hint)
@@ -236,6 +213,34 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         key_ctrl.connect("key-pressed", self.on_key_pressed)
         self.add_controller(key_ctrl)
 
+    # ── 窗口事件回调 ──
+    def on_realize(self, widget):
+        surface = widget.get_surface()
+        if surface and hasattr(surface, "inhibit_system_shortcuts"):
+            surface.inhibit_system_shortcuts(None)
+
+    def on_is_active_changed(self, window, param):
+        if window.get_property("is-active"):
+            # 窗口获得焦点：暂时解绑冲突的全局快捷键，让事件能传递到窗口
+            subprocess.run([
+                "hyprctl", "eval",
+                'hl.unbind("ALT + A"); '
+                'hl.unbind("code:472"); '
+                'hl.unbind("ALT + S"); '
+                'hl.unbind("CTRL + SHIFT + V"); '
+                'hl.unbind("SUPER + SPACE"); '
+                'hl.unbind("SUPER + V")'
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            # 窗口失去焦点：立刻重载配置恢复所有全局快捷键
+            subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def on_close_request(self, window):
+        # 窗口关闭：确保恢复全局快捷键
+        subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return False
+
+    # ── 键盘捕获处理 ──
     def on_key_pressed(self, ctrl, keyval, keycode, state):
         keyname = Gdk.keyval_name(keyval) or ""
         
