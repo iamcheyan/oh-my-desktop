@@ -33,9 +33,9 @@ Item {
     StyledText {
         id: clockText
         anchors.centerIn: parent
-        font.family: Appearance.font.family.monospace
+        font.family: Appearance.font.family.main
         font.pixelSize: Appearance.font.pixelSize.small
-        font.weight: Font.Bold
+        font.weight: Font.Normal
         color: Appearance.colors.colBarText
         text: root.displayText
     }
