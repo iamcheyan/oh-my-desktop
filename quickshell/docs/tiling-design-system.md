@@ -1,5 +1,10 @@
 # Tiling UI Design System
 
+> Historical note: this document describes the older `Appearance.tiling`
+> direction. Runtime QML now uses `quickshell/modules/common/TuiStyle.qml`.
+> For current style tokens and maintenance rules, see
+> `docs/tui-style-system.md`.
+
 目标：把 shell 的界面统一成 i3 / sway / dwm 一类平铺窗口管理器的视觉语言。界面应该像窗口管理器本身的一部分，而不是 Material 控制中心、移动端卡片面板或桌面小组件集合。
 
 这份规范优先用于后续重做以下区域：

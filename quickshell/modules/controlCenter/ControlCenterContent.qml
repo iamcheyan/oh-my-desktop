@@ -307,7 +307,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(notificationList.implicitHeight + 56, 500)
-                color: "#181818"
+                color: TuiStyle.surfaceSubtle
                 radius: TuiStyle.radius
                 border.width: 0
                 clip: true
@@ -342,7 +342,7 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
                         color: root.tuiLine
-                        opacity: 0.28
+                        opacity: TuiStyle.dividerOpacity
                     }
 
                     StyledText {
@@ -380,7 +380,7 @@ Item {
 
         Layout.preferredWidth: 34
         Layout.preferredHeight: 34
-        color: buttonMouse.pressed ? root.tuiPanelAlt : buttonMouse.containsMouse ? Qt.rgba(button.accent.r, button.accent.g, button.accent.b, 0.14) : "transparent"
+        color: buttonMouse.pressed ? root.tuiPanelAlt : buttonMouse.containsMouse ? TuiStyle.accentWash(button.accent) : "transparent"
         border.width: 1
         border.color: buttonMouse.containsMouse ? button.accent : root.tuiLine
 
@@ -413,7 +413,7 @@ Item {
 
         Rectangle {
             anchors.fill: parent
-            color: "#181818"
+            color: TuiStyle.surfaceSubtle
             radius: TuiStyle.radius
             border.width: 0
         }
@@ -448,7 +448,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
                 color: root.tuiLine
-                opacity: 0.28
+                opacity: TuiStyle.dividerOpacity
             }
 
             StyledText {
@@ -483,12 +483,12 @@ Item {
         Layout.fillWidth: true
         Layout.preferredHeight: 34
         opacity: available ? 1 : 0.4
-        color: active ? Qt.rgba(accent.r, accent.g, accent.b, 0.18)
-            : profileMouse.containsMouse ? "#303030"
-            : "#222222"
+        color: active ? TuiStyle.selection
+            : profileMouse.containsMouse ? TuiStyle.surfacePressed
+            : TuiStyle.controlMuted
         radius: 8
         border.width: active ? 1 : 0
-        border.color: "#9a9a9a"
+        border.color: TuiStyle.controlActiveBorder
 
         StyledText {
             anchors.centerIn: parent

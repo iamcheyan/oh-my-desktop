@@ -9,13 +9,13 @@ Rectangle {
 
     color: TuiStyle.bg
     gradient: Gradient {
-        GradientStop { position: 0.0; color: "#ee151515" }
-        GradientStop { position: 0.42; color: "#e7080808" }
-        GradientStop { position: 1.0; color: "#ef111111" }
+        GradientStop { position: 0.0; color: TuiStyle.shellGradientTop }
+        GradientStop { position: 0.42; color: TuiStyle.shellGradientMid }
+        GradientStop { position: 1.0; color: TuiStyle.shellGradientBottom }
     }
     border.width: TuiStyle.borderWidth
-    border.color: "#8f8f8f"
-    radius: 18
+    border.color: TuiStyle.shellBorder
+    radius: TuiStyle.shellRadius
     clip: true
 
     Item {

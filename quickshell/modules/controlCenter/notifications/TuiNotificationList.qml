@@ -53,7 +53,7 @@ Item {
         visible: Notifications.list.length === 0
         width: Math.min(parent.width - 24, 360)
         height: 96
-        color: "#202020"
+        color: TuiStyle.surfaceRaised
         radius: TuiStyle.radius
         border.width: 0
 
@@ -111,8 +111,8 @@ Item {
             Notifications.discardNotification(notificationObject.notificationId);
         }
 
-        color: rowTap.pressed ? "#303030"
-            : rowHover.hovered || expanded ? "#242424"
+        color: rowTap.pressed ? TuiStyle.surfacePressed
+            : rowHover.hovered || expanded ? TuiStyle.surfaceHover
             : "transparent"
         border.width: 0
         implicitHeight: rowContent.implicitHeight + 18
@@ -296,9 +296,9 @@ Item {
 
         Layout.preferredHeight: 22
         Layout.preferredWidth: Math.max(24, labelText.implicitWidth + 12)
-        radius: 4
-        color: buttonMouse.pressed ? "#3a3a3a"
-            : buttonMouse.containsMouse ? "#303030"
+        radius: TuiStyle.miniRadius
+        color: buttonMouse.pressed ? TuiStyle.miniControlPressed
+            : buttonMouse.containsMouse ? TuiStyle.miniControlHover
             : "transparent"
         border.width: 0
 

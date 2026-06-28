@@ -234,6 +234,7 @@ symlink targets.
 
 - Module split plan: `docs/module-split-plan.md`
 - Agent working agreement: `docs/agent-working-agreement.md`
+- TUI style system: `docs/tui-style-system.md`
 
 ## Editing
 
@@ -243,6 +244,9 @@ symlink targets.
 - Services are QML singletons imported via `import qs.services`.
 - Prefer existing widgets such as `MaterialSymbol`, `StyledText`,
   `RippleButton`, `IconImage`, and `CosmicIcon`.
+- The current Quickshell visual system is centralized in
+  `quickshell/modules/common/TuiStyle.qml`; follow `docs/tui-style-system.md`
+  and add new style tokens there before hard-coding colors in feature modules.
 - The shell hot-reloads on QML/config file changes. To force restart:
   `~/.config/omd/bin/omd-restart`.
 - `quickshell/scripts/quickshell` accepts an optional config directory for

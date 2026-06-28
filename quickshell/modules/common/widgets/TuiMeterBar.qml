@@ -6,7 +6,7 @@ Item {
 
     property real value: 0
     property color accent: TuiStyle.success
-    property color emptyColor: "#181818"
+    property color emptyColor: TuiStyle.meterTrack
 
     clip: true
 

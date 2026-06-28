@@ -89,9 +89,9 @@ Scope {
         }
 
         margins {
-            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 10
-            bottom: barOnBottom ? Appearance.sizes.barHeight + 10 : 0
-            right: 16
+            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 6
+            bottom: barOnBottom ? Appearance.sizes.barHeight + 6 : 0
+            right: 6
         }
 
         implicitWidth: panel.implicitWidth
@@ -575,7 +575,7 @@ Scope {
             anchors.fill: parent
             anchors.margins: 4
             radius: TuiStyle.radius
-            color: pbMouseArea.containsMouse ? "#4d4d4d" : "#2b2b2b"
+            color: pbMouseArea.containsMouse ? TuiStyle.controlHover : TuiStyle.control
             border.width: 0
             clip: true
 

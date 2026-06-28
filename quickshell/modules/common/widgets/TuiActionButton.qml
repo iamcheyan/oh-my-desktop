@@ -18,7 +18,7 @@ Rectangle {
     Layout.preferredHeight: preferredHeight
     radius: TuiStyle.radius
     color: filled
-        ? (actuallyEnabled && actionMouse.containsMouse ? "#4d4d4d" : "#2b2b2b")
+        ? (actuallyEnabled && actionMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control)
         : "transparent"
     border.width: 0
     opacity: actuallyEnabled ? 1 : 0.45
