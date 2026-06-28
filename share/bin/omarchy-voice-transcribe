@@ -1,0 +1,292 @@
+#!/usr/bin/env python3
+"""
+Long-lived voice transcription engine with Unix socket daemon.
+
+Usage:
+    omarchy-voice-transcribe <wav-path>
+
+First call starts a daemon that loads the SenseVoice model and listens on
+/tmp/omd-voice.sock. Subsequent calls connect to the running daemon for
+fast low-latency transcription.
+
+Output: JSON line to stdout: {"text": "..."} or {"error": "..."}
+"""
+
+import json
+import os
+import shutil
+import socket
+import subprocess
+import struct
+import sys
+import tempfile
+import time
+import wave
+
+SOCKET_PATH = "/tmp/omd-voice.sock"
+DAEMON_PID_PATH = "/tmp/omd-voice.pid"
+CACHE_DIR = os.path.expanduser("~/.cache/omd-voice")
+MODEL_DIR = os.environ.get(
+    "OMD_VOICE_MODEL",
+    os.path.join(CACHE_DIR, "sense-voice-small-int8"),
+)
+MODEL = os.path.join(MODEL_DIR, "model.int8.onnx")
+TOKENS = os.path.join(MODEL_DIR, "tokens.txt")
+LANGUAGE = os.environ.get("OMD_VOICE_LANG", "auto")
+NUM_THREADS = int(os.environ.get("OMD_VOICE_THREADS", "4"))
+
+MIN_WAV_BYTES = 100
+MIN_WAV_DURATION_SEC = 0.3
+MIN_PEAK_AMPLITUDE = 150  # silence ~34; speech ~200+ after ffmpeg boost
+SAMPLE_RATE = 16000
+
+
+def strip_sensevoice_tags(text):
+    """Strip SenseVoice tags like <|zh|>, <|NEUTRAL|>, <|Speech|>."""
+    result = []
+    i = 0
+    while i < len(text):
+        if text[i] == "<":
+            end = text.find(">", i)
+            if end != -1:
+                inner = text[i + 1 : end]
+                if inner.startswith("|") and inner.endswith("|"):
+                    i = end + 1
+                    continue
+        result.append(text[i])
+        i += 1
+    return "".join(result)
+
+
+def is_meaningful_text(text):
+    import re
+
+    cleaned = strip_sensevoice_tags(text).strip()
+    if not cleaned:
+        return False
+    if re.fullmatch(r"[\s\.\,\!\?。，！？、…\-]+", cleaned):
+        return False
+    return True
+
+
+def is_daemon_running():
+    """Check if the daemon socket exists and is alive."""
+    if not os.path.exists(SOCKET_PATH):
+        return False
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        sock.connect(SOCKET_PATH)
+        sock.close()
+        return True
+    except (FileNotFoundError, ConnectionRefusedError, OSError):
+        return False
+
+
+def wait_for_daemon(timeout=30):
+    """Wait up to `timeout` seconds for the daemon to become ready."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if is_daemon_running():
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def start_daemon():
+    """Fork and start the long-lived engine daemon."""
+    pid = os.fork()
+    if pid > 0:
+        # Parent: wait for daemon to be ready
+        if not wait_for_daemon():
+            print(
+                json.dumps({"error": "daemon-start-timeout"}),
+                flush=True,
+            )
+            sys.exit(1)
+        return
+
+    # Child: become daemon
+    os.setsid()
+    with open(DAEMON_PID_PATH, "w") as f:
+        f.write(str(os.getpid()))
+
+    _run_daemon()
+
+
+def _run_daemon():
+    """Load model and listen on Unix socket."""
+    try:
+        import numpy as np
+        import sherpa_onnx
+    except ImportError:
+        print(
+            json.dumps({"error": "missing-deps: pip install sherpa-onnx numpy"}),
+            flush=True,
+        )
+        sys.exit(1)
+
+    if not os.path.exists(MODEL):
+        print(
+            json.dumps({"error": f"model-not-found: {MODEL}"}),
+            flush=True,
+        )
+        sys.exit(1)
+
+    try:
+        recognizer = sherpa_onnx.OfflineRecognizer.from_sense_voice(
+            model=MODEL,
+            tokens=TOKENS,
+            language=LANGUAGE,
+            use_itn=True,
+            num_threads=NUM_THREADS,
+        )
+    except Exception as e:
+        print(json.dumps({"error": f"model-load: {e}"}), flush=True)
+        sys.exit(1)
+
+    # Remove stale socket
+    try:
+        os.unlink(SOCKET_PATH)
+    except FileNotFoundError:
+        pass
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(SOCKET_PATH)
+    os.chmod(SOCKET_PATH, 0o666)
+    server.listen(5)
+    server.settimeout(1.0)
+
+    while True:
+        try:
+            conn, _ = server.accept()
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+
+        try:
+            data = b""
+            while True:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+                if len(chunk) < 4096:
+                    break
+
+            wav_path = data.decode("utf-8").strip()
+            if not wav_path:
+                conn.sendall(json.dumps({"error": "empty-path"}).encode())
+                conn.close()
+                continue
+
+            text = _transcribe_file(recognizer, wav_path)
+            if not text:
+                conn.sendall(json.dumps({"error": "no-speech-detected"}).encode())
+            else:
+                conn.sendall(json.dumps({"text": text}).encode())
+        except Exception as e:
+            try:
+                conn.sendall(json.dumps({"error": str(e)}).encode())
+            except Exception:
+                pass
+        finally:
+            conn.close()
+
+
+def _transcribe_file(recognizer, wav_path):
+    """Run sherpa-onnx inference on a WAV file with ffmpeg volume boost."""
+    import numpy as np
+
+    # ffmpeg preprocessing: force 16kHz mono + 20dB gain (matches kazamo)
+    processed_path = None
+    if shutil.which("ffmpeg"):
+        fd, processed_path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", wav_path,
+                 "-ar", "16000", "-ac", "1",
+                 "-af", "volume=20dB",
+                 "-f", "wav", processed_path],
+                capture_output=True, timeout=10,
+            )
+            wav_path = processed_path
+        except Exception:
+            if os.path.exists(processed_path):
+                os.unlink(processed_path)
+            processed_path = None
+
+    try:
+        with wave.open(wav_path, "rb") as f:
+            sr = f.getframerate()
+            frames = f.readframes(f.getnframes())
+            pcm = np.frombuffer(frames, dtype=np.int16)
+            samples = pcm.astype(np.float32) / 32768.0
+
+        duration = len(samples) / sr
+        peak = int(np.max(np.abs(pcm))) if len(pcm) else 0
+        if duration < MIN_WAV_DURATION_SEC:
+            return ""
+        if peak < MIN_PEAK_AMPLITUDE:
+            return ""
+
+        stream = recognizer.create_stream()
+        stream.accept_waveform(sr, samples)
+        recognizer.decode_stream(stream)
+        text = strip_sensevoice_tags(stream.result.text.strip())
+        if not is_meaningful_text(text):
+            return ""
+
+        return text
+    finally:
+        if processed_path and os.path.exists(processed_path):
+            os.unlink(processed_path)
+
+
+def client_transcribe(wav_path):
+    """Send a WAV path to the daemon and return the result."""
+    if not os.path.exists(wav_path):
+        return {"error": f"wav-not-found: {wav_path}"}
+
+    file_size = os.path.getsize(wav_path)
+    if file_size < MIN_WAV_BYTES:
+        return {"error": "audio-too-short"}
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(60)
+    sock.connect(SOCKET_PATH)
+    sock.sendall(wav_path.encode("utf-8"))
+    sock.shutdown(socket.SHUT_WR)
+
+    data = b""
+    while True:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    sock.close()
+
+    return json.loads(data.decode("utf-8"))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(json.dumps({"error": "usage: omarchy-voice-transcribe <wav-path>"}))
+        sys.exit(1)
+
+    wav_path = sys.argv[1]
+
+    if not is_daemon_running():
+        start_daemon()
+
+    result = client_transcribe(wav_path)
+    print(json.dumps(result), flush=True)
+
+    if result.get("error"):
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

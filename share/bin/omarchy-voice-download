@@ -1,0 +1,31 @@
+#!/bin/bash
+set -eu
+
+# omarchy:summary=Download SenseVoice ONNX model
+# omarchy:group=voice
+# omarchy:args=<model-dir>
+# omarchy:description=Downloads the SenseVoice Small ONNX INT8 model and tokens from HuggingFace
+
+MODEL_DIR="${OMD_VOICE_MODEL:-$HOME/.cache/omd-voice/sense-voice-small-int8}"
+BASE_URL="https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/main"
+
+mkdir -p "$MODEL_DIR"
+
+download_file() {
+    local url="$1" dest="$2"
+    local name
+    name=$(basename "$dest")
+    if [ -f "$dest" ]; then
+        echo "exists: $name"
+        return 0
+    fi
+    echo "downloading: $name ..."
+    curl -L --progress-bar -o "${dest}.part" "$url"
+    mv "${dest}.part" "$dest"
+    echo "done: $name"
+}
+
+download_file "$BASE_URL/model.int8.onnx" "$MODEL_DIR/model.int8.onnx"
+download_file "$BASE_URL/tokens.txt" "$MODEL_DIR/tokens.txt"
+
+echo "model-ready"

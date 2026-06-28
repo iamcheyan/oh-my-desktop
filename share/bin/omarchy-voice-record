@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WAV_PATH="${OMD_VOICE_WAV:-/tmp/omd-voice-rec.wav}"
+PID_PATH="${OMD_VOICE_REC_PID:-/tmp/omd-voice-rec.pid}"
+
+recording_pids() {
+  pgrep -f "[p]arecord .*${WAV_PATH}" 2>/dev/null || true
+}
+
+wait_for_exit() {
+  local pid="$1"
+  local attempts="${2:-40}"
+
+  for _ in $(seq 1 "$attempts"); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.05
+  done
+
+  return 1
+}
+
+stop_pid() {
+  local pid="$1"
+
+  kill -INT "$pid" 2>/dev/null || return 0
+  if ! wait_for_exit "$pid" 40; then
+    kill -TERM "$pid" 2>/dev/null || true
+    wait_for_exit "$pid" 10 || true
+  fi
+}
+
+stop_recording() {
+  local pid
+
+  pid="$(cat "$PID_PATH" 2>/dev/null || true)"
+  if [[ -n "$pid" ]]; then
+    stop_pid "$pid"
+  fi
+
+  for pid in $(recording_pids); do
+    stop_pid "$pid"
+  done
+
+  rm -f "$PID_PATH"
+  sleep 0.1
+}
+
+wake_default_source() {
+  local source="${OMD_VOICE_SOURCE:-$(pactl get-default-source 2>/dev/null || true)}"
+  if [[ -z "$source" ]]; then
+    return 0
+  fi
+  pactl set-source-mute "$source" 0 2>/dev/null || true
+  pactl suspend-source "$source" 0 2>/dev/null || true
+}
+
+case "${1:-}" in
+  start)
+    stop_recording
+    rm -f "$WAV_PATH"
+    wake_default_source
+    parecord_args=(
+      --format=s16le
+      --rate=16000
+      --channels=1
+      --file-format=wav
+      --latency-msec=10
+    )
+    if [[ -n "${OMD_VOICE_SOURCE:-}" ]]; then
+      parecord_args+=(--device="$OMD_VOICE_SOURCE")
+    fi
+    parecord "${parecord_args[@]}" "$WAV_PATH" >/dev/null 2>&1 &
+    pid="$!"
+    echo "$pid" > "$PID_PATH"
+    wait "$pid"
+    ;;
+  stop)
+    stop_recording
+    ;;
+  *)
+    echo "usage: omarchy-voice-record start|stop" >&2
+    exit 2
+    ;;
+esac

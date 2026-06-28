@@ -1,0 +1,26 @@
+#!/bin/bash
+set -eu
+
+# omarchy:summary=Set up voice input Python venv
+# omarchy:group=voice
+# omarchy:description=Creates a Python venv and installs sherpa-onnx + numpy
+
+VENV_DIR="${OMD_VOICE_VENV:-$HOME/.cache/omd-voice/venv}"
+
+if [ -f "$VENV_DIR/bin/python3" ] && "$VENV_DIR/bin/python3" -c "import sherpa_onnx, numpy" 2>/dev/null; then
+    echo "venv-ready"
+    exit 0
+fi
+
+echo "Creating venv at $VENV_DIR ..."
+python3 -m venv --clear "$VENV_DIR"
+
+echo "Installing sherpa-onnx numpy ..."
+"$VENV_DIR/bin/pip" install --quiet sherpa-onnx numpy 2>&1 | tail -3
+
+if "$VENV_DIR/bin/python3" -c "import sherpa_onnx, numpy" 2>/dev/null; then
+    echo "venv-ready"
+else
+    echo "ERROR: sherpa-onnx install failed" >&2
+    exit 1
+fi

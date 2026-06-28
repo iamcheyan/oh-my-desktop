@@ -1,0 +1,298 @@
+#!/usr/bin/env python3
+"""
+OMD Voice Input — TUI Test Tool
+按 SPACE 开始/停止录音，按 Q 退出。
+"""
+
+import curses
+import json
+import os
+import subprocess
+import sys
+import textwrap
+import threading
+import time
+
+# ── 路径 ──────────────────────────────────────────────────────────────────────
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+BIN_DIR = os.path.join(SCRIPT_DIR, "..", "share", "bin")
+RECORD_SCRIPT = os.path.join(BIN_DIR, "omarchy-voice-record")
+TRANSCRIBE_SCRIPT = os.path.join(BIN_DIR, "omarchy-voice-transcribe")
+WAV_PATH = "/tmp/omd-voice-test.wav"
+PID_PATH = "/tmp/omd-voice-test.pid"
+
+# ── 状态 ──────────────────────────────────────────────────────────────────────
+class State:
+    IDLE        = "idle"
+    RECORDING   = "recording"
+    TRANSCRIBING = "transcribing"
+
+state      = State.IDLE
+result_text = ""
+error_text  = ""
+log_lines   = []
+lock        = threading.Lock()
+redraw_flag = threading.Event()
+
+def set_state(s):
+    global state
+    with lock:
+        state = s
+    redraw_flag.set()
+
+def add_log(msg):
+    ts = time.strftime("%H:%M:%S")
+    with lock:
+        log_lines.append(f"[{ts}] {msg}")
+        if len(log_lines) > 50:
+            log_lines.pop(0)
+    redraw_flag.set()
+
+def set_result(text="", error=""):
+    global result_text, error_text
+    with lock:
+        result_text = text
+        error_text  = error
+    redraw_flag.set()
+
+# ── 录音 / 识别 ───────────────────────────────────────────────────────────────
+def start_recording():
+    set_result()
+    add_log("开始录音…")
+    set_state(State.RECORDING)
+    env = {**os.environ,
+           "OMD_VOICE_WAV": WAV_PATH,
+           "OMD_VOICE_REC_PID": PID_PATH}
+    # 在后台线程里运行（会阻塞直到停止）
+    threading.Thread(target=_record_thread, args=(env,), daemon=True).start()
+
+def _record_thread(env):
+    try:
+        subprocess.run(
+            [RECORD_SCRIPT, "start"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        add_log(f"录音出错: {e}")
+
+def stop_and_transcribe():
+    add_log("停止录音，识别中…")
+    set_state(State.TRANSCRIBING)
+    threading.Thread(target=_stop_transcribe_thread, daemon=True).start()
+
+def _stop_transcribe_thread():
+    env = {**os.environ,
+           "OMD_VOICE_WAV": WAV_PATH,
+           "OMD_VOICE_REC_PID": PID_PATH}
+    # 停止录音
+    try:
+        subprocess.run(
+            [RECORD_SCRIPT, "stop"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except Exception as e:
+        add_log(f"停止录音出错: {e}")
+        set_result(error=str(e))
+        set_state(State.IDLE)
+        return
+
+    time.sleep(0.2)  # 等文件落盘
+
+    # 识别
+    add_log("调用识别引擎…")
+    try:
+        proc = subprocess.run(
+            [sys.executable, TRANSCRIBE_SCRIPT, WAV_PATH],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        out = proc.stdout.strip()
+        err = proc.stderr.strip()
+        if out:
+            try:
+                data = json.loads(out)
+                if "text" in data and data["text"]:
+                    add_log(f"识别成功: {data['text'][:60]}")
+                    set_result(text=data["text"])
+                elif "error" in data:
+                    add_log(f"识别错误: {data['error']}")
+                    set_result(error=data["error"])
+                else:
+                    add_log("未检测到语音")
+                    set_result(error="未检测到语音（静音或太短）")
+            except json.JSONDecodeError:
+                add_log(f"解析失败: {out}")
+                set_result(error=f"JSON解析失败: {out}")
+        else:
+            msg = err or "识别脚本无输出"
+            add_log(f"错误: {msg}")
+            set_result(error=msg)
+    except subprocess.TimeoutExpired:
+        add_log("识别超时（60s）")
+        set_result(error="识别超时")
+    except Exception as e:
+        add_log(f"异常: {e}")
+        set_result(error=str(e))
+    finally:
+        set_state(State.IDLE)
+
+# ── 绘制 ──────────────────────────────────────────────────────────────────────
+def draw(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+
+    # 颜色
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE,   -1)   # 普通
+    curses.init_pair(2, curses.COLOR_RED,     -1)   # 录音中
+    curses.init_pair(3, curses.COLOR_GREEN,   -1)   # 成功
+    curses.init_pair(4, curses.COLOR_YELLOW,  -1)   # 处理中 / 警告
+    curses.init_pair(5, curses.COLOR_CYAN,    -1)   # 标题
+    curses.init_pair(6, curses.COLOR_MAGENTA, -1)   # 错误
+
+    while True:
+        # 等待重绘信号或超时
+        redraw_flag.wait(timeout=0.1)
+        redraw_flag.clear()
+
+        # 读取输入
+        key = stdscr.getch()
+        while key != -1:
+            if key in (ord('q'), ord('Q'), 27):          # Q / ESC 退出
+                return
+            if key in (ord(' '), ord('\n'), ord('\r')):  # SPACE / ENTER 切换录音
+                with lock:
+                    cur = state
+                if cur == State.IDLE:
+                    start_recording()
+                elif cur == State.RECORDING:
+                    stop_and_transcribe()
+            key = stdscr.getch()
+
+        # 布局
+        h, w = stdscr.getmaxyx()
+        stdscr.erase()
+
+        with lock:
+            cur_state   = state
+            cur_result  = result_text
+            cur_error   = error_text
+            cur_logs    = list(log_lines)
+
+        # ── 标题栏 ──
+        title = " OMD Voice Input — 测试工具 "
+        stdscr.attron(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(0, max(0, (w - len(title)) // 2), title[:w])
+        stdscr.attroff(curses.color_pair(5) | curses.A_BOLD)
+        stdscr.addstr(1, 0, "─" * w)
+
+        # ── 录音按钮区（垂直居中于上半部分） ──
+        btn_row = 4
+
+        if cur_state == State.IDLE:
+            btn_label  = "  [ 🎤  开始录音 ]  "
+            btn_color  = curses.color_pair(1) | curses.A_BOLD
+            hint       = "SPACE / ENTER 开始  │  Q 退出"
+        elif cur_state == State.RECORDING:
+            btn_label  = "  [ ⏹  停止录音 ]  "
+            btn_color  = curses.color_pair(2) | curses.A_BOLD | curses.A_BLINK
+            hint       = "SPACE / ENTER 停止并识别"
+        else:
+            btn_label  = "  [ ⏳  识别中… ]  "
+            btn_color  = curses.color_pair(4) | curses.A_BOLD
+            hint       = "请稍候…"
+
+        bx = max(0, (w - len(btn_label)) // 2)
+        if btn_row < h - 1:
+            stdscr.attron(btn_color)
+            stdscr.addstr(btn_row, bx, btn_label[:w - bx])
+            stdscr.attroff(btn_color)
+
+        if btn_row + 2 < h - 1:
+            stdscr.attron(curses.color_pair(4))
+            stdscr.addstr(btn_row + 2, max(0, (w - len(hint)) // 2), hint[:w])
+            stdscr.attroff(curses.color_pair(4))
+
+        # ── 分隔线 ──
+        sep_row = btn_row + 4
+        if sep_row < h - 1:
+            stdscr.addstr(sep_row, 0, "─" * w)
+
+        # ── 结果区 ──
+        result_start = sep_row + 1
+        label_result = "识别结果:" if cur_result else ("错误:" if cur_error else "结果:")
+        if result_start < h - 1:
+            stdscr.attron(curses.color_pair(5))
+            stdscr.addstr(result_start, 1, label_result)
+            stdscr.attroff(curses.color_pair(5))
+
+        display_text = cur_result or cur_error or "(尚无结果)"
+        color = (curses.color_pair(3) if cur_result
+                 else curses.color_pair(6) if cur_error
+                 else curses.color_pair(1))
+
+        max_result_lines = 6
+        wrapped = textwrap.wrap(display_text, w - 3) or [display_text]
+        for i, line in enumerate(wrapped[:max_result_lines]):
+            row = result_start + 1 + i
+            if row < h - 1:
+                stdscr.attron(color)
+                stdscr.addstr(row, 2, line[:w - 3])
+                stdscr.attroff(color)
+
+        # ── 日志区 ──
+        log_start = result_start + 1 + max_result_lines + 1
+        if log_start < h - 1:
+            stdscr.addstr(log_start, 0, "─" * w)
+            log_start += 1
+            stdscr.attron(curses.color_pair(5))
+            stdscr.addstr(log_start, 1, "日志:")
+            stdscr.attroff(curses.color_pair(5))
+            log_start += 1
+
+            avail_lines = h - log_start - 1
+            visible_logs = cur_logs[-avail_lines:] if avail_lines > 0 else []
+            for i, line in enumerate(visible_logs):
+                row = log_start + i
+                if row < h - 1:
+                    stdscr.attron(curses.color_pair(4))
+                    stdscr.addstr(row, 2, line[:w - 3])
+                    stdscr.attroff(curses.color_pair(4))
+
+        stdscr.refresh()
+
+
+def main():
+    # 检查依赖脚本
+    for path in (RECORD_SCRIPT, TRANSCRIBE_SCRIPT):
+        if not os.path.exists(path):
+            print(f"错误: 找不到 {path}", file=sys.stderr)
+            sys.exit(1)
+
+    try:
+        curses.wrapper(draw)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # 清理：确保录音停止
+        env = {**os.environ,
+               "OMD_VOICE_WAV": WAV_PATH,
+               "OMD_VOICE_REC_PID": PID_PATH}
+        subprocess.run(
+            [RECORD_SCRIPT, "stop"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        print("已退出。")
+
+
+if __name__ == "__main__":
+    main()
