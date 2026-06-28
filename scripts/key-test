@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""
+按键码测试工具 — 在 Wayland 下捕获键盘事件
+用法: python3 scripts/key-test
+点击窗口后按任意键，显示 keyval / keyname / hardware keycode。
+"""
+import gi
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gtk, Gdk
+
+class KeyTestWindow(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="OMD Key Test — 按任意键")
+        self.set_default_size(480, 320)
+
+        # 布局
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(24)
+        box.set_margin_end(24)
+        self.set_child(box)
+
+        hint = Gtk.Label(label="点击此窗口后，按任意键（包括 Globe/Fn）")
+        hint.add_css_class("dim-label")
+        box.append(hint)
+
+        self.result_label = Gtk.Label(label="—")
+        self.result_label.set_selectable(True)
+        self.result_label.set_wrap(True)
+        attrs = self.result_label.get_attributes() or None
+        box.append(self.result_label)
+
+        self.history_label = Gtk.Label(label="")
+        self.history_label.set_selectable(True)
+        self.history_label.set_wrap(True)
+        self.history_label.add_css_class("dim-label")
+        box.append(self.history_label)
+
+        quit_btn = Gtk.Button(label="退出 (Q)")
+        quit_btn.connect("clicked", lambda _: app.quit())
+        box.append(quit_btn)
+
+        self.history = []
+
+        # 键盘事件控制器
+        ctrl = Gtk.EventControllerKey()
+        ctrl.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(ctrl)
+
+    def on_key_pressed(self, ctrl, keyval, keycode, state):
+        keyname = Gdk.keyval_name(keyval) or "unknown"
+
+        # 退出
+        if keyname in ("q", "Q", "Escape"):
+            self.get_application().quit()
+            return True
+
+        line = (
+            f"keyname:  {keyname}\n"
+            f"keyval:   0x{keyval:08x}  ({keyval})\n"
+            f"keycode:  {keycode}\n"
+            f"state:    {state}"
+        )
+        self.result_label.set_label(line)
+
+        self.history.insert(0, f"{keyname} (keycode={keycode})")
+        self.history = self.history[:6]
+        self.history_label.set_label("历史: " + " | ".join(self.history))
+
+        print(f"keyname={keyname}  keyval=0x{keyval:x}({keyval})  keycode={keycode}  state={state}")
+        return True
+
+
+class KeyTestApp(Gtk.Application):
+    def __init__(self):
+        super().__init__(application_id="omd.keytest")
+
+    def do_activate(self):
+        win = KeyTestWindow(self)
+        win.present()
+
+
+if __name__ == "__main__":
+    app = KeyTestApp()
+    app.run()

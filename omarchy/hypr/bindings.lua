@@ -71,8 +71,11 @@ for _, key in ipairs(interrupt_keys) do
   })
 end
 
+o.bind("ALT + A", "Voice input toggle", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
+o.bind("code:472", "Voice input toggle (Globe key)", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
+o.bind("ALT + S", "Region screenshot", "qs -p $HOME/.config/omd/apps/omd-bar ipc call region screenshot")
+
 -- Logitech MX Keys examples:
--- o.bind("SUPER + SHIFT + S", nil, "omarchy-capture-screenshot")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 -- o.bind("SUPER + PERIOD", nil, { omarchy = "walker -m symbols" })
 hl.unbind("SUPER + CTRL + V")

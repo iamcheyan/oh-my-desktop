@@ -32,19 +32,13 @@ Item {
         buttonRadius: Appearance.rounding.full
 
         colBackground: {
-            if (root.isRecording) return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.65)
-            if (root.isError)     return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.45)
-            if (root.isSuccess)   return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.45)
-            if (root.isTranscribing || root.isSetup)
-                return ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.30)
+            if (root.isError)   return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.45)
+            if (root.isSuccess) return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.45)
             return ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         }
         colBackgroundHover: {
-            if (root.isRecording) return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.45)
-            if (root.isError)     return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.30)
-            if (root.isSuccess)   return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.30)
-            if (root.isTranscribing || root.isSetup)
-                return ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.20)
+            if (root.isError)   return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.30)
+            if (root.isSuccess) return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.30)
             return ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         }
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
@@ -103,43 +97,67 @@ Item {
         SequentialAnimation on scale {
             running: root.isRecording
             loops: Animation.Infinite
-            NumberAnimation { to: 1.6; duration: 700; easing.type: Easing.OutCubic }
-            NumberAnimation { to: 1.0; duration: 0 }
+            NumberAnimation { from: 1.0; to: 1.6; duration: 700; easing.type: Easing.OutCubic }
+            NumberAnimation { from: 1.6; to: 1.0; duration: 0 }
         }
         SequentialAnimation on opacity {
             running: root.isRecording
             loops: Animation.Infinite
-            NumberAnimation { to: 0; duration: 700; easing.type: Easing.OutCubic }
-            NumberAnimation { to: 0.7; duration: 0 }
+            NumberAnimation { from: 0.7; to: 0; duration: 700; easing.type: Easing.OutCubic }
+            NumberAnimation { from: 0; to: 0.7; duration: 0 }
         }
     }
 
-    // ── 图标 ──
+    // ── 图标（始终显示麦克风，状态通过颜色和动画区分）──
     CosmicIcon {
         id: icon
         anchors.centerIn: actionButton
         iconSize: Config.options.bar.rightIconSize
+        opacity: (root.isTranscribing || root.isSetup) ? 0.5 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
         color: {
             if (root.isRecording || root.isError) return Appearance.m3colors.m3error
-            if (root.isSuccess) return Appearance.m3colors.m3tertiary
-            if (root.isTranscribing || root.isSetup) return Appearance.m3colors.m3primary
+            if (root.isSuccess)                   return Appearance.m3colors.m3tertiary
             return Appearance.colors.colBarText
         }
+        Behavior on color { ColorAnimation { duration: 150 } }
+
         name: {
-            if (root.isRecording)   return "status/microphone-sensitivity-muted-symbolic"
-            if (root.isTranscribing || root.isSetup)
-                return "status/network-transmit-receive-symbolic"
-            if (root.isError)       return "status/dialog-warning-symbolic"
-            if (root.isSuccess)     return "checkbox-checked-symbolic"
+            if (root.isError)   return "status/dialog-warning-symbolic"
+            if (root.isSuccess) return "checkbox-checked-symbolic"
             return "status/microphone-sensitivity-high-symbolic"
         }
+    }
 
-        RotationAnimation on rotation {
-            running: root.isTranscribing || root.isSetup
-            loops: Animation.Infinite
-            from: 0
-            to: 360
-            duration: 900
+    // ── 转写中：细小旋转圆弧（角标式）──
+    Item {
+        anchors.centerIn: actionButton
+        width: actionButton.width
+        height: actionButton.height
+        visible: root.isTranscribing || root.isSetup
+        opacity: visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        // 旋转的细圆弧（用小矩形裁剪出弧形感）
+        Rectangle {
+            id: spinnerArc
+            anchors.centerIn: parent
+            width: parent.width + 6
+            height: parent.height + 6
+            radius: width / 2
+            color: "transparent"
+            border.width: 1.5
+            border.color: Appearance.m3colors.m3primary
+            opacity: 0.55
+
+            RotationAnimation on rotation {
+                running: root.isTranscribing || root.isSetup
+                loops: Animation.Infinite
+                from: 0; to: 360
+                duration: 1100
+                easing.type: Easing.Linear
+            }
         }
     }
 

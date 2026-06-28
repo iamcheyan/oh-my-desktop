@@ -45,17 +45,8 @@ Singleton {
 
     // ── 状态变化通知 ──
     onStateChanged: {
-        if (state === "recording") {
-            root.notify("🎤 开始录音", "再次点击或按 ALT+A 停止", "audio-input-microphone")
-        } else if (state === "transcribing") {
-            root.notify("⏳ 正在转写", "请稍候...", "emblem-synchronizing")
-        } else if (state === "success") {
-            var text = root.lastTranscription || "（无内容）"
-            var shortText = text.length > 40 ? text.substring(0, 40) + "…" : text
-            root.notify("✅ 已粘贴", shortText, "emblem-ok")
+        if (state === "success") {
             successResetTimer.restart()
-        } else if (state === "error") {
-            root.notify("❌ 语音输入失败", root.lastError, "dialog-error")
         }
     }
 
@@ -233,9 +224,6 @@ Singleton {
 
     function stopRecording() {
         if (state !== "recording") return
-        if (root.recordingDuration < 0.5) {
-            root.notify("⚠️ 录音太短", "请至少说 0.5 秒", "dialog-warning")
-        }
         stopRecProc.running = true
     }
 
@@ -327,7 +315,7 @@ Singleton {
     // ── 测试录音（3秒自动停止） ──
     function testRecording() {
         if (root.state !== "idle") {
-            root.notify("⚠️ 忙", "当前状态: " + root.state, "dialog-warning")
+
             return
         }
         root.recordingDuration = 0
@@ -345,7 +333,7 @@ Singleton {
         running: false
         onTriggered: {
             if (root.state === "recording") {
-                root.notify("🛑 测试录音结束", "正在转写…", "emblem-synchronizing")
+
                 stopRecProc.running = true
             }
         }
