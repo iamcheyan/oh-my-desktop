@@ -34,7 +34,7 @@ Item {
         id: clockText
         anchors.centerIn: parent
         font.family: Appearance.font.family.main
-        font.pixelSize: Appearance.font.pixelSize.smallest
+        font.pixelSize: 11
         font.weight: Font.Normal
         color: Appearance.colors.colBarText
         text: root.displayText
