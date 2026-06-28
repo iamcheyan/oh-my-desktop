@@ -17,13 +17,24 @@ Item {
     property bool hovered: actionButton.hovered || (voiceMenuLoader.item ? voiceMenuLoader.item.visible : false)
 
     readonly property string state: VoiceInput.state
-    readonly property bool isRecording: root.state === "recording"
+    readonly property bool isRecording:    root.state === "recording"
     readonly property bool isTranscribing: root.state === "transcribing"
-    readonly property bool isSetup: root.state === "setup"
-    readonly property bool isError: root.state === "error"
-    readonly property bool isSuccess: root.state === "success"
+    readonly property bool isSetup:        root.state === "setup"
+    readonly property bool isError:        root.state === "error"
+    readonly property bool isActive:       root.isRecording || root.isTranscribing || root.isSetup
 
-    // ── 主按钮 ──
+    // ── 颜色定义 ──
+    readonly property color colorIdle:   Appearance.colors.colBarText   // 白/默认
+    readonly property color colorActive: "#F5C542"                       // 黄色
+    readonly property color colorError:  "#FF3B30"                       // 大红
+
+    readonly property color iconColor: {
+        if (root.isError)   return root.colorError
+        if (root.isActive)  return root.colorActive
+        return root.colorIdle
+    }
+
+    // ── 主按钮（透明背景）──
     RippleButton {
         id: actionButton
         anchors.centerIn: parent
@@ -31,17 +42,9 @@ Item {
         height: Config.options.bar.rightIconSlotWidth
         buttonRadius: Appearance.rounding.full
 
-        colBackground: {
-            if (root.isError)   return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.45)
-            if (root.isSuccess) return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.45)
-            return ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        }
-        colBackgroundHover: {
-            if (root.isError)   return ColorUtils.transparentize(Appearance.m3colors.m3error, 0.30)
-            if (root.isSuccess) return ColorUtils.transparentize(Appearance.m3colors.m3tertiary, 0.30)
-            return ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        }
-        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
+        colBackground:      ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+        colRipple:          ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: VoiceInput.toggle()
     }
@@ -81,7 +84,7 @@ Item {
         }
     }
 
-    // ── 录音中的红色脉冲环 ──
+    // ── 录音/激活时：黄色脉冲环 ──
     Rectangle {
         id: pulseRing
         anchors.centerIn: actionButton
@@ -90,86 +93,47 @@ Item {
         radius: width / 2
         color: "transparent"
         border.width: 2
-        border.color: Appearance.m3colors.m3error
-        visible: root.isRecording
-        opacity: 0.7
+        border.color: root.colorActive
+        visible: root.isActive
+        opacity: 0.75
 
         SequentialAnimation on scale {
-            running: root.isRecording
+            running: root.isActive
             loops: Animation.Infinite
-            NumberAnimation { from: 1.0; to: 1.6; duration: 700; easing.type: Easing.OutCubic }
-            NumberAnimation { from: 1.6; to: 1.0; duration: 0 }
+            NumberAnimation { from: 1.0; to: 1.65; duration: 750; easing.type: Easing.OutCubic }
+            NumberAnimation { from: 1.65; to: 1.0;  duration: 0 }
         }
         SequentialAnimation on opacity {
-            running: root.isRecording
+            running: root.isActive
             loops: Animation.Infinite
-            NumberAnimation { from: 0.7; to: 0; duration: 700; easing.type: Easing.OutCubic }
-            NumberAnimation { from: 0; to: 0.7; duration: 0 }
+            NumberAnimation { from: 0.75; to: 0; duration: 750; easing.type: Easing.OutCubic }
+            NumberAnimation { from: 0; to: 0.75; duration: 0 }
         }
     }
 
-    // ── 图标（始终显示麦克风，状态通过颜色和动画区分）──
+    // ── 麦克风图标 ──
     CosmicIcon {
         id: icon
         anchors.centerIn: actionButton
         iconSize: Config.options.bar.rightIconSize
-        opacity: (root.isTranscribing || root.isSetup) ? 0.5 : 1.0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        name: "status/microphone-sensitivity-high-symbolic"
 
-        color: {
-            if (root.isRecording || root.isError) return Appearance.m3colors.m3error
-            if (root.isSuccess)                   return Appearance.m3colors.m3tertiary
-            return Appearance.colors.colBarText
-        }
-        Behavior on color { ColorAnimation { duration: 150 } }
+        color: root.iconColor
+        Behavior on color { ColorAnimation { duration: 120 } }
 
-        name: {
-            if (root.isError)   return "status/dialog-warning-symbolic"
-            if (root.isSuccess) return "checkbox-checked-symbolic"
-            return "status/microphone-sensitivity-high-symbolic"
-        }
-    }
-
-    // ── 转写中：细小旋转圆弧（角标式）──
-    Item {
-        anchors.centerIn: actionButton
-        width: actionButton.width
-        height: actionButton.height
-        visible: root.isTranscribing || root.isSetup
-        opacity: visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-
-        // 旋转的细圆弧（用小矩形裁剪出弧形感）
-        Rectangle {
-            id: spinnerArc
-            anchors.centerIn: parent
-            width: parent.width + 6
-            height: parent.height + 6
-            radius: width / 2
-            color: "transparent"
-            border.width: 1.5
-            border.color: Appearance.m3colors.m3primary
-            opacity: 0.55
-
-            RotationAnimation on rotation {
-                running: root.isTranscribing || root.isSetup
-                loops: Animation.Infinite
-                from: 0; to: 360
-                duration: 1100
-                easing.type: Easing.Linear
-            }
+        // 失败时闪烁一下
+        SequentialAnimation on opacity {
+            id: errorBlink
+            running: false
+            NumberAnimation { from: 1.0; to: 0.0; duration: 80  }
+            NumberAnimation { from: 0.0; to: 1.0; duration: 80  }
+            NumberAnimation { from: 1.0; to: 0.0; duration: 80  }
+            NumberAnimation { from: 0.0; to: 1.0; duration: 80  }
         }
     }
 
-    // ── 成功时的绿色闪烁覆盖层 ──
-    Rectangle {
-        anchors.fill: actionButton
-        radius: actionButton.buttonRadius
-        color: Appearance.m3colors.m3tertiary
-        opacity: root.isSuccess ? 0.4 : 0
-        visible: opacity > 0
-        Behavior on opacity {
-            NumberAnimation { duration: 200 }
-        }
+    // 监听 error 状态，触发闪烁
+    onIsErrorChanged: {
+        if (root.isError) errorBlink.start()
     }
 }

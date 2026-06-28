@@ -43,10 +43,11 @@ Singleton {
         root.refreshDaemonStatus()
     }
 
-    // ── 状态变化通知 ──
     onStateChanged: {
         if (state === "success") {
             successResetTimer.restart()
+        } else if (state === "error") {
+            errorResetTimer.restart()
         }
     }
 
@@ -57,6 +58,16 @@ Singleton {
         running: false
         onTriggered: {
             if (root.state === "success") root.state = "idle"
+        }
+    }
+
+    Timer {
+        id: errorResetTimer
+        interval: 2000
+        repeat: false
+        running: false
+        onTriggered: {
+            if (root.state === "error") root.state = "idle"
         }
     }
 
