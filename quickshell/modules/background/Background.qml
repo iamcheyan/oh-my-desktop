@@ -74,6 +74,17 @@ Variants {
         Item {
             anchors.fill: parent
 
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                onDoubleClicked: {
+                    var appLauncherApp = `${CF.FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`;
+                    Quickshell.execDetached([
+                        "qs", "-p", appLauncherApp, "ipc", "call", "appLauncher", "toggle"
+                    ]);
+                }
+            }
+
             // Wallpaper
             StyledImage {
                 id: wallpaper
