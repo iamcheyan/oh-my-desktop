@@ -12,9 +12,11 @@ import Quickshell.Hyprland
 
 Scope {
     id: screenCorners
+    property bool hotCornersEnabled: false
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
     readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
     readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
+    // ... (rest unchanged)
 
     function callOverview(method) {
         Quickshell.execDetached([
@@ -238,36 +240,47 @@ Scope {
             property var activeWorkspaceWithFullscreen: workspacesForMonitor.filter(workspace => ((workspace.toplevels.values.filter(window => window.wayland?.fullscreen)[0] != undefined) && workspace.active))[0]
             property bool fullscreen: activeWorkspaceWithFullscreen != undefined
 
-            CornerPanelWindow {
-                screen: modelData
-                corner: RoundCorner.CornerEnum.TopLeft
-                fullscreen: monitorScope.fullscreen
-            }
-            CornerPanelWindow {
-                screen: modelData
-                corner: RoundCorner.CornerEnum.TopRight
-                fullscreen: monitorScope.fullscreen
-            }
-            CornerPanelWindow {
-                screen: modelData
-                corner: RoundCorner.CornerEnum.BottomLeft
-                fullscreen: monitorScope.fullscreen
-            }
-            CornerPanelWindow {
-                screen: modelData
-                corner: RoundCorner.CornerEnum.BottomRight
-                fullscreen: monitorScope.fullscreen
-            }
-            TopCornerHotspot {
-                screen: modelData
-                isRight: false
-                fullscreen: monitorScope.fullscreen
-            }
-            TopCornerHotspot {
-                screen: modelData
-                isRight: true
-                fullscreen: monitorScope.fullscreen
-            }
+    // Toggle to temporarily disable all corner hot zones
+    property bool hotCornersEnabled: false
+
+    // Corner panels (visual corners)
+    CornerPanelWindow {
+        screen: modelData
+        corner: RoundCorner.CornerEnum.TopLeft
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
+    CornerPanelWindow {
+        screen: modelData
+        corner: RoundCorner.CornerEnum.TopRight
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
+    CornerPanelWindow {
+        screen: modelData
+        corner: RoundCorner.CornerEnum.BottomLeft
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
+    CornerPanelWindow {
+        screen: modelData
+        corner: RoundCorner.CornerEnum.BottomRight
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
+    // Top hot corners used for overview/app launcher
+    TopCornerHotspot {
+        screen: modelData
+        isRight: false
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
+    TopCornerHotspot {
+        screen: modelData
+        isRight: true
+        fullscreen: monitorScope.fullscreen
+        visible: hotCornersEnabled
+    }
         }
     }
 }
