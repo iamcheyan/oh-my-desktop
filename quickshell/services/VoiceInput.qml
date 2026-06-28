@@ -307,7 +307,7 @@ Singleton {
             if (root.lastError === "" && root.lastTranscription === "") {
                 root.lastError = "没有检测到语音"
             }
-            root.state = root.lastError === "" ? "success" : "error"
+            root.state = root.lastError === "" ? "success" : "idle"
         }
     }
 

@@ -73,7 +73,7 @@ Rectangle {
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 color: TuiStyle.dim
-                visible: text.length > 0
+                visible: root.isImage
             }
         }
     }
