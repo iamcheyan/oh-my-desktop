@@ -388,8 +388,7 @@ Rectangle {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        color: "#0a0a0a"
-                        radius: TuiStyle.radius
+                        color: "transparent"
                         clip: true
 
                         CliphistImage {
