@@ -136,4 +136,12 @@ Item {
     onIsErrorChanged: {
         if (root.isError) errorBlink.start()
     }
+
+    // ── 悬浮提示（指向时显示快捷键）──
+    PopupToolTip {
+        text: Translation.tr("语音输入") + " (ALT + A / Globe)"
+        anchorEdges: Config.options.bar.vertical
+            ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+            : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+    }
 }
