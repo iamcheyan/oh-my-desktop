@@ -249,28 +249,14 @@ Item {
                     border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
                     clip: true
 
-                    // Wallpaper background for empty workspaces
+                    // Wallpaper background for all workspaces (including trailing empty)
                     Image {
                         anchors.fill: parent
-                        source: workspace.isTrailingEmpty ? "" : FileUtils.expandHomePath(Config.options.background.wallpaperPath)
+                        source: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         cache: true
                         mipmap: true
-                        visible: !workspace.isTrailingEmpty
-                    }
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: workspace.isTrailingEmpty ? "+" : ""
-                        font {
-                            pixelSize: root.workspaceNumberSize * root.scale
-                            weight: Font.DemiBold
-                            family: Appearance.font.family.expressive
-                        }
-                        color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.8)
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
                     }
 
                     StyledText {
@@ -299,7 +285,8 @@ Item {
                                     GlobalStates.overviewOpen = false;
                                     Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
                                 } else {
-                                    GlobalStates.promoteWorkspaceMru(workspace.workspaceValue);
+                                    if (HyprlandData.workspaceHasVisibleWindows(workspace.workspaceValue))
+                                        GlobalStates.promoteWorkspaceMru(workspace.workspaceValue);
                                     GlobalStates.overviewOpen = false;
                                     root.dispatchFocusWorkspace(workspace.workspaceValue);
                                 }

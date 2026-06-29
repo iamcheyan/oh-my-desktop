@@ -57,79 +57,77 @@ Singleton {
         return !ws.name.startsWith("special:");
     }
 
-    // Overview (工作区概览) / Switcher (快速切换): all regular workspaces
-    // (including empty ones on active monitors), ordered by MRU
-    // (most-recently-used) like Win11 Alt+Tab Z-order,
-    // plus one trailing empty slot.
+    // Overview (工作区概览) / Switcher (快速切换): only workspaces WITH windows
+    // are shown, ordered by MRU (Win11 Alt+Tab Z-order). Empty workspaces are
+    // never displayed — not even the active one if it has no windows. A single
+    // trailing "New workspace" slot (id = max id + 1) is always appended last
+    // and never participates in ordering, like GNOME/macOS. This guarantees
+    // there is exactly ONE empty cell in the grid, always at the very end.
     function overviewWorkspaceEntriesGlobal() {
+        const activeId = Math.max(1, Math.min(100, root.activeWorkspace?.id ?? 1));
+
+        // Only workspaces with windows participate in the grid.
         const regularWorkspaces = root.workspaces
             .filter(ws => root.isRegularWorkspace(ws))
+            .filter(ws => ws.id >= 1 && ws.id <= 100)
+            .filter(ws => ws.windows > 0)
             .sort((a, b) => a.id - b.id);
 
         const seen = {};
-        let model = regularWorkspaces.reduce((entries, ws) => {
-            if (ws.id < 1 || ws.id > 100 || seen[ws.id])
-                return entries;
+        const withWindows = [];
+        regularWorkspaces.forEach(ws => {
+            if (seen[ws.id])
+                return;
             seen[ws.id] = true;
-            entries.push({
+            withWindows.push({
                 id: ws.id,
                 monitorName: ws.monitor ?? "",
                 isTrailingEmpty: false
             });
-            return entries;
-        }, []);
+        });
 
-        if (model.length === 0) {
-            const activeId = root.activeWorkspace?.id ?? 1;
-            model.push({
-                id: Math.max(1, Math.min(100, activeId)),
-                monitorName: root.activeWorkspace?.monitor ?? "",
-                isTrailingEmpty: false
+        // Order workspaces with windows by MRU.
+        const mru = GlobalStates.overviewWorkspaceMru;
+        let orderedWindows;
+        if (mru && mru.length > 0) {
+            const byId = {};
+            withWindows.forEach(e => { byId[e.id] = e; });
+            orderedWindows = [];
+            const consumed = {};
+            for (const id of mru) {
+                if (byId[id] && !consumed[id]) {
+                    orderedWindows.push(byId[id]);
+                    consumed[id] = true;
+                }
+            }
+            withWindows.forEach(e => {
+                if (!consumed[e.id]) {
+                    orderedWindows.push(e);
+                    consumed[e.id] = true;
+                }
             });
+        } else {
+            orderedWindows = withWindows.slice();
         }
 
-        let maxId = 0;
-        for (const entry of model)
+        // Trailing "New workspace" slot: id = max(active, max windowed) + 1.
+        // Using max with activeId ensures the trailing id is always greater
+        // than the active workspace even when the active workspace is empty.
+        let maxId = activeId - 1;
+        for (const entry of orderedWindows)
             maxId = Math.max(maxId, entry.id);
+        const trailingId = Math.min(100, maxId + 1);
 
-        const trailingId = maxId + 1;
-        if (trailingId <= 100 && !seen[trailingId]) {
-            model.push({
+        const ordered = orderedWindows.slice();
+        if (!seen[trailingId]) {
+            ordered.push({
                 id: trailingId,
                 monitorName: "",
                 isTrailingEmpty: true
             });
         }
 
-        // Reorder by MRU: workspaces in GlobalStates.overviewWorkspaceMru come first
-        // (in MRU order), remaining workspaces keep id-ascending order. The trailing
-        // empty slot always stays at the end.
-        const mru = GlobalStates.overviewWorkspaceMru;
-        if (mru && mru.length > 0) {
-            const trailing = model.filter(e => e.isTrailingEmpty);
-            const nonTrailing = model.filter(e => !e.isTrailingEmpty);
-            const byId = {};
-            nonTrailing.forEach(e => { byId[e.id] = e; });
-
-            const ordered = [];
-            const consumed = {};
-            for (const id of mru) {
-                if (byId[id] && !consumed[id]) {
-                    ordered.push(byId[id]);
-                    consumed[id] = true;
-                }
-            }
-            // Append any workspaces not in MRU (e.g. newly created) in id order
-            nonTrailing.forEach(e => {
-                if (!consumed[e.id]) {
-                    ordered.push(e);
-                    consumed[e.id] = true;
-                }
-            });
-            model = ordered.concat(trailing);
-        }
-
-        return model;
+        return ordered;
     }
 
     function workspaceDataForId(workspaceId) {

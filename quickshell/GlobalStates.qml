@@ -47,6 +47,7 @@ Singleton {
 
     // MRU (Most Recently Used) workspace list, mirroring Win11 Alt+Tab Z-order.
     // Promote `wsId` to the front of the list (Win11: switched window → top of Z-order).
+    // The trailing "New workspace" slot never enters MRU — it is always last.
     function promoteWorkspaceMru(wsId) {
         if (wsId < 1)
             return;

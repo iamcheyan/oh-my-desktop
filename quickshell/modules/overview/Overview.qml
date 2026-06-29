@@ -117,13 +117,15 @@ Scope {
 
     // Keep MRU in sync when the user switches workspaces outside of overview
     // (e.g. via Hyprland keybindings). While overview is open the MRU is frozen.
+    // Empty workspaces (incl. the trailing "New workspace" slot) are never
+    // promoted — only workspaces with windows participate in MRU ordering.
     Connections {
         target: HyprlandData
         function onActiveWorkspaceChanged() {
             if (GlobalStates.overviewOpen)
                 return;
             const wsId = HyprlandData.activeWorkspace?.id ?? 0;
-            if (wsId > 0)
+            if (wsId > 0 && HyprlandData.workspaceHasVisibleWindows(wsId))
                 GlobalStates.promoteWorkspaceMru(wsId);
         }
     }
@@ -165,7 +167,7 @@ Scope {
                         const settled = GlobalStates.overviewFocusedWorkspaceId > 0
                             ? GlobalStates.overviewFocusedWorkspaceId
                             : overviewScope.currentWorkspaceId();
-                        if (settled > 0)
+                        if (settled > 0 && HyprlandData.workspaceHasVisibleWindows(settled))
                             GlobalStates.promoteWorkspaceMru(settled);
                         WorkspaceSwitcherController.reset();
                         GlobalStates.overviewFocusedWorkspaceId = -1;
