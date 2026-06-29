@@ -76,6 +76,8 @@ Item {
             }
             IconSlot {
                 id: batteryIconSlot
+                visible: Battery.available
+                implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
                 BarNerdIcon {
                     anchors.centerIn: parent
                     text: {
