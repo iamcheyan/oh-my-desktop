@@ -40,7 +40,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.barPopupType = GlobalStates.barPopupType === "display" ? "" : "display";
+            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
         }
 
         content: Item {
@@ -49,11 +49,48 @@ Item {
 
             CosmicIcon {
                 anchors.centerIn: parent
-                name: Hyprsunset.temperatureActive ? "status/weather-clear-night-symbolic" : "status/display-brightness-off-symbolic"
+                name: "status/display-brightness-symbolic"
                 iconSize: Config.options.bar.rightIconSize
                 color: Appearance.colors.colBarText
             }
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onPressed: (event) => {
+            if (event.button === Qt.RightButton) {
+                screenshotMenu.open();
+            }
+        }
+    }
+
+    Loader {
+        id: screenshotMenu
+        function open() {
+            if (screenshotMenu.item) {
+                screenshotMenu.item.open();
+            } else {
+                screenshotMenu.active = true;
+            }
+        }
+        active: false
+        sourceComponent: ScreenshotContextMenu {
+            Component.onCompleted: this.open();
+            anchor {
+                window: nightLightButton.QsWindow.window
+                item: nightLightButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            onMenuClosed: {
+                screenshotMenu.active = false;
+            }
+        }
+    }
 }

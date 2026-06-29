@@ -219,7 +219,6 @@ Singleton {
                     "util:mic",
                     "util:voice",
                     "util:colorpicker",
-                    "util:screenshot",
                     "util:clipboard",
                     "util:wifi",
                     "util:bluetooth",

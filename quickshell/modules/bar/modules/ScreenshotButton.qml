@@ -51,7 +51,11 @@ Item {
     Loader {
         id: screenshotMenu
         function open() {
-            screenshotMenu.active = true;
+            if (screenshotMenu.item) {
+                screenshotMenu.item.open();
+            } else {
+                screenshotMenu.active = true;
+            }
         }
         active: false
         sourceComponent: ScreenshotContextMenu {
