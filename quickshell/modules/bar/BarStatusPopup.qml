@@ -97,10 +97,6 @@ Scope {
         implicitWidth: panel.implicitWidth
         implicitHeight: panel.implicitHeight
 
-        mask: Region {
-            item: panel
-        }
-
         Timer {
             id: dismissGuard
             interval: 150

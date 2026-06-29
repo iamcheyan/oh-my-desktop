@@ -54,10 +54,6 @@ LazyLoader {
         implicitWidth: visualWidth
         implicitHeight: visualHeight
 
-        mask: Region {
-            item: popupBackground
-        }
-
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
         margins {
