@@ -119,11 +119,7 @@ Item {
     BarNerdIcon {
         id: icon
         anchors.centerIn: actionButton
-        text: {
-            if (root.isTranscribing) return NerdIconMap.micTranscribing;
-            if (root.isRecording) return NerdIconMap.micRecording;
-            return NerdIconMap.mic;
-        }
+        text: root.isActive ? NerdIconMap.hourglass : NerdIconMap.mic
 
         color: root.iconColor
         Behavior on color { ColorAnimation { duration: 120 } }
@@ -135,6 +131,29 @@ Item {
             NumberAnimation { from: 0.0; to: 1.0; duration: 80  }
             NumberAnimation { from: 1.0; to: 0.0; duration: 80  }
             NumberAnimation { from: 0.0; to: 1.0; duration: 80  }
+        }
+    }
+
+    SequentialAnimation {
+        id: rotateAnim
+        running: root.isActive
+        loops: Animation.Infinite
+        NumberAnimation {
+            target: icon
+            property: "rotation"
+            from: 0
+            to: 180
+            duration: 1500
+            easing.type: Easing.InOutBack
+        }
+        PauseAnimation { duration: 500 }
+        PropertyAction {
+            target: icon
+            property: "rotation"
+            value: 0
+        }
+        onStopped: {
+            icon.rotation = 0;
         }
     }
 

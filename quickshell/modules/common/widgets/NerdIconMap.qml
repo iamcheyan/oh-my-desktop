@@ -148,6 +148,7 @@ QtObject {
     readonly property string video: "\uF03D"                   // fa-video U+F03D
     readonly property string keyboard: "\uF11C"                // fa-keyboard U+F11C
     readonly property string wrench: "\uF0AD"                  // fa-wrench U+F0AD
+    readonly property string hourglass: "\uF254"               // fa-hourglass U+F254
 
     // Misc
     readonly property string keyboardArrowDown: "\uDB80\uDF47" // mdi-chevron-down U+F0347
