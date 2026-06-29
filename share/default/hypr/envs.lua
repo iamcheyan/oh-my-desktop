@@ -18,7 +18,30 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- Force all apps to use Wayland.
 hl.env("GDK_BACKEND", "wayland,x11,*")
 hl.env("QT_QPA_PLATFORM", "wayland;xcb")
-hl.env("QT_QPA_PLATFORMTHEME", "qt5ct")
+
+-- Check if KDE Plasma theme integration is available.
+local has_kde = false
+local kdethemes = {
+  "/usr/lib64/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so",
+  "/usr/lib/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so",
+  "/usr/lib64/qt5/plugins/platformthemes/libqkde.so",
+  "/usr/lib/qt5/plugins/platformthemes/libqkde.so",
+}
+for _, path in ipairs(kdethemes) do
+  local f = io.open(path, "r")
+  if f then
+    f:close()
+    has_kde = true
+    break
+  end
+end
+
+if has_kde then
+  hl.env("QT_QPA_PLATFORMTHEME", "kde")
+else
+  hl.env("QT_QPA_PLATFORMTHEME", "qt5ct")
+end
+
 hl.env("QT_STYLE_OVERRIDE", "kvantum")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "wayland")

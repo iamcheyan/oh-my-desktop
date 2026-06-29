@@ -1,0 +1,295 @@
+#!/usr/bin/env python3
+"""
+OMD Voice Input — Keybindings Configuration TUI
+Configure global hotkeys for voice-to-text recording.
+"""
+
+import curses
+import os
+import subprocess
+import sys
+import atexit
+
+# ── Paths ──
+CONFIG_DIR = os.path.expanduser("~/.config/omarchy")
+BINDINGS_FILE = os.path.join(CONFIG_DIR, "voice_bindings.txt")
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+KEY_TEST_SCRIPT = os.path.join(SCRIPT_DIR, "key-test")
+
+DEFAULT_BINDINGS = ["ALT + A", "code:472"]
+
+# ── Load/Save ──
+def load_bindings():
+    if not os.path.exists(BINDINGS_FILE):
+        return list(DEFAULT_BINDINGS)
+    bindings = []
+    try:
+        with open(BINDINGS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    bindings.append(line)
+    except Exception:
+        return list(DEFAULT_BINDINGS)
+    return bindings if bindings else list(DEFAULT_BINDINGS)
+
+def save_bindings(bindings):
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(BINDINGS_FILE, "w") as f:
+            f.write("# OMD Voice Input Keybindings\n")
+            f.write("# One key combination per line. Format e.g., 'ALT + A' or 'code:472'\n\n")
+            for b in bindings:
+                f.write(f"{b}\n")
+        # Reload Hyprland config
+        subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception:
+        return False
+
+def run_key_capture():
+    if os.path.exists(KEY_TEST_SCRIPT):
+        # We launch the GTK key-test window
+        subprocess.run([sys.executable, KEY_TEST_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        subprocess.run(["key-test"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    # Read the captured key from clipboard
+    try:
+        res = subprocess.run(["wl-paste"], capture_output=True, text=True)
+        val = res.stdout.strip()
+        # Verify it's a valid format and not a status string from key-test
+        if val and not val.startswith("✓") and not val.startswith("✗") and len(val) < 50:
+            return val
+    except Exception:
+        pass
+    return None
+
+# ── TUI Draw Loop ──
+def draw(stdscr):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+
+    # Initialize Colors (Default matching OMD TUI theme)
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE,   -1)   # Normal Text
+    curses.init_pair(2, curses.COLOR_CYAN,    -1)   # Header / Focus Accent
+    curses.init_pair(3, curses.COLOR_GREEN,   -1)   # Success
+    curses.init_pair(4, curses.COLOR_YELLOW,  -1)   # Warning / Hotkey highlight
+    curses.init_pair(5, curses.COLOR_RED,     -1)   # Alert / Error / Delete
+    curses.init_pair(6, curses.COLOR_BLACK,   curses.COLOR_CYAN) # Selected Row
+
+    bindings = load_bindings()
+    original_bindings = list(bindings)
+    selected_idx = 0
+    message = ""
+    message_color = 3
+    message_time = 0
+
+    while True:
+        # Layout metrics
+        h, w = stdscr.getmaxyx()
+        stdscr.erase()
+
+        # Handle message timeout
+        if message and time.time() - message_time > 3:
+            message = ""
+
+        # ── Title ──
+        title = " 🎙️  OMD Voice Input — 按键绑定配置 "
+        stdscr.attron(curses.color_pair(2) | curses.A_BOLD)
+        stdscr.addstr(0, max(0, (w - len(title)) // 2), title[:w])
+        stdscr.attroff(curses.color_pair(2) | curses.A_BOLD)
+        stdscr.addstr(1, 0, "─" * w)
+
+        # ── Main Instructions ──
+        inst = "使用 ⬆ / ⬇ 键或 J / K 选择按键绑定进行操作"
+        stdscr.attron(curses.color_pair(1))
+        stdscr.addstr(2, 2, inst[:w-4])
+        stdscr.attroff(curses.color_pair(1))
+
+        # ── List of Bindings ──
+        list_start_row = 4
+        list_height = h - 12
+        visible_bindings = bindings
+
+        stdscr.addstr(list_start_row, 2, "当前已绑定的快捷键列表:", curses.color_pair(2) | curses.A_BOLD)
+        stdscr.addstr(list_start_row + 1, 2, "┌──────────────────────────────────────────────┐", curses.color_pair(1))
+
+        for i, b in enumerate(visible_bindings):
+            row_idx = list_start_row + 2 + i
+            if row_idx >= list_start_row + 2 + list_height:
+                break
+            
+            # Format row
+            prefix = " > " if i == selected_idx else "   "
+            row_text = f"{prefix}  {i+1}. {b:<38}"
+            
+            if i == selected_idx:
+                stdscr.attron(curses.color_pair(6) | curses.A_BOLD)
+                stdscr.addstr(row_idx, 2, f"│{row_text[:w-6]}│")
+                stdscr.attroff(curses.color_pair(6) | curses.A_BOLD)
+            else:
+                stdscr.attron(curses.color_pair(1))
+                stdscr.addstr(row_idx, 2, f"│{row_text[:w-6]}│")
+                stdscr.attroff(curses.color_pair(1))
+
+        border_end_row = list_start_row + 2 + len(visible_bindings)
+        stdscr.addstr(border_end_row, 2, "└──────────────────────────────────────────────┘", curses.color_pair(1))
+
+        # ── Menu Commands ──
+        menu_row = h - 6
+        if menu_row > border_end_row + 1:
+            stdscr.addstr(menu_row, 2, "⚡ 操作快捷键:", curses.color_pair(2) | curses.A_BOLD)
+            
+            cmds = [
+                ("C", "捕获并新增按键", 4),
+                ("M", "手动输入新增", 4),
+                ("D", "删除选中绑定", 5),
+                ("S", "保存并应用配置", 3),
+                ("Q", "返回/退出", 1)
+            ]
+            
+            cmd_row = menu_row + 1
+            cx = 4
+            for key_char, desc, col in cmds:
+                stdscr.attron(curses.color_pair(col) | curses.A_BOLD)
+                stdscr.addstr(cmd_row, cx, f"[{key_char}]")
+                stdscr.attroff(curses.color_pair(col) | curses.A_BOLD)
+                stdscr.addstr(cmd_row, cx + len(key_char) + 2, f" {desc}   ")
+                cx += len(key_char) + len(desc) + 7
+
+        # ── Notification Message ──
+        msg_row = h - 2
+        if msg_row > menu_row + 1 and message:
+            stdscr.attron(curses.color_pair(message_color) | curses.A_BOLD)
+            stdscr.addstr(msg_row, 2, f"💡 {message}"[:w-4])
+            stdscr.attroff(curses.color_pair(message_color) | curses.A_BOLD)
+
+        stdscr.refresh()
+
+        # ── Handle Input ──
+        key = stdscr.getch()
+        if key == -1:
+            time.sleep(0.02)
+            continue
+
+        # Navigate List
+        if key in (curses.KEY_UP, ord('k'), ord('K')):
+            if len(bindings) > 0:
+                selected_idx = (selected_idx - 1) % len(bindings)
+        elif key in (curses.KEY_DOWN, ord('j'), ord('J')):
+            if len(bindings) > 0:
+                selected_idx = (selected_idx + 1) % len(bindings)
+
+        # Q or ESC - Quit
+        elif key in (ord('q'), ord('Q'), 27):
+            # Check for unsaved changes
+            if bindings != original_bindings:
+                stdscr.attron(curses.color_pair(4) | curses.A_BOLD)
+                stdscr.addstr(msg_row, 2, "⚠️ 配置已修改！是否保存并退出？ (Y: 保存 / N: 直接退出 / 任意键返回)")
+                stdscr.attroff(curses.color_pair(4) | curses.A_BOLD)
+                stdscr.refresh()
+                
+                # Block for response
+                stdscr.nodelay(False)
+                resp = stdscr.getch()
+                stdscr.nodelay(True)
+                
+                if resp in (ord('y'), ord('Y')):
+                    save_bindings(bindings)
+                    break
+                elif resp in (ord('n'), ord('N')):
+                    break
+            else:
+                break
+
+        # C - Capture Keybind
+        elif key in (ord('c'), ord('C')):
+            # Temporarily restore standard terminal mode for subprocess running
+            curses.def_shell_mode()
+            curses.endwin()
+            
+            captured = run_key_capture()
+            
+            # Re-enter curses TUI mode
+            stdscr.refresh()
+            
+            if captured:
+                if captured not in bindings:
+                    bindings.append(captured)
+                    selected_idx = len(bindings) - 1
+                    message = f"已成功捕获并添加新绑定: {captured}"
+                    message_color = 3
+                else:
+                    message = f"按键 {captured} 已经存在于绑定列表中！"
+                    message_color = 4
+            else:
+                message = "按键捕获已取消或未检测到有效按键。"
+                message_color = 5
+            message_time = time.time()
+
+        # M - Manually Enter Keybind
+        elif key in (ord('m'), ord('M')):
+            # Show manual input prompt
+            curses.echo()
+            curses.curs_set(1)
+            prompt = "请输入新按键组合 (例如 'SUPER + CTRL + V'): "
+            stdscr.addstr(h - 3, 2, prompt, curses.color_pair(4) | curses.A_BOLD)
+            stdscr.clrtoeol()
+            stdscr.refresh()
+            try:
+                # Wait for text input
+                raw_input = stdscr.getstr(h - 3, 2 + len(prompt), 40).decode('utf-8').strip()
+            except Exception:
+                raw_input = ""
+            curses.noecho()
+            curses.curs_set(0)
+            
+            if raw_input:
+                if raw_input not in bindings:
+                    bindings.append(raw_input)
+                    selected_idx = len(bindings) - 1
+                    message = f"手动添加新绑定: {raw_input}"
+                    message_color = 3
+                else:
+                    message = f"按键 {raw_input} 已经存在！"
+                    message_color = 4
+            else:
+                message = "已取消手动添加。"
+                message_color = 5
+            message_time = time.time()
+
+        # D / Delete / Backspace - Delete Keybind
+        elif key in (ord('d'), ord('D'), curses.KEY_DC, curses.KEY_BACKSPACE, 127):
+            if len(bindings) > 0:
+                removed_key = bindings.pop(selected_idx)
+                if selected_idx >= len(bindings) and len(bindings) > 0:
+                    selected_idx = len(bindings) - 1
+                message = f"已删除绑定: {removed_key}"
+                message_color = 5
+                message_time = time.time()
+
+        # S - Save and Apply
+        elif key in (ord('s'), ord('S')):
+            if save_bindings(bindings):
+                original_bindings = list(bindings)
+                message = "配置已成功保存！已自动刷新全局快捷键。"
+                message_color = 3
+            else:
+                message = "保存配置失败，请检查文件写入权限。"
+                message_color = 5
+            message_time = time.time()
+
+import time
+def main():
+    try:
+        curses.wrapper(draw)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("已退出按键绑定配置。")
+
+if __name__ == "__main__":
+    main()

@@ -29,6 +29,7 @@ o.window("org.omd.impala", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omd.wifitui", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omd.bluetui", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omarchy.voice-test-tui", { tag = "+floating-window", size = { 1000, 700 } })
+o.window("org.omarchy.voice-bind-tui", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omarchy.key-test", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omarchy.voice-diagnose", { tag = "+floating-window", size = { 1000, 700 } })
 

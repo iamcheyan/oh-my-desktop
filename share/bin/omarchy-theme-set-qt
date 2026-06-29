@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme to Qt and KDE configurations
+# omarchy:hidden=true
+
+if [[ -f ~/.config/omarchy/current/theme/light.mode ]]; then
+  # Light mode
+  # 1. Update Kvantum theme
+  if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file Kvantum/kvantum.kvconfig --group General --key theme "Colloid"
+  elif command -v kwriteconfig5 >/dev/null 2>&1; then
+    kwriteconfig5 --file Kvantum/kvantum.kvconfig --group General --key theme "Colloid"
+  fi
+
+  # 2. Update kdeglobals for KDE applications
+  if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file kdeglobals --group General --key ColorScheme "BreezeLight"
+    kwriteconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage "org.kde.breeze.desktop"
+  elif command -v kwriteconfig5 >/dev/null 2>&1; then
+    kwriteconfig5 --file kdeglobals --group General --key ColorScheme "BreezeLight"
+    kwriteconfig5 --file kdeglobals --group KDE --key LookAndFeelPackage "org.kde.breeze.desktop"
+  fi
+
+  # 3. Update qt5ct and qt6ct configurations
+  if [[ -f ~/.config/qt5ct/qt5ct.conf ]]; then
+    if command -v kwriteconfig6 >/dev/null 2>&1; then
+      kwriteconfig6 --file qt5ct/qt5ct.conf --group Appearance --key custom_palette "false"
+      kwriteconfig6 --file qt5ct/qt5ct.conf --group Appearance --key color_scheme_path ""
+    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+      kwriteconfig5 --file qt5ct/qt5ct.conf --group Appearance --key custom_palette "false"
+      kwriteconfig5 --file qt5ct/qt5ct.conf --group Appearance --key color_scheme_path ""
+    fi
+  fi
+  if [[ -f ~/.config/qt6ct/qt6ct.conf ]]; then
+    if command -v kwriteconfig6 >/dev/null 2>&1; then
+      kwriteconfig6 --file qt6ct/qt6ct.conf --group Appearance --key custom_palette "false"
+      kwriteconfig6 --file qt6ct/qt6ct.conf --group Appearance --key color_scheme_path ""
+    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+      kwriteconfig5 --file qt6ct/qt6ct.conf --group Appearance --key custom_palette "false"
+      kwriteconfig5 --file qt6ct/qt6ct.conf --group Appearance --key color_scheme_path ""
+    fi
+  fi
+else
+  # Dark mode
+  # 1. Update Kvantum theme
+  if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file Kvantum/kvantum.kvconfig --group General --key theme "ColloidDark"
+  elif command -v kwriteconfig5 >/dev/null 2>&1; then
+    kwriteconfig5 --file Kvantum/kvantum.kvconfig --group General --key theme "ColloidDark"
+  fi
+
+  # 2. Update kdeglobals for KDE applications
+  if command -v kwriteconfig6 >/dev/null 2>&1; then
+    kwriteconfig6 --file kdeglobals --group General --key ColorScheme "BreezeDark"
+    kwriteconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage "org.kde.breezedark.desktop"
+  elif command -v kwriteconfig5 >/dev/null 2>&1; then
+    kwriteconfig5 --file kdeglobals --group General --key ColorScheme "BreezeDark"
+    kwriteconfig5 --file kdeglobals --group KDE --key LookAndFeelPackage "org.kde.breezedark.desktop"
+  fi
+
+  # 3. Update qt5ct and qt6ct configurations
+  if [[ -f ~/.config/qt5ct/qt5ct.conf ]]; then
+    if command -v kwriteconfig6 >/dev/null 2>&1; then
+      kwriteconfig6 --file qt5ct/qt5ct.conf --group Appearance --key custom_palette "true"
+      kwriteconfig6 --file qt5ct/qt5ct.conf --group Appearance --key color_scheme_path "/usr/share/qt5ct/colors/dusk.conf"
+    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+      kwriteconfig5 --file qt5ct/qt5ct.conf --group Appearance --key custom_palette "true"
+      kwriteconfig5 --file qt5ct/qt5ct.conf --group Appearance --key color_scheme_path "/usr/share/qt5ct/colors/dusk.conf"
+    fi
+  fi
+  if [[ -f ~/.config/qt6ct/qt6ct.conf ]]; then
+    if command -v kwriteconfig6 >/dev/null 2>&1; then
+      kwriteconfig6 --file qt6ct/qt6ct.conf --group Appearance --key custom_palette "true"
+      kwriteconfig6 --file qt6ct/qt6ct.conf --group Appearance --key color_scheme_path "/usr/share/qt6ct/colors/dusk.conf"
+    elif command -v kwriteconfig5 >/dev/null 2>&1; then
+      kwriteconfig5 --file qt6ct/qt6ct.conf --group Appearance --key custom_palette "true"
+      kwriteconfig5 --file qt6ct/qt6ct.conf --group Appearance --key color_scheme_path "/usr/share/qt6ct/colors/dusk.conf"
+    fi
+  fi
+fi

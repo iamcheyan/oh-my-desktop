@@ -1,0 +1,6 @@
+# OMD Voice Input Keybindings
+# One key combination per line. Format e.g., 'ALT + A' or 'code:472'
+
+ALT + A
+code:472
+HANGUL_HANJA

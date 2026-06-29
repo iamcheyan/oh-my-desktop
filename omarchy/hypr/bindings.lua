@@ -1,3 +1,5 @@
+local paths = require("default.hypr.paths")
+
 -- Application bindings.
 o.bind("SUPER + RETURN", "Terminal", { omarchy = "terminal" })
 o.bind("SUPER + ALT + RETURN", "Tmux", { omarchy = "terminal-tmux" })
@@ -71,8 +73,29 @@ for _, key in ipairs(interrupt_keys) do
   })
 end
 
-o.bind("ALT + A", "Voice input toggle", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
-o.bind("code:472", "Voice input toggle (Globe key)", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
+local function read_voice_bindings(filepath)
+  local file = io.open(filepath, "r")
+  local list = {}
+  if file then
+    for line in file:lines() do
+      line = line:gsub("^%s*(.-)%s*$", "%1")
+      if line ~= "" and not line:find("^#") then
+        table.insert(list, line)
+      end
+    end
+    file:close()
+  end
+  return list
+end
+
+local voice_bindings = read_voice_bindings(paths.config_home .. "/omarchy/voice_bindings.txt")
+if #voice_bindings == 0 then
+  voice_bindings = { "ALT + A", "code:472" }
+end
+
+for _, key in ipairs(voice_bindings) do
+  o.bind(key, "Voice input toggle", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
+end
 o.bind("ALT + S", "Region screenshot", "qs -p $HOME/.config/omd/apps/omd-bar ipc call region screenshot")
 
 -- Logitech MX Keys examples:
