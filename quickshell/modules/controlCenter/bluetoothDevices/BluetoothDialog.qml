@@ -23,6 +23,7 @@ WindowDialog {
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
     readonly property color tuiSelection: "#2b2b2b"
+    readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
     readonly property var previewDevice: selectedDevice || deviceList.currentItem?.device || BluetoothStatus.firstActiveDevice
     property var selectedDevice: null
     property bool actionOpen: false
@@ -105,6 +106,19 @@ WindowDialog {
 
     function openSettings() {
         Quickshell.execDetached(["bash", "-c", `${Config.options.apps.bluetooth}`]);
+    }
+
+    function openBluetoothTui() {
+        Quickshell.execDetached([root.tuiLauncher, "bluetooth"]);
+    }
+
+    function openBluemanManager() {
+        Quickshell.execDetached(["blueman-manager"]);
+    }
+
+    function toggleBluetoothPower() {
+        if (Bluetooth.defaultAdapter)
+            Bluetooth.defaultAdapter.enabled = !Bluetooth.defaultAdapter.enabled;
     }
 
     Keys.onPressed: (event) => {
@@ -491,6 +505,12 @@ WindowDialog {
                                         }
                                     }
                                 }
+
+                                TuiActionButton {
+                                    label: "BLUETUI"
+                                    accent: root.tuiPurple
+                                    onClicked: root.openBluetoothTui()
+                                }
                             }
                         }
                     }
@@ -499,7 +519,7 @@ WindowDialog {
                         title: "ADAPTER"
                         subtitle: "hci0"
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 146
+                        Layout.preferredHeight: 184
                         accent: BluetoothStatus.enabled ? root.tuiBlue : root.tuiRed
 
                         GridLayout {
@@ -525,6 +545,30 @@ WindowDialog {
                             }
                             DetailKey { text: "TOTAL" }
                             DetailValue { text: `${BluetoothStatus.friendlyDeviceList.length}` }
+
+                            Item {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 4
+                            }
+
+                            RowLayout {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                TuiActionButton {
+                                    label: BluetoothStatus.enabled ? "DISABLE" : "ENABLE"
+                                    accent: BluetoothStatus.enabled ? root.tuiRed : root.tuiBlue
+                                    onClicked: root.toggleBluetoothPower()
+                                }
+
+                                TuiActionButton {
+                                    label: "BLUEMAN"
+                                    accent: root.tuiDim
+                                    onClicked: root.openBluemanManager()
+                                }
+                            }
                         }
                     }
                 }
@@ -715,7 +759,7 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: "#181818"
+            color: TuiStyle.surfaceRaised
             radius: TuiStyle.radius
             border.width: 0
         }

@@ -20,16 +20,24 @@ RippleButton {
     signal dismiss()
     signal openSubmenu(handle: QsMenuHandle)
 
-    colBackground: menuEntry.isSeparator ? Appearance.m3colors.m3outlineVariant : ColorUtils.transparentize(Appearance.colors.colLayer0)
+    colBackground: menuEntry.isSeparator ? TuiStyle.line : "transparent"
+    colBackgroundHover: TuiStyle.surfaceHover
+    colRipple: TuiStyle.surfacePressed
+    borderWidth: 0
+    borderColor: TuiStyle.line
     enabled: !menuEntry.isSeparator
-    opacity: 1
 
-    horizontalPadding: 12
+    buttonRadius: 6
+    horizontalPadding: 8
     implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
     implicitHeight: menuEntry.isSeparator ? 1 : 36
+    Layout.minimumHeight: menuEntry.isSeparator ? 1 : 36
+    Layout.preferredHeight: menuEntry.isSeparator ? 1 : 36
+    Layout.maximumHeight: menuEntry.isSeparator ? 1 : 36
     Layout.topMargin: menuEntry.isSeparator ? 4 : 0
     Layout.bottomMargin: menuEntry.isSeparator ? 4 : 0
     Layout.fillWidth: true
+    opacity: menuEntry.isSeparator ? TuiStyle.dividerOpacity : 1
 
     Component.onCompleted: {
         if (menuEntry.isSeparator) {
@@ -64,8 +72,8 @@ RippleButton {
         // Interaction: checkbox or radio button
         Item {
             visible: root.hasSpecialInteraction || root.forceSpecialInteractionColumn
-            implicitWidth: 20
-            implicitHeight: 20
+            implicitWidth: 22
+            implicitHeight: 36
 
             Loader {
                 anchors.fill: parent
@@ -85,6 +93,7 @@ RippleButton {
                 sourceComponent: MaterialSymbol {
                     text: root.menuEntry.checkState === Qt.PartiallyChecked ? "check_indeterminate_small" : "check"
                     iconSize: 20
+                    color: TuiStyle.fg
                 }
             }
         }
@@ -92,8 +101,8 @@ RippleButton {
         // Button icon
         Item {
             visible: root.hasIcon || root.forceIconColumn
-            implicitWidth: 20
-            implicitHeight: 20
+            implicitWidth: 22
+            implicitHeight: 36
 
             Loader {
                 anchors.centerIn: parent
@@ -101,7 +110,7 @@ RippleButton {
                 sourceComponent: IconImage {
                     asynchronous: true
                     source: root.menuEntry.icon
-                    implicitSize: 20
+                    implicitSize: 16
                     mipmap: true
                 }
             }
@@ -110,7 +119,10 @@ RippleButton {
         StyledText {
             id: label
             text: root.menuEntry.text
-            font.pixelSize: Appearance.font.pixelSize.smallie
+            font.family: Appearance.font.family.main
+            font.pixelSize: Appearance.font.pixelSize.small
+            font.weight: Font.Medium
+            color: TuiStyle.fg
             Layout.fillWidth: true
         }
 
@@ -120,6 +132,7 @@ RippleButton {
             sourceComponent: MaterialSymbol {
                 text: "chevron_right"
                 iconSize: 20
+                color: TuiStyle.muted
             }
         }
     }

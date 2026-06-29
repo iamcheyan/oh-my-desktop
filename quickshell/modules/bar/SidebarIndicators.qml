@@ -87,4 +87,16 @@ Item {
         }
     }
 
+    // Transparent MouseArea dedicated for hover detection (does not intercept clicks)
+    MouseArea {
+        id: hoverArea
+        anchors.fill: button
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+    }
+
+    BatteryHoverPopup {
+        id: batteryHoverPopup
+        hoverTarget: hoverArea
+    }
 }

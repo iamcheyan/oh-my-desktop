@@ -21,8 +21,11 @@ Singleton {
     property bool wifiScanning: false
     property bool wifiConnecting: connectProc.running
     property WifiAccessPoint wifiConnectTarget
+    property string wifiConnectPassword: ""
     readonly property list<WifiAccessPoint> wifiNetworks: []
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
+    property var knownWifiNames: []
+    property var wifiAutoconnectByName: ({})
     readonly property list<var> friendlyWifiNetworks: [...wifiNetworks].sort((a, b) => {
         if (a.active && !b.active)
             return -1;
@@ -85,19 +88,59 @@ Singleton {
     function rescanWifi(): void {
         wifiScanning = true;
         rescanProcess.running = true;
+        updateKnownWifiProfiles.running = true;
+    }
+
+    function isKnownWifi(accessPoint: WifiAccessPoint): bool {
+        return !!accessPoint && root.knownWifiNames.includes(accessPoint.ssid);
+    }
+
+    function isWifiAutoconnect(accessPoint: WifiAccessPoint): bool {
+        return !!accessPoint && root.wifiAutoconnectByName[accessPoint.ssid] === true;
+    }
+
+    function setWifiAutoconnect(accessPoint: WifiAccessPoint, enabled: bool): void {
+        if (!accessPoint || !accessPoint.ssid || accessPoint.ssid.length === 0)
+            return;
+        autoconnectSetProc.exec({
+            "environment": {
+                "SSID": accessPoint.ssid,
+                "AUTOCONNECT": enabled ? "yes" : "no",
+                "PRIORITY": enabled ? "50" : "-999"
+            },
+            "command": ["bash", "-c", 'nmcli connection modify "$SSID" connection.autoconnect "$AUTOCONNECT" connection.autoconnect-priority "$PRIORITY"']
+        });
+    }
+
+    function markWifiProfileAutoconnect(ssid: string, priority = 50): void {
+        if (!ssid || ssid.length === 0)
+            return;
+        autoconnectProc.exec({
+            "environment": {
+                "SSID": ssid,
+                "PASSWORD": root.wifiConnectPassword,
+                "PRIORITY": String(priority)
+            },
+            "command": ["bash", "-c", 'if [ -n "$PASSWORD" ]; then nmcli connection modify "$SSID" wifi-sec.psk "$PASSWORD" connection.autoconnect yes connection.autoconnect-priority "$PRIORITY"; else nmcli connection modify "$SSID" connection.autoconnect yes connection.autoconnect-priority "$PRIORITY"; fi']
+        });
     }
 
     function connectToWifiNetwork(accessPoint: WifiAccessPoint): void {
         accessPoint.askingPassword = false;
         root.wifiConnectTarget = accessPoint;
-        // We use this instead of `nmcli connection up SSID` because this also creates a connection profile
-        connectProc.exec(["nmcli", "dev", "wifi", "connect", accessPoint.ssid])
-
+        root.wifiConnectPassword = "";
+        connectProc.exec({
+            "environment": {
+                "SSID": accessPoint.ssid
+            },
+            "command": ["bash", "-c", 'nmcli connection up id "$SSID" || nmcli dev wifi connect "$SSID"']
+        });
     }
 
     function connectToWifiNetworkWithPassword(accessPoint: WifiAccessPoint, password: string): void {
         accessPoint.askingPassword = false;
         root.wifiConnectTarget = accessPoint;
+        root.wifiConnectPassword = password;
         connectProc.exec({
             "environment": {
                 "SSID": accessPoint.ssid,
@@ -133,7 +176,7 @@ Singleton {
                 "PASSWORD": password,
                 "SSID": network.ssid
             },
-            "command": ["bash", "-c", 'nmcli connection modify "$SSID" wifi-sec.psk "$PASSWORD"']
+            "command": ["bash", "-c", 'nmcli connection modify "$SSID" wifi-sec.psk "$PASSWORD" connection.autoconnect yes connection.autoconnect-priority 50']
         })
     }
 
@@ -163,10 +206,29 @@ Singleton {
             }
         }
         onExited: (exitCode, exitStatus) => {
+            const ssid = root.wifiConnectTarget?.ssid ?? "";
             if (root.wifiConnectTarget)
                 root.wifiConnectTarget.askingPassword = (exitCode !== 0)
+            if (exitCode === 0)
+                root.markWifiProfileAutoconnect(ssid);
             root.wifiConnectTarget = null
+            if (exitCode !== 0)
+                root.wifiConnectPassword = "";
+            updateKnownWifiProfiles.running = true;
         }
+    }
+
+    Process {
+        id: autoconnectProc
+        onExited: {
+            root.wifiConnectPassword = "";
+            updateKnownWifiProfiles.running = true;
+        }
+    }
+
+    Process {
+        id: autoconnectSetProc
+        onExited: updateKnownWifiProfiles.running = true
     }
 
     Process {
@@ -186,6 +248,7 @@ Singleton {
         }
         onExited: {
             getNetworks.running = true;
+            updateKnownWifiProfiles.running = true;
             update();
         }
     }
@@ -215,6 +278,29 @@ Singleton {
         wifiStatusProcess.running = true
         updateNetworkName.running = true;
         updateNetworkStrength.running = true;
+        updateKnownWifiProfiles.running = true;
+    }
+
+    Process {
+        id: updateKnownWifiProfiles
+        command: ["sh", "-c", "nmcli -t -f NAME,TYPE connection show | while IFS=: read -r name type; do [ \"$type\" = \"802-11-wireless\" ] || continue; key=$(nmcli -g 802-11-wireless-security.key-mgmt connection show \"$name\" 2>/dev/null); psk=$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show \"$name\" 2>/dev/null); if [ -z \"$key\" ] || [ -n \"$psk\" ]; then auto=$(nmcli -g connection.autoconnect connection show \"$name\" 2>/dev/null); printf '%s\\t%s\\n' \"$name\" \"$auto\"; fi; done"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const known = [];
+                const autoconnect = {};
+                for (const line of text.trim().split("\n")) {
+                    if (line.length === 0)
+                        continue;
+                    const parts = line.split("\t");
+                    if (parts.length < 2)
+                        continue;
+                    known.push(parts[0]);
+                    autoconnect[parts[0]] = parts[1] === "yes";
+                }
+                root.knownWifiNames = known;
+                root.wifiAutoconnectByName = autoconnect;
+            }
+        }
     }
 
     Process {

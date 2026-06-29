@@ -3,6 +3,7 @@ import qs.services
 import qs.services.network
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -22,12 +23,17 @@ WindowDialog {
     readonly property color tuiPurple: TuiStyle.purple
     readonly property color tuiRed: TuiStyle.red
     readonly property color tuiSelection: "#2b2b2b"
+    readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
     readonly property string activeName: Network.active?.ssid || Network.networkName || Translation.tr("none")
     readonly property string statusText: Network.wifiScanning ? Translation.tr("scanning") : Network.wifiStatus
     readonly property var previewNetwork: selectedNetwork || networkList.currentItem?.wifiNetwork || Network.active
     property WifiAccessPoint selectedNetwork: null
     property bool detailsOpen: false
     property string connectionPassword: ""
+    property bool passwordVisible: false
+    readonly property bool selectedNeedsPassword: (selectedNetwork?.isSecure ?? false)
+        && !(selectedNetwork?.active ?? false)
+        && ((selectedNetwork?.askingPassword ?? false) || !Network.isKnownWifi(selectedNetwork))
 
     backgroundWidth: Math.min(980, Math.max(860, width - 36))
     backgroundHeight: Math.min(680, Math.max(560, height - 96))
@@ -83,13 +89,19 @@ WindowDialog {
         selectedNetwork = network;
         detailsOpen = true;
         connectionPassword = "";
-        detailLayer.forceActiveFocus();
+        passwordVisible = false;
+        Qt.callLater(() => {
+            detailLayer.forceActiveFocus();
+            if (root.selectedNeedsPassword)
+                passwordField.forceActiveFocus();
+        });
     }
 
     function closeDetails() {
         detailsOpen = false;
         selectedNetwork = null;
         connectionPassword = "";
+        passwordVisible = false;
         root.forceActiveFocus();
     }
 
@@ -97,6 +109,10 @@ WindowDialog {
         if (!selectedNetwork)
             return;
         const password = connectionPassword;
+        if (root.selectedNeedsPassword && password.length === 0) {
+            passwordField.forceActiveFocus();
+            return;
+        }
         if ((selectedNetwork.isSecure || selectedNetwork.askingPassword) && password.length > 0)
             Network.connectToWifiNetworkWithPassword(selectedNetwork, password);
         else
@@ -106,6 +122,14 @@ WindowDialog {
 
     function openSettings() {
         Quickshell.execDetached(["bash", "-c", `${Network.ethernet ? Config.options.apps.networkEthernet : Config.options.apps.network}`]);
+    }
+
+    function openWifiTui() {
+        Quickshell.execDetached([root.tuiLauncher, "wifi"]);
+    }
+
+    function openConnectionEditor() {
+        Quickshell.execDetached(["nm-connection-editor"]);
     }
 
     Keys.onPressed: (event) => {
@@ -440,6 +464,12 @@ WindowDialog {
                                     accent: root.tuiBlue
                                     onClicked: Network.rescanWifi()
                                 }
+
+                                TuiActionButton {
+                                    label: "IMPALA"
+                                    accent: root.tuiPurple
+                                    onClicked: root.openWifiTui()
+                                }
                             }
                         }
                     }
@@ -448,7 +478,7 @@ WindowDialog {
                         title: "ADAPTER"
                         subtitle: "wld0"
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 146
+                        Layout.preferredHeight: 184
                         accent: Network.wifiEnabled ? root.tuiAccent : root.tuiRed
 
                         GridLayout {
@@ -473,6 +503,30 @@ WindowDialog {
                             DetailValue {
                                 text: Number.isFinite(Network.networkStrength) ? `${Network.networkStrength}%` : "--"
                                 color: Network.wifiStatus === "connected" ? root.tuiAccent : root.tuiDim
+                            }
+
+                            Item {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 4
+                            }
+
+                            RowLayout {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                TuiActionButton {
+                                    label: Network.wifiEnabled ? "DISABLE" : "ENABLE"
+                                    accent: Network.wifiEnabled ? root.tuiRed : root.tuiAccent
+                                    onClicked: Network.toggleWifi()
+                                }
+
+                                TuiActionButton {
+                                    label: "EDITOR"
+                                    accent: root.tuiDim
+                                    onClicked: root.openConnectionEditor()
+                                }
                             }
                         }
                     }
@@ -536,7 +590,7 @@ WindowDialog {
             Rectangle {
                 id: detailBox
                 width: Math.min(620, parent.width - 74)
-                height: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false) ? 420 : 350
+                height: root.selectedNeedsPassword ? 480 : 400
                 anchors.centerIn: parent
                 color: "#181818"
                 radius: TuiStyle.radius
@@ -602,8 +656,13 @@ WindowDialog {
                         DetailValue { text: root.bssidShort(root.selectedNetwork?.bssid) }
                     }
 
+                    AutoConnectRow {
+                        Layout.fillWidth: true
+                        network: root.selectedNetwork
+                    }
+
                     Rectangle {
-                        visible: (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false)
+                        visible: root.selectedNeedsPassword
                         Layout.fillWidth: true
                         Layout.preferredHeight: 42
                         color: "#222222"
@@ -630,12 +689,33 @@ WindowDialog {
                                 selectedTextColor: root.tuiFg
                                 font.family: Appearance.font.family.main
                                 font.pixelSize: Appearance.font.pixelSize.small
-                                echoMode: TextInput.Password
-                                inputMethodHints: Qt.ImhSensitiveData
-                                focus: detailLayer.visible && (root.selectedNetwork?.isSecure ?? false) && !(root.selectedNetwork?.active ?? false)
+                                echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
+                                inputMethodHints: root.passwordVisible ? Qt.ImhNone : Qt.ImhSensitiveData
+                                focus: detailLayer.visible && root.selectedNeedsPassword
                                 text: root.connectionPassword
                                 onTextChanged: root.connectionPassword = text
                                 onAccepted: root.connectSelected()
+                            }
+
+                            RippleButton {
+                                id: passwordVisibilityButton
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                buttonRadius: 6
+                                colBackground: hovered ? root.tuiSelection : "transparent"
+                                colBackgroundHover: root.tuiSelection
+                                colRipple: Qt.rgba(root.tuiFg.r, root.tuiFg.g, root.tuiFg.b, 0.12)
+                                onClicked: {
+                                    root.passwordVisible = !root.passwordVisible;
+                                    passwordField.forceActiveFocus();
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: root.passwordVisible ? "visibility_off" : "visibility"
+                                    iconSize: 20
+                                    color: passwordVisibilityButton.hovered ? root.tuiFg : root.tuiDim
+                                }
                             }
                         }
                     }
@@ -702,8 +782,9 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: "transparent"
-                border.width: 0
+            color: TuiStyle.surfaceRaised
+            radius: TuiStyle.radius
+            border.width: 0
         }
 
         Rectangle {
@@ -778,6 +859,63 @@ WindowDialog {
     component FooterHint: TuiText {
         color: root.tuiPurple
         font.weight: Font.Medium
+    }
+
+    component AutoConnectRow: Item {
+        id: autoRow
+
+        property WifiAccessPoint network
+        readonly property bool manageable: Network.isKnownWifi(network)
+        readonly property bool checked: Network.isWifiAutoconnect(network)
+
+        implicitHeight: 38
+        opacity: manageable ? 1 : 0.46
+
+        Rectangle {
+            anchors.fill: parent
+            radius: TuiStyle.radius
+            color: autoMouse.containsMouse && autoRow.manageable ? root.tuiSelection : "#202020"
+            border.width: autoMouse.containsMouse && autoRow.manageable ? 1 : 0
+            border.color: root.tuiLine
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 10
+
+            TuiText {
+                text: autoRow.checked ? "[x]" : "[ ]"
+                color: autoRow.checked ? root.tuiAccent : root.tuiDim
+                font.family: Appearance.font.family.monospace
+                font.weight: Font.DemiBold
+            }
+
+            TuiText {
+                Layout.fillWidth: true
+                text: "AUTO CONNECT"
+                color: root.tuiFg
+                font.family: Appearance.font.family.monospace
+                font.weight: Font.DemiBold
+            }
+
+            TuiText {
+                text: autoRow.manageable ? (autoRow.checked ? "enabled" : "disabled") : "connect once to save"
+                color: autoRow.checked ? root.tuiAccent : root.tuiDim
+                font.family: Appearance.font.family.monospace
+                horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        MouseArea {
+            id: autoMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: autoRow.manageable
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: Network.setWifiAutoconnect(autoRow.network, !autoRow.checked)
+        }
     }
 
     component StatusPill: Item {

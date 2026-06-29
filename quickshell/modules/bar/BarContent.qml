@@ -38,7 +38,7 @@ Item { // Bar content region
             win => win.mapped && !win.hidden
         );
     }
-    readonly property color barBackgroundColor: Config.options.bar.showBackground && root.workspaceHasWindows
+    readonly property color barBackgroundColor: Config.options.bar.showBackground
         ? root.barOpaqueColor
         : "transparent"
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen)

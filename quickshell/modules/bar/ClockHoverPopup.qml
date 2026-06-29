@@ -7,7 +7,6 @@ import QtQuick.Layouts
 
 StyledPopup {
     id: root
-    alignRight: true
 
     function getUSEasternOffset() {
         var d = new Date();
@@ -56,11 +55,7 @@ StyledPopup {
         }
     }
 
-    ColumnLayout {
-        id: columnLayout
-        anchors.centerIn: parent
-        spacing: 4
-
+    StyledPopupContent {
         // Update times every second while visible
         Timer {
             interval: 1000
@@ -72,18 +67,6 @@ StyledPopup {
                 cnRow.value = root.formatTimezone(8, "zh");
                 usRow.value = root.formatTimezone(root.getUSEasternOffset(), "en");
             }
-        }
-
-        StyledPopupHeaderRow {
-            Layout.fillWidth: true
-            icon: "actions/appointment-new-symbolic"
-            label: "WORLD CLOCK"
-        }
-
-        // Slight gap
-        Item {
-            Layout.preferredHeight: 2
-            Layout.fillWidth: true
         }
 
         StyledPopupValueRow {

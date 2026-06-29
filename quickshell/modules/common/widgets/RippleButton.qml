@@ -33,10 +33,11 @@ Button {
     property color borderColor: Appearance?.colors.colOutlineVariant ?? "#49464a"
 
     opacity: root.enabled ? 1 : 0.4
-    property color buttonColor: ColorUtils.transparentize(root.toggled ? 
-        (root.hovered ? colBackgroundToggledHover : 
+    property bool pointerInside: pointerArea.containsMouse || root.hovered
+    property color buttonColor: ColorUtils.transparentize(root.toggled ?
+        (root.pointerInside ? colBackgroundToggledHover :
             colBackgroundToggled) :
-        (root.hovered ? colBackgroundHover : 
+        (root.pointerInside ? colBackgroundHover :
             colBackground), root.enabled ? 0 : 1)
     property color rippleColor: root.toggled ? colRippleToggled : colRipple
 
@@ -60,7 +61,9 @@ Button {
     }
 
     MouseArea {
+        id: pointerArea
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: root.pointingHandCursor ? Qt.PointingHandCursor : Qt.ArrowCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         onPressed: (event) => { 

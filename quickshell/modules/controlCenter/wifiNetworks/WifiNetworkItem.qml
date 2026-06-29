@@ -16,6 +16,8 @@ Rectangle {
     property color dimColor: "#8a8a8a"
     property color accentColor: TuiStyle.accent
     property color yellowColor: TuiStyle.yellow
+    property color knownColor: "#49d17d"
+    property color activeColor: "#f4c95d"
     property color blueColor: TuiStyle.blue
     property color bgColor: TuiStyle.bg
     property color lineColor: "#3a3a3a"
@@ -24,7 +26,10 @@ Rectangle {
 
     readonly property bool selected: ListView.isCurrentItem
     readonly property bool activeNetwork: wifiNetwork?.active ?? false
+    readonly property bool knownNetwork: Network.isKnownWifi(wifiNetwork)
     readonly property bool pending: Network.wifiConnectTarget === wifiNetwork
+    readonly property color stateColor: root.activeNetwork ? root.activeColor : root.knownNetwork ? root.knownColor : root.dimColor
+    readonly property color primaryTextColor: root.activeNetwork ? root.activeColor : root.knownNetwork ? root.knownColor : (root.selected ? root.foregroundColor : Qt.rgba(root.foregroundColor.r, root.foregroundColor.g, root.foregroundColor.b, 0.78))
 
     function signalBars(strength) {
         if (strength > 84) return "████";
@@ -48,9 +53,9 @@ Rectangle {
 
     implicitWidth: ListView.view?.width ?? 460
     implicitHeight: 38
-    color: root.selected ? root.selectionColor : root.activeNetwork ? Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, 0.08) : "transparent"
+    color: root.selected ? root.selectionColor : root.activeNetwork ? Qt.rgba(root.activeColor.r, root.activeColor.g, root.activeColor.b, 0.08) : root.knownNetwork ? Qt.rgba(root.knownColor.r, root.knownColor.g, root.knownColor.b, 0.06) : "transparent"
     border.width: root.selected ? 1 : 0
-    border.color: root.selected ? root.accentColor : "transparent"
+    border.color: root.selected ? root.stateColor : "transparent"
     clip: true
 
     MouseArea {
@@ -71,8 +76,8 @@ Rectangle {
 
         TuiCell {
             Layout.preferredWidth: 22
-            text: root.pending ? ">" : root.activeNetwork ? "*" : root.selected ? ":" : " "
-            color: root.pending ? root.yellowColor : root.activeNetwork ? root.accentColor : root.dimColor
+            text: root.pending ? ">" : root.activeNetwork ? "*" : root.knownNetwork ? "+" : root.selected ? ":" : " "
+            color: root.pending ? root.activeColor : root.stateColor
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -80,20 +85,20 @@ Rectangle {
             Layout.fillWidth: true
             text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
             elide: Text.ElideRight
-            color: root.selected || root.activeNetwork ? root.foregroundColor : Qt.rgba(root.foregroundColor.r, root.foregroundColor.g, root.foregroundColor.b, 0.78)
+            color: root.primaryTextColor
         }
 
         TuiCell {
             Layout.preferredWidth: 64
             text: root.signalBars(root.wifiNetwork?.strength ?? 0)
-            color: root.selected ? root.foregroundColor : root.accentColor
+            color: root.activeNetwork || root.knownNetwork ? root.stateColor : root.dimColor
             horizontalAlignment: Text.AlignHCenter
         }
 
         TuiCell {
             Layout.preferredWidth: 42
             text: `${root.wifiNetwork?.strength ?? 0}`
-            color: root.selected ? root.foregroundColor : root.dimColor
+            color: root.activeNetwork || root.knownNetwork ? root.stateColor : root.dimColor
             horizontalAlignment: Text.AlignRight
         }
 
@@ -108,7 +113,7 @@ Rectangle {
             Layout.preferredWidth: 72
             text: root.securityLabel(root.wifiNetwork?.security)
             elide: Text.ElideRight
-            color: root.selected ? root.foregroundColor : (root.wifiNetwork?.isSecure ?? false) ? root.yellowColor : root.dimColor
+            color: root.activeNetwork ? root.activeColor : root.knownNetwork ? root.knownColor : (root.wifiNetwork?.isSecure ?? false) ? root.foregroundColor : root.dimColor
             horizontalAlignment: Text.AlignRight
         }
     }

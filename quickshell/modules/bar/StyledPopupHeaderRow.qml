@@ -3,35 +3,38 @@ import QtQuick.Layouts
 import qs.modules.common
 import qs.modules.common.widgets
 
-Rectangle {
+RowLayout {
     id: root
     required property var icon
     required property var label
-    height: 24
-    implicitWidth: row.implicitWidth + 10 * 2
-    color: "#181818"
-    radius: 0
 
-    Row {
-        id: row
-        anchors.centerIn: parent
-        spacing: 6
+    implicitHeight: TuiStyle.rowHeight
+    Layout.fillWidth: true
+    Layout.minimumHeight: TuiStyle.rowHeight
+    Layout.preferredHeight: TuiStyle.rowHeight
+    Layout.maximumHeight: TuiStyle.rowHeight
+    spacing: 8
+
+    Item {
+        Layout.preferredWidth: 26
+        Layout.preferredHeight: 26
+        Layout.alignment: Qt.AlignVCenter
 
         CosmicIcon {
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.centerIn: parent
             name: root.icon
-            iconSize: Appearance.font.pixelSize.small
             color: TuiStyle.fg
+            iconSize: 18
         }
+    }
 
-        StyledText {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.label
-            font {
-                weight: Font.Bold
-                pixelSize: Appearance.font.pixelSize.small
-            }
-            color: TuiStyle.fg
-        }
+    StyledText {
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignVCenter
+        text: root.label
+        font.family: Appearance.font.family.main
+        font.pixelSize: Appearance.font.pixelSize.small
+        font.weight: Font.DemiBold
+        color: TuiStyle.fg
     }
 }

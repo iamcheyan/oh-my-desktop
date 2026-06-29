@@ -8,24 +8,57 @@ RowLayout {
     required property string icon
     required property string label
     required property string value
-    spacing: 6
 
-    CosmicIcon {
-        name: root.icon
-        color: TuiStyle.accent
-        iconSize: Appearance.font.pixelSize.small
+    readonly property int horizontalPadding: 8
+    readonly property int labelMaxWidth: 170
+
+    // Strictly enforce minimum/implicit widths to prevent right side text clipping
+    implicitWidth: Math.min(360, 26 + spacing + Math.min(labelText.implicitWidth, labelMaxWidth) + spacing + valueText.implicitWidth + (horizontalPadding * 2))
+    implicitHeight: TuiStyle.rowHeight
+    Layout.fillWidth: true
+    Layout.minimumHeight: TuiStyle.rowHeight
+    Layout.preferredHeight: TuiStyle.rowHeight
+    Layout.maximumHeight: TuiStyle.rowHeight
+    Layout.leftMargin: horizontalPadding
+    Layout.rightMargin: horizontalPadding
+    spacing: 8
+
+    Item {
+        Layout.preferredWidth: 26
+        Layout.preferredHeight: 26
+        Layout.alignment: Qt.AlignVCenter
+
+        CosmicIcon {
+            anchors.centerIn: parent
+            name: root.icon
+            color: TuiStyle.fg // match menu items
+            iconSize: 18 // match menu items
+        }
     }
+
     StyledText {
+        id: labelText
+        Layout.alignment: Qt.AlignVCenter
+        Layout.maximumWidth: root.labelMaxWidth
         text: root.label
         color: TuiStyle.fg
-        font.pixelSize: Appearance.font.pixelSize.smaller
+        font.family: Appearance.font.family.main
+        font.pixelSize: Appearance.font.pixelSize.small
+        font.weight: Font.Normal
+        elide: Text.ElideRight
     }
+
     StyledText {
+        id: valueText
         Layout.fillWidth: true
+        Layout.alignment: Qt.AlignVCenter
         horizontalAlignment: Text.AlignRight
         visible: root.value !== ""
-        color: TuiStyle.fg
+        color: TuiStyle.dim
         text: root.value
-        font.pixelSize: Appearance.font.pixelSize.smaller
+        font.family: Appearance.font.family.main
+        font.pixelSize: Appearance.font.pixelSize.small
+        font.weight: Font.Normal
+        elide: Text.ElideRight
     }
 }

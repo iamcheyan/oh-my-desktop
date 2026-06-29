@@ -549,8 +549,9 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: "transparent"
-                border.width: 0
+            color: TuiStyle.surfaceRaised
+            radius: TuiStyle.radius
+            border.width: 0
         }
 
         Rectangle {

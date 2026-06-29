@@ -18,7 +18,7 @@ PopupWindow {
     signal menuOpened(qsWindow: var) // Correct type is QsWindow, but QML does not like that
 
     color: "transparent"
-    property real padding: Appearance.sizes.elevationMargin
+    property real padding: 8
 
     implicitHeight: {
         let result = 0;
@@ -48,6 +48,7 @@ PopupWindow {
     }
 
     MouseArea {
+        id: keyHandler
         anchors.fill: parent
         acceptedButtons: Qt.BackButton | Qt.RightButton
         onPressed: event => {
@@ -62,7 +63,7 @@ PopupWindow {
 
         Rectangle {
             id: popupBackground
-            readonly property real padding: 4
+            readonly property real padding: 6
             anchors {
                 left: parent.left
                 right: parent.right
@@ -73,8 +74,8 @@ PopupWindow {
             }
 
             color: TuiStyle.bg
-            radius: TuiStyle.radius
-            border.width: TuiStyle.borderWidth
+            radius: 10
+            border.width: 1
             border.color: TuiStyle.line
             clip: true
 
@@ -141,7 +142,7 @@ PopupWindow {
             menu: submenu.handle
         }
 
-        spacing: 0
+        spacing: 2
 
         Loader {
             Layout.fillWidth: true
@@ -149,10 +150,18 @@ PopupWindow {
             active: visible
             sourceComponent: RippleButton {
                 id: backButton
-                buttonRadius: popupBackground.radius - popupBackground.padding
-                horizontalPadding: 12
+                buttonRadius: 6
+                horizontalPadding: 8
                 implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
                 implicitHeight: 36
+                Layout.minimumHeight: 36
+                Layout.preferredHeight: 36
+                Layout.maximumHeight: 36
+                colBackground: "transparent"
+                colBackgroundHover: TuiStyle.surfaceHover
+                colRipple: TuiStyle.surfacePressed
+                borderWidth: 0
+                borderColor: TuiStyle.line
 
                 downAction: () => stackView.pop()
 
@@ -165,27 +174,45 @@ PopupWindow {
                         rightMargin: backButton.horizontalPadding
                     }
                     spacing: 8
-                    CosmicIcon {
-                        iconSize: 16
-                        name: "actions/go-previous-symbolic"
-                        color: Appearance.colors.colOnLayer0
+                    Item {
+                        Layout.preferredWidth: 22
+                        Layout.preferredHeight: 36
+
+                        CosmicIcon {
+                            anchors.centerIn: parent
+                            iconSize: 16
+                            name: "actions/go-previous-symbolic"
+                            color: TuiStyle.fg
+                        }
                     }
                     StyledText {
                         Layout.fillWidth: true
                         text: Translation.tr("Back")
+                        font.family: Appearance.font.family.main
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Medium
+                        color: TuiStyle.fg
                     }
                 }
             }
         }
         RippleButton {
             id: pinEntry
-            buttonRadius: popupBackground.radius - popupBackground.padding
-            horizontalPadding: 12
+            buttonRadius: 6
+            horizontalPadding: 8
             implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
             implicitHeight: 36
+            Layout.minimumHeight: 36
+            Layout.preferredHeight: 36
+            Layout.maximumHeight: 36
             Layout.topMargin: 0
             Layout.bottomMargin: 0
             Layout.fillWidth: true
+            colBackground: "transparent"
+            colBackgroundHover: TuiStyle.surfaceHover
+            colRipple: TuiStyle.surfacePressed
+            borderWidth: 0
+            borderColor: TuiStyle.line
 
             visible: root.trayItemId !== undefined && root.trayItemId.length > 0 && stackView.depth === 1
             releaseAction: () => TrayService.togglePin(root.trayItemId);
@@ -200,15 +227,25 @@ PopupWindow {
                 }
                 spacing: 8
 
-                CosmicIcon {
-                    iconSize: 14
-                    name: "actions/pin-symbolic"
-                    color: Appearance.colors.colOnLayer0
+                Item {
+                    Layout.preferredWidth: 22
+                    Layout.preferredHeight: 36
+
+                    CosmicIcon {
+                        anchors.centerIn: parent
+                        iconSize: 16
+                        name: "actions/pin-symbolic"
+                        color: TuiStyle.fg
+                    }
                 }
 
                 StyledText {
                     Layout.fillWidth: true
                     text: TrayService.isPinned(root.trayItemId) ? Translation.tr("Unpin") : Translation.tr("Pin")
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.Medium
+                    color: TuiStyle.fg
                 }
             }
         }
@@ -217,6 +254,7 @@ PopupWindow {
             Layout.fillWidth: true
             implicitHeight: 1
             color: TuiStyle.line
+            opacity: TuiStyle.dividerOpacity
             Layout.topMargin: 4
             Layout.bottomMargin: 4
         }
@@ -244,7 +282,7 @@ PopupWindow {
                 forceSpecialInteractionColumn: menuEntriesRepeater.specialInteractionColumnNeeded
                 menuEntry: modelData
 
-                buttonRadius: popupBackground.radius - popupBackground.padding
+                buttonRadius: 6
 
                 onDismiss: root.close()
                 onOpenSubmenu: handle => {

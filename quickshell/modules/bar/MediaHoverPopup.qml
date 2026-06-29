@@ -24,10 +24,8 @@ StyledPopup {
     readonly property bool canGoNext: MprisController.canGoNext
     readonly property bool canGoPrevious: MprisController.canGoPrevious
 
-    ColumnLayout {
-        id: columnLayout
-        anchors.centerIn: parent
-        spacing: 6
+    StyledPopupContent {
+        contentSpacing: 6
 
         StyledPopupHeaderRow {
             icon: root.isPlaying ? "actions/media-playback-pause-symbolic" : "actions/media-playback-start-symbolic"

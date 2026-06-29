@@ -53,7 +53,7 @@ Variants {
         // Layer props
         screen: modelData
         exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.layer: (GlobalStates.screenLocked && !scaleAnim.running) ? WlrLayer.Overlay : WlrLayer.Bottom
+        WlrLayershell.layer: GlobalStates.screenLocked ? WlrLayer.Overlay : WlrLayer.Bottom
         // WlrLayershell.layer: WlrLayer.Bottom
         WlrLayershell.namespace: "quickshell:background"
         anchors {
@@ -74,17 +74,6 @@ Variants {
         Item {
             anchors.fill: parent
 
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton
-                onDoubleClicked: {
-                    var appLauncherApp = `${CF.FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`;
-                    Quickshell.execDetached([
-                        "qs", "-p", appLauncherApp, "ipc", "call", "appLauncher", "toggle"
-                    ]);
-                }
-            }
-
             // Wallpaper
             StyledImage {
                 id: wallpaper
@@ -99,7 +88,7 @@ Variants {
 
             Loader {
                 id: blurLoader
-                active: Config.options.lock.blur.enable && (GlobalStates.screenLocked || scaleAnim.running)
+                active: Config.options.lock.blur.enable && GlobalStates.screenLocked
                 anchors.fill: wallpaper
                 scale: GlobalStates.screenLocked ? Config.options.lock.blur.extraZoom : 1
                 Behavior on scale {
@@ -155,6 +144,18 @@ Variants {
                         scaledScreenHeight: bgRoot.screen.height
                         wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
                     }
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton
+                enabled: !GlobalStates.screenLocked
+                onDoubleClicked: {
+                    var appLauncherApp = `${CF.FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`;
+                    Quickshell.execDetached([
+                        "qs", "-p", appLauncherApp, "ipc", "call", "appLauncher", "toggle"
+                    ]);
                 }
             }
         }

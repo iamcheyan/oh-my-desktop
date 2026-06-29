@@ -163,6 +163,25 @@ WindowDialog {
             Hyprsunset.disableTemperature();
     }
 
+    function basename(path) {
+        if (!path || path.length === 0)
+            return "--";
+        const parts = path.split("/");
+        return parts[parts.length - 1] || path;
+    }
+
+    function pickWallpaperFile() {
+        Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-file"]);
+    }
+
+    function pickWallpaperFolder() {
+        Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-folder"]);
+    }
+
+    function stopWallpaperRotation() {
+        Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper stop"]);
+    }
+
     function adjustControl(index, direction) {
         if (index === 0) {
             root.brightnessMonitor.setBrightness(clamp(root.brightnessMonitor.brightness + direction * 0.05, 0, 1));
@@ -597,6 +616,62 @@ WindowDialog {
                             }
                         }
                     }
+
+                    TuiPanel {
+                        title: "WALLPAPER"
+                        subtitle: "background"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 150
+                        accent: root.tuiPurple
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 10
+
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 2
+                                columnSpacing: 16
+                                rowSpacing: 8
+
+                                DetailKey { text: "CURRENT" }
+                                DetailValue {
+                                    text: root.basename(Config.options.background.wallpaperPath)
+                                    color: root.tuiFg
+                                }
+                                DetailKey { text: "ROTATE" }
+                                DetailValue {
+                                    text: "folder every 30m"
+                                    color: root.tuiDim
+                                }
+                            }
+
+                            Item { Layout.fillHeight: true }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                TuiActionButton {
+                                    label: "IMAGE"
+                                    accent: root.tuiBlue
+                                    onClicked: root.pickWallpaperFile()
+                                }
+
+                                TuiActionButton {
+                                    label: "FOLDER"
+                                    accent: root.tuiPurple
+                                    onClicked: root.pickWallpaperFolder()
+                                }
+
+                                TuiActionButton {
+                                    label: "STOP"
+                                    accent: root.tuiRed
+                                    onClicked: root.stopWallpaperRotation()
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -764,8 +839,9 @@ WindowDialog {
 
         Rectangle {
             anchors.fill: parent
-            color: "transparent"
-                border.width: 0
+            color: TuiStyle.surfaceRaised
+            radius: TuiStyle.radius
+            border.width: 0
         }
 
         Rectangle {

@@ -349,11 +349,63 @@ PanelWindow {
 
                     Item { Layout.fillWidth: true }
 
-                    StyledText {
-                        text: launcher.filteredApps.length + " apps"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.main
-                        color: TuiStyle.fg
+                    Rectangle {
+                        Layout.preferredWidth: 280
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        color: "#181818"
+                        radius: TuiStyle.radius
+                        border.width: 0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            CosmicIcon {
+                                name: "actions/system-search-symbolic"
+                                iconSize: Appearance.font.pixelSize.small
+                                color: TuiStyle.dim
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                StyledText {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: searchField.text === ""
+                                    text: "Type to search..."
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.family: Appearance.font.family.main
+                                    color: TuiStyle.dim
+                                }
+
+                                TextField {
+                                    id: searchField
+                                    anchors.fill: parent
+                                    color: TuiStyle.fg
+                                    selectionColor: TuiStyle.accent
+                                    selectedTextColor: TuiStyle.bg
+                                    font.family: Appearance.font.family.main
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: null
+                                    padding: 0
+                                    renderType: Text.NativeRendering
+                                    onTextChanged: launcher.buildFilteredList()
+                                    Keys.onEscapePressed: launcher.open = false
+                                    Keys.onReturnPressed: {
+                                        if (launcher.filteredApps.length > 0) {
+                                            launcher.launchApp(launcher.filteredApps[0]);
+                                            launcher.open = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -364,68 +416,6 @@ PanelWindow {
                     height: 1
                     color: TuiStyle.line
                     opacity: 0.35
-                }
-            }
-
-            // ─── Search bar ───
-            Rectangle {
-                Layout.preferredWidth: 280
-                Layout.preferredHeight: 34
-                Layout.topMargin: 8
-                Layout.bottomMargin: 8
-                Layout.alignment: Qt.AlignHCenter
-                color: "#181818"
-                radius: TuiStyle.radius
-                border.width: 0
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
-                    spacing: 6
-
-                    CosmicIcon {
-                        name: "actions/system-search-symbolic"
-                        iconSize: Appearance.font.pixelSize.small
-                        color: TuiStyle.dim
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-
-                        StyledText {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: searchField.text === ""
-                            text: "Type to search..."
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.family: Appearance.font.family.main
-                            color: TuiStyle.dim
-                        }
-
-                        TextField {
-                            id: searchField
-                            anchors.fill: parent
-                            color: TuiStyle.fg
-                            selectionColor: TuiStyle.accent
-                            selectedTextColor: TuiStyle.bg
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            verticalAlignment: TextInput.AlignVCenter
-                            background: null
-                            padding: 0
-                            renderType: Text.NativeRendering
-                            onTextChanged: launcher.buildFilteredList()
-                            Keys.onEscapePressed: launcher.open = false
-                            Keys.onReturnPressed: {
-                                if (launcher.filteredApps.length > 0) {
-                                    launcher.launchApp(launcher.filteredApps[0]);
-                                    launcher.open = false;
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
