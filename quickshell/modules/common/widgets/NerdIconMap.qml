@@ -64,7 +64,7 @@ QtObject {
 
     // Power
     readonly property string power: "\uF1E6"                  // fa-plug U+F1E6 (same as plugged)
-    readonly property string powerSettingsNew: "\uF1E6"       // fa-plug U+F1E6 (shutdown button)
+    readonly property string powerSettingsNew: "\uF011"       // fa-power-off U+F011 (shutdown button)
 
     // Media
     readonly property string musicNote: "\uDB81\uDC05"        // mdi-music-note U+F0405
@@ -112,8 +112,8 @@ QtObject {
     readonly property string warning: "\uDB81\uDD53"          // mdi-alert U+F0553
     readonly property string error: "\uDB80\uDEBC"            // mdi-alert-circle U+F02BC
     readonly property string block: "\uDB80\uDF97"            // mdi-block-helper U+F0397
-    readonly property string eco: "\uDB80\uDDE4"              // mdi-leaf U+F01E4
-    readonly property string speed: "\uDB81\uDCA5"            // mdi-speedometer U+F04A5
+    readonly property string eco: "\uF06C"                    // fa-leaf U+F06C
+    readonly property string speed: "\uF0E4"                  // fa-gauge-high U+F0E4
     readonly property string flashOn: "\uDB80\uDE2F"          // mdi-flash U+F022F
 
     // Visibility
@@ -130,11 +130,11 @@ QtObject {
     readonly property string starOff: "\uDB81\uDCCF"          // mdi-star-off U+F04CF
 
     // Session
-    readonly property string lock: "\uDB80\uDF3F"             // mdi-lock U+F033F
-    readonly property string darkMode: "\uDB80\uDDC0"         // mdi-weather-night U+F01C0
-    readonly property string download: "\uDB80\uDDDA"         // mdi-download U+F01DA
-    readonly property string logout: "\uDB80\uDFBA"           // mdi-logout U+F03BA
-    readonly property string restart: "\uDB81\uDC4A"          // mdi-restart U+F044A
+    readonly property string lock: "\uF023"                   // fa-lock U+F023
+    readonly property string darkMode: "\uF186"               // fa-moon U+F186
+    readonly property string download: "\uF2DC"               // fa-snowflake U+F2DC
+    readonly property string logout: "\uF08B"                 // fa-sign-out U+F08B
+    readonly property string restart: "\uF01E"                // fa-redo/fa-rotate-right U+F01E
 
     // Hardware
     readonly property string memory: "\uDB83\uDEF8"           // mdi-memory U+F0EF8
@@ -143,5 +143,5 @@ QtObject {
     // Misc
     readonly property string keyboardArrowDown: "\uDB80\uDF47" // mdi-chevron-down U+F0347
     readonly property string circle: "\uDB80\uDD66"          // mdi-circle U+F0166
-    readonly property string balance: "\uDB80\uDDE1"         // mdi-scale U+F01E1
+    readonly property string balance: "\uF24E"                 // fa-scale-balanced U+F24E
 }

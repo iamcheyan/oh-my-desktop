@@ -43,9 +43,8 @@ Item {
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
         }
 
-        content: NerdIcon {
+        content: BarNerdIcon {
             text: NerdIconMap.brightness6
-            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
     }

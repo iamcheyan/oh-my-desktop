@@ -43,7 +43,7 @@ Item {
             GlobalStates.barPopupType = GlobalStates.barPopupType === "audio" ? "" : "audio";
         }
 
-        content: NerdIcon {
+        content: BarNerdIcon {
             text: {
                 if (Audio.sink?.audio?.muted) return NerdIconMap.volumeOff;
                 const vol = Audio.sink?.audio?.volume ?? 0;
@@ -51,7 +51,6 @@ Item {
                 if (vol > 0.33) return NerdIconMap.volumeMedium;
                 return NerdIconMap.volumeLow;
             }
-            iconSize: Config.options.bar.rightIconSize + 2
             color: Appearance.colors.colBarText
         }
     }

@@ -20,8 +20,8 @@ StyledPopup {
 
         StyledPopupValueRow {
             icon: root.isImage
-                ? "apps/accessories-screenshot-symbolic"
-                : "actions/edit-paste-symbolic"
+                ? NerdIconMap.screenshot
+                : NerdIconMap.contentPaste
             label: Translation.tr("Clipboard:")
             value: {
                 if (!root.hasEntries) return Translation.tr("Empty")

@@ -16,10 +16,9 @@ CircleUtilButton {
         implicitWidth: 20
         implicitHeight: 20
         property bool hovered: parent.hovered
-        NerdIcon {
+        BarNerdIcon {
             anchors.centerIn: parent
             text: Idle.inhibit ? NerdIconMap.block : NerdIconMap.visibility
-            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
 

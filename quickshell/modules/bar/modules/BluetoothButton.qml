@@ -33,10 +33,9 @@ Item {
         }
     }
 
-    NerdIcon {
+    BarNerdIcon {
         anchors.centerIn: bluetoothButton
         text: BluetoothStatus.connected ? NerdIconMap.bluetoothConnected : BluetoothStatus.enabled ? NerdIconMap.bluetooth : NerdIconMap.bluetoothDisabled
-        iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }
 

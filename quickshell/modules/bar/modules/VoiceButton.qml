@@ -116,10 +116,9 @@ Item {
     }
 
     // ── 麦克风图标 ──
-    NerdIcon {
+    BarNerdIcon {
         id: icon
         anchors.centerIn: actionButton
-        iconSize: Config.options.bar.rightIconSize + 2
         text: {
             if (root.isTranscribing) return NerdIconMap.micTranscribing;
             if (root.isRecording) return NerdIconMap.micRecording;

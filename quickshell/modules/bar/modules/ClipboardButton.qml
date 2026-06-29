@@ -49,9 +49,8 @@ Item {
             }
         }
 
-        content: NerdIcon {
+        content: BarNerdIcon {
             text: NerdIconMap.contentPaste
-            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
     }

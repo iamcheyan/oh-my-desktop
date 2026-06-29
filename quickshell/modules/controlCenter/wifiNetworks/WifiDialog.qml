@@ -30,7 +30,6 @@ WindowDialog {
     property WifiAccessPoint selectedNetwork: null
     property bool detailsOpen: false
     property string connectionPassword: ""
-    property bool passwordVisible: false
     readonly property bool selectedNeedsPassword: (selectedNetwork?.isSecure ?? false)
         && !(selectedNetwork?.active ?? false)
         && ((selectedNetwork?.askingPassword ?? false) || !Network.isKnownWifi(selectedNetwork))
@@ -89,11 +88,10 @@ WindowDialog {
         selectedNetwork = network;
         detailsOpen = true;
         connectionPassword = "";
-        passwordVisible = false;
         Qt.callLater(() => {
             detailLayer.forceActiveFocus();
             if (root.selectedNeedsPassword)
-                passwordField.forceActiveFocus();
+                passwordField.focusInput();
         });
     }
 
@@ -101,7 +99,6 @@ WindowDialog {
         detailsOpen = false;
         selectedNetwork = null;
         connectionPassword = "";
-        passwordVisible = false;
         root.forceActiveFocus();
     }
 
@@ -110,7 +107,7 @@ WindowDialog {
             return;
         const password = connectionPassword;
         if (root.selectedNeedsPassword && password.length === 0) {
-            passwordField.forceActiveFocus();
+            passwordField.focusInput();
             return;
         }
         if ((selectedNetwork.isSecure || selectedNetwork.askingPassword) && password.length > 0)
@@ -661,63 +658,19 @@ WindowDialog {
                         network: root.selectedNetwork
                     }
 
-                    Rectangle {
+                    PasswordTextField {
+                        id: passwordField
+
                         visible: root.selectedNeedsPassword
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 42
-                        color: "#222222"
-                        radius: TuiStyle.radius
-                        border.width: 0
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 10
-
-                            TuiText {
-                                text: "PSK"
-                                color: root.tuiDim
-                                font.weight: Font.DemiBold
-                            }
-
-                            TextInput {
-                                id: passwordField
-                                Layout.fillWidth: true
-                                color: root.tuiFg
-                                selectionColor: root.tuiSelection
-                                selectedTextColor: root.tuiFg
-                                font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                echoMode: root.passwordVisible ? TextInput.Normal : TextInput.Password
-                                inputMethodHints: root.passwordVisible ? Qt.ImhNone : Qt.ImhSensitiveData
-                                focus: detailLayer.visible && root.selectedNeedsPassword
-                                text: root.connectionPassword
-                                onTextChanged: root.connectionPassword = text
-                                onAccepted: root.connectSelected()
-                            }
-
-                            RippleButton {
-                                id: passwordVisibilityButton
-                                Layout.preferredWidth: 30
-                                Layout.preferredHeight: 30
-                                buttonRadius: 6
-                                colBackground: hovered ? root.tuiSelection : "transparent"
-                                colBackgroundHover: root.tuiSelection
-                                colRipple: Qt.rgba(root.tuiFg.r, root.tuiFg.g, root.tuiFg.b, 0.12)
-                                onClicked: {
-                                    root.passwordVisible = !root.passwordVisible;
-                                    passwordField.forceActiveFocus();
-                                }
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: root.passwordVisible ? "visibility_off" : "visibility"
-                                    iconSize: 20
-                                    color: passwordVisibilityButton.hovered ? root.tuiFg : root.tuiDim
-                                }
-                            }
-                        }
+                        label: "PSK"
+                        text: root.connectionPassword
+                        backgroundColor: "#222222"
+                        textColor: root.tuiFg
+                        dimColor: root.tuiDim
+                        selectionColor: root.tuiSelection
+                        onTextChanged: root.connectionPassword = text
+                        onAccepted: root.connectSelected()
                     }
 
                     Item { Layout.fillHeight: true }

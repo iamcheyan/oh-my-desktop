@@ -41,10 +41,9 @@ Item {
         }
     }
 
-    NerdIcon {
+    BarNerdIcon {
         anchors.centerIn: screenshotButton
         text: NerdIconMap.screenshot
-        iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }
 

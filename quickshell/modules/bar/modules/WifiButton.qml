@@ -33,10 +33,9 @@ Item {
         }
     }
 
-    NerdIcon {
+    BarNerdIcon {
         anchors.centerIn: wifiButton
         text: Network.nerdIcon
-        iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }
 

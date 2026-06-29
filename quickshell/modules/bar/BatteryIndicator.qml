@@ -28,7 +28,7 @@ MouseArea {
         anchors.centerIn: parent
         spacing: Config.options.bar.rightModuleSpacing
 
-        NerdIcon {
+        BarNerdIcon {
             Layout.alignment: Qt.AlignVCenter
             text: {
                 const pct = root.percentage;
@@ -56,7 +56,6 @@ MouseArea {
                     return NerdIconMap.batteryAlert;
                 }
             }
-            iconSize: Config.options.bar.rightIconSize
             color: root.colIcon
         }
     }

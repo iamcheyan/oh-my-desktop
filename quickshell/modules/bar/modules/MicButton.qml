@@ -21,10 +21,9 @@ CircleUtilButton {
         implicitWidth: 20
         implicitHeight: 20
         property bool hovered: parent.hovered
-        NerdIcon {
+        BarNerdIcon {
             anchors.centerIn: parent
             text: Pipewire.defaultAudioSource?.audio?.muted ? NerdIconMap.micOff : NerdIconMap.mic
-            iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }
     }
