@@ -29,6 +29,7 @@ Current runtime is split into independent Quickshell processes:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
+quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 quickshell -p ~/.config/omd/apps/omd-applauncher
@@ -62,6 +63,7 @@ Never commit:
 - `omarchy/current/background` absolute symlink
 - API keys, tokens, secrets, private keys
 - local absolute paths pointing at the current user's home directory
+- machine-local wallpaper folders selected through `omd-wallpaper`
 
 Use `$HOME` or runtime XDG paths in tracked config where possible.
 
@@ -97,6 +99,7 @@ rg -n --hidden -S "(${home_re}|github[_]pat|gh[p]_|s[k]-[A-Za-z0-9_-]{20,}|OPENA
 For Quickshell changes:
 
 ```sh
+~/.config/omd/bin/omd-doctor
 python -m json.tool quickshell/config.json >/tmp/omd-config-check.json
 sh -n quickshell/scripts/quickshell
 ~/.config/omd/bin/omd-restart
@@ -118,6 +121,7 @@ Expected current processes include:
 
 ```text
 quickshell -p $HOME/.config/omd/apps/omd-bar
+quickshell -p $HOME/.config/omd/apps/omd-desktop
 quickshell -p $HOME/.config/omd/apps/omd-overview
 quickshell -p $HOME/.config/omd/apps/omd-switcher
 quickshell -p $HOME/.config/omd/apps/omd-applauncher

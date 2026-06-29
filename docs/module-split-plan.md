@@ -25,12 +25,15 @@ Current active paths:
 ~/.config/omd        -> ~/development/OMD
 ```
 
-Current Quickshell runtime is split into three processes:
+Current Quickshell runtime is split into independent processes:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
+quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
+quickshell -p ~/.config/omd/apps/omd-applauncher
+quickshell -p ~/.config/omd/apps/omd-corners
 ```
 
 Current Omarchy autostart entry:
@@ -52,6 +55,7 @@ Long-term target:
 │   └── translations/
 ├── apps/
 │   ├── omd-bar/
+│   ├── omd-desktop/
 │   ├── omd-overview/
 │   ├── omd-switcher/
 │   ├── omd-session/
@@ -72,6 +76,7 @@ Each runnable module should have its own Quickshell process:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
+quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 ```
@@ -105,6 +110,26 @@ Initial contents:
 - Screenshot menu
 - Wi-Fi and Bluetooth dialogs
 - Audio, mic, battery, power/sidebar indicators
+
+### `omd-desktop`
+
+Owns the desktop surface behind windows.
+
+Initial contents:
+
+- Wallpaper/background layer
+- Blank desktop pointer interactions
+- Double-click blank desktop to toggle the application launcher
+
+Future contents:
+
+- Desktop icons
+- Desktop right-click menu
+- Drag/drop behavior on the desktop surface
+
+Reason to split: desktop interactions should stay independent from the bar and
+overview. If future icon or right-click menu code breaks, the status bar and
+overview should keep running.
 
 Likely services:
 
@@ -187,6 +212,9 @@ omd-bar:
   Audio, Battery, BluetoothStatus, Network, Notifications, TrayService,
   Weather, PolkitService, GlobalFocusGrab
 
+omd-desktop:
+  Hyprland workspace/fullscreen visibility data and background helpers only
+
 omd-overview:
   HyprlandData, HyprlandKeybinds only if required
 
@@ -209,6 +237,7 @@ Use stable names per process:
 
 ```text
 omd-bar
+omd-desktop
 omd-overview
 omd-switcher
 omd-session

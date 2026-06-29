@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -u
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+failed=0
+warned=0
+
+ok() {
+  printf 'OK   %s\n' "$1"
+}
+
+warn() {
+  warned=1
+  printf 'WARN %s\n' "$1"
+}
+
+fail() {
+  failed=1
+  printf 'FAIL %s\n' "$1"
+}
+
+check_cmd() {
+  local cmd="$1"
+  local label="${2:-$1}"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    ok "$label"
+  else
+    fail "$label missing: $cmd"
+  fi
+}
+
+check_optional_cmd() {
+  local cmd="$1"
+  local label="${2:-$1}"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    ok "$label"
+  else
+    warn "$label missing: $cmd"
+  fi
+}
+
+check_link() {
+  local target="$1"
+  local expected="$2"
+
+  if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$expected")" ]]; then
+    ok "$target -> $expected"
+  else
+    fail "$target is not linked to $expected"
+  fi
+}
+
+section() {
+  printf '\n[%s]\n' "$1"
+}
+
+section "runtime symlinks"
+check_link "$HOME/.config/quickshell" "$repo/quickshell"
+check_link "$HOME/.config/omarchy" "$repo/omarchy"
+check_link "$HOME/.config/walker" "$repo/omarchy/walker"
+check_link "$HOME/.config/omd" "$repo"
+check_link "$HOME/.local/share/omarchy" "$repo/share"
+
+section "core commands"
+for cmd in qs quickshell hyprctl jq curl swaybg systemd-run; do
+  check_cmd "$cmd"
+done
+
+section "desktop helpers"
+for cmd in wl-copy wl-paste cliphist walker mako grim slurp swappy; do
+  check_optional_cmd "$cmd"
+done
+
+section "pickers"
+if command -v kdialog >/dev/null 2>&1 || command -v zenity >/dev/null 2>&1; then
+  ok "file/folder picker available"
+else
+  warn "file/folder picker missing: install kdialog or zenity"
+fi
+
+section "voice input"
+check_cmd parecord "parecord"
+check_optional_cmd ydotool "ydotool auto-paste"
+if [[ -x "$HOME/.cache/omd-voice/venv/bin/python3" ]]; then
+  ok "voice venv"
+else
+  warn "voice venv missing: run share/bin/omarchy-voice-setup or use the voice popup setup action"
+fi
+if [[ -f "$HOME/.cache/omd-voice/sense-voice-small-int8/model.int8.onnx" && -f "$HOME/.cache/omd-voice/sense-voice-small-int8/tokens.txt" ]]; then
+  ok "SenseVoice model cache"
+else
+  warn "SenseVoice model missing: run share/bin/omarchy-voice-download or use the voice popup download action"
+fi
+
+section "wallpaper"
+wallpaper="$(jq -r '.background.wallpaperPath // ""' "$repo/quickshell/config.json" 2>/dev/null || true)"
+if [[ -n "$wallpaper" ]]; then
+  expanded="${wallpaper/#\~/$HOME}"
+  if [[ -f "$expanded" ]]; then
+    ok "configured wallpaper exists"
+  else
+    fail "configured wallpaper missing: $wallpaper"
+  fi
+else
+  warn "no configured wallpaperPath"
+fi
+if [[ -L "$HOME/.config/omarchy/current/background" || -f "$HOME/.config/omarchy/current/background" ]]; then
+  ok "current Omarchy background exists"
+else
+  warn "current Omarchy background missing; run omarchy-theme-bg-set or choose a wallpaper"
+fi
+
+section "privacy scan"
+home_re="$(printf '%s' "$HOME" | sed 's/[.[\*^$()+?{}|]/\\&/g')"
+if rg -n --hidden -S "$home_re" "$repo" -g '!.git/**' -g '!docs/**' >/tmp/omd-doctor-home-paths 2>/dev/null; then
+  warn "tracked files may contain this machine's absolute home path; see /tmp/omd-doctor-home-paths"
+else
+  ok "no current home path outside docs"
+fi
+
+printf '\n'
+if (( failed )); then
+  printf 'OMD doctor finished with failures.\n'
+  exit 1
+elif (( warned )); then
+  printf 'OMD doctor finished with warnings.\n'
+  exit 0
+else
+  printf 'OMD doctor finished cleanly.\n'
+  exit 0
+fi

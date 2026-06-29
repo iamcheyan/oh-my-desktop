@@ -11,7 +11,7 @@ git clone git@github.com:iamcheyan/oh-my-desktop.git ~/development/OMD
 cd ~/development/OMD && ./Init.sh
 ```
 
-`Init.sh` creates the four runtime symlinks (backing up any existing
+`Init.sh` creates the runtime symlinks (backing up any existing
 targets first). Re-run it safely after pulling changes that add or rename
 symlink targets.
 
@@ -77,10 +77,12 @@ symlink targets.
 │
 ├── apps/                     Split Quickshell app processes (each runs independently)
 │   ├── omd-bar/               Status bar process
+│   ├── omd-desktop/           Desktop surface process (wallpaper/interactions)
 │   ├── omd-overview/          Workspace overview process
 │   ├── omd-switcher/          Window switcher process
 │   ├── omd-applauncher/       Application launcher process
-│   └── omd-corners/           Screen corners process
+│   ├── omd-corners/           Screen corners process
+│   └── omd-clipboard/         Clipboard UI process
 │
 ├── omarchy/                  User config overlay (→ ~/.config/omarchy)
 │   ├── hypr/                  Hyprland Lua config
@@ -178,11 +180,16 @@ symlink targets.
 ├── bin/                      OMD launcher scripts
 │   ├── omd-restart            Restart all Quickshell apps
 │   ├── omd-bar                Launch bar process
+│   ├── omd-desktop            Launch desktop surface process
 │   ├── omd-overview           Launch overview process
 │   ├── omd-switcher           Launch switcher process
 │   ├── omd-applauncher       Launch app launcher
+│   ├── omd-clipboard          Launch clipboard UI process
+│   ├── omd-clipboard-store    Launch clipboard store watcher
 │   ├── omd-clipboard-pick    Launch clipboard picker (walker + auto-paste)
-│   └── omd-corners            Launch corners process
+│   ├── omd-corners            Launch corners process
+│   ├── omd-wallpaper          Wallpaper picker/rotation helper
+│   └── omd-doctor             Runtime dependency and portability checker
 │
 ├── scripts/                  Helper scripts
 │   ├── launch-tui-tool        TUI tool launcher
@@ -218,10 +225,11 @@ symlink targets.
   from `~/.config/omarchy/hypr/` (monitors, input, bindings, looknfeel, autostart).
 - Omarchy autostart launches Quickshell via
   `~/.config/omd/bin/omd-restart`.
-- Quickshell runs as five independent app processes: `omd-bar`, `omd-overview`,
-  `omd-switcher`, `omd-applauncher`, `omd-corners`.
-- Clipboard is handled by walker (`ALT+V` → `omd-clipboard-pick`), not a
-  Quickshell process.
+- Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
+  `omd-overview`, `omd-switcher`, `omd-applauncher`, `omd-corners`, and
+  `omd-clipboard`.
+- Clipboard picking is handled by walker (`ALT+V` → `omd-clipboard-pick`);
+  clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
 - Walker reads launcher/clipboard options from `~/.config/omarchy/walker`,
   which is managed by `omarchy/walker`.
@@ -235,6 +243,7 @@ symlink targets.
 - Module split plan: `docs/module-split-plan.md`
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
+- Deployment/portability: `docs/deployment-portability.md`
 
 ## Editing
 
@@ -261,6 +270,10 @@ symlink targets.
   `qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle` to trigger.
   Setup scripts: `share/bin/omarchy-voice-{setup,download,transcribe}`.
   Full docs: `docs/voice-input.md`.
+- Wallpaper selection lives in DisplayCTL and calls
+  `~/.config/omd/bin/omd-wallpaper`. Single-image changes call
+  `omarchy-theme-bg-set`; folder rotation stores machine-local state in
+  `~/.local/state/omd/wallpaper/` and rotates every 30 minutes.
 
 ### Omarchy / Hyprland
 
@@ -273,5 +286,6 @@ symlink targets.
 - Treat `~/development/OMD` as the project root for oh-my-desktop.
 - Do not commit `.migration-backups/`, Quickshell `.state/`, or nested `.git`
   directories from copied upstream configs.
-- Run the privacy checks in `docs/agent-working-agreement.md` before pushing.
+- Run `~/.config/omd/bin/omd-doctor` and the privacy checks in
+  `docs/agent-working-agreement.md` before pushing.
 - No test framework; verify by reloading Hyprland and restarting Quickshell.

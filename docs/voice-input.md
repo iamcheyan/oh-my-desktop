@@ -233,12 +233,12 @@ The IPC is triggered by global keybinds or the dynamic `escape` hook to control 
 
 ## Related Files
 
-- [bindings.lua](file:///home/tetsuya/development/OMD/omarchy/hypr/bindings.lua) — key bindings definitions
-- [looknfeel.lua](file:///home/tetsuya/development/OMD/omarchy/hypr/looknfeel.lua) — window floating rules
-- [VoiceInput.qml](file:///home/tetsuya/development/OMD/quickshell/services/VoiceInput.qml) — voice service state machine
-- [VoiceButton.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/modules/VoiceButton.qml) — bar status button
-- [key-test](file:///home/tetsuya/development/OMD/scripts/key-test) — GTK4 key capture
-- [voice-diagnose](file:///home/tetsuya/development/OMD/scripts/voice-diagnose) — TUI diagnostic tool
+- `omarchy/hypr/bindings.lua` — key bindings definitions
+- `omarchy/hypr/looknfeel.lua` — window floating rules
+- `quickshell/services/VoiceInput.qml` — voice service state machine
+- `quickshell/modules/bar/modules/VoiceButton.qml` — bar status button
+- `scripts/key-test` — GTK4 key capture
+- `scripts/voice-diagnose` — TUI diagnostic tool
 gs.lua`: `ALT + A` → `qs -p ... ipc call voice toggle`
 - `VoiceButton.qml`: left click
 - `VoiceContextMenu.qml`: test action

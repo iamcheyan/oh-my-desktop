@@ -54,6 +54,23 @@ o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/
 -- hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
 
+-- OMD desktop gestures.
+hl.gesture({
+  fingers = 4,
+  direction = "up",
+  action = function()
+    hl.dispatch(hl.dsp.exec_cmd("qs -p $HOME/.config/omd/apps/omd-overview ipc call overview open"))
+  end,
+})
+
+hl.gesture({
+  fingers = 4,
+  direction = "pinchin",
+  action = function()
+    hl.dispatch(hl.dsp.exec_cmd("qs -p $HOME/.config/omd/apps/omd-applauncher ipc call appLauncher open"))
+  end,
+})
+
 -- Enable touchpad gestures for moving focus (helpful on scrolling layout).
 -- hl.gesture({ fingers = 3, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ direction = "l" })) end })
 -- hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ direction = "r" })) end })

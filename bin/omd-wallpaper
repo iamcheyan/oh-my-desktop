@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper"
+SOURCE_FILE="$STATE_DIR/source"
+MODE_FILE="$STATE_DIR/mode"
+INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-1800}"
+UNIT_NAME="omd-wallpaper-random"
+
+image_find_expr=(
+  -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o
+  -iname '*.bmp' -o -iname '*.gif'
+)
+
+notify() {
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a "OMD Wallpaper" "$1" "${2:-}" >/dev/null 2>&1 || true
+  fi
+}
+
+ensure_state_dir() {
+  mkdir -p "$STATE_DIR"
+}
+
+stop_timer() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user stop "$UNIT_NAME.timer" "$UNIT_NAME.service" >/dev/null 2>&1 || true
+    systemctl --user reset-failed "$UNIT_NAME.timer" "$UNIT_NAME.service" >/dev/null 2>&1 || true
+  fi
+}
+
+start_timer() {
+  stop_timer
+  if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
+    systemd-run --user --quiet --collect \
+      --unit="$UNIT_NAME" \
+      --on-active="${INTERVAL_SEC}s" \
+      --on-unit-active="${INTERVAL_SEC}s" \
+      "$HOME/.config/omd/bin/omd-wallpaper" random >/dev/null
+  fi
+}
+
+pick_image_file() {
+  if command -v kdialog >/dev/null 2>&1; then
+    kdialog --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null
+  elif command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --title="Select wallpaper image" \
+      --file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.gif' 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+pick_image_dir() {
+  if command -v kdialog >/dev/null 2>&1; then
+    kdialog --getexistingdirectory "$HOME/Pictures" 2>/dev/null
+  elif command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --directory --title="Select wallpaper folder" 2>/dev/null
+  else
+    return 1
+  fi
+}
+
+set_image() {
+  local image="$1"
+
+  if [[ ! -f "$image" ]]; then
+    notify "Wallpaper not found" "$image"
+    echo "Wallpaper not found: $image" >&2
+    exit 1
+  fi
+
+  stop_timer
+  ensure_state_dir
+  realpath "$image" > "$SOURCE_FILE"
+  echo "file" > "$MODE_FILE"
+  omarchy-theme-bg-set "$image"
+  notify "Wallpaper changed" "$(basename "$image")"
+}
+
+folder_images() {
+  local folder="$1"
+  find -L "$folder" -maxdepth 1 -type f \( "${image_find_expr[@]}" \) -print 2>/dev/null | sort
+}
+
+random_from_folder() {
+  local folder="$1"
+  local selected
+
+  if [[ ! -d "$folder" ]]; then
+    notify "Wallpaper folder not found" "$folder"
+    echo "Wallpaper folder not found: $folder" >&2
+    exit 1
+  fi
+
+  selected="$(folder_images "$folder" | shuf -n 1)"
+  if [[ -z "$selected" ]]; then
+    notify "No wallpapers in folder" "$folder"
+    echo "No wallpapers in folder: $folder" >&2
+    exit 1
+  fi
+
+  omarchy-theme-bg-set "$selected"
+}
+
+set_folder() {
+  local folder="$1"
+
+  ensure_state_dir
+  realpath "$folder" > "$SOURCE_FILE"
+  echo "folder" > "$MODE_FILE"
+  random_from_folder "$folder"
+  start_timer
+  notify "Wallpaper rotation enabled" "$(realpath "$folder")"
+}
+
+random_saved() {
+  local mode source
+
+  mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
+  source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
+  [[ "$mode" == "folder" && -n "$source" ]] || exit 0
+  random_from_folder "$source"
+}
+
+restore() {
+  local mode source
+
+  mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
+  source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
+  if [[ "$mode" == "folder" && -n "$source" ]]; then
+    start_timer
+  fi
+}
+
+status() {
+  local mode source current
+
+  mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
+  source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
+  current="$(readlink -f "$HOME/.config/omarchy/current/background" 2>/dev/null || true)"
+  printf 'mode=%s\nsource=%s\ncurrent=%s\ninterval=%s\n' "$mode" "$source" "$current" "$INTERVAL_SEC"
+}
+
+case "${1:-}" in
+  pick-file)
+    path="$(pick_image_file || true)"
+    [[ -n "${path:-}" ]] && set_image "$path"
+    ;;
+  pick-folder)
+    path="$(pick_image_dir || true)"
+    [[ -n "${path:-}" ]] && set_folder "$path"
+    ;;
+  set-file)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-wallpaper set-file <image>" >&2; exit 2; }
+    set_image "$2"
+    ;;
+  set-folder)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-wallpaper set-folder <folder>" >&2; exit 2; }
+    set_folder "$2"
+    ;;
+  random)
+    random_saved
+    ;;
+  restore)
+    restore
+    ;;
+  stop)
+    stop_timer
+    ensure_state_dir
+    echo "file" > "$MODE_FILE"
+    notify "Wallpaper rotation stopped"
+    ;;
+  status)
+    status
+    ;;
+  *)
+    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|random|restore|stop|status" >&2
+    exit 2
+    ;;
+esac

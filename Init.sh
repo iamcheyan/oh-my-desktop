@@ -2,7 +2,7 @@
 set -eu
 
 # oh-my-desktop setup script.
-# Creates the four runtime symlinks from ~ into this repo.
+# Creates the runtime symlinks from ~ into this repo.
 # Run after cloning:  git clone ... ~/development/OMD && cd ~/development/OMD && ./Init.sh
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
@@ -11,6 +11,7 @@ REPO="$(cd "$(dirname "$0")" && pwd)"
 declare -a LINKS=(
   "$HOME/.config/quickshell|$REPO/quickshell"
   "$HOME/.config/omarchy|$REPO/omarchy"
+  "$HOME/.config/walker|$REPO/omarchy/walker"
   "$HOME/.config/omd|$REPO"
   "$HOME/.local/share/omarchy|$REPO/share"
 )
@@ -79,5 +80,6 @@ fi
 
 echo
 echo "Next steps:"
+echo "  ~/.config/omd/bin/omd-doctor   # check runtime dependencies"
 echo "  hyprctl reload            # reload Hyprland config"
 echo "  omd-restart               # (re)start Quickshell apps"

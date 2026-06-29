@@ -31,6 +31,7 @@ start_app() {
 }
 
 start_app omd-bar
+start_app omd-desktop
 start_app omd-overview
 start_app omd-switcher
 start_app omd-applauncher
