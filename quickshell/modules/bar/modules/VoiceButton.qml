@@ -119,6 +119,7 @@ Item {
     BarNerdIcon {
         id: icon
         anchors.centerIn: actionButton
+        iconSize: root.isActive ? (Config.options.bar.rightIconSize - 2) : (Config.options.bar.rightIconSize + 2)
         text: root.isActive ? NerdIconMap.hourglass : NerdIconMap.mic
 
         color: root.iconColor
