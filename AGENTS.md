@@ -33,7 +33,7 @@ symlink targets.
 │   │   ├── background/         Desktop wallpaper layer
 │   │   ├── bar/                Status bars (top/bottom, left/right modules)
 │   │   ├── cheatsheet/         Keybinding cheatsheet
-│   │   ├── common/             Shared widgets (MaterialSymbol, RippleButton, etc.)
+│   │   ├── common/             Shared widgets (NerdIcon, MaterialSymbol, RippleButton, etc.)
 │   │   ├── lock/               Screen lock overlay
 │   │   ├── mediaControls/      Media playback controls
 │   │   ├── notificationPopup/  Notification popups
@@ -251,7 +251,7 @@ symlink targets.
 
 - Shared widgets live in `quickshell/modules/common/widgets/`.
 - Services are QML singletons imported via `import qs.services`.
-- Prefer existing widgets such as `MaterialSymbol`, `StyledText`,
+- Prefer existing widgets such as `NerdIcon`, `StyledText`,
   `RippleButton`, `IconImage`, and `CosmicIcon`.
 - The current Quickshell visual system is centralized in
   `quickshell/modules/common/TuiStyle.qml`; follow `docs/tui-style-system.md`
