@@ -49,16 +49,10 @@ Item {
             }
         }
 
-        content: Item {
-            implicitWidth: 20
-            implicitHeight: 20
-
-            CosmicIcon {
-                anchors.centerIn: parent
-                name: "actions/edit-paste-symbolic"
-                iconSize: Config.options.bar.rightIconSize
-                color: Appearance.colors.colBarText
-            }
+        content: NerdIcon {
+            text: NerdIconMap.contentPaste
+            iconSize: Config.options.bar.rightIconSize
+            color: Appearance.colors.colBarText
         }
     }
 

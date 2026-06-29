@@ -12,7 +12,7 @@ StyledPopup {
 
         // Header
         StyledPopupHeaderRow {
-            icon: "devices/battery-symbolic"
+            icon: NerdIconMap.batteryFull
             label: Translation.tr("Battery")
         }
 
@@ -22,7 +22,7 @@ StyledPopup {
                 let power = Battery.energyRate;
                 return !(Battery.chargeState == 4 || timeValue <= 0 || power <= 0.01);
             }
-            icon: "actions/appointment-new-symbolic"
+            icon: NerdIconMap.schedule
             label: Battery.isCharging ? Translation.tr("Time to full:") : Translation.tr("Time to empty:")
             value: {
                 function formatTime(seconds) {
@@ -42,7 +42,7 @@ StyledPopup {
 
         StyledPopupValueRow {
             visible:  !(Battery.chargeState != 4 && Battery.energyRate == 0)
-            icon: "status/plugged-into-power-symbolic"
+            icon: NerdIconMap.bolt
             label: {
                 if (Battery.chargeState == 4) {
                     return Translation.tr("Fully charged");
@@ -62,7 +62,7 @@ StyledPopup {
         }
 
         StyledPopupValueRow {
-            icon: "status/security-high-symbolic"
+            icon: NerdIconMap.favorite
             label: Translation.tr("Health:")
             value: `${(Battery.health).toFixed(1)}%`
         }

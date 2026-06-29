@@ -3,7 +3,7 @@
     "extraBackgroundTint": true,
     "fonts": {
       "expressive": "Cantarell",
-      "iconNerd": "MesloLGS Nerd Font Mono",
+      "iconNerd": "JetBrainsMono Nerd Font Mono",
       "main": "Cantarell",
       "monospace": "MesloLGS Nerd Font Mono",
       "numbers": "Cantarell",
@@ -110,7 +110,7 @@
     },
     "borderless": false,
     "bottom": false,
-    "centerIconSize": 14,
+    "centerIconSize": 18,
     "centerModuleSpacing": 8,
     "centerModules": [],
     "cornerStyle": 0,
@@ -132,7 +132,7 @@
       "memoryWarningThreshold": 95,
       "swapWarningThreshold": 85
     },
-    "rightIconSize": 14,
+    "rightIconSize": 20,
     "rightIconSlotWidth": 28,
     "rightModuleSpacing": 2,
     "rightModules": [

@@ -71,21 +71,21 @@ StyledPopup {
 
         StyledPopupValueRow {
             id: jpRow
-            icon: "apps/preferences-desktop-locale-symbolic"
+            icon: NerdIconMap.circle
             label: "日本 (东京 - JST):"
             value: ""
         }
 
         StyledPopupValueRow {
             id: cnRow
-            icon: "apps/preferences-desktop-locale-symbolic"
+            icon: NerdIconMap.circle
             label: "中国 (北京 - CST):"
             value: ""
         }
 
         StyledPopupValueRow {
             id: usRow
-            icon: "apps/preferences-desktop-locale-symbolic"
+            icon: NerdIconMap.circle
             label: "美国 (纽约 - EST/EDT):"
             value: ""
         }

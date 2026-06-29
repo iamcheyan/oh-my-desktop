@@ -178,10 +178,10 @@ PopupWindow {
                         Layout.preferredWidth: 22
                         Layout.preferredHeight: 36
 
-                        CosmicIcon {
+                        NerdIcon {
                             anchors.centerIn: parent
                             iconSize: 16
-                            name: "actions/go-previous-symbolic"
+                            text: NerdIconMap.arrowBack
                             color: TuiStyle.fg
                         }
                     }
@@ -231,10 +231,10 @@ PopupWindow {
                     Layout.preferredWidth: 22
                     Layout.preferredHeight: 36
 
-                    CosmicIcon {
+                    NerdIcon {
                         anchors.centerIn: parent
                         iconSize: 16
-                        name: "actions/pin-symbolic"
+                        text: NerdIconMap.pushPin
                         color: TuiStyle.fg
                     }
                 }

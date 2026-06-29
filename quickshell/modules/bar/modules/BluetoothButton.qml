@@ -33,9 +33,9 @@ Item {
         }
     }
 
-    CosmicIcon {
+    NerdIcon {
         anchors.centerIn: bluetoothButton
-        name: BluetoothStatus.connected ? "status/bluetooth-active-symbolic" : BluetoothStatus.enabled ? "devices/bluetooth-symbolic" : "status/bluetooth-disabled-symbolic"
+        text: BluetoothStatus.connected ? NerdIconMap.bluetoothConnected : BluetoothStatus.enabled ? NerdIconMap.bluetooth : NerdIconMap.bluetoothDisabled
         iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }

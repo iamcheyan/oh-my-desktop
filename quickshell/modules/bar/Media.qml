@@ -67,11 +67,11 @@ Item {
         spacing: Config.options.bar.centerModuleSpacing
         anchors.centerIn: parent
 
-        CosmicIcon {
+        NerdIcon {
             id: noMediaIcon
             visible: !root.hasActivePlayer
             Layout.alignment: Qt.AlignVCenter
-            name: "apps/multimedia-audio-player-symbolic"
+            text: NerdIconMap.musicNote
             iconSize: Config.options.bar.centerIconSize
             color: Appearance.colors.colBarText
         }
@@ -91,9 +91,9 @@ Item {
                 width: mediaCircProg.implicitSize
                 height: mediaCircProg.implicitSize
 
-                CosmicIcon {
+                NerdIcon {
                     anchors.centerIn: parent
-                    name: root.isPlaying ? "actions/media-playback-pause-symbolic" : "actions/media-playback-start-symbolic"
+                    text: root.isPlaying ? NerdIconMap.pause : NerdIconMap.play
                     iconSize: Config.options.bar.centerIconSize - 4
                     color: Appearance.colors.colBarText
                 }

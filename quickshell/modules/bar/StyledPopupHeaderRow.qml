@@ -20,9 +20,9 @@ RowLayout {
         Layout.preferredHeight: 26
         Layout.alignment: Qt.AlignVCenter
 
-        CosmicIcon {
+        NerdIcon {
             anchors.centerIn: parent
-            name: root.icon
+            text: root.icon
             color: TuiStyle.fg
             iconSize: 18
         }

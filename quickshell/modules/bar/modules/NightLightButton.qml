@@ -43,16 +43,10 @@ Item {
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
         }
 
-        content: Item {
-            implicitWidth: 20
-            implicitHeight: 20
-
-            CosmicIcon {
-                anchors.centerIn: parent
-                name: "status/display-brightness-symbolic"
-                iconSize: Config.options.bar.rightIconSize
-                color: Appearance.colors.colBarText
-            }
+        content: NerdIcon {
+            text: NerdIconMap.brightness6
+            iconSize: Config.options.bar.rightIconSize
+            color: Appearance.colors.colBarText
         }
     }
 

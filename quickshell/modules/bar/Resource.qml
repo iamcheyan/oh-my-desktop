@@ -38,10 +38,8 @@ Item {
                 width: resourceCircProg.implicitSize
                 height: resourceCircProg.implicitSize
                 
-                MaterialSymbol {
+                NerdIcon {
                     anchors.centerIn: parent
-                    font.weight: Font.DemiBold
-                    fill: 1
                     text: iconName
                     iconSize: Appearance.font.pixelSize.normal
                     color: Appearance.colors.colBarText

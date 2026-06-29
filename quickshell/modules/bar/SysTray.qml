@@ -88,9 +88,9 @@ Item {
 
             onClicked: root.trayOverflowOpen = !root.trayOverflowOpen
 
-            CosmicIcon {
+            NerdIcon {
                 anchors.centerIn: parent
-                name: "actions/pan-down-symbolic"
+                text: NerdIconMap.expandMore
                 iconSize: Config.options.bar.rightIconSize
                 color: Appearance.colors.colBarText
                 opacity: root.trayOverflowOpen || trayOverflowButton.containsMouse ? 1 : 0.75

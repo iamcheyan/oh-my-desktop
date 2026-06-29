@@ -11,7 +11,7 @@ StyledPopup {
     StyledPopupContent {
         // 1. Connection state
         StyledPopupValueRow {
-            icon: Network.cosmicIcon
+            icon: Network.nerdIcon
             label: Translation.tr("Internet:")
             value: {
                 if (Network.ethernet) return Translation.tr("Connected (Ethernet)");
@@ -26,7 +26,7 @@ StyledPopup {
         // 2. Active SSID
         StyledPopupValueRow {
             visible: Network.wifiStatus === "connected" && Network.networkName !== ""
-            icon: "devices/network-wireless-symbolic"
+            icon: NerdIconMap.wifi
             label: Translation.tr("SSID:")
             value: Network.networkName
         }
@@ -34,7 +34,7 @@ StyledPopup {
         // 3. Signal strength
         StyledPopupValueRow {
             visible: Network.wifiStatus === "connected" && !Network.ethernet
-            icon: "status/network-wireless-signal-good-symbolic"
+            icon: NerdIconMap.wifi
             label: Translation.tr("Signal Strength:")
             value: `${Network.networkStrength}%`
         }

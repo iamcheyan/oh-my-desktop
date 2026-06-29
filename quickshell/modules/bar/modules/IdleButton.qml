@@ -16,9 +16,9 @@ CircleUtilButton {
         implicitWidth: 20
         implicitHeight: 20
         property bool hovered: parent.hovered
-        CosmicIcon {
+        NerdIcon {
             anchors.centerIn: parent
-            name: Idle.inhibit ? "actions/document-properties-symbolic" : "actions/image-red-eye-symbolic"
+            text: Idle.inhibit ? NerdIconMap.block : NerdIconMap.visibility
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }

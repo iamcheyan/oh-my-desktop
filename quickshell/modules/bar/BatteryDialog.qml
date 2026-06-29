@@ -29,9 +29,29 @@ WindowDialog {
             Layout.alignment: Qt.AlignHCenter
             spacing: 8
 
-            MaterialSymbol {
+            NerdIcon {
                 Layout.alignment: Qt.AlignHCenter
-                text: Battery.isCharging ? "bolt" : (Battery.percentage > 0.9 ? "battery_full" : Battery.percentage > 0.6 ? "battery_5_bar" : Battery.percentage > 0.4 ? "battery_4_bar" : Battery.percentage > 0.2 ? "battery_2_bar" : "battery_1_bar")
+                text: {
+                    const pct = Battery.percentage;
+                    if (Battery.isCharging) {
+                        if (pct > 0.9) return NerdIconMap.batteryChargingFull;
+                        if (pct > 0.8) return NerdIconMap.batteryCharging90;
+                        if (pct > 0.7) return NerdIconMap.batteryCharging80;
+                        if (pct > 0.6) return NerdIconMap.batteryCharging70;
+                        if (pct > 0.5) return NerdIconMap.batteryCharging60;
+                        if (pct > 0.4) return NerdIconMap.batteryCharging50;
+                        if (pct > 0.3) return NerdIconMap.batteryCharging40;
+                        if (pct > 0.2) return NerdIconMap.batteryCharging30;
+                        if (pct > 0.1) return NerdIconMap.batteryCharging20;
+                        return NerdIconMap.batteryCharging10;
+                    } else {
+                        if (pct > 0.9) return NerdIconMap.batteryFull;
+                        if (pct > 0.6) return NerdIconMap.battery60;
+                        if (pct > 0.4) return NerdIconMap.battery40;
+                        if (pct > 0.2) return NerdIconMap.battery20;
+                        return NerdIconMap.battery10;
+                    }
+                }
                 iconSize: 48
                 color: (Battery.isLow && !Battery.isCharging) ? TuiStyle.danger : TuiStyle.fg
             }
@@ -74,8 +94,8 @@ WindowDialog {
                     return Battery.available && !(Battery.chargeState == 4 || timeValue <= 0 || power <= 0.01);
                 }
 
-                MaterialSymbol {
-                    text: "schedule"
+                NerdIcon {
+                    text: NerdIconMap.schedule
                     iconSize: Appearance.font.pixelSize.larger
                     color: TuiStyle.dim
                 }
@@ -114,8 +134,8 @@ WindowDialog {
                 Layout.fillWidth: true
                 visible: Battery.available && Battery.chargeState != 4 && Battery.energyRate > 0.01
 
-                MaterialSymbol {
-                    text: "flash_on"
+                NerdIcon {
+                    text: NerdIconMap.flashOn
                     iconSize: Appearance.font.pixelSize.larger
                     color: TuiStyle.dim
                 }
@@ -141,8 +161,8 @@ WindowDialog {
                 Layout.fillWidth: true
                 visible: Battery.available && Battery.health > 0
 
-                MaterialSymbol {
-                    text: "favorite"
+                NerdIcon {
+                    text: NerdIconMap.favorite
                     iconSize: Appearance.font.pixelSize.larger
                     color: TuiStyle.dim
                 }

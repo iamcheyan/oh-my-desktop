@@ -33,9 +33,9 @@ Item {
         }
     }
 
-    CosmicIcon {
+    NerdIcon {
         anchors.centerIn: wifiButton
-        name: Network.cosmicIcon
+        text: Network.nerdIcon
         iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }

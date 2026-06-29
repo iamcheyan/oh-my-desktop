@@ -68,10 +68,10 @@ RippleButton {
             Layout.preferredHeight: root._iconColumnWidth
             Layout.alignment:       Qt.AlignVCenter
 
-            CosmicIcon {
+            NerdIcon {
                 anchors.centerIn: parent
                 iconSize: root._iconSize
-                name:     root.iconName
+                text:     root.iconName
                 color:    root.iconColor
                 visible:  root.iconName !== ""
             }

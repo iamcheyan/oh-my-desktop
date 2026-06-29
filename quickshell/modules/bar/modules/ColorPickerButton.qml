@@ -16,9 +16,9 @@ CircleUtilButton {
         implicitWidth: 20
         implicitHeight: 20
         property bool hovered: parent.hovered
-        CosmicIcon {
+        NerdIcon {
             anchors.centerIn: parent
-            name: "actions/pencil-symbolic"
+            text: NerdIconMap.edit
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }

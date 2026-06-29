@@ -28,7 +28,7 @@ StyledPopup {
         contentSpacing: 6
 
         StyledPopupHeaderRow {
-            icon: root.isPlaying ? "actions/media-playback-pause-symbolic" : "actions/media-playback-start-symbolic"
+            icon: root.isPlaying ? NerdIconMap.pause : NerdIconMap.play
             label: root.isPlaying ? Translation.tr("Playing") : Translation.tr("Paused")
         }
 
@@ -64,10 +64,10 @@ StyledPopup {
             Layout.fillWidth: true
             spacing: 6
 
-            MaterialSymbol {
+            NerdIcon {
                 color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
-                text: "album"
+                text: NerdIconMap.album
             }
             StyledText {
                 text: Translation.tr("Album:")
@@ -90,10 +90,10 @@ StyledPopup {
             Layout.fillWidth: true
             spacing: 6
 
-            MaterialSymbol {
+            NerdIcon {
                 color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
-                text: "graphic_eq"
+                text: NerdIconMap.graphicEq
             }
             StyledText {
                 text: Translation.tr("Player:")
@@ -116,10 +116,10 @@ StyledPopup {
             Layout.fillWidth: true
             spacing: 6
 
-            MaterialSymbol {
+            NerdIcon {
                 color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
-                text: "timer"
+                text: NerdIconMap.timer
             }
             StyledText {
                 text: Translation.tr("Position:")
@@ -141,10 +141,10 @@ StyledPopup {
             Layout.fillWidth: true
             spacing: 6
 
-            MaterialSymbol {
+            NerdIcon {
                 color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
-                text: "repeat"
+                text: NerdIconMap.repeat
             }
             StyledText {
                 text: Translation.tr("Loop:")
@@ -177,10 +177,10 @@ StyledPopup {
             Layout.fillWidth: true
             spacing: 6
 
-            MaterialSymbol {
+            NerdIcon {
                 color: TuiStyle.accent
                 iconSize: Appearance.font.pixelSize.small
-                text: "shuffle"
+                text: NerdIconMap.shuffle
             }
             StyledText {
                 text: Translation.tr("Shuffle:")

@@ -11,7 +11,7 @@ StyledPopup {
     StyledPopupContent {
         // 1. Status row (Enabled / Disabled)
         StyledPopupValueRow {
-            icon: BluetoothStatus.enabled ? "devices/bluetooth-symbolic" : "status/bluetooth-disabled-symbolic"
+            icon: BluetoothStatus.enabled ? NerdIconMap.bluetooth : NerdIconMap.bluetoothDisabled
             label: Translation.tr("Bluetooth:")
             value: BluetoothStatus.enabled ? Translation.tr("Enabled") : Translation.tr("Disabled")
         }
@@ -19,7 +19,7 @@ StyledPopup {
         // 2. Connected Device details (if any)
         StyledPopupValueRow {
             visible: BluetoothStatus.enabled && BluetoothStatus.connected
-            icon: "status/bluetooth-active-symbolic"
+            icon: NerdIconMap.bluetoothConnected
             label: Translation.tr("Connected Device:")
             value: {
                 if (BluetoothStatus.connectedDevices.length > 0) {
@@ -32,7 +32,7 @@ StyledPopup {
         // 3. Active count
         StyledPopupValueRow {
             visible: BluetoothStatus.enabled && BluetoothStatus.activeDeviceCount > 1
-            icon: "status/bluetooth-active-symbolic"
+            icon: NerdIconMap.bluetooth
             label: Translation.tr("Total Devices:")
             value: `${BluetoothStatus.activeDeviceCount}`
         }

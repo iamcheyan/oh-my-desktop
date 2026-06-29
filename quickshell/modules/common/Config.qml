@@ -84,7 +84,7 @@ Singleton {
                     property string main: "MesloLGS Nerd Font Mono"
                     property string numbers: "MesloLGS Nerd Font Mono"
                     property string title: "MesloLGS Nerd Font Mono"
-                    property string iconNerd: "MesloLGS Nerd Font Mono"
+                    property string iconNerd: "JetBrainsMono Nerd Font Mono"
                     property string monospace: "MesloLGS Nerd Font Mono"
                     property string reading: "MesloLGS Nerd Font Mono"
                     property string expressive: "MesloLGS Nerd Font Mono"
@@ -202,8 +202,8 @@ Singleton {
                 property int rightModuleSpacing: 8 // pixels between right-side modules
                 property int centerModuleSpacing: 8 // pixels between center modules
                 property int rightIconSlotWidth: 28 // width of right-side icon-only slots
-                property int rightIconSize: 16 // size of right-side bar icons
-                property int centerIconSize: 14 // size of center-side bar icons
+                property int rightIconSize: 20 // size of right-side bar icons
+                property int centerIconSize: 18 // size of center-side bar icons
                 property list<string> leftModules: [
                     "appLauncher",
                     "workspaces",

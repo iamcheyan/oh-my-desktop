@@ -56,6 +56,21 @@ Singleton {
                         ? "signal_wifi_off"
                         : "signal_wifi_bad"
 
+    property string nerdIcon: root.ethernet
+        ? "\uDB80\uDC02"  // mdi-lan U+F0002
+        : (root.wifiEnabled && root.wifiStatus === "connected")
+            ? ((root.active?.strength ?? 0) > 83 ? "\uDB82\uDD28"   // mdi-wifi-strength-4 U+F0928
+              : (root.active?.strength ?? 0) > 67 ? "\uDB82\uDD25"   // mdi-wifi-strength-3 U+F0925
+              : (root.active?.strength ?? 0) > 50 ? "\uDB82\uDD22"   // mdi-wifi-strength-2 U+F0922
+              : (root.active?.strength ?? 0) > 33 ? "\uDB82\uDD1F"   // mdi-wifi-strength-1 U+F091F
+              : (root.active?.strength ?? 0) > 17 ? "\uDB82\uDD2F"   // mdi-wifi-strength-outline U+F092F
+              : "\uDB82\uDD2F")                                      // mdi-wifi-strength-outline U+F092F
+            : (root.wifiStatus === "connecting")
+                ? "\uDB82\uDD2E"  // mdi-wifi-off U+F092E
+                : (root.wifiStatus === "disconnected" || root.wifiStatus === "disabled")
+                    ? "\uDB82\uDD2E"  // mdi-wifi-off U+F092E
+                    : "\uDB82\uDD2E"  // mdi-wifi-off U+F092E
+
     property string cosmicIcon: root.ethernet
         ? "devices/network-wired-symbolic"
         : (root.wifiEnabled && root.wifiStatus === "connected")

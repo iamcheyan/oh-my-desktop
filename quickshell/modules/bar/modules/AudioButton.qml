@@ -43,17 +43,16 @@ Item {
             GlobalStates.barPopupType = GlobalStates.barPopupType === "audio" ? "" : "audio";
         }
 
-        content: Item {
-            id: audioIconHost
-            implicitWidth: 20
-            implicitHeight: 20
-
-            CosmicIcon {
-                anchors.centerIn: parent
-                name: Audio.sink?.audio?.muted ? "status/audio-volume-muted-symbolic" : "status/audio-volume-high-symbolic"
-                iconSize: Config.options.bar.rightIconSize
-                color: Appearance.colors.colBarText
+        content: NerdIcon {
+            text: {
+                if (Audio.sink?.audio?.muted) return NerdIconMap.volumeOff;
+                const vol = Audio.sink?.audio?.volume ?? 0;
+                if (vol > 0.66) return NerdIconMap.volumeHigh;
+                if (vol > 0.33) return NerdIconMap.volumeMedium;
+                return NerdIconMap.volumeLow;
             }
+            iconSize: Config.options.bar.rightIconSize + 2
+            color: Appearance.colors.colBarText
         }
     }
 

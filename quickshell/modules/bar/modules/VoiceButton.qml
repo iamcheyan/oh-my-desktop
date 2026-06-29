@@ -116,16 +116,19 @@ Item {
     }
 
     // ── 麦克风图标 ──
-    CosmicIcon {
+    NerdIcon {
         id: icon
         anchors.centerIn: actionButton
-        iconSize: Config.options.bar.rightIconSize
-        name: "status/microphone-sensitivity-high-symbolic"
+        iconSize: Config.options.bar.rightIconSize + 2
+        text: {
+            if (root.isTranscribing) return NerdIconMap.micTranscribing;
+            if (root.isRecording) return NerdIconMap.micRecording;
+            return NerdIconMap.mic;
+        }
 
         color: root.iconColor
         Behavior on color { ColorAnimation { duration: 120 } }
 
-        // 失败时闪烁一下
         SequentialAnimation on opacity {
             id: errorBlink
             running: false

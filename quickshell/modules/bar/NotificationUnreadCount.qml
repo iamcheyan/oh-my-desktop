@@ -10,10 +10,10 @@ Item {
     implicitWidth: notificationIcon.implicitWidth
     implicitHeight: notificationIcon.implicitHeight
 
-    CosmicIcon {
+    NerdIcon {
         id: notificationIcon
         anchors.fill: parent
-        name: Notifications.silent ? "status/notification-disabled-symbolic" : "status/notification-symbolic"
+        text: Notifications.silent ? NerdIconMap.notificationsOff : NerdIconMap.notifications
         iconSize: Config.options.bar.rightIconSize
         color: root.color
     }

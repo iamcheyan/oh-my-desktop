@@ -21,9 +21,9 @@ CircleUtilButton {
         implicitWidth: 20
         implicitHeight: 20
         property bool hovered: parent.hovered
-        CosmicIcon {
+        NerdIcon {
             anchors.centerIn: parent
-            name: Pipewire.defaultAudioSource?.audio?.muted ? "status/microphone-sensitivity-muted-symbolic" : "status/microphone-sensitivity-high-symbolic"
+            text: Pipewire.defaultAudioSource?.audio?.muted ? NerdIconMap.micOff : NerdIconMap.mic
             iconSize: Config.options.bar.rightIconSize
             color: Appearance.colors.colBarText
         }

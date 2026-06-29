@@ -11,7 +11,7 @@ StyledPopup {
     StyledPopupContent {
         // 1. Battery capacity and state (Charging / Discharging)
         StyledPopupValueRow {
-            icon: Battery.isCharging ? "status/plugged-into-power-symbolic" : "devices/battery-symbolic"
+            icon: Battery.isCharging ? NerdIconMap.bolt : NerdIconMap.batteryFull
             label: Translation.tr("Battery Level:")
             value: {
                 const pct = Math.round(Battery.percentage * 100);
@@ -29,7 +29,7 @@ StyledPopup {
                 let power = Battery.energyRate;
                 return Battery.available && !(Battery.chargeState == 4 || timeValue <= 0 || power <= 0.01);
             }
-            icon: "actions/appointment-new-symbolic"
+            icon: NerdIconMap.schedule
             label: Battery.isCharging ? Translation.tr("Time to Full:") : Translation.tr("Time to Empty:")
             value: {
                 function formatTime(seconds) {
@@ -47,7 +47,7 @@ StyledPopup {
         // 3. Power consumption rate (Watts)
         StyledPopupValueRow {
             visible: Battery.available && Battery.chargeState != 4 && Battery.energyRate > 0.01
-            icon: "status/plugged-into-power-symbolic"
+            icon: NerdIconMap.bolt
             label: Translation.tr("Power Draw:")
             value: `${Battery.energyRate.toFixed(1)}W`
         }
@@ -55,7 +55,7 @@ StyledPopup {
         // 4. Power Profile Mode
         StyledPopupValueRow {
             visible: PowerProfiles.available
-            icon: "categories/preferences-system-symbolic"
+            icon: NerdIconMap.settings
             label: Translation.tr("Power Profile:")
             value: {
                 const profile = PowerProfiles.currentProfile;

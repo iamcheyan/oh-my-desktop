@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
@@ -22,13 +23,13 @@ MouseArea {
         anchors.rightMargin: 4
 
         Resource {
-            iconName: "memory"
+            iconName: NerdIconMap.memory
             percentage: ResourceUsage.memoryUsedPercentage
             warningThreshold: Config.options.bar.resources.memoryWarningThreshold
         }
 
         Resource {
-            iconName: "swap_horiz"
+            iconName: NerdIconMap.swapHoriz
             percentage: ResourceUsage.swapUsedPercentage
             shown: (Config.options.bar.resources.alwaysShowSwap && percentage > 0) || 
                 (MprisController.activePlayer?.trackTitle == null) ||
@@ -38,7 +39,7 @@ MouseArea {
         }
 
         Resource {
-            iconName: "planner_review"
+            iconName: NerdIconMap.cpu
             percentage: ResourceUsage.cpuUsage
             shown: Config.options.bar.resources.alwaysShowCpu || 
                 !(MprisController.activePlayer?.trackTitle?.length > 0) ||

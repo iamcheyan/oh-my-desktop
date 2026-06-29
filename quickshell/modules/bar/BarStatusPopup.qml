@@ -481,26 +481,26 @@ Scope {
                         spacing: 8
 
                         PowerButton {
-                            icon: "lock"
+                            icon: NerdIconMap.lock
                             label: "LOCK"
                             tone: TuiStyle.accent
                             onClicked: batteryPanel.requestAction("lock", "Lock")
                         }
                         PowerButton {
-                            icon: "dark_mode"
+                            icon: NerdIconMap.darkMode
                             label: "SLEEP"
                             tone: TuiStyle.info
                             onClicked: batteryPanel.requestAction("sleep", "Sleep")
                         }
                         PowerButton {
-                            icon: "downloading"
+                            icon: NerdIconMap.download
                             label: "HIBERNATE"
                             tone: TuiStyle.purple
                             visible: batteryPanel.hibernateAvailable
                             onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
                         }
                         PowerButton {
-                            icon: "logout"
+                            icon: NerdIconMap.logout
                             label: "LOGOUT"
                             tone: TuiStyle.warning
                             onClicked: batteryPanel.requestAction("logout", "Logout")
@@ -537,19 +537,19 @@ Scope {
                         spacing: 8
 
                         PowerButton {
-                            icon: "restart_alt"
+                            icon: NerdIconMap.restart
                             label: "REBOOT"
                             tone: TuiStyle.info
                             onClicked: batteryPanel.requestAction("reboot", "Reboot")
                         }
                         PowerButton {
-                            icon: "power_settings_new"
+                            icon: NerdIconMap.powerSettingsNew
                             label: "SHUTDOWN"
                             tone: TuiStyle.danger
                             onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
                         }
                         PowerButton {
-                            icon: "refresh"
+                            icon: NerdIconMap.refresh
                             label: "RELOAD"
                             tone: TuiStyle.accent
                             onClicked: {
@@ -612,8 +612,8 @@ Scope {
                             spacing: 8
                             Layout.alignment: Qt.AlignHCenter
 
-                            MaterialSymbol {
-                                text: "warning"
+                            NerdIcon {
+                                text: NerdIconMap.warning
                                 iconSize: 20
                                 color: TuiStyle.danger
                             }
@@ -689,7 +689,7 @@ Scope {
                     anchors.centerIn: parent
                     spacing: 3
 
-                    MaterialSymbol {
+                    NerdIcon {
                         Layout.alignment: Qt.AlignHCenter
                         iconSize: 20
                         text: pb.icon
@@ -738,14 +738,14 @@ Scope {
                     anchors.centerIn: parent
                     spacing: 2
 
-                    MaterialSymbol {
+                    NerdIcon {
                         Layout.alignment: Qt.AlignHCenter
                         iconSize: 18
                         text: {
-                            if (profile === "power-saver") return "eco";
-                            if (profile === "balanced") return "balance";
-                            if (profile === "performance") return "speed";
-                            return "settings";
+                            if (profile === "power-saver") return NerdIconMap.eco;
+                            if (profile === "balanced") return NerdIconMap.balance;
+                            if (profile === "performance") return NerdIconMap.speed;
+                            return NerdIconMap.settings;
                         }
                         color: prb.active ? TuiStyle.fg : (prbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim)
                     }
@@ -892,10 +892,10 @@ Scope {
                             }
                             scale: VoiceInput.state === "recording" ? 1.08 : 1.0
 
-                            MaterialSymbol {
+                            NerdIcon {
                                 anchors.centerIn: parent
                                 iconSize: 32
-                                text: VoiceInput.state === "recording" ? "stop" : "mic"
+                                text: VoiceInput.state === "recording" ? NerdIconMap.stop : NerdIconMap.mic
                                 color: VoiceInput.state === "recording" ? TuiStyle.bg : recMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
                             }
 
