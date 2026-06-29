@@ -15,12 +15,38 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
 
+    property bool isFirstClick: true
+
+    Timer {
+        id: doubleClickTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            root.isFirstClick = true;
+            // Single click: open the main clipboard dialog
+            Quickshell.execDetached([
+                "qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-clipboard`,
+                "ipc", "call", "clipboard", "toggle"
+            ]);
+        }
+    }
+
     CircleUtilButton {
         id: clipboardButton
         anchors.centerIn: parent
 
         onClicked: {
-            GlobalStates.barPopupType = GlobalStates.barPopupType === "clipboard" ? "" : "clipboard";
+            if (root.isFirstClick) {
+                root.isFirstClick = false;
+                doubleClickTimer.start();
+            } else {
+                doubleClickTimer.stop();
+                root.isFirstClick = true;
+                // Double click: paste the most recent item
+                if (Cliphist.entries.length > 0) {
+                    Cliphist.paste(Cliphist.entries[0]);
+                }
+            }
         }
 
         content: Item {
@@ -36,4 +62,16 @@ Item {
         }
     }
 
+    // Transparent MouseArea for hover detection (non-blocking for clicks)
+    MouseArea {
+        id: hoverArea
+        anchors.fill: clipboardButton
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+    }
+
+    ClipboardHoverPopup {
+        id: clipboardHoverPopup
+        hoverTarget: hoverArea
+    }
 }

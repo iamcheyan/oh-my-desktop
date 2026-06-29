@@ -31,7 +31,7 @@ Rectangle {
     implicitHeight: Math.round(54 * scaleFactor)
     color: selected ? TuiStyle.selection : mouseArea.containsMouse ? "#333333" : "transparent"
     border.width: 0
-    radius: TuiStyle.radius
+    radius: 0
     clip: true
 
     MouseArea {
@@ -49,7 +49,7 @@ Rectangle {
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 10
-        anchors.rightMargin: 10
+        anchors.rightMargin: 6
         spacing: 0
 
         ColumnLayout {
@@ -66,8 +66,8 @@ Rectangle {
                 elide: Text.ElideRight
                 font.family: Appearance.font.family.main
                 font.pixelSize: (Appearance?.font.pixelSize.small ?? 15) * scaleFactor
-                font.weight: root.selected ? Font.DemiBold : Font.Medium
-                color: root.selected ? TuiStyle.fg : TuiStyle.fg
+                font.weight: Font.Normal
+                color: TuiStyle.fg
             }
 
             StyledText {
@@ -78,6 +78,47 @@ Rectangle {
                 font.pixelSize: (Appearance?.font.pixelSize.smaller ?? 13) * scaleFactor
                 color: TuiStyle.dim
                 visible: root.isImage
+            }
+        }
+
+        // Button: save image to /tmp and paste the file path
+        Rectangle {
+            id: copyPathBtn
+            visible: root.isImage && (mouseArea.containsMouse || selected)
+            width: 28
+            height: 28
+            radius: 6
+            color: copyPathBtnMouse.containsMouse ? TuiStyle.accent : "#2a2a2a"
+            border.width: 1
+            border.color: copyPathBtnMouse.containsMouse ? TuiStyle.accent : TuiStyle.line
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: 2
+
+            Behavior on color {
+                ColorAnimation { duration: 120 }
+            }
+
+            StyledText {
+                anchors.centerIn: parent
+                text: "⇲"
+                font.pixelSize: 14
+                color: copyPathBtnMouse.containsMouse ? TuiStyle.bg : TuiStyle.dim
+            }
+
+            MouseArea {
+                id: copyPathBtnMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mouse => {
+                    mouse.accepted = true;
+                    // Capture entry before dismiss closes the dialog
+                    const capturedEntry = root.entry;
+                    // Dismiss dialog first so focus returns to target window
+                    root.itemClicked();
+                    // Then save image + copy path + simulate paste (via Cliphist singleton)
+                    Cliphist.pasteImagePath(capturedEntry);
+                }
             }
         }
     }
