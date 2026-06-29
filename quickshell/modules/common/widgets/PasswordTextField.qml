@@ -37,6 +37,8 @@ Rectangle {
             visible: root.label.length > 0
             text: root.label
             color: root.dimColor
+            font.family: Appearance.font.family.main
+            font.pixelSize: Appearance.font.pixelSize.small
             font.weight: Font.DemiBold
         }
 
@@ -54,6 +56,7 @@ Rectangle {
             onAccepted: root.accepted()
 
             Text {
+                anchors.verticalCenter: parent.verticalCenter
                 text: root.placeholderText
                 color: root.dimColor
                 visible: !input.text && !input.activeFocus

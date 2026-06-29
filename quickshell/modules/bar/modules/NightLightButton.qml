@@ -44,7 +44,7 @@ Item {
         }
 
         content: BarNerdIcon {
-            text: NerdIconMap.brightness6
+            text: NerdIconMap.desktop
             color: Appearance.colors.colBarText
         }
     }

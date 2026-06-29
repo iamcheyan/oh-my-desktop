@@ -2,6 +2,7 @@ import QtQuick
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.bar
 
 Item {
     id: root
@@ -10,11 +11,10 @@ Item {
     implicitWidth: notificationIcon.implicitWidth
     implicitHeight: notificationIcon.implicitHeight
 
-    NerdIcon {
+    BarNerdIcon {
         id: notificationIcon
         anchors.fill: parent
         text: Notifications.silent ? NerdIconMap.notificationsOff : NerdIconMap.notifications
-        iconSize: Config.options.bar.rightIconSize
         color: root.color
     }
 
