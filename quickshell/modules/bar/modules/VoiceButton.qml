@@ -63,7 +63,11 @@ Item {
     Loader {
         id: voiceMenuLoader
         function open() {
-            voiceMenuLoader.active = true;
+            if (voiceMenuLoader.item) {
+                voiceMenuLoader.item.open();
+            } else {
+                voiceMenuLoader.active = true;
+            }
         }
         active: false
         sourceComponent: VoiceContextMenu {

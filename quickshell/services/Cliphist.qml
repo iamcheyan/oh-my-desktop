@@ -90,6 +90,22 @@ Singleton {
         }
     }
 
+    // Save image entry to a /tmp file, copy its path (+ trailing space) to clipboard, then simulate paste
+    function pasteImagePath(entry) {
+        const ts = Date.now();
+        const tmpPath = `/tmp/omd-clip-${ts}.png`;
+        if (root.cliphistBinary.includes("cliphist"))
+            Quickshell.execDetached(["bash", "-c",
+                `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode > "${tmpPath}" && printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand} && notify-send -t 2000 '📋 已复制路径' "${tmpPath}"`
+            ]);
+        else {
+            const entryNumber = entry.split("\t")[0];
+            Quickshell.execDetached(["bash", "-c",
+                `${root.cliphistBinary} decode ${entryNumber} > "${tmpPath}" && printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand} && notify-send -t 2000 '📋 已复制路径' "${tmpPath}"`
+            ]);
+        }
+    }
+
     function superpaste(count, isImage = false) {
         // Find entries
         const targetEntries = entries.filter(entry => {

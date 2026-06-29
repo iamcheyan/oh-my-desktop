@@ -232,6 +232,7 @@ Singleton {
     }
 
     function startRecording() {
+        root.testMode = false
         root.recordingDuration = 0
         root.lastTranscription = ""
         root.lastError = ""
@@ -272,6 +273,8 @@ Singleton {
         }
     }
 
+    property bool testMode: false
+
     Process {
         id: transcribeProc
         command: ["bash", "-c",
@@ -284,7 +287,11 @@ Singleton {
                         if (root.isMeaningfulText(result.text)) {
                             root.lastTranscription = result.text
                             root.addToHistory(result.text)
-                            root.onTranscriptionResult(result.text)
+                            if (root.testMode) {
+                                root.onTestTranscriptionResult(result.text)
+                            } else {
+                                root.onTranscriptionResult(result.text)
+                            }
                         } else {
                             root.lastError = "没有检测到语音"
                         }
@@ -308,6 +315,7 @@ Singleton {
                 root.lastError = "没有检测到语音"
             }
             root.state = root.lastError === "" ? "success" : "idle"
+            root.testMode = false
         }
     }
 
@@ -316,6 +324,15 @@ Singleton {
             `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy`])
         Quickshell.execDetached(["bash", "-c",
             `sleep 0.3 && ${root.pressPasteCommand} || true`])
+    }
+
+    // ── 调试：不自动粘贴，只复制文本并打开设置面板展示结果 ──
+    function onTestTranscriptionResult(text) {
+        Quickshell.execDetached(["bash", "-c",
+            `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy`])
+        root.lastTranscription = text
+        root.addToHistory(text)
+        root.openSettings()
     }
 
     // ── 历史记录 ──
@@ -338,9 +355,9 @@ Singleton {
     // ── 测试录音（3秒自动停止） ──
     function testRecording() {
         if (root.state !== "idle") {
-
             return
         }
+        root.testMode = true
         root.recordingDuration = 0
         root.lastTranscription = ""
         root.lastError = ""
@@ -356,7 +373,6 @@ Singleton {
         running: false
         onTriggered: {
             if (root.state === "recording") {
-
                 stopRecProc.running = true
             }
         }

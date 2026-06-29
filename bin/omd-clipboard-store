@@ -8,11 +8,13 @@ set -eu
 wl-paste --watch sh -c '
     cliphist store
     qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$HOME/.config/omd/apps/omd-bar" ipc call cliphistService update 2>/dev/null || true
 ' &
 
 wl-paste -t image/png --watch sh -c '
     cliphist store
     qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$HOME/.config/omd/apps/omd-bar" ipc call cliphistService update 2>/dev/null || true
 '
 
 wait
