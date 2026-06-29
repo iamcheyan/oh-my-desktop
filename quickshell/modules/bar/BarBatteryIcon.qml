@@ -10,11 +10,6 @@ BarNerdIcon {
     property real percentage: Battery.percentage
     property bool charging: Battery.isPluggedIn
 
-    // MDI battery glyphs are visually denser than the other top-bar symbols.
-    // Keep this exception centralized instead of scaling each battery caller.
-    iconSize: Config.options.bar.rightIconSize * 0.78
-    opticalBalance: false
-
     text: {
         const pct = root.percentage;
         if (root.charging) {
