@@ -236,3 +236,21 @@ OMD 的 Bar 图标字体与 Omarchy 官方 Waybar 一致：
 | OMD Quickshell Bar | `JetBrainsMono Nerd Font Mono` | `Config.qml:87` |
 
 两者使用同一字体族（Mono 变体），图标 Unicode 码点完全兼容。
+
+## 图标尺寸与光学补偿规范 (Optical Sizing & Compensation)
+
+为了确保各组件图标在视觉重量（Optical Weight）上完全对称一致，OMD 状态栏右侧模块禁止随意硬编码图标物理尺寸。所有图标均应使用 `BarNerdIcon` 容器，以确保自动居中对齐与基准像素统一。
+
+对于部分因字型网格差异导致视觉上“偏大”或“偏小”的图标，需要遵循以下光学尺寸补偿规范：
+
+1. **基础尺寸 (Base Size)**:
+   * 默认图标字号 `rightIconSize` 为 **`20px`**，对应的外围点击槽宽度为 `28px`。
+   * **标准模块**（蓝牙、无线网、剪贴板、显示器、电池、系统托盘、通知、资源指示器）使用该基础字号。
+
+2. **宽矮/细长字形补偿 (Optical Upscale - `+2px`)**:
+   * **适用图标**：音量喇叭 (`volumeHigh` U+F028)、麦克风 (`mic` U+F130)。
+   * **说明**：这些字型本身横向宽矮或支架细长，在等字号下会显得“偏小”。统一在模块中将字号定义为 `Config.options.bar.rightIconSize + 2` (即 **`22px`**)，以补足光感重量。
+
+3. **饱满块状/动画翻转字形补偿 (Optical Downscale - `-4px`)**:
+   * **适用图标**：沙漏 (`hourglass` U+F254)。
+   * **说明**：沙漏为高密度块面状图标，且在运行旋转动画，若以默认字号渲染会由于离心半径和高填充度显得过度膨胀。将其字号设为 `Config.options.bar.rightIconSize - 4` (即 **`16px`**)，能够保证在缓慢翻转时与两侧的常规细线图标维持视觉比例和谐。
