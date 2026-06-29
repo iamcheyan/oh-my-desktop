@@ -17,3 +17,6 @@ omarchy/walker/themes/omd/item_*.xml
 share/default/walker/themes/omd-clipboard/
 share/default/walker/themes/omd/item_*.xml
 quickshell/*.conf
+__pycache__/
+*.pyc
+
