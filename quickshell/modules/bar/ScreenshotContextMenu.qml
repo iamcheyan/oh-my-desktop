@@ -13,7 +13,7 @@ BarContextMenu {
     menuName: "screenshot"
 
     BarContextMenuItem {
-        iconName:  "apps/accessories-screenshot-symbolic"
+        iconName:  NerdIconMap.crop
         label:     Translation.tr("Capture Area")
         releaseAction: () => {
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
@@ -22,7 +22,7 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "apps/accessories-screenshot-symbolic"
+        iconName:  NerdIconMap.camera
         label:     Translation.tr("Capture Fullscreen")
         releaseAction: () => {
             Quickshell.execDetached(["bash", "-c",
@@ -33,7 +33,7 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "apps/accessories-screenshot-symbolic"
+        iconName:  NerdIconMap.desktop
         label:     Translation.tr("Capture Monitor (3s delay)")
         releaseAction: () => {
             Quickshell.execDetached(["bash", "-c",
@@ -53,13 +53,13 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "actions/pencil-symbolic"
+        iconName:  NerdIconMap.eyeDropper
         label:     Translation.tr("Color Picker")
         releaseAction: () => { Quickshell.execDetached(["hyprpicker", "-a"]); root.close() }
     }
 
     BarContextMenuItem {
-        iconName:  "devices/camera-video-symbolic"
+        iconName:  NerdIconMap.video
         label:     Translation.tr("Record Screen")
         releaseAction: () => { Quickshell.execDetached([Directories.recordScriptPath]); root.close() }
     }
@@ -74,7 +74,7 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "categories/preferences-system-symbolic"
+        iconName:  NerdIconMap.desktop
         label:     Translation.tr("Display Settings")
         releaseAction: () => {
             root.close();

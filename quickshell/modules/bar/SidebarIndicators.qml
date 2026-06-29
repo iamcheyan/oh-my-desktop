@@ -58,10 +58,9 @@ Item {
                 reveal: Audio.sink?.audio?.muted ?? false
                 Layout.fillHeight: true
                 IconSlot {
-                    NerdIcon {
+                    BarNerdIcon {
                         anchors.centerIn: parent
                         text: NerdIconMap.volumeOff
-                        iconSize: Config.options.bar.rightIconSize
                         color: container.colText
                     }
                 }
@@ -77,7 +76,7 @@ Item {
             }
             IconSlot {
                 id: batteryIconSlot
-                NerdIcon {
+                BarNerdIcon {
                     anchors.centerIn: parent
                     text: {
                         const pct = Battery.percentage;
@@ -105,7 +104,6 @@ Item {
                             return NerdIconMap.batteryAlert;
                         }
                     }
-                    iconSize: Config.options.bar.rightIconSize
                     color: container.colText
                 }
             }

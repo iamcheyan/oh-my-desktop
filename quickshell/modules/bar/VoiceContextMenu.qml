@@ -14,13 +14,13 @@ BarContextMenu {
     readonly property string omdRoot: `${FileUtils.trimFileProtocol(Directories.config)}/omd`
 
     BarContextMenuItem {
-        iconName:  "status/microphone-sensitivity-high-symbolic"
+        iconName:  NerdIconMap.mic
         label:     Translation.tr("Voice Recognition")
         releaseAction: () => { VoiceInput.toggle(); root.close() }
     }
 
     BarContextMenuItem {
-        iconName:  "actions/media-record-symbolic"
+        iconName:  NerdIconMap.mic
         iconColor: TuiStyle.info
         label:     Translation.tr("Test Voice Input")
         releaseAction: () => {
@@ -30,7 +30,7 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "devices/input-keyboard-symbolic"
+        iconName:  NerdIconMap.keyboard
         iconColor: TuiStyle.warning
         label:     Translation.tr("Key Capture")
         releaseAction: () => {
@@ -49,7 +49,7 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  "categories/preferences-system-symbolic"
+        iconName:  NerdIconMap.wrench
         iconColor: TuiStyle.accent
         label:     Translation.tr("Diagnose Voice Service")
         releaseAction: () => {

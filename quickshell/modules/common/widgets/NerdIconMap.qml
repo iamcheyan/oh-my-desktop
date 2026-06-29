@@ -140,6 +140,15 @@ QtObject {
     readonly property string memory: "\uDB83\uDEF8"           // mdi-memory U+F0EF8
     readonly property string swapHoriz: "\uDB81\uDD4D"        // mdi-swap-horizontal U+F054D
 
+    // Additional menu items
+    readonly property string crop: "\uF125"                    // fa-crop U+F125
+    readonly property string camera: "\uF030"                  // fa-camera U+F030
+    readonly property string desktop: "\uF108"                 // fa-desktop U+F108
+    readonly property string eyeDropper: "\uF1FB"              // fa-eye-dropper U+F1FB
+    readonly property string video: "\uF03D"                   // fa-video U+F03D
+    readonly property string keyboard: "\uF11C"                // fa-keyboard U+F11C
+    readonly property string wrench: "\uF0AD"                  // fa-wrench U+F0AD
+
     // Misc
     readonly property string keyboardArrowDown: "\uDB80\uDF47" // mdi-chevron-down U+F0347
     readonly property string circle: "\uDB80\uDD66"          // mdi-circle U+F0166

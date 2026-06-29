@@ -36,11 +36,35 @@ TuiActionButton   primary text actions
 TuiMeterBar       battery/volume/brightness meters
 TuiDetailRow      key/value rows
 TuiSegmentedTabs  segmented tab controls
+PasswordTextField password input with built-in reveal/hide eye button
 ```
 
 If a new component needs a color that does not exist in `TuiStyle.qml`, add a
 named token there first. Avoid duplicating literals such as `#181818`,
 `#303030`, `#8f8f8f`, or ad-hoc opacity values in feature modules.
+
+## Password Fields
+
+Use `quickshell/modules/common/widgets/PasswordTextField.qml` for ordinary
+settings dialogs that ask for a saved or connection password:
+
+```qml
+PasswordTextField {
+    label: "PSK"
+    text: root.connectionPassword
+    onTextChanged: root.connectionPassword = text
+    onAccepted: root.connectSelected()
+}
+```
+
+`PasswordTextField` always includes the right-side eye button and defaults to
+hidden password text. Calling code should use `focusInput()` when it needs to
+place the caret inside the field.
+
+Do not automatically replace lock-screen or polkit authentication prompts with
+this component. Those are security-sensitive one-shot prompts, and revealing
+the typed password there should be a deliberate product decision rather than a
+style-system default.
 
 ## Frosted Glass
 

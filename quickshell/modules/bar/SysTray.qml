@@ -88,10 +88,9 @@ Item {
 
             onClicked: root.trayOverflowOpen = !root.trayOverflowOpen
 
-            NerdIcon {
+            BarNerdIcon {
                 anchors.centerIn: parent
                 text: NerdIconMap.expandMore
-                iconSize: Config.options.bar.rightIconSize
                 color: Appearance.colors.colBarText
                 opacity: root.trayOverflowOpen || trayOverflowButton.containsMouse ? 1 : 0.75
                 rotation: (root.trayOverflowOpen ? 180 : 0) - (90 * root.vertical) + (180 * root.invertSide)

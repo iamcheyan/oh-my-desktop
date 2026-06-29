@@ -134,7 +134,7 @@
     },
     "rightIconSize": 20,
     "rightIconSlotWidth": 28,
-    "rightModuleSpacing": 2,
+    "rightModuleSpacing": 8,
     "rightModules": [
       "util:bluetooth",
       "util:audio",

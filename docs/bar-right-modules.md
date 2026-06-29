@@ -209,3 +209,43 @@ OMD 的 Bar 图标字体与 Omarchy 官方 Waybar 一致：
 | OMD Quickshell Bar | `JetBrainsMono Nerd Font Mono` | `Config.qml:87` |
 
 两者使用同一字体族（Mono 变体），图标 Unicode 码点完全兼容。
+# Bar Right Modules
+
+The right side of the top bar is configured from `Config.options.bar`:
+
+```text
+rightIconSlotWidth  fixed clickable slot width for OMD-owned icon modules
+rightIconSize       glyph/image size inside each icon slot
+rightModuleSpacing  spacing between right-side modules
+```
+
+Runtime overrides live in `quickshell/config.json`; defaults live in
+`quickshell/modules/common/Config.qml`.
+
+## Icon Sizing
+
+OMD-owned Nerd Font bar icons should use:
+
+```qml
+BarNerdIcon {
+    text: NerdIconMap.volumeHigh
+    color: Appearance.colors.colBarText
+}
+```
+
+`BarNerdIcon` centralizes `rightIconSize` and gives every glyph the same
+fixed drawing box. Do not set `iconSize: Config.options.bar.rightIconSize + N`
+inside individual bar modules; adjust `rightIconSize` globally instead.
+
+Clickable icon-only modules should keep a `rightIconSlotWidth` sized slot so
+their hover/click target remains stable even when the glyph changes.
+
+## Exceptions
+
+System tray icons are supplied by external applications. OMD constrains them
+to `rightIconSize` inside `SysTrayItem`, but individual icon artwork can still
+look visually heavier or lighter because the bitmap/SVG content is owned by
+the application.
+
+The clock is text, not an icon module. It intentionally uses its text width
+instead of `rightIconSlotWidth`.
