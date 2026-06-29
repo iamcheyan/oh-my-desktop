@@ -16,8 +16,6 @@ Item {
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property bool hovered: bluetoothButton.hovered
 
-    readonly property string tuiLauncher: `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/launch-tui-tool`
-
     RippleButton {
         id: bluetoothButton
         anchors.centerIn: parent
@@ -29,17 +27,9 @@ Item {
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         onClicked: {
-            GlobalStates.barPopupType = GlobalStates.barPopupType === "bluetooth" ? "" : "bluetooth";
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onPressed: (event) => {
-            if (event.button === Qt.RightButton) {
-                bluetoothMenu.open();
-            }
+            GlobalStates.barPopupType = "";
+            GlobalStates.barDialogType = "bluetooth";
+            GlobalStates.barDialogOpen = true;
         }
     }
 
@@ -50,28 +40,16 @@ Item {
         color: Appearance.colors.colBarText
     }
 
-    Loader {
-        id: bluetoothMenu
-        function open() {
-            bluetoothMenu.active = true;
-        }
-        active: false
-        sourceComponent: BluetoothContextMenu {
-            Component.onCompleted: this.open();
-            anchor {
-                window: bluetoothButton.QsWindow.window
-                item: bluetoothButton
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            onMenuClosed: {
-                bluetoothMenu.active = false;
-            }
-        }
+    // Transparent MouseArea for hover detection (non-blocking for clicks)
+    MouseArea {
+        id: hoverArea
+        anchors.fill: bluetoothButton
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
     }
 
+    BluetoothHoverPopup {
+        id: bluetoothHoverPopup
+        hoverTarget: hoverArea
+    }
 }

@@ -36,6 +36,7 @@ Singleton {
     property string barDialogType: ""
     property bool barAudioIsSink: true
     property string barPopupType: ""
+    property string activeContextMenu: ""
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
