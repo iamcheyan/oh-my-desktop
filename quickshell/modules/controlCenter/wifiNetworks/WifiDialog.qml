@@ -88,6 +88,7 @@ WindowDialog {
         selectedNetwork = network;
         detailsOpen = true;
         connectionPassword = "";
+        passwordField.revealed = false;
         Qt.callLater(() => {
             detailLayer.forceActiveFocus();
             if (root.selectedNeedsPassword)
@@ -99,6 +100,7 @@ WindowDialog {
         detailsOpen = false;
         selectedNetwork = null;
         connectionPassword = "";
+        passwordField.revealed = false;
         root.forceActiveFocus();
     }
 
