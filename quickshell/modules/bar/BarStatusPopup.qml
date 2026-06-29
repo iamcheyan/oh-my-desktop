@@ -154,7 +154,6 @@ Scope {
                         if (root.activeType === "audio") return audioContent;
                         if (root.activeType === "display") return displayContent;
                         if (root.activeType === "battery") return batteryContent;
-                        if (root.activeType === "clipboard") return clipboardContent;
                         if (root.activeType === "resources") return resourcesContent;
                         if (root.activeType === "schedule") return scheduleContent;
                         if (root.activeType === "voice") return voiceContent;
@@ -321,241 +320,340 @@ Scope {
 
     Component {
         id: batteryContent
-        PopupColumn {
-            id: batteryPanel
-            function stateLabel() {
-                if (!Battery.available) return "unavailable";
-                if (Battery.isCharging) return "charging";
-                if (Battery.isPluggedIn) return "plugged";
-                return "battery";
-            }
-            property string confirmAction: ""
-            property string confirmLabel: ""
-            property bool hibernateAvailable: false
+        Item {
+            id: batteryWrapper
+            implicitWidth: batteryPanel.implicitWidth
+            implicitHeight: batteryPanel.implicitHeight
+            width: implicitWidth
+            height: implicitHeight
 
-            Component.onCompleted: {
-                hibernateCheck.running = true
-            }
+            PopupColumn {
+                id: batteryPanel
+                anchors.left: parent.left
+                anchors.top: parent.top
 
-            Process {
-                id: hibernateCheck
-                command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
-                stdout: StdioCollector {
-                    onStreamFinished: {
-                        batteryPanel.hibernateAvailable = text.trim() === "YES"
-                    }
+                function stateLabel() {
+                    if (!Battery.available) return "unavailable";
+                    if (Battery.isCharging) return "charging";
+                    if (Battery.isPluggedIn) return "plugged";
+                    return "battery";
                 }
-            }
+                property string confirmAction: ""
+                property string confirmLabel: ""
+                property bool hibernateAvailable: false
 
-            function executeAction(action) {
-                if (action === "lock") { Session.lock(); root.close(); return; }
-                if (action === "sleep") { Session.suspend(); root.close(); return; }
-                if (action === "hibernate") { Session.hibernate(); root.close(); return; }
-                if (action === "logout") { Session.logout(); root.close(); return; }
-                if (action === "reboot") { Session.reboot(); root.close(); return; }
-                if (action === "poweroff") { Session.poweroff(); root.close(); return; }
-            }
-
-            function requestAction(action, label) {
-                if (action === "lock" || action === "sleep" || action === "hibernate" || action === "logout") {
-                    executeAction(action)
-                    return
+                Component.onCompleted: {
+                    hibernateCheck.running = true
                 }
-                confirmAction = action
-                confirmLabel = label
-            }
 
-            function cancelConfirm() {
-                confirmAction = ""
-                confirmLabel = ""
-            }
-
-            Header { title: "BATTERY"; status: stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
-            TuiMeterBar { Layout.fillWidth: true; Layout.preferredHeight: 10; value: Battery.available ? Battery.percentage * 100 : 0; accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
-            TuiDetailRow { keyText: "LEVEL"; valueText: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "--"; valueColor: Battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg }
-            TuiDetailRow { keyText: "RATE"; valueText: Battery.available ? `${Battery.energyRate.toFixed(1)}W` : "--"; valueColor: TuiStyle.info }
-            TuiDetailRow { keyText: "HEALTH"; valueText: Battery.available && Battery.health > 0 ? `${Battery.health.toFixed(1)}%` : "--"; valueColor: Battery.health > 0 && Battery.health < 80 ? TuiStyle.warning : TuiStyle.success }
-            TuiDetailRow { keyText: "PROFILE"; valueText: PowerProfiles.available ? PowerProfiles.currentProfile : "unavailable"; valueColor: TuiStyle.muted }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: TuiStyle.borderWidth
-                color: TuiStyle.line
-            }
-
-            // Session controls
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 28
-                color: "transparent"
-                visible: confirmAction === ""
-
-                StyledText {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "SESSION"
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Bold
-                    color: TuiStyle.dim
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 72
-                color: TuiStyle.panel
-                border.width: 0
-                radius: TuiStyle.radius
-                clip: true
-                visible: confirmAction === ""
-
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 0
-
-                    PowerButton {
-                        icon: "lock"
-                        label: "LOCK"
-                        tone: TuiStyle.accent
-                        onClicked: batteryPanel.requestAction("lock", "Lock")
-                    }
-                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
-                    PowerButton {
-                        icon: "dark_mode"
-                        label: "SLEEP"
-                        tone: TuiStyle.info
-                        onClicked: batteryPanel.requestAction("sleep", "Sleep")
-                    }
-                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
-                    PowerButton {
-                        icon: "downloading"
-                        label: "HIBERNATE"
-                        tone: TuiStyle.purple
-                        visible: batteryPanel.hibernateAvailable
-                        onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
-                    }
-                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line; visible: batteryPanel.hibernateAvailable }
-                    PowerButton {
-                        icon: "logout"
-                        label: "LOGOUT"
-                        tone: TuiStyle.warning
-                        onClicked: batteryPanel.requestAction("logout", "Logout")
-                    }
-                    Item { Layout.fillWidth: true }
-                }
-            }
-
-            // Power controls
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 28
-                color: "transparent"
-                visible: confirmAction === ""
-
-                StyledText {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "POWER"
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Bold
-                    color: TuiStyle.dim
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 72
-                color: TuiStyle.panel
-                border.width: 0
-                radius: TuiStyle.radius
-                clip: true
-                visible: confirmAction === ""
-
-                RowLayout {
-                    anchors.fill: parent
-                    spacing: 0
-
-                    PowerButton {
-                        icon: "restart_alt"
-                        label: "REBOOT"
-                        tone: TuiStyle.info
-                        onClicked: batteryPanel.requestAction("reboot", "Reboot")
-                    }
-                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
-                    PowerButton {
-                        icon: "power_settings_new"
-                        label: "SHUTDOWN"
-                        tone: TuiStyle.danger
-                        onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
-                    }
-                    Rectangle { width: TuiStyle.borderWidth; Layout.fillHeight: true; color: TuiStyle.line }
-                    PowerButton {
-                        icon: "refresh"
-                        label: "RELOAD"
-                        tone: TuiStyle.accent
-                        onClicked: {
-                            Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
-                            root.close();
+                Process {
+                    id: hibernateCheck
+                    command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
+                    stdout: StdioCollector {
+                        onStreamFinished: {
+                            batteryPanel.hibernateAvailable = text.trim() === "YES"
                         }
                     }
-                    Item { Layout.fillWidth: true }
                 }
-            }
 
-            ActionRow {
-                Layout.topMargin: 14
-                visible: confirmAction === ""
-                TuiActionButton {
-                    label: "SETTINGS"
-                    accent: TuiStyle.accent
-                    onClicked: {
-                        root.close();
-                        GlobalStates.controlCenterOpen = true;
+                function executeAction(action) {
+                    if (action === "lock") { Session.lock(); root.close(); return; }
+                    if (action === "sleep") { Session.suspend(); root.close(); return; }
+                    if (action === "hibernate") { Session.hibernate(); root.close(); return; }
+                    if (action === "logout") { Session.logout(); root.close(); return; }
+                    if (action === "reboot") { Session.reboot(); root.close(); return; }
+                    if (action === "poweroff") { Session.poweroff(); root.close(); return; }
+                }
+
+                function requestAction(action, label) {
+                    if (action === "lock" || action === "sleep" || action === "hibernate" || action === "logout") {
+                        executeAction(action)
+                        return
                     }
+                    confirmAction = action
+                    confirmLabel = label
                 }
-            }
 
-            // Confirm dialog
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: confirmCol.implicitHeight + 16
-                color: TuiStyle.dangerPanel
-                border.width: 0
-                radius: TuiStyle.radius
-                clip: true
-                visible: confirmAction !== ""
+                function cancelConfirm() {
+                    confirmAction = ""
+                    confirmLabel = ""
+                }
 
-                ColumnLayout {
-                    id: confirmCol
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 6
+                Header { title: "BATTERY"; status: stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 24
+                    spacing: 12
+
+                    TuiMeterBar {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 10
+                        Layout.alignment: Qt.AlignVCenter
+                        value: Battery.available ? Battery.percentage * 100 : 0
+                        accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success
+                    }
 
                     StyledText {
-                        Layout.fillWidth: true
-                        text: `CONFIRM ${batteryPanel.confirmLabel.toUpperCase()}?`
-                        font.family: Appearance.font.family.monospace
+                        Layout.alignment: Qt.AlignVCenter
+                        text: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "--"
+                        font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Bold
-                        color: TuiStyle.danger
-                        horizontalAlignment: Text.AlignHCenter
+                        font.weight: Font.DemiBold
+                        color: Battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
                     }
+                }
+
+                // Power profile controls (Power Mode Selection)
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 20
+                    color: "transparent"
+                    visible: PowerProfiles.available
+
+                    StyledText {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "POWER PROFILE"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 48
+                    color: "transparent"
+                    border.width: 0
+                    clip: false
+                    visible: PowerProfiles.available
 
                     RowLayout {
-                        Layout.fillWidth: true
+                        anchors.fill: parent
                         spacing: 8
-                        Item { Layout.fillWidth: true }
-                        TuiActionButton {
-                            label: "CANCEL"
-                            accent: TuiStyle.dim
-                            onClicked: batteryPanel.cancelConfirm()
+
+                        ProfileButton {
+                            profile: "power-saver"
+                            label: "SAVER"
+                            onClicked: PowerProfiles.setProfile("power-saver")
                         }
-                        TuiActionButton {
-                            label: "CONFIRM"
-                            accent: TuiStyle.danger
-                            onClicked: batteryPanel.executeAction(batteryPanel.confirmAction)
+                        ProfileButton {
+                            profile: "balanced"
+                            label: "BALANCED"
+                            onClicked: PowerProfiles.setProfile("balanced")
+                        }
+                        ProfileButton {
+                            profile: "performance"
+                            label: "PERFORMANCE"
+                            onClicked: PowerProfiles.setProfile("performance")
+                        }
+                    }
+                }
+
+                // Session controls
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 28
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "SESSION"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 60
+                    color: "transparent"
+                    border.width: 0
+                    clip: false
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 8
+
+                        PowerButton {
+                            icon: "lock"
+                            label: "LOCK"
+                            tone: TuiStyle.accent
+                            onClicked: batteryPanel.requestAction("lock", "Lock")
+                        }
+                        PowerButton {
+                            icon: "dark_mode"
+                            label: "SLEEP"
+                            tone: TuiStyle.info
+                            onClicked: batteryPanel.requestAction("sleep", "Sleep")
+                        }
+                        PowerButton {
+                            icon: "downloading"
+                            label: "HIBERNATE"
+                            tone: TuiStyle.purple
+                            visible: batteryPanel.hibernateAvailable
+                            onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
+                        }
+                        PowerButton {
+                            icon: "logout"
+                            label: "LOGOUT"
+                            tone: TuiStyle.warning
+                            onClicked: batteryPanel.requestAction("logout", "Logout")
+                        }
+                    }
+                }
+
+                // Power controls
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 28
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "POWER"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 60
+                    color: "transparent"
+                    border.width: 0
+                    clip: false
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 8
+
+                        PowerButton {
+                            icon: "restart_alt"
+                            label: "REBOOT"
+                            tone: TuiStyle.info
+                            onClicked: batteryPanel.requestAction("reboot", "Reboot")
+                        }
+                        PowerButton {
+                            icon: "power_settings_new"
+                            label: "SHUTDOWN"
+                            tone: TuiStyle.danger
+                            onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
+                        }
+                        PowerButton {
+                            icon: "refresh"
+                            label: "RELOAD"
+                            tone: TuiStyle.accent
+                            onClicked: {
+                                Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                                root.close();
+                            }
+                        }
+                    }
+                }
+
+                ActionRow {
+                    Layout.topMargin: 10
+                    TuiActionButton {
+                        label: "SETTINGS"
+                        accent: TuiStyle.accent
+                        onClicked: {
+                            root.close();
+                            GlobalStates.controlCenterOpen = true;
+                        }
+                    }
+                }
+            }
+
+            // Centered Double-Confirm Dialog Overlay
+            Item {
+                id: confirmOverlay
+                anchors.fill: batteryPanel
+                visible: batteryPanel.confirmAction !== ""
+
+                // Gaussian Blur Mask over the batteryPanel
+                StyledBlurEffect {
+                    source: batteryPanel
+                    anchors.fill: parent
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Qt.rgba(0, 0, 0, 0.4)
+                        radius: TuiStyle.radius
+                    }
+                }
+
+                // Centered Modal Dialog Card
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: parent.width - 32
+                    implicitHeight: confirmCol.implicitHeight + 24
+                    color: TuiStyle.bg
+                    radius: TuiStyle.radius
+                    border.width: TuiStyle.borderWidth
+                    border.color: TuiStyle.danger
+
+                    ColumnLayout {
+                        id: confirmCol
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 12
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Layout.alignment: Qt.AlignHCenter
+
+                            MaterialSymbol {
+                                text: "warning"
+                                iconSize: 20
+                                color: TuiStyle.danger
+                            }
+
+                            StyledText {
+                                text: `CONFIRM ${batteryPanel.confirmLabel.toUpperCase()}?`
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                                color: TuiStyle.danger
+                            }
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: Translation.tr("Are you sure you want to perform this system action?")
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: TuiStyle.dim
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.Wrap
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            TuiActionButton {
+                                Layout.fillWidth: true
+                                label: "CANCEL"
+                                accent: TuiStyle.dim
+                                onClicked: batteryPanel.cancelConfirm()
+                            }
+
+                            TuiActionButton {
+                                Layout.fillWidth: true
+                                label: "CONFIRM"
+                                accent: TuiStyle.danger
+                                onClicked: batteryPanel.executeAction(batteryPanel.confirmAction)
+                            }
                         }
                     }
                 }
@@ -570,13 +668,13 @@ Scope {
         property color tone: TuiStyle.accent
         signal clicked()
         Layout.fillHeight: true
-        Layout.preferredWidth: 80
+        Layout.fillWidth: true
+        Layout.minimumWidth: 92
 
         Rectangle {
             anchors.fill: parent
-            anchors.margins: 4
-            radius: TuiStyle.radius
-            color: pbMouseArea.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+            radius: TuiStyle.miniRadius
+            color: pbMouseArea.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle
             border.width: 0
             clip: true
 
@@ -589,21 +687,21 @@ Scope {
 
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: 3
 
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
-                        iconSize: 22
+                        iconSize: 20
                         text: pb.icon
-                        color: pbMouseArea.containsMouse ? TuiStyle.fg : pb.tone
+                        color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
                     }
 
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter
                         text: pb.label
-                        font.family: Appearance.font.family.main
+                        font.family: Appearance.font.family.monospace
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Medium
+                        font.weight: Font.DemiBold
                         color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
                     }
                 }
@@ -611,101 +709,54 @@ Scope {
         }
     }
 
-    Component {
-        id: clipboardContent
-        PopupColumn {
-            id: clipPanel
-            readonly property bool ready: Cliphist.entries.length > 0 || Cliphist.cliphistBinary.length > 0
-            readonly property var recentEntries: Cliphist.entries.slice(0, 10)
-            Header { title: "CLIPBOARD"; status: ready ? "READY" : "UNAVAILABLE"; tone: ready ? TuiStyle.success : TuiStyle.danger }
-            TuiDetailRow { keyText: "ENTRIES"; valueText: `${Cliphist.entries.length}`; valueColor: TuiStyle.info }
+    component ProfileButton: Item {
+        id: prb
+        property string profile: ""
+        property string label: ""
+        readonly property bool active: PowerProfiles.currentProfile === profile
+        signal clicked()
+        Layout.fillHeight: true
+        Layout.fillWidth: true
+        Layout.minimumWidth: 80
 
-            // Recent entries — click to paste
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: recentList.implicitHeight + 8
-                color: TuiStyle.panel
-                border.width: 0
-                radius: TuiStyle.radius
-                clip: true
-                visible: clipPanel.recentEntries.length > 0
+        Rectangle {
+            anchors.fill: parent
+            radius: TuiStyle.miniRadius
+            color: prb.active ? TuiStyle.surfaceHover : (prbMouseArea.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle)
+            border.width: prb.active ? 1 : 0
+            border.color: TuiStyle.line
+            clip: true
+
+            MouseArea {
+                id: prbMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: prb.clicked()
 
                 ColumnLayout {
-                    id: recentList
-                    anchors.fill: parent
-                    anchors.margins: 4
-                    spacing: 0
+                    anchors.centerIn: parent
+                    spacing: 2
 
-                    Repeater {
-                        model: clipPanel.recentEntries
-                        delegate: Rectangle {
-                            required property string modelData
-                            required property int index
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 28
-                            color: mouseArea.containsMouse ? TuiStyle.panelAlt : "transparent"
-                            clip: true
-
-                            readonly property bool isImage: Cliphist.entryIsImage(modelData)
-                            readonly property int imgW: {
-                                var m = modelData.match(/(\d+)x(\d+)/);
-                                return m ? parseInt(m[1]) : 0;
-                            }
-                            readonly property int imgH: {
-                                var m = modelData.match(/(\d+)x(\d+)/);
-                                return m ? parseInt(m[2]) : 0;
-                            }
-                            readonly property string preview: isImage ? `[IMG] ${imgW}x${imgH}` : StringUtils.cleanCliphistEntry(modelData)
-
-                            MouseArea {
-                                id: mouseArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    Cliphist.paste(modelData);
-                                    root.close();
-                                }
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                spacing: 6
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: parent.parent.preview
-                                    elide: Text.ElideRight
-                                    font.family: Appearance.font.family.monospace
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    color: mouseArea.containsMouse ? TuiStyle.fg : TuiStyle.muted
-                                }
-                            }
-
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                height: TuiStyle.borderWidth
-                                color: TuiStyle.line
-                                opacity: 0.5
-                            }
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignHCenter
+                        iconSize: 18
+                        text: {
+                            if (profile === "power-saver") return "eco";
+                            if (profile === "balanced") return "balance";
+                            if (profile === "performance") return "speed";
+                            return "settings";
                         }
+                        color: prb.active ? TuiStyle.fg : (prbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim)
                     }
-                }
-            }
 
-            ActionRow {
-                TuiActionButton {
-                    label: "HISTORY"
-                    onClicked: {
-                        root.close();
-                        Quickshell.execDetached([
-                            "qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-clipboard`,
-                            "ipc", "call", "clipboard", "toggle"
-                        ]);
+                    StyledText {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: prb.label
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.DemiBold
+                        color: prb.active ? TuiStyle.fg : (prbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim)
                     }
                 }
             }
@@ -796,6 +847,126 @@ Scope {
                         valueText: VoiceInput.daemonRunning ? "running" : "stopped"
                         valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.warning
                     }
+                }
+            }
+
+            // ── 调试测试面板 ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: debugCol.implicitHeight + 16
+                color: TuiStyle.panel
+                border.width: 0
+                radius: TuiStyle.radius
+                clip: true
+                visible: VoiceInput.state !== "setup"
+
+                ColumnLayout {
+                    id: debugCol
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 8
+
+                    StyledText {
+                        text: "DEBUG TEST"
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.Bold
+                        color: TuiStyle.dim
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Rectangle {
+                            id: debugRecBtn
+                            Layout.preferredWidth: 64
+                            Layout.preferredHeight: 64
+                            radius: 32
+                            color: VoiceInput.state === "recording" ? TuiStyle.danger : recMouse.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceRaised
+                            border.width: 2
+                            border.color: VoiceInput.state === "recording" ? TuiStyle.danger : recMouse.containsMouse ? TuiStyle.accent : TuiStyle.line
+
+                            Behavior on scale {
+                                NumberAnimation { duration: 120 }
+                            }
+                            scale: VoiceInput.state === "recording" ? 1.08 : 1.0
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                iconSize: 32
+                                text: VoiceInput.state === "recording" ? "stop" : "mic"
+                                color: VoiceInput.state === "recording" ? TuiStyle.bg : recMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                            }
+
+                            MouseArea {
+                                id: recMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                enabled: VoiceInput.state === "idle" || VoiceInput.state === "recording"
+                                onClicked: {
+                                    if (VoiceInput.state === "recording") {
+                                        VoiceInput.stopRecording()
+                                    } else if (VoiceInput.state === "idle") {
+                                        VoiceInput.testRecording()
+                                    }
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            StyledText {
+                                text: {
+                                    if (VoiceInput.state === "recording") return `Recording ${VoiceInput.recordingDuration.toFixed(1)}s`
+                                    if (VoiceInput.state === "transcribing") return "Transcribing…"
+                                    if (VoiceInput.state === "success") return "Transcription ready"
+                                    if (VoiceInput.state === "error") return "Error"
+                                    return "Tap mic to test 3s"
+                                }
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                                color: voicePanel.tone()
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: VoiceInput.lastError || VoiceInput.lastTranscription || "—"
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 4
+                                elide: Text.ElideRight
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: VoiceInput.lastError ? TuiStyle.danger : TuiStyle.fg
+                            }
+                        }
+                    }
+
+                        ActionRow {
+                            TuiActionButton {
+                                label: "COPY TEXT"
+                                accent: TuiStyle.info
+                                enabled: VoiceInput.lastTranscription.length > 0
+                                onClicked: {
+                                    Quickshell.execDetached(["bash", "-c",
+                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy`])
+                                    VoiceInput.notify("Copied", VoiceInput.lastTranscription, "edit-copy")
+                                }
+                            }
+                            TuiActionButton {
+                                label: "COPY & PASTE"
+                                accent: TuiStyle.accent
+                                enabled: VoiceInput.lastTranscription.length > 0
+                                onClicked: {
+                                    Quickshell.execDetached(["bash", "-c",
+                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && sleep 0.3 && YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0`])
+                                }
+                            }
+                        }
                 }
             }
 

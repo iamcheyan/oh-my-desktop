@@ -8,16 +8,21 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
 
-    ColumnLayout {
-        id: columnLayout
-        anchors.centerIn: parent
-        spacing: 4
-
-        StyledPopupHeaderRow {
-            icon: "devices/battery-symbolic"
-            label: `${Math.round(Battery.percentage * 100)}%`
+    StyledPopupContent {
+        // 1. Battery capacity and state (Charging / Discharging)
+        StyledPopupValueRow {
+            icon: Battery.isCharging ? "status/plugged-into-power-symbolic" : "devices/battery-symbolic"
+            label: Translation.tr("Battery Level:")
+            value: {
+                const pct = Math.round(Battery.percentage * 100);
+                const stateStr = Battery.isCharging
+                    ? Translation.tr(" (Charging)")
+                    : (Battery.isPluggedIn ? Translation.tr(" (Plugged in)") : Translation.tr(" (Discharging)"));
+                return `${pct}%${stateStr}`;
+            }
         }
 
+        // 2. Remaining Time to Empty / Full
         StyledPopupValueRow {
             visible: {
                 let timeValue = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
@@ -25,7 +30,7 @@ StyledPopup {
                 return Battery.available && !(Battery.chargeState == 4 || timeValue <= 0 || power <= 0.01);
             }
             icon: "actions/appointment-new-symbolic"
-            label: Battery.isCharging ? Translation.tr("Time to full:") : Translation.tr("Time to empty:")
+            label: Battery.isCharging ? Translation.tr("Time to Full:") : Translation.tr("Time to Empty:")
             value: {
                 function formatTime(seconds) {
                     var h = Math.floor(seconds / 3600);
@@ -35,31 +40,29 @@ StyledPopup {
                     else
                         return `${m}m`;
                 }
-                if (Battery.isCharging)
-                    return formatTime(Battery.timeToFull);
-                else
-                    return formatTime(Battery.timeToEmpty);
+                return Battery.isCharging ? formatTime(Battery.timeToFull) : formatTime(Battery.timeToEmpty);
             }
         }
 
+        // 3. Power consumption rate (Watts)
         StyledPopupValueRow {
             visible: Battery.available && Battery.chargeState != 4 && Battery.energyRate > 0.01
             icon: "status/plugged-into-power-symbolic"
-            label: {
-                if (Battery.chargeState == 4) {
-                    return Translation.tr("Fully charged");
-                } else if (Battery.chargeState == 1) {
-                    return Translation.tr("Charging:");
-                } else {
-                    return Translation.tr("Discharging:");
-                }
-            }
+            label: Translation.tr("Power Draw:")
+            value: `${Battery.energyRate.toFixed(1)}W`
+        }
+
+        // 4. Power Profile Mode
+        StyledPopupValueRow {
+            visible: PowerProfiles.available
+            icon: "categories/preferences-system-symbolic"
+            label: Translation.tr("Power Profile:")
             value: {
-                if (Battery.chargeState == 4) {
-                    return "";
-                } else {
-                    return `${Battery.energyRate.toFixed(1)}W`;
-                }
+                const profile = PowerProfiles.currentProfile;
+                if (profile === "performance") return Translation.tr("Performance");
+                if (profile === "balanced") return Translation.tr("Balanced");
+                if (profile === "power-saver") return Translation.tr("Power Saver");
+                return profile;
             }
         }
     }

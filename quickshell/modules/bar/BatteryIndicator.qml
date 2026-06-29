@@ -36,4 +36,8 @@ MouseArea {
         }
     }
 
+    BatteryHoverPopup {
+        id: batteryHoverPopup
+        hoverTarget: root
+    }
 }

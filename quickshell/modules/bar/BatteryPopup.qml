@@ -7,10 +7,8 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
     
-    ColumnLayout {
-        id: columnLayout
-        anchors.centerIn: parent
-        spacing: 4
+    StyledPopupContent {
+        contentSpacing: 4
 
         // Header
         StyledPopupHeaderRow {
