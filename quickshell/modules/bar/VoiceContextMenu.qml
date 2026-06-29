@@ -39,6 +39,16 @@ BarContextMenu {
         }
     }
 
+    BarContextMenuItem {
+        iconName:  NerdIconMap.settings
+        iconColor: TuiStyle.success
+        label:     Translation.tr("Configure Keybindings")
+        releaseAction: () => {
+            Quickshell.execDetached(["omarchy-launch-tui", `${root.omdRoot}/scripts/voice-bind-tui`]);
+            root.close();
+        }
+    }
+
     Rectangle {
         Layout.fillWidth:    true
         implicitHeight:      1

@@ -33,7 +33,7 @@ WindowDialog {
                 Layout.alignment: Qt.AlignHCenter
                 text: {
                     const pct = Battery.percentage;
-                    if (Battery.isCharging) {
+                    if (Battery.isPluggedIn) {
                         if (pct > 0.9) return NerdIconMap.batteryChargingFull;
                         if (pct > 0.8) return NerdIconMap.batteryCharging90;
                         if (pct > 0.7) return NerdIconMap.batteryCharging80;
@@ -53,7 +53,7 @@ WindowDialog {
                     }
                 }
                 iconSize: 48
-                color: (Battery.isLow && !Battery.isCharging) ? TuiStyle.danger : TuiStyle.fg
+                color: (Battery.isLow && !Battery.isPluggedIn) ? TuiStyle.danger : TuiStyle.fg
             }
 
             StyledText {

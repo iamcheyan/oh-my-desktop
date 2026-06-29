@@ -109,7 +109,7 @@ QtObject {
 
     // Status / Feedback
     readonly property string info: "\uDB80\uDEFC"             // mdi-information U+F02FC
-    readonly property string warning: "\uDB81\uDD53"          // mdi-alert U+F0553
+    readonly property string warning: "\uF071"                // fa-exclamation-triangle U+F071
     readonly property string error: "\uDB80\uDEBC"            // mdi-alert-circle U+F02BC
     readonly property string block: "\uDB80\uDF97"            // mdi-block-helper U+F0397
     readonly property string eco: "\uF06C"                    // fa-leaf U+F06C

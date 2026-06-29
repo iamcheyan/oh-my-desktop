@@ -119,7 +119,6 @@ Item {
     BarNerdIcon {
         id: icon
         anchors.centerIn: actionButton
-        iconSize: root.isActive ? (Config.options.bar.rightIconSize - 4) : (Config.options.bar.rightIconSize + 2)
         text: root.isActive ? NerdIconMap.hourglass : NerdIconMap.mic
 
         color: root.iconColor
@@ -163,11 +162,17 @@ Item {
         if (root.isError) errorBlink.start()
     }
 
+    // ── Transparent MouseArea for hover detection ──
+    MouseArea {
+        id: hoverArea
+        anchors.fill: actionButton
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+    }
+
     // ── 悬浮提示（指向时显示快捷键）──
-    PopupToolTip {
-        text: Translation.tr("语音输入") + " (ALT + A / Globe)"
-        anchorEdges: Config.options.bar.vertical
-            ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-            : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+    VoiceHoverPopup {
+        id: voiceHoverPopup
+        hoverTarget: hoverArea
     }
 }

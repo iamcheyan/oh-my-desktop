@@ -11,8 +11,6 @@ Item {
     id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
-    implicitWidth: gridLayout.implicitWidth
-    implicitHeight: gridLayout.implicitHeight
     property bool vertical: false
     property bool invertSide: false
     property bool trayOverflowOpen: false
@@ -22,6 +20,11 @@ Item {
 
     property list<var> pinnedItems: TrayService.pinnedItems
     property list<var> unpinnedItems: TrayService.unpinnedItems
+    readonly property bool hasVisibleItems: pinnedItems.length > 0 || (showOverflowMenu && unpinnedItems.length > 0)
+    implicitWidth: hasVisibleItems ? gridLayout.implicitWidth : 0
+    implicitHeight: hasVisibleItems ? gridLayout.implicitHeight : 0
+    visible: hasVisibleItems
+
     onUnpinnedItemsChanged: {
         if (unpinnedItems.length == 0) root.closeOverflowMenu();
     }

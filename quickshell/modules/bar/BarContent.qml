@@ -161,7 +161,7 @@ Item { // Bar content region
 
         // Visual content
 
-        Row {
+        RowLayout {
             id: rightSectionRowLayout
             anchors {
                 top: parent.top
@@ -176,9 +176,16 @@ Item { // Bar content region
                     required property string modelData
                     readonly property bool fixedIconSlot: modelData.startsWith("util:")
                     readonly property int iconSlotWidth: Config.options.bar.rightIconSlotWidth
+                    readonly property int resolvedWidth: fixedIconSlot ? iconSlotWidth : (item?.implicitWidth ?? 0)
 
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: resolvedWidth
+                    Layout.minimumWidth: resolvedWidth
+                    Layout.maximumWidth: resolvedWidth
+                    Layout.fillHeight: true
+                    width: resolvedWidth
                     height: parent.height
-                    width: fixedIconSlot ? iconSlotWidth : (item?.implicitWidth ?? 0)
+                    visible: item ? item.visible : true
 
                     sourceComponent: {
                         const comp = rightModuleRegistry.componentForName(modelData);
