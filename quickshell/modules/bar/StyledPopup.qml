@@ -13,7 +13,7 @@ LazyLoader {
 
     property Item hoverTarget
     default property Item contentItem
-    property real popupBackgroundMargin: 0
+    property real popupBackgroundMargin: Appearance.sizes.elevationMargin
     property bool alignRight: false
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
         ?? Quickshell.screens[0]
@@ -27,14 +27,14 @@ LazyLoader {
         color: "transparent"
 
         readonly property bool barOnBottom: Config.options.bar.bottom
-        readonly property real visualWidth: popupBackground.implicitWidth + root.popupBackgroundMargin
-        readonly property real visualHeight: popupBackground.implicitHeight + root.popupBackgroundMargin
+        readonly property real visualWidth: popupBackground.implicitWidth + root.popupBackgroundMargin * 2
+        readonly property real visualHeight: popupBackground.implicitHeight + root.popupBackgroundMargin * 2
         readonly property real centeredLeft: {
             if (Config.options.bar.vertical)
                 return Appearance.sizes.verticalBarWidth;
             const xOffset = root.alignRight
-                ? root.hoverTarget.width - popupBackground.implicitWidth
-                : (root.hoverTarget.width - popupBackground.implicitWidth) / 2;
+                ? root.hoverTarget.width - visualWidth
+                : (root.hoverTarget.width - visualWidth) / 2;
             return root.hoverTarget?.mapToItem(null, xOffset, 0).x ?? 4;
         }
         readonly property bool snapRight: !Config.options.bar.vertical
@@ -68,7 +68,7 @@ LazyLoader {
                 return root.hoverTarget?.mapToItem(
                     null,
                     0,
-                    (root.hoverTarget.height - popupBackground.implicitHeight) / 2
+                    (root.hoverTarget.height - visualHeight) / 2
                 ).y ?? 4;
             }
             right: {
@@ -90,20 +90,17 @@ LazyLoader {
             readonly property real margin: 8
             anchors {
                 fill: parent
-                leftMargin: root.popupBackgroundMargin * (!popupWindow.anchors.left)
-                rightMargin: root.popupBackgroundMargin * (!popupWindow.anchors.right)
-                topMargin: root.popupBackgroundMargin * (!popupWindow.anchors.top)
-                bottomMargin: root.popupBackgroundMargin * (!popupWindow.anchors.bottom)
+                margins: root.popupBackgroundMargin
             }
             implicitWidth: root.contentItem.implicitWidth + margin * 2
             implicitHeight: root.contentItem.implicitHeight + margin * 2
             color: TuiStyle.bg
-            radius: TuiStyle.radius
+            radius: TuiStyle.shellRadius
             children: [root.contentItem]
             clip: true
 
             border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.line
+            border.color: TuiStyle.shellBorder
         }
     }
 }

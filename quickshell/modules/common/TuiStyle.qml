@@ -1,4 +1,5 @@
 import QtQuick
+import qs.services
 pragma Singleton
 
 QtObject {
@@ -12,20 +13,20 @@ QtObject {
     readonly property color fg: "#f4f4f4"
     readonly property color dim: "#a8a8a8"
     readonly property color line: "#8a8a8a"
-    readonly property color green: "#eeeeee"
-    readonly property color yellow: "#d0d0d0"
-    readonly property color blue: "#eeeeee"
-    readonly property color purple: "#c8c8c8"
+    readonly property color green: OmarchyTheme.accent
+    readonly property color yellow: OmarchyTheme.accent
+    readonly property color blue: OmarchyTheme.accent
+    readonly property color purple: OmarchyTheme.accent
     readonly property color red: "#f0f0f0"
     readonly property color dangerPanel: "#282828"
-    readonly property color selection: "#4d4d4d"
+    readonly property color selection: OmarchyTheme.accentSoft
     readonly property color scrim: "#000000"
 
     // Shell/dialog chrome
     readonly property color shellGradientTop: "#303030"
     readonly property color shellGradientMid: "#080808"
     readonly property color shellGradientBottom: "#161616"
-    readonly property color shellBorder: "#99b8b8b8"
+    readonly property color shellBorder: OmarchyTheme.accentBorder
 
     // Interior surfaces
     readonly property color surfaceSubtle: "#181818"
@@ -37,7 +38,7 @@ QtObject {
     readonly property color control: "#2b2b2b"
     readonly property color controlHover: "#4d4d4d"
     readonly property color controlMuted: "#222222"
-    readonly property color controlActiveBorder: "#b0b0b0b0"
+    readonly property color controlActiveBorder: OmarchyTheme.accentActiveBorder
     readonly property color miniControlHover: "#303030"
     readonly property color miniControlPressed: "#3a3a3a"
     readonly property real accentWashOpacity: 0.14

@@ -9,7 +9,7 @@ Rectangle {
 
     color: TuiStyle.bg
     border.width: TuiStyle.borderWidth
-    border.color: TuiStyle.line
+    border.color: TuiStyle.shellBorder
     radius: TuiStyle.radius
     clip: true
 

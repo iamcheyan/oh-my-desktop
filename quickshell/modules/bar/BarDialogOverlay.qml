@@ -6,6 +6,7 @@ import qs.modules.controlCenter.bluetoothDevices
 import qs.modules.controlCenter.wifiNetworks
 import qs.modules.controlCenter.nightLight
 import qs.modules.controlCenter.volumeMixer
+import qs.modules.settings
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -69,7 +70,6 @@ Scope {
             }
 
             Component.onCompleted: {
-                GlobalFocusGrab.addDismissable(overlayWindow);
                 if (GlobalStates.barDialogType === "bluetooth") {
                     Bluetooth.defaultAdapter.enabled = true;
                     Bluetooth.defaultAdapter.discovering = true;
@@ -82,57 +82,18 @@ Scope {
                 if (GlobalStates.barDialogType === "bluetooth") {
                     Bluetooth.defaultAdapter.discovering = false;
                 }
-                GlobalFocusGrab.removeDismissable(overlayWindow);
-            }
-            Connections {
-                target: GlobalFocusGrab
-                function onDismissed() {
-                    overlayWindow.close();
-                }
             }
 
             Item {
                 id: dialogContainer
                 anchors.fill: parent
 
-                BluetoothDialog {
-                    id: bluetoothDialog
+                SettingsCenter {
+                    id: settingsCenter
                     anchors.fill: parent
-                    visible: GlobalStates.barDialogType === "bluetooth"
-                    show: visible
-                    onDismiss: overlayWindow.close()
-                }
-
-                WifiDialog {
-                    id: wifiDialog
-                    anchors.fill: parent
-                    visible: GlobalStates.barDialogType === "wifi"
-                    show: visible
-                    onDismiss: overlayWindow.close()
-                }
-
-                NightLightDialog {
-                    id: nightLightDialog
-                    anchors.fill: parent
-                    visible: GlobalStates.barDialogType === "nightlight"
-                    show: visible
-                    onDismiss: overlayWindow.close()
-                }
-
-                VolumeDialog {
-                    id: volumeDialog
-                    anchors.fill: parent
-                    isSink: GlobalStates.barAudioIsSink
-                    visible: GlobalStates.barDialogType === "audio"
-                    show: visible
-                    onDismiss: overlayWindow.close()
-                }
-
-                BatteryDialog {
-                    id: batteryDialog
-                    anchors.fill: parent
-                    visible: GlobalStates.barDialogType === "battery"
-                    show: visible
+                    requestedPage: GlobalStates.barDialogType
+                    visible: true
+                    show: true
                     onDismiss: overlayWindow.close()
                 }
             }

@@ -16,6 +16,10 @@ Rectangle {
     property int anchorPosition: 0 // 0 = center, 1 = top-right
     property real anchorMargin: 8
     property int contentPadding: 18
+    property real dragOffsetX: 0
+    property real dragOffsetY: 0
+    property bool dragging: false
+    property bool dismissOnBackgroundPress: true
 
     signal dismiss()
     Keys.onPressed: (event) => {
@@ -36,6 +40,7 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
+        enabled: root.dismissOnBackgroundPress
         acceptedButtons: Qt.AllButtons
         hoverEnabled: true
         onPressed: root.dismiss()
@@ -44,8 +49,9 @@ Rectangle {
     Rectangle {
         id: dialogBackground
         anchors.horizontalCenter: root.anchorPosition === 0 ? parent.horizontalCenter : undefined
+        anchors.horizontalCenterOffset: root.anchorPosition === 0 ? root.dragOffsetX : 0
         anchors.right: root.anchorPosition === 1 ? parent.right : undefined
-        anchors.rightMargin: root.anchorPosition === 1 ? root.anchorMargin : 0
+        anchors.rightMargin: root.anchorPosition === 1 ? root.anchorMargin - root.dragOffsetX : 0
         radius: TuiStyle.shellRadius
         color: TuiStyle.bg
         gradient: Gradient {
@@ -57,7 +63,7 @@ Rectangle {
         border.color: TuiStyle.shellBorder
         clip: true
 
-        property real targetY: root.anchorPosition === 1 ? (Config.options.bar.bottom ? (root.height - Appearance.sizes.barHeight - root.backgroundHeight - root.anchorMargin) : (Appearance.sizes.barHeight + root.anchorMargin)) : (root.height / 2 - root.backgroundHeight / 2)
+        property real targetY: (root.anchorPosition === 1 ? (Config.options.bar.bottom ? (root.height - Appearance.sizes.barHeight - root.backgroundHeight - root.anchorMargin) : (Appearance.sizes.barHeight + root.anchorMargin)) : (root.height / 2 - root.backgroundHeight / 2)) + root.dragOffsetY
         y: root.show ? targetY : (targetY - root.backgroundAnimationMovementDistance)
         implicitWidth: root.backgroundWidth
         implicitHeight: show ? root.backgroundHeight : 0
@@ -70,6 +76,7 @@ Rectangle {
             }
         }
         Behavior on y {
+            enabled: !root.dragging
             NumberAnimation {
                 duration: dialogBackgroundHeightAnimation.duration
                 easing.type: dialogBackgroundHeightAnimation.easing.type

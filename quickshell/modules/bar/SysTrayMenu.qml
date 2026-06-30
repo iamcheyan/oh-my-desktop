@@ -18,7 +18,7 @@ PopupWindow {
     signal menuOpened(qsWindow: var) // Correct type is QsWindow, but QML does not like that
 
     color: "transparent"
-    property real padding: 8
+    property real padding: Appearance.sizes.elevationMargin + 2
 
     implicitHeight: {
         let result = 0;
@@ -74,9 +74,9 @@ PopupWindow {
             }
 
             color: TuiStyle.bg
-            radius: 10
-            border.width: 1
-            border.color: TuiStyle.line
+            radius: TuiStyle.shellRadius
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.shellBorder
             clip: true
 
             opacity: 0

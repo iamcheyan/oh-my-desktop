@@ -125,8 +125,9 @@ Scope {
         Item {
             id: panel
             anchors.right: parent.right
-            implicitWidth: panelBg.implicitWidth
-            implicitHeight: panelBg.implicitHeight
+            readonly property real shadowMargin: Appearance.sizes.elevationMargin
+            implicitWidth: panelBg.implicitWidth + shadowMargin * 2
+            implicitHeight: panelBg.implicitHeight + shadowMargin * 2
             width: implicitWidth
             height: implicitHeight
 
@@ -136,10 +137,10 @@ Scope {
 
             TuiShell {
                 id: panelBg
+                anchors.fill: parent
+                anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
-                width: implicitWidth
-                height: implicitHeight
 
                 Loader {
                     id: contentLoader
@@ -720,7 +721,7 @@ Scope {
             radius: TuiStyle.miniRadius
             color: prb.active ? TuiStyle.surfaceHover : (prbMouseArea.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle)
             border.width: prb.active ? 1 : 0
-            border.color: TuiStyle.line
+            border.color: TuiStyle.controlActiveBorder
             clip: true
 
             MouseArea {

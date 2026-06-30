@@ -30,7 +30,7 @@ PopupWindow {
     readonly property int   itemSpacing:      2   // gap between rows
     readonly property real  hPadding:         8   // left/right padding inside each row
     readonly property real  menuPadding:      6   // inner padding of menu background
-    readonly property real  outerPadding:     8   // space between window edge and background
+    readonly property real  outerPadding:     Appearance.sizes.elevationMargin + 2   // space between window edge and background
     readonly property int   separatorMargin:  4   // top/bottom margin around separators
     // ────────────────────────────────────────────────────────────────────────
 
@@ -114,9 +114,9 @@ PopupWindow {
                 margins: barContextMenu.outerPadding
             }
             color:        TuiStyle.bg
-            radius:       TuiStyle.radius // unified rounded corners from design system
+            radius:       TuiStyle.shellRadius // unified rounded corners from design system
             border.width: TuiStyle.borderWidth // unified border stroke from design system
-            border.color: TuiStyle.line
+            border.color: TuiStyle.shellBorder
             clip:         true
 
             opacity: 0
