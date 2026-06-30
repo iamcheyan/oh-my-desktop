@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMARCHY_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy"
+OMARCHY_SHARE="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
+CURRENT_NAME_FILE="$OMARCHY_CONFIG/current/theme.name"
+
+slug_to_title() {
+  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$1"
+}
+
+theme_preview() {
+  local slug="$1"
+  local base=""
+
+  if [[ -d "$OMARCHY_CONFIG/themes/$slug" ]]; then
+    base="$OMARCHY_CONFIG/themes/$slug"
+  elif [[ -d "$OMARCHY_SHARE/themes/$slug" ]]; then
+    base="$OMARCHY_SHARE/themes/$slug"
+  fi
+
+  for name in preview.png preview.jpg preview.jpeg preview.webp preview.gif preview.bmp unlock.png; do
+    if [[ -n "$base" && -f "$base/$name" ]]; then
+      printf '%s\n' "$base/$name"
+      return
+    fi
+  done
+
+  if [[ -n "$base" && -d "$base/backgrounds" ]]; then
+    find "$base/backgrounds" -maxdepth 1 -type f \
+      \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' \) \
+      -print 2>/dev/null | sort | sed -n '1p'
+    return
+  fi
+
+  printf '\n'
+}
+
+list_themes() {
+  local current
+  current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+
+  {
+    find "$OMARCHY_CONFIG/themes" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null || true
+    find "$OMARCHY_SHARE/themes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
+  } | sort -u | while IFS= read -r slug; do
+    [[ -n "$slug" ]] || continue
+    printf '%s\t%s\t%s\t%s\n' \
+      "$slug" \
+      "$(slug_to_title "$slug")" \
+      "$(theme_preview "$slug")" \
+      "$([[ "$slug" == "$current" ]] && printf current || printf available)"
+  done
+}
+
+current_theme() {
+  local current
+  current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+  if [[ -n "$current" ]]; then
+    printf 'slug=%s\nname=%s\npreview=%s\n' "$current" "$(slug_to_title "$current")" "$(theme_preview "$current")"
+  else
+    printf 'slug=\nname=Unknown\npreview=\n'
+  fi
+}
+
+apply_theme() {
+  local slug="${1:-}"
+  local wallpaper="${2:-with-wallpaper}"
+  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug> [with-wallpaper|keep-wallpaper]" >&2; exit 2; }
+
+  if [[ "$wallpaper" == "keep-wallpaper" ]]; then
+    OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$slug"
+  else
+    omarchy-theme-set "$slug"
+  fi
+}
+
+case "${1:-list}" in
+  list) list_themes ;;
+  current) current_theme ;;
+  apply) apply_theme "${2:-}" "${3:-with-wallpaper}" ;;
+  *)
+    echo "usage: omd-settings-theme list|current|apply <theme-slug> [with-wallpaper|keep-wallpaper]" >&2
+    exit 2
+    ;;
+esac

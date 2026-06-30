@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
+
+terminal_run() {
+  local cmd="$*"
+  if command -v omarchy-launch-floating-terminal-with-presentation >/dev/null 2>&1; then
+    omarchy-launch-floating-terminal-with-presentation "$cmd"
+  elif command -v xdg-terminal-exec >/dev/null 2>&1; then
+    setsid xdg-terminal-exec --app-id=org.omd.windows-vm -e bash -lc "$cmd; printf '\nPress Enter to close...'; read -r _" >/dev/null 2>&1 &
+  elif command -v kitty >/dev/null 2>&1; then
+    setsid kitty --class org.omd.windows-vm --title "Windows VM" -e bash -lc "$cmd; printf '\nPress Enter to close...'; read -r _" >/dev/null 2>&1 &
+  else
+    echo "No supported terminal found" >&2
+    exit 1
+  fi
+}
+
+compose_value() {
+  local key="$1"
+  grep "$key:" "$COMPOSE_FILE" 2>/dev/null | sed -E 's/.*: "?(.*?)"?$/\1/' | head -n 1
+}
+
+status() {
+  local configured=false
+  local kvm=false
+  local docker_cli=false
+  local docker_running=false
+  local compose=false
+  local container="missing"
+  local web="http://127.0.0.1:8006"
+
+  [[ -f "$COMPOSE_FILE" ]] && configured=true
+  [[ -e /dev/kvm ]] && kvm=true
+  command -v docker >/dev/null 2>&1 && docker_cli=true
+  if [[ "$docker_cli" == true ]] && docker info >/dev/null 2>&1; then
+    docker_running=true
+  fi
+  if command -v docker-compose >/dev/null 2>&1 || docker compose version >/dev/null 2>&1; then
+    compose=true
+  fi
+
+  if [[ "$docker_cli" == true ]]; then
+    container="$(docker inspect --format='{{.State.Status}}' omarchy-windows 2>/dev/null || true)"
+    [[ -n "$container" ]] || container="missing"
+  fi
+
+  printf 'configured=%s\n' "$configured"
+  printf 'kvm=%s\n' "$kvm"
+  printf 'dockerCli=%s\n' "$docker_cli"
+  printf 'dockerRunning=%s\n' "$docker_running"
+  printf 'compose=%s\n' "$compose"
+  printf 'container=%s\n' "$container"
+  printf 'web=%s\n' "$web"
+  printf 'composeFile=%s\n' "$COMPOSE_FILE"
+  printf 'storageDir=%s\n' "$HOME/.windows"
+  printf 'sharedDir=%s\n' "$HOME/Windows"
+  printf 'ram=%s\n' "$(compose_value RAM_SIZE || true)"
+  printf 'cpu=%s\n' "$(compose_value CPU_CORES || true)"
+  printf 'disk=%s\n' "$(compose_value DISK_SIZE || true)"
+  printf 'user=%s\n' "$(compose_value USERNAME || true)"
+}
+
+case "${1:-status}" in
+  status)
+    status
+    ;;
+  install)
+    terminal_run "omarchy-windows-vm install"
+    ;;
+  launch)
+    terminal_run "omarchy-windows-vm launch"
+    ;;
+  launch-keepalive)
+    terminal_run "omarchy-windows-vm launch --keep-alive"
+    ;;
+  stop)
+    omarchy-windows-vm stop
+    ;;
+  remove)
+    terminal_run "omarchy-windows-vm remove"
+    ;;
+  web)
+    xdg-open "http://127.0.0.1:8006" >/dev/null 2>&1 &
+    ;;
+  *)
+    echo "usage: omd-settings-windows-vm status|install|launch|launch-keepalive|stop|remove|web" >&2
+    exit 2
+    ;;
+esac
