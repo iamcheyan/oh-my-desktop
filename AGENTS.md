@@ -189,6 +189,8 @@ symlink targets.
 │   ├── omd-clipboard-pick    Launch clipboard picker (walker + auto-paste)
 │   ├── omd-corners            Launch corners process
 │   ├── omd-wallpaper          Wallpaper picker/rotation helper
+│   ├── omd-settings-theme     Settings Center theme list/apply helper
+│   ├── omd-settings-windows-vm Settings Center Windows VM status/action helper
 │   └── omd-doctor             Runtime dependency and portability checker
 │
 ├── scripts/                  Helper scripts
@@ -243,6 +245,8 @@ symlink targets.
 - Module split plan: `docs/module-split-plan.md`
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
+- Settings center: `docs/settings-center.md`
+- Omarchy theme system: `docs/omarchy-theme-system.md`
 - Deployment/portability: `docs/deployment-portability.md`
 
 ## Editing

@@ -25,6 +25,35 @@ Layout              borderWidth, radius, panelPadding, rowHeight, buttonHeight
 When changing the global look, start in `TuiStyle.qml`. Feature files should
 compose these tokens instead of declaring their own palette.
 
+## Omarchy Theme Accent
+
+The global highlight color comes from the active Omarchy theme:
+
+```text
+~/.config/omarchy/current/theme/quickshell.json
+```
+
+`quickshell/services/OmarchyTheme.qml` watches that file and exposes:
+
+```text
+accent
+accentSoft
+accentSofter
+accentBorder
+accentActiveBorder
+background
+foreground
+```
+
+`TuiStyle.qml` consumes those values for `accent`, selected-row fills, active
+control borders, and shell/dialog borders. Settings Center also maps
+`cosmicAccent` and `cosmicAccentSoft` to these same tokens.
+
+Do not hard-code accent blues such as `#62d9ec` in feature pages. Use
+`TuiStyle.accent`, `TuiStyle.selection`, `TuiStyle.shellBorder`, or
+`OmarchyTheme.accentSoft` depending on whether the UI needs text, fill, outer
+border, or soft selected-state color.
+
 ## Shared Components
 
 Prefer these shared components for new UI:
