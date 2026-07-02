@@ -1212,8 +1212,9 @@ WindowDialog {
                 property var themes: []
                 property string currentSlug: ""
                 property string currentName: "Loading..."
-                property string currentPreview: ""
-                property bool switchWallpaper: true
+                property string currentAccent: root.cosmicAccent
+                property string currentBackground: root.cosmicButton
+                property string currentForeground: root.cosmicFg
                 property string applyingSlug: ""
 
                 function refresh() {
@@ -1225,8 +1226,7 @@ WindowDialog {
                     if (!slug || slug.length === 0 || applyingSlug.length > 0)
                         return;
                     applyingSlug = slug;
-                    const wallpaperArg = switchWallpaper ? "with-wallpaper" : "keep-wallpaper";
-                    themeApplyProc.command = ["bash", "-c", `$HOME/.config/omd/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}' ${wallpaperArg}`];
+                    themeApplyProc.command = ["bash", "-c", `$HOME/.config/omd/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}'`];
                     themeApplyProc.running = true;
                 }
             }
@@ -1237,42 +1237,75 @@ WindowDialog {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 14
+                    spacing: 18
 
                     Rectangle {
-                        Layout.preferredWidth: 210
-                        Layout.preferredHeight: 118
+                        Layout.preferredWidth: 260
+                        Layout.preferredHeight: 132
                         radius: root.cosmicRadius
-                        color: root.cosmicButton
+                        color: themeState.currentBackground || root.cosmicButton
+                        border.width: 1
+                        border.color: themeState.currentAccent || root.cosmicButtonBorder
                         clip: true
 
-                        Image {
-                            anchors.fill: parent
-                            source: root.fileUrl(themeState.currentPreview)
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            visible: source.toString().length > 0
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: 6
+                            color: themeState.currentAccent || root.cosmicAccent
                         }
 
-                        StyledText {
-                            anchors.centerIn: parent
-                            visible: themeState.currentPreview.length === 0
-                            text: "No preview"
-                            color: root.cosmicDim
-                            font.pixelSize: Appearance.font.pixelSize.small
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 22
+                            anchors.rightMargin: 16
+                            anchors.topMargin: 16
+                            anchors.bottomMargin: 16
+                            spacing: 12
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: themeState.currentName
+                                color: themeState.currentForeground || root.cosmicFg
+                                font.pixelSize: Appearance.font.pixelSize.normal
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Repeater {
+                                    model: [themeState.currentAccent || root.cosmicAccent, themeState.currentForeground || root.cosmicFg, themeState.currentBackground || "#000000"]
+                                    delegate: Rectangle {
+                                        required property string modelData
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 24
+                                        radius: 12
+                                        color: modelData
+                                        border.width: 1
+                                        border.color: root.cosmicButtonBorder
+                                    }
+                                }
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignBottom
+                                text: themeState.currentSlug
+                                color: themeState.currentForeground || root.cosmicDim
+                                opacity: 0.72
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                elide: Text.ElideRight
+                            }
                         }
                     }
 
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
-
-                        SettingsToggleRow {
-                            label: "Switch wallpaper with theme"
-                            description: "When disabled, theme colors change but the current wallpaper stays"
-                            checked: themeState.switchWallpaper
-                            onToggled: themeState.switchWallpaper = !themeState.switchWallpaper
-                        }
 
                         ButtonRow {
                             SettingsButton {
@@ -1285,6 +1318,14 @@ WindowDialog {
                                 iconName: "folder"
                                 onClicked: Quickshell.execDetached(["xdg-open", `${FileUtils.trimFileProtocol(Directories.config)}/omarchy/current/theme`])
                             }
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Theme previews are generated from colors.toml, so themes do not need screenshots."
+                            color: root.cosmicDim
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: Appearance.font.pixelSize.small
                         }
                     }
                 }
@@ -1305,54 +1346,87 @@ WindowDialog {
                             required property var modelData
 
                             width: Math.max(220, Math.floor((themeFlow.width - themeFlow.spacing) / 2))
-                            height: 148
+                            height: 134
                             radius: root.cosmicRoundRadius
-                            color: themeMouse.containsMouse ? root.cosmicCardHover : root.cosmicButton
+                            color: modelData.background || root.cosmicButton
                             border.width: modelData.current ? 2 : 1
                             border.color: modelData.current ? root.cosmicAccent : root.cosmicButtonBorder
                             clip: true
 
-                            Image {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                height: 92
-                                source: root.fileUrl(modelData.preview)
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                visible: source.toString().length > 0
+                            Rectangle {
+                                anchors.fill: parent
+                                color: themeMouse.containsMouse ? root.cosmicCardHover : "transparent"
+                                opacity: themeMouse.containsMouse ? 0.18 : 0
                             }
 
                             Rectangle {
                                 anchors.left: parent.left
-                                anchors.right: parent.right
                                 anchors.top: parent.top
-                                height: 92
-                                color: "#000000"
-                                opacity: 0.18
+                                anchors.bottom: parent.bottom
+                                width: 5
+                                color: modelData.accent || root.cosmicAccent
                             }
 
-                            RowLayout {
+                            ColumnLayout {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
+                                anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                anchors.margins: 12
-                                height: 34
-                                spacing: 8
+                                anchors.leftMargin: 18
+                                anchors.rightMargin: 14
+                                anchors.topMargin: 14
+                                anchors.bottomMargin: 12
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: modelData.name
+                                        color: modelData.foreground || root.cosmicFg
+                                        font.pixelSize: Appearance.font.pixelSize.normal
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                    }
+
+                                    SettingsStatusPill {
+                                        visible: modelData.current || themeState.applyingSlug === modelData.slug
+                                        label: themeState.applyingSlug === modelData.slug ? "Applying" : "Current"
+                                        active: true
+                                    }
+                                }
 
                                 StyledText {
                                     Layout.fillWidth: true
-                                    text: modelData.name
-                                    color: root.cosmicFg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    font.weight: Font.Medium
+                                    text: modelData.slug
+                                    color: modelData.foreground || root.cosmicDim
+                                    opacity: 0.62
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
                                     elide: Text.ElideRight
                                 }
 
-                                SettingsStatusPill {
-                                    visible: modelData.current || themeState.applyingSlug === modelData.slug
-                                    label: themeState.applyingSlug === modelData.slug ? "Applying" : "Current"
-                                    active: true
+                                Item {
+                                    Layout.fillHeight: true
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Repeater {
+                                        model: [modelData.accent || root.cosmicAccent, modelData.foreground || root.cosmicFg, modelData.background || "#000000"]
+                                        delegate: Rectangle {
+                                            required property string modelData
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 20
+                                            radius: 10
+                                            color: modelData
+                                            border.width: 1
+                                            border.color: root.cosmicButtonBorder
+                                        }
+                                    }
                                 }
                             }
 
@@ -1383,7 +1457,10 @@ WindowDialog {
                                 slug: parts[0] || "",
                                 name: parts[1] || parts[0] || "",
                                 preview: parts[2] || "",
-                                current: (parts[3] || "") === "current"
+                                current: (parts[3] || "") === "current",
+                                accent: parts[4] || "",
+                                background: parts[5] || "",
+                                foreground: parts[6] || ""
                             });
                         }
                         themeState.themes = entries;
@@ -1401,7 +1478,9 @@ WindowDialog {
                         const data = root.parseKeyValue(themeCurrentCollector2.text);
                         themeState.currentSlug = data.slug || "";
                         themeState.currentName = data.name || "Unknown";
-                        themeState.currentPreview = data.preview || "";
+                        themeState.currentAccent = data.accent || root.cosmicAccent;
+                        themeState.currentBackground = data.background || root.cosmicButton;
+                        themeState.currentForeground = data.foreground || root.cosmicFg;
                     }
                 }
             }

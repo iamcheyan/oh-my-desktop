@@ -122,27 +122,26 @@ share/bin/omarchy-theme-set
 share/bin/omarchy-theme-bg-next
 ```
 
-Theme list rows are tab-separated:
+Theme list rows are tab-separated. `preview-path` is retained for compatibility
+but intentionally empty; the UI does not load preview images.
 
 ```text
-slug<TAB>display-name<TAB>preview-path<TAB>current|available
+slug<TAB>display-name<TAB>preview-path<TAB>current|available<TAB>accent<TAB>background<TAB>foreground
 ```
 
-Preview selection order:
-
-```text
-preview.png / preview.jpg / preview.jpeg / preview.webp / preview.gif / preview.bmp
-first image in backgrounds/
-```
+Settings Center renders theme previews from the theme name plus the theme
+`accent`, `background`, and `foreground` color swatches. Do not add screenshot
+or wallpaper preview dependencies to the Themes page.
 
 Applying a theme calls:
 
 ```sh
-~/.config/omd/bin/omd-settings-theme apply <theme-slug> with-wallpaper
+~/.config/omd/bin/omd-settings-theme apply <theme-slug>
 ```
 
-If the user disables wallpaper switching, the helper calls `omarchy-theme-set`
-with `OMARCHY_THEME_SKIP_BACKGROUND=1`.
+Theme switching never changes wallpaper. The helper always calls
+`omarchy-theme-set` with `OMARCHY_THEME_SKIP_BACKGROUND=1`. Wallpaper selection
+is owned by the Appearance page and `bin/omd-wallpaper`.
 
 ## Windows VM Page
 

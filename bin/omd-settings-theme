@@ -10,7 +10,14 @@ slug_to_title() {
 }
 
 theme_preview() {
+  # Theme previews are generated from colors.toml in Settings Center. Keep this
+  # field empty for backwards-compatible tab-separated output.
+  printf '\n'
+}
+
+theme_color() {
   local slug="$1"
+  local key="$2"
   local base=""
 
   if [[ -d "$OMARCHY_CONFIG/themes/$slug" ]]; then
@@ -19,17 +26,15 @@ theme_preview() {
     base="$OMARCHY_SHARE/themes/$slug"
   fi
 
-  for name in preview.png preview.jpg preview.jpeg preview.webp preview.gif preview.bmp unlock.png; do
-    if [[ -n "$base" && -f "$base/$name" ]]; then
-      printf '%s\n' "$base/$name"
-      return
-    fi
-  done
-
-  if [[ -n "$base" && -d "$base/backgrounds" ]]; then
-    find "$base/backgrounds" -maxdepth 1 -type f \
-      \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.bmp' \) \
-      -print 2>/dev/null | sort | sed -n '1p'
+  if [[ -n "$base" && -f "$base/colors.toml" ]]; then
+    awk -F= -v key="$key" '
+      $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+        value = $2
+        gsub(/[[:space:]"\047]/, "", value)
+        print value
+        exit
+      }
+    ' "$base/colors.toml"
     return
   fi
 
@@ -45,11 +50,14 @@ list_themes() {
     find "$OMARCHY_SHARE/themes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
   } | sort -u | while IFS= read -r slug; do
     [[ -n "$slug" ]] || continue
-    printf '%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$slug" \
       "$(slug_to_title "$slug")" \
       "$(theme_preview "$slug")" \
-      "$([[ "$slug" == "$current" ]] && printf current || printf available)"
+      "$([[ "$slug" == "$current" ]] && printf current || printf available)" \
+      "$(theme_color "$slug" accent)" \
+      "$(theme_color "$slug" background)" \
+      "$(theme_color "$slug" foreground)"
   done
 }
 
@@ -57,30 +65,31 @@ current_theme() {
   local current
   current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
   if [[ -n "$current" ]]; then
-    printf 'slug=%s\nname=%s\npreview=%s\n' "$current" "$(slug_to_title "$current")" "$(theme_preview "$current")"
+    printf 'slug=%s\nname=%s\npreview=%s\naccent=%s\nbackground=%s\nforeground=%s\n' \
+      "$current" \
+      "$(slug_to_title "$current")" \
+      "$(theme_preview "$current")" \
+      "$(theme_color "$current" accent)" \
+      "$(theme_color "$current" background)" \
+      "$(theme_color "$current" foreground)"
   else
-    printf 'slug=\nname=Unknown\npreview=\n'
+    printf 'slug=\nname=Unknown\npreview=\naccent=\nbackground=\nforeground=\n'
   fi
 }
 
 apply_theme() {
   local slug="${1:-}"
-  local wallpaper="${2:-with-wallpaper}"
-  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug> [with-wallpaper|keep-wallpaper]" >&2; exit 2; }
+  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug>" >&2; exit 2; }
 
-  if [[ "$wallpaper" == "keep-wallpaper" ]]; then
-    OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$slug"
-  else
-    omarchy-theme-set "$slug"
-  fi
+  OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$slug"
 }
 
 case "${1:-list}" in
   list) list_themes ;;
   current) current_theme ;;
-  apply) apply_theme "${2:-}" "${3:-with-wallpaper}" ;;
+  apply) apply_theme "${2:-}" ;;
   *)
-    echo "usage: omd-settings-theme list|current|apply <theme-slug> [with-wallpaper|keep-wallpaper]" >&2
+    echo "usage: omd-settings-theme list|current|apply <theme-slug>" >&2
     exit 2
     ;;
 esac
