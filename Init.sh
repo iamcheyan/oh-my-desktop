@@ -12,6 +12,10 @@ declare -a LINKS=(
   "$HOME/.config/quickshell|$REPO/quickshell"
   "$HOME/.config/omarchy|$REPO/omarchy"
   "$HOME/.config/walker|$REPO/omarchy/walker"
+  "$HOME/.config/foot|$REPO/omarchy/foot"
+  "$HOME/.config/kitty|$REPO/omarchy/kitty"
+  "$HOME/.config/alacritty|$REPO/omarchy/alacritty"
+  "$HOME/.config/ghostty|$REPO/omarchy/ghostty"
   "$HOME/.config/omd|$REPO"
   "$HOME/.local/share/omarchy|$REPO/share"
 )

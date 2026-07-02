@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:summary=Apply current Omarchy theme colors to running Alacritty terminals
+# omarchy:hidden=true
+
+alacritty_theme=~/.config/omarchy/current/theme/alacritty.toml
+
+if [[ ! -f $alacritty_theme ]] || ! pgrep -x alacritty >/dev/null; then
+  exit 0
+fi
+
+alacritty_osc=$(awk '
+  function strip(value) {
+    gsub(/[",]/, "", value)
+    return value
+  }
+  function osc_color(code, value) {
+    value = strip(value)
+    if (value != "") printf "\033]%s;%s\007", code, value
+  }
+  /^\[/ {
+    section = $0
+    gsub(/[\[\]]/, "", section)
+    next
+  }
+  /^[[:space:]]*background[[:space:]]*=/ {
+    if (section == "colors.primary") osc_color("11", $3)
+    else if (section == "colors.selection") osc_color("17", $3)
+  }
+  /^[[:space:]]*foreground[[:space:]]*=/ {
+    if (section == "colors.primary") osc_color("10", $3)
+    else if (section == "colors.selection") osc_color("19", $3)
+  }
+  /^[[:space:]]*text[[:space:]]*=/ {
+    if (section == "colors.selection") osc_color("19", $3)
+  }
+  /^[[:space:]]*cursor[[:space:]]*=/ {
+    if (section == "colors.cursor") osc_color("12", $3)
+  }
+  section == "colors.normal" {
+    if ($1 == "black") osc_color("4;0", $3)
+    else if ($1 == "red") osc_color("4;1", $3)
+    else if ($1 == "green") osc_color("4;2", $3)
+    else if ($1 == "yellow") osc_color("4;3", $3)
+    else if ($1 == "blue") osc_color("4;4", $3)
+    else if ($1 == "magenta") osc_color("4;5", $3)
+    else if ($1 == "cyan") osc_color("4;6", $3)
+    else if ($1 == "white") osc_color("4;7", $3)
+  }
+  section == "colors.bright" {
+    if ($1 == "black") osc_color("4;8", $3)
+    else if ($1 == "red") osc_color("4;9", $3)
+    else if ($1 == "green") osc_color("4;10", $3)
+    else if ($1 == "yellow") osc_color("4;11", $3)
+    else if ($1 == "blue") osc_color("4;12", $3)
+    else if ($1 == "magenta") osc_color("4;13", $3)
+    else if ($1 == "cyan") osc_color("4;14", $3)
+    else if ($1 == "white") osc_color("4;15", $3)
+  }
+' "$alacritty_theme")
+
+for alacritty_pid in $(pgrep -x alacritty); do
+  for child_pid in $(pgrep -P "$alacritty_pid"); do
+    tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null)
+    [[ $tty == /dev/pts/* ]] && printf '%b' "$alacritty_osc" >"$tty"
+  done
+done

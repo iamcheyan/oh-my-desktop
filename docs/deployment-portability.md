@@ -9,6 +9,9 @@ layout, but some runtime assets and system packages are intentionally external.
 - Quickshell UI code and split app roots under `quickshell/` and `apps/`
 - Omarchy/Hyprland user configuration under `omarchy/`
 - Walker configuration under `omarchy/walker/`
+- Terminal configuration under `omarchy/foot`, `omarchy/kitty`,
+  `omarchy/alacritty`, and `omarchy/ghostty`
+- Neovim theme drop-in under `omarchy/nvim`
 - OMD launchers under `bin/`
 - Omarchy helper scripts under `share/bin/`
 - Built-in themes and bundled theme wallpapers under `share/themes/` and
@@ -62,6 +65,70 @@ Core dependencies include:
 - `ydotool` for direct auto-paste; without it, voice text still lands in the
   clipboard
 - `kdialog` or `zenity` for wallpaper image/folder selection
+- `nvim` and Lazy.nvim/LazyVim for the optional Neovim theme integration
+
+## Terminal Theme Behavior
+
+Omarchy themes generate terminal-specific files in:
+
+```text
+~/.config/omarchy/current/theme/foot.ini
+~/.config/omarchy/current/theme/kitty.conf
+~/.config/omarchy/current/theme/alacritty.toml
+~/.config/omarchy/current/theme/ghostty.conf
+```
+
+OMD terminal configs import those files:
+
+```text
+~/.config/foot/foot.ini
+~/.config/kitty/kitty.conf
+~/.config/alacritty/alacritty.toml
+~/.config/ghostty/config
+```
+
+`omarchy-theme-set` swaps the active theme directory, runs
+`omarchy-restart-terminal`, then applies Foot and Alacritty live colors through
+OSC escape sequences. Kitty is signaled with `SIGUSR1`, Ghostty with `SIGUSR2`,
+and Alacritty also reloads new windows through the imported theme file.
+
+For this to work after cloning on a new machine, `Init.sh` must own the terminal
+config symlinks. Existing real config directories are backed up before linking.
+
+## Neovim Theme Behavior
+
+Omarchy themes already ship a Lazy.nvim-compatible Neovim theme spec:
+
+```text
+~/.config/omarchy/current/theme/neovim.lua
+```
+
+That file returns Lazy plugin specs. A typical theme file installs the theme
+plugin and sets the `LazyVim/LazyVim` `colorscheme` option.
+
+OMD does not symlink or replace the whole `~/.config/nvim` directory. Instead,
+it provides a single drop-in plugin spec:
+
+```text
+omarchy/nvim/lua/plugins/zz-omarchy-theme.lua
+```
+
+Connect it to an existing LazyVim config with:
+
+```sh
+~/.config/omd/share/bin/omarchy-nvim-setup
+```
+
+The setup script links the drop-in into:
+
+```text
+~/.config/nvim/lua/plugins/zz-omarchy-theme.lua
+```
+
+On startup, Lazy.nvim reads the active Omarchy theme spec. After switching
+themes, `omarchy-theme-set` calls `omarchy-theme-set-neovim`, which best-effort
+sends `:OmarchyThemeReload` to running Neovim server sockets. If the newly
+selected theme plugin is not installed yet, run `:Lazy sync` or restart Neovim.
 
 ## Wallpaper Behavior
 

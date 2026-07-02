@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Ask running Neovim clients to reload the active Omarchy colorscheme
+
+set -euo pipefail
+
+command -v nvim >/dev/null || exit 0
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+declare -a sockets=()
+
+if [[ -d "$runtime_dir" ]]; then
+  while IFS= read -r socket; do
+    sockets+=("$socket")
+  done < <(find "$runtime_dir" -type s -path '*nvim*' 2>/dev/null)
+fi
+
+if [[ ${#sockets[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+for socket in "${sockets[@]}"; do
+  nvim --server "$socket" --remote-send '<Esc>:silent! OmarchyThemeReload<CR>' >/dev/null 2>&1 || true
+done

@@ -109,6 +109,7 @@ symlink targets.
 │   ├── foot/                  Foot terminal config
 │   ├── ghostty/               Ghostty config
 │   ├── kitty/                 Kitty config
+│   ├── nvim/                  Neovim Omarchy theme drop-in for LazyVim
 │   ├── chromium/              Chromium config
 │   ├── fastfetch/             Fastfetch config
 │   ├── fcitx5/                Fcitx5 input method
@@ -125,6 +126,7 @@ symlink targets.
 ├── share/                    Omarchy framework (→ ~/.local/share/omarchy)
 │   ├── bin/                   306 omarchy-* command scripts
 │   │   ├── omarchy-theme-*      Theme management (set/list/install/switcher)
+│   │   ├── omarchy-nvim-setup   Link OMD's Neovim theme drop-in into LazyVim
 │   │   ├── omarchy-hyprland-*   Hyprland control (toggles, monitors, windows)
 │   │   ├── omarchy-launch-*     Application launchers
 │   │   ├── omarchy-install-*    Package installers
@@ -213,6 +215,10 @@ symlink targets.
 ~/.config/quickshell     -> ~/development/OMD/quickshell
 ~/.config/omarchy        -> ~/development/OMD/omarchy
 ~/.config/walker         -> ~/development/OMD/omarchy/walker
+~/.config/foot           -> ~/development/OMD/omarchy/foot
+~/.config/kitty          -> ~/development/OMD/omarchy/kitty
+~/.config/alacritty      -> ~/development/OMD/omarchy/alacritty
+~/.config/ghostty        -> ~/development/OMD/omarchy/ghostty
 ~/.config/omd            -> ~/development/OMD
 ~/.local/share/omarchy   -> ~/development/OMD/share
 ```
@@ -237,6 +243,14 @@ symlink targets.
   which is managed by `omarchy/walker`.
 - Themes are stored in `~/.local/share/omarchy/themes/`. The active theme is
   copied to `~/.config/omarchy/current/` by `omarchy-theme-set`.
+- Terminal configs are managed by OMD symlinks under `~/.config/{foot,kitty,alacritty,ghostty}`.
+  They import files from `~/.config/omarchy/current/theme/`, so Omarchy theme
+  changes apply to new terminal windows and to supported live-reload paths.
+- Neovim theme integration is opt-in through
+  `~/.config/omd/share/bin/omarchy-nvim-setup`. It links OMD's
+  LazyVim drop-in into the existing `~/.config/nvim/lua/plugins/` directory so
+  Neovim reads `~/.config/omarchy/current/theme/neovim.lua` without OMD taking
+  over the whole Neovim config.
 - `omarchy-refresh-config` resets a config file by copying from
   `~/.local/share/omarchy/config/` to `~/.config/`.
 

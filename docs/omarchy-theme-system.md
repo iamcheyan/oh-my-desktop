@@ -29,6 +29,10 @@ Built-in themes:
 share/themes/<theme-name>/
 ```
 
+`share/themes/oceanblack/` is an OMD-added theme derived from the user's
+preferred Neovim `oceanblack` colorscheme. It intentionally has no wallpaper or
+image preview; Settings Center displays it with generated color swatches.
+
 User themes:
 
 ```text
@@ -163,7 +167,7 @@ Then it:
 11. Applies app-specific theme integrations:
 
     ```text
-    foot, GNOME, Qt/KDE, browser, VS Code/Codium/Cursor, Obsidian, keyboard
+    foot, alacritty, Neovim, GNOME, Qt/KDE, browser, VS Code/Codium/Cursor, Obsidian, keyboard
     ```
 
 12. Runs the hook:
@@ -252,6 +256,54 @@ path = ~/.config/omarchy/current/background
 So theme switching changes hyprlock colors through `hyprlock.conf`, and wallpaper
 changes are reflected through the `current/background` symlink.
 
+## Neovim Integration
+
+Each Omarchy theme can provide:
+
+```text
+share/themes/<theme-name>/neovim.lua
+```
+
+When a theme is applied, that file is copied into:
+
+```text
+~/.config/omarchy/current/theme/neovim.lua
+```
+
+The file is a Lazy.nvim plugin spec, not a direct Neovim colorscheme command.
+For example, it usually returns:
+
+```lua
+return {
+  { "theme/plugin.nvim", priority = 1000 },
+  {
+    "LazyVim/LazyVim",
+    opts = {
+      colorscheme = "theme-name",
+    },
+  },
+}
+```
+
+OMD provides:
+
+```text
+omarchy/nvim/lua/plugins/zz-omarchy-theme.lua
+share/bin/omarchy-nvim-setup
+share/bin/omarchy-theme-set-neovim
+```
+
+`omarchy-nvim-setup` links the drop-in into an existing LazyVim config at:
+
+```text
+~/.config/nvim/lua/plugins/zz-omarchy-theme.lua
+```
+
+This keeps a user's Neovim config owned by their normal dotfiles while letting
+Lazy.nvim load the active Omarchy theme. `omarchy-theme-set-neovim` then
+best-effort sends `:OmarchyThemeReload` to running Neovim server sockets after
+theme changes. New Neovim windows always read the current theme snapshot.
+
 ## Wallpaper Integration
 
 `share/bin/omarchy-theme-bg-set`:
@@ -312,11 +364,16 @@ page. Restarting `omd-bar` closes the Settings Center itself. If the user wants
 to reload Quickshell after applying a theme, expose that as a separate explicit
 action such as the existing "Reload Shell" button.
 
-If the user wants to keep the current wallpaper while changing theme, call:
+The OMD Settings Center always keeps the current wallpaper while changing
+theme:
 
 ```sh
 OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "<theme-name>"
 ```
+
+Do not expose a "switch wallpaper with theme" option in Settings Center.
+Wallpaper selection is handled separately by `bin/omd-wallpaper` on the
+Appearance page.
 
 ## Settings Center Integration Plan
 

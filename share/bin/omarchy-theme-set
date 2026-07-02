@@ -63,6 +63,8 @@ omarchy-restart-helix
 
 # Change app-specific themes
 omarchy-theme-set-foot
+omarchy-theme-set-alacritty
+omarchy-theme-set-neovim
 omarchy-theme-set-gnome
 omarchy-theme-set-qt
 omarchy-theme-set-browser

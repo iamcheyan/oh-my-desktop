@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Connect an existing LazyVim/Neovim config to the active Omarchy theme
+
+set -euo pipefail
+
+source_file="$HOME/.config/omd/omarchy/nvim/lua/plugins/zz-omarchy-theme.lua"
+target_dir="$HOME/.config/nvim/lua/plugins"
+target_file="$target_dir/zz-omarchy-theme.lua"
+
+if [[ ! -f "$source_file" ]]; then
+  echo "Missing OMD Neovim theme spec: $source_file" >&2
+  exit 1
+fi
+
+mkdir -p "$target_dir"
+
+if [[ -L "$target_file" && "$(readlink -f "$target_file")" == "$(readlink -f "$source_file")" ]]; then
+  echo "OK: $target_file already links to OMD"
+  exit 0
+fi
+
+if [[ -e "$target_file" || -L "$target_file" ]]; then
+  backup="$target_file.bak.$(date +%Y%m%d_%H%M%S)"
+  mv "$target_file" "$backup"
+  echo "Backed up existing file to $backup"
+fi
+
+ln -s "$source_file" "$target_file"
+echo "Linked $target_file -> $source_file"
+echo "Restart Neovim or run :Lazy sync, then :OmarchyThemeReload."
