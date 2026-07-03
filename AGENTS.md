@@ -191,6 +191,7 @@ symlink targets.
 │   ├── omd-clipboard-pick    Launch clipboard picker (walker + auto-paste)
 │   ├── omd-corners            Launch corners process
 │   ├── omd-wallpaper          Wallpaper picker/rotation helper
+│   ├── omd-session            Workspace snapshot save/restore helper
 │   ├── omd-settings-theme     Settings Center theme list/apply helper
 │   ├── omd-settings-windows-vm Settings Center Windows VM status/action helper
 │   └── omd-doctor             Runtime dependency and portability checker
@@ -261,6 +262,7 @@ symlink targets.
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
 - Omarchy theme system: `docs/omarchy-theme-system.md`
+- Session persistence: `docs/session-persistence.md`
 - Deployment/portability: `docs/deployment-portability.md`
 
 ## Editing

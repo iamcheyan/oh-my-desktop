@@ -24,6 +24,7 @@ QtObject {
         "util:bluetooth": { component: Qt.createComponent("modules/BluetoothButton.qml"), description: qsTr("Bluetooth dialog") },
         "util:wifi": { component: Qt.createComponent("modules/WifiButton.qml"), description: qsTr("Wi-Fi dialog") },
         "util:clipboard": { component: Qt.createComponent("modules/ClipboardButton.qml"), description: qsTr("Clipboard dialog") },
+        "util:session": { component: Qt.createComponent("modules/SessionButton.qml"), description: qsTr("Workspace session snapshot") },
         "util:screenshot": { component: Qt.createComponent("modules/ScreenshotButton.qml"), description: qsTr("Screenshot tool") },
         "util:colorpicker": { component: Qt.createComponent("modules/ColorPickerButton.qml"), description: qsTr("Color picker") },
         "util:mic": { component: Qt.createComponent("modules/MicButton.qml"), description: qsTr("Microphone mute toggle") },
