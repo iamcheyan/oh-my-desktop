@@ -17,11 +17,14 @@ Item {
 
     property bool hasSnapshot: false
     property int snapshotCount: 0
+    property bool canvasEmpty: true
     readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
 
     function refreshStatus() {
         statusProc.running = false;
         statusProc.running = true;
+        clientCountProc.running = false;
+        clientCountProc.running = true;
     }
 
     Component.onCompleted: refreshStatus()
@@ -59,6 +62,23 @@ Item {
         }
     }
 
+    Process {
+        id: clientCountProc
+        command: ["bash", "-c", "hyprctl -j clients | jq '[.[] | select((.hidden // false) | not)] | length'"]
+        running: false
+        stdout: StdioCollector {
+            id: clientCountCollector
+            onStreamFinished: {
+                try {
+                    const n = parseInt(clientCountCollector.text.trim()) || 0;
+                    root.canvasEmpty = n === 0;
+                } catch (e) {
+                    root.canvasEmpty = false;
+                }
+            }
+        }
+    }
+
     RippleButton {
         id: sessionButton
         anchors.centerIn: parent
@@ -75,7 +95,7 @@ Item {
     BarNerdIcon {
         anchors.centerIn: sessionButton
         text: NerdIconMap.workspaceSnapshot
-        color: root.hasSnapshot ? TuiStyle.accent : Appearance.colors.colBarText
+        color: root.canvasEmpty && root.hasSnapshot ? TuiStyle.accent : Appearance.colors.colBarText
     }
 
     Loader {
@@ -92,6 +112,7 @@ Item {
         sourceComponent: SessionContextMenu {
             hasSnapshot: root.hasSnapshot
             snapshotCount: root.snapshotCount
+            canvasEmpty: root.canvasEmpty
             sessionCommand: root.omdSession
             Component.onCompleted: this.open()
             anchor {
