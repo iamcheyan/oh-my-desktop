@@ -281,21 +281,35 @@ def restore():
         return 1
     data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
     known = {client.get("address") for client in run_json("hyprctl", "-j", "clients")}
-    restored = 0
+
+    # Group clients by workspace so we can switch to each workspace before
+    # launching its windows. This lets Hyprland place new windows on the
+    # correct workspace naturally, instead of all piling onto the active one.
+    groups = {}
     for record in data.get("clients", []):
-        argv = record.get("command", {}).get("argv") or []
-        if not argv:
-            continue
-        cwd = record.get("command", {}).get("cwd") or None
-        try:
-            subprocess.Popen(argv, cwd=cwd if cwd and Path(cwd).is_dir() else None, start_new_session=True)
-        except Exception as err:
-            print(f"Failed to launch {shlex.join(argv)}: {err}", file=sys.stderr)
-            continue
-        client = wait_for_client(record, known)
-        if client:
-            place_client(client, record)
-            restored += 1
+        wsid = (record.get("workspace") or {}).get("id", 0)
+        groups.setdefault(wsid, []).append(record)
+
+    restored = 0
+    for wsid, records in groups.items():
+        # Switch to the target workspace before launching its windows.
+        if isinstance(wsid, int) and wsid > 0:
+            hypr("dispatch", "workspace", str(wsid))
+            time.sleep(0.15)
+        for record in records:
+            argv = record.get("command", {}).get("argv") or []
+            if not argv:
+                continue
+            cwd = record.get("command", {}).get("cwd") or None
+            try:
+                subprocess.Popen(argv, cwd=cwd if cwd and Path(cwd).is_dir() else None, start_new_session=True)
+            except Exception as err:
+                print(f"Failed to launch {shlex.join(argv)}: {err}", file=sys.stderr)
+                continue
+            client = wait_for_client(record, known)
+            if client:
+                place_client(client, record)
+                restored += 1
     print(json.dumps({"restored": restored, "count": len(data.get("clients", []))}))
     return 0
 
