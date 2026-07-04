@@ -54,6 +54,7 @@ WindowDialog {
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery" },
         { key: "osd", icon: "onscreen_text", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
         { key: "autostart", icon: "rocket_launch", title: "Autostart", keywords: "startup boot login launch autostart xdg desktop" },
+        { key: "windowrules", icon: "window", title: "Window Rules", keywords: "window rule float opacity workspace class app" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
@@ -381,6 +382,7 @@ WindowDialog {
                                 if (root.currentPage === "power") return powerPage;
                                 if (root.currentPage === "osd") return osdPage;
                                 if (root.currentPage === "autostart") return autostartPage;
+                                if (root.currentPage === "windowrules") return windowRulesPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
@@ -3099,6 +3101,250 @@ WindowDialog {
                 interval: 500
                 repeat: false
                 onTriggered: autostartPage.refreshAutostart()
+            }
+        }
+    }
+
+    Component {
+        id: windowRulesPage
+        PageBody {
+            readonly property string rulesFile: `${FileUtils.trimFileProtocol(Directories.config)}/omarchy/hypr/window_rules.lua`
+            property var rules: []
+
+            Component.onCompleted: refreshRules()
+
+            function refreshRules() {
+                rulesProc.command = ["bash", "-c", "cat \"" + rulesFile + "\" 2>/dev/null || echo ''"]
+                rulesProc.running = true
+            }
+
+            Process {
+                id: rulesProc
+                running: false
+                stdout: StdioCollector {
+                    id: rulesCollector
+                    onStreamFinished: {
+                        const content = rulesCollector.text
+                        const entries = []
+                        // Parse lines like: o.window("class", { float = true })
+                        const regex = /o\.window\(\s*["']([^"']+)["']\s*,\s*\{([^}]*)\}\s*\)/g
+                        let match
+                        while ((match = regex.exec(content)) !== null) {
+                            entries.push({
+                                class: match[1],
+                                rules: match[2].trim(),
+                            })
+                        }
+                        windowRulesPage.rules = entries
+                    }
+                }
+            }
+
+            function saveRules() {
+                let content = "-- Window rules managed by OMD Settings Center\n-- Do not edit manually\n\n"
+                for (const rule of windowRulesPage.rules) {
+                    content += `o.window("${rule.class}", { ${rule.rules} })\n`
+                }
+                writeProc.command = ["bash", "-c", `cat > "${windowRulesPage.rulesFile}" << 'ENDRULES'\n${content}\nENDRULES`]
+                writeProc.running = true
+            }
+
+            Process {
+                id: writeProc
+                running: false
+                onExited: {
+                    // Reload Hyprland config
+                    Quickshell.execDetached(["hyprctl", "reload"])
+                }
+            }
+
+            SettingsCard {
+                title: "Window Rules"
+                subtitle: `${windowRulesPage.rules.length} rule${windowRulesPage.rules.length === 1 ? "" : "s"}`
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "Define per-application window rules. Rules are written to omarchy/hypr/window_rules.lua and applied via hyprctl reload."
+                    color: root.cosmicDim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.Wrap
+                }
+
+                Repeater {
+                    model: windowRulesPage.rules
+                    delegate: Rectangle {
+                        id: ruleDelegate
+                        required property var modelData
+                        required property int index
+                        readonly property var rule: modelData
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        radius: root.cosmicRadius
+                        color: ruleMouse.containsMouse ? root.cosmicCardHover : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            MaterialSymbol {
+                                text: "window"
+                                iconSize: 18
+                                color: root.cosmicMuted
+                                Layout.preferredWidth: 22
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: ruleDelegate.rule.class
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.Medium
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: ruleDelegate.rule.rules
+                                    color: root.cosmicDim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Delete button
+                            Rectangle {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 28
+                                radius: root.cosmicRadius
+                                color: delMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "delete"
+                                    iconSize: 15
+                                    color: "#f07070"
+                                }
+
+                                MouseArea {
+                                    id: delMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        windowRulesPage.rules.splice(ruleDelegate.index, 1)
+                                        windowRulesPage.rules = windowRulesPage.rules.slice(0)
+                                        windowRulesPage.saveRules()
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: ruleMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    visible: windowRulesPage.rules.length === 0
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "No window rules defined. Add one below."
+                        color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.small
+                    }
+                }
+            }
+
+            // ── Add New Rule ─────────────────────────────────────────────
+            SettingsCard {
+                title: "Add Rule"
+                subtitle: "Define a new window rule"
+
+                property string newClass: ""
+                property string newRules: ""
+
+                SettingsTextFieldRow {
+                    label: "Application class"
+                    description: "Window class to match (e.g. firefox, kitty, org.mozilla.firefox)"
+                    text: parent.newClass
+                    onTextEdited: (v) => parent.newClass = v
+                    placeholder: "class name"
+                }
+
+                SettingsTextFieldRow {
+                    label: "Rules"
+                    description: "Lua table fields (e.g. float = true, opacity = 0.9)"
+                    text: parent.newRules
+                    onTextEdited: (v) => parent.newRules = v
+                    placeholder: "float = true"
+                    fieldWidth: 280
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Add Rule"
+                        iconName: "add"
+                        enabledState: parent.newClass.length > 0
+                        onClicked: {
+                            if (parent.newClass.length === 0) return
+                            windowRulesPage.rules.push({
+                                class: parent.newClass,
+                                rules: parent.newRules || "float = true",
+                            })
+                            windowRulesPage.rules = windowRulesPage.rules.slice(0)
+                            windowRulesPage.saveRules()
+                            parent.newClass = ""
+                            parent.newRules = ""
+                        }
+                    }
+                    SettingsButton {
+                        label: "Refresh"
+                        iconName: "refresh"
+                        onClicked: windowRulesPage.refreshRules()
+                    }
+                }
+            }
+
+            // ── Common Rules Quick Add ───────────────────────────────────
+            SettingsCard {
+                title: "Quick Add"
+                subtitle: "Common window rule presets"
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Float Terminal"
+                        iconName: "picture_in_picture"
+                        onClicked: {
+                            windowRulesPage.rules.push({class: "kitty", rules: "float = true"})
+                            windowRulesPage.rules = windowRulesPage.rules.slice(0)
+                            windowRulesPage.saveRules()
+                        }
+                    }
+                    SettingsButton {
+                        label: "Float Firefox"
+                        iconName: "picture_in_picture"
+                        onClicked: {
+                            windowRulesPage.rules.push({class: "org.mozilla.firefox", rules: "float = true"})
+                            windowRulesPage.rules = windowRulesPage.rules.slice(0)
+                            windowRulesPage.saveRules()
+                        }
+                    }
+                }
             }
         }
     }
