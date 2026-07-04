@@ -119,6 +119,14 @@ Item {
         : (root.monitorGroups.length * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom))
             + Math.max(0, root.monitorGroups.length - 1) * root.monitorSectionGap
             + Math.max(0, root.groupedGridRows - root.monitorGroups.length) * root.workspaceSpacing
+    readonly property real maxWorkspaceAspect: {
+        if (root.compactMode || root.monitorGroups.length === 0)
+            return screenH / screenW;
+        let aspect = screenH / screenW;
+        for (let i = 0; i < root.monitorGroups.length; ++i)
+            aspect = Math.max(aspect, root.monitorAspect(root.monitorGroups[i].key));
+        return aspect;
+    }
 
     // How big would each thumbnail be if we fill width vs height?
     // Workspaces keep the real screen aspect ratio (screenW : screenH).
@@ -131,7 +139,7 @@ Item {
 
     // Pick the smaller so the aspect ratio is preserved — thumbnails shrink
     // when there are many workspaces, grow when there are few.
-    readonly property real workspaceImplicitWidth: Math.floor(Math.min(thumbByWidth, thumbByHeight * (screenW / screenH)))
+    readonly property real workspaceImplicitWidth: Math.floor(Math.min(thumbByWidth, thumbByHeight / maxWorkspaceAspect))
     readonly property real workspaceImplicitHeight: Math.floor(workspaceImplicitWidth * (screenH / screenW))
 
     property real scale: root.compactMode
@@ -191,6 +199,48 @@ Item {
         return Math.max(1, Math.min(root.groupLength(group), root.overviewGridColumns));
     }
 
+    function monitorDataForName(monitorName) {
+        return HyprlandData.monitors.find(mon => (mon.name ?? "") === monitorName)
+            ?? root.monitorData;
+    }
+
+    function monitorLogicalWidth(monitorName) {
+        const mon = root.monitorDataForName(monitorName);
+        if (!mon)
+            return Math.max(1, root.screenW / (root.monitor?.scale ?? 1));
+        const width = (mon.transform & 1) ? mon.height : mon.width;
+        return Math.max(1, (width - (mon.reserved?.[0] ?? 0) - (mon.reserved?.[2] ?? 0)) / (mon.scale ?? 1));
+    }
+
+    function monitorLogicalHeight(monitorName) {
+        const mon = root.monitorDataForName(monitorName);
+        if (!mon)
+            return Math.max(1, root.screenH / (root.monitor?.scale ?? 1));
+        const height = (mon.transform & 1) ? mon.width : mon.height;
+        return Math.max(1, (height - (mon.reserved?.[1] ?? 0) - (mon.reserved?.[3] ?? 0)) / (mon.scale ?? 1));
+    }
+
+    function monitorAspect(monitorName) {
+        return root.monitorLogicalHeight(monitorName) / root.monitorLogicalWidth(monitorName);
+    }
+
+    function entryWidth(entryIndex) {
+        return root.workspaceImplicitWidth;
+    }
+
+    function entryHeight(entryIndex) {
+        if (root.compactMode)
+            return root.workspaceImplicitHeight;
+        const group = root.groupForEntry(entryIndex);
+        return Math.floor(root.entryWidth(entryIndex) * root.monitorAspect(group?.key ?? ""));
+    }
+
+    function groupWorkspaceHeight(group) {
+        if (root.compactMode)
+            return root.workspaceImplicitHeight;
+        return Math.floor(root.workspaceImplicitWidth * root.monitorAspect(group?.key ?? ""));
+    }
+
     function groupRows(group) {
         return Math.max(1, Math.ceil(root.groupLength(group) / root.groupColumns(group)));
     }
@@ -204,7 +254,7 @@ Item {
 
     function groupHeight(group) {
         const rows = root.groupRows(group);
-        return root.workspaceImplicitHeight * rows
+        return root.groupWorkspaceHeight(group) * rows
             + root.workspaceSpacing * (rows - 1)
             + root.monitorSectionPaddingTop
             + root.monitorSectionPaddingBottom;
@@ -290,7 +340,7 @@ Item {
         const group = root.groupForEntry(entryIndex);
         return root.groupY(group)
             + root.monitorSectionPaddingTop
-            + (root.workspaceImplicitHeight + root.workspaceSpacing) * root.entryLocalRow(entryIndex);
+            + (root.groupWorkspaceHeight(group) + root.workspaceSpacing) * root.entryLocalRow(entryIndex);
     }
 
     function groupRowStart(group) {
@@ -463,8 +513,8 @@ Item {
 
                     x: root.entryX(index)
                     y: root.entryY(index)
-                    width: root.workspaceImplicitWidth
-                    height: root.workspaceImplicitHeight
+                    width: root.entryWidth(index)
+                    height: root.entryHeight(index)
                     color: hoveredWhileDragging ? hoveredWorkspaceColor : defaultWorkspaceColor
                     property bool workspaceAtLeft: colIndex === 0
                     property bool workspaceAtRight: {
@@ -590,7 +640,7 @@ Item {
                         const reservedStart = mon.reserved?.[0] ?? 0;
                         const reservedEnd = mon.reserved?.[2] ?? 0;
                         const logicalWidth = Math.max(1, (width - reservedStart - reservedEnd) / (mon.scale ?? 1));
-                        return root.workspaceImplicitWidth / logicalWidth;
+                        return root.entryWidth(workspaceEntryIndex) / logicalWidth;
                     }
                     scaleY: {
                         const mon = window.monitor;
@@ -600,7 +650,7 @@ Item {
                         const reservedStart = mon.reserved?.[1] ?? 0;
                         const reservedEnd = mon.reserved?.[3] ?? 0;
                         const logicalHeight = Math.max(1, (height - reservedStart - reservedEnd) / (mon.scale ?? 1));
-                        return root.workspaceImplicitHeight / logicalHeight;
+                        return root.entryHeight(workspaceEntryIndex) / logicalHeight;
                     }
                     widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
@@ -625,9 +675,9 @@ Item {
                     property bool workspaceAtBottomLeft: true
                     property bool workspaceAtBottomRight: true 
                     property real distanceFromLeftEdge: xWithinWorkspaceWidget
-                    property real distanceFromRightEdge: root.workspaceImplicitWidth - (xWithinWorkspaceWidget + targetWindowWidth)
+                    property real distanceFromRightEdge: root.entryWidth(workspaceEntryIndex) - (xWithinWorkspaceWidget + targetWindowWidth)
                     property real distanceFromTopEdge: yWithinWorkspaceWidget
-                    property real distanceFromBottomEdge: root.workspaceImplicitHeight - (yWithinWorkspaceWidget + targetWindowHeight)
+                    property real distanceFromBottomEdge: root.entryHeight(workspaceEntryIndex) - (yWithinWorkspaceWidget + targetWindowHeight)
                     property real distanceFromTopLeftCorner: Math.max(distanceFromLeftEdge, distanceFromTopEdge)
                     property real distanceFromTopRightCorner: Math.max(distanceFromRightEdge, distanceFromTopEdge)
                     property real distanceFromBottomLeftCorner: Math.max(distanceFromLeftEdge, distanceFromBottomEdge)
@@ -681,8 +731,8 @@ Item {
                                     updateWindowPosition.restart()
                                     return
                                 }
-                                const percentageX = (window.x - xOffset) / root.workspaceImplicitWidth
-                                const percentageY = (window.y - yOffset) / root.workspaceImplicitHeight
+                                const percentageX = (window.x - xOffset) / root.entryWidth(workspaceEntryIndex)
+                                const percentageY = (window.y - yOffset) / root.entryHeight(workspaceEntryIndex)
                                 Hyprland.dispatch(`hl.dsp.window.move({ x = "${percentageX * (monitor?.width ?? root.screen.width)}", y = "${percentageY * (monitor?.height ?? root.screen.height)}", window = "address:${window.windowData?.address}" })`)
                             }
                         }
@@ -715,7 +765,7 @@ Item {
                 y: root.entryY(entryIndex)
                 z: root.windowZ
                 width: root.workspaceImplicitWidth
-                height: root.workspaceImplicitHeight
+                height: root.entryHeight(entryIndex)
                 color: "transparent"
                 property bool workspaceAtLeft: true
                 property bool workspaceAtRight: true

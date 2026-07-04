@@ -7,7 +7,7 @@
 
 if ! pidof hyprlock >/dev/null; then
   (
-    hyprlock --config ~/.config/omarchy/hypr/hyprlock.conf
+    hyprlock
     omarchy-system-wake
   ) &
 fi
