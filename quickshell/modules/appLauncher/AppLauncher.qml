@@ -43,7 +43,7 @@ PanelWindow {
         if (desktopEntry.id === "omd-settings-center.desktop") {
             launcher.open = false;
             Quickshell.execDetached([
-                "qs", "-p", Quickshell.shellDir + "/../apps/omd-bar",
+                "qs", "-p", Quickshell.shellDir + "/../omd-bar",
                 "ipc", "call", "barDialog", "open", "settings"
             ]);
             return;
