@@ -17,6 +17,8 @@ BarContextMenu {
     property string snapshotLabel: snapshotCount > 0 ? `${snapshotCount} windows` : "No snapshot"
     property string sessionCommand: "omd-session"
     signal actionTriggered()
+    signal previewRequested()
+    signal restoreRequested()
 
     // Canvas has windows -> snapshot & close. Canvas empty -> restore.
     readonly property bool canRestore: canvasEmpty && hasSnapshot
@@ -28,8 +30,7 @@ BarContextMenu {
         iconColor: TuiStyle.accent
         label: `Snapshot & Close Workspaces (${root.snapshotLabel})`
         releaseAction: () => {
-            Quickshell.execDetached([root.sessionCommand, "save-close"]);
-            root.actionTriggered();
+            root.previewRequested();
             root.close();
         }
     }
@@ -40,8 +41,7 @@ BarContextMenu {
         iconColor: TuiStyle.success
         label: `Restore Workspace Snapshot (${root.snapshotLabel})`
         releaseAction: () => {
-            Quickshell.execDetached([root.sessionCommand, "restore"]);
-            root.actionTriggered();
+            root.restoreRequested();
             root.close();
         }
     }

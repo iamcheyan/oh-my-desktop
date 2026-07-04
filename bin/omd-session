@@ -11,6 +11,8 @@ from pathlib import Path
 
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omd/session"
 LAST_FILE = STATE_DIR / "last.json"
+AUTO_RESTORE_FILE = STATE_DIR / "restore-on-next-start"
+RESTORE_LOCK = STATE_DIR / "restore.lock"
 KITTY_SESSION_DIR = STATE_DIR / "kitty"
 TERMINAL_CLASSES = ("kitty", "foot", "alacritty", "ghostty", "wezterm", "org.wezfurlong.wezterm")
 SHELL_NAMES = ("bash", "zsh", "fish", "nu", "sh")
@@ -103,10 +105,13 @@ def current_focus_state(clients):
 
 
 def hypr_focus_workspace(wsid):
+    """Switch the active monitor to the given workspace. Unified with
+    focus_workspace_id — both use the Omarchy Lua dispatch syntax."""
     if isinstance(wsid, int) and wsid < 0:
         return hypr("dispatch", "togglespecialworkspace")
     if wsid:
-        return hypr("dispatch", "workspace", str(wsid))
+        hypr_lua(f'hl.dsp.focus({{ workspace = "{wsid}" }})')
+        time.sleep(0.08)
     return subprocess.CompletedProcess([], 0)
 
 
@@ -456,8 +461,10 @@ def snapshot_clients():
     try:
         monitors = run_json("hyprctl", "-j", "monitors")
         monitor_names = {m.get("id", -1): m.get("name", "") for m in monitors}
+        monitor_origins = {m.get("id", -1): (m.get("x", 0), m.get("y", 0)) for m in monitors}
     except Exception:
         monitor_names = {}
+        monitor_origins = {}
     snapshot = []
     for client in clients:
         # Keep every mapped client from every monitor/workspace. Hyprland can
@@ -472,6 +479,8 @@ def snapshot_clients():
         if not command["argv"]:
             continue
         mon_id = client.get("monitor", -1)
+        mon_origin = monitor_origins.get(mon_id, (0, 0))
+        abs_at = client.get("at", [0, 0])
         snapshot.append({
             "address": client.get("address", ""),
             "class": client.get("class", ""),
@@ -482,7 +491,11 @@ def snapshot_clients():
             "workspace": workspace,
             "monitor": mon_id,
             "monitorName": monitor_names.get(mon_id, ""),
-            "at": client.get("at", [0, 0]),
+            "at": abs_at,
+            "atRelative": [
+                abs_at[0] - mon_origin[0] if len(abs_at) > 0 else 0,
+                abs_at[1] - mon_origin[1] if len(abs_at) > 1 else 0,
+            ],
             "size": client.get("size", [0, 0]),
             "floating": bool(client.get("floating")),
             "fullscreen": int(client.get("fullscreen") or 0),
@@ -504,6 +517,15 @@ def save():
     }
     LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"saved": True, "count": len(data["clients"]), "path": str(LAST_FILE)}))
+    return data
+
+
+def save_auto():
+    data = save()
+    AUTO_RESTORE_FILE.write_text(
+        json.dumps({"armed": True, "savedAt": data.get("savedAt", int(time.time()))}, indent=2),
+        encoding="utf-8",
+    )
     return data
 
 
@@ -542,9 +564,7 @@ def preview_program(program):
     }
 
 
-def preview():
-    clients = snapshot_clients()
-    focus = current_focus_state(clients)
+def preview_from_data(clients, focus):
     groups = {}
     for client in clients:
         workspace = client.get("workspace") or {}
@@ -555,6 +575,7 @@ def preview():
                 "id": wsid,
                 "name": workspace.get("name", str(wsid)),
                 "monitor": client.get("monitor", -1),
+                "monitorName": client.get("monitorName", ""),
                 "clients": [],
             }
         groups[key]["clients"].append({
@@ -579,37 +600,91 @@ def preview():
     }, ensure_ascii=False))
 
 
+def preview():
+    """Live preview — collects current state. Used by the confirmation popup
+    before save-close to show what will be snapshotted."""
+    clients = snapshot_clients()
+    focus = current_focus_state(clients)
+    preview_from_data(clients, focus)
+
+
+def preview_saved():
+    """Read from last.json without re-collecting. Much faster than preview()
+    when the snapshot already exists."""
+    if not LAST_FILE.exists():
+        print(json.dumps({"version": 1, "count": 0, "workspaceCount": 0, "workspaces": []}))
+        return
+    try:
+        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        print(json.dumps({"version": 1, "count": 0, "workspaceCount": 0, "workspaces": []}))
+        return
+    clients = data.get("clients", [])
+    focus = data.get("focus", {})
+    preview_from_data(clients, focus)
+
+
 def close_snapshot(data):
     records = list(data.get("clients", []))
     records.sort(key=lambda c: (
         c.get("workspace", {}).get("id", 0),
         c.get("focusHistoryID", 999999),
     ))
+    remaining = []
     for client in records:
         address = client.get("address")
         if not address:
             continue
         if address not in hypr_clients_by_address():
             continue
-        workspace = client.get("workspace") or {}
-        hypr_focus_workspace(workspace.get("id", 0))
-        time.sleep(0.12)
+        # Try direct close first (no workspace switch). hypr_close_window
+        # has a fallback that focuses the window and retries if the first
+        # attempt fails, so we avoid unnecessary workspace switching that
+        # causes visible flicker on multi-monitor setups.
         hypr_close_window(address)
-        wait_until_client_gone(address)
+        if not wait_until_client_gone(address, timeout=1.0):
+            # Direct close failed — the window may need focus first.
+            workspace = client.get("workspace") or {}
+            hypr_focus_workspace(workspace.get("id", 0))
+            time.sleep(0.12)
+            hypr_close_window(address)
+            if not wait_until_client_gone(address, timeout=1.5):
+                remaining.append({"address": address, "class": client.get("class", "")})
+
+    if remaining:
+        print(json.dumps({
+            "closed": len(records) - len(remaining),
+            "remaining": len(remaining),
+            "remainingClients": remaining,
+        }), file=sys.stderr)
 
 
 def status():
     if not LAST_FILE.exists():
-        print(json.dumps({"saved": False, "count": 0, "path": str(LAST_FILE)}))
+        print(json.dumps({
+            "saved": False,
+            "autoRestore": AUTO_RESTORE_FILE.exists(),
+            "count": 0,
+            "path": str(LAST_FILE),
+        }))
         return
     try:
         data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
     except Exception:
-        print(json.dumps({"saved": False, "count": 0, "path": str(LAST_FILE), "error": "invalid"}))
+        print(json.dumps({
+            "saved": False,
+            "autoRestore": AUTO_RESTORE_FILE.exists(),
+            "count": 0,
+            "path": str(LAST_FILE),
+            "error": "invalid",
+        }))
         return
+    monitor_workspaces = (data.get("focus") or {}).get("monitorWorkspaces") or []
     print(json.dumps({
         "saved": True,
+        "autoRestore": AUTO_RESTORE_FILE.exists(),
         "count": len(data.get("clients", [])),
+        "monitorCount": len(monitor_workspaces),
         "savedAt": data.get("savedAt", 0),
         "path": str(LAST_FILE),
     }))
@@ -628,18 +703,27 @@ def client_matches(client, record):
             cls_match = True
     if not cls_match:
         return False
-    if record.get("command", {}).get("terminal"):
-        return True
-    # Prefer matching title when the record has one. This disambiguates
-    # multiple windows sharing the same class (e.g. two foot terminals).
+
+    # Terminal windows: use initialTitle for a lightweight disambiguation.
+    # Terminals set initialTitle to the terminal name (e.g. "kitty", "foot")
+    # and title to the dynamic shell/program title. Two kitty windows share
+    # the same initialTitle, so we fall through to the full title check below
+    # which uses the dynamic title (e.g. "tetsuya@asahi: ~/dev" vs "nvim").
     rec_title = (record.get("initialTitle") or record.get("title") or "").strip()
     if not rec_title:
         return True
     cli_title = (client.get("initialTitle") or client.get("title") or "").strip()
+    if not cli_title:
+        # New window hasn't set its title yet — accept on class match alone,
+        # but only if no other record with the same class has a stronger
+        # title match (handled by the caller via known_addresses tracking).
+        return True
+    # Substring match in both directions to handle title changes during
+    # application startup (e.g. "Mozilla Firefox" -> "Page — Mozilla Firefox").
     return rec_title.lower() in cli_title.lower() or cli_title.lower() in rec_title.lower()
 
 
-def wait_for_client(record, known_addresses, timeout=8.0):
+def wait_for_client(record, known_addresses, timeout=5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -654,7 +738,7 @@ def wait_for_client(record, known_addresses, timeout=8.0):
             if client_matches(client, record):
                 known_addresses.add(address)
                 return client
-        time.sleep(0.2)
+        time.sleep(0.12)
     return None
 
 
@@ -664,16 +748,35 @@ def place_client(client, record):
         return
     workspace = record.get("workspace") or {}
     wsid = workspace.get("id")
-    if wsid:
+    # Only move the window if it is not already on the target workspace.
+    # Since we switched to the target workspace before launching, the window
+    # should already be there — the move is a safety net for race conditions.
+    client_wsid = (client.get("workspace") or {}).get("id")
+    if wsid and client_wsid != wsid:
         if isinstance(wsid, int) and wsid < 0:
             hypr_lua(f'hl.dsp.window.move({{ workspace = "special", address = "{address}" }})')
         else:
             hypr_lua(f'hl.dsp.window.move({{ workspace = "{wsid}", address = "{address}" }})')
-    time.sleep(0.08)
+        time.sleep(0.08)
     if record.get("floating"):
         hypr_lua(f'hl.dsp.setfloating({{ address = "{address}" }})')
         size = record.get("size") or []
         at = record.get("at") or []
+        at_relative = record.get("atRelative") or []
+        # Use relative coordinates when available so floating windows land
+        # in the correct position even if monitor layout changed since the
+        # snapshot was taken. Fall back to absolute coordinates for older
+        # snapshots that lack atRelative.
+        if len(at_relative) == 2:
+            mon_name = record.get("monitorName", "")
+            if mon_name:
+                try:
+                    monitors = run_json("hyprctl", "-j", "monitors")
+                    mon = next((m for m in monitors if m.get("name") == mon_name), None)
+                    if mon:
+                        at = [at_relative[0] + mon.get("x", 0), at_relative[1] + mon.get("y", 0)]
+                except Exception:
+                    pass
         if len(size) == 2:
             hypr("dispatch", "resizewindowpixel", f"exact {int(size[0])} {int(size[1])},address:{address}")
         if len(at) == 2:
@@ -682,13 +785,6 @@ def place_client(client, record):
         hypr("dispatch", "focuswindow", f"address:{address}")
         hypr("dispatch", "fullscreen", "1")
 
-
-def focus_workspace_id(wsid):
-    if isinstance(wsid, int) and wsid < 0:
-        return
-    if wsid:
-        hypr_lua(f'hl.dsp.focus({{ workspace = "{wsid}" }})')
-        time.sleep(0.08)
 
 
 def restore_focus(data, restored_addresses):
@@ -704,7 +800,7 @@ def restore_focus(data, restored_addresses):
             continue
         hypr_lua(f'hl.dsp.focus({{ monitor = "{monitor_name}" }})')
         time.sleep(0.06)
-        focus_workspace_id(wsid)
+        hypr_focus_workspace(wsid)
         time.sleep(0.06)
 
     focused_record = focus.get("focusedRecord") or {}
@@ -734,17 +830,76 @@ def restore_focus(data, restored_addresses):
         time.sleep(0.06)
 
     wsid = (focused_record.get("workspace") or {}).get("id", 0)
-    focus_workspace_id(wsid)
+    hypr_focus_workspace(wsid)
     if new_address:
         hypr_lua(f'hl.dsp.focus({{ window = "address:{new_address}" }})')
         hypr("dispatch", "focuswindow", f"address:{new_address}")
 
 
-def restore():
+SNAPSHOT_VERSION = 1
+
+
+def acquire_restore_lock():
+    """Prevent concurrent restore operations. Returns True if the lock was
+    acquired, False if another restore is already running."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        # Check if a locked PID is still alive.
+        if RESTORE_LOCK.exists():
+            try:
+                pid = int(RESTORE_LOCK.read_text().strip())
+                if pid > 0 and Path(f"/proc/{pid}").exists():
+                    return False
+            except Exception:
+                pass
+        RESTORE_LOCK.write_text(str(os.getpid()), encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def release_restore_lock():
+    try:
+        # Only remove if it contains our PID.
+        if RESTORE_LOCK.exists():
+            pid = int(RESTORE_LOCK.read_text().strip())
+            if pid == os.getpid():
+                RESTORE_LOCK.unlink()
+    except Exception:
+        pass
+
+
+def load_snapshot():
+    """Load and validate the snapshot file. Returns None on missing/invalid/
+    incompatible snapshots."""
     if not LAST_FILE.exists():
+        return None
+    try:
+        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    version = data.get("version", 0)
+    if version > SNAPSHOT_VERSION:
+        print(f"Snapshot version {version} is newer than supported {SNAPSHOT_VERSION}, skipping restore", file=sys.stderr)
+        return None
+    return data
+
+
+def restore():
+    if not acquire_restore_lock():
+        print("Restore is already in progress", file=sys.stderr)
+        return 1
+    try:
+        return _restore_impl()
+    finally:
+        release_restore_lock()
+
+
+def _restore_impl():
+    data = load_snapshot()
+    if data is None:
         print("No OMD session snapshot exists", file=sys.stderr)
         return 1
-    data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
     known = {client.get("address") for client in run_json("hyprctl", "-j", "clients")}
 
     # Build a mapping of workspace id -> monitor name from the snapshot's
@@ -781,7 +936,7 @@ def restore():
             hypr_lua(f'hl.dsp.focus({{ monitor = "{monitor_name}" }})')
             time.sleep(0.06)
         if isinstance(wsid, int) and wsid > 0:
-            focus_workspace_id(wsid)
+            hypr_focus_workspace(wsid)
             time.sleep(0.12)
         elif isinstance(wsid, int) and wsid < 0:
             # Special workspace — toggle it on the current monitor.
@@ -813,9 +968,24 @@ def restore():
     return 0
 
 
+def restore_auto():
+    if not AUTO_RESTORE_FILE.exists():
+        print(json.dumps({"armed": False, "restored": 0, "count": 0}))
+        return 0
+    try:
+        AUTO_RESTORE_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    return restore()
+
+
 def clear():
     try:
         LAST_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    try:
+        AUTO_RESTORE_FILE.unlink()
     except FileNotFoundError:
         pass
     print(json.dumps({"saved": False, "count": 0}))
@@ -825,19 +995,25 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "save":
         save()
+    elif cmd in ("save-auto", "save-for-next-start"):
+        save_auto()
     elif cmd == "preview":
         preview()
+    elif cmd == "preview-saved":
+        preview_saved()
     elif cmd in ("save-close", "save-and-close"):
         data = save()
         close_snapshot(data)
     elif cmd == "restore":
         raise SystemExit(restore())
+    elif cmd in ("restore-auto", "restore-on-next-start"):
+        raise SystemExit(restore_auto())
     elif cmd == "clear":
         clear()
     elif cmd == "status":
         status()
     else:
-        print("usage: omd-session status|preview|save|save-close|restore|clear", file=sys.stderr)
+        print("usage: omd-session status|preview|preview-saved|save|save-auto|save-close|restore|restore-auto|clear", file=sys.stderr)
         raise SystemExit(2)
 
 

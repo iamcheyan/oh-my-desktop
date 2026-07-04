@@ -4,8 +4,39 @@
 # omarchy:examples=omarchy logout | omarchy system logout
 # omarchy:aliases=omarchy logout
 
-nohup bash -c "sleep 2 && uwsm stop" >/dev/null 2>&1 &
+# Close application windows first so apps get a chance to persist state, but do
+# not let a close failure prevent logout.
+omarchy-hyprland-window-close-all >/dev/null 2>&1 || true
+sleep 0.8
 
-# Now close all windows
-omarchy-hyprland-window-close-all
-sleep 1 # Allow apps like Chrome to shutdown correctly
+hyprland_alive() {
+  hyprctl instances >/dev/null 2>&1
+}
+
+# UWSM may report "Compositor is not running" in sessions not started through
+# UWSM. In that case exit Hyprland directly through the Omarchy Lua dispatcher.
+if uwsm stop >/tmp/omd-logout-uwsm.log 2>&1; then
+  sleep 0.5
+  hyprland_alive || exit 0
+fi
+
+# In Omarchy's Lua Hyprland config, `hyprctl dispatch exit` is parsed as Lua and
+# can return 0 while only writing an error. The raw dispatcher call below is the
+# path that actually exits the compositor in this session. A successful exit may
+# make hyprctl report a broken socket, so verify by checking whether Hyprland is
+# still alive instead of trusting hyprctl's return code.
+hyprctl dispatch 'hl.dispatch("exit")' >/tmp/omd-logout-hyprland.log 2>&1 || true
+sleep 0.5
+hyprland_alive || exit 0
+
+if [ -n "${XDG_SESSION_ID:-}" ]; then
+  loginctl terminate-session "$XDG_SESSION_ID" >/tmp/omd-logout-loginctl.log 2>&1 || true
+  sleep 0.5
+  hyprland_alive || exit 0
+fi
+
+pkill -TERM -x Hyprland >/tmp/omd-logout-pkill.log 2>&1 || true
+sleep 0.5
+hyprland_alive || exit 0
+
+exit 1

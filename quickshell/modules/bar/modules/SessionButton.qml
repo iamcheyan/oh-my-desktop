@@ -18,6 +18,7 @@ Item {
     property bool hasSnapshot: false
     property int snapshotCount: 0
     property bool canvasEmpty: true
+    property var previewData: ({ count: 0, workspaceCount: 0, workspaces: [] })
     readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
 
     function refreshStatus() {
@@ -64,7 +65,7 @@ Item {
 
     Process {
         id: clientCountProc
-        command: ["bash", "-c", "hyprctl -j clients | jq '[.[] | select((.hidden // false) | not)] | length'"]
+        command: ["bash", "-c", "hyprctl -j clients | jq '[.[] | select((.mapped // true) == true)] | length'"]
         running: false
         stdout: StdioCollector {
             id: clientCountCollector
@@ -74,6 +75,23 @@ Item {
                     root.canvasEmpty = n === 0;
                 } catch (e) {
                     root.canvasEmpty = false;
+                }
+            }
+        }
+    }
+
+    Process {
+        id: previewProc
+        command: [root.omdSession, "preview"]
+        running: false
+        stdout: StdioCollector {
+            id: previewCollector
+            onStreamFinished: {
+                try {
+                    root.previewData = JSON.parse(previewCollector.text);
+                    previewLoader.active = true;
+                } catch (e) {
+                    root.previewData = ({ count: 0, workspaceCount: 0, workspaces: [] });
                 }
             }
         }
@@ -125,7 +143,51 @@ Item {
                     : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
             }
             onActionTriggered: refreshSoon.restart()
+            onPreviewRequested: {
+                previewProc.running = false;
+                previewProc.running = true;
+            }
+            onRestoreRequested: {
+                restoreLoader.active = true;
+            }
             onMenuClosed: sessionMenu.active = false
+        }
+    }
+
+    Loader {
+        id: previewLoader
+        active: false
+        sourceComponent: SessionPreviewPopup {
+            previewData: root.previewData
+            sessionCommand: root.omdSession
+            anchor {
+                window: sessionButton.QsWindow.window
+                item: sessionButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            onConfirmed: {
+                previewLoader.active = false;
+                refreshSoon.restart();
+            }
+            onDismissed: previewLoader.active = false
+        }
+    }
+
+    Loader {
+        id: restoreLoader
+        active: false
+        sourceComponent: SessionRestoreOverlay {
+            sessionCommand: root.omdSession
+            expectedCount: root.snapshotCount
+            onFinished: {
+                restoreLoader.active = false;
+                refreshSoon.restart();
+            }
         }
     }
 }

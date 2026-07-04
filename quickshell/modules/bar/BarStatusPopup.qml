@@ -335,8 +335,6 @@ Scope {
                     if (Battery.isPluggedIn) return "plugged";
                     return "battery";
                 }
-                property string confirmAction: ""
-                property string confirmLabel: ""
                 property bool hibernateAvailable: false
 
                 Component.onCompleted: {
@@ -363,20 +361,15 @@ Scope {
                 }
 
                 function requestAction(action, label) {
-                    if (action === "lock" || action === "sleep" || action === "hibernate" || action === "logout") {
+                    if (action === "lock" || action === "sleep" || action === "hibernate") {
                         executeAction(action)
                         return
                     }
-                    confirmAction = action
-                    confirmLabel = label
+                    GlobalStates.requestSessionConfirm(action, label)
+                    root.close()
                 }
 
-                function cancelConfirm() {
-                    confirmAction = ""
-                    confirmLabel = ""
-                }
-
-                Header { title: "BATTERY"; status: stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
+                Header { title: "BATTERY"; status: batteryPanel.stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -570,91 +563,6 @@ Scope {
                 }
             }
 
-            // Centered Double-Confirm Dialog Overlay
-            Item {
-                id: confirmOverlay
-                anchors.fill: batteryPanel
-                visible: batteryPanel.confirmAction !== ""
-
-                // Gaussian Blur Mask over the batteryPanel
-                StyledBlurEffect {
-                    source: batteryPanel
-                    anchors.fill: parent
-
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.4)
-                        radius: TuiStyle.radius
-                    }
-                }
-
-                // Centered Modal Dialog Card
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: parent.width - 32
-                    implicitHeight: confirmCol.implicitHeight + 24
-                    color: TuiStyle.bg
-                    radius: TuiStyle.radius
-                    border.width: TuiStyle.borderWidth
-                    border.color: TuiStyle.danger
-
-                    ColumnLayout {
-                        id: confirmCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 12
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Layout.alignment: Qt.AlignHCenter
-
-                            NerdIcon {
-                                text: NerdIconMap.warning
-                                iconSize: 20
-                                color: TuiStyle.danger
-                            }
-
-                            StyledText {
-                                text: `CONFIRM ${batteryPanel.confirmLabel.toUpperCase()}?`
-                                font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                                color: TuiStyle.danger
-                            }
-                        }
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: Translation.tr("Are you sure you want to perform this system action?")
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: TuiStyle.dim
-                            horizontalAlignment: Text.AlignHCenter
-                            wrapMode: Text.Wrap
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-
-                            TuiActionButton {
-                                Layout.fillWidth: true
-                                label: "CANCEL"
-                                accent: TuiStyle.dim
-                                onClicked: batteryPanel.cancelConfirm()
-                            }
-
-                            TuiActionButton {
-                                Layout.fillWidth: true
-                                label: "CONFIRM"
-                                accent: TuiStyle.danger
-                                onClicked: batteryPanel.executeAction(batteryPanel.confirmAction)
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 

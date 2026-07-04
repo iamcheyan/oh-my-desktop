@@ -37,6 +37,23 @@ Singleton {
     property bool barAudioIsSink: true
     property string barPopupType: ""
     property string activeContextMenu: ""
+    property bool sessionConfirmOpen: false
+    property string sessionConfirmAction: ""
+    property string sessionConfirmLabel: ""
+
+    function requestSessionConfirm(action, label) {
+        GlobalStates.barPopupType = "";
+        GlobalStates.activeContextMenu = "";
+        GlobalStates.sessionConfirmAction = action;
+        GlobalStates.sessionConfirmLabel = label;
+        GlobalStates.sessionConfirmOpen = true;
+    }
+
+    function closeSessionConfirm() {
+        GlobalStates.sessionConfirmOpen = false;
+        GlobalStates.sessionConfirmAction = "";
+        GlobalStates.sessionConfirmLabel = "";
+    }
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {

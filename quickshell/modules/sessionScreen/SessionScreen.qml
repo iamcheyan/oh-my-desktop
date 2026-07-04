@@ -141,8 +141,8 @@ Scope {
                         buttonIcon: "logout"
                         buttonText: Translation.tr("Logout")
                         onClicked: {
-                            Session.logout();
                             sessionRoot.hide();
+                            GlobalStates.requestSessionConfirm("logout", "Logout");
                         }
                         onFocusChanged: {
                             if (focus)
@@ -188,8 +188,8 @@ Scope {
                         buttonIcon: "power_settings_new"
                         buttonText: Translation.tr("Shutdown")
                         onClicked: {
-                            Session.poweroff();
                             sessionRoot.hide();
+                            GlobalStates.requestSessionConfirm("poweroff", "Shutdown");
                         }
                         onFocusChanged: {
                             if (focus)
@@ -204,8 +204,8 @@ Scope {
                         buttonIcon: "restart_alt"
                         buttonText: Translation.tr("Reboot")
                         onClicked: {
-                            Session.reboot();
                             sessionRoot.hide();
+                            GlobalStates.requestSessionConfirm("reboot", "Reboot");
                         }
                         onFocusChanged: {
                             if (focus)

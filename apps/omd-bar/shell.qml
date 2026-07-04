@@ -37,6 +37,8 @@ ShellRoot {
             Bar {}
             BarStatusPopup {}
             BarDialogOverlay {}
+            SessionConfirmOverlay {}
+            SessionAutoRestore {}
             ControlCenter {}
             NotificationPopup {}
             OnScreenDisplay {}

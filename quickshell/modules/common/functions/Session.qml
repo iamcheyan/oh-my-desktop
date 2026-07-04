@@ -5,10 +5,15 @@ import qs.modules.common
 
 Singleton {
     id: root
+    readonly property string autoSavePrefix: "\"$HOME/.config/omd/bin/omd-session\" save-auto >/tmp/omd-session-auto-save.log 2>&1; "
 
     function closeAllWindows() {
-        HyprlandData.windowList.map(w => w.pid).forEach(pid => {
-            Quickshell.execDetached(["kill", pid]);
+        // Use Hyprland's Lua dispatch so applications get a chance to save
+        // state (e.g. editor prompts, browser session restore). Killing with
+        // SIGKILL loses unsaved work.
+        HyprlandData.windowList.forEach(w => {
+            if (w.address)
+                Quickshell.execDetached(["hyprctl", "dispatch", `hl.dsp.window.close({window = "address:${w.address}"})`]);
         });
     }
 
@@ -24,8 +29,12 @@ Singleton {
         Quickshell.execDetached(["bash", "-c", "systemctl suspend || loginctl suspend"]);
     }
 
-    function logout() {
-        Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-logout\" || hyprctl dispatch exit"]);
+    function withOptionalSessionSave(command, saveCurrentSession) {
+        return (saveCurrentSession ? autoSavePrefix : "") + command;
+    }
+
+    function logout(saveCurrentSession) {
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("\"$HOME/.local/share/omarchy/bin/omarchy-system-logout\"", saveCurrentSession)]);
     }
 
     function launchTaskManager() {
@@ -36,14 +45,16 @@ Singleton {
         Quickshell.execDetached(["bash", "-c", `systemctl hibernate || loginctl hibernate`]);
     }
 
-    function poweroff() {
-        closeAllWindows();
-        Quickshell.execDetached(["bash", "-c", `systemctl poweroff || loginctl poweroff`]);
+    function poweroff(saveCurrentSession) {
+        if (!saveCurrentSession)
+            closeAllWindows();
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("systemctl poweroff || loginctl poweroff", saveCurrentSession)]);
     }
 
-    function reboot() {
-        closeAllWindows();
-        Quickshell.execDetached(["bash", "-c", `reboot || loginctl reboot`]);
+    function reboot(saveCurrentSession) {
+        if (!saveCurrentSession)
+            closeAllWindows();
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("reboot || loginctl reboot", saveCurrentSession)]);
     }
 
     function rebootToFirmware() {
