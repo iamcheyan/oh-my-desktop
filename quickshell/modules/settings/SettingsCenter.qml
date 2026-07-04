@@ -1312,12 +1312,95 @@ WindowDialog {
 
             SettingsCard {
                 title: "Night Light"
-                subtitle: Hyprsunset.temperatureActive ? "Enabled" : "Disabled"
+                subtitle: Hyprsunset.temperatureActive ? "Active" : "Inactive"
+
                 SettingsToggleRow {
                     label: "Night light"
-                    description: `${Math.round(Config.options.light.night.colorTemperature)}K`
+                    description: "Reduce blue light for warmer colors"
                     checked: Hyprsunset.temperatureActive
                     onToggled: Hyprsunset.toggleTemperature(!Hyprsunset.temperatureActive)
+                }
+
+                // Color temperature slider
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        StyledText {
+                            text: "Color temperature"
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        StyledText {
+                            text: `${Config.options.light.night.colorTemperature}K`
+                            color: root.cosmicMuted
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 2500
+                        to: 6500
+                        stepSize: 100
+                        value: Config.options.light.night.colorTemperature ?? 6000
+                        onMoved: Config.setNestedValue("light.night.colorTemperature", Math.round(value))
+
+                        background: Rectangle {
+                            implicitHeight: 6
+                            radius: 3
+                            color: root.cosmicLine
+                            Rectangle {
+                                width: parent.parent.visualPosition * parent.width
+                                height: parent.height
+                                radius: 3
+                                color: root.cosmicAccent
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                            y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                            width: 16
+                            height: 16
+                            radius: 8
+                            color: root.cosmicFg
+                            border.width: 2
+                            border.color: root.cosmicAccent
+                        }
+                    }
+                }
+
+                SettingsToggleRow {
+                    label: "Automatic schedule"
+                    description: "Enable night light automatically by time of day"
+                    checked: Config.options.light.night.automatic ?? false
+                    onToggled: Config.setNestedValue("light.night.automatic", !Config.options.light.night.automatic)
+                }
+
+                SettingsRow {
+                    label: "Turn on at"
+                    value: Config.options.light.night.from ?? "19:00"
+                    visible: Config.options.light.night.automatic ?? false
+                }
+
+                SettingsRow {
+                    label: "Turn off at"
+                    value: Config.options.light.night.to ?? "06:30"
+                    visible: Config.options.light.night.automatic ?? false
+                }
+
+                SettingsRow {
+                    label: "Current gamma"
+                    value: `${Hyprsunset.gamma}%`
+                    visible: Hyprsunset.temperatureActive
                 }
             }
 
