@@ -53,6 +53,7 @@ WindowDialog {
         { key: "themes", icon: "format_paint", title: "Themes", keywords: "theme preview color wallpaper omarchy appearance" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery" },
         { key: "osd", icon: "onscreen_text", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
+        { key: "autostart", icon: "rocket_launch", title: "Autostart", keywords: "startup boot login launch autostart xdg desktop" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
@@ -379,6 +380,7 @@ WindowDialog {
                                 if (root.currentPage === "themes") return themesPage;
                                 if (root.currentPage === "power") return powerPage;
                                 if (root.currentPage === "osd") return osdPage;
+                                if (root.currentPage === "autostart") return autostartPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
@@ -2903,6 +2905,200 @@ WindowDialog {
                     checked: Config.options.osd.audioOutputEnabled ?? false
                     onToggled: Config.setNestedValue("osd.audioOutputEnabled", !Config.options.osd.audioOutputEnabled)
                 }
+            }
+        }
+    }
+
+    Component {
+        id: autostartPage
+        PageBody {
+            readonly property string autostartDir: `${FileUtils.trimFileProtocol(Directories.home)}/.config/autostart`
+            property var autostartEntries: []
+            property string errorText: ""
+
+            Component.onCompleted: refreshAutostart()
+
+            function refreshAutostart() {
+                autostartProc.command = ["bash", "-c",
+                    'for f in "' + autostartDir + '"/*.desktop "' + autostartDir + '"/*.desktop.disabled; do\n' +
+                    '  [ -f "$f" ] || continue\n' +
+                    '  base=$(basename "$f")\n' +
+                    '  disabled=false\n' +
+                    '  case "$base" in *.disabled) disabled=true;; esac\n' +
+                    '  name=$(grep -m1 "^Name=" "$f" 2>/dev/null | cut -d= -f2-)\n' +
+                    '  [ -z "$name" ] && name=$(echo "$base" | sed "s/\\.desktop.*//")\n' +
+                    '  exec=$(grep -m1 "^Exec=" "$f" 2>/dev/null | cut -d= -f2-)\n' +
+                    '  echo "$base|$disabled|$name|$exec"\n' +
+                    'done']
+                autostartProc.running = true
+            }
+
+            Process {
+                id: autostartProc
+                running: false
+                stdout: StdioCollector {
+                    id: autostartCollector
+                    onStreamFinished: {
+                        const entries = []
+                        for (const line of autostartCollector.text.trim().split('\n')) {
+                            if (!line.trim()) continue
+                            const parts = line.split('|')
+                            if (parts.length < 4) continue
+                            entries.push({
+                                file: parts[0],
+                                disabled: parts[1] === "true",
+                                name: parts[2],
+                                exec: parts[3],
+                            })
+                        }
+                        entries.sort((a, b) => a.name.localeCompare(b.name))
+                        autostartPage.autostartEntries = entries
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Autostart Applications"
+                subtitle: `${autostartPage.autostartEntries.length} entries`
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "Applications that start automatically when you log in."
+                    color: root.cosmicDim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.Wrap
+                }
+
+                Repeater {
+                    model: autostartPage.autostartEntries
+                    delegate: Rectangle {
+                        id: autoDelegate
+                        required property var modelData
+                        required property int index
+                        readonly property var entry: modelData
+                        readonly property bool isEnabled: !entry.disabled
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 50
+                        radius: root.cosmicRadius
+                        color: autoMouse.containsMouse ? root.cosmicCardHover : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            MaterialSymbol {
+                                text: autoDelegate.isEnabled ? "play_circle" : "pause_circle"
+                                iconSize: 18
+                                color: autoDelegate.isEnabled ? root.cosmicAccent : root.cosmicDim
+                                Layout.preferredWidth: 22
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: autoDelegate.entry.name || "Unknown"
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: autoDelegate.entry.exec || ""
+                                    color: root.cosmicDim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Enable/disable toggle
+                            Rectangle {
+                                Layout.preferredWidth: 46
+                                Layout.preferredHeight: 26
+                                radius: height / 2
+                                color: autoDelegate.isEnabled ? root.cosmicAccent : "#5a5a5a"
+
+                                Rectangle {
+                                    width: 20
+                                    height: 20
+                                    radius: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: autoDelegate.isEnabled ? parent.width - width - 3 : 3
+                                    color: autoDelegate.isEnabled ? "#111111" : "#dedede"
+                                    Behavior on x { NumberAnimation { duration: 110 } }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        const dir = autostartPage.autostartDir
+                                        if (autoDelegate.isEnabled) {
+                                            // Disable: rename .desktop → .desktop.disabled
+                                            Quickshell.execDetached(["bash", "-c", `mv "${dir}/${autoDelegate.entry.file}" "${dir}/${autoDelegate.entry.file}.disabled" 2>/dev/null`])
+                                        } else {
+                                            // Enable: rename .desktop.disabled → .desktop
+                                            Quickshell.execDetached(["bash", "-c", `mv "${dir}/${autoDelegate.entry.file}" "${dir}/${autoDelegate.entry.file.replace('.disabled', '')}" 2>/dev/null`])
+                                        }
+                                        autostartRefreshTimer.restart()
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: autoMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    visible: autostartPage.autostartEntries.length === 0
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "No autostart entries found in ~/.config/autostart/"
+                        color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.small
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Add Entry"
+                subtitle: "Open autostart folder"
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Open Autostart Folder"
+                        iconName: "folder_open"
+                        onClicked: Quickshell.execDetached(["xdg-open", autostartPage.autostartDir])
+                    }
+                    SettingsButton {
+                        label: "Refresh"
+                        iconName: "refresh"
+                        onClicked: autostartPage.refreshAutostart()
+                    }
+                }
+            }
+
+            Timer {
+                id: autostartRefreshTimer
+                interval: 500
+                repeat: false
+                onTriggered: autostartPage.refreshAutostart()
             }
         }
     }
