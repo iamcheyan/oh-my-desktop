@@ -37,31 +37,11 @@ LockScreen {
         context: root.context
     }
 
-    Timer {
-        id: lockTransitionTimer
-        interval: 150
-        repeat: false
-        property string pendingBatch: ""
-        onTriggered: {
-            if (pendingBatch.length > 0) {
-                Quickshell.execDetached(["bash", "-c", pendingBatch])
-                pendingBatch = ""
-            }
-        }
-    }
-
     // Single batch for lock and unlock so we don't race multiple hyprctl calls
     Connections {
         target: GlobalStates
         function onScreenLockedChanged() {
             if (GlobalStates.screenLocked) {
-                // Capture screenshots of all monitors before switching workspaces
-                Quickshell.execDetached([
-                    "bash",
-                    "-c",
-                    "mkdir -p /tmp/quickshell/lock && rm -f /tmp/quickshell/lock/*.png && for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do grim -o \"$m\" \"/tmp/quickshell/lock/screenshot-$m.png\" & done; wait"
-                ]);
-
                 // Lock: save workspace per monitor and move all to temp workspace in one batch
                 var next = {}
                 var batch = "keyword animation workspaces,1,7,menu_decel,slidevert; "
@@ -76,13 +56,8 @@ LockScreen {
                     batch += `hyprctl dispatch 'hl.dsp.focus({monitor="${mon}"})'; hyprctl dispatch 'hl.dsp.focus({workspace=${2147483647 - ws}})';`
                 }
                 root.savedWorkspaces = next
-
-                // Delay the workspace switch to allow grim to capture the screen content
-                lockTransitionTimer.pendingBatch = batch;
-                lockTransitionTimer.start();
+                Quickshell.execDetached(["bash", "-c", batch])
             } else {
-                lockTransitionTimer.stop();
-                lockTransitionTimer.pendingBatch = "";
                 restoreTimer.start()
             }
         }

@@ -26,8 +26,6 @@ FocusScope {
     property bool ctrlHeld: false
     property bool passwordVisible: false
     property int focusAttempts: 0
-    readonly property string screenshotPath: "/tmp/quickshell/lock/screenshot-" + (root.QsWindow?.window?.screen?.name ?? "default") + ".png"
-    property bool useFallback: false
 
     focus: true
 
@@ -56,7 +54,6 @@ FocusScope {
         target: GlobalStates
         function onScreenLockedChanged() {
             if (GlobalStates.screenLocked) {
-                root.useFallback = false;
                 root.context.currentText = "";
                 root.passwordVisible = false;
                 root.startFocusRecovery();
@@ -134,24 +131,18 @@ FocusScope {
     StyledImage {
         id: wallpaper
         anchors.fill: parent
-        source: (GlobalStates.screenLocked && !root.useFallback) ? ("file://" + root.screenshotPath + "?t=" + Date.now()) : root.wallpaperPath
+        source: root.wallpaperPath
         fillMode: Image.PreserveAspectCrop
         cache: false
         smooth: true
         visible: false
-
-        onStatusChanged: {
-            if (status === Image.Error && !root.useFallback) {
-                root.useFallback = true;
-            }
-        }
     }
 
     GaussianBlur {
         anchors.fill: parent
         source: wallpaper
-        radius: 64
-        samples: 64
+        radius: 28
+        samples: 57
     }
 
     Rectangle {
