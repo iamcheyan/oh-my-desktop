@@ -20,11 +20,29 @@ import qs.modules.sessionScreen
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 
 ShellRoot {
     id: root
 
     ReloadPopup {}
+
+    // Esc closes active menus — Hyprland binds ESCAPE to 'dispatch exec qs -p ... ipc call menus close'
+    IpcHandler {
+        target: "menus"
+
+        function close(): void {
+            if (GlobalStates.activeContextMenu !== "") {
+                GlobalStates.activeContextMenu = "";
+            }
+            if (GlobalStates.barPopupType !== "") {
+                GlobalStates.barPopupType = "";
+            }
+            if (GlobalStates.barDialogOpen) {
+                GlobalStates.barDialogOpen = false;
+            }
+        }
+    }
 
     Component.onCompleted: {
         Hyprsunset.load()
@@ -36,21 +54,6 @@ ShellRoot {
     LazyLoader {
         active: Config.ready
         component: Scope {
-            // Esc closes any active context menu or status popup
-            GlobalShortcut {
-                name: "closeMenus"
-                description: "Close active bar menus and popups"
-
-                onPressed: {
-                    if (GlobalStates.activeContextMenu !== "") {
-                        GlobalStates.activeContextMenu = "";
-                    }
-                    if (GlobalStates.barPopupType !== "") {
-                        GlobalStates.barPopupType = "";
-                    }
-                }
-            }
-
             Bar {}
             BarStatusPopup {}
             BarDialogOverlay {}

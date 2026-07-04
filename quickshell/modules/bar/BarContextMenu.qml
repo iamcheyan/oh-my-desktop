@@ -102,10 +102,12 @@ PopupWindow {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: true
         onPressed: event => {
-            if (event.button === Qt.RightButton)
+            // Click on background area (outside popupBackground) closes menu
+            const pos = mapToItem(popupBackground, event.x, event.y)
+            if (pos.x < 0 || pos.x > popupBackground.width || pos.y < 0 || pos.y > popupBackground.height)
                 barContextMenu.close();
         }
 
