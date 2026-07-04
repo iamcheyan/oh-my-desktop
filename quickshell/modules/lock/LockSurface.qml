@@ -15,12 +15,15 @@ FocusScope {
     anchors.fill: parent
 
     required property LockContext context
+    property var screen
     readonly property bool requirePasswordToPower: Config.options.lock.security.requirePasswordToPower
     readonly property string wallpaperPath: {
         const path = FileUtils.expandHomePath(Config.options.background.wallpaperPath);
         const isVideo = path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mkv") || path.endsWith(".avi") || path.endsWith(".mov");
         return isVideo ? FileUtils.expandHomePath(Config.options.background.thumbnailPath) : path;
     }
+    readonly property string snapshotPath: root.context.snapshotForScreen(root.screen?.name ?? "")
+    readonly property string backgroundPath: root.snapshotPath || root.wallpaperPath
     property string timeText: Qt.formatDateTime(new Date(), "HH:mm")
     property string dateText: englishDate(new Date())
     property bool ctrlHeld: false
@@ -129,9 +132,11 @@ FocusScope {
     }
 
     StyledImage {
-        id: wallpaper
+        id: background
         anchors.fill: parent
-        source: root.wallpaperPath
+        source: root.snapshotPath
+            ? Qt.resolvedUrl(`file://${root.snapshotPath}`)
+            : root.backgroundPath
         fillMode: Image.PreserveAspectCrop
         cache: false
         smooth: true
@@ -140,7 +145,7 @@ FocusScope {
 
     GaussianBlur {
         anchors.fill: parent
-        source: wallpaper
+        source: background
         radius: 28
         samples: 57
     }

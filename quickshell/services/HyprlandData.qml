@@ -57,6 +57,10 @@ Singleton {
         return !ws.name.startsWith("special:");
     }
 
+    function suppressedEmptyWorkspaceIds() {
+        return GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
+    }
+
     // Overview (工作区概览) / Switcher (快速切换): only workspaces WITH windows
     // are shown, ordered by MRU (Win11 Alt+Tab Z-order). Empty workspaces are
     // never displayed — not even the active one if it has no windows. A single
@@ -125,42 +129,12 @@ Singleton {
             orderedWindows = withWindows.slice();
         }
 
-        const existingEmptyWorkspace = includeTrailing
-            ? root.workspaces
-                .filter(ws => root.isRegularWorkspace(ws))
-                .filter(ws => ws.id >= 1 && ws.id <= 100)
-                .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
-                .filter(ws => !root.workspaceHasVisibleWindows(ws.id))
-                .filter(ws => !reservedIds[ws.id])
-                .sort((a, b) => {
-                    const aActive = a.id === activeId;
-                    const bActive = b.id === activeId;
-                    if (aActive !== bActive)
-                        return aActive ? -1 : 1;
-                    return a.id - b.id;
-                })[0]
-            : null;
-
         const ordered = orderedWindows.slice();
-        if (existingEmptyWorkspace) {
-            ordered.push({
-                id: existingEmptyWorkspace.id,
-                monitorName: existingEmptyWorkspace.monitor ?? targetMonitor,
-                monitorIndex: 0,
-                monitorLabel: existingEmptyWorkspace.monitor ?? targetMonitor,
-                existingWorkspace: true,
-                isTrailingEmpty: true
-            });
-            return ordered;
-        }
 
-        // Trailing "New workspace" slot: pick a globally unused id.
-        //
-        // It is displayed inside a monitor group, but it still participates in
-        // workspace selection/drag bookkeeping by id. If two monitor groups
-        // produce the same trailing id, window previews and drop targets become
-        // ambiguous. Use global workspace ids to keep each synthetic entry
-        // unique while preserving the rule of one trailing empty per monitor.
+        // Trailing "New workspace" slot: ALWAYS use maxId + 1.
+        // Never reuse an existing empty workspace — Hyprland may keep several
+        // empty workspaces around after window moves, and showing any of them
+        // violates the "one trailing empty at the very end" rule.
         let maxId = activeId - 1;
         for (const entry of orderedWindows)
             maxId = Math.max(maxId, entry.id);
@@ -338,6 +312,12 @@ Singleton {
                 }
                 root.windowByAddress = tempWinByAddress;
                 root.addresses = root.windowList.map(win => win.address);
+                const suppressed = root.suppressedEmptyWorkspaceIds();
+                if (suppressed.length > 0) {
+                    GlobalStates.overviewSuppressedEmptyWorkspaceIds = suppressed.filter(wsId =>
+                        !root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden)
+                    );
+                }
             }
         }
     }

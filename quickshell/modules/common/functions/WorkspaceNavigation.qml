@@ -173,9 +173,19 @@ Singleton {
         if (targetIsTrailing) {
             const model = root.overviewModel();
             const entry = model.find(item => item.id === targetWorkspace);
+            const sourceVisibleWindows = HyprlandData.hyprlandClientsForWorkspace(currentWorkspaceId)
+                .filter(win => win.mapped && !win.hidden);
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
             if ((entry?.monitorName ?? "").length > 0)
                 Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${entry.monitorName}" })`);
+            if (sourceVisibleWindows.length <= 1) {
+                const suppressed = GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
+                if (!suppressed.includes(currentWorkspaceId)) {
+                    const next = suppressed.slice();
+                    next.push(currentWorkspaceId);
+                    GlobalStates.overviewSuppressedEmptyWorkspaceIds = next;
+                }
+            }
         } else {
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
         }

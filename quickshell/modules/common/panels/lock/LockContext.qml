@@ -1,5 +1,6 @@
 import qs
 import qs.modules.common
+import qs.modules.common.functions
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -22,6 +23,44 @@ Scope {
     property bool fingerprintsConfigured: false
     property var targetAction: LockContext.ActionEnum.Unlock
     property bool alsoInhibitIdle: false
+    property var snapshots: ({})
+    readonly property string snapshotDir: "/tmp/omd-lock"
+
+    function snapshotForScreen(screenName) {
+        return root.snapshots[screenName] || "";
+    }
+
+    function lockWithCapture(onReady) {
+        root.captureSnapshots(() => {
+            GlobalStates.screenLocked = true;
+            if (onReady)
+                onReady();
+        });
+    }
+
+    function captureSnapshots(onReady) {
+        const screens = Quickshell.screens;
+        if (!screens || screens.length === 0) {
+            if (onReady)
+                onReady();
+            return;
+        }
+
+        const dir = root.snapshotDir;
+        const parts = [`mkdir -p '${StringUtils.shellSingleQuoteEscape(dir)}'`];
+        const next = {};
+        for (let i = 0; i < screens.length; ++i) {
+            const name = screens[i].name;
+            const path = `${dir}/${name}.png`;
+            next[name] = path;
+            parts.push(`grim -o '${StringUtils.shellSingleQuoteEscape(name)}' '${StringUtils.shellSingleQuoteEscape(path)}' || true`);
+        }
+
+        captureProc.pendingSnapshots = next;
+        captureProc.onReady = onReady;
+        captureProc.command = ["bash", "-c", parts.join(" && ")];
+        captureProc.running = true;
+    }
 
     function resetTargetAction() {
         root.targetAction = LockContext.ActionEnum.Unlock;
@@ -78,6 +117,19 @@ Scope {
     function stopFingerPam() {
         if (fingerPam.active) {
             fingerPam.abort();
+        }
+    }
+
+    Process {
+        id: captureProc
+        property var pendingSnapshots: ({})
+        property var onReady: null
+        onExited: (exitCode, exitStatus) => {
+            root.snapshots = captureProc.pendingSnapshots;
+            const ready = captureProc.onReady;
+            captureProc.onReady = null;
+            if (ready)
+                ready();
         }
     }
 

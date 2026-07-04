@@ -24,9 +24,9 @@ Item {
         ? GlobalStates.overviewFocusedWorkspaceId
         : effectiveActiveWorkspaceId)
     readonly property var overviewEntries: root.compactMode
-        ? WorkspaceNavigation.switcherModel()
-        : HyprlandData.overviewWorkspaceEntriesGroupedByMonitor()
-    readonly property var overviewEntryIds: root.overviewEntries.map(entry => entry.id)
+        ? (WorkspaceNavigation.switcherModel() ?? [])
+        : (HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
+    readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var monitorGroups: {
         const groups = [];
         const byKey = {};
@@ -190,12 +190,16 @@ Item {
     }
 
     function groupLength(group) {
+        if (!group)
+            return 0;
         return Math.max(0, group.end - group.start + 1);
     }
 
     function groupColumns(group) {
         if (root.compactMode)
             return root.overviewGridColumns;
+        if (!group)
+            return Math.max(1, root.overviewGridColumns);
         return Math.max(1, Math.min(root.groupLength(group), root.overviewGridColumns));
     }
 
@@ -246,6 +250,8 @@ Item {
     }
 
     function groupWidth(group) {
+        if (!group)
+            return root.workspaceImplicitWidth;
         const cols = root.groupColumns(group);
         return root.workspaceImplicitWidth * cols
             + root.workspaceSpacing * (cols - 1)
@@ -253,6 +259,8 @@ Item {
     }
 
     function groupHeight(group) {
+        if (!group)
+            return root.workspaceImplicitHeight;
         const rows = root.groupRows(group);
         return root.groupWorkspaceHeight(group) * rows
             + root.workspaceSpacing * (rows - 1)
@@ -286,12 +294,16 @@ Item {
     function groupX(group) {
         if (root.compactMode)
             return 0;
+        if (!group)
+            return root.containerMargin;
         return Math.max(root.containerMargin, (root.width - root.groupWidth(group)) / 2);
     }
 
     function groupY(group) {
         if (root.compactMode)
             return 0;
+        if (!group)
+            return root.containerMargin;
 
         let y = Math.max(root.containerMargin, (root.height - root.groupsTotalHeight()) / 2);
         for (let i = 0; i < root.monitorGroups.length; ++i) {
@@ -661,8 +673,10 @@ Item {
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
                     xOffset: root.entryX(workspaceEntryIndex)
                     yOffset: root.entryY(workspaceEntryIndex)
-                    property real xWithinWorkspaceWidget: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - monitorData?.reserved[0]) * window.scaleX, 0)
-                    property real yWithinWorkspaceWidget: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - monitorData?.reserved[1]) * window.scaleY, 0)
+                    workspaceWidth: root.entryWidth(workspaceEntryIndex)
+                    workspaceHeight: root.entryHeight(workspaceEntryIndex)
+                    property real xWithinWorkspaceWidget: window.localX
+                    property real yWithinWorkspaceWidget: window.localY
 
                     // Radius
                     property real minRadius: Appearance.rounding.small
@@ -764,7 +778,7 @@ Item {
                 x: root.entryX(entryIndex)
                 y: root.entryY(entryIndex)
                 z: root.windowZ
-                width: root.workspaceImplicitWidth
+                width: root.entryWidth(entryIndex)
                 height: root.entryHeight(entryIndex)
                 color: "transparent"
                 property bool workspaceAtLeft: true

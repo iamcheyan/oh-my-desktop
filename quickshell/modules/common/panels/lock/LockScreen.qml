@@ -16,19 +16,17 @@ Scope {
     property alias context: lockContext
     property Component sessionLockSurface: WlSessionLockSurface {
         id: sessionLockSurface
-        color: "transparent"
+        color: "#000000"
         Loader {
             id: surfaceLoader
             active: GlobalStates.screenLocked
             anchors.fill: parent
             focus: active
             opacity: active ? 1 : 0
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
             sourceComponent: root.lockSurface
             onLoaded: {
                 if (item) {
+                    item.screen = sessionLockSurface.screen;
                     item.forceActiveFocus();
                     Qt.callLater(() => {
                         if (item)
@@ -110,7 +108,7 @@ Scope {
             Quickshell.execDetached(["bash", "-c", "pidof hyprlock || hyprlock"]);
             return;
         }
-        GlobalStates.screenLocked = true;
+        lockContext.lockWithCapture();
     }
 
     IpcHandler {

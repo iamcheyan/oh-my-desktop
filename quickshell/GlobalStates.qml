@@ -23,6 +23,7 @@ Singleton {
     property int overviewDraggingFromWorkspace: -1
     property int overviewDraggingTargetWorkspace: -1
     property bool overviewDraggingTargetIsTrailing: false
+    property var overviewSuppressedEmptyWorkspaceIds: []
     property bool regionSelectorOpen: false
     property bool scheduleOpen: false
     property bool screenLocked: false
@@ -71,6 +72,24 @@ Singleton {
         const next = GlobalStates.overviewWorkspaceMru.filter(id => id !== wsId);
         next.unshift(wsId);
         GlobalStates.overviewWorkspaceMru = next;
+    }
+
+    function suppressEmptyWorkspace(wsId) {
+        if (wsId < 1)
+            return;
+        const current = GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
+        if (current.includes(wsId))
+            return;
+        const next = current.slice();
+        next.push(wsId);
+        GlobalStates.overviewSuppressedEmptyWorkspaceIds = next;
+    }
+
+    function unsuppressWorkspace(wsId) {
+        if (wsId < 1)
+            return;
+        GlobalStates.overviewSuppressedEmptyWorkspaceIds =
+            (GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? []).filter(id => id !== wsId);
     }
 
     onControlCenterOpenChanged: {

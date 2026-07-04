@@ -30,19 +30,27 @@ Item { // Window
         return (widgetHeight * monitorData.scale) / (monitorHeight * widgetMonitor.scale);
     }
     property real initX: {
-        return Math.max((windowData?.at[0] - (monitorData?.x ?? 0) - monitorData?.reserved[0]) * root.scaleX, 0) + xOffset;
+        return xOffset + localX;
     }
 
     property real initY: {
-        return Math.max((windowData?.at[1] - (monitorData?.y ?? 0) - monitorData?.reserved[1]) * root.scaleY, 0) + yOffset;
+        return yOffset + localY;
     }
     property real xOffset: 0
     property real yOffset: 0
+    property real workspaceWidth: 1
+    property real workspaceHeight: 1
     property var widgetMonitor
     property int widgetMonitorId: widgetMonitor.id
 
-    property var targetWindowWidth: windowData?.size[0] * root.scaleX
-    property var targetWindowHeight: windowData?.size[1] * root.scaleY
+    property real rawLocalX: (windowData?.at[0] - (monitorData?.x ?? 0) - (monitorData?.reserved[0] ?? 0)) * root.scaleX
+    property real rawLocalY: (windowData?.at[1] - (monitorData?.y ?? 0) - (monitorData?.reserved[1] ?? 0)) * root.scaleY
+    property real rawWindowWidth: Math.max(1, (windowData?.size[0] ?? 1) * root.scaleX)
+    property real rawWindowHeight: Math.max(1, (windowData?.size[1] ?? 1) * root.scaleY)
+    property real localX: Math.max(0, Math.min(rawLocalX, Math.max(0, workspaceWidth - 1)))
+    property real localY: Math.max(0, Math.min(rawLocalY, Math.max(0, workspaceHeight - 1)))
+    property var targetWindowWidth: Math.max(1, Math.min(rawWindowWidth, Math.max(1, workspaceWidth - localX)))
+    property var targetWindowHeight: Math.max(1, Math.min(rawWindowHeight, Math.max(1, workspaceHeight - localY)))
     property bool hovered: false
     property bool pressed: false
 
@@ -56,8 +64,8 @@ Item { // Window
 
     property bool indicateXWayland: windowData?.xwayland ?? false
 
-    x: initX
-    y: initY
+    x: xOffset + localX
+    y: yOffset + localY
     width: targetWindowWidth
     height: targetWindowHeight
     opacity: 1
