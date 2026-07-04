@@ -582,6 +582,26 @@ Item {
                     toplevel: modelData
                     monitorData: this.monitor
                     scale: root.scale
+                    scaleX: {
+                        const mon = window.monitor;
+                        if (!mon)
+                            return root.scale;
+                        const width = (mon.transform & 1) ? mon.height : mon.width;
+                        const reservedStart = mon.reserved?.[0] ?? 0;
+                        const reservedEnd = mon.reserved?.[2] ?? 0;
+                        const logicalWidth = Math.max(1, (width - reservedStart - reservedEnd) / (mon.scale ?? 1));
+                        return root.workspaceImplicitWidth / logicalWidth;
+                    }
+                    scaleY: {
+                        const mon = window.monitor;
+                        if (!mon)
+                            return root.scale;
+                        const height = (mon.transform & 1) ? mon.width : mon.height;
+                        const reservedStart = mon.reserved?.[1] ?? 0;
+                        const reservedEnd = mon.reserved?.[3] ?? 0;
+                        const logicalHeight = Math.max(1, (height - reservedStart - reservedEnd) / (mon.scale ?? 1));
+                        return root.workspaceImplicitHeight / logicalHeight;
+                    }
                     widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
 
@@ -591,8 +611,8 @@ Item {
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
                     xOffset: root.entryX(workspaceEntryIndex)
                     yOffset: root.entryY(workspaceEntryIndex)
-                    property real xWithinWorkspaceWidget: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - monitorData?.reserved[0]) * window.widthRatio * root.scale, 0)
-                    property real yWithinWorkspaceWidget: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - monitorData?.reserved[1]) * window.heightRatio * root.scale, 0)
+                    property real xWithinWorkspaceWidget: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - monitorData?.reserved[0]) * window.scaleX, 0)
+                    property real yWithinWorkspaceWidget: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - monitorData?.reserved[1]) * window.scaleY, 0)
 
                     // Radius
                     property real minRadius: Appearance.rounding.small
