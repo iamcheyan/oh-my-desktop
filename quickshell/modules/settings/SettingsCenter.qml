@@ -877,37 +877,416 @@ WindowDialog {
     Component {
         id: soundPage
         PageBody {
+            // ── Output Devices card ──────────────────────────────────────
             SettingsCard {
-                title: "Output"
+                title: "Output Devices"
+                subtitle: `${Audio.typedSinks.length} device${Audio.typedSinks.length === 1 ? "" : "s"}`
+                visible: Audio.typedSinks.length > 0
+
+                // Loading overlay for WirePlumber reload
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    visible: Audio.wireplumberReloading
+                    radius: root.cosmicRadius
+                    color: root.cosmicAccentSoft
+                    border.width: 1
+                    border.color: root.cosmicAccent
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        MaterialSymbol {
+                            text: "refresh"
+                            iconSize: 18
+                            color: root.cosmicAccent
+                            RotationAnimator on rotation {
+                                running: Audio.wireplumberReloading
+                                loops: Animation.Infinite
+                                from: 0
+                                to: 360
+                                duration: 1200
+                            }
+                        }
+
+                        StyledText {
+                            text: "Restarting audio system..."
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: Audio.typedSinks
+                    delegate: ColumnLayout {
+                        id: sinkDelegate
+                        required property var modelData
+                        readonly property var node: modelData
+                        readonly property bool isActive: Audio.sink?.name === node.name
+                        readonly property bool hasAlias: Audio.hasDeviceAlias(node.name)
+                        property bool editing: false
+                        property string aliasText: ""
+
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        // Device row
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 50
+                            radius: root.cosmicRadius
+                            color: sinkDelegate.isActive ? root.cosmicAccentSoft : "transparent"
+                            border.width: sinkDelegate.isActive ? 1 : 0
+                            border.color: root.cosmicAccent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 10
+
+                                MaterialSymbol {
+                                    text: sinkDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                    iconSize: 18
+                                    color: sinkDelegate.isActive ? root.cosmicAccent : root.cosmicMuted
+                                    Layout.preferredWidth: 22
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: Audio.setDefaultSink(sinkDelegate.node)
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.displayName(sinkDelegate.node)
+                                        color: root.cosmicFg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sinkDelegate.isActive ? Font.Medium : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: sinkDelegate.hasAlias ? Audio.originalName(sinkDelegate.node) : ""
+                                        visible: sinkDelegate.hasAlias
+                                        color: root.cosmicDim
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                // Per-device volume slider
+                                Slider {
+                                    Layout.preferredWidth: 100
+                                    from: 0
+                                    to: 1
+                                    value: sinkDelegate.node?.audio?.volume ?? 0
+                                    onMoved: {
+                                        if (sinkDelegate.node?.audio)
+                                            sinkDelegate.node.audio.volume = value
+                                    }
+
+                                    background: Rectangle {
+                                        implicitHeight: 4
+                                        radius: 2
+                                        color: root.cosmicLine
+                                        Rectangle {
+                                            width: parent.parent.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: root.cosmicAccent
+                                        }
+                                    }
+
+                                    handle: Rectangle {
+                                        x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                        y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                        width: 14
+                                        height: 14
+                                        radius: 7
+                                        color: root.cosmicFg
+                                        border.width: 2
+                                        border.color: root.cosmicAccent
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 38
+                                    text: `${Math.round((sinkDelegate.node?.audio?.volume ?? 0) * 100)}%`
+                                    color: root.cosmicMuted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                // Rename button
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: root.cosmicRadius
+                                    color: renameMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+                                    visible: !sinkDelegate.editing
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "edit"
+                                        iconSize: 15
+                                        color: root.cosmicMuted
+                                    }
+
+                                    MouseArea {
+                                        id: renameMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            sinkDelegate.aliasText = Audio.getDeviceAlias(sinkDelegate.node.name) || ""
+                                            sinkDelegate.editing = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Inline rename dialog
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            visible: sinkDelegate.editing
+                            radius: root.cosmicRadius
+                            color: root.cosmicPanelAlt
+                            border.width: 1
+                            border.color: root.cosmicAccent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                TextInput {
+                                    Layout.fillWidth: true
+                                    text: sinkDelegate.aliasText
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    clip: true
+                                    onTextEdited: sinkDelegate.aliasText = text
+                                    onAccepted: {
+                                        Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                        sinkDelegate.editing = false
+                                    }
+                                    Keys.onEscapePressed: sinkDelegate.editing = false
+                                    Component.onCompleted: forceActiveFocus()
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: root.cosmicRadius
+                                    color: saveMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "check"
+                                        iconSize: 15
+                                        color: root.cosmicAccent
+                                    }
+
+                                    MouseArea {
+                                        id: saveMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                            sinkDelegate.editing = false
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: root.cosmicRadius
+                                    color: cancelMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+                                    visible: sinkDelegate.hasAlias
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "delete"
+                                        iconSize: 15
+                                        color: "#f07070"
+                                    }
+
+                                    MouseArea {
+                                        id: cancelMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            Audio.removeDeviceAlias(sinkDelegate.node.name)
+                                            sinkDelegate.editing = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Input Devices card ───────────────────────────────────────
+            SettingsCard {
+                title: "Input Devices"
+                subtitle: `${Audio.typedSources.length} device${Audio.typedSources.length === 1 ? "" : "s"}`
+                visible: Audio.typedSources.length > 0
+
+                Repeater {
+                    model: Audio.typedSources
+                    delegate: ColumnLayout {
+                        id: sourceDelegate
+                        required property var modelData
+                        readonly property var node: modelData
+                        readonly property bool isActive: Audio.source?.name === node.name
+
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 50
+                            radius: root.cosmicRadius
+                            color: sourceDelegate.isActive ? root.cosmicAccentSoft : "transparent"
+                            border.width: sourceDelegate.isActive ? 1 : 0
+                            border.color: root.cosmicAccent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 10
+
+                                MaterialSymbol {
+                                    text: sourceDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                    iconSize: 18
+                                    color: sourceDelegate.isActive ? root.cosmicAccent : root.cosmicMuted
+                                    Layout.preferredWidth: 22
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: Audio.setDefaultSource(sourceDelegate.node)
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.displayName(sourceDelegate.node)
+                                        color: root.cosmicFg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sourceDelegate.isActive ? Font.Medium : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Slider {
+                                    Layout.preferredWidth: 100
+                                    from: 0
+                                    to: 1
+                                    value: sourceDelegate.node?.audio?.volume ?? 0
+                                    onMoved: {
+                                        if (sourceDelegate.node?.audio)
+                                            sourceDelegate.node.audio.volume = value
+                                    }
+
+                                    background: Rectangle {
+                                        implicitHeight: 4
+                                        radius: 2
+                                        color: root.cosmicLine
+                                        Rectangle {
+                                            width: parent.parent.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: root.cosmicAccent
+                                        }
+                                    }
+
+                                    handle: Rectangle {
+                                        x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                        y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                        width: 14
+                                        height: 14
+                                        radius: 7
+                                        color: root.cosmicFg
+                                        border.width: 2
+                                        border.color: root.cosmicAccent
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 38
+                                    text: `${Math.round((sourceDelegate.node?.audio?.volume ?? 0) * 100)}%`
+                                    color: root.cosmicMuted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Master volume card ───────────────────────────────────────
+            SettingsCard {
+                title: "Master Volume"
                 subtitle: Audio.sink?.audio.muted ? "Muted" : `${Math.round((Audio.sink?.audio.volume ?? 0) * 100)}%`
+
                 SettingsSlider {
                     value: Audio.sink?.audio.muted ? 0 : (Audio.sink?.audio.volume ?? 0)
                     onValueChanged: {
                         if (Audio.sink && !Audio.sink.audio.muted)
-                            Audio.sink.audio.volume = value;
+                            Audio.sink.audio.volume = value
                     }
                 }
+
                 SettingsToggleRow {
                     label: "Mute output"
-                    description: Audio.sink ? Audio.friendlyDeviceName(Audio.sink) : "No output device"
+                    description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
                     checked: Audio.sink?.audio.muted ?? false
                     onToggled: Audio.toggleMute()
                 }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Cycle Output Device"
+                        iconName: "swap_horiz"
+                        onClicked: Audio.cycleAudioOutput()
+                    }
+                }
             }
 
+            // ── Microphone card ──────────────────────────────────────────
             SettingsCard {
-                title: "Input"
+                title: "Microphone"
                 subtitle: Audio.source?.audio.muted ? "Muted" : `${Math.round((Audio.source?.audio.volume ?? 0) * 100)}%`
+
                 SettingsSlider {
                     value: Audio.source?.audio.muted ? 0 : (Audio.source?.audio.volume ?? 0)
                     onValueChanged: {
                         if (Audio.source && !Audio.source.audio.muted)
-                            Audio.source.audio.volume = value;
+                            Audio.source.audio.volume = value
                     }
                 }
+
                 SettingsToggleRow {
                     label: "Mute microphone"
-                    description: Audio.source ? Audio.friendlyDeviceName(Audio.source) : "No input device"
+                    description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
                     checked: Audio.source?.audio.muted ?? false
                     onToggled: Audio.toggleMicMute()
                 }

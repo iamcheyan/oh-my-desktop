@@ -1,12 +1,17 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 import qs.modules.common
+import qs.modules.common.functions
+import QtCore
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 
 /**
  * A nice wrapper for default Pipewire audio sink and source.
+ * Extended with device aliases (WirePlumber), device cycling, and rich
+ * display names — ported from DankMaterialShell's AudioService.
  */
 Singleton {
     id: root
@@ -15,23 +20,323 @@ Singleton {
     property bool ready: Pipewire.defaultAudioSink?.ready ?? false
     property PwNode sink: Pipewire.defaultAudioSink
     property PwNode source: Pipewire.defaultAudioSource
-    readonly property real hardMaxValue: 2.00 // People keep joking about setting volume to 5172% so...
+    readonly property real hardMaxValue: 2.00
     property string audioTheme: Config.options.sounds.theme
     property real value: sink?.audio.volume ?? 0
-    
+
+    // ── Device aliases (WirePlumber config) ──────────────────────────────
+    property var deviceAliases: ({})
+    readonly property string wireplumberConfigPath: {
+        const configBase = FileUtils.trimFileProtocol(Directories.config)
+        return configBase + "/wireplumber/wireplumber.conf.d/51-omd-audio-aliases.conf"
+    }
+    property bool wireplumberReloading: false
+
+    // ── Typed device lists (kept in sync with Pipewire) ──────────────────
+    property list<var> typedSinks: []
+    property list<var> typedSources: []
+
+    // ── Signals ──────────────────────────────────────────────────────────
+    signal sinkProtectionTriggered(string reason)
+    signal micMuteChanged()
+    signal audioOutputCycled(string deviceName, string deviceIcon)
+    signal deviceAliasChanged(string nodeName, string newAlias)
+    signal wireplumberReloadStarted()
+    signal wireplumberReloadCompleted(bool success)
+
+    Component.onCompleted: {
+        rebuildTypedNodeLists()
+        loadDeviceAliases()
+    }
+
+    // ── Display name resolution ──────────────────────────────────────────
+    function displayName(node) {
+        if (!node) return ""
+        // 1. Custom alias from our map
+        if (node.name && deviceAliases[node.name]) {
+            return deviceAliases[node.name]
+        }
+        // 2. WirePlumber-applied node.description
+        if (node.properties && node.properties["node.description"]) {
+            const desc = node.properties["node.description"]
+            if (desc !== node.name) return desc
+        }
+        // 3. Cached description
+        if (node.description && node.description !== node.name) {
+            return node.description
+        }
+        // 4. device.description
+        if (node.properties && node.properties["device.description"]) {
+            return node.properties["device.description"]
+        }
+        // 5. nickname
+        if (node.nickname && node.nickname !== node.name) {
+            return node.nickname
+        }
+        // 6. Pattern-based friendly names
+        if (node.name && node.name.includes("analog-stereo")) return "Built-in Audio Analog Stereo"
+        if (node.name && node.name.includes("bluez")) return "Bluetooth Audio"
+        if (node.name && node.name.includes("usb")) return "USB Audio"
+        if (node.name && node.name.includes("hdmi")) return "HDMI Audio"
+        return node.name ?? "Unknown"
+    }
+
+    function originalName(node) {
+        if (!node) return ""
+        if (node.name && node.name.includes("analog-stereo")) return "Built-in Audio Analog Stereo"
+        if (node.name && node.name.includes("bluez")) return "Bluetooth Audio"
+        if (node.name && node.name.includes("usb")) return "USB Audio"
+        if (node.name && node.name.includes("hdmi")) return "HDMI Audio"
+        if (node.properties && node.properties["device.description"]) return node.properties["device.description"]
+        if (node.nickname && node.nickname !== node.name) return node.nickname
+        return node.name ?? "Unknown"
+    }
+
+    function sinkIcon(node) {
+        if (!node) return "speaker"
+        const name = (node.name || "").toLowerCase()
+        const desc = (displayName(node) || "").toLowerCase()
+        if (name.includes("bluez") || desc.includes("headset") || desc.includes("airpods")) return "headset"
+        if (name.includes("hdmi") || desc.includes("tv")) return "tv"
+        if (desc.includes("speaker")) return "speaker"
+        return "speaker"
+    }
+
     function friendlyDeviceName(node) {
-        return (node.nickname || node.description || Translation.tr("Unknown"));
+        return displayName(node)
     }
     function appNodeDisplayName(node) {
         return (node.properties["application.name"] || node.description || node.name)
     }
 
-    // Lists
+    // ── Typed node list management ───────────────────────────────────────
+    function rebuildTypedNodeLists() {
+        const newSinks = []
+        const newSources = []
+        for (const node of Pipewire.nodes.values) {
+            if (!node?.audio || node.isStream) continue
+            if (node.isSink) newSinks.push(node)
+            else newSources.push(node)
+        }
+        typedSinks = newSinks
+        typedSources = newSources
+    }
+
+    Connections {
+        target: Pipewire.nodes
+        function onValuesChanged() { root.rebuildTypedNodeLists() }
+    }
+
+    // ── Device selection ─────────────────────────────────────────────────
+    function setDefaultSink(node) {
+        if (!node) return false
+        Pipewire.preferredDefaultAudioSink = node
+        return true
+    }
+
+    function setDefaultSource(node) {
+        if (!node) return false
+        Pipewire.preferredDefaultAudioSource = node
+        return true
+    }
+
+    function setDefaultSinkByName(name) {
+        if (!name) return false
+        for (const node of typedSinks) {
+            if (node?.name === name) return setDefaultSink(node)
+        }
+        return false
+    }
+
+    function setDefaultSourceByName(name) {
+        if (!name) return false
+        for (const node of typedSources) {
+            if (node?.name === name) return setDefaultSource(node)
+        }
+        return false
+    }
+
+    function cycleAudioOutput() {
+        const sinks = typedSinks
+        if (sinks.length < 2) return null
+        const currentName = root.sink?.name ?? ""
+        const currentIndex = sinks.findIndex(s => s.name === currentName)
+        const nextIndex = ((currentIndex + 1) % sinks.length + sinks.length) % sinks.length
+        const nextSink = sinks[nextIndex]
+        setDefaultSinkByName(nextSink.name)
+        const name = displayName(nextSink)
+        audioOutputCycled(name, sinkIcon(nextSink))
+        return name
+    }
+
+    // ── Device aliases (WirePlumber config) ──────────────────────────────
+    function getDeviceAlias(nodeName) {
+        if (!nodeName) return null
+        return deviceAliases[nodeName] || null
+    }
+
+    function hasDeviceAlias(nodeName) {
+        if (!nodeName) return false
+        return Object.prototype.hasOwnProperty.call(deviceAliases, nodeName)
+            && deviceAliases[nodeName] !== null
+            && deviceAliases[nodeName] !== ""
+    }
+
+    function setDeviceAlias(nodeName, customAlias) {
+        if (!nodeName) return false
+        if (!customAlias || customAlias.trim() === "") {
+            return removeDeviceAlias(nodeName)
+        }
+        const trimmed = customAlias.trim()
+        const updated = Object.assign({}, deviceAliases)
+        updated[nodeName] = trimmed
+        deviceAliases = updated
+        writeWireplumberConfig()
+        deviceAliasChanged(nodeName, trimmed)
+        return true
+    }
+
+    function removeDeviceAlias(nodeName) {
+        if (!nodeName || !hasDeviceAlias(nodeName)) return false
+        const updated = Object.assign({}, deviceAliases)
+        delete updated[nodeName]
+        deviceAliases = updated
+        writeWireplumberConfig()
+        deviceAliasChanged(nodeName, "")
+        return true
+    }
+
+    function generateWireplumberConfig() {
+        let config = "# Generated by OMD - Audio Device Aliases\n"
+        config += "# Do not edit manually - changes will be overwritten\n\n"
+        const aliasKeys = Object.keys(deviceAliases)
+        if (aliasKeys.length === 0) return config
+
+        const alsaAliases = []
+        const bluezAliases = []
+        const otherAliases = []
+        for (const nodeName of aliasKeys) {
+            const alias = deviceAliases[nodeName]
+            if (!alias) continue
+            if (nodeName.includes("alsa")) alsaAliases.push({nodeName, alias})
+            else if (nodeName.includes("bluez")) bluezAliases.push({nodeName, alias})
+            else otherAliases.push({nodeName, alias})
+        }
+
+        if (alsaAliases.length > 0) {
+            config += "monitor.alsa.rules = [\n"
+            alsaAliases.forEach((rule, i) => {
+                config += "  {\n"
+                config += `    matches = [ { "node.name" = "${rule.nodeName}" } ]\n`
+                config += `    actions = { update-props = { "node.description" = "${rule.alias}" } }\n`
+                config += "  }"
+                if (i < alsaAliases.length - 1) config += ","
+                config += "\n"
+            })
+            config += "]\n\n"
+        }
+        if (bluezAliases.length > 0) {
+            config += "monitor.bluez.rules = [\n"
+            bluezAliases.forEach((rule, i) => {
+                config += "  {\n"
+                config += `    matches = [ { "node.name" = "${rule.nodeName}" } ]\n`
+                config += `    actions = { update-props = { "node.description" = "${rule.alias}" } }\n`
+                config += "  }"
+                if (i < bluezAliases.length - 1) config += ","
+                config += "\n"
+            })
+            config += "]\n\n"
+        }
+        if (otherAliases.length > 0) {
+            config += "wireplumber.rules = [\n"
+            otherAliases.forEach((rule, i) => {
+                config += "  {\n"
+                config += `    matches = [ { "node.name" = "${rule.nodeName}" } ]\n`
+                config += `    actions = { update-props = { "node.description" = "${rule.alias}" } }\n`
+                config += "  }"
+                if (i < otherAliases.length - 1) config += ","
+                config += "\n"
+            })
+            config += "]\n"
+        }
+        return config
+    }
+
+    function writeWireplumberConfig() {
+        const configDir = FileUtils.trimFileProtocol(Directories.config) + "/wireplumber/wireplumber.conf.d"
+        const configContent = generateWireplumberConfig()
+        const shellCmd = `mkdir -p "${configDir}" && cat > "${wireplumberConfigPath}" << 'EOFCONFIG'\n${configContent}\nEOFCONFIG\n`
+        wpWriteProc.command = ["sh", "-c", shellCmd]
+        wpWriteProc.running = true
+    }
+
+    Process {
+        id: wpWriteProc
+        running: false
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                reloadWireplumberConfig()
+            }
+        }
+    }
+
+    function reloadWireplumberConfig() {
+        if (wireplumberReloading) return
+        wireplumberReloading = true
+        wireplumberReloadStarted()
+        wpReloadProc.running = true
+    }
+
+    Process {
+        id: wpReloadProc
+        command: ["systemctl", "--user", "restart", "wireplumber"]
+        running: false
+        onExited: (exitCode, exitStatus) => {
+            wireplumberReloading = false
+            wireplumberReloadCompleted(exitCode === 0)
+        }
+    }
+
+    function loadDeviceAliases() {
+        wpReadProc.running = true
+    }
+
+    Process {
+        id: wpReadProc
+        command: ["cat", wireplumberConfigPath]
+        running: false
+        stdout: StdioCollector {
+            id: wpReadCollector
+            onStreamFinished: {
+                const output = wpReadCollector.text
+                if (!output || output.trim() === "") return
+                const aliases = {}
+                let currentNodeName = null
+                for (const line of output.split('\n')) {
+                    const nameMatch = line.match(/"node\.name"\s*=\s*"([^"]+)"/)
+                    if (nameMatch) currentNodeName = nameMatch[1]
+                    const descMatch = line.match(/"node\.description"\s*=\s*"([^"]+)"/)
+                    if (descMatch && currentNodeName) {
+                        aliases[currentNodeName] = descMatch[1]
+                        currentNodeName = null
+                    }
+                }
+                if (Object.keys(aliases).length > 0) {
+                    deviceAliases = aliases
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            // Exit code non-zero = no config file yet, which is fine
+        }
+    }
+
+    // ── Lists ────────────────────────────────────────────────────────────
     function correctType(node, isSink) {
         return (node.isSink === isSink) && node.audio
     }
     function appNodes(isSink) {
-        return Pipewire.nodes.values.filter((node) => { // Should be list<PwNode> but it breaks ScriptModel
+        return Pipewire.nodes.values.filter((node) => {
             return root.correctType(node, isSink) && node.isStream
         })
     }
@@ -45,95 +350,69 @@ Singleton {
     readonly property list<var> outputDevices: root.devices(true)
     readonly property list<var> inputDevices: root.devices(false)
 
-    // Signals
-    signal sinkProtectionTriggered(string reason);
-
-    // Controls
+    // ── Controls ─────────────────────────────────────────────────────────
     function toggleMute() {
-        Audio.sink.audio.muted = !Audio.sink.audio.muted
+        if (sink?.audio) sink.audio.muted = !sink.audio.muted
     }
 
     function toggleMicMute() {
-        Audio.source.audio.muted = !Audio.source.audio.muted
+        if (source?.audio) {
+            source.audio.muted = !source.audio.muted
+            micMuteChanged()
+        }
     }
 
     function incrementVolume() {
-        const currentVolume = Audio.value;
-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
-        Audio.sink.audio.volume = Math.min(1, Audio.sink.audio.volume + step);
+        const currentVolume = root.value
+        const step = currentVolume < 0.1 ? 0.01 : 0.02
+        if (sink?.audio) sink.audio.volume = Math.min(1, sink.audio.volume + step)
     }
-    
+
     function decrementVolume() {
-        const currentVolume = Audio.value;
-        const step = currentVolume < 0.1 ? 0.01 : 0.02 || 0.2;
-        Audio.sink.audio.volume -= step;
+        const currentVolume = root.value
+        const step = currentVolume < 0.1 ? 0.01 : 0.02
+        if (sink?.audio) sink.audio.volume -= step
     }
 
-    function setDefaultSink(node) {
-        Pipewire.preferredDefaultAudioSink = node;
-    }
-
-    function setDefaultSource(node) {
-        Pipewire.preferredDefaultAudioSource = node;
-    }
-
-    // Internals
+    // ── Internals ────────────────────────────────────────────────────────
     PwObjectTracker {
         objects: [sink, source]
     }
 
-    Connections { // Protection against sudden volume changes
+    Connections {
         target: sink?.audio ?? null
         property bool lastReady: false
         property real lastVolume: 0
         function onVolumeChanged() {
-            if (!Config.options.audio.protection.enable) return;
-            const newVolume = sink.audio.volume;
-            // when resuming from suspend, we should not write volume to avoid pipewire volume reset issues
+            if (!Config.options.audio.protection.enable) return
+            const newVolume = sink.audio.volume
             if (isNaN(newVolume) || newVolume === undefined || newVolume === null) {
-                lastReady = false;
-                lastVolume = 0;
-                return;
+                lastReady = false
+                lastVolume = 0
+                return
             }
             if (!lastReady) {
-                lastVolume = newVolume;
-                lastReady = true;
-                return;
+                lastVolume = newVolume
+                lastReady = true
+                return
             }
-            const maxAllowedIncrease = Config.options.audio.protection.maxAllowedIncrease / 100; 
-            const maxAllowed = Config.options.audio.protection.maxAllowed / 100;
-
+            const maxAllowedIncrease = Config.options.audio.protection.maxAllowedIncrease / 100
+            const maxAllowed = Config.options.audio.protection.maxAllowed / 100
             if (newVolume - lastVolume > maxAllowedIncrease) {
-                sink.audio.volume = lastVolume;
-                root.sinkProtectionTriggered(Translation.tr("Illegal increment"));
+                sink.audio.volume = lastVolume
+                root.sinkProtectionTriggered(Translation.tr("Illegal increment"))
             } else if (newVolume > maxAllowed || newVolume > root.hardMaxValue) {
-                root.sinkProtectionTriggered(Translation.tr("Exceeded max allowed"));
-                sink.audio.volume = Math.min(lastVolume, maxAllowed);
+                root.sinkProtectionTriggered(Translation.tr("Exceeded max allowed"))
+                sink.audio.volume = Math.min(lastVolume, maxAllowed)
             }
-            lastVolume = sink.audio.volume;
+            lastVolume = sink.audio.volume
         }
     }
 
     function playSystemSound(soundName) {
-        const ogaPath = `/usr/share/sounds/${root.audioTheme}/stereo/${soundName}.oga`;
-        const oggPath = `/usr/share/sounds/${root.audioTheme}/stereo/${soundName}.ogg`;
-
-        // Try playing .oga first
-        let command = [
-            "ffplay",
-            "-nodisp",
-            "-autoexit",
-            ogaPath
-        ];
-        Quickshell.execDetached(command);
-
-        // Also try playing .ogg (ffplay will just fail silently if file doesn't exist)
-        command = [
-            "ffplay",
-            "-nodisp",
-            "-autoexit",
-            oggPath
-        ];
-        Quickshell.execDetached(command);
+        const ogaPath = `/usr/share/sounds/${root.audioTheme}/stereo/${soundName}.oga`
+        const oggPath = `/usr/share/sounds/${root.audioTheme}/stereo/${soundName}.ogg`
+        Quickshell.execDetached(["ffplay", "-nodisp", "-autoexit", ogaPath])
+        Quickshell.execDetached(["ffplay", "-nodisp", "-autoexit", oggPath])
     }
 }

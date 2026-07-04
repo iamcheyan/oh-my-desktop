@@ -1,0 +1,6 @@
+module qs.modules.settings.widgets
+SettingsDropdownRow 1.0 SettingsDropdownRow.qml
+SettingsToggleCard 1.0 SettingsToggleCard.qml
+SettingsButtonGroup 1.0 SettingsButtonGroup.qml
+SettingsTextFieldRow 1.0 SettingsTextFieldRow.qml
+SettingsSliderCard 1.0 SettingsSliderCard.qml
