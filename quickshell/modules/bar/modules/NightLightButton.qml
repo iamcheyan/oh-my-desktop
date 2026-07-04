@@ -42,11 +42,9 @@ Item {
         onWheel: wheel => {
             const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
             root.wheelAccum = r.accum
+            const currentScreen = nightLightButton.QsWindow.window.screen
             for (let i = 0; i < Math.abs(r.steps); i++) {
-                if (r.steps > 0)
-                    Brightness.increaseBrightness();
-                else if (r.steps < 0)
-                    Brightness.decreaseBrightness();
+                Brightness.adjustBrightnessForScreen(currentScreen, r.steps > 0)
             }
             wheel.accepted = true;
             GlobalStates.barPopupType = "display";

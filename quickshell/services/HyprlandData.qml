@@ -63,13 +63,16 @@ Singleton {
     // trailing "New workspace" slot (id = max id + 1) is always appended last
     // and never participates in ordering, like GNOME/macOS. This guarantees
     // there is exactly ONE empty cell in the grid, always at the very end.
-    function overviewWorkspaceEntriesGlobal() {
+    function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing) {
+        const includeTrailing = appendTrailing ?? true;
         const activeId = Math.max(1, Math.min(100, root.activeWorkspace?.id ?? 1));
+        const targetMonitor = monitorName ?? "";
 
         // Only workspaces with windows participate in the grid.
         const regularWorkspaces = root.workspaces
             .filter(ws => root.isRegularWorkspace(ws))
             .filter(ws => ws.id >= 1 && ws.id <= 100)
+            .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
             .filter(ws => ws.windows > 0)
             .sort((a, b) => a.id - b.id);
 
@@ -82,6 +85,8 @@ Singleton {
             withWindows.push({
                 id: ws.id,
                 monitorName: ws.monitor ?? "",
+                monitorIndex: 0,
+                monitorLabel: ws.monitor ?? "",
                 isTrailingEmpty: false
             });
         });
@@ -119,15 +124,49 @@ Singleton {
         const trailingId = Math.min(100, maxId + 1);
 
         const ordered = orderedWindows.slice();
-        if (!seen[trailingId]) {
+        if (includeTrailing && !seen[trailingId]) {
             ordered.push({
                 id: trailingId,
-                monitorName: "",
+                monitorName: targetMonitor,
+                monitorIndex: 0,
+                monitorLabel: targetMonitor,
                 isTrailingEmpty: true
             });
         }
 
         return ordered;
+    }
+
+    function overviewWorkspaceEntriesGlobal() {
+        return root.overviewWorkspaceEntriesForMonitor("", true);
+    }
+
+    function sortedOverviewMonitors() {
+        return root.monitors.slice().sort((a, b) => {
+            if ((a.y ?? 0) !== (b.y ?? 0))
+                return (a.y ?? 0) - (b.y ?? 0);
+            return (a.x ?? 0) - (b.x ?? 0);
+        });
+    }
+
+    function overviewWorkspaceEntriesGroupedByMonitor() {
+        const monitors = root.sortedOverviewMonitors();
+        const all = [];
+        for (let i = 0; i < monitors.length; ++i) {
+            const mon = monitors[i];
+            const entries = root.overviewWorkspaceEntriesForMonitor(mon.name, true);
+            for (let j = 0; j < entries.length; ++j) {
+                entries[j].monitorIndex = i;
+                entries[j].monitorLabel = mon.description || mon.name || `Monitor ${i + 1}`;
+                entries[j].monitorName = mon.name || entries[j].monitorName || "";
+                entries[j].groupStart = j === 0;
+                entries[j].groupEnd = j === entries.length - 1;
+                all.push(entries[j]);
+            }
+        }
+        if (all.length === 0)
+            return root.overviewWorkspaceEntriesGlobal();
+        return all;
     }
 
     function workspaceDataForId(workspaceId) {

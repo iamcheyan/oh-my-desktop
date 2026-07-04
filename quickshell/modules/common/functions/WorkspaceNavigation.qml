@@ -19,7 +19,17 @@ Singleton {
     }
 
     function overviewModel() {
-        return HyprlandData.overviewWorkspaceEntriesGlobal();
+        if (WorkspaceSwitcherController.grabbed)
+            return switcherModel();
+        return HyprlandData.overviewWorkspaceEntriesGroupedByMonitor();
+    }
+
+    function switcherModel() {
+        const monitorName = Hyprland.focusedMonitor?.name ?? "";
+        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, false);
+        if (model.length === 0)
+            model = HyprlandData.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
+        return model;
     }
 
     function gridColumnsForModel(model) {

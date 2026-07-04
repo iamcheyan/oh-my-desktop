@@ -27,28 +27,45 @@ Singleton {
         return monitors.find(m => m.screen === screen);
     }
 
-    function increaseBrightness(): void {
-        // if gamma is not yet 100, first increase gamma
-        if (Hyprsunset.gamma !== 100) {
-            Hyprsunset.setGamma(Hyprsunset.gamma + 5);
+    function adjustBrightnessForScreen(screen: ShellScreen, increase: bool): void {
+        const monitor = getMonitorForScreen(screen);
+        if (!monitor) return;
+
+        const isInternal = screen.name.startsWith("eDP") || screen.name.startsWith("LVDS") || screen.name.startsWith("DSI");
+        const hasHardwareControl = isInternal || monitor.isDdc;
+
+        if (!hasHardwareControl) {
+            if (increase) {
+                Hyprsunset.setGamma(Hyprsunset.gamma + 5);
+            } else {
+                Hyprsunset.setGamma(Hyprsunset.gamma - 5);
+            }
             return;
         }
 
-        const focusedName = Hyprland.focusedMonitor.name;
-        const monitor = monitors.find(m => focusedName === m.screen.name);
-        if (monitor)
-            monitor.setBrightness(monitor.brightness + 0.05);
+        if (increase) {
+            if (Hyprsunset.gamma !== 100) {
+                Hyprsunset.setGamma(Hyprsunset.gamma + 5);
+            } else {
+                monitor.setBrightness(monitor.brightness + 0.05);
+            }
+        } else {
+            if (monitor.brightness > 0) {
+                monitor.setBrightness(monitor.brightness - 0.05);
+            } else {
+                Hyprsunset.setGamma(Hyprsunset.gamma - 5);
+            }
+        }
+    }
+
+    function increaseBrightness(): void {
+        const focusedScreen = Quickshell.screens.find(s => Hyprland.focusedMonitor.name === s.name) ?? Quickshell.screens[0];
+        adjustBrightnessForScreen(focusedScreen, true);
     }
 
     function decreaseBrightness(): void {
-        const focusedName = Hyprland.focusedMonitor.name;
-        const monitor = monitors.find(m => focusedName === m.screen.name);
-        if (monitor && monitor.brightness > 0) 
-            monitor.setBrightness(monitor.brightness - 0.05);
-        // if brightness is 0, then decrease gamma
-        else {
-            Hyprsunset.setGamma(Hyprsunset.gamma - 5);
-        }
+        const focusedScreen = Quickshell.screens.find(s => Hyprland.focusedMonitor.name === s.name) ?? Quickshell.screens[0];
+        adjustBrightnessForScreen(focusedScreen, false);
     }
 
     reloadableId: "brightness"

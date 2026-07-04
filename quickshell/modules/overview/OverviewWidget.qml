@@ -23,8 +23,30 @@ Item {
     readonly property int highlightedWorkspaceId: (GlobalStates.overviewFocusedWorkspaceId > 0
         ? GlobalStates.overviewFocusedWorkspaceId
         : effectiveActiveWorkspaceId)
-    readonly property var overviewEntries: HyprlandData.overviewWorkspaceEntriesGlobal()
+    readonly property var overviewEntries: root.compactMode
+        ? WorkspaceNavigation.switcherModel()
+        : HyprlandData.overviewWorkspaceEntriesGroupedByMonitor()
     readonly property var overviewEntryIds: root.overviewEntries.map(entry => entry.id)
+    readonly property var monitorGroups: {
+        const groups = [];
+        const byKey = {};
+        for (let i = 0; i < root.overviewEntries.length; ++i) {
+            const entry = root.overviewEntries[i];
+            const key = entry.monitorName || "unknown";
+            if (!byKey[key]) {
+                byKey[key] = {
+                    key,
+                    label: entry.monitorLabel || entry.monitorName || "Hidden monitor",
+                    start: i,
+                    end: i,
+                    monitorIndex: entry.monitorIndex ?? groups.length
+                };
+                groups.push(byKey[key]);
+            }
+            byKey[key].end = i;
+        }
+        return groups;
+    }
     property bool monitorIsFocused: (Hyprland.focusedMonitor?.name == monitor?.name)
     property var windows: HyprlandData.windowList
     property var windowByAddress: HyprlandData.windowByAddress
@@ -140,6 +162,34 @@ Item {
             : normalCol;
     }
 
+    function groupRowStart(group) {
+        let row = root.getEntryRow(group.start);
+        for (let i = group.start + 1; i <= group.end; ++i)
+            row = Math.min(row, root.getEntryRow(i));
+        return row;
+    }
+
+    function groupRowEnd(group) {
+        let row = root.getEntryRow(group.start);
+        for (let i = group.start + 1; i <= group.end; ++i)
+            row = Math.max(row, root.getEntryRow(i));
+        return row;
+    }
+
+    function groupColStart(group) {
+        let col = root.getEntryColumn(group.start);
+        for (let i = group.start + 1; i <= group.end; ++i)
+            col = Math.min(col, root.getEntryColumn(i));
+        return col;
+    }
+
+    function groupColEnd(group) {
+        let col = root.getEntryColumn(group.start);
+        for (let i = group.start + 1; i <= group.end; ++i)
+            col = Math.max(col, root.getEntryColumn(i));
+        return col;
+    }
+
     function cycleOverviewWorkspace(dir) {
         WorkspaceNavigation.navigateByIndex(dir, false);
     }
@@ -207,6 +257,59 @@ Item {
     }
 
     // Workspace grid — centered in both modes
+    Item {
+        id: monitorGroupUnderlay
+        anchors.centerIn: parent
+        implicitWidth: workspaceColumnLayout.implicitWidth
+        implicitHeight: workspaceColumnLayout.implicitHeight
+        visible: !root.compactMode && root.monitorGroups.length > 1
+        z: root.workspaceZ - 1
+
+        Repeater {
+            model: root.monitorGroups
+            delegate: Rectangle {
+                required property var modelData
+                readonly property int rowStart: root.groupRowStart(modelData)
+                readonly property int rowEnd: root.groupRowEnd(modelData)
+                readonly property int colStart: root.groupColStart(modelData)
+                readonly property int colEnd: root.groupColEnd(modelData)
+                readonly property bool focusedGroup: modelData.key === (Hyprland.focusedMonitor?.name ?? "")
+
+                x: (root.workspaceImplicitWidth + root.workspaceSpacing) * colStart - 12
+                y: (root.workspaceImplicitHeight + root.workspaceSpacing) * rowStart - 34
+                width: (root.workspaceImplicitWidth * (colEnd - colStart + 1))
+                    + (root.workspaceSpacing * (colEnd - colStart)) + 24
+                height: (root.workspaceImplicitHeight * (rowEnd - rowStart + 1))
+                    + (root.workspaceSpacing * (rowEnd - rowStart)) + 46
+                radius: root.largeWorkspaceRadius + 12
+                color: focusedGroup
+                    ? ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.78)
+                    : ColorUtils.transparentize(Appearance.colors.colSurfaceContainer, 0.84)
+                border.width: focusedGroup ? 2 : 1
+                border.color: focusedGroup
+                    ? Appearance.colors.colSecondary
+                    : ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
+
+                StyledText {
+                    anchors {
+                        left: parent.left
+                        top: parent.top
+                        leftMargin: 14
+                        topMargin: 8
+                    }
+                    text: modelData.label
+                    color: parent.focusedGroup
+                        ? Appearance.colors.colSecondary
+                        : ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.18)
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    width: parent.width - 28
+                }
+            }
+        }
+    }
+
     GridLayout { // Workspaces
         id: workspaceColumnLayout
 
