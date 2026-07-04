@@ -170,25 +170,42 @@ Singleton {
         if (!windowAddress || targetWorkspace === -1 || targetWorkspace === currentWorkspaceId)
             return false;
 
+        const sourceVisibleWindows = HyprlandData.hyprlandClientsForWorkspace(currentWorkspaceId)
+            .filter(win => win.mapped && !win.hidden);
+        const sourceIsEmptyAfterMove = sourceVisibleWindows.length <= 1;
+
+        const model = root.overviewModel();
+        const entry = model.find(item => item.id === targetWorkspace);
+
         if (targetIsTrailing) {
-            const model = root.overviewModel();
-            const entry = model.find(item => item.id === targetWorkspace);
-            const sourceVisibleWindows = HyprlandData.hyprlandClientsForWorkspace(currentWorkspaceId)
-                .filter(win => win.mapped && !win.hidden);
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
             if ((entry?.monitorName ?? "").length > 0)
                 Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${entry.monitorName}" })`);
-            if (sourceVisibleWindows.length <= 1) {
-                const suppressed = GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
-                if (!suppressed.includes(currentWorkspaceId)) {
-                    const next = suppressed.slice();
-                    next.push(currentWorkspaceId);
-                    GlobalStates.overviewSuppressedEmptyWorkspaceIds = next;
-                }
-            }
         } else {
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
         }
+
+        if (sourceIsEmptyAfterMove) {
+            const suppressed = GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
+            if (!suppressed.includes(currentWorkspaceId)) {
+                const next = suppressed.slice();
+                next.push(currentWorkspaceId);
+                GlobalStates.overviewSuppressedEmptyWorkspaceIds = next;
+            }
+        }
+
+        // Switch active focus if the source workspace is active and now empty!
+        // This forces Hyprland to garbage collect the empty source workspace.
+        const monitor = Hyprland.focusedMonitor ?? Hyprland.monitors[0];
+        const activeWsId = HyprlandData.monitorActiveWorkspaceId(monitor);
+        if (sourceIsEmptyAfterMove && activeWsId === currentWorkspaceId) {
+            const targetMonitorName = entry?.monitorName ?? "";
+            if (targetMonitorName.length > 0) {
+                Hyprland.dispatch(`hl.dsp.focus({monitor="${targetMonitorName}"})`);
+            }
+            Hyprland.dispatch(`hl.dsp.focus({ workspace = ${targetWorkspace} })`);
+        }
+
         return true;
     }
 

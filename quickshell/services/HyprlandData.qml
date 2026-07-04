@@ -87,6 +87,7 @@ Singleton {
             .filter(ws => root.isRegularWorkspace(ws))
             .filter(ws => ws.id >= 1 && ws.id <= 100)
             .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
+            .filter(ws => !root.suppressedEmptyWorkspaceIds().includes(ws.id))
             .filter(ws => root.workspaceHasVisibleWindows(ws.id))
             .sort((a, b) => a.id - b.id);
 
