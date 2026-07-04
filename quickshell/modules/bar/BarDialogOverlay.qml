@@ -69,7 +69,15 @@ Scope {
                 GlobalStates.barDialogType = "";
             }
 
+            Keys.onPressed: event => {
+                if (event.key === Qt.Key_Escape) {
+                    close();
+                    event.accepted = true;
+                }
+            }
+
             Component.onCompleted: {
+                overlayWindow.forceActiveFocus();
                 if (GlobalStates.barDialogType === "bluetooth") {
                     Bluetooth.defaultAdapter.enabled = true;
                     Bluetooth.defaultAdapter.discovering = true;

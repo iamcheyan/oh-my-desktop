@@ -76,7 +76,14 @@ Scope {
         exclusiveZone: 0
         WlrLayershell.namespace: "quickshell:barstatus"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: root.activeType === "schedule" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape) {
+                root.close();
+                event.accepted = true;
+            }
+        }
 
         readonly property bool barOnBottom: Config.options.bar.bottom
         readonly property bool large: root.activeType === "schedule"
@@ -108,6 +115,7 @@ Scope {
             console.log(`[BarStatusPopup] visible=${visible} activeType=${root.activeType} size=${implicitWidth}x${implicitHeight} screen=${screen?.name}`);
             if (visible) {
                 popupWindow.screen = root.focusedScreen;
+                popupWindow.forceActiveFocus();
                 dismissGuard.restart();
             } else {
                 dismissGuard.stop();

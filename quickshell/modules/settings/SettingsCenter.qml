@@ -3,7 +3,6 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
-import qs.modules.settings.widgets
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -12,6 +11,7 @@ import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
+import "display" as DisplaySettings
 
 WindowDialog {
     id: root
@@ -52,7 +52,7 @@ WindowDialog {
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style" },
         { key: "themes", icon: "format_paint", title: "Themes", keywords: "theme preview color wallpaper omarchy appearance" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery" },
-        { key: "osd", icon: "onscreen_text", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
+        { key: "osd", icon: "tune", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
         { key: "autostart", icon: "rocket_launch", title: "Autostart", keywords: "startup boot login launch autostart xdg desktop" },
         { key: "windowrules", icon: "window", title: "Window Rules", keywords: "window rule float opacity workspace class app" },
         { key: "sounds", icon: "volume_up", title: "Sounds", keywords: "sound audio theme notification volume login event" },
@@ -67,7 +67,6 @@ WindowDialog {
     anchorPosition: 0
     contentPadding: 0
     dismissOnBackgroundPress: false
-    focus: true
 
     function normalizePage(page) {
         if (page === "wifi") return "network";
@@ -378,7 +377,7 @@ WindowDialog {
                                 if (root.currentPage === "network") return networkPage;
                                 if (root.currentPage === "bluetooth") return bluetoothPage;
                                 if (root.currentPage === "sound") return soundPage;
-                                if (root.currentPage === "display") return displayPage;
+                                if (root.currentPage === "display") return migratedDisplayPage;
                                 if (root.currentPage === "appearance") return appearancePage;
                                 if (root.currentPage === "themes") return themesPage;
                                 if (root.currentPage === "power") return powerPage;
@@ -522,7 +521,7 @@ WindowDialog {
                 Layout.preferredWidth: visible ? 22 : 0
                 Layout.fillHeight: true
                 text: row.iconName
-                iconSize: 19
+                iconSize: 18
                 color: root.cosmicMuted
             }
 
@@ -567,7 +566,7 @@ WindowDialog {
                 Layout.preferredWidth: visible ? 20 : 0
                 Layout.fillHeight: true
                 text: "chevron_right"
-                iconSize: 20
+                iconSize: 18
                 color: root.cosmicMuted
             }
         }
@@ -597,7 +596,7 @@ WindowDialog {
             width: 46
             height: 26
             radius: height / 2
-            color: toggleRow.checked ? root.cosmicAccent : "#5a5a5a"
+            color: toggleRow.checked ? root.cosmicAccent : root.cosmicLine
 
             Rectangle {
                 width: 20
@@ -670,7 +669,7 @@ WindowDialog {
         MaterialSymbol {
             anchors.centerIn: parent
             text: iconButton.iconName
-            iconSize: 17
+            iconSize: 18
             color: root.cosmicAccent
         }
 
@@ -690,7 +689,7 @@ WindowDialog {
         Layout.fillWidth: true
         Layout.preferredHeight: 8
         radius: height / 2
-        color: "#202020"
+        color: root.cosmicLine
 
         Rectangle {
             anchors.left: parent.left
@@ -727,7 +726,7 @@ WindowDialog {
 
     component SettingsSlider: Slider {
         id: sliderRoot
-        property color trackColor: "#202020"
+        property color trackColor: root.cosmicLine
         property color highlightColor: root.cosmicAccent
         property color handleColor: root.cosmicFg
 
@@ -742,7 +741,7 @@ WindowDialog {
             anchors.verticalCenter: parent.verticalCenter
             x: 0
             width: sliderRoot.width
-            implicitHeight: 8
+            implicitHeight: 6
             radius: height / 2
             color: sliderRoot.trackColor
 
@@ -757,12 +756,12 @@ WindowDialog {
         handle: Rectangle {
             x: sliderRoot.visualPosition * (sliderRoot.width - width)
             anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: 18
-            implicitHeight: 18
+            implicitWidth: 16
+            implicitHeight: 16
             radius: height / 2
             color: sliderRoot.handleColor
             border.width: 2
-            border.color: sliderRoot.pressed ? sliderRoot.highlightColor : "#555"
+            border.color: sliderRoot.pressed ? sliderRoot.highlightColor : root.cosmicButtonBorder
             Behavior on border.color { ColorAnimation { duration: 100 } }
         }
     }
@@ -771,6 +770,229 @@ WindowDialog {
         Layout.fillWidth: true
         Layout.preferredHeight: 42
         spacing: 10
+    }
+
+    component SettingsDropdownRow: Rectangle {
+        id: ddRow
+        property string label: ""
+        property string description: ""
+        property string currentValue: ""
+        property var options: []
+        property int dropdownWidth: 180
+        signal valueChanged(string value)
+
+        Layout.fillWidth: true
+        implicitHeight: 56
+        radius: root.cosmicRadius
+        color: ddRowMouse.containsMouse ? root.cosmicCardHover : "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 14
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: ddRow.label
+                    color: root.cosmicFg
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    visible: ddRow.description.length > 0
+                    Layout.fillWidth: true
+                    text: ddRow.description
+                    color: root.cosmicDim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    elide: Text.ElideRight
+                }
+            }
+
+            Rectangle {
+                id: ddButton
+                Layout.preferredWidth: ddRow.dropdownWidth
+                Layout.preferredHeight: 36
+                radius: root.cosmicRadius
+                color: ddBtnMouse.containsMouse ? root.cosmicButtonHover : root.cosmicButton
+                border.width: 1
+                border.color: ddRow.dropdownOpen ? root.cosmicAccent : root.cosmicButtonBorder
+                property bool dropdownOpen: false
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 8
+                    spacing: 6
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: {
+                            for (const opt of ddRow.options) {
+                                if (opt.value === ddRow.currentValue) return opt.label
+                            }
+                            return ddRow.currentValue
+                        }
+                        color: root.cosmicFg
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        elide: Text.ElideRight
+                    }
+
+                    MaterialSymbol {
+                        text: ddRow.dropdownOpen ? "expand_less" : "expand_more"
+                        iconSize: 18
+                        color: root.cosmicMuted
+                    }
+                }
+
+                MouseArea {
+                    id: ddBtnMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: ddRow.dropdownOpen = !ddRow.dropdownOpen
+                }
+
+                Popup {
+                    id: ddPopup
+                    y: ddButton.height + 4
+                    width: ddRow.dropdownWidth
+                    height: Math.min(300, ddOptCol.implicitHeight + 8)
+                    visible: ddRow.dropdownOpen
+
+                    background: Rectangle {
+                        radius: root.cosmicRadius
+                        color: root.cosmicPanel
+                        border.width: 1
+                        border.color: root.cosmicLine
+                    }
+
+                    onClosed: ddRow.dropdownOpen = false
+
+                    ColumnLayout {
+                        id: ddOptCol
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        spacing: 0
+
+                        Repeater {
+                            model: ddRow.options
+                            delegate: Rectangle {
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 34
+                                radius: root.cosmicRadius
+                                color: ddOptMouse.containsMouse ? root.cosmicCardHover
+                                    : (modelData.value === ddRow.currentValue ? root.cosmicAccentSoft : "transparent")
+
+                                StyledText {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: modelData.label
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                }
+
+                                MouseArea {
+                                    id: ddOptMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        ddRow.currentValue = modelData.value
+                                        ddRow.valueChanged(modelData.value)
+                                        ddPopup.close()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        MouseArea {
+            id: ddRowMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            propagateComposedEvents: true
+            acceptedButtons: Qt.NoButton
+        }
+    }
+
+    component SettingsTextFieldRow: Rectangle {
+        id: tfRow
+        property string label: ""
+        property string description: ""
+        property string text: ""
+        property string placeholder: ""
+        property int fieldWidth: 200
+        signal textEdited(string newText)
+
+        Layout.fillWidth: true
+        implicitHeight: 56
+        radius: root.cosmicRadius
+        color: "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 14
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: tfRow.label
+                    color: root.cosmicFg
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    visible: tfRow.description.length > 0
+                    Layout.fillWidth: true
+                    text: tfRow.description
+                    color: root.cosmicDim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    elide: Text.ElideRight
+                }
+            }
+
+            Rectangle {
+                Layout.preferredWidth: tfRow.fieldWidth
+                Layout.preferredHeight: 36
+                radius: root.cosmicRadius
+                color: root.cosmicButton
+                border.width: 1
+                border.color: tfInput.activeFocus ? root.cosmicAccent : root.cosmicButtonBorder
+
+                TextInput {
+                    id: tfInput
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    verticalAlignment: Text.AlignVCenter
+                    text: tfRow.text
+                    color: root.cosmicFg
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    clip: true
+
+                    onTextEdited: {
+                        tfRow.text = tfInput.text
+                        tfRow.textEdited(tfInput.text)
+                    }
+                }
+            }
+        }
     }
 
     Component {
@@ -979,7 +1201,7 @@ WindowDialog {
 
                                     MaterialSymbol {
                                         text: "lock"
-                                        iconSize: 11
+                                        iconSize: 14
                                         color: root.cosmicDim
                                         visible: netDelegate.ap.security && netDelegate.ap.security.length > 0
                                     }
@@ -1312,37 +1534,12 @@ WindowDialog {
                                 }
 
                                 // Per-device volume slider
-                                Slider {
+                                SettingsSlider {
                                     Layout.preferredWidth: 100
-                                    from: 0
-                                    to: 1
                                     value: sinkDelegate.node?.audio?.volume ?? 0
-                                    onMoved: {
+                                    onValueChanged: {
                                         if (sinkDelegate.node?.audio)
                                             sinkDelegate.node.audio.volume = value
-                                    }
-
-                                    background: Rectangle {
-                                        implicitHeight: 4
-                                        radius: 2
-                                        color: root.cosmicLine
-                                        Rectangle {
-                                            width: parent.parent.visualPosition * parent.width
-                                            height: parent.height
-                                            radius: 2
-                                            color: root.cosmicAccent
-                                        }
-                                    }
-
-                                    handle: Rectangle {
-                                        x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                                        y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                                        width: 14
-                                        height: 14
-                                        radius: 7
-                                        color: root.cosmicFg
-                                        border.width: 2
-                                        border.color: root.cosmicAccent
                                     }
                                 }
 
@@ -1365,7 +1562,7 @@ WindowDialog {
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: "edit"
-                                        iconSize: 15
+                                        iconSize: 16
                                         color: root.cosmicMuted
                                     }
 
@@ -1422,7 +1619,7 @@ WindowDialog {
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: "check"
-                                        iconSize: 15
+                                        iconSize: 16
                                         color: root.cosmicAccent
                                     }
 
@@ -1447,7 +1644,7 @@ WindowDialog {
                                     MaterialSymbol {
                                         anchors.centerIn: parent
                                         text: "delete"
-                                        iconSize: 15
+                                        iconSize: 16
                                         color: "#f07070"
                                     }
 
@@ -1524,37 +1721,12 @@ WindowDialog {
                                     }
                                 }
 
-                                Slider {
+                                SettingsSlider {
                                     Layout.preferredWidth: 100
-                                    from: 0
-                                    to: 1
                                     value: sourceDelegate.node?.audio?.volume ?? 0
-                                    onMoved: {
+                                    onValueChanged: {
                                         if (sourceDelegate.node?.audio)
                                             sourceDelegate.node.audio.volume = value
-                                    }
-
-                                    background: Rectangle {
-                                        implicitHeight: 4
-                                        radius: 2
-                                        color: root.cosmicLine
-                                        Rectangle {
-                                            width: parent.parent.visualPosition * parent.width
-                                            height: parent.height
-                                            radius: 2
-                                            color: root.cosmicAccent
-                                        }
-                                    }
-
-                                    handle: Rectangle {
-                                        x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                                        y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                                        width: 14
-                                        height: 14
-                                        radius: 7
-                                        color: root.cosmicFg
-                                        border.width: 2
-                                        border.color: root.cosmicAccent
                                     }
                                 }
 
@@ -1624,6 +1796,13 @@ WindowDialog {
     }
 
     Component {
+        id: migratedDisplayPage
+        DisplaySettings.DisplayPage {
+            brightnessMonitor: root.brightnessMonitor
+        }
+    }
+
+    Component {
         id: displayPage
         PageBody {
             SettingsCard {
@@ -1671,36 +1850,13 @@ WindowDialog {
                         }
                     }
 
-                    Slider {
+                    SettingsSlider {
                         Layout.fillWidth: true
                         from: 2500
                         to: 6500
                         stepSize: 100
                         value: Config.options.light.night.colorTemperature ?? 6000
-                        onMoved: Config.setNestedValue("light.night.colorTemperature", Math.round(value))
-
-                        background: Rectangle {
-                            implicitHeight: 6
-                            radius: 3
-                            color: root.cosmicLine
-                            Rectangle {
-                                width: parent.parent.visualPosition * parent.width
-                                height: parent.height
-                                radius: 3
-                                color: root.cosmicAccent
-                            }
-                        }
-
-                        handle: Rectangle {
-                            x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                            y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: root.cosmicFg
-                            border.width: 2
-                            border.color: root.cosmicAccent
-                        }
+                        onValueChanged: Config.setNestedValue("light.night.colorTemperature", Math.round(value))
                     }
                 }
 
@@ -1812,38 +1968,15 @@ WindowDialog {
                                 Layout.preferredWidth: 100
                             }
 
-                            Slider {
+                            SettingsSlider {
                                 Layout.fillWidth: true
                                 from: 1.0
                                 to: 3.0
                                 stepSize: 0.25
                                 value: monDelegate.mon.scale ?? 1.0
-                                onMoved: {
+                                onValueChanged: {
                                     const cmd = `hyprctl keyword monitor ${monDelegate.mon.name},${monDelegate.mon.width}x${monDelegate.mon.height}@${monDelegate.mon.refreshRate},${monDelegate.mon.x}x${monDelegate.mon.y},${value}`
                                     Quickshell.execDetached(["bash", "-c", cmd])
-                                }
-
-                                background: Rectangle {
-                                    implicitHeight: 4
-                                    radius: 2
-                                    color: root.cosmicLine
-                                    Rectangle {
-                                        width: parent.parent.visualPosition * parent.width
-                                        height: parent.height
-                                        radius: 2
-                                        color: root.cosmicAccent
-                                    }
-                                }
-
-                                handle: Rectangle {
-                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                                    width: 14
-                                    height: 14
-                                    radius: 7
-                                    color: root.cosmicFg
-                                    border.width: 2
-                                    border.color: root.cosmicAccent
                                 }
                             }
 
@@ -1949,7 +2082,7 @@ WindowDialog {
 
                                 MaterialSymbol {
                                     text: wpState.isFolder ? "folder" : "image"
-                                    iconSize: 13
+                                    iconSize: 14
                                     color: wpState.isFolder ? root.cosmicAccent : root.cosmicMuted
                                 }
 
@@ -2055,42 +2188,18 @@ WindowDialog {
                         }
                     }
 
-                    Slider {
+                    SettingsSlider {
                         Layout.fillWidth: true
                         from: 300
                         to: 7200
                         stepSize: 300
                         value: parseInt(wpState.interval) || 1800
-                        onMoved: {
-                            // Write interval to state file and restart timer
+                        onValueChanged: {
                             Quickshell.execDetached(["bash", "-c",
-                                `echo "${Math.round(value)}" > "$HOME/.local/state/omd/wallpaper/interval" && ` +
-                                `$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ` +
-                                `$HOME/.config/omd/bin/omd-wallpaper random`])
+                                'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
+                                '$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ' +
+                                '$HOME/.config/omd/bin/omd-wallpaper random'])
                             wpRefreshTimer.restart()
-                        }
-
-                        background: Rectangle {
-                            implicitHeight: 4
-                            radius: 2
-                            color: root.cosmicLine
-                            Rectangle {
-                                width: parent.parent.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: root.cosmicAccent
-                            }
-                        }
-
-                        handle: Rectangle {
-                            x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
-                            y: parent.topPadding + parent.availableHeight / 2 - height / 2
-                            width: 14
-                            height: 14
-                            radius: 7
-                            color: root.cosmicFg
-                            border.width: 2
-                            border.color: root.cosmicAccent
                         }
                     }
                 }
@@ -2143,11 +2252,64 @@ WindowDialog {
             }
 
             SettingsCard {
-                title: "Font"
-                subtitle: "Monospace family"
+                title: "Terminal Font"
+                subtitle: "Font family and size for all terminals"
+
                 SettingsRow {
                     label: "Current font"
                     value: appearanceState.currentFont.length > 0 ? appearanceState.currentFont : "--"
+                }
+
+                // Terminal font size slider
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        StyledText {
+                            text: "Font size"
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        StyledText {
+                            text: `${appearanceState.terminalFontSize}pt`
+                            color: root.cosmicMuted
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+
+                    SettingsSlider {
+                        from: 6
+                        to: 24
+                        stepSize: 1
+                        value: appearanceState.terminalFontSize
+                        onValueChanged: {
+                            appearanceState.terminalFontSize = Math.round(value)
+                            applyTerminalFontProc.running = true
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: "Applies to foot, kitty, alacritty, and ghostty. New terminal windows will use the new size."
+                        color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.Wrap
+                    }
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Apply Now"
+                        iconName: "check"
+                        onClicked: applyTerminalFontProc.running = true
+                    }
                 }
             }
 
@@ -2155,6 +2317,40 @@ WindowDialog {
                 id: appearanceState
                 property string currentTheme: ""
                 property string currentFont: ""
+                property int terminalFontSize: 9
+            }
+
+            Process {
+                id: fontSizeReadProc
+                command: ["bash", "-c", 'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omarchy/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omarchy/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9']
+                running: true
+                stdout: StdioCollector {
+                    id: fontSizeCollector
+                    onStreamFinished: {
+                        const val = parseFloat(fontSizeCollector.text.trim())
+                        if (!isNaN(val) && val > 0)
+                            appearanceState.terminalFontSize = Math.round(val)
+                    }
+                }
+            }
+
+            Process {
+                id: applyTerminalFontProc
+                running: false
+                command: ["bash", "-c",
+                    'SIZE=' + appearanceState.terminalFontSize + '\n' +
+                    '# foot\n' +
+                    'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omarchy/foot/foot.ini" 2>/dev/null\n' +
+                    '# kitty\n' +
+                    'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omarchy/kitty/kitty.conf" 2>/dev/null\n' +
+                    '# alacritty\n' +
+                    'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omarchy/alacritty/alacritty.toml" 2>/dev/null\n' +
+                    '# ghostty\n' +
+                    'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omarchy/ghostty/config" 2>/dev/null\n' +
+                    'true']
+                onExited: {
+                    fontSizeReadProc.running = true
+                }
             }
 
             Process {
@@ -3297,7 +3493,7 @@ WindowDialog {
                                 MaterialSymbol {
                                     anchors.centerIn: parent
                                     text: "delete"
-                                    iconSize: 15
+                                    iconSize: 16
                                     color: "#f07070"
                                 }
 
