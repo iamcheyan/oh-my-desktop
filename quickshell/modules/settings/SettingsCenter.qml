@@ -12,6 +12,7 @@ import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import "display" as DisplaySettings
+import "wallpaper" as WallpaperSettings
 
 WindowDialog {
     id: root
@@ -21,6 +22,7 @@ WindowDialog {
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
     property string searchQuery: ""
+    property int wallpaperRefreshNonce: 0
 
     readonly property color cosmicBg: "#181818"
     readonly property color cosmicPanel: "#242424"
@@ -122,6 +124,14 @@ WindowDialog {
         return path.startsWith("file://") ? path : `file://${path}`;
     }
 
+    function shellQuote(value) {
+        return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
+    }
+
+    function openWallpaperPicker(mode) {
+        wallpaperPicker.open(mode);
+    }
+
     readonly property var filteredPages: pages.filter(p => pageMatchesSearch(p))
 
     function pageMatchesSearch(pageEntry) {
@@ -149,6 +159,7 @@ WindowDialog {
     }
 
     Rectangle {
+        id: settingsShell
         Layout.fillWidth: true
         Layout.fillHeight: true
         color: TuiStyle.bg
@@ -394,6 +405,16 @@ WindowDialog {
                         }
                     }
                 }
+            }
+        }
+
+        WallpaperSettings.WallpaperPickerDialog {
+            id: wallpaperPicker
+            anchors.fill: parent
+            onAccepted: (mode, path) => {
+                const action = mode === "folder" ? "set-folder" : "set-file";
+                Quickshell.execDetached(["bash", "-lc", "$HOME/.config/omd/bin/omd-wallpaper " + action + " " + root.shellQuote(path)]);
+                root.wallpaperRefreshNonce += 1;
             }
         }
     }
@@ -1799,6 +1820,7 @@ WindowDialog {
         id: migratedDisplayPage
         DisplaySettings.DisplayPage {
             brightnessMonitor: root.brightnessMonitor
+            openWallpaperPicker: mode => root.openWallpaperPicker(mode)
         }
     }
 
@@ -2027,6 +2049,13 @@ WindowDialog {
                 }
             }
 
+            Connections {
+                target: root
+                function onWallpaperRefreshNonceChanged() {
+                    wpRefreshTimer.restart()
+                }
+            }
+
             SettingsCard {
                 title: "Wallpaper"
                 subtitle: wpState.isFolder ? "Folder rotation" : "Single image"
@@ -2133,13 +2162,13 @@ WindowDialog {
                         label: "Choose Image"
                         iconName: "image"
                         active: !wpState.isFolder
-                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-file && sleep 1 && $HOME/.config/omd/bin/omd-wallpaper status > /dev/null"])
+                        onClicked: root.openWallpaperPicker("file")
                     }
                     SettingsButton {
                         label: "Choose Folder"
                         iconName: "folder"
                         active: wpState.isFolder
-                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-folder && sleep 1 && $HOME/.config/omd/bin/omd-wallpaper status > /dev/null"])
+                        onClicked: root.openWallpaperPicker("folder")
                     }
                 }
 

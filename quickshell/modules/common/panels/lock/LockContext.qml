@@ -42,6 +42,10 @@ Scope {
         stopFingerPam();
     }
 
+    function deactivateInputMethod() {
+        Quickshell.execDetached(["fcitx5-remote", "-c"]);
+    }
+
     Timer {
         id: passwordClearTimer
         interval: 10000

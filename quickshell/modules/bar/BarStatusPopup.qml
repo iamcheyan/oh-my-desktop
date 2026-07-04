@@ -115,7 +115,6 @@ Scope {
             console.log(`[BarStatusPopup] visible=${visible} activeType=${root.activeType} size=${implicitWidth}x${implicitHeight} screen=${screen?.name}`);
             if (visible) {
                 popupWindow.screen = root.focusedScreen;
-                popupWindow.forceActiveFocus();
                 dismissGuard.restart();
             } else {
                 dismissGuard.stop();
@@ -360,7 +359,7 @@ Scope {
                 }
 
                 function executeAction(action) {
-                    if (action === "lock") { Session.lock(); root.close(); return; }
+                    if (action === "lock") { root.close(); Session.lock(); return; }
                     if (action === "sleep") { Session.suspend(); root.close(); return; }
                     if (action === "hibernate") { Session.hibernate(); root.close(); return; }
                     if (action === "logout") { Session.logout(); root.close(); return; }

@@ -1,4 +1,5 @@
 pragma Singleton
+import qs
 import Quickshell
 import qs.services
 import qs.modules.common
@@ -22,7 +23,11 @@ Singleton {
     }
 
     function lock() {
-        Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-lock\" || loginctl lock-session"]);
+        if (Config.options.lock.useHyprlock) {
+            Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-lock\" || hyprlock || loginctl lock-session"]);
+            return;
+        }
+        GlobalStates.screenLocked = true;
     }
 
     function suspend() {

@@ -1,0 +1,2 @@
+module qs.modules.settings.wallpaper
+WallpaperPickerDialog 1.0 WallpaperPickerDialog.qml

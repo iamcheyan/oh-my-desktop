@@ -18,13 +18,25 @@ Scope {
         id: sessionLockSurface
         color: "transparent"
         Loader {
+            id: surfaceLoader
             active: GlobalStates.screenLocked
             anchors.fill: parent
+            focus: active
             opacity: active ? 1 : 0
             Behavior on opacity {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
             }
             sourceComponent: root.lockSurface
+            onLoaded: {
+                if (item) {
+                    item.forceActiveFocus();
+                    Qt.callLater(() => {
+                        if (item)
+                            item.forceActiveFocus();
+                    });
+                }
+                lockContext.shouldReFocus();
+            }
         }
     }
 
@@ -53,6 +65,7 @@ Scope {
             function onScreenLockedChanged() {
                 if (GlobalStates.screenLocked) {
                     lockContext.reset();
+                    lockContext.deactivateInputMethod();
                     lockContext.tryFingerUnlock();
                 }
             }

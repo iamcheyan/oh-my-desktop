@@ -16,25 +16,6 @@ Item {
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
 
-    MouseArea {
-        id: wheelArea
-        anchors.fill: parent
-        acceptedButtons: Qt.NoButton
-        propagateComposedEvents: true
-        onWheel: wheel => {
-            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
-            root.wheelAccum = r.accum
-            for (let i = 0; i < Math.abs(r.steps); i++) {
-                if (r.steps > 0)
-                    Brightness.increaseBrightness();
-                else if (r.steps < 0)
-                    Brightness.decreaseBrightness();
-            }
-            wheel.accepted = true;
-            GlobalStates.barPopupType = "display";
-        }
-    }
-
     CircleUtilButton {
         id: nightLightButton
         anchors.centerIn: parent
@@ -52,10 +33,23 @@ Item {
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
+        propagateComposedEvents: true
         onPressed: (event) => {
             if (event.button === Qt.RightButton) {
                 screenshotMenu.open();
             }
+        }
+        onWheel: wheel => {
+            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+            root.wheelAccum = r.accum
+            for (let i = 0; i < Math.abs(r.steps); i++) {
+                if (r.steps > 0)
+                    Brightness.increaseBrightness();
+                else if (r.steps < 0)
+                    Brightness.decreaseBrightness();
+            }
+            wheel.accepted = true;
+            GlobalStates.barPopupType = "display";
         }
     }
 

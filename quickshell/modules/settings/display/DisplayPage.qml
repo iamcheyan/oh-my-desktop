@@ -11,6 +11,7 @@ ColumnLayout {
     id: root
 
     property var brightnessMonitor: ({ brightness: 0, setBrightness: function(){} })
+    property var openWallpaperPicker: function(mode) {}
 
     width: parent ? parent.width : 760
     spacing: 18
@@ -187,13 +188,13 @@ ColumnLayout {
                     Layout.fillWidth: true
                     text: "Choose image"
                     iconName: "image"
-                    onClicked: Quickshell.execDetached(["bash", "-lc", "$HOME/.config/omd/bin/omd-wallpaper pick-file"])
+                    onClicked: root.openWallpaperPicker("file")
                 }
                 SmallButton {
                     Layout.fillWidth: true
                     text: "Choose folder"
                     iconName: "folder"
-                    onClicked: Quickshell.execDetached(["bash", "-lc", "$HOME/.config/omd/bin/omd-wallpaper pick-folder"])
+                    onClicked: root.openWallpaperPicker("folder")
                 }
             }
         }

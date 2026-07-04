@@ -171,11 +171,15 @@ WindowDialog {
     }
 
     function pickWallpaperFile() {
-        Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-file"]);
+        GlobalStates.barDialogType = "appearance";
+        GlobalStates.barDialogOpen = true;
+        root.dismiss();
     }
 
     function pickWallpaperFolder() {
-        Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper pick-folder"]);
+        GlobalStates.barDialogType = "appearance";
+        GlobalStates.barDialogOpen = true;
+        root.dismiss();
     }
 
     function stopWallpaperRotation() {

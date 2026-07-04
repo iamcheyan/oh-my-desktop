@@ -77,7 +77,6 @@ Scope {
             }
 
             Component.onCompleted: {
-                overlayWindow.forceActiveFocus();
                 if (GlobalStates.barDialogType === "bluetooth") {
                     Bluetooth.defaultAdapter.enabled = true;
                     Bluetooth.defaultAdapter.discovering = true;

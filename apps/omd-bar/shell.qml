@@ -16,6 +16,7 @@ import qs.modules.schedulePopup
 import qs.modules.controlCenter
 import qs.modules.regionSelector
 import qs.modules.sessionScreen
+import qs.modules.lock
 
 import QtQuick
 import Quickshell
@@ -55,6 +56,7 @@ ShellRoot {
         active: Config.ready
         component: Scope {
             Bar {}
+            Lock {}
             BarDismissLayer {}
             BarStatusPopup {}
             BarDialogOverlay {}
