@@ -2025,6 +2025,71 @@ WindowDialog {
                         }
                     }
                 }
+
+                // Rotation interval slider (folder mode only)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    visible: wpState.isFolder && wpState.imageCount > 0
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        StyledText {
+                            text: "Rotation interval"
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        StyledText {
+                            text: wpState.intervalLabel
+                            color: root.cosmicMuted
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+
+                    Slider {
+                        Layout.fillWidth: true
+                        from: 300
+                        to: 7200
+                        stepSize: 300
+                        value: parseInt(wpState.interval) || 1800
+                        onMoved: {
+                            // Write interval to state file and restart timer
+                            Quickshell.execDetached(["bash", "-c",
+                                `echo "${Math.round(value)}" > "$HOME/.local/state/omd/wallpaper/interval" && ` +
+                                `$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ` +
+                                `$HOME/.config/omd/bin/omd-wallpaper random`])
+                            wpRefreshTimer.restart()
+                        }
+
+                        background: Rectangle {
+                            implicitHeight: 4
+                            radius: 2
+                            color: root.cosmicLine
+                            Rectangle {
+                                width: parent.parent.visualPosition * parent.width
+                                height: parent.height
+                                radius: 2
+                                color: root.cosmicAccent
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                            y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                            width: 14
+                            height: 14
+                            radius: 7
+                            color: root.cosmicFg
+                            border.width: 2
+                            border.color: root.cosmicAccent
+                        }
+                    }
+                }
             }
 
             Timer {
