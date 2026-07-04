@@ -390,5 +390,12 @@
   "windows": {
     "centerTitle": true,
     "showTitlebar": true
+  },
+  "idle": {
+    "screensaverTimeout": 150,
+    "lockTimeout": 152,
+    "monitorOffTimeout": 300,
+    "suspendTimeout": 0,
+    "lockBeforeSuspend": true
   }
 }

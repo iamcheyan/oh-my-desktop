@@ -2043,6 +2043,95 @@ WindowDialog {
                     onValueChanged: (v) => Config.setNestedValue("battery.batteryProfile", v)
                 }
             }
+
+            // ── Idle & Sleep Timeouts ──────────────────────────────────
+            SettingsCard {
+                title: "Idle & Sleep"
+                subtitle: "Screensaver, lock, monitor off, and suspend timeouts"
+
+                SettingsDropdownRow {
+                    label: "Start screensaver after"
+                    description: "Blank screen with screensaver animation"
+                    currentValue: String(Config.options.idle.screensaverTimeout ?? 150)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "30", label: "30s"},
+                        {value: "60", label: "1m"},
+                        {value: "90", label: "1m 30s"},
+                        {value: "120", label: "2m"},
+                        {value: "150", label: "2m 30s"},
+                        {value: "180", label: "3m"},
+                        {value: "300", label: "5m"},
+                        {value: "600", label: "10m"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("idle.screensaverTimeout", parseInt(v))
+                }
+
+                SettingsDropdownRow {
+                    label: "Lock screen after"
+                    description: "Lock the session after inactivity"
+                    currentValue: String(Config.options.idle.lockTimeout ?? 152)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "60", label: "1m"},
+                        {value: "120", label: "2m"},
+                        {value: "152", label: "2m 32s"},
+                        {value: "180", label: "3m"},
+                        {value: "300", label: "5m"},
+                        {value: "600", label: "10m"},
+                        {value: "900", label: "15m"},
+                        {value: "1800", label: "30m"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("idle.lockTimeout", parseInt(v))
+                }
+
+                SettingsDropdownRow {
+                    label: "Turn off monitor after"
+                    description: "DPMS off after inactivity"
+                    currentValue: String(Config.options.idle.monitorOffTimeout ?? 300)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "120", label: "2m"},
+                        {value: "180", label: "3m"},
+                        {value: "300", label: "5m"},
+                        {value: "600", label: "10m"},
+                        {value: "900", label: "15m"},
+                        {value: "1800", label: "30m"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("idle.monitorOffTimeout", parseInt(v))
+                }
+
+                SettingsDropdownRow {
+                    label: "Suspend system after"
+                    description: "Suspend after inactivity (0 = never)"
+                    currentValue: String(Config.options.idle.suspendTimeout ?? 0)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "300", label: "5m"},
+                        {value: "600", label: "10m"},
+                        {value: "900", label: "15m"},
+                        {value: "1800", label: "30m"},
+                        {value: "2700", label: "45m"},
+                        {value: "3600", label: "1h"},
+                        {value: "7200", label: "2h"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("idle.suspendTimeout", parseInt(v))
+                }
+
+                SettingsToggleRow {
+                    label: "Lock before suspend"
+                    description: "Lock the screen before suspending"
+                    checked: Config.options.idle.lockBeforeSuspend ?? true
+                    onToggled: Config.setNestedValue("idle.lockBeforeSuspend", !Config.options.idle.lockBeforeSuspend)
+                }
+
+                SettingsToggleRow {
+                    label: "Prevent sleep (temporary)"
+                    description: "Keep the session awake until toggled off"
+                    checked: Idle.inhibit
+                    onToggled: Idle.toggleInhibit()
+                }
+            }
         }
     }
 
@@ -2183,18 +2272,6 @@ WindowDialog {
                 ButtonRow {
                     SettingsButton { label: "Open Picker"; iconName: "content_paste"; onClicked: Quickshell.execDetached(["qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-clipboard`, "ipc", "call", "clipboard", "toggle"]) }
                     SettingsButton { label: "Refresh"; iconName: "refresh"; onClicked: Cliphist.refresh() }
-                }
-            }
-
-            // ── Session Behavior ─────────────────────────────────────────
-            SettingsCard {
-                title: "Session Behavior"
-                subtitle: "Idle and sleep"
-                SettingsToggleRow {
-                    label: "Prevent sleep"
-                    description: "Keep the current session awake"
-                    checked: Idle.inhibit
-                    onToggled: Idle.toggleInhibit()
                 }
             }
         }
