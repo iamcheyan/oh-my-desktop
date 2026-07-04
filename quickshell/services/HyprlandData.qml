@@ -63,17 +63,27 @@ Singleton {
     // trailing "New workspace" slot (id = max id + 1) is always appended last
     // and never participates in ordering, like GNOME/macOS. This guarantees
     // there is exactly ONE empty cell in the grid, always at the very end.
-    function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing) {
+    function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing, reservedWorkspaceIds) {
         const includeTrailing = appendTrailing ?? true;
-        const activeId = Math.max(1, Math.min(100, root.activeWorkspace?.id ?? 1));
         const targetMonitor = monitorName ?? "";
+        const reservedIds = reservedWorkspaceIds ?? {};
+        const monitorData = targetMonitor
+            ? root.monitors.find(mon => (mon.name ?? "") === targetMonitor)
+            : null;
+        const activeId = Math.max(1, Math.min(100,
+            monitorData?.activeWorkspace?.id
+                ?? root.activeWorkspace?.id
+                ?? 1
+        ));
 
-        // Only workspaces with windows participate in the grid.
+        // Only workspaces with visible windows participate in the grid.
+        // Hyprland may keep real empty workspaces around after cross-monitor
+        // moves; those are handled as the single trailing slot below.
         const regularWorkspaces = root.workspaces
             .filter(ws => root.isRegularWorkspace(ws))
             .filter(ws => ws.id >= 1 && ws.id <= 100)
             .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
-            .filter(ws => ws.windows > 0)
+            .filter(ws => root.workspaceHasVisibleWindows(ws.id))
             .sort((a, b) => a.id - b.id);
 
         const seen = {};
@@ -115,21 +125,62 @@ Singleton {
             orderedWindows = withWindows.slice();
         }
 
-        // Trailing "New workspace" slot: id = max(active, max windowed) + 1.
-        // Using max with activeId ensures the trailing id is always greater
-        // than the active workspace even when the active workspace is empty.
+        const existingEmptyWorkspace = includeTrailing
+            ? root.workspaces
+                .filter(ws => root.isRegularWorkspace(ws))
+                .filter(ws => ws.id >= 1 && ws.id <= 100)
+                .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
+                .filter(ws => !root.workspaceHasVisibleWindows(ws.id))
+                .filter(ws => !reservedIds[ws.id])
+                .sort((a, b) => {
+                    const aActive = a.id === activeId;
+                    const bActive = b.id === activeId;
+                    if (aActive !== bActive)
+                        return aActive ? -1 : 1;
+                    return a.id - b.id;
+                })[0]
+            : null;
+
+        const ordered = orderedWindows.slice();
+        if (existingEmptyWorkspace) {
+            ordered.push({
+                id: existingEmptyWorkspace.id,
+                monitorName: existingEmptyWorkspace.monitor ?? targetMonitor,
+                monitorIndex: 0,
+                monitorLabel: existingEmptyWorkspace.monitor ?? targetMonitor,
+                existingWorkspace: true,
+                isTrailingEmpty: true
+            });
+            return ordered;
+        }
+
+        // Trailing "New workspace" slot: pick a globally unused id.
+        //
+        // It is displayed inside a monitor group, but it still participates in
+        // workspace selection/drag bookkeeping by id. If two monitor groups
+        // produce the same trailing id, window previews and drop targets become
+        // ambiguous. Use global workspace ids to keep each synthetic entry
+        // unique while preserving the rule of one trailing empty per monitor.
         let maxId = activeId - 1;
         for (const entry of orderedWindows)
             maxId = Math.max(maxId, entry.id);
-        const trailingId = Math.min(100, maxId + 1);
+        const globalSeen = {};
+        root.workspaces.forEach(ws => {
+            if (ws.id >= 1 && ws.id <= 100)
+                globalSeen[ws.id] = true;
+        });
 
-        const ordered = orderedWindows.slice();
-        if (includeTrailing && !seen[trailingId]) {
+        let trailingId = Math.min(100, maxId + 1);
+        while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId]))
+            trailingId += 1;
+
+        if (includeTrailing && trailingId <= 100 && !seen[trailingId]) {
             ordered.push({
                 id: trailingId,
                 monitorName: targetMonitor,
                 monitorIndex: 0,
                 monitorLabel: targetMonitor,
+                existingWorkspace: false,
                 isTrailingEmpty: true
             });
         }
@@ -142,7 +193,12 @@ Singleton {
     }
 
     function sortedOverviewMonitors() {
+        const focusedName = Hyprland.focusedMonitor?.name ?? "";
         return root.monitors.slice().sort((a, b) => {
+            const aFocused = (a.name ?? "") === focusedName;
+            const bFocused = (b.name ?? "") === focusedName;
+            if (aFocused !== bFocused)
+                return aFocused ? -1 : 1;
             if ((a.y ?? 0) !== (b.y ?? 0))
                 return (a.y ?? 0) - (b.y ?? 0);
             return (a.x ?? 0) - (b.x ?? 0);
@@ -152,15 +208,18 @@ Singleton {
     function overviewWorkspaceEntriesGroupedByMonitor() {
         const monitors = root.sortedOverviewMonitors();
         const all = [];
+        const reservedIds = {};
         for (let i = 0; i < monitors.length; ++i) {
             const mon = monitors[i];
-            const entries = root.overviewWorkspaceEntriesForMonitor(mon.name, true);
+            const entries = root.overviewWorkspaceEntriesForMonitor(mon.name, true, reservedIds);
             for (let j = 0; j < entries.length; ++j) {
                 entries[j].monitorIndex = i;
                 entries[j].monitorLabel = mon.description || mon.name || `Monitor ${i + 1}`;
                 entries[j].monitorName = mon.name || entries[j].monitorName || "";
                 entries[j].groupStart = j === 0;
                 entries[j].groupEnd = j === entries.length - 1;
+                if (entries[j].isTrailingEmpty)
+                    reservedIds[entries[j].id] = true;
                 all.push(entries[j]);
             }
         }

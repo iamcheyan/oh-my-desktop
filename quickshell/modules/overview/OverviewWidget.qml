@@ -329,7 +329,7 @@ Item {
         WorkspaceNavigation.dispatchFocusWorkspace(wsId);
     }
 
-    property color activeBorderColor: Appearance.colors.colSecondary
+    property color activeBorderColor: TuiStyle.controlActiveBorder
 
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
@@ -405,12 +405,10 @@ Item {
                 width: root.groupWidth(modelData)
                 height: root.groupHeight(modelData)
                 radius: root.largeWorkspaceRadius + 12
-                color: focusedGroup
-                    ? ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.88)
-                    : ColorUtils.transparentize(Appearance.colors.colSurfaceContainer, 0.9)
+                color: TuiStyle.bg
                 border.width: focusedGroup ? 2 : 1
                 border.color: focusedGroup
-                    ? Appearance.colors.colSecondary
+                    ? TuiStyle.controlActiveBorder
                     : ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
 
                 StyledText {
@@ -422,7 +420,7 @@ Item {
                     }
                     text: modelData.label
                     color: parent.focusedGroup
-                        ? Appearance.colors.colSecondary
+                        ? TuiStyle.accent
                         : ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.18)
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     font.weight: Font.DemiBold
@@ -455,6 +453,7 @@ Item {
                     property int workspaceValue: modelData.id
                     property string monitorName: modelData.monitorName ?? ""
                     property bool isTrailingEmpty: modelData.isTrailingEmpty ?? false
+                    property bool existingWorkspace: modelData.existingWorkspace ?? false
                     property int colIndex: root.entryLocalColumn(index)
                     property int rowIndex: root.entryLocalRow(index)
                     property color defaultWorkspaceColor: Appearance.colors.colSurfaceContainerLow
@@ -521,7 +520,11 @@ Item {
                             if (GlobalStates.overviewDraggingTargetWorkspace === -1) {
                                 if (workspace.isTrailingEmpty) {
                                     GlobalStates.overviewOpen = false;
-                                    Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
+                                    if (workspace.monitorName.length > 0)
+                                        Hyprland.dispatch(`hl.dsp.focus({monitor="${workspace.monitorName}"})`);
+                                    Hyprland.dispatch(`hl.dsp.focus({ workspace = ${workspace.workspaceValue} })`);
+                                    if (!workspace.existingWorkspace && workspace.monitorName.length > 0)
+                                        Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${workspace.workspaceValue}", monitor = "${workspace.monitorName}" })`);
                                 } else {
                                     if (HyprlandData.workspaceHasVisibleWindows(workspace.workspaceValue))
                                         GlobalStates.promoteWorkspaceMru(workspace.workspaceValue);

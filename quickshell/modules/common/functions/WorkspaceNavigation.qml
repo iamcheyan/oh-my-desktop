@@ -108,10 +108,32 @@ Singleton {
         return false;
     }
 
+    function focusedEntry() {
+        const wsId = root.focusedWorkspaceId();
+        if (wsId < 1)
+            return null;
+        const model = root.overviewModel();
+        for (let i = 0; i < model.length; i++) {
+            if (model[i].id === wsId)
+                return model[i];
+        }
+        return null;
+    }
+
+    function focusMonitorForEntry(entry) {
+        const monitorName = entry?.monitorName ?? "";
+        if (monitorName.length > 0)
+            Hyprland.dispatch(`hl.dsp.focus({monitor="${monitorName}"})`);
+    }
+
     function commitSelectedWorkspace(openLauncherOnTrailing) {
         const openLauncher = openLauncherOnTrailing ?? false;
         if (root.focusedEntryIsTrailingEmpty()) {
-            Hyprland.dispatch(`hl.dsp.focus({ workspace = "empty" })`);
+            const entry = root.focusedEntry();
+            root.focusMonitorForEntry(entry);
+            Hyprland.dispatch(`hl.dsp.focus({ workspace = ${entry.id} })`);
+            if (!entry?.existingWorkspace && (entry?.monitorName ?? "").length > 0)
+                Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${entry.id}", monitor = "${entry.monitorName}" })`);
             if (openLauncher)
                 root.openAppLauncher();
             return;
@@ -149,7 +171,12 @@ Singleton {
             return false;
 
         if (targetIsTrailing) {
-            Hyprland.dispatch(`hl.dsp.window.move({ workspace = "empty", follow = false, window = "address:${windowAddress}" })`);
+            const model = root.overviewModel();
+            const entry = model.find(item => item.id === targetWorkspace);
+            root.focusMonitorForEntry(entry);
+            Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
+            if ((entry?.monitorName ?? "").length > 0)
+                Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${entry.monitorName}" })`);
         } else {
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
         }
