@@ -308,8 +308,28 @@ ColumnLayout {
             StyledText { text: toggleLine.description; color: "#8f8f8f"; font.pixelSize: 13 }
         }
         Switch {
+            id: control
             checked: toggleLine.checked
             onToggled: toggleLine.toggled()
+
+            indicator: Rectangle {
+                implicitWidth: 46
+                implicitHeight: 26
+                x: control.leftPadding
+                y: parent.height / 2 - height / 2
+                radius: height / 2
+                color: control.checked ? TuiStyle.accent : "#454545"
+
+                Rectangle {
+                    x: control.checked ? parent.width - width - 3 : 3
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 20
+                    height: 20
+                    radius: 10
+                    color: control.checked ? "#111111" : "#dedede"
+                    Behavior on x { NumberAnimation { duration: 110 } }
+                }
+            }
         }
     }
 }
