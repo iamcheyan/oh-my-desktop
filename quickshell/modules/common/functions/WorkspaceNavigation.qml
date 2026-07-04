@@ -173,7 +173,6 @@ Singleton {
         if (targetIsTrailing) {
             const model = root.overviewModel();
             const entry = model.find(item => item.id === targetWorkspace);
-            root.focusMonitorForEntry(entry);
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
             if ((entry?.monitorName ?? "").length > 0)
                 Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${entry.monitorName}" })`);

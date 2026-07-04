@@ -14,7 +14,8 @@ import Quickshell.Hyprland
 Scope {
     id: overviewScope
 
-    property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+    property string lockedScreenName: ""
+    property var focusedScreen: Quickshell.screens.find(s => s.name === (overviewScope.lockedScreenName || Hyprland.focusedMonitor?.name))
         ?? Quickshell.screens[0]
         ?? null
 
@@ -112,6 +113,17 @@ Scope {
         function onFocusedMonitorChanged() {
             if (GlobalStates.overviewOpen)
                 overviewScope.queueOverviewFocus();
+        }
+    }
+
+    Connections {
+        target: GlobalStates
+        function onOverviewOpenChanged() {
+            if (GlobalStates.overviewOpen) {
+                overviewScope.lockedScreenName = Hyprland.focusedMonitor?.name ?? "";
+            } else {
+                overviewScope.lockedScreenName = "";
+            }
         }
     }
 
