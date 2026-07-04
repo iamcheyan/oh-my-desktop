@@ -43,10 +43,49 @@ Item { // Window
     property var widgetMonitor
     property int widgetMonitorId: widgetMonitor.id
 
-    property real rawLocalX: (windowData?.at[0] - (monitorData?.x ?? 0) - (monitorData?.reserved[0] ?? 0)) * root.scaleX
-    property real rawLocalY: (windowData?.at[1] - (monitorData?.y ?? 0) - (monitorData?.reserved[1] ?? 0)) * root.scaleY
-    property real rawWindowWidth: Math.max(1, (windowData?.size[0] ?? 1) * root.scaleX)
-    property real rawWindowHeight: Math.max(1, (windowData?.size[1] ?? 1) * root.scaleY)
+    property real monitorLogicalWidth: {
+        if (!monitorData) return 1920;
+        const w = monitorData.transform & 1 ? monitorData.height : monitorData.width;
+        return w / (monitorData.scale ?? 1);
+    }
+    property real monitorLogicalHeight: {
+        if (!monitorData) return 1080;
+        const h = monitorData.transform & 1 ? monitorData.width : monitorData.height;
+        return h / (monitorData.scale ?? 1);
+    }
+    property bool isCoordinatesStale: {
+        if (!windowData || !monitorData) return false;
+        const xRel = windowData.at[0] - monitorData.x;
+        const yRel = windowData.at[1] - monitorData.y;
+        return xRel < -10 || xRel >= monitorLogicalWidth + 10 || yRel < -10 || yRel >= monitorLogicalHeight + 10;
+    }
+    property real sanitizedWidth: {
+        if (!windowData) return 800;
+        return Math.min(windowData.size[0], monitorLogicalWidth);
+    }
+    property real sanitizedHeight: {
+        if (!windowData) return 600;
+        return Math.min(windowData.size[1], monitorLogicalHeight);
+    }
+    property real sanitizedX: {
+        if (!windowData || !monitorData) return 0;
+        if (isCoordinatesStale) {
+            return monitorData.x + (monitorLogicalWidth - sanitizedWidth) / 2;
+        }
+        return windowData.at[0];
+    }
+    property real sanitizedY: {
+        if (!windowData || !monitorData) return 0;
+        if (isCoordinatesStale) {
+            return monitorData.y + (monitorLogicalHeight - sanitizedHeight) / 2;
+        }
+        return windowData.at[1];
+    }
+
+    property real rawLocalX: (sanitizedX - (monitorData?.x ?? 0) - (monitorData?.reserved[0] ?? 0)) * root.scaleX
+    property real rawLocalY: (sanitizedY - (monitorData?.y ?? 0) - (monitorData?.reserved[1] ?? 0)) * root.scaleY
+    property real rawWindowWidth: Math.max(1, sanitizedWidth * root.scaleX)
+    property real rawWindowHeight: Math.max(1, sanitizedHeight * root.scaleY)
     property real localX: Math.max(0, Math.min(rawLocalX, Math.max(0, workspaceWidth - 1)))
     property real localY: Math.max(0, Math.min(rawLocalY, Math.max(0, workspaceHeight - 1)))
     property var targetWindowWidth: Math.max(1, Math.min(rawWindowWidth, Math.max(1, workspaceWidth - localX)))

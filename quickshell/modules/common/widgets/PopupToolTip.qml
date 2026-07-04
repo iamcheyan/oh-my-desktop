@@ -40,6 +40,7 @@ Item {
         active: root.internalVisibleCondition
         sourceComponent: PopupWindow {
             visible: true
+            screen: root.parent?.QsWindow?.window?.screen ?? Quickshell.screens[0]
             anchor {
                 window: root.QsWindow.window
                 item: root.parent
