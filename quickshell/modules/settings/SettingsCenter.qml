@@ -56,6 +56,7 @@ WindowDialog {
         { key: "autostart", icon: "rocket_launch", title: "Autostart", keywords: "startup boot login launch autostart xdg desktop" },
         { key: "windowrules", icon: "window", title: "Window Rules", keywords: "window rule float opacity workspace class app" },
         { key: "sounds", icon: "volume_up", title: "Sounds", keywords: "sound audio theme notification volume login event" },
+        { key: "apps", icon: "apps", title: "Default Apps", keywords: "default app browser terminal file manager application" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
@@ -385,6 +386,7 @@ WindowDialog {
                                 if (root.currentPage === "autostart") return autostartPage;
                                 if (root.currentPage === "windowrules") return windowRulesPage;
                                 if (root.currentPage === "sounds") return soundsPage;
+                                if (root.currentPage === "apps") return appsPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
@@ -3493,6 +3495,115 @@ WindowDialog {
                         iconName: "play_arrow"
                         onClicked: Audio.playSystemSound("message")
                     }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: appsPage
+        PageBody {
+            property string defaultBrowser: ""
+            property string defaultFileManager: ""
+
+            Component.onCompleted: {
+                browserProc.running = true
+                fileMgrProc.running = true
+            }
+
+            Process {
+                id: browserProc
+                command: ["bash", "-c", "xdg-mime query default x-scheme-handler/http 2>/dev/null || echo ''"]
+                running: false
+                stdout: StdioCollector {
+                    id: browserCollector
+                    onStreamFinished: appsPage.defaultBrowser = browserCollector.text.trim()
+                }
+            }
+
+            Process {
+                id: fileMgrProc
+                command: ["bash", "-c", "xdg-mime query default inode/directory 2>/dev/null || echo ''"]
+                running: false
+                stdout: StdioCollector {
+                    id: fileMgrCollector
+                    onStreamFinished: appsPage.defaultFileManager = fileMgrCollector.text.trim()
+                }
+            }
+
+            // ── Default Applications ─────────────────────────────────────
+            SettingsCard {
+                title: "Default Applications"
+                subtitle: "System-wide app preferences"
+
+                SettingsRow {
+                    label: "Web browser"
+                    description: "Opens http/https links"
+                    value: appsPage.defaultBrowser || "--"
+                }
+
+                SettingsRow {
+                    label: "File manager"
+                    description: "Opens directories"
+                    value: appsPage.defaultFileManager || "--"
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Set Default Browser"
+                        iconName: "web"
+                        onClicked: Quickshell.execDetached(["bash", "-c", "xdg-settings set default-web-browser $(zenity --file-selection --title='Select browser .desktop file' --filename=/usr/share/applications/ --file-filter='Desktop files | *.desktop') 2>/dev/null; true"])
+                    }
+                }
+            }
+
+            // ── OMD App Preferences ──────────────────────────────────────
+            SettingsCard {
+                title: "OMD App Preferences"
+                subtitle: "Commands used by OMD shortcuts"
+
+                SettingsTextFieldRow {
+                    label: "Terminal"
+                    description: "Command for opening terminal"
+                    text: Config.options.apps.terminal ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.terminal", v)
+                    placeholder: "kitty -1"
+                }
+
+                SettingsTextFieldRow {
+                    label: "Task manager"
+                    description: "Command for task manager"
+                    text: Config.options.apps.taskManager ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.taskManager", v)
+                    placeholder: "plasma-systemmonitor"
+                }
+
+                SettingsTextFieldRow {
+                    label: "Network settings"
+                    description: "Command for network management"
+                    text: Config.options.apps.network ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.network", v)
+                }
+
+                SettingsTextFieldRow {
+                    label: "Bluetooth settings"
+                    description: "Command for Bluetooth management"
+                    text: Config.options.apps.bluetooth ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.bluetooth", v)
+                }
+
+                SettingsTextFieldRow {
+                    label: "Volume mixer"
+                    description: "Command for volume control"
+                    text: Config.options.apps.volumeMixer ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.volumeMixer", v)
+                }
+
+                SettingsTextFieldRow {
+                    label: "System update"
+                    description: "Command for system updates"
+                    text: Config.options.apps.update ?? ""
+                    onTextEdited: (v) => Config.setNestedValue("apps.update", v)
                 }
             }
         }
