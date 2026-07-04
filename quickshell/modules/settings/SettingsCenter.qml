@@ -794,41 +794,243 @@ WindowDialog {
     Component {
         id: networkPage
         PageBody {
+            // ── Wi-Fi Status ─────────────────────────────────────────────
             SettingsCard {
                 title: "Wi-Fi"
-                subtitle: Network.wifiScanning ? "Scanning" : Network.wifiStatus
-                SettingsToggleRow {
-                    label: "Wireless radio"
-                    description: "Enable or disable the Wi-Fi adapter"
-                    checked: Network.wifiEnabled
-                    onToggled: Network.toggleWifi()
+                subtitle: {
+                    if (!Network.wifiEnabled) return "Disabled"
+                    if (Network.wifiScanning) return "Scanning..."
+                    if (Network.wifiConnecting) return "Connecting..."
+                    return Network.wifiStatus
                 }
-                SettingsRow { label: "SSID"; value: Network.active?.ssid || Network.networkName || "--" }
-                SettingsRow { label: "Signal"; value: Network.active ? `${Network.active.strength}%` : "--" }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    SettingsToggleRow {
+                        Layout.fillWidth: true
+                        label: "Wireless radio"
+                        description: "Enable or disable the Wi-Fi adapter"
+                        checked: Network.wifiEnabled
+                        onToggled: Network.toggleWifi()
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: 36
+                        Layout.preferredHeight: 36
+                        radius: root.cosmicRadius
+                        color: scanMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+                        visible: Network.wifiEnabled
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "refresh"
+                            iconSize: 18
+                            color: root.cosmicMuted
+                            RotationAnimator on rotation {
+                                running: Network.wifiScanning
+                                loops: Animation.Infinite
+                                from: 0
+                                to: 360
+                                duration: 1200
+                            }
+                        }
+
+                        MouseArea {
+                            id: scanMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: Network.rescanWifi()
+                        }
+                    }
+                }
+
+                SettingsRow {
+                    label: "Connected network"
+                    value: Network.active?.ssid || Network.networkName || "--"
+                    visible: Network.wifiEnabled
+                }
+
+                SettingsRow {
+                    label: "Signal strength"
+                    value: Network.active ? `${Network.active.strength}%` : "--"
+                    visible: Network.wifiEnabled && Network.active
+                }
+
                 ButtonRow {
-                    SettingsButton { label: "Scan"; iconName: "refresh"; onClicked: Network.rescanWifi() }
+                    visible: Network.wifiEnabled
                     SettingsButton { label: "Connection Editor"; iconName: "edit"; onClicked: Quickshell.execDetached(["nm-connection-editor"]) }
                 }
             }
 
+            // ── Available Networks ───────────────────────────────────────
             SettingsCard {
-                title: "Visible Networks"
+                title: "Available Networks"
                 subtitle: `${Network.friendlyWifiNetworks.length} found`
-                Repeater {
-                    model: Network.friendlyWifiNetworks.slice(0, 8)
-                    delegate: SettingsRow {
-                        required property var modelData
-                        iconName: modelData.active ? "wifi" : "network_wifi"
-                        label: modelData.ssid || "--"
-                        description: Network.isKnownWifi(modelData) ? "Known network" : "New network"
-                        value: modelData.active ? "Connected" : `${modelData.strength}%`
-                        valueColor: modelData.active ? root.cosmicAccent : root.cosmicMuted
-                        showChevron: !modelData.active
-                        onClicked: {
-                            if (!modelData.active && modelData.ssid)
-                                Network.connectToWifiNetwork(modelData);
+                visible: Network.wifiEnabled
+
+                // Scanning placeholder
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    visible: Network.wifiScanning && Network.friendlyWifiNetworks.length === 0
+                    color: "transparent"
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        MaterialSymbol {
+                            text: "wifi_find"
+                            iconSize: 18
+                            color: root.cosmicMuted
+                            SequentialAnimation on opacity {
+                                running: Network.wifiScanning
+                                loops: Animation.Infinite
+                                NumberAnimation { from: 0.4; to: 1.0; duration: 700 }
+                                NumberAnimation { from: 1.0; to: 0.4; duration: 700 }
+                            }
+                        }
+
+                        StyledText {
+                            text: "Scanning for networks..."
+                            color: root.cosmicMuted
+                            font.pixelSize: Appearance.font.pixelSize.small
                         }
                     }
+                }
+
+                Repeater {
+                    model: Network.friendlyWifiNetworks.slice(0, 15)
+                    delegate: Rectangle {
+                        id: netDelegate
+                        required property var modelData
+                        readonly property var ap: modelData
+                        readonly property bool isActive: ap.active ?? false
+                        readonly property bool isKnown: Network.isKnownWifi(ap)
+                        readonly property bool isConnecting: Network.wifiConnecting && Network.wifiConnectTarget?.ssid === ap.ssid
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        radius: root.cosmicRadius
+                        color: isActive ? root.cosmicAccentSoft : (netMouse.containsMouse ? root.cosmicCardHover : "transparent")
+                        border.width: isActive ? 1 : 0
+                        border.color: root.cosmicAccent
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            // Signal icon
+                            MaterialSymbol {
+                                text: {
+                                    if (netDelegate.isConnecting) return "progress_activity"
+                                    const s = netDelegate.ap.strength ?? 0
+                                    if (s >= 75) return "wifi"
+                                    if (s >= 50) return "network_wifi_3_bar"
+                                    if (s >= 25) return "network_wifi_2_bar"
+                                    if (s > 0) return "network_wifi_1_bar"
+                                    return "wifi_off"
+                                }
+                                iconSize: 18
+                                color: netDelegate.isActive ? root.cosmicAccent : root.cosmicMuted
+                                Layout.preferredWidth: 22
+                                RotationAnimator on rotation {
+                                    running: netDelegate.isConnecting
+                                    loops: Animation.Infinite
+                                    from: 0
+                                    to: 360
+                                    duration: 1200
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: netDelegate.ap.ssid || "Hidden network"
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: netDelegate.isActive ? Font.Medium : Font.Normal
+                                    elide: Text.ElideRight
+                                }
+
+                                RowLayout {
+                                    spacing: 6
+
+                                    StyledText {
+                                        text: netDelegate.isActive ? "Connected" : netDelegate.isConnecting ? "Connecting..." : netDelegate.isKnown ? "Saved" : "New"
+                                        color: netDelegate.isActive ? root.cosmicAccent : root.cosmicDim
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                    }
+
+                                    MaterialSymbol {
+                                        text: "lock"
+                                        iconSize: 11
+                                        color: root.cosmicDim
+                                        visible: netDelegate.ap.security && netDelegate.ap.security.length > 0
+                                    }
+                                }
+                            }
+
+                            StyledText {
+                                text: `${netDelegate.ap.strength ?? 0}%`
+                                color: root.cosmicMuted
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                Layout.preferredWidth: 38
+                                horizontalAlignment: Text.AlignRight
+                            }
+                        }
+
+                        MouseArea {
+                            id: netMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: netDelegate.isActive ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            onClicked: {
+                                if (!netDelegate.isActive && netDelegate.ap.ssid)
+                                    Network.connectToWifiNetwork(netDelegate.ap)
+                            }
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    visible: Network.friendlyWifiNetworks.length === 0 && !Network.wifiScanning
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "No networks found. Click scan to search."
+                        color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.small
+                    }
+                }
+            }
+
+            // ── Ethernet ─────────────────────────────────────────────────
+            SettingsCard {
+                title: "Ethernet"
+                subtitle: Network.ethernet ? "Connected" : "Not connected"
+                visible: !Network.wifi || Network.ethernet
+
+                SettingsRow {
+                    label: "Status"
+                    value: Network.ethernet ? "Connected" : "Disconnected"
+                }
+
+                SettingsRow {
+                    label: "Interface"
+                    value: Network.networkName || "--"
+                    visible: Network.ethernet
                 }
             }
         }
@@ -837,40 +1039,156 @@ WindowDialog {
     Component {
         id: bluetoothPage
         PageBody {
+            // ── Bluetooth Adapter ────────────────────────────────────────
             SettingsCard {
                 title: "Bluetooth"
-                subtitle: BluetoothStatus.enabled ? "Enabled" : "Disabled"
+                subtitle: {
+                    if (!BluetoothStatus.available) return "Not available"
+                    if (!BluetoothStatus.enabled) return "Disabled"
+                    if (BluetoothStatus.connected) return `${BluetoothStatus.activeDeviceCount} connected`
+                    return "Enabled"
+                }
+
                 SettingsToggleRow {
                     label: "Adapter power"
-                    description: "Turn Bluetooth discovery and device connections on or off"
+                    description: "Turn Bluetooth on or off"
                     checked: BluetoothStatus.enabled
                     onToggled: {
                         if (Bluetooth.defaultAdapter)
-                            Bluetooth.defaultAdapter.enabled = !Bluetooth.defaultAdapter.enabled;
+                            Bluetooth.defaultAdapter.enabled = !Bluetooth.defaultAdapter.enabled
                     }
                 }
-                SettingsRow { label: "Connected devices"; value: `${BluetoothStatus.activeDeviceCount}` }
-                SettingsRow { label: "Current device"; value: BluetoothStatus.firstActiveDevice?.name || "--" }
+
+                SettingsRow {
+                    label: "Connected devices"
+                    value: `${BluetoothStatus.activeDeviceCount}`
+                    visible: BluetoothStatus.enabled
+                }
+
+                ButtonRow {
+                    visible: BluetoothStatus.enabled && Bluetooth.defaultAdapter
+                    SettingsButton {
+                        label: Bluetooth.defaultAdapter.discovering ? "Stop Discovery" : "Start Discovery"
+                        iconName: "search"
+                        active: Bluetooth.defaultAdapter.discovering
+                        onClicked: Bluetooth.defaultAdapter.discovering = !Bluetooth.defaultAdapter.discovering
+                    }
+                }
             }
 
+            // ── Devices ──────────────────────────────────────────────────
             SettingsCard {
                 title: "Devices"
-                subtitle: `${BluetoothStatus.friendlyDeviceList.length} entries`
+                subtitle: `${BluetoothStatus.friendlyDeviceList.length} found`
+                visible: BluetoothStatus.enabled
+
                 Repeater {
-                    model: BluetoothStatus.friendlyDeviceList.slice(0, 8)
-                    delegate: SettingsRow {
+                    model: BluetoothStatus.friendlyDeviceList.slice(0, 15)
+                    delegate: Rectangle {
+                        id: btDelegate
                         required property var modelData
-                        iconName: "bluetooth"
-                        label: modelData.name || modelData.address || "--"
-                        value: modelData.connected ? "Connected" : modelData.paired ? "Paired" : "New"
-                        valueColor: modelData.connected ? root.cosmicAccent : root.cosmicMuted
-                        showChevron: modelData.paired
-                        onClicked: {
-                            if (modelData.connected)
-                                modelData.disconnect();
-                            else
-                                modelData.connect();
+                        readonly property var device: modelData
+                        readonly property bool isConnected: device.connected ?? false
+                        readonly property bool isPaired: device.paired ?? false
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        radius: root.cosmicRadius
+                        color: isConnected ? root.cosmicAccentSoft : (btMouse.containsMouse ? root.cosmicCardHover : "transparent")
+                        border.width: isConnected ? 1 : 0
+                        border.color: root.cosmicAccent
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            MaterialSymbol {
+                                text: {
+                                    const name = (device.name || "").toLowerCase()
+                                    if (name.includes("headphone") || name.includes("headset") || name.includes("airpods")) return "headphones"
+                                    if (name.includes("mouse")) return "mouse"
+                                    if (name.includes("keyboard")) return "keyboard"
+                                    if (name.includes("phone") || name.includes("iphone")) return "smartphone"
+                                    if (name.includes("watch")) return "watch"
+                                    if (name.includes("speaker")) return "speaker"
+                                    return "bluetooth"
+                                }
+                                iconSize: 18
+                                color: isConnected ? root.cosmicAccent : root.cosmicMuted
+                                Layout.preferredWidth: 22
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: device.name || device.address || "Unknown device"
+                                    color: root.cosmicFg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: isConnected ? Font.Medium : Font.Normal
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    text: isConnected ? "Connected" : isPaired ? "Paired" : "Not paired"
+                                    color: isConnected ? root.cosmicAccent : root.cosmicDim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                }
+                            }
+
+                            // Connect/disconnect button
+                            Rectangle {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                radius: root.cosmicRadius
+                                color: btnMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: isConnected ? "bluetooth_disabled" : "bluetooth"
+                                    iconSize: 16
+                                    color: isConnected ? "#f07070" : root.cosmicAccent
+                                }
+
+                                MouseArea {
+                                    id: btnMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        if (isConnected)
+                                            device.disconnect()
+                                        else
+                                            device.connect()
+                                    }
+                                }
+                            }
                         }
+
+                        MouseArea {
+                            id: btMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.NoButton
+                        }
+                    }
+                }
+
+                // Empty state
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    visible: BluetoothStatus.friendlyDeviceList.length === 0
+                    color: "transparent"
+
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "No devices found. Start discovery to search."
+                        color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.small
                     }
                 }
             }
