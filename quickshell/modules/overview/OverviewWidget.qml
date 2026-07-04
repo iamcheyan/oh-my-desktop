@@ -72,7 +72,7 @@ Item {
         : (root.width - containerMargin * 2)
     readonly property real availH: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.height - containerMargin * 2)
+        : (root.height - containerMargin * 2 - 72)
 
     // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
     // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
@@ -100,6 +100,25 @@ Item {
     readonly property int overviewGridRows: Math.max(
         1,
         Math.ceil(root.overviewEntries.length / root.overviewGridColumns))
+    readonly property int monitorSectionGap: 24
+    readonly property int monitorSectionPaddingX: root.compactMode ? 0 : 14
+    readonly property int monitorSectionPaddingTop: root.compactMode ? 0 : 34
+    readonly property int monitorSectionPaddingBottom: root.compactMode ? 0 : 14
+    readonly property int groupedGridRows: {
+        if (root.compactMode || root.monitorGroups.length <= 1)
+            return root.overviewGridRows;
+        let rows = 0;
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            const length = root.groupLength(root.monitorGroups[i]);
+            rows += Math.max(1, Math.ceil(length / root.overviewGridColumns));
+        }
+        return Math.max(1, rows);
+    }
+    readonly property real groupedVerticalOverhead: root.compactMode
+        ? 0
+        : (root.monitorGroups.length * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom))
+            + Math.max(0, root.monitorGroups.length - 1) * root.monitorSectionGap
+            + Math.max(0, root.groupedGridRows - root.monitorGroups.length) * root.workspaceSpacing
 
     // How big would each thumbnail be if we fill width vs height?
     // Workspaces keep the real screen aspect ratio (screenW : screenH).
@@ -108,7 +127,7 @@ Item {
         : ((availW - gridPadding * (overviewGridColumns - 1)) / overviewGridColumns)
     readonly property real thumbByHeight: root.compactMode
         ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : ((availH - gridPadding * (overviewGridRows - 1)) / overviewGridRows)
+        : ((availH - groupedVerticalOverhead) / groupedGridRows)
 
     // Pick the smaller so the aspect ratio is preserved — thumbnails shrink
     // when there are many workspaces, grow when there are few.
@@ -160,6 +179,118 @@ Item {
         return Config.options.overview.orderRightLeft
             ? cols - normalCol - 1
             : normalCol;
+    }
+
+    function groupLength(group) {
+        return Math.max(0, group.end - group.start + 1);
+    }
+
+    function groupColumns(group) {
+        if (root.compactMode)
+            return root.overviewGridColumns;
+        return Math.max(1, Math.min(root.groupLength(group), root.overviewGridColumns));
+    }
+
+    function groupRows(group) {
+        return Math.max(1, Math.ceil(root.groupLength(group) / root.groupColumns(group)));
+    }
+
+    function groupWidth(group) {
+        const cols = root.groupColumns(group);
+        return root.workspaceImplicitWidth * cols
+            + root.workspaceSpacing * (cols - 1)
+            + root.monitorSectionPaddingX * 2;
+    }
+
+    function groupHeight(group) {
+        const rows = root.groupRows(group);
+        return root.workspaceImplicitHeight * rows
+            + root.workspaceSpacing * (rows - 1)
+            + root.monitorSectionPaddingTop
+            + root.monitorSectionPaddingBottom;
+    }
+
+    function groupsTotalHeight() {
+        if (root.compactMode || root.monitorGroups.length === 0)
+            return root.overviewGridRows * root.workspaceImplicitHeight
+                + (root.overviewGridRows - 1) * root.workspaceSpacing;
+
+        let height = 0;
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            if (i > 0)
+                height += root.monitorSectionGap;
+            height += root.groupHeight(root.monitorGroups[i]);
+        }
+        return height;
+    }
+
+    function groupForEntry(entryIndex) {
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            const group = root.monitorGroups[i];
+            if (entryIndex >= group.start && entryIndex <= group.end)
+                return group;
+        }
+        return null;
+    }
+
+    function groupX(group) {
+        if (root.compactMode)
+            return 0;
+        return Math.max(root.containerMargin, (root.width - root.groupWidth(group)) / 2);
+    }
+
+    function groupY(group) {
+        if (root.compactMode)
+            return 0;
+
+        let y = Math.max(root.containerMargin, (root.height - root.groupsTotalHeight()) / 2);
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            const current = root.monitorGroups[i];
+            if (current.key === group.key)
+                return y;
+            y += root.groupHeight(current) + root.monitorSectionGap;
+        }
+        return y;
+    }
+
+    function entryLocalIndex(entryIndex) {
+        const group = root.groupForEntry(entryIndex);
+        return group ? entryIndex - group.start : entryIndex;
+    }
+
+    function entryLocalRow(entryIndex) {
+        if (root.compactMode)
+            return root.getEntryRow(entryIndex);
+        const group = root.groupForEntry(entryIndex);
+        const localIndex = root.entryLocalIndex(entryIndex);
+        return Math.floor(localIndex / root.groupColumns(group));
+    }
+
+    function entryLocalColumn(entryIndex) {
+        if (root.compactMode)
+            return root.getEntryColumn(entryIndex);
+        const group = root.groupForEntry(entryIndex);
+        const cols = root.groupColumns(group);
+        const normalCol = root.entryLocalIndex(entryIndex) % cols;
+        return Config.options.overview.orderRightLeft ? cols - normalCol - 1 : normalCol;
+    }
+
+    function entryX(entryIndex) {
+        if (root.compactMode)
+            return (root.workspaceImplicitWidth + root.workspaceSpacing) * root.getEntryColumn(entryIndex);
+        const group = root.groupForEntry(entryIndex);
+        return root.groupX(group)
+            + root.monitorSectionPaddingX
+            + (root.workspaceImplicitWidth + root.workspaceSpacing) * root.entryLocalColumn(entryIndex);
+    }
+
+    function entryY(entryIndex) {
+        if (root.compactMode)
+            return (root.workspaceImplicitHeight + root.workspaceSpacing) * root.getEntryRow(entryIndex);
+        const group = root.groupForEntry(entryIndex);
+        return root.groupY(group)
+            + root.monitorSectionPaddingTop
+            + (root.workspaceImplicitHeight + root.workspaceSpacing) * root.entryLocalRow(entryIndex);
     }
 
     function groupRowStart(group) {
@@ -256,12 +387,10 @@ Item {
         }
     }
 
-    // Workspace grid — centered in both modes
+    // Workspace grid — grouped by physical monitor in overview mode.
     Item {
         id: monitorGroupUnderlay
-        anchors.centerIn: parent
-        implicitWidth: workspaceColumnLayout.implicitWidth
-        implicitHeight: workspaceColumnLayout.implicitHeight
+        anchors.fill: parent
         visible: !root.compactMode && root.monitorGroups.length > 1
         z: root.workspaceZ - 1
 
@@ -269,22 +398,16 @@ Item {
             model: root.monitorGroups
             delegate: Rectangle {
                 required property var modelData
-                readonly property int rowStart: root.groupRowStart(modelData)
-                readonly property int rowEnd: root.groupRowEnd(modelData)
-                readonly property int colStart: root.groupColStart(modelData)
-                readonly property int colEnd: root.groupColEnd(modelData)
                 readonly property bool focusedGroup: modelData.key === (Hyprland.focusedMonitor?.name ?? "")
 
-                x: (root.workspaceImplicitWidth + root.workspaceSpacing) * colStart - 12
-                y: (root.workspaceImplicitHeight + root.workspaceSpacing) * rowStart - 34
-                width: (root.workspaceImplicitWidth * (colEnd - colStart + 1))
-                    + (root.workspaceSpacing * (colEnd - colStart)) + 24
-                height: (root.workspaceImplicitHeight * (rowEnd - rowStart + 1))
-                    + (root.workspaceSpacing * (rowEnd - rowStart)) + 46
+                x: root.groupX(modelData)
+                y: root.groupY(modelData)
+                width: root.groupWidth(modelData)
+                height: root.groupHeight(modelData)
                 radius: root.largeWorkspaceRadius + 12
                 color: focusedGroup
-                    ? ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.78)
-                    : ColorUtils.transparentize(Appearance.colors.colSurfaceContainer, 0.84)
+                    ? ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.88)
+                    : ColorUtils.transparentize(Appearance.colors.colSurfaceContainer, 0.9)
                 border.width: focusedGroup ? 2 : 1
                 border.color: focusedGroup
                     ? Appearance.colors.colSecondary
@@ -310,14 +433,18 @@ Item {
         }
     }
 
-    GridLayout { // Workspaces
+    Item { // Workspaces
         id: workspaceColumnLayout
 
         z: root.workspaceZ
-        anchors.centerIn: parent
-        columns: root.overviewGridColumns
-        rowSpacing: workspaceSpacing
-        columnSpacing: workspaceSpacing
+        anchors.centerIn: root.compactMode ? parent : undefined
+        anchors.fill: root.compactMode ? undefined : parent
+        implicitWidth: root.overviewGridColumns * root.workspaceImplicitWidth
+            + (root.overviewGridColumns - 1) * root.workspaceSpacing
+        implicitHeight: root.overviewGridRows * root.workspaceImplicitHeight
+            + (root.overviewGridRows - 1) * root.workspaceSpacing
+        width: root.compactMode ? implicitWidth : root.width
+        height: root.compactMode ? implicitHeight : root.height
 
             Repeater {
                 model: root.overviewEntries
@@ -328,22 +455,30 @@ Item {
                     property int workspaceValue: modelData.id
                     property string monitorName: modelData.monitorName ?? ""
                     property bool isTrailingEmpty: modelData.isTrailingEmpty ?? false
-                    property int colIndex: root.getEntryColumn(index)
-                    property int rowIndex: root.getEntryRow(index)
+                    property int colIndex: root.entryLocalColumn(index)
+                    property int rowIndex: root.entryLocalRow(index)
                     property color defaultWorkspaceColor: Appearance.colors.colSurfaceContainerLow
                     property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                     property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                     property bool hoveredWhileDragging: false
 
-                    Layout.row: root.getEntryRow(index)
-                    Layout.column: root.getEntryColumn(index)
-                    implicitWidth: root.workspaceImplicitWidth
-                    implicitHeight: root.workspaceImplicitHeight
+                    x: root.entryX(index)
+                    y: root.entryY(index)
+                    width: root.workspaceImplicitWidth
+                    height: root.workspaceImplicitHeight
                     color: hoveredWhileDragging ? hoveredWorkspaceColor : defaultWorkspaceColor
                     property bool workspaceAtLeft: colIndex === 0
-                    property bool workspaceAtRight: colIndex === root.overviewGridColumns - 1
+                    property bool workspaceAtRight: {
+                        const group = root.groupForEntry(index);
+                        const cols = root.compactMode ? root.overviewGridColumns : root.groupColumns(group);
+                        return colIndex === cols - 1;
+                    }
                     property bool workspaceAtTop: rowIndex === 0
-                    property bool workspaceAtBottom: rowIndex === root.overviewGridRows - 1
+                    property bool workspaceAtBottom: {
+                        const group = root.groupForEntry(index);
+                        const rows = root.compactMode ? root.overviewGridRows : root.groupRows(group);
+                        return rowIndex === rows - 1;
+                    }
                     topLeftRadius: root.largeWorkspaceRadius
                     topRightRadius: root.largeWorkspaceRadius
                     bottomLeftRadius: root.largeWorkspaceRadius
@@ -415,9 +550,12 @@ Item {
 
     Item { // Windows & focused workspace indicator
         id: windowSpace
-        anchors.centerIn: parent
+        anchors.centerIn: root.compactMode ? parent : undefined
+        anchors.fill: root.compactMode ? undefined : parent
         implicitWidth: workspaceColumnLayout.implicitWidth
         implicitHeight: workspaceColumnLayout.implicitHeight
+        width: root.compactMode ? implicitWidth : root.width
+        height: root.compactMode ? implicitHeight : root.height
 
             Repeater { // Window repeater
                 model: ScriptModel {
@@ -448,10 +586,8 @@ Item {
 
                     // Offset on the canvas
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
-                    property int workspaceColIndex: root.getEntryColumn(workspaceEntryIndex)
-                    property int workspaceRowIndex: root.getEntryRow(workspaceEntryIndex)
-                    xOffset: (root.workspaceImplicitWidth + workspaceSpacing) * workspaceColIndex
-                    yOffset: (root.workspaceImplicitHeight + workspaceSpacing) * workspaceRowIndex
+                    xOffset: root.entryX(workspaceEntryIndex)
+                    yOffset: root.entryY(workspaceEntryIndex)
                     property real xWithinWorkspaceWidget: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - monitorData?.reserved[0]) * window.widthRatio * root.scale, 0)
                     property real yWithinWorkspaceWidget: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - monitorData?.reserved[1]) * window.heightRatio * root.scale, 0)
 
@@ -496,8 +632,8 @@ Item {
                         id: dragArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: hovered = true // For hover color change
-                        onExited: hovered = false // For hover color change
+                        onEntered: window.hovered = true
+                        onExited: window.hovered = false
                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                         drag.target: parent
                         onPressed: (mouse) => {
@@ -552,10 +688,8 @@ Item {
             Rectangle { // Focused workspace indicator
                 id: focusedWorkspaceIndicator
                 property int entryIndex: root.indexForWorkspaceId(root.highlightedWorkspaceId)
-                property int rowIndex: root.getEntryRow(entryIndex)
-                property int colIndex: root.getEntryColumn(entryIndex)
-                x: (root.workspaceImplicitWidth + workspaceSpacing) * colIndex
-                y: (root.workspaceImplicitHeight + workspaceSpacing) * rowIndex
+                x: root.entryX(entryIndex)
+                y: root.entryY(entryIndex)
                 z: root.windowZ
                 width: root.workspaceImplicitWidth
                 height: root.workspaceImplicitHeight

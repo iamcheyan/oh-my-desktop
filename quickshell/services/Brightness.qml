@@ -18,13 +18,19 @@ Singleton {
     id: root
     signal brightnessChanged()
 
+    Component.onCompleted: {
+        ddcMonitors = [];
+        ddcProc.running = true;
+    }
+
     property var ddcMonitors: []
     readonly property list<BrightnessMonitor> monitors: Quickshell.screens.map(screen => monitorComp.createObject(root, {
         screen
     }))
 
     function getMonitorForScreen(screen: ShellScreen): var {
-        return monitors.find(m => m.screen === screen);
+        if (!screen) return null;
+        return monitors.find(m => m.screen.name === screen.name);
     }
 
     function adjustBrightnessForScreen(screen: ShellScreen, increase: bool): void {
@@ -130,7 +136,7 @@ Singleton {
             enabled: false
         }
         onMultipliedBrightnessChanged: {
-            if (monitor.animationEnabled) syncBrightness();
+            if (monitor.animateChanges) syncBrightness();
             else setTimer.restart();
         }
 
@@ -170,12 +176,12 @@ Singleton {
             const brightnessValue = Math.max(monitor.multipliedBrightness, 0);
             if (isDdc) {
                 const rawValueRounded = Math.max(Math.floor(brightnessValue * monitor.rawMaxBrightness), 1);
-                setProc.exec(["ddcutil", "-b", busNum, "setvcp", "10", rawValueRounded]);
+                Quickshell.execDetached(["ddcutil", "-b", busNum, "setvcp", "10", String(rawValueRounded)]);
             } else {
                 const valuePercentNumber = Math.floor(brightnessValue * 100);
                 let valuePercent = `${valuePercentNumber}%`;
                 if (valuePercentNumber == 0) valuePercent = "1"; // Prevent fully black
-                setProc.exec(["brightnessctl", "--class", "backlight", "s", valuePercent, "--quiet"])
+                Quickshell.execDetached(["brightnessctl", "--class", "backlight", "s", valuePercent, "--quiet"])
             }
         }
 
