@@ -89,13 +89,12 @@ Item {
         colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
-        onClicked: sessionMenu.open()
-    }
+        contentItem: BarNerdIcon {
+            text: NerdIconMap.workspaceSnapshot
+            color: root.canvasEmpty && root.hasSnapshot ? TuiStyle.accent : Appearance.colors.colBarText
+        }
 
-    BarNerdIcon {
-        anchors.centerIn: sessionButton
-        text: NerdIconMap.workspaceSnapshot
-        color: root.canvasEmpty && root.hasSnapshot ? TuiStyle.accent : Appearance.colors.colBarText
+        onClicked: sessionMenu.open()
     }
 
     Loader {

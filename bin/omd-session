@@ -24,6 +24,11 @@ def hypr(*args):
     return subprocess.run(["hyprctl", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def hypr_lua(expr):
+    """Execute a Lua dispatch expression via hyprctl dispatch."""
+    return subprocess.run(["hyprctl", "dispatch", expr], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def proc_cmdline(pid):
     try:
         raw = Path(f"/proc/{pid}/cmdline").read_bytes()
@@ -187,8 +192,8 @@ def close_snapshot(data):
     for client in data.get("clients", []):
         address = client.get("address")
         if address:
-            hypr("dispatch", "closewindow", f"address:{address}")
-            time.sleep(0.12)
+            hypr_lua(f'hl.dsp.window.close({{ address = "{address}" }})')
+            time.sleep(0.25)
 
 
 def status():
@@ -257,13 +262,12 @@ def place_client(client, record):
     wsid = workspace.get("id")
     if wsid:
         if isinstance(wsid, int) and wsid < 0:
-            # Special workspace: use the special syntax.
-            hypr("dispatch", "movetoworkspacesilent", f"special,address:{address}")
+            hypr_lua(f'hl.dsp.window.move({{ workspace = "special", address = "{address}" }})')
         else:
-            hypr("dispatch", "movetoworkspacesilent", f"{wsid},address:{address}")
+            hypr_lua(f'hl.dsp.window.move({{ workspace = "{wsid}", address = "{address}" }})')
     time.sleep(0.08)
     if record.get("floating"):
-        hypr("dispatch", "setfloating", f"address:{address}")
+        hypr_lua(f'hl.dsp.setfloating({{ address = "{address}" }})')
         size = record.get("size") or []
         at = record.get("at") or []
         if len(size) == 2:
@@ -294,7 +298,7 @@ def restore():
     for wsid, records in groups.items():
         # Switch to the target workspace before launching its windows.
         if isinstance(wsid, int) and wsid > 0:
-            hypr("dispatch", "workspace", str(wsid))
+            hypr_lua(f'hl.dsp.focus({{ workspace = "{wsid}" }})')
             time.sleep(0.15)
         for record in records:
             argv = record.get("command", {}).get("argv") or []
