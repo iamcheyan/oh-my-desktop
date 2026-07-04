@@ -6,6 +6,7 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 
 /**
  * BarContextMenu — shared container for all bar context menus.
@@ -44,6 +45,8 @@ PopupWindow {
 
     color: "transparent"
     visible: GlobalStates.activeContextMenu !== "" && GlobalStates.activeContextMenu === menuName
+
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
 
     implicitWidth:  popupBackground.implicitWidth  + barContextMenu.outerPadding * 2 + barContextMenu.popupBackgroundMargin

@@ -6,6 +6,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Wayland
 
 PopupWindow {
     id: root
@@ -17,6 +18,7 @@ PopupWindow {
 
     color: "transparent"
     visible: true
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
     implicitWidth: 560
     implicitHeight: Math.min(620, Math.max(420, 180 + Math.min(340, workspaceColumn.implicitHeight)))
 
