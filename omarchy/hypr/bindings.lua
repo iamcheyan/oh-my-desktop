@@ -55,6 +55,11 @@ hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
+-- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
+hl.bind("ESCAPE", hl.dsp.global("quickshell:closeMenus"), {
+  ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
+})
+
 -- Interrupt Super-alone overview toggle: any SUPER+key press clears the
 -- "might trigger" flag without consuming the real keybind.
 local interrupt_keys = {

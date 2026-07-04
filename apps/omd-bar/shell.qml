@@ -4,6 +4,7 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
+import qs
 import "modules/common"
 import "services"
 
@@ -18,6 +19,7 @@ import qs.modules.sessionScreen
 
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 
 ShellRoot {
     id: root
@@ -34,6 +36,21 @@ ShellRoot {
     LazyLoader {
         active: Config.ready
         component: Scope {
+            // Esc closes any active context menu or status popup
+            GlobalShortcut {
+                name: "closeMenus"
+                description: "Close active bar menus and popups"
+
+                onPressed: {
+                    if (GlobalStates.activeContextMenu !== "") {
+                        GlobalStates.activeContextMenu = "";
+                    }
+                    if (GlobalStates.barPopupType !== "") {
+                        GlobalStates.barPopupType = "";
+                    }
+                }
+            }
+
             Bar {}
             BarStatusPopup {}
             BarDialogOverlay {}

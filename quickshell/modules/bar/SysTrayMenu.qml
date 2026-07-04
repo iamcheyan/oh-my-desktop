@@ -7,7 +7,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Wayland
 
 PopupWindow {
     id: root
@@ -19,8 +18,6 @@ PopupWindow {
     signal menuOpened(qsWindow: var) // Correct type is QsWindow, but QML does not like that
 
     color: "transparent"
-
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
     property real padding: Appearance.sizes.elevationMargin + 2
 
