@@ -39,7 +39,16 @@ PanelWindow {
     }
 
     function launchApp(desktopEntry) {
-        if (!desktopEntry || !desktopEntry.command || desktopEntry.command.length === 0) return;
+        if (!desktopEntry) return;
+        if (desktopEntry.id === "omd-settings-center.desktop") {
+            launcher.open = false;
+            Quickshell.execDetached([
+                "qs", "-p", Quickshell.shellDir + "/../apps/omd-bar",
+                "ipc", "call", "barDialog", "open", "settings"
+            ]);
+            return;
+        }
+        if (!desktopEntry.command || desktopEntry.command.length === 0) return;
 
         const cmd = desktopEntry.command;
         let program = cmd[0];
@@ -118,6 +127,9 @@ PanelWindow {
 
     function isAppRunning(app) {
         if (!app) return false;
+        if (app.id === "omd-settings-center.desktop") {
+            return GlobalStates.barDialogOpen;
+        }
         const set = launcher.runningSet;
         if (!set) return false;
         let any = false;
@@ -156,6 +168,15 @@ PanelWindow {
             if (!app || app.noDisplay || !app.name || !app.id) continue;
             apps.push(app);
         }
+        apps.push({
+            id: "omd-settings-center.desktop",
+            name: "OMD settings center",
+            icon: "preferences-system",
+            command: ["omd-settings"],
+            genericName: "System Settings",
+            comment: "Configure OMD desktop options",
+            keywords: ["settings", "control", "theme", "config", "overview", "omd"]
+        });
         appsLoaded = true;
         if (!sameAppList(allApps, apps)) {
             allApps = apps;
@@ -405,28 +426,6 @@ PanelWindow {
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    RippleButton {
-                        Layout.alignment: Qt.AlignVCenter
-                        implicitWidth: 32
-                        implicitHeight: 32
-                        buttonRadius: 16
-                        colBackgroundHover: TuiStyle.surfaceHover
-                        colRipple: TuiStyle.surfacePressed
-                        onClicked: {
-                            launcher.open = false;
-                            Quickshell.execDetached([
-                                "qs", "-p", Quickshell.shellDir + "/../apps/omd-bar",
-                                "ipc", "call", "barDialog", "open", "settings"
-                            ]);
-                        }
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "settings"
-                            font.pixelSize: Appearance.font.pixelSize.larger
-                            color: TuiStyle.fg
                         }
                     }
                 }
