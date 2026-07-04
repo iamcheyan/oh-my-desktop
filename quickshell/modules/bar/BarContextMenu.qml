@@ -45,8 +45,16 @@ PopupWindow {
     color: "transparent"
     visible: GlobalStates.activeContextMenu !== "" && GlobalStates.activeContextMenu === menuName
 
+
     implicitWidth:  popupBackground.implicitWidth  + barContextMenu.outerPadding * 2 + barContextMenu.popupBackgroundMargin
     implicitHeight: popupBackground.implicitHeight + barContextMenu.outerPadding * 2 + barContextMenu.popupBackgroundMargin
+
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Escape) {
+            barContextMenu.close();
+            event.accepted = true;
+        }
+    }
 
     function open()  {
         GlobalStates.barPopupType = "";
@@ -79,6 +87,7 @@ PopupWindow {
 
     onVisibleChanged: {
         if (visible) {
+            barContextMenu.forceActiveFocus();
             dismissGuard.restart();
         } else {
             dismissGuard.stop();

@@ -18,6 +18,7 @@ PopupWindow {
     signal menuOpened(qsWindow: var) // Correct type is QsWindow, but QML does not like that
 
     color: "transparent"
+
     property real padding: Appearance.sizes.elevationMargin + 2
 
     implicitHeight: {
@@ -37,6 +38,7 @@ PopupWindow {
 
     function open() {
         root.visible = true;
+        root.forceActiveFocus();
         root.menuOpened(root);
     }
 
@@ -45,6 +47,17 @@ PopupWindow {
         while (stackView.depth > 1)
             stackView.pop();
         root.menuClosed();
+    }
+
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Escape) {
+            if (stackView.depth > 1) {
+                stackView.pop();
+            } else {
+                root.close();
+            }
+            event.accepted = true;
+        }
     }
 
     MouseArea {
