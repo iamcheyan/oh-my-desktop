@@ -18,6 +18,43 @@ ColumnLayout {
 
     DisplayConfigState {
         id: displayState
+        onOutputsChanged: root.updateMonitorList()
+    }
+
+    component SettingsSlider: Slider {
+        id: sliderRoot
+        Layout.fillWidth: true
+        Layout.preferredHeight: 28
+        leftPadding: 0
+        rightPadding: 0
+
+        background: Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            x: 0
+            width: sliderRoot.width
+            height: 6
+            radius: 3
+            color: "#454545"
+
+            Rectangle {
+                width: sliderRoot.visualPosition * parent.width
+                height: parent.height
+                radius: parent.radius
+                color: TuiStyle.accent
+            }
+        }
+
+        handle: Rectangle {
+            x: sliderRoot.visualPosition * (sliderRoot.width - width)
+            anchors.verticalCenter: parent.verticalCenter
+            width: 16
+            height: 16
+            radius: 8
+            color: "#f4f4f4"
+            border.width: 2
+            border.color: sliderRoot.pressed ? TuiStyle.accent : "#4a4a4a"
+            Behavior on border.color { ColorAnimation { duration: 100 } }
+        }
     }
 
     ColumnLayout {
@@ -90,7 +127,7 @@ ColumnLayout {
             title: "Brightness"
             subtitle: `${Math.round(root.brightnessMonitor.brightness * 100)}%`
 
-            Slider {
+            SettingsSlider {
                 Layout.fillWidth: true
                 from: 0
                 to: 1
@@ -120,7 +157,7 @@ ColumnLayout {
                     color: "#f4f4f4"
                     font.pixelSize: 14
                 }
-                Slider {
+                SettingsSlider {
                     Layout.fillWidth: true
                     from: 2500
                     to: 6500

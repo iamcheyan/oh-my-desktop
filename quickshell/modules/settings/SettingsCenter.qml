@@ -741,8 +741,8 @@ WindowDialog {
             anchors.verticalCenter: parent.verticalCenter
             x: 0
             width: sliderRoot.width
-            implicitHeight: 6
-            radius: height / 2
+            height: 6
+            radius: 3
             color: sliderRoot.trackColor
 
             Rectangle {
@@ -756,9 +756,9 @@ WindowDialog {
         handle: Rectangle {
             x: sliderRoot.visualPosition * (sliderRoot.width - width)
             anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: 16
-            implicitHeight: 16
-            radius: height / 2
+            width: 16
+            height: 16
+            radius: 8
             color: sliderRoot.handleColor
             border.width: 2
             border.color: sliderRoot.pressed ? sliderRoot.highlightColor : root.cosmicButtonBorder

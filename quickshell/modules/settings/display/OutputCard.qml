@@ -195,12 +195,41 @@ Rectangle {
             StyledText { text: sliderRoot.valueLabel; color: "#a8a8a8"; font.pixelSize: 13 }
         }
         Slider {
+            id: innerSlider
             Layout.fillWidth: true
             from: sliderRoot.from
             to: sliderRoot.to
             stepSize: sliderRoot.stepSize
             value: sliderRoot.value
             onMoved: sliderRoot.movedValue(value)
+
+            background: Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                x: 0
+                width: innerSlider.width
+                height: 6
+                radius: 3
+                color: "#454545"
+
+                Rectangle {
+                    width: innerSlider.visualPosition * parent.width
+                    height: parent.height
+                    radius: parent.radius
+                    color: TuiStyle.accent
+                }
+            }
+
+            handle: Rectangle {
+                x: innerSlider.visualPosition * (innerSlider.width - width)
+                anchors.verticalCenter: parent.verticalCenter
+                width: 16
+                height: 16
+                radius: 8
+                color: "#f4f4f4"
+                border.width: 2
+                border.color: innerSlider.pressed ? TuiStyle.accent : "#4a4a4a"
+                Behavior on border.color { ColorAnimation { duration: 100 } }
+            }
         }
     }
 
