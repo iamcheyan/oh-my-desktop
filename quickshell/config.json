@@ -268,7 +268,18 @@
     "historyMaxAgeDays": 0
   },
   "osd": {
-    "timeout": 1000
+    "timeout": 1000,
+    "position": "top_right",
+    "alwaysShowValue": false,
+    "volumeEnabled": true,
+    "mediaVolumeEnabled": false,
+    "mediaPlaybackEnabled": true,
+    "brightnessEnabled": true,
+    "idleInhibitorEnabled": true,
+    "micMuteEnabled": true,
+    "capsLockEnabled": false,
+    "powerProfileEnabled": true,
+    "audioOutputEnabled": false
   },
   "overview": {
     "centerIcons": true,

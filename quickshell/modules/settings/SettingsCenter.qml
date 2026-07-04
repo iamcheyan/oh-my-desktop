@@ -52,6 +52,7 @@ WindowDialog {
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style" },
         { key: "themes", icon: "format_paint", title: "Themes", keywords: "theme preview color wallpaper omarchy appearance" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery" },
+        { key: "osd", icon: "onscreen_text", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
@@ -377,6 +378,7 @@ WindowDialog {
                                 if (root.currentPage === "appearance") return appearancePage;
                                 if (root.currentPage === "themes") return themesPage;
                                 if (root.currentPage === "power") return powerPage;
+                                if (root.currentPage === "osd") return osdPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
@@ -2051,6 +2053,111 @@ WindowDialog {
                     description: "Keep the current session awake"
                     checked: Idle.inhibit
                     onToggled: Idle.toggleInhibit()
+                }
+            }
+        }
+    }
+
+    Component {
+        id: osdPage
+        PageBody {
+            SettingsCard {
+                title: "On-Screen Displays"
+                subtitle: "Volume, brightness, and media indicators"
+
+                SettingsDropdownRow {
+                    label: "OSD position"
+                    description: "Where the OSD appears on screen"
+                    currentValue: Config.options.osd.position ?? "top_right"
+                    options: [
+                        {value: "top_right", label: "Top Right"},
+                        {value: "top_left", label: "Top Left"},
+                        {value: "top_center", label: "Top Center"},
+                        {value: "bottom_right", label: "Bottom Right"},
+                        {value: "bottom_left", label: "Bottom Left"},
+                        {value: "bottom_center", label: "Bottom Center"},
+                        {value: "left_center", label: "Left Center"},
+                        {value: "right_center", label: "Right Center"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("osd.position", v)
+                }
+
+                SettingsToggleRow {
+                    label: "Always show percentage"
+                    description: "Display the numeric value on every OSD"
+                    checked: Config.options.osd.alwaysShowValue ?? false
+                    onToggled: Config.setNestedValue("osd.alwaysShowValue", !Config.options.osd.alwaysShowValue)
+                }
+
+                // Divider
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: root.cosmicLine
+                    opacity: 0.4
+                }
+
+                SettingsToggleRow {
+                    label: "Volume"
+                    description: "Show OSD when volume changes"
+                    checked: Config.options.osd.volumeEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.volumeEnabled", !Config.options.osd.volumeEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Media volume"
+                    description: "Show OSD when media volume changes"
+                    checked: Config.options.osd.mediaVolumeEnabled ?? false
+                    onToggled: Config.setNestedValue("osd.mediaVolumeEnabled", !Config.options.osd.mediaVolumeEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Media playback"
+                    description: "Show OSD for play/pause/next/prev"
+                    checked: Config.options.osd.mediaPlaybackEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.mediaPlaybackEnabled", !Config.options.osd.mediaPlaybackEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Brightness"
+                    description: "Show OSD when brightness changes"
+                    checked: Config.options.osd.brightnessEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.brightnessEnabled", !Config.options.osd.brightnessEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Idle inhibitor"
+                    description: "Show OSD when toggling idle inhibitor"
+                    checked: Config.options.osd.idleInhibitorEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.idleInhibitorEnabled", !Config.options.osd.idleInhibitorEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Microphone mute"
+                    description: "Show OSD when mic is muted/unmuted"
+                    checked: Config.options.osd.micMuteEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.micMuteEnabled", !Config.options.osd.micMuteEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Caps Lock"
+                    description: "Show OSD when caps lock is toggled"
+                    checked: Config.options.osd.capsLockEnabled ?? false
+                    onToggled: Config.setNestedValue("osd.capsLockEnabled", !Config.options.osd.capsLockEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Power profile"
+                    description: "Show OSD when power profile changes"
+                    checked: Config.options.osd.powerProfileEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.powerProfileEnabled", !Config.options.osd.powerProfileEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Audio output switch"
+                    description: "Show OSD when cycling audio output device"
+                    checked: Config.options.osd.audioOutputEnabled ?? false
+                    onToggled: Config.setNestedValue("osd.audioOutputEnabled", !Config.options.osd.audioOutputEnabled)
                 }
             }
         }
