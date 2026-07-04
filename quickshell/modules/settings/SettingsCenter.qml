@@ -3,6 +3,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
+import qs.modules.settings.widgets
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -1904,21 +1905,130 @@ WindowDialog {
     Component {
         id: sessionPage
         PageBody {
+            // ── Notification Popups ──────────────────────────────────────
             SettingsCard {
-                title: "Notifications"
+                title: "Notification Popups"
                 subtitle: `${Notifications.list.length} entries`
+
                 SettingsToggleRow {
                     label: "Do not disturb"
                     description: "Suppress notification alerts"
                     checked: Notifications.silent
                     onToggled: Notifications.silent = !Notifications.silent
                 }
+
+                SettingsDropdownRow {
+                    label: "Low Priority Timeout"
+                    description: "Auto-dismiss timeout for low urgency"
+                    currentValue: String(Config.options.notifications.timeoutLow ?? 5000)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "1000", label: "1s"},
+                        {value: "3000", label: "3s"},
+                        {value: "5000", label: "5s"},
+                        {value: "8000", label: "8s"},
+                        {value: "10000", label: "10s"},
+                        {value: "15000", label: "15s"},
+                        {value: "30000", label: "30s"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("notifications.timeoutLow", parseInt(v))
+                }
+
+                SettingsDropdownRow {
+                    label: "Normal Priority Timeout"
+                    description: "Auto-dismiss timeout for normal urgency"
+                    currentValue: String(Config.options.notifications.timeoutNormal ?? 7000)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "1000", label: "1s"},
+                        {value: "3000", label: "3s"},
+                        {value: "5000", label: "5s"},
+                        {value: "7000", label: "7s"},
+                        {value: "10000", label: "10s"},
+                        {value: "15000", label: "15s"},
+                        {value: "30000", label: "30s"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("notifications.timeoutNormal", parseInt(v))
+                }
+
+                SettingsDropdownRow {
+                    label: "Critical Priority Timeout"
+                    description: "Auto-dismiss timeout for critical urgency"
+                    currentValue: String(Config.options.notifications.timeoutCritical ?? 0)
+                    options: [
+                        {value: "0", label: "Never"},
+                        {value: "5000", label: "5s"},
+                        {value: "10000", label: "10s"},
+                        {value: "15000", label: "15s"},
+                        {value: "30000", label: "30s"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("notifications.timeoutCritical", parseInt(v))
+                }
+
+                SettingsToggleRow {
+                    label: "Compact mode"
+                    description: "Smaller notification cards"
+                    checked: Config.options.notifications.compactMode ?? false
+                    onToggled: Config.setNestedValue("notifications.compactMode", !Config.options.notifications.compactMode)
+                }
+
+                SettingsToggleRow {
+                    label: "Timeout progress bar"
+                    description: "Show a progress bar on popups"
+                    checked: Config.options.notifications.showTimeoutBar ?? true
+                    onToggled: Config.setNestedValue("notifications.showTimeoutBar", !Config.options.notifications.showTimeoutBar)
+                }
+
+                SettingsToggleRow {
+                    label: "Suppress duplicates"
+                    description: "Hide duplicate notifications within a short window"
+                    checked: Config.options.notifications.dedupe ?? true
+                    onToggled: Config.setNestedValue("notifications.dedupe", !Config.options.notifications.dedupe)
+                }
+
                 ButtonRow {
                     SettingsButton { label: "Mark Read"; iconName: "done_all"; onClicked: Notifications.markAllRead() }
-                    SettingsButton { label: "Clear Timeouts"; iconName: "clear_all"; onClicked: Notifications.timeoutAll() }
+                    SettingsButton { label: "Clear Popups"; iconName: "clear_all"; onClicked: Notifications.timeoutAll() }
                 }
             }
 
+            // ── Notification History ─────────────────────────────────────
+            SettingsCard {
+                title: "Notification History"
+                subtitle: "Persisted notification log"
+
+                SettingsToggleRow {
+                    label: "Enable history"
+                    description: "Keep a log of past notifications"
+                    checked: Config.options.notifications.historyEnabled ?? true
+                    onToggled: Config.setNestedValue("notifications.historyEnabled", !Config.options.notifications.historyEnabled)
+                }
+
+                SettingsSlider {
+                    from: 10
+                    to: 200
+                    stepSize: 10
+                    value: Config.options.notifications.historyMaxCount ?? 50
+                    onValueChanged: Config.setNestedValue("notifications.historyMaxCount", Math.round(value))
+                }
+
+                SettingsDropdownRow {
+                    label: "History retention"
+                    description: "How long to keep notifications"
+                    currentValue: String(Config.options.notifications.historyMaxAgeDays ?? 0)
+                    options: [
+                        {value: "0", label: "Forever"},
+                        {value: "1", label: "1 day"},
+                        {value: "3", label: "3 days"},
+                        {value: "7", label: "7 days"},
+                        {value: "14", label: "14 days"},
+                        {value: "30", label: "30 days"},
+                    ]
+                    onValueChanged: (v) => Config.setNestedValue("notifications.historyMaxAgeDays", parseInt(v))
+                }
+            }
+
+            // ── Clipboard ────────────────────────────────────────────────
             SettingsCard {
                 title: "Clipboard"
                 subtitle: `${Cliphist.entries.length} entries`
@@ -1932,6 +2042,7 @@ WindowDialog {
                 }
             }
 
+            // ── Session Behavior ─────────────────────────────────────────
             SettingsCard {
                 title: "Session Behavior"
                 subtitle: "Idle and sleep"

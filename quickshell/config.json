@@ -49,7 +49,7 @@
   "background": {
     "hideWhenFullscreen": true,
     "thumbnailPath": "",
-    "wallpaperPath": "/home/tetsuya/下载/wallpaper/HDwwNDaawAA5GL_.jpg",
+    "wallpaperPath": "/home/tetsuya/下载/wallpaper/HLrMaUmb0AAvmjD.jpg",
     "widgets": {
       "clock": {
         "cookie": {
@@ -142,6 +142,7 @@
       "systray",
       "util:wifi",
       "util:clipboard",
+      "util:session",
       "util:nightlight",
       "clock",
       "sidebar"
@@ -255,7 +256,16 @@
       "enable": false,
       "name": ""
     },
-    "timeout": 7000
+    "timeout": 7000,
+    "timeoutLow": 5000,
+    "timeoutNormal": 7000,
+    "timeoutCritical": 0,
+    "compactMode": false,
+    "showTimeoutBar": true,
+    "dedupe": true,
+    "historyEnabled": true,
+    "historyMaxCount": 50,
+    "historyMaxAgeDays": 0
   },
   "osd": {
     "timeout": 1000

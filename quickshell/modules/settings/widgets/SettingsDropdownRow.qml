@@ -2,6 +2,7 @@ import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 /**
@@ -99,7 +100,6 @@ Rectangle {
                 width: root.dropdownWidth
                 height: Math.min(300, optionColumn.implicitHeight + 8)
                 visible: root.dropdownOpen
-                onClosed: root.dropdownOpen = false
 
                 background: Rectangle {
                     radius: TuiStyle.miniRadius
@@ -108,7 +108,6 @@ Rectangle {
                     border.color: TuiStyle.line
                 }
 
-                onOpened: root.dropdownOpen = true
                 onClosed: root.dropdownOpen = false
 
                 ColumnLayout {
