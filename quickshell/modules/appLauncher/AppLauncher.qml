@@ -407,6 +407,28 @@ PanelWindow {
                             }
                         }
                     }
+
+                    RippleButton {
+                        Layout.alignment: Qt.AlignVCenter
+                        implicitWidth: 32
+                        implicitHeight: 32
+                        buttonRadius: 16
+                        colBackgroundHover: TuiStyle.surfaceHover
+                        colRipple: TuiStyle.surfacePressed
+                        onClicked: {
+                            launcher.open = false;
+                            Quickshell.execDetached([
+                                "qs", "-p", Quickshell.shellDir + "/../apps/omd-bar",
+                                "ipc", "call", "barDialog", "open", "settings"
+                            ]);
+                        }
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "settings"
+                            font.pixelSize: Appearance.font.pixelSize.larger
+                            color: TuiStyle.fg
+                        }
+                    }
                 }
 
                 Rectangle {
