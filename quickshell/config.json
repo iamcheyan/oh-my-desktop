@@ -167,7 +167,13 @@
     "critical": 5,
     "full": 101,
     "low": 20,
-    "suspend": 3
+    "suspend": 3,
+    "notifyChargeLimit": false,
+    "notifyLow": true,
+    "notifyCritical": true,
+    "autoPowerSaver": false,
+    "acProfile": "",
+    "batteryProfile": ""
   },
   "calendar": {
     "locale": "en-GB"
