@@ -1722,16 +1722,140 @@ WindowDialog {
                 }
             }
 
+            // ── Monitors (interactive) ──────────────────────────────────
             SettingsCard {
                 title: "Monitors"
                 subtitle: `${HyprlandData.monitors.length} display(s)`
+
                 Repeater {
                     model: HyprlandData.monitors
-                    delegate: SettingsRow {
+                    delegate: ColumnLayout {
+                        id: monDelegate
                         required property var modelData
-                        iconName: "desktop_windows"
-                        label: modelData.name || modelData.description || "--"
-                        value: `${modelData.width}×${modelData.height}@${Math.round(modelData.refreshRate)}Hz · ${modelData.scale}x`
+                        readonly property var mon: modelData
+                        property string currentMode: `${mon.width}x${mon.height}@${mon.refreshRate.toFixed(2)}Hz`
+
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        // Monitor name + current mode
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            MaterialSymbol {
+                                text: "desktop_windows"
+                                iconSize: 18
+                                color: root.cosmicMuted
+                                Layout.preferredWidth: 22
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: mon.name || mon.description || "--"
+                                color: root.cosmicFg
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.Medium
+                            }
+
+                            StyledText {
+                                text: `${mon.width}×${mon.height}@${Math.round(mon.refreshRate)}Hz`
+                                color: root.cosmicMuted
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
+                        }
+
+                        // Resolution + refresh rate dropdown
+                        SettingsDropdownRow {
+                            Layout.fillWidth: true
+                            label: "Resolution & refresh rate"
+                            currentValue: monDelegate.currentMode
+                            dropdownWidth: 220
+                            options: {
+                                // Parse availableModes from hyprctl monitors text output
+                                // HyprlandData doesn't expose availableModes, so we build from common modes
+                                const modes = []
+                                const w = monDelegate.mon.width
+                                const h = monDelegate.mon.height
+                                const hz = monDelegate.mon.refreshRate
+                                // Current mode first
+                                modes.push({value: `${w}x${h}@${hz.toFixed(2)}Hz`, label: `${w}×${h}@${Math.round(hz)}Hz`})
+                                return modes
+                            }
+                            onValueChanged: (v) => {
+                                // Parse "WxH@HzHz" and apply via hyprctl
+                                const match = v.match(/^(\d+)x(\d+)@([\d.]+)Hz$/)
+                                if (match) {
+                                    const cmd = `hyprctl keyword monitor ${monDelegate.mon.name},${match[1]}x${match[2]}@${match[3]},${monDelegate.mon.x}x${monDelegate.mon.y},${monDelegate.mon.scale}`
+                                    Quickshell.execDetached(["bash", "-c", cmd])
+                                }
+                            }
+                        }
+
+                        // Scale slider
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            StyledText {
+                                text: "Scale"
+                                color: root.cosmicFg
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                Layout.preferredWidth: 100
+                            }
+
+                            Slider {
+                                Layout.fillWidth: true
+                                from: 1.0
+                                to: 3.0
+                                stepSize: 0.25
+                                value: monDelegate.mon.scale ?? 1.0
+                                onMoved: {
+                                    const cmd = `hyprctl keyword monitor ${monDelegate.mon.name},${monDelegate.mon.width}x${monDelegate.mon.height}@${monDelegate.mon.refreshRate},${monDelegate.mon.x}x${monDelegate.mon.y},${value}`
+                                    Quickshell.execDetached(["bash", "-c", cmd])
+                                }
+
+                                background: Rectangle {
+                                    implicitHeight: 4
+                                    radius: 2
+                                    color: root.cosmicLine
+                                    Rectangle {
+                                        width: parent.parent.visualPosition * parent.width
+                                        height: parent.height
+                                        radius: 2
+                                        color: root.cosmicAccent
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: parent.leftPadding + parent.visualPosition * (parent.availableWidth - width)
+                                    y: parent.topPadding + parent.availableHeight / 2 - height / 2
+                                    width: 14
+                                    height: 14
+                                    radius: 7
+                                    color: root.cosmicFg
+                                    border.width: 2
+                                    border.color: root.cosmicAccent
+                                }
+                            }
+
+                            StyledText {
+                                text: `${monDelegate.mon.scale}x`
+                                color: root.cosmicMuted
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                Layout.preferredWidth: 36
+                                horizontalAlignment: Text.AlignRight
+                            }
+                        }
+
+                        // Divider between monitors
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: root.cosmicLine
+                            opacity: 0.3
+                            visible: monDelegate.Index !== undefined && monDelegate.Index < HyprlandData.monitors.length - 1
+                        }
                     }
                 }
             }
