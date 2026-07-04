@@ -56,7 +56,7 @@ hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
 -- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
-hl.bind("ESCAPE", 'exec qs -p "$HOME/.config/omd/apps/omd-bar" ipc call menus close 2>/dev/null', {
+hl.bind("ESCAPE", hl.dsp.exec_cmd('qs -p "$HOME/.config/omd/apps/omd-bar" ipc call menus close 2>/dev/null'), {
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
 })
 

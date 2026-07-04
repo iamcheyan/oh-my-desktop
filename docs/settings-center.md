@@ -104,6 +104,64 @@ New settings work should prefer this hierarchy:
 4. Keep small hover bubbles and lightweight status popups in
    `BarStatusPopup.qml`; keep actual configuration in Settings Center.
 
+## Displays Page
+
+The Displays page has been split out of the monolithic settings file:
+
+```text
+quickshell/modules/settings/display/
+├── DisplayPage.qml
+├── DisplayConfigState.qml
+├── MonitorCanvas.qml
+├── MonitorRect.qml
+└── OutputCard.qml
+```
+
+This is an OMD adaptation of DankMaterialShell's display configuration design.
+The parts we intentionally ported are:
+
+- monitor preview canvas
+- draggable monitor rectangles
+- edge snapping and overlap checks
+- per-output cards
+- pending edits before applying
+- resolution/refresh, scale, rotation, and position controls
+
+The original DMS implementation depends on `WlrOutputService`,
+`CompositorService`, `SettingsData`, DMS display profiles, and both Hyprland and
+Niri backends. OMD does not run that daemon stack, so the state layer is adapted
+for the current Omarchy + Hyprland session:
+
+```text
+hyprctl -j monitors all
+hyprctl keyword monitor <name>,<mode>,<x>x<y>,<scale>,transform,<n>
+```
+
+Keep display-specific parsing and command generation in
+`DisplayConfigState.qml`. Do not add new monitor layout logic directly to
+`SettingsCenter.qml`.
+
+Current scope:
+
+- connected Hyprland outputs
+- output arrangement by dragging preview rectangles
+- mode, scale, transform, and position changes
+- refresh and identify actions
+- brightness, night light, and wallpaper entry points remain on the Displays
+  page
+
+Not yet ported from DMS:
+
+- display profiles
+- Niri backend
+- disconnected-output preservation
+- Hyprland-specific HDR/10-bit/VRR advanced controls
+- rollback confirmation timer after applying monitor changes
+
+If those are added later, prefer extending `DisplayConfigState.qml` and
+`OutputCard.qml` instead of embedding feature-specific code in the settings
+root.
+
 ## Themes Page
 
 The Themes page is backed by:

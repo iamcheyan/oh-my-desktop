@@ -73,6 +73,12 @@ runs `omd-session restore-auto`.
 `restore-auto` consumes the marker before restoring so a normal Quickshell
 reload does not repeatedly launch duplicate windows.
 
+Empty snapshots are rejected. If `omd-session save`, `save-close`, or
+`save-auto` finds no mapped Hyprland clients, it prints a skipped result and
+does not overwrite `last.json`. `save-auto` also removes any pending
+`restore-on-next-start` marker so an empty logout cannot arm an invalid
+automatic restore.
+
 ## Captured State
 
 The snapshot records every mapped client from `hyprctl -j clients`, including

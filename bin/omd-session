@@ -509,6 +509,16 @@ def snapshot_clients():
 def save():
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     clients = snapshot_clients()
+    if not clients:
+        print(json.dumps({
+            "saved": False,
+            "skipped": True,
+            "reason": "empty",
+            "count": 0,
+            "path": str(LAST_FILE),
+        }))
+        return None
+
     data = {
         "version": 1,
         "savedAt": int(time.time()),
@@ -522,6 +532,13 @@ def save():
 
 def save_auto():
     data = save()
+    if not data:
+        try:
+            AUTO_RESTORE_FILE.unlink()
+        except FileNotFoundError:
+            pass
+        return None
+
     AUTO_RESTORE_FILE.write_text(
         json.dumps({"armed": True, "savedAt": data.get("savedAt", int(time.time()))}, indent=2),
         encoding="utf-8",
@@ -1003,7 +1020,8 @@ def main():
         preview_saved()
     elif cmd in ("save-close", "save-and-close"):
         data = save()
-        close_snapshot(data)
+        if data:
+            close_snapshot(data)
     elif cmd == "restore":
         raise SystemExit(restore())
     elif cmd in ("restore-auto", "restore-on-next-start"):

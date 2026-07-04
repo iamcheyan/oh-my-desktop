@@ -293,7 +293,7 @@ PanelWindow {
             GradientStop { position: 1.0; color: "#ef111111" }
         }
         radius: 18
-        border.color: "#8f8f8f"
+        border.color: TuiStyle.shellBorder
         border.width: TuiStyle.borderWidth
         clip: true
 

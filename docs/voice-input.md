@@ -252,24 +252,51 @@ qs -p $HOME/.config/omd/apps/omd-bar ipc call barPopup open voice
 
 ## Auto-Paste Mechanism
 
+Auto-paste adapts the keystroke to the focused window class so that both
+terminals (which bind paste to `Shift+Insert` / `Ctrl+Shift+V`) and GUI apps
+(which bind paste to `Ctrl+V`) get the right key.
+
 ```javascript
+// 录音开始时记录焦点窗口 class
+function startRecording() {
+    focusClassProc.running = true   // 异步刷新 focusedWindowClass
+    ...
+}
+
 function onTranscriptionResult(text) {
     // 1. Always copy to clipboard (reliable)
     Quickshell.execDetached(["bash", "-c",
         `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy`])
-    // 2. Delay then attempt auto-paste (ydotool may fail if no focused input)
+    // 2. 按 class 选 paste 命令，延迟发送
+    const pasteCmds = root.resolvePasteCommands()
     Quickshell.execDetached(["bash", "-c",
-        `sleep 0.3 && ${root.pressPasteCommand} || true`])
+        `sleep 0.3 && ${pasteCmds.primary} || true`])
 }
 ```
 
-`pressPasteCommand`:
-```bash
-YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0
-```
-(29 = Ctrl, 47 = V)
+`pasteCommandForClass` 映射（见 `VoiceInput.qml`）：
 
-Even if ydotool fails (no focused text field), the text is already in the clipboard.
+| 窗口 class                              | paste 命令               | 原因                    |
+|----------------------------------------|--------------------------|-------------------------|
+| `foot` / `kitty` / `alacritty` / `ghostty` / `wezterm` / `konsole` / `xterm` … | `wtype -M shift -k Insert` | 终端粘贴绑定 Shift+Insert |
+| `google-chrome` / `firefox` / `code` / `obsidian` / `telegram` / `discord` … | `wtype -M ctrl -k v`      | GUI 应用粘贴绑定 Ctrl+V  |
+| 未知 class                             | `wtype -M shift -k Insert` | 默认：终端+GUI 通用     |
+
+### 为什么不用 ydotool
+
+`ydotool` 发的是 Linux kernel scancode（`47` = `KEY_V`），但 Hyprland 把
+`ydotoold` 虚拟键盘按当前 XKB layout（如 JP）解释，scancode 47 在 JP 布局下不
+是字母 `V`，导致 `Ctrl+V` 按成别的键、粘贴失效。`wtype` 走 Wayland
+`virtual-keyboard` 协议直接发 keysym，绕过 layout 映射，更可靠。
+
+### 为什么终端用 Shift+Insert 而非 Ctrl+V
+
+终端（foot/kitty/ghostty）的粘贴绑定是 `Shift+Insert` 或 `Ctrl+Shift+V`，不是
+`Ctrl+V`——`Ctrl+V` 在终端里被当作普通控制字符传给程序。Hyprland 的 `Super+V`
+全局粘贴之所以在终端里有效，是因为 `share/default/hypr/bindings/clipboard.lua`
+把 `Super+V` 映射成发送 `Shift+Insert`。语音输入法沿用同样的键。
+
+Even if auto-paste fails (no focused text field), the text is already in the clipboard.
 
 ---
 

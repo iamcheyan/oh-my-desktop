@@ -27,7 +27,7 @@ DankMaterialShell (DMS) 有一个成熟的、深度结构化的设置系统，�
 
 | 功能 | DMS 文件 | 说明 | 适配难点 |
 |------|---------|------|---------|
-| **Display 配置** | `DisplayConfigTab.qml` + `DisplayConfig/` 整个目录 | 显示器分辨率/刷新率/缩放/旋转/排列、profile 保存切换 | 依赖 `WlrOutputService` + `CompositorService`，需适配 Hyprland Lua 配置写入 |
+| **Display 配置** | `DisplayConfigTab.qml` + `DisplayConfig/` 整个目录 | 已开始移植到 `quickshell/modules/settings/display/`：显示器预览、拖拽排列、分辨率/刷新率/缩放/旋转/位置应用 | DMS 的 `WlrOutputService`/profile/Niri 后端未直接引入；OMD 当前用 `hyprctl` 适配 Hyprland |
 | **Night Light/Gamma** | `GammaControlTab.qml` + `DisplayService.qml` 的 gamma 部分 | 色温调节、日出日落自动调度 | 依赖 `wlsunset` 或 hyprctl IPC，我们已有 `Hyprsunset` |
 | **WiFi 管理** | `NetworkWifiTab.qml` + `WifiPasswordModal.qml` | 扫描、连接、密码输入、已保存网络、QR 分享 | 依赖 `NetworkService`，需用 NetworkManager 适配 |
 | **Bluetooth 设备** | `BluetoothPairingModal.qml` + `BluetoothService.qml` | 配对流程、PIN 输入、codec 选择 | 我们已有 `BluetoothStatus`，需扩展 |

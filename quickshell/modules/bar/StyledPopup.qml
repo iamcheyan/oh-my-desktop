@@ -15,15 +15,30 @@ LazyLoader {
     default property Item contentItem
     property real popupBackgroundMargin: Appearance.sizes.elevationMargin
     property bool alignRight: false
+    property int hoverDelayMs: 500
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
         ?? Quickshell.screens[0]
         ?? null
+    readonly property var targetScreen: hoverTarget?.QsWindow?.window?.screen ?? focusedScreen
 
-    active: hoverTarget && hoverTarget.containsMouse && GlobalStates.activeContextMenu === ""
+    function globalToScreenX(globalX) {
+        const screen = root.targetScreen;
+        return screen ? globalX - screen.x : globalX;
+    }
+
+    function globalToScreenY(globalY) {
+        const screen = root.targetScreen;
+        return screen ? globalY - screen.y : globalY;
+    }
+
+    active: hoverTarget
+        && hoverTarget.containsMouse
+        && GlobalStates.activeContextMenu === ""
+        && !GlobalStates.screenLocked
 
     component: PanelWindow {
         id: popupWindow
-        screen: root.focusedScreen
+        screen: root.targetScreen
         color: "transparent"
 
         readonly property bool barOnBottom: Config.options.bar.bottom
@@ -35,7 +50,8 @@ LazyLoader {
             const xOffset = root.alignRight
                 ? root.hoverTarget.width - visualWidth
                 : (root.hoverTarget.width - visualWidth) / 2;
-            return root.hoverTarget?.mapToItem(null, xOffset, 0).x ?? 4;
+            const globalX = root.hoverTarget?.mapToItem(null, xOffset, 0).x ?? 4;
+            return root.globalToScreenX(globalX);
         }
         readonly property bool snapRight: !Config.options.bar.vertical
             && centeredLeft + visualWidth > (screen?.width ?? 1920) - 4;
@@ -65,11 +81,12 @@ LazyLoader {
             top: {
                 if (!Config.options.bar.vertical)
                     return barOnBottom ? 0 : Appearance.sizes.barHeight + 4;
-                return root.hoverTarget?.mapToItem(
+                const globalY = root.hoverTarget?.mapToItem(
                     null,
                     0,
                     (root.hoverTarget.height - visualHeight) / 2
                 ).y ?? 4;
+                return root.globalToScreenY(globalY);
             }
             right: {
                 if (Config.options.bar.vertical)
@@ -81,26 +98,45 @@ LazyLoader {
         WlrLayershell.namespace: "quickshell:popup"
         WlrLayershell.layer: WlrLayer.Overlay
 
-        StyledRectangularShadow {
-            target: popupBackground
-        }
+        Item {
+            id: popupLayer
+            opacity: 0
+            anchors.fill: parent
 
-        Rectangle {
-            id: popupBackground
-            readonly property real margin: 8
-            anchors {
-                fill: parent
-                margins: root.popupBackgroundMargin
+            Timer {
+                interval: root.hoverDelayMs
+                repeat: false
+                running: true
+                onTriggered: popupLayer.opacity = 1
             }
-            implicitWidth: root.contentItem.implicitWidth + margin * 2
-            implicitHeight: root.contentItem.implicitHeight + margin * 2
-            color: TuiStyle.bg
-            radius: TuiStyle.shellRadius
-            children: [root.contentItem]
-            clip: true
 
-            border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.shellBorder
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 120
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            StyledRectangularShadow {
+                target: popupBackground
+            }
+
+            Rectangle {
+                id: popupBackground
+                readonly property real margin: 8
+                anchors {
+                    fill: parent
+                    margins: root.popupBackgroundMargin
+                }
+                implicitWidth: root.contentItem.implicitWidth + margin * 2
+                implicitHeight: root.contentItem.implicitHeight + margin * 2
+                color: TuiStyle.panel
+                radius: 6
+                children: [root.contentItem]
+                clip: true
+
+                border.width: 0
+            }
         }
     }
 }

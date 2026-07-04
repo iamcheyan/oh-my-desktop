@@ -13,13 +13,10 @@ hyprland_alive() {
   hyprctl instances >/dev/null 2>&1
 }
 
-# UWSM may report "Compositor is not running" in sessions not started through
-# UWSM. In that case exit Hyprland directly through the Omarchy Lua dispatcher.
-if uwsm stop >/tmp/omd-logout-uwsm.log 2>&1; then
-  sleep 0.5
-  hyprland_alive || exit 0
-fi
-
+# End only the compositor so the display manager returns to the login screen.
+# Do not call `uwsm stop` here: in OMD's current Asahi/Omarchy session that path
+# can escalate into a full system stop instead of a plain graphical logout.
+#
 # In Omarchy's Lua Hyprland config, `hyprctl dispatch exit` is parsed as Lua and
 # can return 0 while only writing an error. The raw dispatcher call below is the
 # path that actually exits the compositor in this session. A successful exit may
@@ -28,12 +25,6 @@ fi
 hyprctl dispatch 'hl.dispatch("exit")' >/tmp/omd-logout-hyprland.log 2>&1 || true
 sleep 0.5
 hyprland_alive || exit 0
-
-if [ -n "${XDG_SESSION_ID:-}" ]; then
-  loginctl terminate-session "$XDG_SESSION_ID" >/tmp/omd-logout-loginctl.log 2>&1 || true
-  sleep 0.5
-  hyprland_alive || exit 0
-fi
 
 pkill -TERM -x Hyprland >/tmp/omd-logout-pkill.log 2>&1 || true
 sleep 0.5

@@ -89,10 +89,9 @@ if command -v hyprctl >/dev/null 2>&1; then
 fi
 
 if command -v hyprctl >/dev/null 2>&1 && ! hyprctl monitors >/dev/null 2>&1; then
-    printf 'Hyprland IPC is not available. Start this from the active Hyprland session.\n' >&2
+    printf 'Warning: Hyprland IPC is not responding yet; starting Quickshell anyway.\n' >&2
     printf 'WAYLAND_DISPLAY=%s HYPRLAND_INSTANCE_SIGNATURE=%s\n' \
         "${WAYLAND_DISPLAY:-}" "${HYPRLAND_INSTANCE_SIGNATURE:-}" >&2
-    exit 1
 fi
 
 if [ -x "$config_dir/run" ]; then

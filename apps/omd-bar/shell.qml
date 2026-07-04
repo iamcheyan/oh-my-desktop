@@ -55,6 +55,7 @@ ShellRoot {
         active: Config.ready
         component: Scope {
             Bar {}
+            BarDismissLayer {}
             BarStatusPopup {}
             BarDialogOverlay {}
             SessionConfirmOverlay {}

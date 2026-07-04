@@ -112,6 +112,11 @@ Scope {
                     }
                 }
 
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: GlobalStates.closeSessionConfirm()
+                }
+
                 Rectangle {
                     id: dialog
                     width: Math.min(parent.width - 96, 560)
@@ -206,7 +211,7 @@ Scope {
 
                                 Rectangle {
                                     id: saveSession
-                                    property bool checked: false
+                                    property bool checked: true
                                     Layout.preferredWidth: 22
                                     Layout.preferredHeight: 22
                                     radius: 5
