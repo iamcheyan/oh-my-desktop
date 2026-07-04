@@ -135,7 +135,7 @@ QtObject {
     readonly property string download: "\uF2DC"               // fa-snowflake U+F2DC
     readonly property string logout: "\uF08B"                 // fa-sign-out U+F08B
     readonly property string restart: "\uF01E"                // fa-redo/fa-rotate-right U+F01E
-    readonly property string workspaceSnapshot: "\uF0C7"      // fa-floppy-disk U+F0C7
+    readonly property string workspaceSnapshot: "\uF187"      // fa-archive U+F187
 
     // Hardware
     readonly property string memory: "\uDB83\uDEF8"           // mdi-memory U+F0EF8

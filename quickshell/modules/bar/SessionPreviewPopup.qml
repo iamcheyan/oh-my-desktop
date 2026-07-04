@@ -18,7 +18,16 @@ PopupWindow {
     color: "transparent"
     visible: true
     implicitWidth: 560
-    implicitHeight: Math.min(680, content.implicitHeight + 28)
+    implicitHeight: Math.min(620, Math.max(420, 180 + Math.min(340, workspaceColumn.implicitHeight)))
+
+    Component.onCompleted: forceActiveFocus()
+
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Escape) {
+            root.close();
+            event.accepted = true;
+        }
+    }
 
     function close() {
         root.dismissed();
@@ -43,13 +52,15 @@ PopupWindow {
             border.color: TuiStyle.shellBorder
             clip: true
 
-            ColumnLayout {
-                id: content
+            Item {
                 anchors.fill: parent
                 anchors.margins: 18
-                spacing: 14
 
                 RowLayout {
+                    id: headerRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
                     Layout.fillWidth: true
                     spacing: 12
 
@@ -81,16 +92,72 @@ PopupWindow {
                 }
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
+                    id: headerDivider
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: headerRow.bottom
+                    anchors.topMargin: 14
+                    height: 1
                     color: TuiStyle.line
                     opacity: TuiStyle.dividerOpacity
                 }
 
+                RowLayout {
+                    id: footerRow
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    spacing: 10
+
+                    Item { Layout.fillWidth: true }
+
+                    RippleButton {
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 42
+                        buttonRadius: 10
+                        colBackground: TuiStyle.surfaceRaised
+                        colBackgroundHover: TuiStyle.surfaceHover
+                        colRipple: TuiStyle.surfacePressed
+                        onClicked: root.close()
+                        contentItem: StyledText {
+                            text: "Cancel"
+                            color: TuiStyle.fg
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                        }
+                    }
+
+                    RippleButton {
+                        Layout.preferredWidth: 160
+                        Layout.preferredHeight: 42
+                        buttonRadius: 10
+                        colBackground: TuiStyle.selection
+                        colBackgroundHover: TuiStyle.controlHover
+                        colRipple: TuiStyle.surfacePressed
+                        onClicked: {
+                            Quickshell.execDetached([root.sessionCommand, "save-close"]);
+                            root.confirmed();
+                        }
+                        contentItem: StyledText {
+                            text: "Confirm & Close"
+                            color: TuiStyle.fg
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+
                 StyledFlickable {
                     id: previewFlickable
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(430, Math.max(180, workspaceColumn.implicitHeight))
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: headerDivider.bottom
+                    anchors.topMargin: 14
+                    anchors.bottom: footerRow.top
+                    anchors.bottomMargin: 18
                     clip: true
                     contentHeight: workspaceColumn.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
@@ -185,51 +252,6 @@ PopupWindow {
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    Item { Layout.fillWidth: true }
-
-                    RippleButton {
-                        Layout.preferredWidth: 120
-                        Layout.preferredHeight: 42
-                        buttonRadius: 10
-                        colBackground: TuiStyle.surfaceRaised
-                        colBackgroundHover: TuiStyle.surfaceHover
-                        colRipple: TuiStyle.surfacePressed
-                        onClicked: root.close()
-                        contentItem: StyledText {
-                            text: "Cancel"
-                            color: TuiStyle.fg
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                        }
-                    }
-
-                    RippleButton {
-                        Layout.preferredWidth: 160
-                        Layout.preferredHeight: 42
-                        buttonRadius: 10
-                        colBackground: TuiStyle.selection
-                        colBackgroundHover: TuiStyle.controlHover
-                        colRipple: TuiStyle.surfacePressed
-                        onClicked: {
-                            Quickshell.execDetached([root.sessionCommand, "save-close"]);
-                            root.confirmed();
-                        }
-                        contentItem: StyledText {
-                            text: "Confirm & Close"
-                            color: TuiStyle.fg
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.weight: Font.DemiBold
                         }
                     }
                 }
