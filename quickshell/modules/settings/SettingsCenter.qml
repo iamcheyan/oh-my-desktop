@@ -55,6 +55,7 @@ WindowDialog {
         { key: "osd", icon: "onscreen_text", title: "On-Screen Display", keywords: "osd overlay volume brightness indicator popup" },
         { key: "autostart", icon: "rocket_launch", title: "Autostart", keywords: "startup boot login launch autostart xdg desktop" },
         { key: "windowrules", icon: "window", title: "Window Rules", keywords: "window rule float opacity workspace class app" },
+        { key: "sounds", icon: "volume_up", title: "Sounds", keywords: "sound audio theme notification volume login event" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
@@ -383,6 +384,7 @@ WindowDialog {
                                 if (root.currentPage === "osd") return osdPage;
                                 if (root.currentPage === "autostart") return autostartPage;
                                 if (root.currentPage === "windowrules") return windowRulesPage;
+                                if (root.currentPage === "sounds") return soundsPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
@@ -3408,6 +3410,88 @@ WindowDialog {
                             windowRulesPage.rules = windowRulesPage.rules.slice(0)
                             windowRulesPage.saveRules()
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: soundsPage
+        PageBody {
+            SettingsCard {
+                title: "System Sounds"
+                subtitle: Config.options.sounds.theme ?? "freedesktop"
+
+                SettingsToggleRow {
+                    label: "Enable system sounds"
+                    description: "Play sound effects for system events"
+                    checked: Config.options.sounds.enabled ?? true
+                    onToggled: Config.setNestedValue("sounds.enabled", !Config.options.sounds.enabled)
+                }
+
+                SettingsDropdownRow {
+                    label: "Sound theme"
+                    description: "Freedesktop sound theme for event sounds"
+                    currentValue: Config.options.sounds.theme ?? "freedesktop"
+                    options: {
+                        const themes = []
+                        // Scan available sound themes
+                        const found = new Set()
+                        // Common themes
+                        const common = [
+                            {value: "freedesktop", label: "Freedesktop"},
+                            {value: "freedesktop-canon", label: "Freedesktop (Canon)"},
+                            {value: "KDE", label: "KDE"},
+                            {value: "GNOME", label: "GNOME"},
+                        ]
+                        for (const t of common) {
+                            themes.push(t)
+                            found.add(t.value)
+                        }
+                        return themes
+                    }
+                    onValueChanged: (v) => Config.setNestedValue("sounds.theme", v)
+                }
+            }
+
+            SettingsCard {
+                title: "Event Sounds"
+                subtitle: "Per-event sound toggles"
+
+                SettingsToggleRow {
+                    label: "Volume change"
+                    description: "Play sound when volume changes"
+                    checked: Config.options.sounds.volumeChange ?? false
+                    onToggled: Config.setNestedValue("sounds.volumeChange", !Config.options.sounds.volumeChange)
+                }
+
+                SettingsToggleRow {
+                    label: "Notifications"
+                    description: "Play sound on new notifications"
+                    checked: Config.options.sounds.notification ?? false
+                    onToggled: Config.setNestedValue("sounds.notification", !Config.options.sounds.notification)
+                }
+
+                SettingsToggleRow {
+                    label: "Login"
+                    description: "Play sound when logging in"
+                    checked: Config.options.sounds.login ?? false
+                    onToggled: Config.setNestedValue("sounds.login", !Config.options.sounds.login)
+                }
+
+                SettingsToggleRow {
+                    label: "Power plug/unplug"
+                    description: "Play sound when charger is connected/disconnected"
+                    checked: Config.options.sounds.powerPlug ?? false
+                    onToggled: Config.setNestedValue("sounds.powerPlug", !Config.options.sounds.powerPlug)
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Test Sound"
+                        iconName: "play_arrow"
+                        onClicked: Audio.playSystemSound("message")
                     }
                 }
             }

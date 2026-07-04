@@ -165,15 +165,9 @@
   "battery": {
     "automaticSuspend": true,
     "critical": 5,
-    "full": 101,
+    "full": 100,
     "low": 20,
-    "suspend": 3,
-    "notifyChargeLimit": false,
-    "notifyLow": true,
-    "notifyCritical": true,
-    "autoPowerSaver": false,
-    "acProfile": "",
-    "batteryProfile": ""
+    "suspend": 3
   },
   "calendar": {
     "locale": "en-GB"
@@ -262,30 +256,10 @@
       "enable": false,
       "name": ""
     },
-    "timeout": 7000,
-    "timeoutLow": 5000,
-    "timeoutNormal": 7000,
-    "timeoutCritical": 0,
-    "compactMode": false,
-    "showTimeoutBar": true,
-    "dedupe": true,
-    "historyEnabled": true,
-    "historyMaxCount": 50,
-    "historyMaxAgeDays": 0
+    "timeout": 7000
   },
   "osd": {
-    "timeout": 1000,
-    "position": "top_right",
-    "alwaysShowValue": false,
-    "volumeEnabled": true,
-    "mediaVolumeEnabled": false,
-    "mediaPlaybackEnabled": true,
-    "brightnessEnabled": true,
-    "idleInhibitorEnabled": true,
-    "micMuteEnabled": true,
-    "capsLockEnabled": false,
-    "powerProfileEnabled": true,
-    "audioOutputEnabled": false
+    "timeout": 1000
   },
   "overview": {
     "centerIcons": true,
@@ -348,7 +322,12 @@
     "keepRightSidebarLoaded": false
   },
   "sounds": {
-    "theme": "freedesktop"
+    "theme": "freedesktop",
+    "enabled": true,
+    "volumeChange": false,
+    "notification": false,
+    "login": false,
+    "powerPlug": false
   },
   "startup": {
     "backgroundTasksDelayMs": 4000,
@@ -390,12 +369,5 @@
   "windows": {
     "centerTitle": true,
     "showTitlebar": true
-  },
-  "idle": {
-    "screensaverTimeout": 150,
-    "lockTimeout": 152,
-    "monitorOffTimeout": 300,
-    "suspendTimeout": 0,
-    "lockBeforeSuspend": true
   }
 }
