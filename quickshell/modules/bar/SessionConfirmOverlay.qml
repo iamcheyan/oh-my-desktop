@@ -234,7 +234,7 @@ Scope {
 
                                     StyledText {
                                         Layout.fillWidth: true
-                                        text: "保存本次桌面会话，下次启动后自动恢复"
+                                        text: "Save current session"
                                         color: TuiStyle.fg
                                         font.pixelSize: Appearance.font.pixelSize.small
                                         font.weight: Font.Medium
@@ -242,7 +242,7 @@ Scope {
 
                                     StyledText {
                                         Layout.fillWidth: true
-                                        text: "会保存当前工作区、窗口位置和可恢复的终端会话。下次进入桌面时会自动加载这些窗口。"
+                                        text: "Automatically restore workspaces, window positions, and terminals on next startup."
                                         color: TuiStyle.muted
                                         font.pixelSize: Appearance.font.pixelSize.smaller
                                         wrapMode: Text.Wrap
