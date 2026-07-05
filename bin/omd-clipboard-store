@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# shellcheck source=../scripts/omd-path.sh
+. "$HOME/.config/omd/scripts/omd-path.sh"
+
 # wl-paste --watch only fires for the default MIME type (text/plain).
 # Images use image/png etc, so we need a separate watcher for each type.
 # Run text watcher in foreground, image watcher in background.

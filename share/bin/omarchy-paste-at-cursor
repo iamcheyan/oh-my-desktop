@@ -1,0 +1,215 @@
+#!/bin/sh
+# Paste the current clipboard into a focused (or recorded) window.
+# Tries Hyprland key dispatch, then wtype, then ydotool — works across machines.
+#
+# Usage: omarchy-paste-at-cursor [terminal|gui|auto] [window-class] [window-target]
+#   window-target: "activewindow" (default) or "address:0x...."
+# Env: OMD_PASTE_DELAY — seconds to wait after wl-copy (default 0.15)
+
+set -eu
+
+OMD_ROOT="${HOME}/.config/omd"
+if [ -f "$OMD_ROOT/scripts/omd-path.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$OMD_ROOT/scripts/omd-path.sh"
+fi
+
+MODE="${1:-auto}"
+WIN_CLASS="${2:-}"
+WIN_TARGET="${3:-activewindow}"
+DELAY="${OMD_PASTE_DELAY:-0.15}"
+YDOTOOL_SOCKET="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
+
+if [ -n "$DELAY" ] && [ "$DELAY" != "0" ]; then
+    sleep "$DELAY"
+fi
+
+normalize_class() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+class_prefers_gui() {
+    case "$(normalize_class "$1")" in
+        google-chrome*|chromium*|firefox*|org.mozilla.firefox*|\
+        microsoft-edge*|brave-browser*|vivaldi*|opera*|\
+        code*|cursor*|codium*|vscodium*|\
+        obsidian*|zed*|\
+        telegram*|org.telegram.desktop*|discord*|wechat*|\
+        libreoffice*|soffice*|onlyoffice*|wps*|\
+        org.gnome.eog*|org.gnome.TextEditor*|org.kde.kate*|\
+        gedit*|geany*|sublime_text*|\
+        thunderbird*|evolution*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+class_prefers_terminal() {
+    case "$(normalize_class "$1")" in
+        foot*|kitty*|alacritty*|ghostty*|wezterm*|org.wezfurlong.wezterm*|\
+        xdg-term*|konsole*|gnome-terminal*|org.gnome.Terminal*|\
+        xterm*|st|urxvt*|rxvt*|tmux*|\
+        org.konsole*|com.mitchellh.ghostty*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+resolve_mode() {
+    if [ "$MODE" != "auto" ]; then
+        printf '%s' "$MODE"
+        return
+    fi
+
+    if [ -z "$WIN_CLASS" ] && command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        WIN_CLASS="$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)"
+    fi
+
+    if class_prefers_gui "$WIN_CLASS"; then
+        printf 'gui'
+    elif class_prefers_terminal "$WIN_CLASS"; then
+        printf 'terminal'
+    else
+        printf 'terminal'
+    fi
+}
+
+window_exists() {
+    target="$1"
+    case "$target" in
+        activewindow|"") return 0 ;;
+        address:*)
+            addr="${target#address:}"
+            hyprctl -j clients 2>/dev/null | jq -e --arg a "$addr" '.[] | select(.address == $a)' >/dev/null 2>&1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+resolve_target() {
+    if window_exists "$WIN_TARGET"; then
+        printf '%s' "$WIN_TARGET"
+        return
+    fi
+    printf 'activewindow'
+}
+
+send_hypr() {
+    mods="$1"
+    key="$2"
+    target="$3"
+
+    command -v hyprctl >/dev/null 2>&1 || return 1
+    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"down\", window = \"$target\" })" >/dev/null 2>&1 || return 1
+    sleep 0.05
+    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"up\", window = \"$target\" })" >/dev/null 2>&1
+}
+
+send_wtype() {
+    mod="$1"
+    key="$2"
+
+    command -v wtype >/dev/null 2>&1 || return 1
+    wtype -M "$mod" -k "$key" -m "$mod"
+}
+
+send_ydotool() {
+    combo="$1"
+
+    command -v ydotool >/dev/null 2>&1 || return 1
+    [ -S "$YDOTOOL_SOCKET" ] || return 1
+    YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool key -d 1 $combo >/dev/null 2>&1
+}
+
+paste_shift_insert() {
+    target="$1"
+    send_hypr SHIFT Insert "$target" \
+        || send_wtype shift Insert \
+        || send_ydotool "42:1 110:1 110:0 42:0"
+}
+
+paste_ctrl_shift_v() {
+    target="$1"
+    send_hypr "CTRL SHIFT" V "$target" \
+        || { command -v wtype >/dev/null 2>&1 && wtype -M ctrl -M shift -k v -m shift -m ctrl; } \
+        || send_ydotool "29:1 42:1 47:1 47:0 42:0 29:0"
+}
+
+paste_ctrl_v() {
+    target="$1"
+    send_hypr CTRL V "$target" \
+        || send_wtype ctrl v \
+        || send_ydotool "29:1 47:1 47:0 29:0"
+}
+
+# kitty 远程控制：直接触发 paste_from_clipboard，不依赖快捷键映射
+paste_kitty_remote() {
+    command -v kitty >/dev/null 2>&1 || return 1
+
+    if kitty @ action paste_from_clipboard >/dev/null 2>&1; then
+        return 0
+    fi
+
+    for sock in /tmp/mykitty /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+        [ -e "$sock" ] || continue
+        case "$sock" in
+            */kitty-*)
+                kitty @ --to "unix:$sock" action paste_from_clipboard >/dev/null 2>&1 && return 0
+                ;;
+            *)
+                kitty @ --to "unix:$sock" action paste_from_clipboard >/dev/null 2>&1 && return 0
+                ;;
+        esac
+    done
+
+    return 1
+}
+
+# 各终端默认粘贴键不同；hyprctl 可能返回 ok 但应用未绑定该快捷键，因此按类型排序。
+paste_for_terminal() {
+    target="$1"
+    class="$2"
+
+    case "$(normalize_class "$class")" in
+        kitty*)
+            paste_kitty_remote \
+                || paste_ctrl_v "$target" \
+                || paste_shift_insert "$target" \
+                || paste_ctrl_shift_v "$target"
+            ;;
+        foot*)
+            paste_shift_insert "$target" \
+                || paste_ctrl_shift_v "$target" \
+                || paste_ctrl_v "$target"
+            ;;
+        alacritty*|ghostty*|com.mitchellh.ghostty*)
+            paste_ctrl_shift_v "$target" \
+                || paste_shift_insert "$target" \
+                || paste_ctrl_v "$target"
+            ;;
+        *)
+            paste_shift_insert "$target" \
+                || paste_ctrl_v "$target" \
+                || paste_ctrl_shift_v "$target"
+            ;;
+    esac
+}
+
+RESOLVED_MODE="$(resolve_mode)"
+TARGET="$(resolve_target)"
+
+case "$RESOLVED_MODE" in
+    gui)
+        paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET"
+        ;;
+    terminal)
+        paste_for_terminal "$TARGET" "$WIN_CLASS"
+        ;;
+    *)
+        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET"
+        ;;
+esac

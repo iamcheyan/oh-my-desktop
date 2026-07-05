@@ -1,5 +1,8 @@
 #!/bin/sh
 # Launch walker clipboard picker; auto-paste selection into focused window.
+
+# shellcheck source=../scripts/omd-path.sh
+. "$HOME/.config/omd/scripts/omd-path.sh"
 # dmenu mode: cliphist list piped to stdin, selection output to stdout.
 # Prepends type icons (📝 text / 🖼 image) for visual distinction.
 
@@ -19,6 +22,5 @@ orig=$(cliphist list | grep -F	"$content" | head -1)
 
 if [ -n "$orig" ]; then
     printf '%s\n' "$orig" | cliphist decode | wl-copy
-    sleep 0.05
-    wtype -M ctrl -k v -m ctrl
+    OMD_PASTE_DELAY=0.05 "$HOME/.config/omd/share/bin/omarchy-paste-at-cursor" auto
 fi
