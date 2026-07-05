@@ -22,9 +22,6 @@ Item {
         + (ToplevelManager.toplevels.values?.length ?? 0)
     // Clamp to avoid lock-screen temp workspace (2147483647 - N) leaking into UI
     readonly property int effectiveActiveWorkspaceId: Math.max(1, Math.min(100, monitor?.activeWorkspace?.id ?? 1))
-    readonly property int highlightedWorkspaceId: (GlobalStates.overviewFocusedWorkspaceId > 0
-        ? GlobalStates.overviewFocusedWorkspaceId
-        : effectiveActiveWorkspaceId)
     readonly property var overviewEntries: OverviewSwitchingController.grabbed
         ? (root.modelRevision, WorkspaceNavigation.switchingModeModel() ?? [])
         : (root.modelRevision, HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
@@ -48,6 +45,21 @@ Item {
             byKey[key].end = i;
         }
         return groups;
+    }
+    readonly property var localMonitorGroup: {
+        const monitorName = root.monitor?.name ?? "";
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            if (root.monitorGroups[i].key === monitorName)
+                return root.monitorGroups[i];
+        }
+        return root.monitorGroups[0] ?? null;
+    }
+    readonly property int highlightedWorkspaceId: {
+        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0)
+            return GlobalStates.overviewFocusedWorkspaceId;
+        const group = root.localMonitorGroup;
+        const entry = group ? root.overviewEntries[group.start] : null;
+        return entry?.id ?? root.effectiveActiveWorkspaceId;
     }
     property bool monitorIsFocused: (Hyprland.focusedMonitor?.name == monitor?.name)
     property var windows: HyprlandData.windowList
@@ -75,15 +87,14 @@ Item {
     // Overview: try every column count, pick the one that gives the largest thumbnail
     readonly property int overviewGridColumns: {
         let n = Math.max(root.overviewEntries.length, 1);
-        let maxCols = Config.options.overview.columns;
         let bestCols = 1;
         let bestThumb = 0;
-        let aspect = screenW / screenH;
-        for (let c = 1; c <= Math.min(n, maxCols); c++) {
-            let r = Math.ceil(n / c);
-            let tw = (availW - gridPadding * (c - 1)) / c;
-            let th = (availH - gridPadding * (r - 1)) / r;
-            let constrained = Math.min(tw, th * aspect);
+        for (let c = 1; c <= n; c++) {
+            let rows = root.groupedRowsForColumns(c);
+            let verticalOverhead = root.groupedVerticalOverheadForRows(rows);
+            let tw = (availW - root.monitorSectionPaddingX * 2 - gridPadding * (c - 1)) / c;
+            let th = (availH - verticalOverhead) / rows;
+            let constrained = Math.min(tw, th / root.maxWorkspaceAspect);
             if (constrained > bestThumb) {
                 bestThumb = constrained;
                 bestCols = c;
@@ -98,19 +109,8 @@ Item {
     readonly property int monitorSectionPaddingX: 14
     readonly property int monitorSectionPaddingTop: 34
     readonly property int monitorSectionPaddingBottom: 14
-    readonly property int groupedGridRows: {
-        if (root.monitorGroups.length <= 1)
-            return root.overviewGridRows;
-        let rows = 0;
-        for (let i = 0; i < root.monitorGroups.length; ++i) {
-            const length = root.groupLength(root.monitorGroups[i]);
-            rows += Math.max(1, Math.ceil(length / root.overviewGridColumns));
-        }
-        return Math.max(1, rows);
-    }
-    readonly property real groupedVerticalOverhead: (root.monitorGroups.length * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom))
-        + Math.max(0, root.monitorGroups.length - 1) * root.monitorSectionGap
-        + Math.max(0, root.groupedGridRows - root.monitorGroups.length) * root.workspaceSpacing
+    readonly property int groupedGridRows: root.groupedRowsForColumns(root.overviewGridColumns)
+    readonly property real groupedVerticalOverhead: root.groupedVerticalOverheadForRows(root.groupedGridRows)
     readonly property real maxWorkspaceAspect: {
         if (root.monitorGroups.length === 0)
             return screenH / screenW;
@@ -146,6 +146,27 @@ Item {
     implicitHeight: root.height
 
     readonly property bool overviewNavigationActive: GlobalStates.overviewOpen
+
+    function groupedRowsForColumns(columns) {
+        const cols = Math.max(1, columns);
+        if (root.monitorGroups.length <= 1)
+            return Math.max(1, Math.ceil(root.overviewEntries.length / cols));
+
+        let rows = 0;
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            const length = root.groupLength(root.monitorGroups[i]);
+            const groupCols = Math.max(1, Math.min(length, cols));
+            rows += Math.max(1, Math.ceil(length / groupCols));
+        }
+        return Math.max(1, rows);
+    }
+
+    function groupedVerticalOverheadForRows(rows) {
+        const groupCount = Math.max(1, root.monitorGroups.length);
+        return groupCount * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom)
+            + Math.max(0, groupCount - 1) * root.monitorSectionGap
+            + Math.max(0, rows - groupCount) * root.workspaceSpacing;
+    }
 
     function indexForWorkspaceId(wsId) {
         for (let i = 0; i < root.overviewEntries.length; ++i) {
@@ -361,40 +382,98 @@ Item {
     property list<OverviewWindow> windowWidgets: []
     property var hoveredWindowData: null
     property var hoveredWorkspaceEntry: null
-    readonly property var defaultInfoWindow: HyprlandData.activeWindow
-        ?? HyprlandData.focusedClientForWorkspace(root.highlightedWorkspaceId)
-    readonly property bool showingWorkspaceInfo: hoveredWorkspaceEntry !== null && hoveredWindowData === null
-    readonly property var infoWindow: root.showingWorkspaceInfo ? null : (hoveredWindowData ?? defaultInfoWindow)
-    readonly property string infoTitle: root.showingWorkspaceInfo
-        ? (hoveredWorkspaceEntry?.isTrailingEmpty
-            ? Translation.tr("New workspace")
-            : `${hoveredWorkspaceEntry?.monitorName || Translation.tr("Hidden")} · Workspace ${hoveredWorkspaceEntry?.id ?? ""}`)
-        : (infoWindow?.title || infoWindow?.initialTitle || infoWindow?.class || Translation.tr("No active window"))
-    readonly property string infoSubtitle: root.showingWorkspaceInfo
-        ? (hoveredWorkspaceEntry?.isTrailingEmpty
-            ? Translation.tr("Create a workspace on this monitor")
-            : Translation.tr("Workspace"))
-        : (infoWindow?.class || "")
-    readonly property string infoIconSource: root.showingWorkspaceInfo
-        ? ""
-        : AppSearch.iconSource(AppSearch.guessIcon(infoWindow?.class || ""))
-    readonly property var infoGroup: {
-        if (root.monitorGroups.length === 0)
+
+    function groupContainsWorkspaceId(group, workspaceId) {
+        if (!group || !workspaceId)
+            return false;
+        for (let i = group.start; i <= group.end; ++i) {
+            if (root.overviewEntries[i]?.id === workspaceId)
+                return true;
+        }
+        return false;
+    }
+
+    function firstEntryForGroup(group) {
+        if (!group)
             return null;
-        const monitorName = root.monitor?.name ?? "";
-        for (let i = 0; i < root.monitorGroups.length; ++i) {
-            if (root.monitorGroups[i].key === monitorName)
-                return root.monitorGroups[i];
+        return root.overviewEntries[group.start] ?? null;
+    }
+
+    function hoveredWorkspaceForGroup(group) {
+        if (!root.hoveredWorkspaceEntry)
+            return null;
+        return root.hoveredWorkspaceEntry;
+    }
+
+    function hoveredWindowForGroup(group) {
+        if (!root.hoveredWindowData)
+            return null;
+        return root.hoveredWindowData;
+    }
+
+    function defaultWindowForGroup(group) {
+        const entry = root.firstEntryForGroup(group);
+        if (!entry || entry.isTrailingEmpty)
+            return null;
+        return HyprlandData.focusedClientForWorkspace(entry.id);
+    }
+
+    function infoEntryForGroup(group) {
+        return root.hoveredWorkspaceForGroup(group) ?? root.firstEntryForGroup(group);
+    }
+
+    function infoWindowForGroup(group) {
+        const hoveredWindow = root.hoveredWindowForGroup(group);
+        if (hoveredWindow)
+            return hoveredWindow;
+        if (root.hoveredWorkspaceForGroup(group))
+            return null;
+        return root.defaultWindowForGroup(group);
+    }
+
+    function showingWorkspaceInfoForGroup(group) {
+        return root.hoveredWorkspaceForGroup(group) !== null || root.infoWindowForGroup(group) === null;
+    }
+
+    function infoTitleForGroup(group) {
+        const win = root.infoWindowForGroup(group);
+        if (win)
+            return win.title || win.initialTitle || win.class || Translation.tr("No active window");
+
+        const entry = root.infoEntryForGroup(group);
+        if (!entry)
+            return "";
+        return entry.isTrailingEmpty
+            ? Translation.tr("New workspace")
+            : `${entry.monitorName || Translation.tr("Hidden")} · Workspace ${entry.id ?? ""}`;
+    }
+
+    function infoSubtitleForGroup(group) {
+        const win = root.infoWindowForGroup(group);
+        if (win)
+            return win.class || "";
+
+        const entry = root.infoEntryForGroup(group);
+        if (!entry)
+            return "";
+        return entry.isTrailingEmpty
+            ? Translation.tr("Create a workspace on this monitor")
+            : Translation.tr("Workspace");
+    }
+
+    function infoIconSourceForGroup(group) {
+        const win = root.infoWindowForGroup(group);
+        return win ? AppSearch.iconSource(AppSearch.guessIcon(win.class || "")) : "";
+    }
+
+    Connections {
+        target: GlobalStates
+        function onOverviewFocusedWorkspaceIdChanged() {
+            if (!OverviewSwitchingController.grabbed)
+                return;
+            root.hoveredWindowData = null;
+            root.hoveredWorkspaceEntry = null;
         }
-        const focusedId = root.highlightedWorkspaceId;
-        for (let i = 0; i < root.monitorGroups.length; ++i) {
-            const group = root.monitorGroups[i];
-            for (let j = group.start; j <= group.end; ++j) {
-                if (root.overviewEntries[j]?.id === focusedId)
-                    return group;
-            }
-        }
-        return root.monitorGroups[0];
     }
 
     // ── Wheel scroll anywhere cycles workspaces ──
@@ -420,6 +499,38 @@ Item {
         anchors.fill: parent
         visible: root.monitorGroups.length > 0
         z: root.workspaceZ - 1
+
+        // Subtle "Type to search" hint above the focused group
+        Item {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: root.monitorGroups.length > 0 ? root.groupY(root.monitorGroups[0]) - 36 : 30
+            z: 1000
+            visible: !GlobalStates.overviewSearchMode && !OverviewSwitchingController.grabbed
+            opacity: !GlobalStates.overviewSearchMode ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+            }
+
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 7
+
+                MaterialSymbol {
+                    text: "search"
+                    iconSize: 14
+                    color: "#8f98a8"
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                StyledText {
+                    text: Translation.tr("Type to search")
+                    color: "#8f98a8"
+                    font.pixelSize: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
 
         Repeater {
             model: root.monitorGroups
@@ -793,87 +904,101 @@ Item {
             }
         }
 
-    Item {
-        id: selectionInfoBar
-        readonly property real targetWidth: Math.min(620, Math.max(280, root.infoGroup ? root.groupWidth(root.infoGroup) * 0.56 : 420))
-        readonly property real targetX: root.infoGroup
-            ? root.groupX(root.infoGroup) + (root.groupWidth(root.infoGroup) - targetWidth) / 2
-            : (root.width - targetWidth) / 2
-        readonly property real targetY: root.infoGroup
-            ? root.groupY(root.infoGroup) + root.groupHeight(root.infoGroup) + 14
-            : root.height - 96
+    Repeater {
+        model: root.localMonitorGroup ? [root.localMonitorGroup] : []
 
-        x: Math.max(24, Math.min(root.width - width - 24, targetX))
-        y: Math.max(24, Math.min(root.height - height - 24, targetY))
-        z: root.windowDraggingZ + 1
-        width: targetWidth
-        height: 54
-        visible: GlobalStates.overviewOpen && root.infoTitle.length > 0
-        opacity: visible ? 1 : 0
-
-        Behavior on x { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-        Behavior on y { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-        }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 16
-            spacing: 12
-
-            Item {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                Layout.alignment: Qt.AlignVCenter
-
-                StyledImage {
-                    anchors.fill: parent
-                    visible: !root.showingWorkspaceInfo && root.infoIconSource.length > 0
-                    source: root.infoIconSource
-                    mipmap: true
+        delegate: Item {
+            id: selectionInfoBar
+            required property var modelData
+            readonly property bool showingWorkspaceInfo: root.showingWorkspaceInfoForGroup(modelData)
+            readonly property var infoEntry: root.infoEntryForGroup(modelData)
+            readonly property string infoTitle: root.infoTitleForGroup(modelData)
+            readonly property string infoSubtitle: root.infoSubtitleForGroup(modelData)
+            readonly property string infoIconSource: root.infoIconSourceForGroup(modelData)
+            readonly property real maxBarWidth: Math.min(620, Math.max(280, root.groupWidth(modelData) * 0.56))
+            readonly property real targetWidth: Math.min(maxBarWidth, Math.max(96, infoRow.implicitWidth))
+            readonly property real targetX: (root.width - targetWidth) / 2
+            readonly property real targetY: {
+                if (root.monitorGroups.length > 0) {
+                    const lastGroup = root.monitorGroups[root.monitorGroups.length - 1];
+                    return root.groupY(lastGroup) + root.groupHeight(lastGroup) + 20;
                 }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    visible: root.showingWorkspaceInfo || root.infoIconSource.length === 0
-                    text: root.showingWorkspaceInfo
-                        ? (root.hoveredWorkspaceEntry?.isTrailingEmpty ? "add" : "select_window")
-                        : "apps"
-                    iconSize: 26
-                    color: root.showingWorkspaceInfo && root.hoveredWorkspaceEntry?.isTrailingEmpty
-                        ? TuiStyle.accent
-                        : Appearance.colors.colOnLayer1
-                }
+                return root.height - height - 52;
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 1
+            x: Math.max(24, Math.min(root.width - width - 24, targetX))
+            y: Math.max(24, Math.min(root.height - height - 24, targetY))
+            z: root.windowDraggingZ + 1
+            width: targetWidth
+            height: 54
+            visible: GlobalStates.overviewOpen && infoTitle.length > 0
+            opacity: visible ? 1 : 0
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: root.infoTitle
-                    color: Appearance.colors.colOnLayer1
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+            Behavior on x { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+            Behavior on y { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+            Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+            Rectangle {
+                anchors.fill: parent
+                color: "transparent"
+            }
+
+            RowLayout {
+                id: infoRow
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                anchors.rightMargin: 16
+                spacing: 12
+
+                Item {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    Layout.alignment: Qt.AlignVCenter
+
+                    StyledImage {
+                        anchors.fill: parent
+                        visible: !selectionInfoBar.showingWorkspaceInfo && selectionInfoBar.infoIconSource.length > 0
+                        source: selectionInfoBar.infoIconSource
+                        mipmap: true
+                    }
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        visible: selectionInfoBar.showingWorkspaceInfo || selectionInfoBar.infoIconSource.length === 0
+                        text: selectionInfoBar.showingWorkspaceInfo
+                            ? (selectionInfoBar.infoEntry?.isTrailingEmpty ? "add" : "select_window")
+                            : "apps"
+                        iconSize: 26
+                        color: selectionInfoBar.showingWorkspaceInfo && selectionInfoBar.infoEntry?.isTrailingEmpty
+                            ? TuiStyle.accent
+                            : Appearance.colors.colOnLayer1
+                    }
                 }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    visible: root.infoSubtitle.length > 0
-                    text: root.infoSubtitle
-                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.36)
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
+                ColumnLayout {
+                    Layout.maximumWidth: selectionInfoBar.maxBarWidth - 42
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: 1
+
+                    StyledText {
+                        Layout.preferredWidth: Math.min(implicitWidth, selectionInfoBar.maxBarWidth - 42)
+                        text: selectionInfoBar.infoTitle
+                        color: Appearance.colors.colOnLayer1
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+
+                    StyledText {
+                        Layout.preferredWidth: Math.min(implicitWidth, selectionInfoBar.maxBarWidth - 42)
+                        visible: selectionInfoBar.infoSubtitle.length > 0
+                        text: selectionInfoBar.infoSubtitle
+                        color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.36)
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
                 }
             }
         }
