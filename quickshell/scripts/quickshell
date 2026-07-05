@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+# shellcheck source=../../scripts/omd-path.sh
+. "$script_dir/../../scripts/omd-path.sh"
+
 qs_bin=""
 for candidate in \
     "$HOME/.local/bin/quickshell" \
@@ -28,7 +32,6 @@ export QS_CONFIG_DIR="$config_dir"
 export QS_COMPOSITOR=hyprland
 export OMD_APP_DIR="$config_dir"
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
