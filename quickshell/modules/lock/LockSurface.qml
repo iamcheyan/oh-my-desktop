@@ -28,6 +28,7 @@ FocusScope {
     property string dateText: englishDate(new Date())
     property bool ctrlHeld: false
     property bool passwordVisible: false
+    property bool showPasswordText: false
     property int focusAttempts: 0
 
     focus: true
@@ -59,6 +60,7 @@ FocusScope {
             if (GlobalStates.screenLocked) {
                 root.context.currentText = "";
                 root.passwordVisible = false;
+                root.showPasswordText = false;
                 root.startFocusRecovery();
             }
         }
@@ -97,6 +99,7 @@ FocusScope {
         if (event.key === Qt.Key_Escape) {
             root.context.currentText = "";
             root.passwordVisible = false;
+            root.showPasswordText = false;
             startFocusRecovery();
             event.accepted = true;
             return;
@@ -234,12 +237,14 @@ FocusScope {
                 NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
             }
 
+            readonly property real actionButtonsWidth: visibilityButton.width + unlockButton.width + 14
+
             TextInput {
                 id: passwordBox
                 anchors {
                     fill: parent
                     leftMargin: 2
-                    rightMargin: unlockButton.width + 10
+                    rightMargin: parent.actionButtonsWidth
                 }
                 verticalAlignment: TextInput.AlignVCenter
                 clip: true
@@ -247,7 +252,7 @@ FocusScope {
                 readOnly: true
                 focus: false
                 activeFocusOnPress: false
-                echoMode: TextInput.Password
+                echoMode: root.showPasswordText ? TextInput.Normal : TextInput.Password
                 inputMethodHints: Qt.ImhSensitiveData | Qt.ImhLatinOnly | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 text: root.context.currentText
                 color: "#f4f4f4"
@@ -296,10 +301,39 @@ FocusScope {
                     left: parent.left
                     right: parent.right
                     bottom: parent.bottom
-                    rightMargin: unlockButton.width + 8
+                    rightMargin: parent.actionButtonsWidth - 6
                 }
                 height: 1
                 color: root.context.currentText.length > 0 ? Qt.rgba(1, 1, 1, 0.58) : Qt.rgba(1, 1, 1, 0.30)
+            }
+
+            Rectangle {
+                id: visibilityButton
+                anchors {
+                    right: unlockButton.left
+                    rightMargin: 4
+                    verticalCenter: parent.verticalCenter
+                }
+                width: 30
+                height: 30
+                radius: 15
+                color: visibilityMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: root.showPasswordText ? "visibility_off" : "visibility"
+                    iconSize: 18
+                    color: visibilityMouse.containsMouse ? "#f4f4f4" : "#c8c8c8"
+                }
+
+                MouseArea {
+                    id: visibilityMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    enabled: !root.context.unlockInProgress
+                    onClicked: root.showPasswordText = !root.showPasswordText
+                }
             }
 
             Rectangle {
