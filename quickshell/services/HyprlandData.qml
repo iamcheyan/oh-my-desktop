@@ -230,16 +230,12 @@ Singleton {
             globalSeen[e.id] = true;
         });
 
-        let trailingId = existingTrailingWorkspace?.id ?? Math.min(100, maxId + 1);
+        let trailingId = existingTrailingWorkspace?.id ?? 1;
         if (!existingTrailingWorkspace) {
-            while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId]))
+            // Find the lowest unused ID in [1, 100] — this keeps IDs
+            // compact and reuses slots freed by destroyed workspaces.
+            while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
                 trailingId += 1;
-            // If upward search hit the cap, search downward for any free slot
-            if (trailingId > 100) {
-                trailingId = maxId - 1;
-                while (trailingId >= 1 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
-                    trailingId -= 1;
-            }
         }
 
         if (includeTrailing && trailingId >= 1 && trailingId <= 100 && !seen[trailingId]) {
