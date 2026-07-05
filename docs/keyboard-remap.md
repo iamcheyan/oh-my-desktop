@@ -89,7 +89,119 @@ Disabled profiles are omitted. Apply runs `pkexec` to install `/etc/keyd/omd.con
 | Add row | Two dropdowns (from / to) + Add |
 | Actions | Apply, Setup keyd, Refresh devices |
 
-Phase 2 (later): **Capture mode** — press physical key to fill "from" field via `evdev` or `keyd monitor`.
+## Key capture (`key-test`)
+
+Press-to-capture is implemented. Use it from **Settings → Keyboard Remap → Capture**, or run:
+
+```sh
+~/.config/omd/scripts/key-test --remap
+```
+
+After pressing a key, close the window and click **Use This Key** in Settings.
+
+### Three naming layers
+
+The same physical key can look different depending on which layer you read:
+
+| Layer | What it is | Example (minila 全角/半角) |
+|-------|------------|----------------------------|
+| **GDK / Hypr bind** | Layout-aware symbol name | `ZENKAKU_HANKAKU` |
+| **XKB keycode** | GTK `hardware-code` (evdev + 8) | `49` |
+| **evdev / keyd** | Physical scancode / keyd remap name | evdev `41` → **`grave`** |
+
+**Rule for keyd remaps:** trust **`keyd-name`** from capture, not the GDK/Hypr string. Under JP layout, GDK often mislabels Japanese keys.
+
+`key-test` shows the keyd name prominently and copies a multi-line clipboard block:
+
+```text
+keyd-name:grave
+evdev-code:41
+ZENKAKU_HANKAKU
+gdk-keyval:…
+gdk-keyname:Zenkaku_Hankaku
+hardware-code:49
+```
+
+Conversion: `evdev = XKB_keycode - 8`. Mapping lives in `scripts/key_evdev_names.py`; resolution order in `scripts/keyremap-capture-read` is **keyd-name → XKB/evdev → GDK/Hypr fallback**.
+
+Verify remaps at runtime:
+
+```sh
+~/.config/omd/share/bin/omarchy-keyboard-monitor
+```
+
+### fcitx5 interaction
+
+If fcitx5 binds `Zenkaku_Hankaku` as an IME trigger, it can steal the key before keyd/Hyprland see it. OMD ships `omarchy/fcitx5/config` with that trigger removed. Re-apply or merge if you maintain a custom fcitx5 config.
+
+## MINILA-R notes (`0a5c:8502`)
+
+Validated on **MINILA-R Convertible Keyboard** (Bluetooth, `event28`).
+
+### Keys that capture and remap correctly
+
+| Physical key | GDK / Hypr (misleading) | keyd `from` | Notes |
+|--------------|-------------------------|-------------|-------|
+| 全角/半角 | `ZENKAKU_HANKAKU` | `grave` | `~` 印刷位置；日版 GDK 名易误导 |
+| 無変換 | `Muhenkan` | `muhenkan` | evdev 94, XKB 102 |
+
+Profile example: `keyboard-remap/profiles.json` → `minila-r-convertible-keyboard`.
+
+### Active minila remaps
+
+| Physical key | keyd `from` | After remap |
+|--------------|-------------|-------------|
+| `~` 印刷键 | `grave` | **Win / Super** (`leftmeta`) |
+| 無変換 | `muhenkan` | **Win / Super** (`leftmeta`) |
+| 原 Win 键 | `leftmeta` | `` ` `` alone, **`~`** with Shift |
+
+```ini
+[main]
+grave = leftmeta
+leftmeta = grave
+muhenkan = leftmeta
+```
+
+Apply from Settings → Keyboard Remap → **Apply**, or `~/.config/omd/share/bin/omarchy-keyboard-apply`.
+
+### Fn keys — not capturable alone
+
+MINILA-R exposes **two Fn keys**, but they are handled as **firmware layer switches**. They do **not** report standalone Linux keyboard events when pressed by themselves.
+
+Checked against `/proc/bus/input/devices` KEY capability bitmap for `MINILA-R Convertible Keyboard`:
+
+| Kernel key | evdev | XKB | In minila KEY bitmap? |
+|------------|-------|-----|------------------------|
+| `KEY_FN` | 464 | 472 | **No** |
+| `KEY_FN_1` | 478 | 486 | **No** |
+| `KEY_FN_2` | 479 | 487 | **No** |
+
+Therefore:
+
+- `key-test` — no event when Fn is pressed alone
+- `omarchy-keyboard-monitor` — no output for standalone Fn
+- keyd — cannot use `fn` / `fn1` / `fn2` as a remap **source** on this keyboard
+
+This differs from keyboards that emit `KEY_FN` (e.g. MacBook Globe → Hypr `code:472`, evdev 464, keyd `fn`), which **can** be captured.
+
+**Workarounds on minila:**
+
+1. Remap the **output** of Fn combos (e.g. whatever `Fn+1` actually sends: `f1`, brightness keys, etc.) — those do reach evdev.
+2. Change behavior in PFU / vendor tooling only if the firmware can be made to emit a scancode for Fn (not available in stock minila BT firmware today).
+3. Software cannot remap a key the kernel never receives.
+
+### Quick self-test
+
+```sh
+# 1. Open capture, press 全角/半角 — expect keyd-name: grave
+~/.config/omd/scripts/key-test --remap
+
+# 2. Monitor — press each Fn alone; expect silence
+sudo keyd monitor -t
+
+# 3. Monitor — press Fn+<other key>; note the emitted name and remap that instead
+sudo keyd monitor -t
+```
 
 ## Device detection
 
