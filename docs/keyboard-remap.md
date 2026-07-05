@@ -140,29 +140,12 @@ Validated on **MINILA-R Convertible Keyboard** (Bluetooth, `event28`).
 
 ### Keys that capture and remap correctly
 
-| Physical key | GDK / Hypr (misleading) | keyd `from` | Notes |
-|--------------|-------------------------|-------------|-------|
-| 全角/半角 | `ZENKAKU_HANKAKU` | `grave` | `~` 印刷位置；日版 GDK 名易误导 |
-| 無変換 | `Muhenkan` | `muhenkan` | evdev 94, XKB 102 |
+| Physical key | GDK / Hypr (misleading) | keyd `from` | Working remap example |
+|--------------|-------------------------|-------------|------------------------|
+| 全角/半角 | `ZENKAKU_HANKAKU` | `grave` | `grave` ↔ `esc` |
+| 無変換 | `Muhenkan` | `muhenkan` | `muhenkan` ↔ `leftmeta` |
 
 Profile example: `keyboard-remap/profiles.json` → `minila-r-convertible-keyboard`.
-
-### Active minila remaps
-
-| Physical key | keyd `from` | After remap |
-|--------------|-------------|-------------|
-| `~` 印刷键 | `grave` | **Win / Super** (`leftmeta`) |
-| 無変換 | `muhenkan` | **Win / Super** (`leftmeta`) |
-| 原 Win 键 | `leftmeta` | `` ` `` alone, **`~`** with Shift |
-
-```ini
-[main]
-grave = leftmeta
-leftmeta = grave
-muhenkan = leftmeta
-```
-
-Apply from Settings → Keyboard Remap → **Apply**, or `~/.config/omd/share/bin/omarchy-keyboard-apply`.
 
 ### Fn keys — not capturable alone
 
