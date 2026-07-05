@@ -257,14 +257,16 @@ Singleton {
     }
 
     function sortedOverviewMonitors() {
-        const anchorName = GlobalStates.overviewOpen
-            ? (GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "")
-            : (Hyprland.focusedMonitor?.name ?? "");
         return root.monitors.slice().sort((a, b) => {
-            const aAnchor = (a.name ?? "") === anchorName;
-            const bAnchor = (b.name ?? "") === anchorName;
-            if (aAnchor !== bAnchor)
-                return aAnchor ? -1 : 1;
+            // Temporarily disabled while validating cross-monitor drag behavior:
+            // keep monitor group order identical on every screen.
+            // const anchorName = GlobalStates.overviewOpen
+            //     ? (GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "")
+            //     : (Hyprland.focusedMonitor?.name ?? "");
+            // const aAnchor = (a.name ?? "") === anchorName;
+            // const bAnchor = (b.name ?? "") === anchorName;
+            // if (aAnchor !== bAnchor)
+            //     return aAnchor ? -1 : 1;
             if ((a.y ?? 0) !== (b.y ?? 0))
                 return (a.y ?? 0) - (b.y ?? 0);
             return (a.x ?? 0) - (b.x ?? 0);

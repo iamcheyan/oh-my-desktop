@@ -4,6 +4,7 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.functions
+import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 
@@ -11,6 +12,21 @@ Singleton {
     id: root
 
     readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
+
+    property int pendingDragRefreshes: 0
+
+    Timer {
+        id: refreshAfterDragTimer
+        interval: 90
+        repeat: false
+        onTriggered: {
+            HyprlandData.updateAll();
+            GlobalStates.refreshOverviewModel();
+            root.pendingDragRefreshes -= 1;
+            if (root.pendingDragRefreshes > 0)
+                refreshAfterDragTimer.restart();
+        }
+    }
 
     function openAppLauncher() {
         Quickshell.execDetached([
@@ -176,13 +192,31 @@ Singleton {
 
         const model = root.overviewModel();
         const entry = model.find(item => item.id === targetWorkspace);
+        const targetMonitorName = entry?.monitorName ?? "";
+
+        if (targetMonitorName.length > 0) {
+            const pending = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
+            const nextPending = Object.assign({}, pending);
+            nextPending[targetWorkspace] = targetMonitorName;
+            GlobalStates.overviewPendingWorkspaceMonitorById = nextPending;
+        }
 
         if (targetIsTrailing) {
+            const pendingOccupied = GlobalStates.overviewPendingOccupiedWorkspaces ?? [];
+            const filtered = pendingOccupied.filter(entry => entry?.id !== targetWorkspace);
+            filtered.push({
+                id: targetWorkspace,
+                monitorName: targetMonitorName,
+                sourceWorkspaceId: currentWorkspaceId
+            });
+            GlobalStates.overviewPendingOccupiedWorkspaces = filtered;
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
-            if ((entry?.monitorName ?? "").length > 0)
-                Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${entry.monitorName}" })`);
+            if (targetMonitorName.length > 0)
+                Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${targetMonitorName}" })`);
         } else {
             Hyprland.dispatch(`hl.dsp.window.move({ workspace = ${targetWorkspace}, follow = false, window = "address:${windowAddress}" })`);
+            if (targetMonitorName.length > 0)
+                Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${targetWorkspace}", monitor = "${targetMonitorName}" })`);
         }
 
         if (sourceIsEmptyAfterMove) {
@@ -194,18 +228,10 @@ Singleton {
             }
         }
 
-        // Switch active focus if the source workspace is active and now empty!
-        // This forces Hyprland to garbage collect the empty source workspace.
-        const monitor = Hyprland.focusedMonitor ?? Hyprland.monitors[0];
-        const activeWsId = HyprlandData.monitorActiveWorkspaceId(monitor);
-        if (sourceIsEmptyAfterMove && activeWsId === currentWorkspaceId) {
-            const targetMonitorName = entry?.monitorName ?? "";
-            if (targetMonitorName.length > 0) {
-                Hyprland.dispatch(`hl.dsp.focus({monitor="${targetMonitorName}"})`);
-            }
-            Hyprland.dispatch(`hl.dsp.focus({ workspace = ${targetWorkspace} })`);
-        }
-
+        HyprlandData.updateAll();
+        GlobalStates.refreshOverviewModel();
+        root.pendingDragRefreshes = 4;
+        refreshAfterDragTimer.restart();
         return true;
     }
 

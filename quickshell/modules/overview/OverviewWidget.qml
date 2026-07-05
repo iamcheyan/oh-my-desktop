@@ -18,14 +18,17 @@ Item {
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
+    readonly property int modelRevision: HyprlandData.dataSerial
+        + GlobalStates.overviewRefreshSerial
+        + (ToplevelManager.toplevels.values?.length ?? 0)
     // Clamp to avoid lock-screen temp workspace (2147483647 - N) leaking into UI
     readonly property int effectiveActiveWorkspaceId: Math.max(1, Math.min(100, monitor?.activeWorkspace?.id ?? 1))
     readonly property int highlightedWorkspaceId: (GlobalStates.overviewFocusedWorkspaceId > 0
         ? GlobalStates.overviewFocusedWorkspaceId
         : effectiveActiveWorkspaceId)
     readonly property var overviewEntries: root.compactMode
-        ? (WorkspaceNavigation.switcherModel() ?? [])
-        : (HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
+        ? (root.modelRevision, WorkspaceNavigation.switcherModel() ?? [])
+        : (root.modelRevision, HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var monitorGroups: {
         const groups = [];
@@ -170,7 +173,7 @@ Item {
             if (root.overviewEntries[i].id === wsId)
                 return i;
         }
-        return 0;
+        return -1;
     }
 
     function getEntryRow(entryIndex) {
@@ -460,7 +463,7 @@ Item {
             model: root.monitorGroups
             delegate: Rectangle {
                 required property var modelData
-                readonly property bool focusedGroup: modelData.key === (Hyprland.focusedMonitor?.name ?? "")
+                readonly property bool focusedGroup: modelData.key === (root.monitor?.name ?? "")
 
                 x: root.groupX(modelData)
                 y: root.groupY(modelData)
@@ -515,6 +518,7 @@ Item {
                     property int workspaceValue: modelData.id
                     property string monitorName: modelData.monitorName ?? ""
                     property bool isTrailingEmpty: modelData.isTrailingEmpty ?? false
+                    property bool isPendingOccupied: modelData.isPendingOccupied ?? false
                     property bool existingWorkspace: modelData.existingWorkspace ?? false
                     property int colIndex: root.entryLocalColumn(index)
                     property int rowIndex: root.entryLocalRow(index)
@@ -566,6 +570,8 @@ Item {
                         }
                         text: workspace.isTrailingEmpty
                             ? Translation.tr("New workspace")
+                            : workspace.isPendingOccupied
+                                ? Translation.tr("Moving…")
                             : `${workspace.monitorName || Translation.tr("Hidden")} · ${workspace.workspaceValue}`
                         font {
                             pixelSize: Appearance.font.pixelSize.smaller
@@ -625,7 +631,7 @@ Item {
             Repeater { // Window repeater
                 model: ScriptModel {
                     values: {
-                        // console.log(JSON.stringify(ToplevelManager.toplevels.values.map(t => t), null, 2))
+                        const revision = root.modelRevision;
                         return ToplevelManager.toplevels.values.filter((toplevel) => {
                             const address = `0x${toplevel.HyprlandToplevel?.address}`
                             var win = windowByAddress[address]
@@ -671,10 +677,11 @@ Item {
 
                     // Offset on the canvas
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
-                    xOffset: root.entryX(workspaceEntryIndex)
-                    yOffset: root.entryY(workspaceEntryIndex)
-                    workspaceWidth: root.entryWidth(workspaceEntryIndex)
-                    workspaceHeight: root.entryHeight(workspaceEntryIndex)
+                    visible: workspaceEntryIndex >= 0 && !!windowData
+                    xOffset: root.entryX(Math.max(0, workspaceEntryIndex))
+                    yOffset: root.entryY(Math.max(0, workspaceEntryIndex))
+                    workspaceWidth: root.entryWidth(Math.max(0, workspaceEntryIndex))
+                    workspaceHeight: root.entryHeight(Math.max(0, workspaceEntryIndex))
                     property real xWithinWorkspaceWidget: window.localX
                     property real yWithinWorkspaceWidget: window.localY
 
@@ -775,11 +782,12 @@ Item {
             Rectangle { // Focused workspace indicator
                 id: focusedWorkspaceIndicator
                 property int entryIndex: root.indexForWorkspaceId(root.highlightedWorkspaceId)
-                x: root.entryX(entryIndex)
-                y: root.entryY(entryIndex)
+                visible: entryIndex >= 0
+                x: root.entryX(Math.max(0, entryIndex))
+                y: root.entryY(Math.max(0, entryIndex))
                 z: root.windowZ
-                width: root.entryWidth(entryIndex)
-                height: root.entryHeight(entryIndex)
+                width: root.entryWidth(Math.max(0, entryIndex))
+                height: root.entryHeight(Math.max(0, entryIndex))
                 color: "transparent"
                 property bool workspaceAtLeft: true
                 property bool workspaceAtRight: true

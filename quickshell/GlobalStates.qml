@@ -17,6 +17,7 @@ Singleton {
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool overviewOpen: false
+    property string overviewAnchorMonitorName: ""
     property bool overviewSearchMode: false
     property int overviewFocusedWorkspaceId: -1
     property var overviewWorkspaceMru: []
@@ -24,6 +25,9 @@ Singleton {
     property int overviewDraggingTargetWorkspace: -1
     property bool overviewDraggingTargetIsTrailing: false
     property var overviewSuppressedEmptyWorkspaceIds: []
+    property var overviewPendingWorkspaceMonitorById: ({})
+    property var overviewPendingOccupiedWorkspaces: []
+    property int overviewRefreshSerial: 0
     property bool regionSelectorOpen: false
     property bool scheduleOpen: false
     property bool screenLocked: false
@@ -72,6 +76,10 @@ Singleton {
         const next = GlobalStates.overviewWorkspaceMru.filter(id => id !== wsId);
         next.unshift(wsId);
         GlobalStates.overviewWorkspaceMru = next;
+    }
+
+    function refreshOverviewModel() {
+        GlobalStates.overviewRefreshSerial += 1;
     }
 
     function suppressEmptyWorkspace(wsId) {

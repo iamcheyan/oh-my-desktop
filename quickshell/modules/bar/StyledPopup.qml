@@ -22,13 +22,11 @@ LazyLoader {
     readonly property var targetScreen: hoverTarget?.QsWindow?.window?.screen ?? focusedScreen
 
     function globalToScreenX(globalX) {
-        const screen = root.targetScreen;
-        return screen ? globalX - screen.x : globalX;
+        return globalX;
     }
 
     function globalToScreenY(globalY) {
-        const screen = root.targetScreen;
-        return screen ? globalY - screen.y : globalY;
+        return globalY;
     }
 
     active: hoverTarget

@@ -112,7 +112,8 @@ Scope {
         target: Hyprland
         function onFocusedMonitorChanged() {
             if (GlobalStates.overviewOpen)
-                overviewScope.queueOverviewFocus();
+                return;
+            overviewScope.queueOverviewFocus();
         }
     }
 
@@ -120,9 +121,14 @@ Scope {
         target: GlobalStates
         function onOverviewOpenChanged() {
             if (GlobalStates.overviewOpen) {
-                overviewScope.lockedScreenName = Hyprland.focusedMonitor?.name ?? "";
+                const anchor = Hyprland.focusedMonitor?.name ?? "";
+                overviewScope.lockedScreenName = anchor;
+                GlobalStates.overviewAnchorMonitorName = anchor;
             } else {
                 overviewScope.lockedScreenName = "";
+                GlobalStates.overviewAnchorMonitorName = "";
+                GlobalStates.overviewPendingWorkspaceMonitorById = ({});
+                GlobalStates.overviewPendingOccupiedWorkspaces = [];
             }
         }
     }
@@ -155,12 +161,12 @@ Scope {
             screen: overviewPanelLoader.modelData
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
             readonly property bool isFocusedOverviewWindow: overviewScope.isFocusedScreen(panelWindow.screen)
-            visible: GlobalStates.overviewOpen && panelWindow.isFocusedOverviewWindow
+            visible: GlobalStates.overviewOpen
 
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: panelWindow.isFocusedOverviewWindow
-                ? (GlobalStates.overviewOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None)
+                ? (GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None)
                 : WlrKeyboardFocus.None
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
@@ -189,7 +195,7 @@ Scope {
                         GlobalStates.overviewFocusedWorkspaceId = overviewScope.currentWorkspaceId();
                         if (GlobalStates.overviewWorkspaceMru.length === 0)
                             GlobalStates.promoteWorkspaceMru(overviewScope.currentWorkspaceId());
-                        if (panelWindow.isFocusedOverviewWindow && !WorkspaceSwitcherController.grabbed)
+                        if (!WorkspaceSwitcherController.grabbed)
                             GlobalFocusGrab.addDismissable(panelWindow);
                         overviewScope.queueOverviewFocus();
                     }
