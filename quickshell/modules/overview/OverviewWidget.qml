@@ -359,6 +359,43 @@ Item {
 
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
+    property var hoveredWindowData: null
+    property var hoveredWorkspaceEntry: null
+    readonly property var defaultInfoWindow: HyprlandData.activeWindow
+        ?? HyprlandData.focusedClientForWorkspace(root.highlightedWorkspaceId)
+    readonly property bool showingWorkspaceInfo: hoveredWorkspaceEntry !== null && hoveredWindowData === null
+    readonly property var infoWindow: root.showingWorkspaceInfo ? null : (hoveredWindowData ?? defaultInfoWindow)
+    readonly property string infoTitle: root.showingWorkspaceInfo
+        ? (hoveredWorkspaceEntry?.isTrailingEmpty
+            ? Translation.tr("New workspace")
+            : `${hoveredWorkspaceEntry?.monitorName || Translation.tr("Hidden")} · Workspace ${hoveredWorkspaceEntry?.id ?? ""}`)
+        : (infoWindow?.title || infoWindow?.initialTitle || infoWindow?.class || Translation.tr("No active window"))
+    readonly property string infoSubtitle: root.showingWorkspaceInfo
+        ? (hoveredWorkspaceEntry?.isTrailingEmpty
+            ? Translation.tr("Create a workspace on this monitor")
+            : Translation.tr("Workspace"))
+        : (infoWindow?.class || "")
+    readonly property string infoIconSource: root.showingWorkspaceInfo
+        ? ""
+        : AppSearch.iconSource(AppSearch.guessIcon(infoWindow?.class || ""))
+    readonly property var infoGroup: {
+        if (root.monitorGroups.length === 0)
+            return null;
+        const monitorName = root.monitor?.name ?? "";
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            if (root.monitorGroups[i].key === monitorName)
+                return root.monitorGroups[i];
+        }
+        const focusedId = root.highlightedWorkspaceId;
+        for (let i = 0; i < root.monitorGroups.length; ++i) {
+            const group = root.monitorGroups[i];
+            for (let j = group.start; j <= group.end; ++j) {
+                if (root.overviewEntries[j]?.id === focusedId)
+                    return group;
+            }
+        }
+        return root.monitorGroups[0];
+    }
 
     // ── Wheel scroll anywhere cycles workspaces ──
     MouseArea {
@@ -507,7 +544,18 @@ Item {
                     MouseArea {
                         id: workspaceArea
                         anchors.fill: parent
+                        hoverEnabled: true
                         acceptedButtons: Qt.LeftButton
+                        onEntered: {
+                            if (!GlobalStates.overviewDraggingTargetWorkspace || GlobalStates.overviewDraggingTargetWorkspace === -1) {
+                                root.hoveredWorkspaceEntry = workspace.modelData;
+                                root.hoveredWindowData = null;
+                            }
+                        }
+                        onExited: {
+                            if (root.hoveredWorkspaceEntry?.id === workspace.workspaceValue)
+                                root.hoveredWorkspaceEntry = null;
+                        }
                         onPressed: {
                             if (GlobalStates.overviewDraggingTargetWorkspace === -1) {
                                 if (workspace.isTrailingEmpty) {
@@ -649,8 +697,16 @@ Item {
                         id: dragArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: window.hovered = true
-                        onExited: window.hovered = false
+                        onEntered: {
+                            window.hovered = true
+                            root.hoveredWindowData = windowData
+                            root.hoveredWorkspaceEntry = null
+                        }
+                        onExited: {
+                            window.hovered = false
+                            if (root.hoveredWindowData?.address === windowData?.address)
+                                root.hoveredWindowData = null
+                        }
                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                         drag.target: parent
                         onPressed: (mouse) => {
@@ -691,12 +747,6 @@ Item {
                                 Hyprland.dispatch(`hl.dsp.window.close({window = "address:${windowData.address}"})`)
                                 event.accepted = true
                             }
-                        }
-
-                        StyledToolTip {
-                            extraVisibleCondition: false
-                            alternativeVisibleCondition: dragArea.containsMouse && !window.Drag.active
-                            text: `${windowData?.title}\n[${windowData?.class}] ${windowData?.xwayland ? "[XWayland] " : ""}`
                         }
                     }
                 }
@@ -742,4 +792,90 @@ Item {
                 }
             }
         }
+
+    Item {
+        id: selectionInfoBar
+        readonly property real targetWidth: Math.min(620, Math.max(280, root.infoGroup ? root.groupWidth(root.infoGroup) * 0.56 : 420))
+        readonly property real targetX: root.infoGroup
+            ? root.groupX(root.infoGroup) + (root.groupWidth(root.infoGroup) - targetWidth) / 2
+            : (root.width - targetWidth) / 2
+        readonly property real targetY: root.infoGroup
+            ? root.groupY(root.infoGroup) + root.groupHeight(root.infoGroup) + 14
+            : root.height - 96
+
+        x: Math.max(24, Math.min(root.width - width - 24, targetX))
+        y: Math.max(24, Math.min(root.height - height - 24, targetY))
+        z: root.windowDraggingZ + 1
+        width: targetWidth
+        height: 54
+        visible: GlobalStates.overviewOpen && root.infoTitle.length > 0
+        opacity: visible ? 1 : 0
+
+        Behavior on x { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on y { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
+        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 14
+            anchors.rightMargin: 16
+            spacing: 12
+
+            Item {
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                Layout.alignment: Qt.AlignVCenter
+
+                StyledImage {
+                    anchors.fill: parent
+                    visible: !root.showingWorkspaceInfo && root.infoIconSource.length > 0
+                    source: root.infoIconSource
+                    mipmap: true
+                }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    visible: root.showingWorkspaceInfo || root.infoIconSource.length === 0
+                    text: root.showingWorkspaceInfo
+                        ? (root.hoveredWorkspaceEntry?.isTrailingEmpty ? "add" : "select_window")
+                        : "apps"
+                    iconSize: 26
+                    color: root.showingWorkspaceInfo && root.hoveredWorkspaceEntry?.isTrailingEmpty
+                        ? TuiStyle.accent
+                        : Appearance.colors.colOnLayer1
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 1
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.infoTitle
+                    color: Appearance.colors.colOnLayer1
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: root.infoSubtitle.length > 0
+                    text: root.infoSubtitle
+                    color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.36)
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+            }
+        }
+    }
     }
