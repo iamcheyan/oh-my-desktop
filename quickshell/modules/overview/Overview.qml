@@ -369,39 +369,7 @@ Scope {
                         && !OverviewSwitchingController.grabbed
                 }
 
-                // Subtle "Type to search" hint in workspace mode
-                Item {
-                    anchors {
-                        top: parent.top
-                        horizontalCenter: parent.horizontalCenter
-                        topMargin: 28
-                    }
-                    z: 1000
-                    visible: !GlobalStates.overviewSearchMode && !OverviewSwitchingController.grabbed
-                    opacity: !GlobalStates.overviewSearchMode ? 1 : 0
 
-                    Behavior on opacity {
-                        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-                    }
-
-                    Row {
-                        spacing: 7
-
-                        MaterialSymbol {
-                            text: "search"
-                            iconSize: 14
-                            color: "#8f98a8"
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        StyledText {
-                            text: Translation.tr("Type to search")
-                            color: "#8f98a8"
-                            font.pixelSize: 13
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
             }
 
         }
