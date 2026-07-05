@@ -412,6 +412,9 @@ Item {
     }
 
     function defaultWindowForGroup(group) {
+        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0) {
+            return HyprlandData.focusedClientForWorkspace(GlobalStates.overviewFocusedWorkspaceId);
+        }
         const entry = root.firstEntryForGroup(group);
         if (!entry || entry.isTrailingEmpty)
             return null;
@@ -419,6 +422,12 @@ Item {
     }
 
     function infoEntryForGroup(group) {
+        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0) {
+            for (let i = group.start; i <= group.end; ++i) {
+                if (root.overviewEntries[i]?.id === GlobalStates.overviewFocusedWorkspaceId)
+                    return root.overviewEntries[i];
+            }
+        }
         return root.hoveredWorkspaceForGroup(group) ?? root.firstEntryForGroup(group);
     }
 
