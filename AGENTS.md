@@ -79,7 +79,6 @@ symlink targets.
 │   ├── omd-bar/               Status bar process
 │   ├── omd-desktop/           Desktop surface process (wallpaper/interactions)
 │   ├── omd-overview/          Workspace overview process
-│   ├── omd-switcher/          Window switcher process
 │   ├── omd-applauncher/       Application launcher process
 │   ├── omd-corners/           Screen corners process
 │   └── omd-clipboard/         Clipboard UI process
@@ -184,7 +183,6 @@ symlink targets.
 │   ├── omd-bar                Launch bar process
 │   ├── omd-desktop            Launch desktop surface process
 │   ├── omd-overview           Launch overview process
-│   ├── omd-switcher           Launch switcher process
 │   ├── omd-applauncher       Launch app launcher
 │   ├── omd-clipboard          Launch clipboard UI process
 │   ├── omd-clipboard-store    Launch clipboard store watcher
@@ -235,8 +233,7 @@ symlink targets.
 - Omarchy autostart launches Quickshell via
   `~/.config/omd/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
-  `omd-overview`, `omd-switcher`, `omd-applauncher`, `omd-corners`, and
-  `omd-clipboard`.
+  `omd-overview`, `omd-applauncher`, `omd-corners`, and `omd-clipboard`.
 - Clipboard picking is handled by walker (`ALT+V` → `omd-clipboard-pick`);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.

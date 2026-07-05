@@ -62,23 +62,23 @@ Scope {
     }
 
     function queueGrabbedCycle(dir) {
-        WorkspaceSwitcherController.queueCycle(dir);
+        OverviewSwitchingController.queueCycle(dir);
     }
 
     function queueOverviewFocus() {
-        WorkspaceSwitcherController.queueFocus();
+        OverviewSwitchingController.queueFocus();
     }
 
     function openGrabbedMode(dir) {
-        WorkspaceSwitcherController.openGrabbedMode(dir);
+        OverviewSwitchingController.openGrabbedMode(dir);
     }
 
     function commitGrabbedMode() {
-        WorkspaceSwitcherController.commitGrabbedMode();
+        OverviewSwitchingController.commitGrabbedMode();
     }
 
     function overviewNavigationActive() {
-        return WorkspaceSwitcherController.navigationOpen();
+        return OverviewSwitchingController.navigationOpen();
     }
 
     function handleOverviewNavigationKey(event) {
@@ -162,6 +162,7 @@ Scope {
             readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
             readonly property bool isFocusedOverviewWindow: overviewScope.isFocusedScreen(panelWindow.screen)
             visible: GlobalStates.overviewOpen
+                && (!OverviewSwitchingController.grabbed || panelWindow.isFocusedOverviewWindow)
 
             WlrLayershell.namespace: "quickshell:overview"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -187,7 +188,7 @@ Scope {
                             : overviewScope.currentWorkspaceId();
                         if (settled > 0 && HyprlandData.workspaceHasVisibleWindows(settled))
                             GlobalStates.promoteWorkspaceMru(settled);
-                        WorkspaceSwitcherController.reset();
+                        OverviewSwitchingController.reset();
                         GlobalStates.overviewFocusedWorkspaceId = -1;
                         WorkspaceNavigation.resetOverviewDragState();
                         GlobalFocusGrab.dismiss();
@@ -195,7 +196,7 @@ Scope {
                         GlobalStates.overviewFocusedWorkspaceId = overviewScope.currentWorkspaceId();
                         if (GlobalStates.overviewWorkspaceMru.length === 0)
                             GlobalStates.promoteWorkspaceMru(overviewScope.currentWorkspaceId());
-                        if (!WorkspaceSwitcherController.grabbed)
+                        if (!OverviewSwitchingController.grabbed || panelWindow.isFocusedOverviewWindow)
                             GlobalFocusGrab.addDismissable(panelWindow);
                         overviewScope.queueOverviewFocus();
                     }
@@ -205,7 +206,7 @@ Scope {
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
-                    if (!WorkspaceSwitcherController.grabbed)
+                    if (!OverviewSwitchingController.grabbed)
                         GlobalStates.overviewOpen = false;
                 }
             }
@@ -218,7 +219,7 @@ Scope {
                 id: scrim
                 anchors.fill: parent
                 color: ColorUtils.transparentize("#0f0f14", 0.25)
-                visible: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed
+                visible: GlobalStates.overviewOpen
 
                 Behavior on opacity {
                     NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
@@ -253,13 +254,13 @@ Scope {
                         event.accepted = true;
                         return;
                     }
-                    if (WorkspaceSwitcherController.grabbed && event.key === Qt.Key_Tab) {
+                    if (OverviewSwitchingController.grabbed && event.key === Qt.Key_Tab) {
                         const backward = (event.modifiers & Qt.ShiftModifier) !== 0;
                         overviewScope.queueGrabbedCycle(backward ? -1 : 1);
                         event.accepted = true;
                         return;
                     }
-                    if (WorkspaceSwitcherController.grabbed) {
+                    if (OverviewSwitchingController.grabbed) {
                         overviewScope.handleOverviewNavigationKey(event);
                         return;
                     }
@@ -285,7 +286,7 @@ Scope {
                 }
 
                 Keys.onReleased: event => {
-                    if (WorkspaceSwitcherController.grabbed &&
+                    if (OverviewSwitchingController.grabbed &&
                         (event.key === Qt.Key_Super_L || event.key === Qt.Key_Super_R || event.key === Qt.Key_Meta)) {
                         overviewScope.commitGrabbedMode();
                         event.accepted = true;
@@ -297,7 +298,7 @@ Scope {
                     function onOverviewOpenChanged() {
                         if (GlobalStates.overviewOpen
                             && panelWindow.isFocusedOverviewWindow
-                            && !WorkspaceSwitcherController.grabbed
+                            && !OverviewSwitchingController.grabbed
                             && !GlobalStates.overviewSearchMode)
                             overviewKeyHandler.forceActiveFocus();
                     }
@@ -305,11 +306,11 @@ Scope {
                         if (!GlobalStates.overviewSearchMode
                             && panelWindow.isFocusedOverviewWindow
                             && GlobalStates.overviewOpen
-                            && !WorkspaceSwitcherController.grabbed)
+                            && !OverviewSwitchingController.grabbed)
                             Qt.callLater(() => { overviewKeyHandler.forceActiveFocus(); });
                     }
                     function onSuperDownChanged() {
-                        if (WorkspaceSwitcherController.grabbed && !GlobalStates.superDown)
+                        if (OverviewSwitchingController.grabbed && !GlobalStates.superDown)
                             overviewScope.commitGrabbedMode();
                     }
                 }
@@ -317,18 +318,18 @@ Scope {
                 Connections {
                     target: overviewScope
                     function onRequestOverviewFocus() {
-                        if (panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed)
+                        if (panelWindow.isFocusedOverviewWindow && OverviewSwitchingController.grabbed)
                             overviewKeyHandler.forceActiveFocus();
                     }
                 }
 
                 Connections {
-                    target: WorkspaceSwitcherController
+                    target: OverviewSwitchingController
                     function onRequestFocus() {
                         overviewScope.requestOverviewFocus();
                     }
                     function onGrabbedChanged() {
-                        if (panelWindow.isFocusedOverviewWindow && WorkspaceSwitcherController.grabbed)
+                        if (panelWindow.isFocusedOverviewWindow && OverviewSwitchingController.grabbed)
                             overviewKeyHandler.forceActiveFocus();
                     }
                 }
@@ -338,12 +339,12 @@ Scope {
             Item {
                 id: overviewContainer
                 anchors.fill: parent
-                visible: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed
+                visible: GlobalStates.overviewOpen
 
                 Loader {
                     id: overviewLoader
                     anchors.fill: parent
-                    active: GlobalStates.overviewOpen && !WorkspaceSwitcherController.grabbed && (Config?.options.overview.enable ?? true)
+                    active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         visible: GlobalStates.overviewOpen
@@ -365,7 +366,7 @@ Scope {
                     z: 1000
                     active: panelWindow.isFocusedOverviewWindow
                         && GlobalStates.overviewOpen
-                        && !WorkspaceSwitcherController.grabbed
+                        && !OverviewSwitchingController.grabbed
                 }
 
                 // Subtle "Type to search" hint in workspace mode
@@ -376,7 +377,7 @@ Scope {
                         topMargin: 28
                     }
                     z: 1000
-                    visible: !GlobalStates.overviewSearchMode
+                    visible: !GlobalStates.overviewSearchMode && !OverviewSwitchingController.grabbed
                     opacity: !GlobalStates.overviewSearchMode ? 1 : 0
 
                     Behavior on opacity {
@@ -403,22 +404,6 @@ Scope {
                 }
             }
 
-            // ── Switcher (快速切换): compact centered preview ──
-            Loader {
-                id: switcherLoader
-                anchors.centerIn: parent
-                active: GlobalStates.overviewOpen && WorkspaceSwitcherController.grabbed
-                sourceComponent: Item {
-                    width: switcherWidget.implicitWidth
-                    height: switcherWidget.implicitHeight
-                    OverviewWidget {
-                        id: switcherWidget
-                        screen: panelWindow.screen
-                        visible: true
-                        compactMode: true
-                    }
-                }
-            }
         }
         }
     }
@@ -453,7 +438,7 @@ Scope {
                     GlobalStates.overviewOpen = true;
                 else if (GlobalStates.overviewSearchMode)
                     GlobalStates.overviewSearchMode = false;
-                else if (!WorkspaceSwitcherController.grabbed)
+                else if (!OverviewSwitchingController.grabbed)
                     GlobalStates.overviewOpen = false;
             }
         }
@@ -468,20 +453,6 @@ Scope {
         function overviewCommit() {
             GlobalStates.superReleaseMightTrigger = false;
             overviewScope.commitGrabbedMode();
-        }
-    }
-
-    IpcHandler {
-        target: "switcher"
-
-        function next() {
-            WorkspaceSwitcherController.openGrabbedMode(1);
-        }
-        function prev() {
-            WorkspaceSwitcherController.openGrabbedMode(-1);
-        }
-        function commit() {
-            WorkspaceSwitcherController.commitGrabbedMode();
         }
     }
 

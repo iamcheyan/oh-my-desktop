@@ -49,6 +49,7 @@ Singleton {
     }
 
     function openGrabbedMode(dir) {
+        GlobalStates.superReleaseMightTrigger = false;
         if (GlobalStates.overviewOpen && root.grabbed) {
             root.queueCycle(dir);
         } else {
@@ -62,6 +63,7 @@ Singleton {
     function commitGrabbedMode() {
         if (!root.grabbed)
             return;
+        GlobalStates.superReleaseMightTrigger = false;
         root.grabbed = false;
         WorkspaceNavigation.commitSelectedWorkspace(false);
         GlobalStates.overviewOpen = false;

@@ -13,6 +13,7 @@ Singleton {
     property bool appLauncherOpen: false
     property bool barOpen: true
     property bool controlCenterOpen: false
+    property bool clipboardOpen: false
     property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
@@ -63,6 +64,7 @@ Singleton {
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
             GlobalStates.appLauncherOpen = false;
+            GlobalStates.clipboardOpen = false;
             GlobalStates.overviewSearchMode = false;
         }
     }
@@ -128,13 +130,18 @@ Singleton {
         }
         onReleased: {
             root.superDown = false
+            if (OverviewSwitchingController.grabbed) {
+                root.superReleaseMightTrigger = false
+                OverviewSwitchingController.commitGrabbedMode()
+                return
+            }
             if (root.superReleaseMightTrigger) {
                 root.superReleaseMightTrigger = false
                 if (!GlobalStates.overviewOpen)
                     GlobalStates.overviewOpen = true
                 else if (GlobalStates.overviewSearchMode)
                     GlobalStates.overviewSearchMode = false
-                else if (!WorkspaceSwitcherController.grabbed)
+                else if (!OverviewSwitchingController.grabbed)
                     GlobalStates.overviewOpen = false
             }
         }

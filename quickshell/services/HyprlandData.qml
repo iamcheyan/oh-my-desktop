@@ -85,12 +85,14 @@ Singleton {
         return root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden);
     }
 
-    // Overview (工作区概览) / Switcher (快速切换): only workspaces WITH windows
+    // Overview (工作区概览) / Overview switching (Win+Tab): only workspaces WITH windows
     // are shown, ordered by MRU (Win11 Alt+Tab Z-order). Empty workspaces are
     // never displayed — not even the active one if it has no windows. A single
-    // trailing "New workspace" slot (id = max id + 1) is always appended last
-    // and never participates in ordering, like GNOME/macOS. This guarantees
-    // there is exactly ONE empty cell in the grid, always at the very end.
+    // trailing "New workspace" slot (id = highest occupied id + 1) is always
+    // appended last and never participates in ordering, like GNOME/macOS.
+    // This guarantees there is exactly ONE empty cell in the grid, always at
+    // the very end with the highest ID, so dragging a window to it always
+    // places it as the last workspace.
     function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing, reservedWorkspaceIds) {
         const includeTrailing = appendTrailing ?? true;
         const targetMonitor = monitorName ?? "";
@@ -202,22 +204,9 @@ Singleton {
         const ordered = orderedWindows.slice();
 
         // Trailing "New workspace" slot: show exactly one empty workspace at
-        // the visual end of each monitor group. If Hyprland already has real
-        // empty workspaces for this monitor, reuse one stable id and hide the
-        // rest. Creating a fresh id every redraw leaves old empty workspaces
-        // behind and makes cross-monitor drops look like duplicate blanks.
-        const existingEmptyWorkspaces = root.workspaces
-            .filter(ws => root.isRegularWorkspace(ws))
-            .filter(ws => ws.id >= 1 && ws.id <= 100)
-            .filter(ws => !targetMonitor || root.workspaceMonitorName(ws) === targetMonitor)
-            .filter(ws => !suppressed.includes(ws.id))
-            .filter(ws => !seen[ws.id])
-            .filter(ws => !root.workspaceHasVisibleWindows(ws.id))
-            .sort((a, b) => a.id - b.id);
-        const existingTrailingWorkspace = existingEmptyWorkspaces.find(ws => ws.id === activeId)
-            ?? existingEmptyWorkspaces[0]
-            ?? null;
-
+        // the visual end of each monitor group, always with the highest ID.
+        // Using maxId + 1 ensures dragging a window to the new workspace
+        // always places it as the last (highest-numbered) workspace.
         let maxId = activeId - 1;
         for (const entry of orderedWindows)
             maxId = Math.max(maxId, entry.id);
@@ -230,21 +219,17 @@ Singleton {
             globalSeen[e.id] = true;
         });
 
-        let trailingId = existingTrailingWorkspace?.id ?? 1;
-        if (!existingTrailingWorkspace) {
-            // Find the lowest unused ID in [1, 100] — this keeps IDs
-            // compact and reuses slots freed by destroyed workspaces.
-            while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
-                trailingId += 1;
-        }
+        let trailingId = maxId + 1;
+        while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
+            trailingId += 1;
 
         if (includeTrailing && trailingId >= 1 && trailingId <= 100 && !seen[trailingId]) {
             ordered.push({
                 id: trailingId,
-                monitorName: targetMonitor || root.workspaceMonitorName(existingTrailingWorkspace),
+                monitorName: targetMonitor,
                 monitorIndex: 0,
-                monitorLabel: targetMonitor || root.workspaceMonitorName(existingTrailingWorkspace),
-                existingWorkspace: !!existingTrailingWorkspace,
+                monitorLabel: targetMonitor,
+                existingWorkspace: globalSeen[trailingId] ?? false,
                 isTrailingEmpty: true
             });
         }

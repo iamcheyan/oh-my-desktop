@@ -26,8 +26,8 @@ Item {
     readonly property int highlightedWorkspaceId: (GlobalStates.overviewFocusedWorkspaceId > 0
         ? GlobalStates.overviewFocusedWorkspaceId
         : effectiveActiveWorkspaceId)
-    readonly property var overviewEntries: root.compactMode
-        ? (root.modelRevision, WorkspaceNavigation.switcherModel() ?? [])
+    readonly property var overviewEntries: (root.compactMode || OverviewSwitchingController.grabbed)
+        ? (root.modelRevision, WorkspaceNavigation.switchingModeModel() ?? [])
         : (root.modelRevision, HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var monitorGroups: {
@@ -58,7 +58,7 @@ Item {
 
     // ── Adaptive scaling ──
     // Overview (工作区概览): full-screen grid, auto-select optimal columns
-    // Switcher (快速切换): compact preview, use config scale value
+    // Overview switching mode (Win+Tab): current-monitor preview, use config scale value
     readonly property real screenW: monitorData?.transform % 2 === 1
         ? (monitor.height - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
         : (monitor.width - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
@@ -78,7 +78,7 @@ Item {
         : (root.height - containerMargin * 2 - 72)
 
     // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
-    // Switcher (快速切换): row-first, keep in one row like Windows Alt+Tab
+    // Overview switching mode (Win+Tab): row-first, keep in one row like Windows Alt+Tab
     readonly property int overviewGridColumns: {
         let n = Math.max(root.overviewEntries.length, 1);
         let maxCols = Config.options.overview.columns;
@@ -399,14 +399,14 @@ Item {
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
 
-    // ── Switcher (快速切换): shadow + rounded background container ──
+    // ── Overview switching (Win+Tab): shadow + rounded background container ──
     Loader {
         active: root.compactMode
         sourceComponent: StyledRectangularShadow {
             target: overviewBackground
         }
     }
-    Rectangle { // Background (Switcher only)
+    Rectangle { // Background (Overview switching only)
         id: overviewBackground
         property real padding: 10
         visible: root.compactMode
@@ -456,7 +456,7 @@ Item {
     Item {
         id: monitorGroupUnderlay
         anchors.fill: parent
-        visible: !root.compactMode && root.monitorGroups.length > 1
+        visible: !root.compactMode && root.monitorGroups.length > 0
         z: root.workspaceZ - 1
 
         Repeater {

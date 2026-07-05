@@ -35,16 +35,16 @@ Singleton {
     }
 
     function overviewModel() {
-        if (WorkspaceSwitcherController.grabbed)
-            return switcherModel();
+        if (OverviewSwitchingController.grabbed)
+            return switchingModeModel();
         return HyprlandData.overviewWorkspaceEntriesGroupedByMonitor();
     }
 
-    function switcherModel() {
-        const monitorName = Hyprland.focusedMonitor?.name ?? "";
-        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, false);
+    function switchingModeModel() {
+        const monitorName = GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "";
+        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, true);
         if (model.length === 0)
-            model = HyprlandData.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
+            model = HyprlandData.overviewWorkspaceEntriesGlobal();
         return model;
     }
 
@@ -58,7 +58,10 @@ Singleton {
     }
 
     function currentWorkspaceId() {
-        const monitor = Hyprland.focusedMonitor ?? Hyprland.monitors[0];
+        const anchorName = GlobalStates.overviewOpen ? GlobalStates.overviewAnchorMonitorName : "";
+        const monitor = anchorName.length > 0
+            ? HyprlandData.monitors.find(mon => mon.name === anchorName)
+            : (Hyprland.focusedMonitor ?? Hyprland.monitors[0]);
         if (!monitor)
             return HyprlandData.activeWorkspace?.id ?? 1;
         return HyprlandData.monitorActiveWorkspaceId(monitor) || HyprlandData.activeWorkspace?.id || 1;

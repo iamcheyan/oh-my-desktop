@@ -43,10 +43,10 @@ o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", "qs -p $HOME/.config/om
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
-hl.bind("SUPER + TAB", hl.dsp.global("quickshell:overviewNext"), { description = "Quickshell switcher next" })
-hl.bind("SUPER + SHIFT + TAB", hl.dsp.global("quickshell:overviewPrev"), { description = "Quickshell switcher previous" })
-hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell switcher commit" })
-hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell switcher commit" })
+hl.bind("SUPER + TAB", hl.dsp.global("quickshell:overviewNext"), { description = "Quickshell overview next" })
+hl.bind("SUPER + SHIFT + TAB", hl.dsp.global("quickshell:overviewPrev"), { description = "Quickshell overview previous" })
+hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell overview commit" })
+hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:overviewCommit"), { release = true, description = "Quickshell overview commit" })
 
 -- Track Super key state directly via Quickshell GlobalShortcut so the overview
 -- process can detect Super release without IPC relay latency.
