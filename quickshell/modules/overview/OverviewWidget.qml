@@ -14,7 +14,6 @@ import Quickshell.Hyprland
 Item {
     id: root
     required property var screen
-    property bool compactMode: false
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
@@ -26,7 +25,7 @@ Item {
     readonly property int highlightedWorkspaceId: (GlobalStates.overviewFocusedWorkspaceId > 0
         ? GlobalStates.overviewFocusedWorkspaceId
         : effectiveActiveWorkspaceId)
-    readonly property var overviewEntries: (root.compactMode || OverviewSwitchingController.grabbed)
+    readonly property var overviewEntries: OverviewSwitchingController.grabbed
         ? (root.modelRevision, WorkspaceNavigation.switchingModeModel() ?? [])
         : (root.modelRevision, HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
@@ -66,25 +65,17 @@ Item {
         ? (monitor.width - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
         : (monitor.height - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
 
-    readonly property real gridPadding: root.compactMode ? 10 : 24
-    readonly property real containerMargin: root.compactMode ? Appearance.sizes.elevationMargin : 64
+    readonly property real gridPadding: 24
+    readonly property real containerMargin: 64
 
     // Usable area for the grid (after margins)
-    readonly property real availW: root.compactMode
-        ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.width - containerMargin * 2)
-    readonly property real availH: root.compactMode
-        ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : (root.height - containerMargin * 2 - 72)
+    readonly property real availW: root.width - containerMargin * 2
+    readonly property real availH: root.height - containerMargin * 2 - 72
 
-    // Overview (工作区概览): try every column count, pick the one that gives the largest thumbnail
-    // Overview switching mode (Win+Tab): row-first, keep in one row like Windows Alt+Tab
+    // Overview: try every column count, pick the one that gives the largest thumbnail
     readonly property int overviewGridColumns: {
         let n = Math.max(root.overviewEntries.length, 1);
         let maxCols = Config.options.overview.columns;
-        if (root.compactMode) {
-            return Math.min(n, maxCols);
-        }
         let bestCols = 1;
         let bestThumb = 0;
         let aspect = screenW / screenH;
@@ -104,11 +95,11 @@ Item {
         1,
         Math.ceil(root.overviewEntries.length / root.overviewGridColumns))
     readonly property int monitorSectionGap: 24
-    readonly property int monitorSectionPaddingX: root.compactMode ? 0 : 14
-    readonly property int monitorSectionPaddingTop: root.compactMode ? 0 : 34
-    readonly property int monitorSectionPaddingBottom: root.compactMode ? 0 : 14
+    readonly property int monitorSectionPaddingX: 14
+    readonly property int monitorSectionPaddingTop: 34
+    readonly property int monitorSectionPaddingBottom: 14
     readonly property int groupedGridRows: {
-        if (root.compactMode || root.monitorGroups.length <= 1)
+        if (root.monitorGroups.length <= 1)
             return root.overviewGridRows;
         let rows = 0;
         for (let i = 0; i < root.monitorGroups.length; ++i) {
@@ -117,13 +108,11 @@ Item {
         }
         return Math.max(1, rows);
     }
-    readonly property real groupedVerticalOverhead: root.compactMode
-        ? 0
-        : (root.monitorGroups.length * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom))
-            + Math.max(0, root.monitorGroups.length - 1) * root.monitorSectionGap
-            + Math.max(0, root.groupedGridRows - root.monitorGroups.length) * root.workspaceSpacing
+    readonly property real groupedVerticalOverhead: (root.monitorGroups.length * (root.monitorSectionPaddingTop + root.monitorSectionPaddingBottom))
+        + Math.max(0, root.monitorGroups.length - 1) * root.monitorSectionGap
+        + Math.max(0, root.groupedGridRows - root.monitorGroups.length) * root.workspaceSpacing
     readonly property real maxWorkspaceAspect: {
-        if (root.compactMode || root.monitorGroups.length === 0)
+        if (root.monitorGroups.length === 0)
             return screenH / screenW;
         let aspect = screenH / screenW;
         for (let i = 0; i < root.monitorGroups.length; ++i)
@@ -133,21 +122,15 @@ Item {
 
     // How big would each thumbnail be if we fill width vs height?
     // Workspaces keep the real screen aspect ratio (screenW : screenH).
-    readonly property real thumbByWidth: root.compactMode
-        ? (screenW * Config.options.overview.scale / (monitor.scale ?? 1))
-        : ((availW - gridPadding * (overviewGridColumns - 1)) / overviewGridColumns)
-    readonly property real thumbByHeight: root.compactMode
-        ? (screenH * Config.options.overview.scale / (monitor.scale ?? 1))
-        : ((availH - groupedVerticalOverhead) / groupedGridRows)
+    readonly property real thumbByWidth: (availW - gridPadding * (overviewGridColumns - 1)) / overviewGridColumns
+    readonly property real thumbByHeight: (availH - groupedVerticalOverhead) / groupedGridRows
 
     // Pick the smaller so the aspect ratio is preserved — thumbnails shrink
     // when there are many workspaces, grow when there are few.
     readonly property real workspaceImplicitWidth: Math.floor(Math.min(thumbByWidth, thumbByHeight / maxWorkspaceAspect))
     readonly property real workspaceImplicitHeight: Math.floor(workspaceImplicitWidth * (screenH / screenW))
 
-    property real scale: root.compactMode
-        ? Config.options.overview.scale
-        : (workspaceImplicitWidth / (screenW / (monitor.scale ?? 1)))
+    property real scale: workspaceImplicitWidth / (screenW / (monitor.scale ?? 1))
 
     property real largeWorkspaceRadius: Appearance.rounding.large
     property real smallWorkspaceRadius: Appearance.rounding.verysmall
@@ -157,14 +140,10 @@ Item {
     property int workspaceZ: 0
     property int windowZ: 1
     property int windowDraggingZ: 99999
-    property real workspaceSpacing: root.compactMode ? 5 : gridPadding
+    property real workspaceSpacing: gridPadding
 
-    implicitWidth: root.compactMode
-        ? (overviewBackground.implicitWidth + Appearance.sizes.elevationMargin * 2)
-        : root.width
-    implicitHeight: root.compactMode
-        ? (overviewBackground.implicitHeight + Appearance.sizes.elevationMargin * 2)
-        : root.height
+    implicitWidth: root.width
+    implicitHeight: root.height
 
     readonly property bool overviewNavigationActive: GlobalStates.overviewOpen
 
@@ -199,8 +178,6 @@ Item {
     }
 
     function groupColumns(group) {
-        if (root.compactMode)
-            return root.overviewGridColumns;
         if (!group)
             return Math.max(1, root.overviewGridColumns);
         return Math.max(1, Math.min(root.groupLength(group), root.overviewGridColumns));
@@ -236,15 +213,11 @@ Item {
     }
 
     function entryHeight(entryIndex) {
-        if (root.compactMode)
-            return root.workspaceImplicitHeight;
         const group = root.groupForEntry(entryIndex);
         return Math.floor(root.entryWidth(entryIndex) * root.monitorAspect(group?.key ?? ""));
     }
 
     function groupWorkspaceHeight(group) {
-        if (root.compactMode)
-            return root.workspaceImplicitHeight;
         return Math.floor(root.workspaceImplicitWidth * root.monitorAspect(group?.key ?? ""));
     }
 
@@ -272,7 +245,7 @@ Item {
     }
 
     function groupsTotalHeight() {
-        if (root.compactMode || root.monitorGroups.length === 0)
+        if (root.monitorGroups.length === 0)
             return root.overviewGridRows * root.workspaceImplicitHeight
                 + (root.overviewGridRows - 1) * root.workspaceSpacing;
 
@@ -295,16 +268,12 @@ Item {
     }
 
     function groupX(group) {
-        if (root.compactMode)
-            return 0;
         if (!group)
             return root.containerMargin;
         return Math.max(root.containerMargin, (root.width - root.groupWidth(group)) / 2);
     }
 
     function groupY(group) {
-        if (root.compactMode)
-            return 0;
         if (!group)
             return root.containerMargin;
 
@@ -324,16 +293,12 @@ Item {
     }
 
     function entryLocalRow(entryIndex) {
-        if (root.compactMode)
-            return root.getEntryRow(entryIndex);
         const group = root.groupForEntry(entryIndex);
         const localIndex = root.entryLocalIndex(entryIndex);
         return Math.floor(localIndex / root.groupColumns(group));
     }
 
     function entryLocalColumn(entryIndex) {
-        if (root.compactMode)
-            return root.getEntryColumn(entryIndex);
         const group = root.groupForEntry(entryIndex);
         const cols = root.groupColumns(group);
         const normalCol = root.entryLocalIndex(entryIndex) % cols;
@@ -341,8 +306,6 @@ Item {
     }
 
     function entryX(entryIndex) {
-        if (root.compactMode)
-            return (root.workspaceImplicitWidth + root.workspaceSpacing) * root.getEntryColumn(entryIndex);
         const group = root.groupForEntry(entryIndex);
         return root.groupX(group)
             + root.monitorSectionPaddingX
@@ -350,8 +313,6 @@ Item {
     }
 
     function entryY(entryIndex) {
-        if (root.compactMode)
-            return (root.workspaceImplicitHeight + root.workspaceSpacing) * root.getEntryRow(entryIndex);
         const group = root.groupForEntry(entryIndex);
         return root.groupY(group)
             + root.monitorSectionPaddingTop
@@ -399,47 +360,11 @@ Item {
     property Component windowComponent: OverviewWindow {}
     property list<OverviewWindow> windowWidgets: []
 
-    // ── Overview switching (Win+Tab): shadow + rounded background container ──
-    Loader {
-        active: root.compactMode
-        sourceComponent: StyledRectangularShadow {
-            target: overviewBackground
-        }
-    }
-    Rectangle { // Background (Overview switching only)
-        id: overviewBackground
-        property real padding: 10
-        visible: root.compactMode
-        anchors.centerIn: parent
-        anchors.margins: root.compactMode ? Appearance.sizes.elevationMargin : 0
-
-        implicitWidth: workspaceColumnLayout.implicitWidth + padding * 2
-        implicitHeight: workspaceColumnLayout.implicitHeight + padding * 2
-        radius: root.largeWorkspaceRadius + padding
-        color: Appearance.colors.colBackgroundSurfaceContainer
-
-        MouseArea {
-            anchors.fill: parent
-            z: -1
-            acceptedButtons: Qt.NoButton
-            enabled: root.overviewNavigationActive
-            onWheel: wheel => {
-                const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
-                root.wheelAccum = r.accum
-                if (r.steps > 0)
-                    Hyprland.dispatch("hl.dsp.global('quickshell:overviewPrev')")
-                else if (r.steps < 0)
-                    Hyprland.dispatch("hl.dsp.global('quickshell:overviewNext')")
-                wheel.accepted = true
-            }
-        }
-    }
-
-    // ── Overview (工作区概览): wheel scroll anywhere cycles workspaces ──
+    // ── Wheel scroll anywhere cycles workspaces ──
     MouseArea {
         anchors.fill: parent
         z: -1
-        visible: !root.compactMode
+        visible: true
         acceptedButtons: Qt.NoButton
         onWheel: wheel => {
             const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
@@ -456,7 +381,7 @@ Item {
     Item {
         id: monitorGroupUnderlay
         anchors.fill: parent
-        visible: !root.compactMode && root.monitorGroups.length > 0
+        visible: root.monitorGroups.length > 0
         z: root.workspaceZ - 1
 
         Repeater {
@@ -500,14 +425,13 @@ Item {
         id: workspaceColumnLayout
 
         z: root.workspaceZ
-        anchors.centerIn: root.compactMode ? parent : undefined
-        anchors.fill: root.compactMode ? undefined : parent
+        anchors.fill: parent
         implicitWidth: root.overviewGridColumns * root.workspaceImplicitWidth
             + (root.overviewGridColumns - 1) * root.workspaceSpacing
         implicitHeight: root.overviewGridRows * root.workspaceImplicitHeight
             + (root.overviewGridRows - 1) * root.workspaceSpacing
-        width: root.compactMode ? implicitWidth : root.width
-        height: root.compactMode ? implicitHeight : root.height
+        width: root.width
+        height: root.height
 
             Repeater {
                 model: root.overviewEntries
@@ -535,13 +459,13 @@ Item {
                     property bool workspaceAtLeft: colIndex === 0
                     property bool workspaceAtRight: {
                         const group = root.groupForEntry(index);
-                        const cols = root.compactMode ? root.overviewGridColumns : root.groupColumns(group);
+                        const cols = root.groupColumns(group);
                         return colIndex === cols - 1;
                     }
                     property bool workspaceAtTop: rowIndex === 0
                     property bool workspaceAtBottom: {
                         const group = root.groupForEntry(index);
-                        const rows = root.compactMode ? root.overviewGridRows : root.groupRows(group);
+                        const rows = root.groupRows(group);
                         return rowIndex === rows - 1;
                     }
                     topLeftRadius: root.largeWorkspaceRadius
@@ -621,12 +545,11 @@ Item {
 
     Item { // Windows & focused workspace indicator
         id: windowSpace
-        anchors.centerIn: root.compactMode ? parent : undefined
-        anchors.fill: root.compactMode ? undefined : parent
+        anchors.fill: parent
         implicitWidth: workspaceColumnLayout.implicitWidth
         implicitHeight: workspaceColumnLayout.implicitHeight
-        width: root.compactMode ? implicitWidth : root.width
-        height: root.compactMode ? implicitHeight : root.height
+        width: root.width
+        height: root.height
 
             Repeater { // Window repeater
                 model: ScriptModel {

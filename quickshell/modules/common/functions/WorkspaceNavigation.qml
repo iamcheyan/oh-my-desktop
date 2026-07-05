@@ -42,9 +42,9 @@ Singleton {
 
     function switchingModeModel() {
         const monitorName = GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "";
-        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, true);
+        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, false);
         if (model.length === 0)
-            model = HyprlandData.overviewWorkspaceEntriesGlobal();
+            model = HyprlandData.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
         return model;
     }
 
