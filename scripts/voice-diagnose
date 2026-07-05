@@ -145,14 +145,39 @@ def run_diagnostics():
     # 7. 自动粘贴检查
     set_test_state("paste", TestStatus.RUNNING)
     time.sleep(0.3)
-    has_ydotool = shutil.which("ydotool")
     has_wlcopy = shutil.which("wl-copy")
-    if has_ydotool and has_wlcopy:
-        set_test_state("paste", TestStatus.OK, "ydotool 与 wl-copy 均就绪 (完美支持自动粘贴与剪贴板备份)")
-        add_log("粘贴工具 ydotool + wl-copy 检测成功。")
+    has_hyprctl = shutil.which("hyprctl")
+    has_wtype = shutil.which("wtype")
+    has_ydotool = shutil.which("ydotool")
+    paste_script = os.path.expanduser("~/.config/omd/share/bin/omarchy-paste-at-cursor")
+    paste_backends = [name for name, ok in [
+        ("hyprctl", has_hyprctl),
+        ("wtype", has_wtype),
+        ("ydotool", has_ydotool),
+    ] if ok]
+    if has_wlcopy and os.access(paste_script, os.X_OK) and paste_backends:
+        set_test_state(
+            "paste",
+            TestStatus.OK,
+            f"wl-copy + omarchy-paste-at-cursor 就绪 ({', '.join(paste_backends)})",
+        )
+        add_log(f"自动粘贴后端: {', '.join(paste_backends)}")
+    elif has_wlcopy and paste_backends:
+        set_test_state(
+            "paste",
+            TestStatus.WARN,
+            f"检测到 {', '.join(paste_backends)}，但缺少 {paste_script}",
+            "请确认 OMD share/bin 已链接到 ~/.config/omd/share/bin。",
+        )
+        add_log("警告: 粘贴脚本缺失。")
     elif has_wlcopy:
-        set_test_state("paste", TestStatus.WARN, "只检测到 wl-copy (只支持复制到剪贴板，无法模拟 Ctrl+V 自动键入)\n建议配置/启动 ydotool 以支持直接粘贴到光标处。", "建议启动 ydotool 守护进程。")
-        add_log("提示: 仅支持剪贴板复制 (无 ydotool)。")
+        set_test_state(
+            "paste",
+            TestStatus.WARN,
+            "只检测到 wl-copy，缺少 hyprctl / wtype / ydotool 中的任意粘贴后端",
+            "请安装 wl-clipboard，并确保 Hyprland 或 wtype 可用。",
+        )
+        add_log("提示: 仅支持剪贴板复制 (无粘贴后端)。")
     else:
         set_test_state("paste", TestStatus.FAIL, "未检测到 wl-copy，无法将识别文本写入剪贴板。\n请安装 wl-clipboard 软件包。", "未找到 wl-copy。")
         add_log("错误: 缺失剪贴板工具。")

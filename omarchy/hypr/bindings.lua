@@ -83,9 +83,9 @@ local function read_voice_bindings(filepath)
   local list = {}
   if file then
     for line in file:lines() do
-      line = line:gsub("^%s*(.-)%s*$", "%1")
-      if line ~= "" and not line:find("^#") then
-        table.insert(list, line)
+      local trimmed = line:gsub("^%s*(.-)%s*$", "%1")
+      if trimmed ~= "" and not trimmed:find("^#") then
+        table.insert(list, trimmed)
       end
     end
     file:close()

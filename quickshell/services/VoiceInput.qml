@@ -33,78 +33,29 @@ Singleton {
     readonly property string shareDir: FileUtils.trimFileProtocol(
         `${Directories.config}/omd/share/bin`)
 
-    // ── 自动粘贴策略 ──
-    // 不同程序对粘贴快捷键的响应不同：
-    //   终端类 (foot/kitty/alacritty/ghostty/wezterm)：Shift+Insert 或 Ctrl+Shift+V
-    //   GUI 类 (浏览器/编辑器/聊天)：Ctrl+V
-    //   不确定时：先 Shift+Insert（终端+GUI 通用），失败再 Ctrl+V
-    // 通过 hyprctl activewindow 拿焦点窗口 class 做匹配。
-    readonly property var pasteCommandForClass: ({
-        // 终端 → 优先 Shift+Insert（终端通用）
-        "foot": "wtype -M shift -k Insert",
-        "footclient": "wtype -M shift -k Insert",
-        "kitty": "wtype -M shift -k Insert",
-        "alacritty": "wtype -M shift -k Insert",
-        "ghostty": "wtype -M shift -k Insert",
-        "wezterm": "wtype -M shift -k Insert",
-        "org.wezfurlong.wezterm": "wtype -M shift -k Insert",
-        "xdg-term": "wtype -M shift -k Insert",
-        "konsole": "wtype -M shift -k Insert",
-        "gnome-terminal": "wtype -M shift -k Insert",
-        "xterm": "wtype -M shift -k Insert",
-        "st": "wtype -M shift -k Insert",
-        "urxvt": "wtype -M shift -k Insert",
-        "rxvt": "wtype -M shift -k Insert",
-        "tmux": "wtype -M shift -k Insert",
-        // GUI → 优先 Ctrl+V
-        "google-chrome": "wtype -M ctrl -k v",
-        "chromium": "wtype -M ctrl -k v",
-        "firefox": "wtype -M ctrl -k v",
-        "org.mozilla.firefox": "wtype -M ctrl -k v",
-        "code": "wtype -M ctrl -k v",
-        "code-insiders": "wtype -M ctrl -k v",
-        "obsidian": "wtype -M ctrl -k v",
-        "telegram-desktop": "wtype -M ctrl -k v",
-        "org.telegram.desktop": "wtype -M ctrl -k v",
-        "discord": "wtype -M ctrl -k v",
-        "wechat": "wtype -M ctrl -k v",
-    })
+    readonly property string pasteScript: `${root.shareDir}/omarchy-paste-at-cursor`
 
-    // 默认 paste 命令：Shift+Insert（终端 + GUI 通用）
-    readonly property string defaultPasteCommand: "wtype -M shift -k Insert"
-
-    // 匹配焦点窗口 class → paste 命令；未知返回空串（用 fallback 链）
-    function pasteCommandForWindowClass(winClass) {
-        if (!winClass) return ""
-        const c = winClass.toLowerCase()
-        // 精确匹配
-        if (root.pasteCommandForClass.hasOwnProperty(c))
-            return root.pasteCommandForClass[c]
-        // 前缀模糊匹配（class 常带后缀如 "foot-1.2"）
-        for (const key in root.pasteCommandForClass) {
-            if (c.startsWith(key)) return root.pasteCommandForClass[key]
-        }
-        return ""
-    }
-
-    // 当前焦点窗口 class（异步刷新，粘贴时读取）
+    // 录音开始时记录焦点窗口，转写完成后贴回该窗口（避免转写期间焦点跑到顶栏）。
     property string focusedWindowClass: ""
+    property string focusedWindowAddress: ""
 
-    // 拿到当前焦点窗口 class 的 paste 命令；未知则用默认（Shift+Insert，终端+GUI 通用）
-    function resolvePasteCommands() {
-        const cmd = root.pasteCommandForWindowClass(root.focusedWindowClass)
-        return { primary: cmd || root.defaultPasteCommand }
+    function pasteTargetForWindow() {
+        return root.focusedWindowAddress
+            ? `address:${root.focusedWindowAddress}`
+            : "activewindow"
     }
 
-    // 异步刷新焦点窗口 class
+    // 异步刷新录音开始时的焦点窗口 class + address
     Process {
         id: focusClassProc
         command: ["bash", "-c",
-            "hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null"]
+            "hyprctl -j activewindow 2>/dev/null | jq -r '[.class // empty, .address // empty] | @tsv' 2>/dev/null"]
         running: false
         stdout: StdioCollector {
             onStreamFinished: {
-                root.focusedWindowClass = this.text.trim()
+                const parts = this.text.trim().split("\t")
+                root.focusedWindowClass = parts[0] || ""
+                root.focusedWindowAddress = parts[1] || ""
             }
         }
     }
@@ -396,14 +347,12 @@ Singleton {
     }
 
     function onTranscriptionResult(text) {
-        console.log("[VoiceInput] onTranscriptionResult text='" + text + "' class=" + root.focusedWindowClass)
+        const target = root.pasteTargetForWindow()
+        console.log("[VoiceInput] onTranscriptionResult text='" + text
+            + "' class=" + root.focusedWindowClass + " target=" + target)
         Quickshell.execDetached(["bash", "-c",
-            `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy`])
-        // 解析焦点窗口 → 选 paste 命令（按窗口 class 精确匹配）
-        const pasteCmds = root.resolvePasteCommands()
-        console.log("[VoiceInput] paste primary: " + pasteCmds.primary)
-        Quickshell.execDetached(["bash", "-c",
-            `sleep 0.3 && ${pasteCmds.primary} || true`])
+            `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy && ` +
+            `'${root.pasteScript}' auto '${StringUtils.shellSingleQuoteEscape(root.focusedWindowClass)}' '${StringUtils.shellSingleQuoteEscape(target)}'`])
     }
 
     // ── 调试：不自动粘贴，只复制文本并打开设置面板展示结果 ──
