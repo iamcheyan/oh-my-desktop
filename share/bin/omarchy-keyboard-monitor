@@ -1,0 +1,18 @@
+#!/bin/bash
+# Show keyd key names while typing (use to verify remaps).
+set -eu
+
+if ! command -v keyd >/dev/null 2>&1; then
+    echo "ERROR: keyd is not installed" >&2
+    exit 1
+fi
+
+echo "Press keys on your keyboard. keyd reports remapped output names."
+echo "Ctrl+C to stop. Panic stop keyd: Backspace+Escape+Enter"
+echo "---"
+
+if [[ "$(id -u)" -eq 0 ]]; then
+    exec keyd monitor -t
+fi
+
+exec sudo keyd monitor -t

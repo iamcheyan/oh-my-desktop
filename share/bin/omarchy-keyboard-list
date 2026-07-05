@@ -1,0 +1,116 @@
+#!/bin/bash
+# List keyboards visible to Hyprland with optional keyd vendor:product IDs.
+set -eu
+
+normalize_slug() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g'
+}
+
+is_probable_keyboard() {
+    local name="$1"
+    local main="$2"
+    local slug
+    slug="$(normalize_slug "$name")"
+
+    case "$slug" in
+        *audio*|*sound*|*headset*|*headphone*|*microphone*|*speaker*)
+            return 1
+            ;;
+        *mouse*|*pointer*|*trackpad*|*touchpad*)
+            return 1
+            ;;
+        *consumer-control*|*system-control*|*virtual-keyboard*|*fcitx*)
+            return 1
+            ;;
+    esac
+
+    if [[ "$main" == "true" ]]; then
+        return 0
+    fi
+
+    case "$slug" in
+        *keyboard*|*keychron*|*k380*|*k860*|*ergodox*|*hhkb*|*realforce*|*ansi*|*iso*|*logitech*|*microsoft*|*apple*|*dell*|*hp-*|*lenovo*)
+            return 0
+            ;;
+    esac
+
+    return 1
+}
+
+lookup_keyd_id() {
+    local hypr_slug="$1"
+    local block="" name="" vendor="" product="" has_key=0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        case "$line" in
+            "") 
+                if [[ "$has_key" -eq 1 && -n "$name" ]]; then
+                    local slug
+                    slug="$(normalize_slug "$name")"
+                    if [[ "$slug" == "$hypr_slug" || "$slug" == *"$hypr_slug"* || "$hypr_slug" == *"$slug"* ]]; then
+                        if [[ -n "$vendor" && -n "$product" ]]; then
+                            printf '%s:%s' "$vendor" "$product"
+                            return 0
+                        fi
+                    fi
+                fi
+                block=""
+                name=""
+                vendor=""
+                product=""
+                has_key=0
+                ;;
+            I:*)
+                vendor="$(sed -n 's/.*Vendor=\([0-9a-fA-F]*\).*/\1/p' <<<"$line" | head -1)"
+                product="$(sed -n 's/.*Product=\([0-9a-fA-F]*\).*/\1/p' <<<"$line" | head -1)"
+                ;;
+            N:*)
+                name="${line#N: Name=\"}"
+                name="${name%\"}"
+                ;;
+            B:*KEY=*)
+                has_key=1
+                ;;
+        esac
+    done < /proc/bus/input/devices
+
+    return 1
+}
+
+if ! command -v hyprctl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+    echo '[]'
+    exit 0
+fi
+
+mapfile -t rows < <(hyprctl -j devices 2>/dev/null | jq -c '.keyboards[]?' 2>/dev/null || true)
+
+printf '['
+first=1
+for row in "${rows[@]}"; do
+    [[ -z "$row" ]] && continue
+    name="$(jq -r '.name // empty' <<<"$row")"
+    main="$(jq -r '.main // false' <<<"$row")"
+    layout="$(jq -r '.layout // empty' <<<"$row")"
+    [[ -z "$name" ]] && continue
+    is_probable_keyboard "$name" "$main" || continue
+
+    slug="$(normalize_slug "$name")"
+    keyd_id="$(lookup_keyd_id "$slug" || true)"
+    display="${name//-/ }"
+
+    if [[ "$first" -eq 1 ]]; then
+        first=0
+    else
+        printf ','
+    fi
+
+    jq -nc \
+        --arg hyprName "$slug" \
+        --arg rawName "$name" \
+        --arg displayName "$display" \
+        --arg keydId "$keyd_id" \
+        --arg layout "$layout" \
+        --argjson main "$main" \
+        '{hyprName: $hyprName, rawName: $rawName, displayName: $displayName, keydId: $keydId, layout: $layout, main: $main}'
+done
+printf ']\n'

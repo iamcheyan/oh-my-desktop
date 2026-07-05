@@ -9,15 +9,45 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Gdk, Gio, Adw
+import json
+import os
 import subprocess
 import sys
 import atexit
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+from key_capture_clipboard import build_clipboard_text  # noqa: E402
+from key_evdev_names import gtk_keycode_to_evdev, gtk_keycode_to_keyd  # noqa: E402
+
+CAPTURE_STATE = os.path.expanduser("~/.local/state/omd/key-capture.json")
 
 # ── 自动还原热键 ──
 def restore_hotkeys():
     subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 atexit.register(restore_hotkeys)
+
+# ── 写入 remap 捕捉状态 ──
+def write_capture_state(raw, keycode, keyval, keyname, keyd_name="", evdev_code=None):
+    try:
+        if not keyd_name:
+            keyd_name = gtk_keycode_to_keyd(keycode) or ""
+        if evdev_code is None:
+            evdev_code = gtk_keycode_to_evdev(keycode)
+        os.makedirs(os.path.dirname(CAPTURE_STATE), exist_ok=True)
+        with open(CAPTURE_STATE, "w", encoding="utf-8") as handle:
+            json.dump({
+                "raw": raw,
+                "keycode": keycode,
+                "keyval": keyval,
+                "keyname": keyname or "",
+                "keyd": keyd_name,
+                "evdev": evdev_code,
+            }, handle)
+        return True
+    except Exception:
+        return False
 
 # ── 复制到剪贴板 ──
 def copy_to_clipboard(text):
@@ -30,8 +60,12 @@ def copy_to_clipboard(text):
 
 # ── 主窗口 ──
 class KeyTestWindow(Gtk.ApplicationWindow):
-    def __init__(self, app):
-        super().__init__(application=app, title="OMD 高级按键捕获")
+    def __init__(self, app, remap_mode=False):
+        super().__init__(
+            application=app,
+            title="OMD 键盘重映射 — 按键捕捉" if remap_mode else "OMD 高级按键捕获",
+        )
+        self.remap_mode = remap_mode
         self.set_default_size(700, 480)
         
         # 绑定系统事件
@@ -74,6 +108,17 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             font-size: 34px;
             font-weight: 800;
             color: #f5c542;
+        }
+        .keyd-display {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: #4caf50;
+        }
+        .bind-display {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-size: 14px;
+            color: #a8a8a8;
         }
         .status-label {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
@@ -141,7 +186,13 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         title.add_css_class("title-label")
         main_box.append(title)
 
-        hint = Gtk.Label(label="请按下任意按键 or 组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)")
+        hint_text = (
+            "请按下要重映射的单个按键（包括 Win/Super、Ctrl、Alt、Shift）\n"
+            "按下后关闭本窗口，回到设置中心点击「确认捕捉」"
+            if self.remap_mode
+            else "请按下任意按键 or 组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)"
+        )
+        hint = Gtk.Label(label=hint_text)
         hint.set_halign(Gtk.Align.CENTER)
         hint.add_css_class("hint-label")
         main_box.append(hint)
@@ -154,6 +205,14 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.key_display = Gtk.Label(label="( 等待输入 )")
         self.key_display.add_css_class("key-display")
         display_box.append(self.key_display)
+
+        self.keyd_display = Gtk.Label(label="")
+        self.keyd_display.add_css_class("keyd-display")
+        display_box.append(self.keyd_display)
+
+        self.bind_display = Gtk.Label(label="")
+        self.bind_display.add_css_class("bind-display")
+        display_box.append(self.bind_display)
 
         self.status_label = Gtk.Label(label="")
         self.status_label.add_css_class("status-label")
@@ -177,9 +236,13 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             grid.attach(val_lbl, 1, row, 1, 1)
             return val_lbl
 
-        self.val_name = add_row(details_grid, 0, "Key Name:")
-        self.val_val = add_row(details_grid, 1, "GDK Keyval:")
-        self.val_code = add_row(details_grid, 2, "Hardware Code:")
+        self.val_keyd = add_row(details_grid, 0, "keyd name:")
+        self.val_evdev = add_row(details_grid, 1, "evdev code:")
+        self.val_name = add_row(details_grid, 2, "GDK keyname:")
+        self.val_val = add_row(details_grid, 3, "GDK keyval:")
+        self.val_code = add_row(details_grid, 4, "XKB keycode:")
+        self.val_bind = add_row(details_grid, 5, "Hypr bind:")
+        self.val_clipboard = add_row(details_grid, 6, "Clipboard:")
 
         # 分割线
         divider = Gtk.Box()
@@ -193,8 +256,10 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
         info_text = (
             "💡 提示:\n"
-            "• 如果按键有友好名称，程序会复制为如 'ALT + A' 的形式。\n"
-            "• 如果是 Fn/Globe 等无名称的底层按键，会直接捕获为硬件码格式 (如 'code:472')，此格式直接兼容 Hyprland 绑定。\n"
+            "• 大字显示的是 keyd 物理键名（如 grave）—— 重映射请用这个，比 GDK 名更准确。\n"
+            "• 灰色小字是 Hyprland/GDK 绑定串（如 ZENKAKU_HANKAKU），日版布局下可能误导。\n"
+            "• 剪贴板含 keyd-name / evdev-code / gdk-keyval / hardware-code 等字段。\n"
+            "• XKB keycode = evdev + 8；minila 全角/半角键 evdev 41 → keyd grave。\n"
             "• 按 Q 或 ESC 键可快速退出本捕获工具。"
         )
         info_lbl = Gtk.Label(label=info_text)
@@ -277,12 +342,58 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             if mods or len(keyname) > 1:
                 mods.append("SHIFT")
 
+        def finalize_capture(final_key):
+            keyd_name = gtk_keycode_to_keyd(keycode) or ""
+            evdev_code = gtk_keycode_to_evdev(keycode)
+            if keyd_name:
+                self.key_display.set_label(keyd_name)
+                self.keyd_display.set_label("keyd 物理键名（用于重映射）")
+            else:
+                self.key_display.set_label(f"[ {final_key} ]")
+                self.keyd_display.set_label("未识别的物理键")
+            self.bind_display.set_label(
+                f"Hypr/GDK: {final_key}" if final_key else ""
+            )
+            clipboard_text = build_clipboard_text(
+                final_key, keyval, keycode, keyname, keyd_name, evdev_code
+            )
+            self.val_clipboard.set_label(clipboard_text.replace("\n", " / "))
+            if copy_to_clipboard(clipboard_text):
+                write_capture_state(
+                    final_key, keycode, keyval, keyname, keyd_name, evdev_code
+                )
+                if self.remap_mode:
+                    if keyd_name:
+                        self.status_label.set_label(
+                            f"✓ keyd-name:{keyd_name}（evdev {evdev_code}）已复制，关闭后点「确认捕捉」"
+                        )
+                    else:
+                        self.status_label.set_label(
+                            f"✓ 已复制，但无 keyd 映射（XKB {keycode}），关闭后点「确认捕捉」"
+                        )
+                else:
+                    self.status_label.set_label(
+                        f"✓ 已复制 keyd-name:{keyd_name or final_key}"
+                    )
+            else:
+                self.status_label.set_label("✗ 复制失败 (请检查剪贴板服务)")
+
         # 格式化输出键名
-        if is_modifier:
+        if is_modifier and not self.remap_mode:
             # 单独按下修饰键只显示，不触发复制
             display_name = " + ".join(mods) or keyname.upper()
-            self.key_display.set_label(f"[ {display_name} ]")
+            keyd_name = gtk_keycode_to_keyd(keycode) or ""
+            self.key_display.set_label(keyd_name or f"[ {display_name} ]")
+            self.keyd_display.set_label(
+                "keyd 物理键名（用于重映射）" if keyd_name else ""
+            )
+            self.bind_display.set_label(
+                f"Hypr/GDK: {display_name}" if display_name else ""
+            )
             self.status_label.set_label("")
+        elif is_modifier and self.remap_mode:
+            final_key = keyname.upper() if keyname else f"code:{keycode}"
+            finalize_capture(final_key)
         else:
             final_key = ""
             if keyname:
@@ -301,31 +412,43 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 # 没有友好键名，使用 code:<keycode> 格式
                 final_key = f"code:{keycode}"
 
-            self.key_display.set_label(f"[ {final_key} ]")
-            
-            # 复制到剪贴板
-            if copy_to_clipboard(final_key):
-                self.status_label.set_label("✓ 已自动复制到剪贴板！")
-            else:
-                self.status_label.set_label("✗ 复制失败 (请检查剪贴板服务)")
+            finalize_capture(final_key)
 
         # 更新详细参数面板
+        keyd_name = gtk_keycode_to_keyd(keycode) or "—"
+        evdev_code = gtk_keycode_to_evdev(keycode)
+        self.val_keyd.set_label(keyd_name)
+        self.val_evdev.set_label(str(evdev_code) if evdev_code is not None else "—")
         self.val_name.set_label(keyname or "unknown")
         self.val_val.set_label(f"0x{keyval:08x} ({keyval})")
         self.val_code.set_label(str(keycode))
+        if is_modifier and not self.remap_mode:
+            self.val_bind.set_label("—")
+        else:
+            bind_label = ""
+            if keyname:
+                mapped_name = keyname.upper()
+                if mapped_name in ("RETURN", "KP_ENTER"):
+                    mapped_name = "RETURN"
+                bind_label = " + ".join(mods) + (" + " + mapped_name if mods else mapped_name)
+            else:
+                bind_label = f"code:{keycode}"
+            self.val_bind.set_label(bind_label or "—")
 
         return True
 
 
 class KeyTestApp(Adw.Application):
-    def __init__(self):
+    def __init__(self, remap_mode=False):
         super().__init__(application_id="org.omarchy.key-test", flags=Gio.ApplicationFlags.NON_UNIQUE)
+        self.remap_mode = remap_mode
 
     def do_activate(self):
-        win = KeyTestWindow(self)
+        win = KeyTestWindow(self, remap_mode=self.remap_mode)
         win.present()
 
 
 if __name__ == "__main__":
-    app = KeyTestApp()
+    remap_mode = "--remap" in sys.argv
+    app = KeyTestApp(remap_mode=remap_mode)
     sys.exit(app.run(sys.argv))

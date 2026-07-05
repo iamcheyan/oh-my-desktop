@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Capture one physical key via key-test and print a keyd-compatible key name."""
+
+import os
+import subprocess
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+KEY_TEST = os.path.join(SCRIPT_DIR, "key-test")
+
+sys.path.insert(0, SCRIPT_DIR)
+from keyremap_keymap import hypr_to_keyd  # noqa: E402
+
+
+def run_key_test() -> None:
+    if os.path.exists(KEY_TEST):
+        subprocess.run([sys.executable, KEY_TEST], check=False)
+    else:
+        subprocess.run(["key-test"], check=False)
+
+
+def read_clipboard() -> str:
+    try:
+        res = subprocess.run(["wl-paste"], capture_output=True, text=True, check=False)
+        return (res.stdout or "").strip()
+    except Exception:
+        return ""
+
+
+def main() -> int:
+    run_key_test()
+    captured = read_clipboard()
+    keyd = hypr_to_keyd(captured)
+    if keyd:
+        print(keyd)
+        return 0
+
+    if captured and " + " in captured:
+        print("ERROR: combo keys not supported — press a single key", file=sys.stderr)
+    elif captured.lower().startswith("code:"):
+        print(f"ERROR: hardware key {captured} has no keyd name", file=sys.stderr)
+    elif captured:
+        print(f"ERROR: unknown key '{captured}'", file=sys.stderr)
+    else:
+        print("ERROR: no key captured", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

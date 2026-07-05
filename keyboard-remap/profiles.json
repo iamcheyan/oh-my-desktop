@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "devices": {
+    "logitech-m585-m590": {
+      "displayName": "logitech m585/m590",
+      "hyprName": "logitech-m585-m590",
+      "keydId": "046d:406b",
+      "enabled": true,
+      "remaps": []
+    },
+    "glab-glab-2-4g-receiver-keyboard": {
+      "displayName": "glab glab 2.4g receiver keyboard",
+      "hyprName": "glab-glab-2-4g-receiver-keyboard",
+      "keydId": "4366:1024",
+      "enabled": true,
+      "remaps": []
+    },
+    "logitech-usb-receiver": {
+      "displayName": "logitech usb receiver",
+      "hyprName": "logitech-usb-receiver",
+      "keydId": "046d:c548",
+      "enabled": true,
+      "remaps": []
+    },
+    "minila-r-convertible-keyboard": {
+      "displayName": "minila r convertible keyboard",
+      "hyprName": "minila-r-convertible-keyboard",
+      "keydId": "0a5c:8502",
+      "enabled": true,
+      "remaps": [
+        { "from": "muhenkan", "to": "leftmeta" },
+        { "from": "leftmeta", "to": "muhenkan" },
+        { "from": "grave", "to": "esc" },
+        { "from": "esc", "to": "grave" }
+      ],
+      "captures": {
+        "grave": {
+          "bind": "GRAVE",
+          "gdkKeyname": "grave",
+          "keydFrom": "grave",
+          "keydTo": "esc",
+          "note": "minila 全角/半角键在底层识别为 grave (`)"
+        }
+      }
+    }
+  }
+}
