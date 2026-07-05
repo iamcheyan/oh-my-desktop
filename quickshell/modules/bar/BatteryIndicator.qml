@@ -13,7 +13,7 @@ MouseArea {
     readonly property real percentage: Battery.percentage
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
     readonly property color colIcon: Appearance.colors.colBarText
-    visible: Battery.available
+    visible: Battery.showBarIcon
 
     implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
     implicitHeight: Appearance.sizes.barHeight
@@ -34,6 +34,14 @@ MouseArea {
             percentage: root.percentage
             charging: root.isCharging
             color: root.colIcon
+            visible: Battery.available
+        }
+
+        BarNerdIcon {
+            Layout.alignment: Qt.AlignVCenter
+            text: NerdIconMap.powerSettingsNew
+            color: root.colIcon
+            visible: !Battery.available
         }
     }
 

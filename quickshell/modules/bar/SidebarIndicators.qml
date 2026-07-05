@@ -15,6 +15,10 @@ Item {
 
     implicitWidth: button.implicitWidth
     implicitHeight: button.implicitHeight
+    // Always keep the power/battery slot; optional mute + keyboard indicators may add width.
+    visible: Battery.showBarIcon
+        || (Audio.sink?.audio?.muted ?? false)
+        || (HyprlandXkb.layoutCodes.length > 1)
 
     property color colText: Appearance.colors.colBarText
 
@@ -76,11 +80,18 @@ Item {
             }
             IconSlot {
                 id: batteryIconSlot
-                visible: Battery.available
+                visible: Battery.showBarIcon
                 implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
                 BarBatteryIcon {
                     anchors.centerIn: parent
                     color: container.colText
+                    visible: Battery.available
+                }
+                BarNerdIcon {
+                    anchors.centerIn: parent
+                    text: NerdIconMap.powerSettingsNew
+                    color: container.colText
+                    visible: !Battery.available
                 }
             }
         }

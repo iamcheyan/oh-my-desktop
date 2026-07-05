@@ -9,7 +9,10 @@ import Quickshell.Io
 
 Singleton {
     id: root
+    // True only for a system laptop battery (not BT peripherals, not desktop AC).
     property bool available: UPower.displayDevice.isLaptopBattery
+    // Top bar always shows an icon: battery level on laptops, power menu on desktops.
+    readonly property bool showBarIcon: true
     property var chargeState: UPower.displayDevice.state
     property bool isCharging: chargeState == UPowerDeviceState.Charging
     property bool isPluggedIn: isCharging || chargeState == UPowerDeviceState.PendingCharge || chargeState == UPowerDeviceState.FullyCharged

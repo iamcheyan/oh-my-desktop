@@ -9,8 +9,16 @@ StyledPopup {
     id: root
 
     StyledPopupContent {
+        StyledPopupValueRow {
+            visible: !Battery.available
+            icon: NerdIconMap.powerSettingsNew
+            label: Translation.tr("Power")
+            value: Translation.tr("Desktop")
+        }
+
         // 1. Battery capacity and state (Charging / Discharging)
         StyledPopupValueRow {
+            visible: Battery.available
             icon: Battery.isCharging ? NerdIconMap.bolt : NerdIconMap.batteryFull
             label: Translation.tr("Battery Level:")
             value: {

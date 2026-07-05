@@ -6,6 +6,7 @@ import qs.modules.common.widgets
 import qs.modules.schedulePopup
 import qs.services
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -337,10 +338,21 @@ Scope {
                 anchors.top: parent.top
 
                 function stateLabel() {
-                    if (!Battery.available) return "unavailable";
+                    if (!Battery.available) return "desktop";
                     if (Battery.isCharging) return "charging";
                     if (Battery.isPluggedIn) return "plugged";
                     return "battery";
+                }
+
+                function headerTitle() {
+                    return Battery.available ? "BATTERY" : "POWER";
+                }
+
+                function headerTone() {
+                    if (!Battery.available) return TuiStyle.accent;
+                    if (Battery.isLowAndNotCharging) return TuiStyle.danger;
+                    if (Battery.isCharging) return TuiStyle.warning;
+                    return TuiStyle.success;
                 }
                 property bool hibernateAvailable: false
 
@@ -376,24 +388,29 @@ Scope {
                     root.close()
                 }
 
-                Header { title: "BATTERY"; status: batteryPanel.stateLabel().toUpperCase(); tone: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success }
+                Header {
+                    title: batteryPanel.headerTitle()
+                    status: batteryPanel.stateLabel().toUpperCase()
+                    tone: batteryPanel.headerTone()
+                }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 24
+                    Layout.preferredHeight: Battery.available ? 24 : 0
                     spacing: 12
+                    visible: Battery.available
 
                     TuiMeterBar {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 10
                         Layout.alignment: Qt.AlignVCenter
-                        value: Battery.available ? Battery.percentage * 100 : 0
+                        value: Battery.percentage * 100
                         accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success
                     }
 
                     StyledText {
                         Layout.alignment: Qt.AlignVCenter
-                        text: Battery.available ? `${Math.round(Battery.percentage * 100)}%` : "--"
+                        text: `${Math.round(Battery.percentage * 100)}%`
                         font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.DemiBold
@@ -466,42 +483,33 @@ Scope {
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    color: "transparent"
-                    border.width: 0
-                    clip: false
+                PowerButtonRow {
+                    readonly property int buttonCount: 3 + (batteryPanel.hibernateAvailable ? 1 : 0)
 
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: 8
-
-                        PowerButton {
-                            icon: NerdIconMap.lock
-                            label: "LOCK"
-                            tone: TuiStyle.accent
-                            onClicked: batteryPanel.requestAction("lock", "Lock")
-                        }
-                        PowerButton {
-                            icon: NerdIconMap.darkMode
-                            label: "SLEEP"
-                            tone: TuiStyle.info
-                            onClicked: batteryPanel.requestAction("sleep", "Sleep")
-                        }
-                        PowerButton {
-                            icon: NerdIconMap.download
-                            label: "HIBERNATE"
-                            tone: TuiStyle.purple
-                            visible: batteryPanel.hibernateAvailable
-                            onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
-                        }
-                        PowerButton {
-                            icon: NerdIconMap.logout
-                            label: "LOGOUT"
-                            tone: TuiStyle.warning
-                            onClicked: batteryPanel.requestAction("logout", "Logout")
-                        }
+                    PowerButton {
+                        icon: NerdIconMap.lock
+                        label: "LOCK"
+                        tone: TuiStyle.accent
+                        onClicked: batteryPanel.requestAction("lock", "Lock")
+                    }
+                    PowerButton {
+                        icon: NerdIconMap.darkMode
+                        label: "SLEEP"
+                        tone: TuiStyle.info
+                        onClicked: batteryPanel.requestAction("sleep", "Sleep")
+                    }
+                    PowerButton {
+                        icon: NerdIconMap.download
+                        label: "HIBERNATE"
+                        tone: TuiStyle.purple
+                        visible: batteryPanel.hibernateAvailable
+                        onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
+                    }
+                    PowerButton {
+                        icon: NerdIconMap.logout
+                        label: "LOGOUT"
+                        tone: TuiStyle.warning
+                        onClicked: batteryPanel.requestAction("logout", "Logout")
                     }
                 }
 
@@ -522,37 +530,28 @@ Scope {
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    color: "transparent"
-                    border.width: 0
-                    clip: false
+                PowerButtonRow {
+                    readonly property int buttonCount: 3
 
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: 8
-
-                        PowerButton {
-                            icon: NerdIconMap.restart
-                            label: "REBOOT"
-                            tone: TuiStyle.info
-                            onClicked: batteryPanel.requestAction("reboot", "Reboot")
-                        }
-                        PowerButton {
-                            icon: NerdIconMap.powerSettingsNew
-                            label: "SHUTDOWN"
-                            tone: TuiStyle.danger
-                            onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
-                        }
-                        PowerButton {
-                            icon: NerdIconMap.refresh
-                            label: "RELOAD"
-                            tone: TuiStyle.accent
-                            onClicked: {
-                                Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
-                                root.close();
-                            }
+                    PowerButton {
+                        icon: NerdIconMap.restart
+                        label: "REBOOT"
+                        tone: TuiStyle.info
+                        onClicked: batteryPanel.requestAction("reboot", "Reboot")
+                    }
+                    PowerButton {
+                        icon: NerdIconMap.powerSettingsNew
+                        label: "SHUTDOWN"
+                        tone: TuiStyle.danger
+                        onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
+                    }
+                    PowerButton {
+                        icon: NerdIconMap.refresh
+                        label: "RELOAD"
+                        tone: TuiStyle.accent
+                        onClicked: {
+                            Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                            root.close();
                         }
                     }
                 }
@@ -573,6 +572,44 @@ Scope {
         }
     }
 
+    component PowerButtonRow: Item {
+        id: buttonRow
+        property int buttonCount: 0
+        property int rowSpacing: 6
+        property int minButtonWidth: 64
+        default property alias buttons: row.data
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 60
+        implicitHeight: 60
+
+        readonly property int resolvedButtonCount: {
+            if (buttonCount > 0)
+                return buttonCount;
+            let count = 0;
+            for (let i = 0; i < row.children.length; ++i) {
+                const child = row.children[i];
+                if (child.visible !== false)
+                    count++;
+            }
+            return Math.max(count, 1);
+        }
+
+        readonly property real sharedButtonWidth: {
+            const gaps = Math.max(resolvedButtonCount - 1, 0) * rowSpacing;
+            const available = width > 0 ? width : 0;
+            if (available <= gaps)
+                return minButtonWidth;
+            return Math.max(minButtonWidth, (available - gaps) / resolvedButtonCount);
+        }
+
+        RowLayout {
+            id: row
+            anchors.fill: parent
+            spacing: buttonRow.rowSpacing
+        }
+    }
+
     component PowerButton: Item {
         id: pb
         property string icon: ""
@@ -581,7 +618,11 @@ Scope {
         signal clicked()
         Layout.fillHeight: true
         Layout.fillWidth: true
-        Layout.minimumWidth: 92
+        Layout.minimumWidth: 0
+        Layout.preferredWidth: {
+            const rowHost = pb.parent?.parent;
+            return rowHost && rowHost.sharedButtonWidth > 0 ? rowHost.sharedButtonWidth : -1;
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -599,6 +640,7 @@ Scope {
 
                 ColumnLayout {
                     anchors.centerIn: parent
+                    width: Math.max(0, pb.width - 8)
                     spacing: 3
 
                     NerdIcon {
@@ -610,6 +652,9 @@ Scope {
 
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
                         text: pb.label
                         font.family: Appearance.font.family.monospace
                         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -875,7 +920,8 @@ Scope {
                                 enabled: VoiceInput.lastTranscription.length > 0
                                 onClicked: {
                                     Quickshell.execDetached(["bash", "-c",
-                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && sleep 0.3 && YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0`])
+                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
+                                        `'${VoiceInput.shareDir}/omarchy-paste-at-cursor' auto`])
                                 }
                             }
                         }
