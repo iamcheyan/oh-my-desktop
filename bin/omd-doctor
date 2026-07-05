@@ -52,6 +52,24 @@ check_link() {
   fi
 }
 
+check_font() {
+  local family="$1"
+  local label="${2:-$1}"
+  local resolved
+
+  if ! command -v fc-match >/dev/null 2>&1; then
+    warn "$label cannot be checked: fc-match missing"
+    return
+  fi
+
+  resolved="$(fc-match -f '%{family[0]}' "$family" 2>/dev/null || true)"
+  if [[ "$resolved" == "$family" ]]; then
+    ok "$label"
+  else
+    warn "$label missing or falling back: requested '$family', got '${resolved:-unknown}'"
+  fi
+}
+
 section() {
   printf '\n[%s]\n' "$1"
 }
@@ -72,6 +90,12 @@ section "desktop helpers"
 for cmd in wl-copy wl-paste cliphist walker mako grim slurp swappy; do
   check_optional_cmd "$cmd"
 done
+for cmd in pavucontrol bluetoothctl nm-connection-editor kitty fish; do
+  check_optional_cmd "$cmd"
+done
+for cmd in elephant elephant-desktopapplications elephant-providerlist elephant-files elephant-symbols elephant-calc elephant-websearch elephant-clipboard; do
+  check_optional_cmd "$cmd"
+done
 
 section "pickers"
 if command -v kdialog >/dev/null 2>&1 || command -v zenity >/dev/null 2>&1; then
@@ -79,6 +103,13 @@ if command -v kdialog >/dev/null 2>&1 || command -v zenity >/dev/null 2>&1; then
 else
   warn "file/folder picker missing: install kdialog or zenity"
 fi
+
+section "fonts"
+check_font "Cantarell" "main UI font"
+check_font "Noto Color Emoji" "emoji font"
+check_font "JetBrainsMono Nerd Font Mono" "Nerd Font icons"
+check_font "MesloLGS Nerd Font Mono" "monospace UI font"
+check_font "Material Symbols Rounded" "Material Symbols icons"
 
 section "voice input"
 check_cmd parecord "parecord"

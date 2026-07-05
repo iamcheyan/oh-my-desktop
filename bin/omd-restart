@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# shellcheck source=../scripts/omd-path.sh
+. "$HOME/.config/omd/scripts/omd-path.sh"
+
 # Kill ALL quickshell processes (split apps + monolith + stray)
 pkill -f "(quickshell|qs) -p " 2>/dev/null || true
 pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
@@ -24,6 +27,7 @@ start_app() {
         # DO NOT change to control-group — it will kill user apps on reload.
         systemd-run --user --unit="$app" --collect \
             --property=KillMode=process \
+            --setenv=PATH="$PATH" \
             /bin/sh -c "exec \"\$HOME/.config/omd/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
     else
         setsid "$HOME/.config/omd/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
