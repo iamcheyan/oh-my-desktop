@@ -37,7 +37,7 @@
     "taskManager": "plasma-systemmonitor --page-name Processes",
     "terminal": "kitty -1",
     "update": "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'",
-    "volumeMixer": "~/.config/hypr/hyprland/scripts/launch_first_available.sh \"pavucontrol-qt\" \"pavucontrol\""
+    "volumeMixer": "pavucontrol-qt"
   },
   "audio": {
     "protection": {
@@ -49,7 +49,7 @@
   "background": {
     "hideWhenFullscreen": true,
     "thumbnailPath": "",
-    "wallpaperPath": "/home/tetsuya/下载/wallpaper/HMBzbJ3asAAllO2.jpg",
+    "wallpaperPath": "~/.config/omd/quickshell/assets/images/default_wallpaper.png",
     "widgets": {
       "clock": {
         "cookie": {
@@ -139,6 +139,7 @@
       "util:bluetooth",
       "util:audio",
       "util:voice",
+      "util:keyremap",
       "systray",
       "util:wifi",
       "util:clipboard",

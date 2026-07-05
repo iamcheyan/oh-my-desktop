@@ -60,6 +60,7 @@ WindowDialog {
         { key: "sounds", icon: "volume_up", title: "Sounds", keywords: "sound audio theme notification volume login event" },
         { key: "apps", icon: "apps", title: "Default Apps", keywords: "default app browser terminal file manager application" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
+        { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" },
         { key: "session", icon: "tune", title: "Session", keywords: "notifications clipboard sleep idle inhibit dnd" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
     ]
@@ -87,6 +88,7 @@ WindowDialog {
         if (page === "notifications") return "session";
         if (page === "clipboard") return "session";
         if (page === "voice") return "voice";
+        if (page === "keyboard" || page === "keymap" || page === "remap") return "keyremap";
         if (page === "idle") return "session";
         return page && page.length > 0 ? page : "overview";
     }
@@ -398,6 +400,7 @@ WindowDialog {
                                 if (root.currentPage === "sounds") return soundsPage;
                                 if (root.currentPage === "apps") return appsPage;
                                 if (root.currentPage === "voice") return voicePage;
+                                if (root.currentPage === "keyremap") return keyremapPage;
                                 if (root.currentPage === "session") return sessionPage;
                                 if (root.currentPage === "windows") return windowsPage;
                                 return overviewPage;
@@ -3985,6 +3988,305 @@ WindowDialog {
                 SettingsRow { label: "Model dir"; value: VoiceInput.modelDir }
                 SettingsRow { label: "Venv dir"; value: VoiceInput.venvDir }
                 SettingsRow { label: "Socket"; value: "/tmp/omd-voice.sock" }
+            }
+        }
+    }
+
+    Component {
+        id: keyremapPage
+        PageBody {
+            SettingsCard {
+                title: "Keyboard Remap"
+                subtitle: KeyboardRemap.keydReady ? "keyd running" : "keyd not ready — setup required"
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    SettingsStatusPill { label: KeyboardRemap.state; active: KeyboardRemap.state === "ready" }
+                    SettingsStatusPill { label: KeyboardRemap.keydReady ? "keyd up" : "keyd down"; active: KeyboardRemap.keydReady; warning: !KeyboardRemap.keydReady }
+                    SettingsStatusPill {
+                        label: `${KeyboardRemap.devices.length} device${KeyboardRemap.devices.length === 1 ? "" : "s"}`
+                        active: KeyboardRemap.devices.length > 0
+                    }
+                }
+
+                SettingsRow {
+                    label: "Active keyboard"
+                    value: KeyboardRemap.selectedProfile?.displayName ?? KeyboardRemap.selectedDeviceId ?? "--"
+                }
+                SettingsRow {
+                    label: "Device ID"
+                    value: KeyboardRemap.selectedDevice?.keydId || "--"
+                }
+                SettingsRow {
+                    visible: KeyboardRemap.lastError.length > 0
+                    label: "Last error"
+                    description: KeyboardRemap.lastError
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: KeyboardRemap.state === "setup" ? "Setup keyd" : "Recheck"
+                        iconName: "download"
+                        onClicked: {
+                            if (KeyboardRemap.state === "setup")
+                                KeyboardRemap.setup();
+                            else
+                                KeyboardRemap.checkKeyd();
+                        }
+                    }
+                    SettingsButton {
+                        label: KeyboardRemap.applyInProgress ? "Applying…" : "Apply"
+                        iconName: "check"
+                        enabledState: !KeyboardRemap.applyInProgress
+                        onClicked: KeyboardRemap.apply()
+                    }
+                    SettingsButton {
+                        label: "Refresh"
+                        iconName: "refresh"
+                        onClicked: {
+                            KeyboardRemap.refreshDevices();
+                            KeyboardRemap.loadProfiles();
+                            KeyboardRemap.checkKeyd();
+                        }
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Keyboards"
+                subtitle: KeyboardRemap.devices.length > 0 ? "Select a keyboard to edit its profile" : "No keyboards detected"
+                visible: KeyboardRemap.devices.length > 0
+
+                Repeater {
+                    model: KeyboardRemap.devices
+                    delegate: SettingsRow {
+                        required property var modelData
+                        iconName: "keyboard"
+                        label: `${modelData.displayName}${modelData.main ? " • main" : ""}`
+                        value: KeyboardRemap.selectedDeviceId === modelData.hyprName ? "Selected" : (modelData.keydId || "")
+                        valueColor: KeyboardRemap.selectedDeviceId === modelData.hyprName ? root.cosmicAccent : root.cosmicMuted
+                        onClicked: KeyboardRemap.selectDevice(modelData.hyprName)
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Profile"
+                subtitle: KeyboardRemap.selectedDeviceId !== "" ? "Per-keyboard remap rules" : "Select a keyboard first"
+                visible: KeyboardRemap.selectedDeviceId !== ""
+
+                SettingsToggleRow {
+                    label: "Enabled"
+                    description: "Disable to keep profile but skip applying remaps"
+                    checked: KeyboardRemap.selectedEnabled
+                    onToggled: KeyboardRemap.setProfileEnabled(!KeyboardRemap.selectedEnabled)
+                }
+
+                Repeater {
+                    model: KeyboardRemap.selectedRemaps
+                    delegate: SettingsRow {
+                        required property var modelData
+                        iconName: "keyboard"
+                        label: `${modelData.from} → ${modelData.to}`
+                        value: "Remove"
+                        valueColor: "#f07070"
+                        onClicked: KeyboardRemap.removeRemap(modelData.from)
+                    }
+                }
+
+                SettingsRow {
+                    visible: KeyboardRemap.selectedRemaps.length === 0
+                    iconName: "info"
+                    label: "No remaps yet"
+                    description: "Capture a source key below, pick a target, then add"
+                }
+            }
+
+            SettingsCard {
+                title: "Add Remap"
+                subtitle: "1) Capture key  2) Confirm  3) Pick target  4) Save"
+                visible: KeyboardRemap.selectedDeviceId !== ""
+
+                SettingsRow {
+                    label: "Step 1"
+                    description: "Open the capture window and press the physical key you want to remap (Win/Ctrl/Alt/Shift supported)"
+                    value: KeyboardRemap.captureWindowOpen ? "Window open" : "Ready"
+                    valueColor: KeyboardRemap.captureWindowOpen ? root.cosmicAccent : root.cosmicMuted
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Capture Key"
+                        iconName: "keyboard"
+                        onClicked: KeyboardRemap.startCapture()
+                    }
+                    SettingsButton {
+                        label: KeyboardRemap.captureReading ? "Reading…" : "Confirm Capture"
+                        iconName: "check"
+                        enabledState: !KeyboardRemap.captureReading
+                        onClicked: KeyboardRemap.confirmCapture()
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: pendingCapturePanel.implicitHeight + 24
+                    radius: root.cosmicRadius
+                    color: root.cosmicPanelAlt
+                    visible: KeyboardRemap.pendingCapture && KeyboardRemap.pendingCapture.raw
+                    border.width: 1
+                    border.color: root.cosmicAccent
+
+                    ColumnLayout {
+                        id: pendingCapturePanel
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 6
+
+                        StyledText {
+                            text: "Captured key — confirm to use as source"
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.DemiBold
+                        }
+
+                        SettingsRow {
+                            label: "keyd name"
+                            value: KeyboardRemap.pendingCapture?.keyd || "unsupported"
+                            valueColor: KeyboardRemap.pendingCapture?.keyd ? root.cosmicAccent : "#f07070"
+                        }
+                        SettingsRow {
+                            visible: (KeyboardRemap.pendingCapture?.evdev ?? null) !== null
+                                && KeyboardRemap.pendingCapture?.evdev !== undefined
+                            label: "evdev code"
+                            value: String(KeyboardRemap.pendingCapture?.evdev ?? "")
+                        }
+                        SettingsRow {
+                            visible: (KeyboardRemap.pendingCapture?.raw ?? "").length > 0
+                            label: "Hypr/GDK bind"
+                            value: KeyboardRemap.pendingCapture?.raw ?? ""
+                        }
+                        SettingsRow {
+                            visible: (KeyboardRemap.pendingCapture?.keyname ?? "").length > 0
+                            label: "GDK keyname"
+                            value: KeyboardRemap.pendingCapture?.keyname ?? ""
+                        }
+                        SettingsRow {
+                            visible: (KeyboardRemap.pendingCapture?.keycode ?? null) !== null
+                                && KeyboardRemap.pendingCapture?.keycode !== undefined
+                            label: "XKB keycode"
+                            value: String(KeyboardRemap.pendingCapture?.keycode ?? "")
+                        }
+                        SettingsRow {
+                            visible: (KeyboardRemap.pendingCapture?.keyval ?? null) !== null
+                                && KeyboardRemap.pendingCapture?.keyval !== undefined
+                            label: "GDK keyval"
+                            value: String(KeyboardRemap.pendingCapture?.keyval ?? "")
+                        }
+
+                        ButtonRow {
+                            SettingsButton {
+                                label: "Use This Key"
+                                iconName: "done"
+                                enabledState: Boolean(KeyboardRemap.pendingCapture?.keyd)
+                                onClicked: KeyboardRemap.acceptPendingCapture()
+                            }
+                            SettingsButton {
+                                label: "Cancel"
+                                iconName: "close"
+                                onClicked: KeyboardRemap.rejectPendingCapture()
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        radius: root.cosmicRadius
+                        color: root.cosmicPanel
+                        border.width: 1
+                        border.color: root.cosmicLine
+                        StyledText {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                            text: KeyboardRemap.capturedFromKey || "—"
+                            color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicMuted
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+
+                    StyledText {
+                        text: "→"
+                        color: root.cosmicDim
+                    }
+
+                    ComboBox {
+                        id: keyremapToBox
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        model: KeyboardRemap.keyChoices
+                        enabled: KeyboardRemap.capturedFromKey !== ""
+                    }
+                }
+
+                SettingsRow {
+                    visible: KeyboardRemap.capturedFromLabel.length > 0
+                    label: "Captured as"
+                    value: KeyboardRemap.capturedFromLabel
+                    description: KeyboardRemap.capturedFromCode.length > 0
+                        ? `Hardware code ${KeyboardRemap.capturedFromCode} → keyd ${KeyboardRemap.capturedFromKey}`
+                        : `keyd ${KeyboardRemap.capturedFromKey}`
+                    valueColor: root.cosmicAccent
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: KeyboardRemap.applyInProgress ? "Saving…" : "Save & Apply"
+                        iconName: "save"
+                        enabledState: KeyboardRemap.capturedFromKey !== "" && !KeyboardRemap.applyInProgress
+                        onClicked: KeyboardRemap.saveRemap(keyremapToBox.currentText)
+                    }
+                    SettingsButton {
+                        label: "Clear"
+                        iconName: "refresh"
+                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.pendingCapture
+                        onClicked: KeyboardRemap.clearCapturedKey()
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Presets"
+                subtitle: "Replace current remaps with a preset layout"
+                visible: KeyboardRemap.selectedDeviceId !== ""
+
+                ButtonRow {
+                    Repeater {
+                        model: Object.keys(KeyboardRemap.presets)
+                        delegate: SettingsButton {
+                            required property string modelData
+                            label: KeyboardRemap.presets[modelData].label
+                            iconName: "auto_fix_high"
+                            onClicked: KeyboardRemap.applyPreset(modelData)
+                        }
+                    }
+                }
+            }
+
+            SettingsCard {
+                title: "Storage"
+                SettingsRow { label: "Profiles"; value: KeyboardRemap.profilesPath }
+                SettingsRow { label: "Backend"; value: "/etc/keyd/omd.conf (via Apply)" }
             }
         }
     }

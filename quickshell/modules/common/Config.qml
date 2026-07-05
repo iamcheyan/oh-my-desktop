@@ -218,6 +218,7 @@ Singleton {
                     "util:nightlight",
                     "util:mic",
                     "util:voice",
+                    "util:keyremap",
                     "util:colorpicker",
                     "util:clipboard",
                     "util:wifi",
