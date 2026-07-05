@@ -156,8 +156,6 @@ Item { // Window
             color: pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.5) : 
                 hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.7) : 
                 ColorUtils.transparentize(Appearance.colors.colLayer2)
-            border.color : ColorUtils.transparentize(Appearance.m3colors.m3outline, 0.88)
-            border.width : 1
         }
 
         StyledImage {
@@ -212,5 +210,17 @@ Item { // Window
                 color: Appearance.colors.colOnPrimary
             }
         }
+    }
+
+    // Border around the entire workspace thumbnail (sibling of ScreencopyView)
+    Rectangle {
+        anchors.fill: parent
+        color: "transparent"
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomRightRadius: root.bottomRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        border.color: ColorUtils.transparentize(Appearance.m3colors.m3outlineVariant, 1)
+        border.width: 2
     }
 }
