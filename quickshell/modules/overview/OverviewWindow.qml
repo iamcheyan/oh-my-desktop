@@ -43,6 +43,7 @@ Item { // Window
     property var widgetMonitor
     property int widgetMonitorId: widgetMonitor.id
 
+    // Monitor logical dimensions (accounting for transforms)
     property real monitorLogicalWidth: {
         if (!monitorData) return 1920;
         const w = monitorData.transform & 1 ? monitorData.height : monitorData.width;
@@ -53,39 +54,39 @@ Item { // Window
         const h = monitorData.transform & 1 ? monitorData.width : monitorData.height;
         return h / (monitorData.scale ?? 1);
     }
-    property bool isCoordinatesStale: {
-        if (!windowData || !monitorData) return false;
-        const xRel = windowData.at[0] - monitorData.x;
-        const yRel = windowData.at[1] - monitorData.y;
-        return xRel < -10 || xRel >= monitorLogicalWidth + 10 || yRel < -10 || yRel >= monitorLogicalHeight + 10;
-    }
-    property real sanitizedWidth: {
-        if (!windowData) return 800;
-        return Math.min(windowData.size[0], monitorLogicalWidth);
-    }
-    property real sanitizedHeight: {
-        if (!windowData) return 600;
-        return Math.min(windowData.size[1], monitorLogicalHeight);
-    }
-    property real sanitizedX: {
-        if (!windowData || !monitorData) return 0;
-        if (isCoordinatesStale) {
-            return monitorData.x + (monitorLogicalWidth - sanitizedWidth) / 2;
-        }
-        return windowData.at[0];
-    }
-    property real sanitizedY: {
-        if (!windowData || !monitorData) return 0;
-        if (isCoordinatesStale) {
-            return monitorData.y + (monitorLogicalHeight - sanitizedHeight) / 2;
-        }
-        return windowData.at[1];
+
+    // Raw coordinate relative to the monitor the window claims to be on.
+    // These may be stale after a cross-monitor move — Hyprland does not
+    // re-tile windows on inactive workspaces.
+    property real rawRelX: (windowData?.at[0] ?? 0) - (monitorData?.x ?? 0) - (monitorData?.reserved[0] ?? 0)
+    property real rawRelY: (windowData?.at[1] ?? 0) - (monitorData?.y ?? 0) - (monitorData?.reserved[1] ?? 0)
+    property real rawW: windowData?.size[0] ?? 800
+    property real rawH: windowData?.size[1] ?? 600
+
+    // After scaling and clamping, would this window be too small to see?
+    // This happens when stale coordinates place the window near/past the
+    // monitor edge, so clamping squishes it to just a few pixels.
+    property bool isRenderDegenerate: {
+        const clampedX = Math.max(0, Math.min(rawRelX * root.scaleX, Math.max(0, workspaceWidth - 1)));
+        const visibleW = Math.min(rawW * root.scaleX, Math.max(1, workspaceWidth - clampedX));
+        const clampedY = Math.max(0, Math.min(rawRelY * root.scaleY, Math.max(0, workspaceHeight - 1)));
+        const visibleH = Math.min(rawH * root.scaleY, Math.max(1, workspaceHeight - clampedY));
+        // If either dimension is less than 10 % of the workspace box, the
+        // window is effectively invisible — treat it as degenerate.
+        return visibleW < workspaceWidth * 0.10 || visibleH < workspaceHeight * 0.10;
     }
 
-    property real rawLocalX: (sanitizedX - (monitorData?.x ?? 0) - (monitorData?.reserved[0] ?? 0)) * root.scaleX
-    property real rawLocalY: (sanitizedY - (monitorData?.y ?? 0) - (monitorData?.reserved[1] ?? 0)) * root.scaleY
-    property real rawWindowWidth: Math.max(1, sanitizedWidth * root.scaleX)
-    property real rawWindowHeight: Math.max(1, sanitizedHeight * root.scaleY)
+    // When degenerate, center the window inside its workspace box at a
+    // reasonable size; otherwise use the real Hyprland coordinates.
+    property real effectiveW: isRenderDegenerate ? Math.min(rawW, monitorLogicalWidth) : rawW
+    property real effectiveH: isRenderDegenerate ? Math.min(rawH, monitorLogicalHeight) : rawH
+    property real effectiveRelX: isRenderDegenerate ? (monitorLogicalWidth - effectiveW) / 2 : rawRelX
+    property real effectiveRelY: isRenderDegenerate ? (monitorLogicalHeight - effectiveH) / 2 : rawRelY
+
+    property real rawLocalX: effectiveRelX * root.scaleX
+    property real rawLocalY: effectiveRelY * root.scaleY
+    property real rawWindowWidth: Math.max(1, effectiveW * root.scaleX)
+    property real rawWindowHeight: Math.max(1, effectiveH * root.scaleY)
     property real localX: Math.max(0, Math.min(rawLocalX, Math.max(0, workspaceWidth - 1)))
     property real localY: Math.max(0, Math.min(rawLocalY, Math.max(0, workspaceHeight - 1)))
     property var targetWindowWidth: Math.max(1, Math.min(rawWindowWidth, Math.max(1, workspaceWidth - localX)))
