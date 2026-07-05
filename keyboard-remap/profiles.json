@@ -28,18 +28,24 @@
       "keydId": "0a5c:8502",
       "enabled": true,
       "remaps": [
-        { "from": "muhenkan", "to": "leftmeta" },
-        { "from": "leftmeta", "to": "muhenkan" },
-        { "from": "grave", "to": "esc" },
-        { "from": "esc", "to": "grave" }
+        { "from": "grave", "to": "leftmeta" },
+        { "from": "leftmeta", "to": "grave" },
+        { "from": "muhenkan", "to": "leftmeta" }
       ],
       "captures": {
         "grave": {
           "bind": "GRAVE",
           "gdkKeyname": "grave",
           "keydFrom": "grave",
-          "keydTo": "esc",
-          "note": "minila 全角/半角键在底层识别为 grave (`)"
+          "keydTo": "leftmeta",
+          "note": "~ 印刷键 ↔ Win：印刷键发 Super，原 Win 位发 ` / ~"
+        },
+        "muhenkan": {
+          "bind": "MUHENKAN",
+          "gdkKeyname": "Muhenkan",
+          "keydFrom": "muhenkan",
+          "keydTo": "leftmeta",
+          "note": "無変換 → Win / Super"
         }
       }
     }

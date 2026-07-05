@@ -31,7 +31,7 @@ Singleton {
     readonly property string profilesPath: `${root.dataDir}/profiles.json`
 
     readonly property var keyChoices: [
-        "capslock", "esc", "escape", "grave", "tab", "space", "backspace", "enter", "delete", "insert",
+        "capslock", "esc", "escape", "grave", "dot", "apostrophe", "tab", "space", "backspace", "enter", "delete", "insert",
         "home", "end", "pageup", "pagedown",
         "muhenkan", "henkan", "katakana", "katakanahiragana", "zenkakuhankaku",
         "leftshift", "rightshift", "leftcontrol", "rightcontrol", "leftalt", "rightalt", "leftmeta", "rightmeta",
