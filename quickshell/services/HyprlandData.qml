@@ -23,6 +23,7 @@ Singleton {
     property var activeWindow: null
     property var monitors: []
     property var layers: ({})
+    property int dataSerial: 0
 
     // Convenient stuff
 
@@ -61,6 +62,29 @@ Singleton {
         return GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? [];
     }
 
+    function pendingWorkspaceMonitorName(workspaceId) {
+        const pending = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
+        return pending[workspaceId] ?? "";
+    }
+
+    function workspaceMonitorName(ws) {
+        if (!ws)
+            return "";
+        const pendingMonitor = root.pendingWorkspaceMonitorName(ws.id);
+        return pendingMonitor.length > 0 ? pendingMonitor : (ws.monitor ?? "");
+    }
+
+    function pendingWorkspaceSettled(entry) {
+        const wsId = entry?.id ?? -1;
+        const targetMonitor = entry?.monitorName ?? "";
+        if (wsId < 1 || targetMonitor.length === 0)
+            return false;
+        const ws = root.workspaceById[wsId];
+        if (!ws || (ws.monitor ?? "") !== targetMonitor)
+            return false;
+        return root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden);
+    }
+
     // Overview (工作区概览) / Switcher (快速切换): only workspaces WITH windows
     // are shown, ordered by MRU (Win11 Alt+Tab Z-order). Empty workspaces are
     // never displayed — not even the active one if it has no windows. A single
@@ -83,11 +107,12 @@ Singleton {
         // Only workspaces with visible windows participate in the grid.
         // Hyprland may keep real empty workspaces around after cross-monitor
         // moves; those are handled as the single trailing slot below.
+        const suppressed = root.suppressedEmptyWorkspaceIds();
         const regularWorkspaces = root.workspaces
             .filter(ws => root.isRegularWorkspace(ws))
             .filter(ws => ws.id >= 1 && ws.id <= 100)
-            .filter(ws => !targetMonitor || (ws.monitor ?? "") === targetMonitor)
-            .filter(ws => !root.suppressedEmptyWorkspaceIds().includes(ws.id))
+            .filter(ws => !targetMonitor || root.workspaceMonitorName(ws) === targetMonitor)
+            .filter(ws => !suppressed.includes(ws.id))
             .filter(ws => root.workspaceHasVisibleWindows(ws.id))
             .sort((a, b) => a.id - b.id);
 
@@ -97,11 +122,55 @@ Singleton {
             if (seen[ws.id])
                 return;
             seen[ws.id] = true;
+            const monName = root.workspaceMonitorName(ws);
             withWindows.push({
                 id: ws.id,
-                monitorName: ws.monitor ?? "",
+                monitorName: monName,
                 monitorIndex: 0,
-                monitorLabel: ws.monitor ?? "",
+                monitorLabel: monName,
+                isTrailingEmpty: false
+            });
+        });
+
+        // Fallback: workspaces that have windows (per windowList) but aren't in
+        // root.workspaces yet — race when getClients finishes before getWorkspaces.
+        // Only add if the workspace is NOT in root.workspaces (avoid duplicates).
+        // Use the window's monitor to determine which monitor group it belongs to.
+        root.windowList.forEach(win => {
+            if (!win?.mapped || win?.hidden) return;
+            const wsId = win?.workspace?.id;
+            if (wsId < 1 || wsId > 100 || seen[wsId]) return;
+            if (root.workspaces.some(w => w.id === wsId)) return;
+            if (!root.workspaceHasVisibleWindows(wsId)) return;
+            const mon = root.monitors.find(m => m.id === win.monitor);
+            const pendingMonitor = root.pendingWorkspaceMonitorName(wsId);
+            const monName = pendingMonitor.length > 0 ? pendingMonitor : (mon?.name ?? "");
+            if (targetMonitor && monName !== targetMonitor) return;
+            seen[wsId] = true;
+            withWindows.push({
+                id: wsId,
+                monitorName: monName,
+                monitorIndex: 0,
+                monitorLabel: monName,
+                isTrailingEmpty: false
+            });
+        });
+
+        const pendingOccupied = GlobalStates.overviewPendingOccupiedWorkspaces ?? [];
+        pendingOccupied.forEach(entry => {
+            const wsId = entry?.id ?? -1;
+            if (wsId < 1 || wsId > 100 || seen[wsId])
+                return;
+            const monName = entry?.monitorName ?? root.pendingWorkspaceMonitorName(wsId);
+            if (targetMonitor && monName !== targetMonitor)
+                return;
+            seen[wsId] = true;
+            withWindows.push({
+                id: wsId,
+                monitorName: monName,
+                monitorIndex: 0,
+                monitorLabel: monName,
+                isPendingOccupied: true,
                 isTrailingEmpty: false
             });
         });
@@ -132,10 +201,23 @@ Singleton {
 
         const ordered = orderedWindows.slice();
 
-        // Trailing "New workspace" slot: ALWAYS use maxId + 1.
-        // Never reuse an existing empty workspace — Hyprland may keep several
-        // empty workspaces around after window moves, and showing any of them
-        // violates the "one trailing empty at the very end" rule.
+        // Trailing "New workspace" slot: show exactly one empty workspace at
+        // the visual end of each monitor group. If Hyprland already has real
+        // empty workspaces for this monitor, reuse one stable id and hide the
+        // rest. Creating a fresh id every redraw leaves old empty workspaces
+        // behind and makes cross-monitor drops look like duplicate blanks.
+        const existingEmptyWorkspaces = root.workspaces
+            .filter(ws => root.isRegularWorkspace(ws))
+            .filter(ws => ws.id >= 1 && ws.id <= 100)
+            .filter(ws => !targetMonitor || root.workspaceMonitorName(ws) === targetMonitor)
+            .filter(ws => !suppressed.includes(ws.id))
+            .filter(ws => !seen[ws.id])
+            .filter(ws => !root.workspaceHasVisibleWindows(ws.id))
+            .sort((a, b) => a.id - b.id);
+        const existingTrailingWorkspace = existingEmptyWorkspaces.find(ws => ws.id === activeId)
+            ?? existingEmptyWorkspaces[0]
+            ?? null;
+
         let maxId = activeId - 1;
         for (const entry of orderedWindows)
             maxId = Math.max(maxId, entry.id);
@@ -144,18 +226,29 @@ Singleton {
             if (ws.id >= 1 && ws.id <= 100)
                 globalSeen[ws.id] = true;
         });
+        withWindows.forEach(e => {
+            globalSeen[e.id] = true;
+        });
 
-        let trailingId = Math.min(100, maxId + 1);
-        while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId]))
-            trailingId += 1;
+        let trailingId = existingTrailingWorkspace?.id ?? Math.min(100, maxId + 1);
+        if (!existingTrailingWorkspace) {
+            while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId]))
+                trailingId += 1;
+            // If upward search hit the cap, search downward for any free slot
+            if (trailingId > 100) {
+                trailingId = maxId - 1;
+                while (trailingId >= 1 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
+                    trailingId -= 1;
+            }
+        }
 
-        if (includeTrailing && trailingId <= 100 && !seen[trailingId]) {
+        if (includeTrailing && trailingId >= 1 && trailingId <= 100 && !seen[trailingId]) {
             ordered.push({
                 id: trailingId,
-                monitorName: targetMonitor,
+                monitorName: targetMonitor || root.workspaceMonitorName(existingTrailingWorkspace),
                 monitorIndex: 0,
-                monitorLabel: targetMonitor,
-                existingWorkspace: false,
+                monitorLabel: targetMonitor || root.workspaceMonitorName(existingTrailingWorkspace),
+                existingWorkspace: !!existingTrailingWorkspace,
                 isTrailingEmpty: true
             });
         }
@@ -168,12 +261,14 @@ Singleton {
     }
 
     function sortedOverviewMonitors() {
-        const focusedName = Hyprland.focusedMonitor?.name ?? "";
+        const anchorName = GlobalStates.overviewOpen
+            ? (GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "")
+            : (Hyprland.focusedMonitor?.name ?? "");
         return root.monitors.slice().sort((a, b) => {
-            const aFocused = (a.name ?? "") === focusedName;
-            const bFocused = (b.name ?? "") === focusedName;
-            if (aFocused !== bFocused)
-                return aFocused ? -1 : 1;
+            const aAnchor = (a.name ?? "") === anchorName;
+            const bAnchor = (b.name ?? "") === anchorName;
+            if (aAnchor !== bAnchor)
+                return aAnchor ? -1 : 1;
             if ((a.y ?? 0) !== (b.y ?? 0))
                 return (a.y ?? 0) - (b.y ?? 0);
             return (a.x ?? 0) - (b.x ?? 0);
@@ -193,10 +288,11 @@ Singleton {
                 entries[j].monitorName = mon.name || entries[j].monitorName || "";
                 entries[j].groupStart = j === 0;
                 entries[j].groupEnd = j === entries.length - 1;
-                if (entries[j].isTrailingEmpty)
-                    reservedIds[entries[j].id] = true;
                 all.push(entries[j]);
             }
+            const trailing = entries.find(e => e.isTrailingEmpty);
+            if (trailing)
+                reservedIds[trailing.id] = true;
         }
         if (all.length === 0)
             return root.overviewWorkspaceEntriesGlobal();
@@ -273,6 +369,10 @@ Singleton {
         updateActiveWindow();
     }
 
+    function markDataChanged() {
+        root.dataSerial += 1;
+    }
+
     function biggestWindowForWorkspace(workspaceId) {
         const windowsInThisWorkspace = HyprlandData.windowList.filter(w => w.workspace.id == workspaceId);
         return windowsInThisWorkspace.reduce((maxWin, win) => {
@@ -319,6 +419,13 @@ Singleton {
                         !root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden)
                     );
                 }
+                const pendingOccupied = GlobalStates.overviewPendingOccupiedWorkspaces ?? [];
+                if (pendingOccupied.length > 0) {
+                    GlobalStates.overviewPendingOccupiedWorkspaces = pendingOccupied.filter(entry =>
+                        !root.pendingWorkspaceSettled(entry)
+                    );
+                }
+                root.markDataChanged();
             }
         }
     }
@@ -330,6 +437,7 @@ Singleton {
             id: monitorsCollector
             onStreamFinished: {
                 root.monitors = JSON.parse(monitorsCollector.text);
+                root.markDataChanged();
             }
         }
     }
@@ -341,6 +449,7 @@ Singleton {
             id: layersCollector
             onStreamFinished: {
                 root.layers = JSON.parse(layersCollector.text);
+                root.markDataChanged();
             }
         }
     }
@@ -361,6 +470,21 @@ Singleton {
                 }
                 root.workspaceById = tempWorkspaceById;
                 root.workspaceIds = root.workspaces.map(ws => ws.id);
+                const pending = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
+                const nextPending = {};
+                for (const wsId in pending) {
+                    const ws = tempWorkspaceById[wsId];
+                    if (!ws || (ws.monitor ?? "") !== pending[wsId])
+                        nextPending[wsId] = pending[wsId];
+                }
+                GlobalStates.overviewPendingWorkspaceMonitorById = nextPending;
+                const pendingOccupied = GlobalStates.overviewPendingOccupiedWorkspaces ?? [];
+                if (pendingOccupied.length > 0) {
+                    GlobalStates.overviewPendingOccupiedWorkspaces = pendingOccupied.filter(entry =>
+                        !root.pendingWorkspaceSettled(entry)
+                    );
+                }
+                root.markDataChanged();
             }
         }
     }
@@ -372,6 +496,7 @@ Singleton {
             id: activeWorkspaceCollector
             onStreamFinished: {
                 root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                root.markDataChanged();
             }
         }
     }
@@ -388,6 +513,7 @@ Singleton {
                 } catch (e) {
                     root.activeWindow = null;
                 }
+                root.markDataChanged();
             }
         }
     }
