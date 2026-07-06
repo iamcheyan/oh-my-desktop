@@ -18,12 +18,14 @@ Singleton {
     property var deviceProfiles: ({})
     property string selectedDeviceId: ""
     property bool applyInProgress: false
+    property bool profilesLoaded: false
     property string capturedFromKey: ""
     property string capturedFromLabel: ""
     property string capturedFromCode: ""
     property bool captureWindowOpen: false
     property bool captureReading: false
     property var pendingCapture: null
+    property string pendingPreset: ""
 
     readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/share/bin`)
     readonly property string scriptsDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts`)
@@ -31,7 +33,7 @@ Singleton {
     readonly property string profilesPath: `${root.dataDir}/profiles.json`
 
     readonly property var keyChoices: [
-        "capslock", "esc", "escape", "grave", "tab", "space", "backspace", "enter", "delete", "insert",
+        "capslock", "escape", "grave", "tab", "space", "backspace", "enter", "delete", "insert",
         "home", "end", "pageup", "pagedown",
         "muhenkan", "henkan", "katakana", "katakanahiragana", "zenkakuhankaku",
         "leftshift", "rightshift", "leftcontrol", "rightcontrol", "leftalt", "rightalt", "leftmeta", "rightmeta",
@@ -41,18 +43,18 @@ Singleton {
 
     readonly property var presets: ({
         "caps-esc": {
-            "label": "Caps → Esc",
+            "label": "Caps to Esc",
             "remaps": [{ "from": "capslock", "to": "escape" }]
         },
         "ctrl-caps-swap": {
-            "label": "Ctrl ↔ Caps",
+            "label": "Ctrl <-> Caps",
             "remaps": [
                 { "from": "leftcontrol", "to": "capslock" },
                 { "from": "capslock", "to": "leftcontrol" }
             ]
         },
         "mac-meta": {
-            "label": "Ctrl/Alt → Meta",
+            "label": "Ctrl/Alt -> Meta",
             "remaps": [
                 { "from": "leftcontrol", "to": "leftmeta" },
                 { "from": "leftalt", "to": "leftmeta" }
@@ -70,12 +72,13 @@ Singleton {
         }
         return null;
     }
+    readonly property bool selectedKeydIdMissing: selectedProfile && !(selectedProfile.keydId ?? "").length
 
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", root.dataDir]);
         root.checkKeyd();
-        root.loadProfiles();
         root.refreshDevices();
+        root.loadProfiles();
     }
 
     Timer {
@@ -97,7 +100,8 @@ Singleton {
         loadProc.running = true;
     }
 
-    function saveProfiles() {
+    function saveProfiles(runApplyAfter) {
+        saveProc.runApplyAfter = !!runApplyAfter;
         saveProc.running = true;
     }
 
@@ -114,8 +118,7 @@ Singleton {
         root.applyInProgress = true;
         root.lastError = "";
         root.state = "applying";
-        saveProc.runApplyAfter = true;
-        saveProc.running = true;
+        root.saveProfiles(true);
     }
 
     function selectDevice(hyprName) {
@@ -126,6 +129,14 @@ Singleton {
     function ensureProfile(hyprName) {
         if (!hyprName || root.deviceProfiles[hyprName])
             return;
+        const profile = root.createEmptyProfile(hyprName);
+        const next = Object.assign({}, root.deviceProfiles);
+        next[hyprName] = profile;
+        root.deviceProfiles = next;
+        root.saveProfiles(false);
+    }
+
+    function createEmptyProfile(hyprName) {
         let displayName = hyprName;
         let keydId = "";
         for (let i = 0; i < root.devices.length; ++i) {
@@ -135,16 +146,13 @@ Singleton {
                 break;
             }
         }
-        const next = Object.assign({}, root.deviceProfiles);
-        next[hyprName] = {
+        return {
             displayName: displayName,
             hyprName: hyprName,
             keydId: keydId,
             enabled: true,
             remaps: []
         };
-        root.deviceProfiles = next;
-        root.saveProfiles();
     }
 
     function setProfileEnabled(enabled) {
@@ -156,7 +164,7 @@ Singleton {
         const next = Object.assign({}, root.deviceProfiles);
         next[root.selectedDeviceId] = Object.assign({}, profile, { enabled: enabled });
         root.deviceProfiles = next;
-        root.saveProfiles();
+        root.saveProfiles(false);
     }
 
     function setDisplayName(name) {
@@ -168,7 +176,7 @@ Singleton {
         const next = Object.assign({}, root.deviceProfiles);
         next[root.selectedDeviceId] = Object.assign({}, profile, { displayName: name });
         root.deviceProfiles = next;
-        root.saveProfiles();
+        root.saveProfiles(false);
     }
 
     function startCapture() {
@@ -178,7 +186,48 @@ Singleton {
         root.capturedFromCode = "";
         root.lastError = "";
         root.captureWindowOpen = true;
+        // Launch key-test detached. execDetached preserves the Wayland env
+        // that the systemd user service inherits. The key-test process
+        // writes a lock file on start and removes it on exit; we poll the
+        // lock file to detect when the user closed the window.
         Quickshell.execDetached([`${root.scriptsDir}/key-test`, "--remap"]);
+        captureWaitTimer.restart();
+    }
+
+    // Poll every 800ms: check if key-test process is still alive by PID.
+    // When it exits, read the state file once and auto-fill the source key.
+    Timer {
+        id: captureWaitTimer
+        interval: 800
+        repeat: true
+        property int elapsed: 0
+        onTriggered: {
+            elapsed += interval;
+            captureCheckProc.running = true;
+            // Safety timeout: 2 minutes
+            if (elapsed > 120000) {
+                captureWaitTimer.stop();
+                root.captureWindowOpen = false;
+            }
+        }
+    }
+
+    Process {
+        id: captureCheckProc
+        // Check the lock file written by key-test. When it's gone, the
+        // capture window has closed — read the state file and auto-fill.
+        command: ["bash", "-c", "test -f ~/.local/state/omd/key-capture.lock && echo running || echo done"]
+        stdout: SplitParser {
+            onRead: line => {
+                if (line === "done" && root.captureWindowOpen) {
+                    captureWaitTimer.stop();
+                    captureWaitTimer.elapsed = 0;
+                    root.captureWindowOpen = false;
+                    root.captureReading = true;
+                    readCaptureProc.running = true;
+                }
+            }
+        }
     }
 
     function confirmCapture() {
@@ -226,18 +275,34 @@ Singleton {
     function addRemap(fromKey, toKey) {
         if (root.selectedDeviceId === "" || !fromKey || !toKey)
             return;
+        const from = normalizeKeyName(fromKey);
+        const to = normalizeKeyName(toKey);
+        if (!from || !to) {
+            root.lastError = "Unknown key name in remap";
+            return;
+        }
+        if (from === to) {
+            root.lastError = `Cannot remap a key to itself: ${from}`;
+            return;
+        }
         root.ensureProfile(root.selectedDeviceId);
         const profile = root.deviceProfiles[root.selectedDeviceId];
         const remaps = (profile.remaps ?? []).slice();
-        const idx = remaps.findIndex(r => r.from === fromKey);
+        const existingTo = remaps.find(r => r.from === from)?.to;
+        if (existingTo === to) {
+            root.lastError = `${from} already maps to ${to}`;
+            return;
+        }
+        const idx = remaps.findIndex(r => r.from === from);
+        const row = { from: from, to: to };
         if (idx >= 0)
-            remaps[idx] = { from: fromKey, to: toKey };
+            remaps[idx] = row;
         else
-            remaps.push({ from: fromKey, to: toKey });
+            remaps.push(row);
         const next = Object.assign({}, root.deviceProfiles);
         next[root.selectedDeviceId] = Object.assign({}, profile, { remaps: remaps });
         root.deviceProfiles = next;
-        root.saveProfiles();
+        root.saveProfiles(false);
     }
 
     function removeRemap(fromKey) {
@@ -250,11 +315,21 @@ Singleton {
         const next = Object.assign({}, root.deviceProfiles);
         next[root.selectedDeviceId] = Object.assign({}, profile, { remaps: remaps });
         root.deviceProfiles = next;
-        root.saveProfiles();
+        root.saveProfiles(false);
     }
 
-    function applyPreset(presetId) {
+    function requestPreset(presetId) {
         const preset = root.presets[presetId];
+        if (!preset || root.selectedDeviceId === "")
+            return;
+        root.pendingPreset = presetId;
+    }
+
+    function confirmPreset() {
+        if (root.pendingPreset === "")
+            return;
+        const preset = root.presets[root.pendingPreset];
+        root.pendingPreset = "";
         if (!preset || root.selectedDeviceId === "")
             return;
         root.ensureProfile(root.selectedDeviceId);
@@ -262,36 +337,45 @@ Singleton {
         const next = Object.assign({}, root.deviceProfiles);
         next[root.selectedDeviceId] = Object.assign({}, profile, { remaps: preset.remaps.slice() });
         root.deviceProfiles = next;
-        root.saveProfiles();
+        root.saveProfiles(true);
+    }
+
+    function cancelPreset() {
+        root.pendingPreset = "";
     }
 
     function mergeDevices(detected) {
         let selected = root.selectedDeviceId;
         let mainId = "";
+        let anyNew = false;
         for (let i = 0; i < detected.length; ++i) {
             if (detected[i].main)
                 mainId = detected[i].hyprName;
-            root.ensureProfileSilent(detected[i]);
+            if (root.ensureProfileSilent(detected[i]))
+                anyNew = true;
         }
         if (!selected && mainId)
             selected = mainId;
         else if (selected && !detected.some(d => d.hyprName === selected) && mainId)
             selected = mainId;
         root.selectedDeviceId = selected;
+        if (anyNew)
+            root.saveProfiles(false);
     }
 
     function ensureProfileSilent(device) {
         const hyprName = device.hyprName;
         if (!hyprName)
-            return;
+            return false;
         if (root.deviceProfiles[hyprName]) {
             const existing = root.deviceProfiles[hyprName];
             if (!existing.keydId && device.keydId) {
                 const next = Object.assign({}, root.deviceProfiles);
                 next[hyprName] = Object.assign({}, existing, { keydId: device.keydId });
                 root.deviceProfiles = next;
+                return true;
             }
-            return;
+            return false;
         }
         const next = Object.assign({}, root.deviceProfiles);
         next[hyprName] = {
@@ -302,6 +386,7 @@ Singleton {
             remaps: []
         };
         root.deviceProfiles = next;
+        return true;
     }
 
     function openSettings() {
@@ -314,30 +399,44 @@ Singleton {
         root.openSettings();
     }
 
+    function normalizeKeyName(name) {
+        if (!name)
+            return "";
+        const n = String(name).trim().toLowerCase();
+        if (n === "esc")
+            return "escape";
+        return n;
+    }
+
     Process {
         id: readCaptureProc
         command: ["bash", `${root.scriptsDir}/keyremap-capture-read`]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.captureReading = false;
-                root.captureWindowOpen = false;
+                root.captureReading = false
+                root.captureWindowOpen = false
                 try {
-                    const data = JSON.parse(text || "{}");
+                    const data = JSON.parse(text || "{}")
                     if (data.ok && data.keyd) {
-                        root.pendingCapture = data;
-                        root.lastError = "";
+                        // Auto-accept: fill the source key directly, no manual confirm step.
+                        root.capturedFromKey = data.keyd
+                        root.capturedFromLabel = data.raw || data.keyd
+                        root.capturedFromCode = data.keycode !== undefined && data.keycode !== null
+                            ? String(data.keycode) : ""
+                        root.pendingCapture = null
+                        root.lastError = ""
                     } else {
-                        root.pendingCapture = data.raw ? data : null;
-                        root.lastError = data.error || "Failed to read captured key";
+                        root.pendingCapture = data.raw ? data : null
+                        root.lastError = data.error || "Failed to read captured key"
                     }
                 } catch (e) {
-                    root.pendingCapture = null;
-                    root.lastError = "Failed to parse captured key";
+                    root.pendingCapture = null
+                    root.lastError = "Failed to parse captured key"
                 }
             }
         }
         onExited: (code, status) => {
-            root.captureReading = false;
+            root.captureReading = false
         }
     }
 
@@ -363,13 +462,18 @@ Singleton {
                 try {
                     const detected = JSON.parse(text || "[]");
                     root.devices = detected;
-                    root.mergeDevices(detected);
+                    if (root.profilesLoaded)
+                        root.mergeDevices(detected);
+                    else
+                        root._pendingDevices = detected;
                 } catch (e) {
                     console.error("[KeyboardRemap] device parse error:", e);
                 }
             }
         }
     }
+
+    property var _pendingDevices: []
 
     Process {
         id: loadProc
@@ -379,9 +483,16 @@ Singleton {
                 try {
                     const data = JSON.parse(text || "{}");
                     root.deviceProfiles = data.devices ?? {};
+                    root.profilesLoaded = true;
+                    if (root._pendingDevices.length > 0) {
+                        const pending = root._pendingDevices;
+                        root._pendingDevices = [];
+                        root.mergeDevices(pending);
+                    }
                 } catch (e) {
                     console.error("[KeyboardRemap] profile load error:", e);
                     root.deviceProfiles = {};
+                    root.profilesLoaded = true;
                 }
             }
         }
@@ -390,13 +501,19 @@ Singleton {
     Process {
         id: saveProc
         property bool runApplyAfter: false
-        property string payload: JSON.stringify({ version: 1, devices: root.deviceProfiles })
-        command: ["bash", "-c", `printf '%s' '${StringUtils.shellSingleQuoteEscape(saveProc.payload)}' | jq . > '${root.profilesPath}'`]
+        command: ["bash", "-c", `jq . > '${root.profilesPath}'`]
+        stdinEnabled: true
         onRunningChanged: {
-            if (saveProc.running)
-                saveProc.payload = JSON.stringify({ version: 1, devices: root.deviceProfiles });
+            if (saveProc.running) {
+                const payload = JSON.stringify({ version: 1, devices: root.deviceProfiles });
+                saveProc.write(payload);
+                saveProc.stdinEnabled = false;
+            }
         }
         onExited: (code, status) => {
+            if (code !== 0 && root.state !== "applying") {
+                root.lastError = `Failed to save profiles (jq exit ${code})`;
+            }
             if (!saveProc.runApplyAfter)
                 return;
             saveProc.runApplyAfter = false;

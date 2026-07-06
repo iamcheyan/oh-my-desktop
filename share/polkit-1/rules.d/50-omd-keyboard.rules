@@ -1,0 +1,34 @@
+// Allow active users to run the OMD keyboard-remap apply helper without a password.
+// This rule matches the pkexec action and the bash -c install command used by
+// omarchy-keyboard-apply to write /etc/keyd/omd.conf and restart keyd.
+//
+// Install with:
+//   sudo install -m 0644 50-omd-keyboard.rules /etc/polkit-1/rules.d/
+//
+// The rule is intentionally narrow: it only allows the specific bash -c command
+// pattern that omarchy-keyboard-apply emits via pkexec.
+
+polkit.addRule(function(action, subject) {
+    if (action.id !== "org.freedesktop.policykit.exec") {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    var command = action.lookup("command_line");
+    if (!command || command.indexOf("bash -c") === -1) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    // Only match the OMD keyd apply payload: installs to /etc/keyd/omd.conf
+    // and restarts keyd. The exact payload is constructed by omarchy-keyboard-apply.
+    if (command.indexOf("/etc/keyd/omd.conf") === -1
+        && command.indexOf("systemctl restart keyd") === -1
+        && command.indexOf("systemctl enable keyd") === -1) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    if (!subject.active) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    return polkit.Result.YES;
+});

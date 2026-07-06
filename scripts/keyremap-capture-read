@@ -64,7 +64,11 @@ def resolve_keyd(
 
 def main() -> int:
     state = read_state() or {}
-    clipboard = parse_clipboard_text(read_clipboard()) if not state.get("raw") else {}
+    # Prefer state file. Fall back to clipboard if state is empty or invalid.
+    clipboard = {}
+    if not state.get("raw"):
+        clipboard = parse_clipboard_text(read_clipboard())
+
     raw = (state.get("raw") or clipboard.get("bind") or "").strip()
     keyname = state.get("keyname") or clipboard.get("keyname") or ""
     keyval = state.get("keyval") if state.get("keyval") is not None else clipboard.get("keyval")

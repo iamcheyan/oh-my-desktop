@@ -47,9 +47,9 @@ Scope {
         id: overlayLoader
         active: GlobalStates.barDialogOpen
 
-        sourceComponent: PanelWindow {
+        sourceComponent:             PanelWindow {
             id: overlayWindow
-            visible: overlayLoader.active
+            visible: overlayLoader.active && !KeyboardRemap.captureWindowOpen
 
             anchors {
                 top: true
@@ -61,7 +61,9 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:bardialog"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            WlrLayershell.keyboardFocus: KeyboardRemap.captureWindowOpen
+                ? WlrKeyboardFocus.None
+                : WlrKeyboardFocus.OnDemand
             color: "transparent"
 
             function close() {

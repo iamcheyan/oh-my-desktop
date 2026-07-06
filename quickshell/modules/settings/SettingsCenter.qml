@@ -4019,6 +4019,13 @@ WindowDialog {
                     value: KeyboardRemap.selectedDevice?.keydId || "--"
                 }
                 SettingsRow {
+                    visible: KeyboardRemap.selectedKeydIdMissing
+                    label: "Warning"
+                    description: "This keyboard has no keyd vendor:product ID. Remaps cannot be applied until it is resolved (try reconnecting or check /proc/bus/input/devices)."
+                    value: "no keydId"
+                    valueColor: "#f0a070"
+                }
+                SettingsRow {
                     visible: KeyboardRemap.lastError.length > 0
                     label: "Last error"
                     description: KeyboardRemap.lastError
@@ -4105,140 +4112,133 @@ WindowDialog {
 
             SettingsCard {
                 title: "Add Remap"
-                subtitle: "1) Capture key  2) Confirm  3) Pick target  4) Save"
+                subtitle: KeyboardRemap.capturedFromKey !== ""
+                    ? `Source captured — pick a target and apply`
+                    : "Press a key to capture, then choose a target"
                 visible: KeyboardRemap.selectedDeviceId !== ""
 
-                SettingsRow {
-                    label: "Step 1"
-                    description: "Open the capture window and press the physical key you want to remap (Win/Ctrl/Alt/Shift supported)"
-                    value: KeyboardRemap.captureWindowOpen ? "Window open" : "Ready"
-                    valueColor: KeyboardRemap.captureWindowOpen ? root.cosmicAccent : root.cosmicMuted
-                }
-
+                // Step 1: Capture button
                 ButtonRow {
                     SettingsButton {
-                        label: "Capture Key"
+                        label: KeyboardRemap.captureWindowOpen
+                            ? "Waiting… (settings hidden while capture window is open)"
+                            : "Press a key to capture"
                         iconName: "keyboard"
+                        active: KeyboardRemap.captureWindowOpen
+                        enabledState: !KeyboardRemap.captureWindowOpen
                         onClicked: KeyboardRemap.startCapture()
                     }
-                    SettingsButton {
-                        label: KeyboardRemap.captureReading ? "Reading…" : "Confirm Capture"
-                        iconName: "check"
-                        enabledState: !KeyboardRemap.captureReading
-                        onClicked: KeyboardRemap.confirmCapture()
-                    }
                 }
 
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: !KeyboardRemap.captureWindowOpen
+                    text: "Click the button above to open a capture window. Settings will hide while you press a key, then return with the captured key auto-filled."
+                    color: root.cosmicMuted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.WordWrap
+                }
+
+                // Error / pending (unsupported key) notice
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: pendingCapturePanel.implicitHeight + 24
+                    Layout.preferredHeight: pendingNoticeCol.implicitHeight + 16
                     radius: root.cosmicRadius
-                    color: root.cosmicPanelAlt
-                    visible: KeyboardRemap.pendingCapture && KeyboardRemap.pendingCapture.raw
+                    color: "#3a1f1f"
                     border.width: 1
-                    border.color: root.cosmicAccent
-
+                    border.color: "#f07070"
+                    visible: KeyboardRemap.lastError.length > 0
                     ColumnLayout {
-                        id: pendingCapturePanel
+                        id: pendingNoticeCol
                         anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 6
-
+                        anchors.margins: 8
+                        spacing: 4
                         StyledText {
-                            text: "Captured key — confirm to use as source"
-                            color: root.cosmicFg
+                            text: KeyboardRemap.lastError
+                            color: "#f0a070"
                             font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.DemiBold
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
                         }
-
-                        SettingsRow {
-                            label: "keyd name"
-                            value: KeyboardRemap.pendingCapture?.keyd || "unsupported"
-                            valueColor: KeyboardRemap.pendingCapture?.keyd ? root.cosmicAccent : "#f07070"
-                        }
-                        SettingsRow {
-                            visible: (KeyboardRemap.pendingCapture?.evdev ?? null) !== null
-                                && KeyboardRemap.pendingCapture?.evdev !== undefined
-                            label: "evdev code"
-                            value: String(KeyboardRemap.pendingCapture?.evdev ?? "")
-                        }
-                        SettingsRow {
-                            visible: (KeyboardRemap.pendingCapture?.raw ?? "").length > 0
-                            label: "Hypr/GDK bind"
-                            value: KeyboardRemap.pendingCapture?.raw ?? ""
-                        }
-                        SettingsRow {
-                            visible: (KeyboardRemap.pendingCapture?.keyname ?? "").length > 0
-                            label: "GDK keyname"
-                            value: KeyboardRemap.pendingCapture?.keyname ?? ""
-                        }
-                        SettingsRow {
-                            visible: (KeyboardRemap.pendingCapture?.keycode ?? null) !== null
-                                && KeyboardRemap.pendingCapture?.keycode !== undefined
-                            label: "XKB keycode"
-                            value: String(KeyboardRemap.pendingCapture?.keycode ?? "")
-                        }
-                        SettingsRow {
-                            visible: (KeyboardRemap.pendingCapture?.keyval ?? null) !== null
-                                && KeyboardRemap.pendingCapture?.keyval !== undefined
-                            label: "GDK keyval"
-                            value: String(KeyboardRemap.pendingCapture?.keyval ?? "")
-                        }
-
-                        ButtonRow {
-                            SettingsButton {
-                                label: "Use This Key"
-                                iconName: "done"
-                                enabledState: Boolean(KeyboardRemap.pendingCapture?.keyd)
-                                onClicked: KeyboardRemap.acceptPendingCapture()
-                            }
-                            SettingsButton {
-                                label: "Cancel"
-                                iconName: "close"
-                                onClicked: KeyboardRemap.rejectPendingCapture()
-                            }
+                        SettingsButton {
+                            label: "Dismiss"
+                            iconName: "close"
+                            onClicked: KeyboardRemap.clearCapturedKey()
                         }
                     }
                 }
 
+                // Source → Target row
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
 
+                    // Source key (auto-filled from capture)
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
+                        Layout.preferredHeight: 44
                         radius: root.cosmicRadius
                         color: root.cosmicPanel
                         border.width: 1
-                        border.color: root.cosmicLine
-                        StyledText {
+                        border.color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicLine
+                        ColumnLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight
-                            text: KeyboardRemap.capturedFromKey || "—"
-                            color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicMuted
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            anchors.margins: 8
+                            spacing: 0
+                            StyledText {
+                                text: "Source key"
+                                color: root.cosmicDim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: KeyboardRemap.capturedFromKey || "—"
+                                color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicMuted
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
                         }
                     }
 
                     StyledText {
                         text: "→"
                         color: root.cosmicDim
+                        font.pixelSize: Appearance.font.pixelSize.large
+                        font.weight: Font.Bold
                     }
 
-                    ComboBox {
-                        id: keyremapToBox
+                    // Target key dropdown
+                    Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        model: KeyboardRemap.keyChoices
-                        enabled: KeyboardRemap.capturedFromKey !== ""
+                        Layout.preferredHeight: 44
+                        radius: root.cosmicRadius
+                        color: root.cosmicPanel
+                        border.width: 1
+                        border.color: root.cosmicLine
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 0
+                            StyledText {
+                                text: "Target key"
+                                color: root.cosmicDim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
+                            ComboBox {
+                                id: keyremapToBox
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 24
+                                model: KeyboardRemap.keyChoices
+                                enabled: KeyboardRemap.capturedFromKey !== ""
+                                font.pixelSize: Appearance.font.pixelSize.small
+                            }
+                        }
                     }
                 }
 
+                // Captured-as detail (collapsible info)
                 SettingsRow {
                     visible: KeyboardRemap.capturedFromLabel.length > 0
                     label: "Captured as"
@@ -4249,17 +4249,18 @@ WindowDialog {
                     valueColor: root.cosmicAccent
                 }
 
+                // Apply / Clear buttons
                 ButtonRow {
                     SettingsButton {
-                        label: KeyboardRemap.applyInProgress ? "Saving…" : "Save & Apply"
-                        iconName: "save"
+                        label: KeyboardRemap.applyInProgress ? "Applying…" : "Apply"
+                        iconName: "check"
                         enabledState: KeyboardRemap.capturedFromKey !== "" && !KeyboardRemap.applyInProgress
                         onClicked: KeyboardRemap.saveRemap(keyremapToBox.currentText)
                     }
                     SettingsButton {
                         label: "Clear"
                         iconName: "refresh"
-                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.pendingCapture
+                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.captureWindowOpen
                         onClicked: KeyboardRemap.clearCapturedKey()
                     }
                 }
@@ -4267,7 +4268,9 @@ WindowDialog {
 
             SettingsCard {
                 title: "Presets"
-                subtitle: "Replace current remaps with a preset layout"
+                subtitle: KeyboardRemap.pendingPreset.length > 0
+                    ? "Confirm to replace current remaps with this preset"
+                    : "Replace current remaps with a preset layout"
                 visible: KeyboardRemap.selectedDeviceId !== ""
 
                 ButtonRow {
@@ -4275,11 +4278,38 @@ WindowDialog {
                         model: Object.keys(KeyboardRemap.presets)
                         delegate: SettingsButton {
                             required property string modelData
-                            label: KeyboardRemap.presets[modelData].label
-                            iconName: "auto_fix_high"
-                            onClicked: KeyboardRemap.applyPreset(modelData)
+                            label: KeyboardRemap.pendingPreset === modelData
+                                ? "Confirm " + KeyboardRemap.presets[modelData].label
+                                : KeyboardRemap.presets[modelData].label
+                            iconName: KeyboardRemap.pendingPreset === modelData ? "check" : "auto_fix_high"
+                            active: KeyboardRemap.pendingPreset === modelData
+                            onClicked: {
+                                if (KeyboardRemap.pendingPreset === modelData) {
+                                    KeyboardRemap.confirmPreset();
+                                } else {
+                                    KeyboardRemap.requestPreset(modelData);
+                                }
+                            }
                         }
                     }
+                }
+
+                ButtonRow {
+                    visible: KeyboardRemap.pendingPreset.length > 0
+                    SettingsButton {
+                        label: "Cancel"
+                        iconName: "close"
+                        onClicked: KeyboardRemap.cancelPreset()
+                    }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: KeyboardRemap.pendingPreset.length > 0
+                    text: `This will overwrite all current remaps for the selected keyboard with the "${KeyboardRemap.presets[KeyboardRemap.pendingPreset]?.label ?? ""}" preset and apply immediately.`
+                    color: root.cosmicMuted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.WordWrap
                 }
             }
 

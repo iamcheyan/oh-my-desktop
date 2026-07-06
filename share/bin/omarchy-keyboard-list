@@ -37,43 +37,79 @@ is_probable_keyboard() {
     return 1
 }
 
+# Collect all keyd-capable input devices (NAME + vendor:product) from /proc/bus/input/devices.
+# A device block is considered keyboard-capable if its KEY capability bitmap contains
+# typical letter scancodes (evdev 30='a' and evdev 1='esc') AND we have NAME + Vendor + Product.
 lookup_keyd_id() {
     local hypr_slug="$1"
-    local block="" name="" vendor="" product="" has_key=0
+    local name="" vendor="" product="" has_key=0 has_letter=0 has_esc=0
+    local slug
+
+    # Track the best match: exact slug first, then contains-slug fallback.
+    local best_vendor="" best_product="" best_score=0
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         case "$line" in
-            "") 
-                if [[ "$has_key" -eq 1 && -n "$name" ]]; then
-                    local slug
+            "")
+                if [[ -n "$name" && -n "$vendor" && -n "$product" && "$has_letter" -eq 1 && "$has_esc" -eq 1 ]]; then
                     slug="$(normalize_slug "$name")"
-                    if [[ "$slug" == "$hypr_slug" || "$slug" == *"$hypr_slug"* || "$hypr_slug" == *"$slug"* ]]; then
-                        if [[ -n "$vendor" && -n "$product" ]]; then
-                            printf '%s:%s' "$vendor" "$product"
-                            return 0
-                        fi
+                    local score=0
+                    if [[ "$slug" == "$hypr_slug" ]]; then
+                        score=3
+                    elif [[ "$slug" == *"$hypr_slug"* || "$hypr_slug" == *"$slug"* ]]; then
+                        score=2
+                    fi
+                    if (( score > best_score )); then
+                        best_score=$score
+                        best_vendor="$vendor"
+                        best_product="$product"
                     fi
                 fi
-                block=""
-                name=""
-                vendor=""
-                product=""
-                has_key=0
+                name=""; vendor=""; product=""
+                has_key=0; has_letter=0; has_esc=0
                 ;;
             I:*)
-                vendor="$(sed -n 's/.*Vendor=\([0-9a-fA-F]*\).*/\1/p' <<<"$line" | head -1)"
-                product="$(sed -n 's/.*Product=\([0-9a-fA-F]*\).*/\1/p' <<<"$line" | head -1)"
+                vendor="$(printf '%s' "$line" | sed -n 's/.*Vendor=\([0-9a-fA-F]*\).*/\1/p')"
+                product="$(printf '%s' "$line" | sed -n 's/.*Product=\([0-9a-fA-F]*\).*/\1/p')"
                 ;;
             N:*)
                 name="${line#N: Name=\"}"
                 name="${name%\"}"
                 ;;
             B:*KEY=*)
+                local bitmap
+                bitmap="${line#B: KEY=}"
+                # bitmap is a hex string with spaces; flatten to one big hex number.
+                local flat
+                flat="$(printf '%s' "$bitmap" | tr -d ' ')"
+                # Use Python to test evdev bits 1 (esc) and 30 (a) to avoid huge bash arithmetic.
+                if python3 - <<PY >/dev/null 2>&1
+flat = "${flat}"
+if not flat:
+    raise SystemExit(1)
+# normalize to int from hex
+try:
+    val = int(flat, 16)
+except ValueError:
+    # leading zeros may have spaces stripped; try as base 16 with no prefix
+    val = int(flat.lstrip('0x') or '0', 16)
+esc = bool(val & (1 << 1))
+letter = bool(val & (1 << 30))
+raise SystemExit(0 if (esc and letter) else 1)
+PY
+                then
+                    has_esc=1
+                    has_letter=1
+                fi
                 has_key=1
                 ;;
         esac
     done < /proc/bus/input/devices
 
+    if (( best_score > 0 )); then
+        printf '%s:%s' "$best_vendor" "$best_product"
+        return 0
+    fi
     return 1
 }
 

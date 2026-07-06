@@ -30,15 +30,15 @@
       "remaps": [
         { "from": "muhenkan", "to": "leftmeta" },
         { "from": "leftmeta", "to": "muhenkan" },
-        { "from": "grave", "to": "esc" },
-        { "from": "esc", "to": "grave" }
+        { "from": "grave", "to": "escape" },
+        { "from": "escape", "to": "grave" }
       ],
       "captures": {
         "grave": {
           "bind": "GRAVE",
           "gdkKeyname": "grave",
           "keydFrom": "grave",
-          "keydTo": "esc",
+          "keydTo": "escape",
           "note": "minila 全角/半角键在底层识别为 grave (`)"
         }
       }
