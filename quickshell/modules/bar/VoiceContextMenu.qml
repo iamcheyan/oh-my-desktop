@@ -34,7 +34,7 @@ BarContextMenu {
         iconColor: TuiStyle.warning
         label:     Translation.tr("Key Capture")
         releaseAction: () => {
-            Quickshell.execDetached([`${root.omdRoot}/scripts/key-test`]);
+            Quickshell.execDetached([`${root.omdRoot}/scripts/key-test`, "--hotkey"]);
             root.close();
         }
     }

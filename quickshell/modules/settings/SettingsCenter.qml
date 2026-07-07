@@ -3913,7 +3913,7 @@ WindowDialog {
                     SettingsButton {
                         label: "Capture Key"
                         iconName: "keyboard"
-                        onClicked: Quickshell.execDetached([`${omdRoot}/scripts/key-test`])
+                        onClicked: Quickshell.execDetached([`${omdRoot}/scripts/key-test`, "--hotkey"])
                     }
                 }
 
@@ -4008,6 +4008,11 @@ WindowDialog {
                         label: `${KeyboardRemap.devices.length} device${KeyboardRemap.devices.length === 1 ? "" : "s"}`
                         active: KeyboardRemap.devices.length > 0
                     }
+                    SettingsStatusPill {
+                        label: KeyboardRemap.hasPendingChanges ? "pending changes" : "applied"
+                        active: KeyboardRemap.hasPendingChanges
+                        warning: KeyboardRemap.hasPendingChanges
+                    }
                 }
 
                 SettingsRow {
@@ -4043,7 +4048,7 @@ WindowDialog {
                         }
                     }
                     SettingsButton {
-                        label: KeyboardRemap.applyInProgress ? "Applying…" : "Apply"
+                        label: KeyboardRemap.applyInProgress ? "Applying…" : (KeyboardRemap.hasPendingChanges ? "Apply changes" : "Apply")
                         iconName: "check"
                         enabledState: !KeyboardRemap.applyInProgress
                         onClicked: KeyboardRemap.apply()
@@ -4071,7 +4076,12 @@ WindowDialog {
                         required property var modelData
                         iconName: "keyboard"
                         label: `${modelData.displayName}${modelData.main ? " • main" : ""}`
-                        value: KeyboardRemap.selectedDeviceId === modelData.hyprName ? "Selected" : (modelData.keydId || "")
+                        value: {
+                            const count = KeyboardRemap.remapCount(modelData.hyprName);
+                            if (KeyboardRemap.selectedDeviceId === modelData.hyprName)
+                                return count > 0 ? `Selected • ${count} remap${count === 1 ? "" : "s"}` : "Selected";
+                            return count > 0 ? `${count} remap${count === 1 ? "" : "s"}` : (modelData.keydId || "");
+                        }
                         valueColor: KeyboardRemap.selectedDeviceId === modelData.hyprName ? root.cosmicAccent : root.cosmicMuted
                         onClicked: KeyboardRemap.selectDevice(modelData.hyprName)
                     }
@@ -4106,16 +4116,48 @@ WindowDialog {
                     visible: KeyboardRemap.selectedRemaps.length === 0
                     iconName: "info"
                     label: "No remaps yet"
-                    description: "Capture a source key below, pick a target, then add"
+                    description: "Capture a source key below, pick a target, then add. Press Apply changes when you are done."
                 }
             }
 
             SettingsCard {
+                id: addRemapCard
                 title: "Add Remap"
                 subtitle: KeyboardRemap.capturedFromKey !== ""
-                    ? `Source captured — pick a target and apply`
+                    ? (KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
+                        ? `Source already mapped — choose a new target to update the draft`
+                        : `Source captured — pick a target and add to the draft`)
                     : "Press a key to capture, then choose a target"
                 visible: KeyboardRemap.selectedDeviceId !== ""
+                property string targetKey: KeyboardRemap.keyChoices.length > 0 ? KeyboardRemap.keyChoices[0] : ""
+
+                function syncTargetForCapturedKey() {
+                    const existingTarget = KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey);
+                    if (existingTarget !== "") {
+                        targetKey = existingTarget;
+                    } else if (KeyboardRemap.keyChoices.indexOf(targetKey) < 0 && KeyboardRemap.keyChoices.length > 0) {
+                        targetKey = KeyboardRemap.keyChoices[0];
+                    }
+                }
+
+                Item {
+                    Layout.preferredHeight: 0
+                    Layout.fillWidth: true
+                    visible: false
+
+                    Connections {
+                        target: KeyboardRemap
+                        function onCapturedFromKeyChanged() {
+                            addRemapCard.syncTargetForCapturedKey();
+                        }
+                        function onSelectedDeviceIdChanged() {
+                            addRemapCard.syncTargetForCapturedKey();
+                        }
+                        function onDeviceProfilesChanged() {
+                            addRemapCard.syncTargetForCapturedKey();
+                        }
+                    }
+                }
 
                 // Step 1: Capture button
                 ButtonRow {
@@ -4211,12 +4253,13 @@ WindowDialog {
 
                     // Target key dropdown
                     Rectangle {
+                        id: keyremapTargetBox
                         Layout.fillWidth: true
                         Layout.preferredHeight: 44
                         radius: root.cosmicRadius
-                        color: root.cosmicPanel
+                        color: targetMouse.containsMouse && KeyboardRemap.capturedFromKey !== "" ? root.cosmicButtonHover : root.cosmicPanel
                         border.width: 1
-                        border.color: root.cosmicLine
+                        border.color: targetPopup.visible ? root.cosmicAccent : root.cosmicLine
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 8
@@ -4226,13 +4269,86 @@ WindowDialog {
                                 color: root.cosmicDim
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                             }
-                            ComboBox {
-                                id: keyremapToBox
+                            RowLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 24
+                                spacing: 6
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: addRemapCard.targetKey
+                                    color: KeyboardRemap.capturedFromKey !== "" ? root.cosmicFg : root.cosmicMuted
+                                    font.family: Appearance.font.family.monospace
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    elide: Text.ElideRight
+                                }
+                                MaterialSymbol {
+                                    text: targetPopup.visible ? "expand_less" : "expand_more"
+                                    iconSize: 18
+                                    color: root.cosmicMuted
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: targetMouse
+                            anchors.fill: parent
+                            enabled: KeyboardRemap.capturedFromKey !== ""
+                            hoverEnabled: true
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: targetPopup.open()
+                        }
+
+                        Popup {
+                            id: targetPopup
+                            y: keyremapTargetBox.height + 4
+                            width: keyremapTargetBox.width
+                            height: Math.min(280, targetList.contentHeight + 8)
+                            padding: 4
+
+                            background: Rectangle {
+                                radius: root.cosmicRadius
+                                color: root.cosmicPanel
+                                border.width: 1
+                                border.color: root.cosmicLine
+                            }
+
+                            contentItem: ListView {
+                                id: targetList
+                                clip: true
                                 model: KeyboardRemap.keyChoices
-                                enabled: KeyboardRemap.capturedFromKey !== ""
-                                font.pixelSize: Appearance.font.pixelSize.small
+                                currentIndex: KeyboardRemap.keyChoices.indexOf(addRemapCard.targetKey)
+                                delegate: Rectangle {
+                                    required property string modelData
+                                    required property int index
+                                    width: targetList.width
+                                    height: 34
+                                    radius: root.cosmicRadius
+                                    color: targetChoiceMouse.containsMouse
+                                        ? root.cosmicCardHover
+                                        : (modelData === addRemapCard.targetKey ? root.cosmicAccentSoft : "transparent")
+
+                                    StyledText {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 10
+                                        text: modelData
+                                        color: root.cosmicFg
+                                        font.family: Appearance.font.family.monospace
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
+
+                                    MouseArea {
+                                        id: targetChoiceMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            addRemapCard.targetKey = modelData;
+                                            targetPopup.close();
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -4249,13 +4365,21 @@ WindowDialog {
                     valueColor: root.cosmicAccent
                 }
 
+                SettingsRow {
+                    visible: KeyboardRemap.capturedFromKey !== "" && KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
+                    label: "Existing mapping"
+                    value: `${KeyboardRemap.capturedFromKey} -> ${KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey)}`
+                    description: "Saving will update this existing source key instead of adding a duplicate"
+                    valueColor: root.cosmicAccent
+                }
+
                 // Apply / Clear buttons
                 ButtonRow {
                     SettingsButton {
-                        label: KeyboardRemap.applyInProgress ? "Applying…" : "Apply"
-                        iconName: "check"
-                        enabledState: KeyboardRemap.capturedFromKey !== "" && !KeyboardRemap.applyInProgress
-                        onClicked: KeyboardRemap.saveRemap(keyremapToBox.currentText)
+                        label: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Update" : "Add"
+                        iconName: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "edit" : "add"
+                        enabledState: KeyboardRemap.capturedFromKey !== ""
+                        onClicked: KeyboardRemap.saveRemap(addRemapCard.targetKey)
                     }
                     SettingsButton {
                         label: "Clear"
@@ -4268,9 +4392,7 @@ WindowDialog {
 
             SettingsCard {
                 title: "Presets"
-                subtitle: KeyboardRemap.pendingPreset.length > 0
-                    ? "Confirm to replace current remaps with this preset"
-                    : "Replace current remaps with a preset layout"
+                subtitle: "Replace the draft remaps with a preset layout"
                 visible: KeyboardRemap.selectedDeviceId !== ""
 
                 ButtonRow {
@@ -4278,38 +4400,11 @@ WindowDialog {
                         model: Object.keys(KeyboardRemap.presets)
                         delegate: SettingsButton {
                             required property string modelData
-                            label: KeyboardRemap.pendingPreset === modelData
-                                ? "Confirm " + KeyboardRemap.presets[modelData].label
-                                : KeyboardRemap.presets[modelData].label
-                            iconName: KeyboardRemap.pendingPreset === modelData ? "check" : "auto_fix_high"
-                            active: KeyboardRemap.pendingPreset === modelData
-                            onClicked: {
-                                if (KeyboardRemap.pendingPreset === modelData) {
-                                    KeyboardRemap.confirmPreset();
-                                } else {
-                                    KeyboardRemap.requestPreset(modelData);
-                                }
-                            }
+                            label: KeyboardRemap.presets[modelData].label
+                            iconName: "auto_fix_high"
+                            onClicked: KeyboardRemap.applyPreset(modelData)
                         }
                     }
-                }
-
-                ButtonRow {
-                    visible: KeyboardRemap.pendingPreset.length > 0
-                    SettingsButton {
-                        label: "Cancel"
-                        iconName: "close"
-                        onClicked: KeyboardRemap.cancelPreset()
-                    }
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    visible: KeyboardRemap.pendingPreset.length > 0
-                    text: `This will overwrite all current remaps for the selected keyboard with the "${KeyboardRemap.presets[KeyboardRemap.pendingPreset]?.label ?? ""}" preset and apply immediately.`
-                    color: root.cosmicMuted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    wrapMode: Text.WordWrap
                 }
             }
 

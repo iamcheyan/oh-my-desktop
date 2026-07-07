@@ -28,10 +28,38 @@
       "keydId": "0a5c:8502",
       "enabled": true,
       "remaps": [
-        { "from": "muhenkan", "to": "leftmeta" },
-        { "from": "leftmeta", "to": "muhenkan" },
-        { "from": "grave", "to": "escape" },
-        { "from": "escape", "to": "grave" }
+        {
+          "from": "muhenkan",
+          "to": "leftmeta"
+        },
+        {
+          "from": "leftmeta",
+          "to": "f13"
+        },
+        {
+          "from": "grave",
+          "to": "escape"
+        },
+        {
+          "from": "escape",
+          "to": "grave"
+        },
+        {
+          "from": "katakanahiragana",
+          "to": "left"
+        },
+        {
+          "from": "rightalt",
+          "to": "down"
+        },
+        {
+          "from": "delete",
+          "to": "right"
+        },
+        {
+          "from": "rightcontrol",
+          "to": "up"
+        }
       ],
       "captures": {
         "grave": {

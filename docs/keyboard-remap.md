@@ -74,6 +74,13 @@ leftalt = leftmeta
 
 Devices with remaps but no `keydId` are skipped with a `## WARN` comment and surfaced in the UI. Disabled profiles are omitted. Apply runs `pkexec` to install `/etc/keyd/omd.conf` and `systemctl restart keyd`. A polkit rule (`share/polkit-1/rules.d/50-omd-keyboard.rules`) allows active users to apply without a password; install it via `omarchy-keyboard-setup`.
 
+Generation is shared by:
+
+- `share/bin/omarchy-keyboard-render` — renders the expected keyd config from `profiles.json`.
+- `share/bin/omarchy-keyboard-apply` — writes the rendered config to `keyboard-remap/keyd.generated.conf`, installs it to `/etc/keyd/omd.conf`, and restarts keyd.
+
+The UI compares `omarchy-keyboard-render` with `/etc/keyd/omd.conf` to decide whether it should show `pending changes`.
+
 ## UI (bar popup)
 
 | Section | Purpose |
@@ -85,15 +92,45 @@ Devices with remaps but no `keydId` are skipped with a `## WARN` comment and sur
 | Add row | Two dropdowns (from / to) + Add |
 | Actions | Apply, Setup keyd, Refresh devices |
 
-## Key capture (`key-test`)
+### Draft vs applied config
 
-Press-to-capture is implemented. Use it from **Settings → Keyboard Remap → Capture**, or run:
+The settings page is intentionally two-stage:
+
+1. Add, Update, Remove, Enable/Disable, and Presets edit the local draft in `profiles.json`.
+2. The top-level **Apply changes** button renders and installs `/etc/keyd/omd.conf`.
+
+This matters because keyd continues to use the old `/etc/keyd/omd.conf` until Apply runs. If a mapping was removed from the UI but still works, compare these files:
 
 ```sh
-~/.config/omd/scripts/key-test --remap
+~/.config/omd/share/bin/omarchy-keyboard-render
+cat /etc/keyd/omd.conf
 ```
 
-After pressing a key, close the window and click **Use This Key** in Settings.
+If they differ, the UI should show `pending changes`; press **Apply changes** to make keyd match the draft.
+
+### Updating an existing source key
+
+The `from` key is unique within a profile. Capturing a source key that already has a mapping changes the Add card into an Update flow:
+
+- The target dropdown is prefilled with the existing target.
+- Saving replaces the existing `{ "from": ..., "to": ... }` row.
+- No duplicate row is created.
+
+This is the intended workflow for changing a remap; users should not have to remove the old row first.
+
+## Key capture (`key-test`)
+
+Press-to-capture is implemented. Keyboard Remap must capture the **physical source key**, not the key after current remaps. Use it from **Settings → Keyboard Remap → Capture**, or run:
+
+```sh
+~/.config/omd/scripts/key-test --remap-source
+```
+
+In `--remap-source` mode, `key-test` temporarily stops keyd before the GTK window captures a key, then restores keyd when the window exits. This prevents an existing remap from polluting the source capture. For example, if `leftmeta = f13` is active, Keyboard Remap still captures the physical key as `leftmeta`.
+
+The settings dialog is closed before the capture window opens and restored after capture. This avoids layer-shell/focus races where the GTK capture window appears behind the settings center.
+
+Do **not** use `--remap-source` for application hotkeys. Hotkey tools should use `key-test --hotkey`, because they need the final key that applications see after keyd remaps.
 
 ### Three naming layers
 
@@ -119,6 +156,33 @@ hardware-code:49
 ```
 
 Conversion: `evdev = XKB_keycode - 8`. Mapping lives in `scripts/key_evdev_names.py`; resolution order in `scripts/keyremap-capture-read` is **keyd-name → XKB/evdev → GDK/Hypr fallback**.
+
+### Extended F keys and app hotkeys
+
+keyd supports `f13` through `f24`, and the Keyboard Remap target dropdown exposes `f1` through `f24`. These are useful as clean internal targets for spare physical keys:
+
+```ini
+leftmeta = f13
+muhenkan = f18
+henkan = f19
+```
+
+However, XKB/GDK may present some extended F keys as semantic XF86 keysyms. On the current JP layout, keyd `f13` can appear to applications as `Tools`, whose Hyprland binding name is `XF86Tools`.
+
+Use this rule:
+
+- For keyd config targets, use keyd names: `f13`, `f14`, ..., `f24`.
+- For Hyprland/application hotkeys, bind what `key-test --hotkey` captures: often `F13`, but sometimes `XF86Tools` or another XF86 name.
+
+Example workflow for a spare physical key:
+
+1. In Keyboard Remap, capture the physical key with `--remap-source`.
+2. Map it to `f13`.
+3. Press **Apply changes**.
+4. In the target app or Voice Input binding tool, capture with `--hotkey`.
+5. Save the captured hotkey (`XF86Tools` on this machine for keyd `f13`, not raw `TOOLS` and not necessarily `F13`).
+
+If Hyprland shows `Unknown keysym: "TOOLS"`, the binding was saved from GDK's short display name. Use `XF86Tools` instead.
 
 Verify remaps at runtime:
 
@@ -173,7 +237,7 @@ This differs from keyboards that emit `KEY_FN` (e.g. MacBook Globe → Hypr `cod
 
 ```sh
 # 1. Open capture, press 全角/半角 — expect keyd-name: grave
-~/.config/omd/scripts/key-test --remap
+~/.config/omd/scripts/key-test --remap-source
 
 # 2. Monitor — press each Fn alone; expect silence
 sudo keyd monitor -t

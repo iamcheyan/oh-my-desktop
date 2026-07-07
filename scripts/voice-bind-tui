@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import atexit
+import time
 
 # ── Paths ──
 CONFIG_DIR = os.path.expanduser("~/.config/omarchy")
@@ -52,9 +53,9 @@ def save_bindings(bindings):
 def run_key_capture():
     if os.path.exists(KEY_TEST_SCRIPT):
         # We launch the GTK key-test window
-        subprocess.run([sys.executable, KEY_TEST_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([sys.executable, KEY_TEST_SCRIPT, "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
-        subprocess.run(["key-test"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["key-test", "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Read the captured key from clipboard (first line / bind string)
     try:
