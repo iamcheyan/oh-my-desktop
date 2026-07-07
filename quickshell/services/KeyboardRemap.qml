@@ -29,7 +29,7 @@ Singleton {
     property bool hasPendingChanges: false
     property bool reopenSettingsAfterCapture: false
 
-    readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/share/bin`)
+    readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin`)
     readonly property string scriptsDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts`)
     readonly property string dataDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/keyboard-remap`)
     readonly property string profilesPath: `${root.dataDir}/profiles.json`
@@ -504,7 +504,7 @@ Singleton {
 
     Process {
         id: listProc
-        command: ["bash", `${root.shareDir}/omarchy-keyboard-list`]
+        command: ["bash", `${root.shareDir}/omd-keyboard-list`]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
@@ -552,7 +552,7 @@ Singleton {
 
     Process {
         id: pendingCheckProc
-        command: ["bash", "-c", `'${root.shareDir}/omarchy-keyboard-render' | cmp -s - /etc/keyd/omd.conf && echo applied || echo pending`]
+        command: ["bash", "-c", `'${root.shareDir}/omd-keyboard-render' | cmp -s - /etc/keyd/omd.conf && echo applied || echo pending`]
         stdout: SplitParser {
             onRead: line => {
                 root.hasPendingChanges = (line === "pending");
@@ -591,7 +591,7 @@ Singleton {
 
     Process {
         id: applyProc
-        command: ["bash", `${root.shareDir}/omarchy-keyboard-apply`]
+        command: ["bash", `${root.shareDir}/omd-keyboard-apply`]
         stdout: SplitParser {
             onRead: line => {
                 if (line.startsWith("ERROR:"))
@@ -617,7 +617,7 @@ Singleton {
 
     Process {
         id: setupProc
-        command: ["bash", `${root.shareDir}/omarchy-keyboard-setup`]
+        command: ["bash", `${root.shareDir}/omd-keyboard-setup`]
         stdout: SplitParser {
             onRead: line => {
                 if (line.startsWith("ERROR:"))

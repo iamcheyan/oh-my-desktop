@@ -1,31 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OMARCHY_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy"
-OMARCHY_SHARE="${OMARCHY_PATH:-$HOME/.local/share/omarchy}"
-CURRENT_NAME_FILE="$OMARCHY_CONFIG/current/theme.name"
+OMD_ROOT="${OMD_ROOT:-$HOME/.config/omd}"
+OMD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omd"
+USER_THEMES_DIR="$OMD_CONFIG/themes"
+SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
+CURRENT_DIR="$OMD_ROOT/current"
+CURRENT_THEME_DIR="$CURRENT_DIR/theme"
+CURRENT_NAME_FILE="$CURRENT_DIR/theme.name"
 
 slug_to_title() {
   sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$1"
 }
 
 theme_preview() {
-  # Theme previews are generated from colors.toml in Settings Center. Keep this
-  # field empty for backwards-compatible tab-separated output.
   printf '\n'
+}
+
+theme_base() {
+  local slug="$1"
+  if [[ -d "$USER_THEMES_DIR/$slug" ]]; then
+    printf '%s\n' "$USER_THEMES_DIR/$slug"
+  elif [[ -d "$SYSTEM_THEMES_DIR/$slug" ]]; then
+    printf '%s\n' "$SYSTEM_THEMES_DIR/$slug"
+  fi
 }
 
 theme_color() {
   local slug="$1"
   local key="$2"
-  local base=""
+  local base
 
-  if [[ -d "$OMARCHY_CONFIG/themes/$slug" ]]; then
-    base="$OMARCHY_CONFIG/themes/$slug"
-  elif [[ -d "$OMARCHY_SHARE/themes/$slug" ]]; then
-    base="$OMARCHY_SHARE/themes/$slug"
-  fi
-
+  base="$(theme_base "$slug")"
   if [[ -n "$base" && -f "$base/colors.toml" ]]; then
     awk -F= -v key="$key" '
       $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
@@ -46,8 +52,8 @@ list_themes() {
   current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
 
   {
-    find "$OMARCHY_CONFIG/themes" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null || true
-    find "$OMARCHY_SHARE/themes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
+    find "$USER_THEMES_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null || true
+    find "$SYSTEM_THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
   } | sort -u | while IFS= read -r slug; do
     [[ -n "$slug" ]] || continue
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
@@ -77,11 +83,29 @@ current_theme() {
   fi
 }
 
+copy_theme() {
+  local source="$1"
+  mkdir -p "$CURRENT_DIR"
+  rm -rf "$CURRENT_THEME_DIR"
+  cp -a "$source" "$CURRENT_THEME_DIR"
+}
+
+refresh_running_apps() {
+  qs -p "$OMD_ROOT/apps/omd-bar" ipc call theme reload >/dev/null 2>&1 || true
+  hyprctl reload >/dev/null 2>&1 || true
+}
+
 apply_theme() {
   local slug="${1:-}"
-  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug>" >&2; exit 2; }
+  local base
 
-  OMARCHY_THEME_SKIP_BACKGROUND=1 omarchy-theme-set "$slug"
+  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug>" >&2; exit 2; }
+  base="$(theme_base "$slug")"
+  [[ -n "$base" ]] || { echo "theme not found: $slug" >&2; exit 1; }
+
+  copy_theme "$base"
+  printf '%s\n' "$slug" >"$CURRENT_NAME_FILE"
+  refresh_running_apps
 }
 
 case "${1:-list}" in

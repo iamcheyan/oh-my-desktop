@@ -42,7 +42,7 @@ stop_quickshell
 stop_waybar
 sleep 0.2
 start_quickshell
-omarchy-restart-walker
+pkill walker || true
 
 sleep 1
 pgrep -af '(quickshell|qs|wl-paste)' || true

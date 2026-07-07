@@ -31,9 +31,9 @@ Singleton {
     readonly property string recPidFile: "/tmp/omd-voice-rec.pid"
 
     readonly property string shareDir: FileUtils.trimFileProtocol(
-        `${Directories.config}/omd/share/bin`)
+        `${Directories.config}/omd/bin`)
 
-    readonly property string pasteScript: `${root.shareDir}/omarchy-paste-at-cursor`
+    readonly property string pasteScript: `${root.shareDir}/omd-paste-at-cursor`
 
     // 录音开始时记录焦点窗口，转写完成后贴回该窗口（避免转写期间焦点跑到顶栏）。
     property string focusedWindowClass: ""
@@ -196,7 +196,7 @@ Singleton {
 
     Process {
         id: setupProc
-        command: ["bash", `${root.shareDir}/omarchy-voice-setup`]
+        command: ["bash", `${root.shareDir}/omd-voice-setup`]
         stdout: SplitParser {
             onRead: (line) => {
                 if (line.startsWith("ERROR")) {
@@ -222,7 +222,7 @@ Singleton {
 
     Process {
         id: downloadProc
-        command: ["bash", `${root.shareDir}/omarchy-voice-download`]
+        command: ["bash", `${root.shareDir}/omd-voice-download`]
         stdout: SplitParser {
             onRead: (line) => {
                 if (line === "model-ready") {
@@ -286,12 +286,12 @@ Singleton {
 
     Process {
         id: recProc
-        command: ["bash", `${root.shareDir}/omarchy-voice-record`, "start"]
+        command: ["bash", `${root.shareDir}/omd-voice-record`, "start"]
     }
 
     Process {
         id: stopRecProc
-        command: ["bash", `${root.shareDir}/omarchy-voice-record`, "stop"]
+        command: ["bash", `${root.shareDir}/omd-voice-record`, "stop"]
         onExited: (code, status) => {
             if (root.state === "recording") {
                 state = "transcribing"
@@ -305,7 +305,7 @@ Singleton {
     Process {
         id: transcribeProc
         command: ["bash", "-c",
-            `"${root.venvDir}/bin/python3" "${root.shareDir}/omarchy-voice-transcribe" "${root.wavPath}"`]
+            `"${root.venvDir}/bin/python3" "${root.shareDir}/omd-voice-transcribe" "${root.wavPath}"`]
         stdout: SplitParser {
             onRead: (line) => {
                 try {

@@ -1,12 +1,10 @@
 #!/bin/bash
 
-# omarchy:summary=Log out after closing application windows
-# omarchy:examples=omarchy logout | omarchy system logout
-# omarchy:aliases=omarchy logout
+# OMD compatibility implementation for omd-logout.
 
 # Close application windows first so apps get a chance to persist state, but do
 # not let a close failure prevent logout.
-omarchy-hyprland-window-close-all >/dev/null 2>&1 || true
+omd-hyprland-window-close-all >/dev/null 2>&1 || true
 sleep 0.8
 
 hyprland_alive() {
@@ -14,10 +12,10 @@ hyprland_alive() {
 }
 
 # End only the compositor so the display manager returns to the login screen.
-# Do not call `uwsm stop` here: in OMD's current Asahi/Omarchy session that path
+# Do not call `uwsm stop` here: in OMD's current session that path
 # can escalate into a full system stop instead of a plain graphical logout.
 #
-# In Omarchy's Lua Hyprland config, `hyprctl dispatch exit` is parsed as Lua and
+# In the Lua Hyprland config, `hyprctl dispatch exit` is parsed as Lua and
 # can return 0 while only writing an error. The raw dispatcher call below is the
 # path that actually exits the compositor in this session. A successful exit may
 # make hyprctl report a broken socket, so verify by checking whether Hyprland is

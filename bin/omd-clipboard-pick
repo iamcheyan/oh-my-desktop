@@ -22,5 +22,5 @@ orig=$(cliphist list | grep -F	"$content" | head -1)
 
 if [ -n "$orig" ]; then
     printf '%s\n' "$orig" | cliphist decode | wl-copy
-    OMD_PASTE_DELAY=0.05 "$HOME/.config/omd/share/bin/omarchy-paste-at-cursor" auto
+    OMD_PASTE_DELAY=0.05 "$HOME/.config/omd/bin/omd-paste-at-cursor" auto
 fi

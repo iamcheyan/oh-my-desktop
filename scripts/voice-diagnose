@@ -64,7 +64,7 @@ def run_diagnostics():
         set_test_state("venv", TestStatus.OK, "虚拟环境已就绪")
         add_log("虚拟环境检测成功。")
     else:
-        set_test_state("venv", TestStatus.FAIL, f"未找到虚拟环境: {VENV_DIR}\n请右键菜单运行'状态重新检查'或运行 omarchy-voice-setup 进行初始化。", "请运行 omarchy-voice-setup 初始化。")
+        set_test_state("venv", TestStatus.FAIL, f"未找到虚拟环境: {VENV_DIR}\n请右键菜单运行'状态重新检查'或运行 omd-voice-setup 进行初始化。", "请运行 omd-voice-setup 初始化。")
         add_log("错误: 虚拟环境未就绪。")
 
     # 2. 依赖包检查
@@ -98,7 +98,7 @@ def run_diagnostics():
         set_test_state("model", TestStatus.OK, f"模型存在 ({sz:.1f} MB)")
         add_log("模型文件完整性检查通过。")
     else:
-        set_test_state("model", TestStatus.FAIL, f"模型文件缺失。位置: {MODEL_DIR}\n请运行 omarchy-voice-download 下载模型文件。", "模型未找到。")
+        set_test_state("model", TestStatus.FAIL, f"模型文件缺失。位置: {MODEL_DIR}\n请运行 omd-voice-download 下载模型文件。", "模型未找到。")
         add_log("错误: 模型文件缺失。")
 
     # 4. 守护进程检查
@@ -149,7 +149,7 @@ def run_diagnostics():
     has_hyprctl = shutil.which("hyprctl")
     has_wtype = shutil.which("wtype")
     has_ydotool = shutil.which("ydotool")
-    paste_script = os.path.expanduser("~/.config/omd/share/bin/omarchy-paste-at-cursor")
+    paste_script = os.path.expanduser("~/.config/omd/share/bin/omd-paste-at-cursor")
     paste_backends = [name for name, ok in [
         ("hyprctl", has_hyprctl),
         ("wtype", has_wtype),
@@ -159,7 +159,7 @@ def run_diagnostics():
         set_test_state(
             "paste",
             TestStatus.OK,
-            f"wl-copy + omarchy-paste-at-cursor 就绪 ({', '.join(paste_backends)})",
+            f"wl-copy + omd-paste-at-cursor 就绪 ({', '.join(paste_backends)})",
         )
         add_log(f"自动粘贴后端: {', '.join(paste_backends)}")
     elif has_wlcopy and paste_backends:

@@ -76,10 +76,12 @@ section() {
 
 section "runtime symlinks"
 check_link "$HOME/.config/quickshell" "$repo/quickshell"
-check_link "$HOME/.config/omarchy" "$repo/omarchy"
-check_link "$HOME/.config/walker" "$repo/omarchy/walker"
+check_link "$HOME/.config/walker" "$repo/config/walker"
+check_link "$HOME/.config/foot" "$repo/config/foot"
+check_link "$HOME/.config/kitty" "$repo/config/kitty"
+check_link "$HOME/.config/alacritty" "$repo/config/alacritty"
+check_link "$HOME/.config/ghostty" "$repo/config/ghostty"
 check_link "$HOME/.config/omd" "$repo"
-check_link "$HOME/.local/share/omarchy" "$repo/share"
 
 section "core commands"
 for cmd in qs quickshell hyprctl jq curl swaybg systemd-run; do
@@ -117,12 +119,12 @@ check_optional_cmd ydotool "ydotool auto-paste"
 if [[ -x "$HOME/.cache/omd-voice/venv/bin/python3" ]]; then
   ok "voice venv"
 else
-  warn "voice venv missing: run share/bin/omarchy-voice-setup or use the voice popup setup action"
+  warn "voice venv missing: run bin/omd-voice-setup or use the voice popup setup action"
 fi
 if [[ -f "$HOME/.cache/omd-voice/sense-voice-small-int8/model.int8.onnx" && -f "$HOME/.cache/omd-voice/sense-voice-small-int8/tokens.txt" ]]; then
   ok "SenseVoice model cache"
 else
-  warn "SenseVoice model missing: run share/bin/omarchy-voice-download or use the voice popup download action"
+  warn "SenseVoice model missing: run bin/omd-voice-download or use the voice popup download action"
 fi
 
 section "wallpaper"
@@ -137,10 +139,10 @@ if [[ -n "$wallpaper" ]]; then
 else
   warn "no configured wallpaperPath"
 fi
-if [[ -L "$HOME/.config/omarchy/current/background" || -f "$HOME/.config/omarchy/current/background" ]]; then
-  ok "current Omarchy background exists"
+if [[ -L "$repo/current/background" || -f "$repo/current/background" ]]; then
+  ok "current OMD background exists"
 else
-  warn "current Omarchy background missing; run omarchy-theme-bg-set or choose a wallpaper"
+  warn "current OMD background missing; run omd-theme-bg-set or choose a wallpaper"
 fi
 
 section "privacy scan"

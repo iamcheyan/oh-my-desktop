@@ -1,14 +1,11 @@
 #!/bin/bash
 
-# omarchy:summary=Lock the computer and turn off the display
-# omarchy:group=system
-# omarchy:name=lock
-# omarchy:examples=omarchy system lock
+# OMD compatibility implementation for omd-lock.
 
 if ! pidof hyprlock >/dev/null; then
   (
-    hyprlock --config ~/.config/omarchy/hypr/hyprlock.conf
-    omarchy-system-wake
+    hyprlock --config ~/.config/omd/hypr/hyprlock.conf
+    omd-wake
   ) &
 fi
 
@@ -21,13 +18,13 @@ if pgrep -x "1password" >/dev/null; then
 fi
 
 # Avoid running screensaver when locked
-pkill -f org.omarchy.screensaver
+pkill -f org.omd.screensaver
 
-if [[ ${OMARCHY_LOCK_ONLY:-false} != "true" ]]; then
+if [[ ${OMD_LOCK_ONLY:-false} != "true" ]]; then
   (
     sleep 3
     pidof hyprlock >/dev/null || exit 0
-    omarchy-brightness-keyboard off
-    omarchy-brightness-display off
+    omd-brightness-keyboard off
+    omd-brightness-display off
   ) &
 fi

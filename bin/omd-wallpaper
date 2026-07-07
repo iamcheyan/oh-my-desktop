@@ -74,7 +74,7 @@ set_image() {
   ensure_state_dir
   realpath "$image" > "$SOURCE_FILE"
   echo "file" > "$MODE_FILE"
-  omarchy-theme-bg-set "$image"
+  omd-theme-bg-set "$image"
   notify "Wallpaper changed" "$(basename "$image")"
 }
 
@@ -100,7 +100,7 @@ random_from_folder() {
     exit 1
   fi
 
-  omarchy-theme-bg-set "$selected"
+  omd-theme-bg-set "$selected"
 }
 
 set_folder() {
@@ -138,7 +138,7 @@ status() {
 
   mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
-  current="$(readlink -f "$HOME/.config/omarchy/current/background" 2>/dev/null || true)"
+  current="$(readlink -f "$HOME/.config/omd/current/background" 2>/dev/null || true)"
   printf 'mode=%s\nsource=%s\ncurrent=%s\ninterval=%s\n' "$mode" "$source" "$current" "$INTERVAL_SEC"
 }
 

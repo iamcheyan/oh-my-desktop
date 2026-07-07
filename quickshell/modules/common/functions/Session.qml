@@ -24,7 +24,7 @@ Singleton {
 
     function lock() {
         if (Config.options.lock.useHyprlock) {
-            Quickshell.execDetached(["bash", "-lc", "\"$HOME/.local/share/omarchy/bin/omarchy-system-lock\" || hyprlock || loginctl lock-session"]);
+            Quickshell.execDetached(["bash", "-lc", "\"$HOME/.config/omd/bin/omd-lock\" || hyprlock || loginctl lock-session"]);
             return;
         }
         LockService.lock();
@@ -39,7 +39,7 @@ Singleton {
     }
 
     function logout(saveCurrentSession) {
-        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("\"$HOME/.local/share/omarchy/bin/omarchy-system-logout\"", saveCurrentSession)]);
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("\"$HOME/.config/omd/bin/omd-logout\"", saveCurrentSession)]);
     }
 
     function launchTaskManager() {

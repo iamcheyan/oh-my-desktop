@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Launch a floating terminal with the Omarchy presentation wrapper
-# omarchy:args=<command>
+# OMD compatibility implementation for omd-launch-floating-terminal-with-presentation.
 
 cmd="$*"
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omarchy.terminal --title=Omarchy -e bash -c "omarchy-show-logo; $cmd; if (( \$? != 130 )); then omarchy-show-done; fi"
+exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.terminal --title=OMD -e bash -c "$cmd"

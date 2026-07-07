@@ -687,7 +687,7 @@ install_user_binaries() {
     install_github_release_binary "abenz1267/elephant" \
         "^elephant-linux-${elephant_arch}\.tar\.gz$" "elephant" || true
 
-    # Required providers used by ~/.config/omarchy/walker/config.toml.
+    # Required providers used by ~/.config/walker/config.toml.
     # We only install the ones referenced in the OMD walker config so we don't
     # pull down every upstream provider.
     local providers=(
@@ -818,14 +818,12 @@ install_all_dependencies() {
 create_symlinks() {
     local LINKS=(
         "$HOME/.config/quickshell|$REPO/quickshell"
-        "$HOME/.config/omarchy|$REPO/omarchy"
-        "$HOME/.config/walker|$REPO/omarchy/walker"
-        "$HOME/.config/foot|$REPO/omarchy/foot"
-        "$HOME/.config/kitty|$REPO/omarchy/kitty"
-        "$HOME/.config/alacritty|$REPO/omarchy/alacritty"
-        "$HOME/.config/ghostty|$REPO/omarchy/ghostty"
+        "$HOME/.config/walker|$REPO/config/walker"
+        "$HOME/.config/foot|$REPO/config/foot"
+        "$HOME/.config/kitty|$REPO/config/kitty"
+        "$HOME/.config/alacritty|$REPO/config/alacritty"
+        "$HOME/.config/ghostty|$REPO/config/ghostty"
         "$HOME/.config/omd|$REPO"
-        "$HOME/.local/share/omarchy|$REPO/share"
     )
 
     local backup_dir=""
@@ -900,7 +898,7 @@ install_session_files() {
 #!/bin/bash
 set -e
 
-if [[ ${OMD_FORCE_NO_UWSM:-${OMARCHY_FORCE_NO_UWSM:-0}} == 1 ]]; then
+if [[ ${OMD_FORCE_NO_UWSM:-0} == 1 ]]; then
     [[ ${1:-} == -- ]] && shift
     exec "$@"
 fi
@@ -920,19 +918,16 @@ EOF
 set -e
 
 export OMD_ROOT="${HOME}/.config/omd"
-export OMARCHY_PATH="${HOME}/.local/share/omarchy"
-export OMARCHY_CONFIG="${HOME}/.config/omarchy"
 export OMD_FORCE_NO_UWSM=1
-export OMARCHY_FORCE_NO_UWSM=1
 export XDG_CURRENT_DESKTOP=Hyprland
 export XDG_SESSION_DESKTOP=oh-my-desktop
 export XDG_SESSION_TYPE=wayland
 export QT_QPA_PLATFORM=wayland
 export GDK_BACKEND=wayland,x11
 export MOZ_ENABLE_WAYLAND=1
-export PATH="${HOME}/.local/bin:${OMARCHY_PATH}/bin:${OMD_ROOT}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
+export PATH="${HOME}/.local/bin:${OMD_ROOT}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
 
-config="${HOME}/.config/omarchy/hypr/hyprland.lua"
+config="${OMD_ROOT}/hypr/hyprland.lua"
 
 if [[ ! -f "$config" ]]; then
     echo "OMD Hyprland config not found: $config" >&2
@@ -984,7 +979,7 @@ print_summary() {
     echo "Next steps:"
     echo "  1. Log out"
     echo "  2. In GDM, click the gear icon and choose \"Oh My Desktop\""
-    echo "  3. Log in; Hyprland will load ~/.config/omarchy and autostart Quickshell"
+    echo "  3. Log in; Hyprland will load ~/.config/omd/hypr and autostart Quickshell"
     echo
     echo "Useful commands:"
     echo "  hyprctl reload            # Reload Hyprland config"

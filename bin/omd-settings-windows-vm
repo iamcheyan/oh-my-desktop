@@ -5,8 +5,8 @@ COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
 
 terminal_run() {
   local cmd="$*"
-  if command -v omarchy-launch-floating-terminal-with-presentation >/dev/null 2>&1; then
-    omarchy-launch-floating-terminal-with-presentation "$cmd"
+  if command -v omd-launch-floating-terminal-with-presentation >/dev/null 2>&1; then
+    omd-launch-floating-terminal-with-presentation "$cmd"
   elif command -v xdg-terminal-exec >/dev/null 2>&1; then
     setsid xdg-terminal-exec --app-id=org.omd.windows-vm -e bash -lc "$cmd; printf '\nPress Enter to close...'; read -r _" >/dev/null 2>&1 &
   elif command -v kitty >/dev/null 2>&1; then
@@ -67,19 +67,19 @@ case "${1:-status}" in
     status
     ;;
   install)
-    terminal_run "omarchy-windows-vm install"
+    terminal_run "omd-windows-vm install"
     ;;
   launch)
-    terminal_run "omarchy-windows-vm launch"
+    terminal_run "omd-windows-vm launch"
     ;;
   launch-keepalive)
-    terminal_run "omarchy-windows-vm launch --keep-alive"
+    terminal_run "omd-windows-vm launch --keep-alive"
     ;;
   stop)
-    omarchy-windows-vm stop
+    omd-windows-vm stop
     ;;
   remove)
-    terminal_run "omarchy-windows-vm remove"
+    terminal_run "omd-windows-vm remove"
     ;;
   web)
     xdg-open "http://127.0.0.1:8006" >/dev/null 2>&1 &

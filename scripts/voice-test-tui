@@ -16,8 +16,8 @@ import time
 # ── 路径 ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 BIN_DIR = os.path.join(SCRIPT_DIR, "..", "share", "bin")
-RECORD_SCRIPT = os.path.join(BIN_DIR, "omarchy-voice-record")
-TRANSCRIBE_SCRIPT = os.path.join(BIN_DIR, "omarchy-voice-transcribe")
+RECORD_SCRIPT = os.path.join(BIN_DIR, "omd-voice-record")
+TRANSCRIBE_SCRIPT = os.path.join(BIN_DIR, "omd-voice-transcribe")
 WAV_PATH = "/tmp/omd-voice-test.wav"
 PID_PATH = "/tmp/omd-voice-test.pid"
 

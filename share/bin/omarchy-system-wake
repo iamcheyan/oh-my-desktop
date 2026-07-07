@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Wake displays and restore brightness after idle
-# omarchy:group=system
-# omarchy:name=wake
-# omarchy:examples=omarchy system wake
+# OMD compatibility implementation for omd-wake.
 
-omarchy-brightness-display on
-omarchy-brightness-keyboard restore
+omd-brightness-display on
+omd-brightness-keyboard restore

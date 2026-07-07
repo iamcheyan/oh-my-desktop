@@ -19,7 +19,7 @@ start_keyd() {
 }
 
 install_polkit_rule() {
-    local src="${HOME}/.local/share/omarchy/polkit-1/rules.d/50-omd-keyboard.rules"
+    local src="${HOME}/.config/omd/share/polkit-1/rules.d/50-omd-keyboard.rules"
     local dest="/etc/polkit-1/rules.d/50-omd-keyboard.rules"
     if [[ ! -f "$src" ]]; then
         return 0

@@ -921,7 +921,7 @@ Scope {
                                 onClicked: {
                                     Quickshell.execDetached(["bash", "-c",
                                         `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
-                                        `'${VoiceInput.shareDir}/omarchy-paste-at-cursor' auto`])
+                                        `'${VoiceInput.shareDir}/omd-paste-at-cursor' auto`])
                                 }
                             }
                         }

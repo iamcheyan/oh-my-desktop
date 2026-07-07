@@ -27,7 +27,7 @@ if grep -q '^## WARN' "$GENERATED"; then
 fi
 
 if ! command -v keyd >/dev/null 2>&1; then
-    echo "ERROR: keyd is not installed. Run omarchy-keyboard-setup first." >&2
+    echo "ERROR: keyd is not installed. Run omd-keyboard-setup first." >&2
     exit 2
 fi
 

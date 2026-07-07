@@ -2354,7 +2354,7 @@ WindowDialog {
 
             Process {
                 id: fontSizeReadProc
-                command: ["bash", "-c", 'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omarchy/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omarchy/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9']
+                command: ["bash", "-c", 'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9']
                 running: true
                 stdout: StdioCollector {
                     id: fontSizeCollector
@@ -2372,13 +2372,13 @@ WindowDialog {
                 command: ["bash", "-c",
                     'SIZE=' + appearanceState.terminalFontSize + '\n' +
                     '# foot\n' +
-                    'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omarchy/foot/foot.ini" 2>/dev/null\n' +
+                    'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omd/config/foot/foot.ini" 2>/dev/null\n' +
                     '# kitty\n' +
-                    'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omarchy/kitty/kitty.conf" 2>/dev/null\n' +
+                    'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null\n' +
                     '# alacritty\n' +
-                    'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omarchy/alacritty/alacritty.toml" 2>/dev/null\n' +
+                    'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null\n' +
                     '# ghostty\n' +
-                    'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omarchy/ghostty/config" 2>/dev/null\n' +
+                    'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omd/config/ghostty/config" 2>/dev/null\n' +
                     'true']
                 onExited: {
                     fontSizeReadProc.running = true
@@ -2400,7 +2400,7 @@ WindowDialog {
 
             Process {
                 id: fontCurrentProc
-                command: ["bash", "-c", "omarchy-font-current 2>/dev/null || echo 'JetBrains Mono'"]
+                command: ["bash", "-c", "omd-font-current 2>/dev/null || echo 'JetBrains Mono'"]
                 running: true
                 stdout: StdioCollector {
                     id: fontCurrentCollector
@@ -2524,7 +2524,7 @@ WindowDialog {
                             SettingsButton {
                                 label: "Open Theme Folder"
                                 iconName: "folder"
-                                onClicked: Quickshell.execDetached(["xdg-open", `${FileUtils.trimFileProtocol(Directories.config)}/omarchy/current/theme`])
+                                onClicked: Quickshell.execDetached(["xdg-open", `${FileUtils.trimFileProtocol(Directories.config)}/omd/current/theme`])
                             }
                         }
 
@@ -3405,7 +3405,7 @@ WindowDialog {
     Component {
         id: windowRulesPage
         PageBody {
-            readonly property string rulesFile: `${FileUtils.trimFileProtocol(Directories.config)}/omarchy/hypr/window_rules.lua`
+            readonly property string rulesFile: `${FileUtils.trimFileProtocol(Directories.config)}/omd/hypr/window_rules.lua`
             property var rules: []
 
             Component.onCompleted: refreshRules()
@@ -3461,7 +3461,7 @@ WindowDialog {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: "Define per-application window rules. Rules are written to omarchy/hypr/window_rules.lua and applied via hyprctl reload."
+                    text: "Define per-application window rules. Rules are written to omd/hypr/window_rules.lua and applied via hyprctl reload."
                     color: root.cosmicDim
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
@@ -3908,7 +3908,7 @@ WindowDialog {
                     SettingsButton {
                         label: "Configure"
                         iconName: "settings"
-                        onClicked: Quickshell.execDetached(["omarchy-launch-tui", `${omdRoot}/scripts/voice-bind-tui`])
+                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-bind-tui`])
                     }
                     SettingsButton {
                         label: "Capture Key"
@@ -3921,7 +3921,7 @@ WindowDialog {
 
             Process {
                 id: voiceBindingsProc
-                command: ["bash", "-c", "cat ~/.config/omarchy/voice_bindings.txt 2>/dev/null || echo ''"]
+                command: ["bash", "-c", "cat ~/.config/omd/config/voice_bindings.txt 2>/dev/null || echo ''"]
                 running: true
                 stdout: StdioCollector {
                     id: voiceBindingsCollector
@@ -3948,14 +3948,14 @@ WindowDialog {
                     SettingsButton {
                         label: "TUI Test"
                         iconName: "terminal"
-                        onClicked: Quickshell.execDetached(["omarchy-launch-tui", `${omdRoot}/scripts/voice-test-tui`])
+                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-test-tui`])
                     }
                 }
                 ButtonRow {
                     SettingsButton {
                         label: "Diagnose"
                         iconName: "health_and_safety"
-                        onClicked: Quickshell.execDetached(["omarchy-launch-tui", `${omdRoot}/scripts/voice-diagnose`])
+                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-diagnose`])
                     }
                     SettingsButton {
                         label: "Clear History"
@@ -4558,7 +4558,7 @@ WindowDialog {
 
             SettingsCard {
                 title: "Configuration"
-                subtitle: windowsState.configured ? "Generated by omarchy-windows-vm" : "Created during install"
+                subtitle: windowsState.configured ? "Generated by omd-windows-vm" : "Created during install"
                 SettingsRow { label: "Compose file"; value: windowsState.composeFile }
                 SettingsRow { label: "Storage"; value: windowsState.storageDir }
                 SettingsRow { label: "Shared folder"; value: windowsState.sharedDir }

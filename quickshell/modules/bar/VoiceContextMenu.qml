@@ -24,7 +24,7 @@ BarContextMenu {
         iconColor: TuiStyle.info
         label:     Translation.tr("Test Voice Input")
         releaseAction: () => {
-            Quickshell.execDetached(["omarchy-launch-tui", `${root.omdRoot}/scripts/voice-test-tui`]);
+            Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-test-tui`]);
             root.close();
         }
     }
@@ -44,7 +44,7 @@ BarContextMenu {
         iconColor: TuiStyle.success
         label:     Translation.tr("Configure Keybindings")
         releaseAction: () => {
-            Quickshell.execDetached(["omarchy-launch-tui", `${root.omdRoot}/scripts/voice-bind-tui`]);
+            Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-bind-tui`]);
             root.close();
         }
     }
@@ -63,7 +63,7 @@ BarContextMenu {
         iconColor: TuiStyle.accent
         label:     Translation.tr("Diagnose Voice Service")
         releaseAction: () => {
-            Quickshell.execDetached(["omarchy-launch-tui", `${root.omdRoot}/scripts/voice-diagnose`]);
+            Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-diagnose`]);
             root.close();
         }
     }

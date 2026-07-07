@@ -32,7 +32,7 @@ StyledPopup {
 
         Process {
             id: readBindingsProc
-            command: ["bash", "-c", "cat ~/.config/omarchy/voice_bindings.txt 2>/dev/null || echo -e 'ALT + A\\ncode:472'"]
+            command: ["bash", "-c", "cat ~/.config/omd/config/voice_bindings.txt 2>/dev/null || echo -e 'ALT + A\\ncode:472'"]
             running: false
             stdout: StdioCollector {
                 onStreamFinished: {
