@@ -256,6 +256,12 @@ environment.systemPackages = with pkgs; [
 services.keyd = {
   enable = true;
 };
+
+# 3. Add systemd service capability overrides (CRITICAL NixOS FIX)
+# Without this, keyd fails to demote its user group on startup, crashing with "setgid: Operation not permitted"
+systemd.services.keyd.serviceConfig = {
+  CapabilityBoundingSet = [ "CAP_SYS_NICE" "CAP_IPC_LOCK" "CAP_SETGID" "CAP_SETUID" ];
+};
 ```
 
 ### Step 2: Create directory & placeholder config (CRITICAL AVOID-LOCK STEP)
@@ -269,6 +275,12 @@ sudo touch /etc/keyd/omd.conf
 
 # Ensure keyd system user group exists
 sudo groupadd -r keyd 2>/dev/null || true
+
+# If the service previously crashed, you must clear orphaned socket files
+# otherwise keyd fails to start with "failed to create /var/run/keyd.socket (another instance already running?)"
+sudo rm -f /var/run/keyd.socket /run/keyd.socket
+sudo systemctl reset-failed keyd
+```
 ```
 
 ### Step 3: Apply NixOS configuration
