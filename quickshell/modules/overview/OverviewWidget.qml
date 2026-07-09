@@ -928,22 +928,31 @@ Item {
                 bottomRightRadius: root.largeWorkspaceRadius
                 border.width: 2
                 border.color: root.activeBorderColor
+                // Skip the 6 Behavior animators in performance mode — the
+                // underlying animation duration is already 0, but the
+                // Behavior objects still track property changes.
                 Behavior on x {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
                 Behavior on y {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                 }
                 Behavior on topLeftRadius {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
                 }
                 Behavior on topRightRadius {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
                 }
                 Behavior on bottomLeftRadius {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
                 }
                 Behavior on bottomRightRadius {
+                    enabled: !root.perfMode
                     animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
                 }
             }
