@@ -144,7 +144,11 @@ Item { // Window
         id: windowPreview
         anchors.fill: parent
         captureSource: GlobalStates.overviewOpen ? root.toplevel : null
-        live: true
+        // live:true keeps each window preview streaming frames continuously.
+        // On weak GPUs this is the #1 overview bottleneck — N live screencopy
+        // streams + N OpacityMask offscreen passes. In "performance" mode we
+        // capture a single snapshot (live:false) instead.
+        live: (Persistent.states?.display?.optimization ?? "balanced") !== "performance"
 
         // Color overlay for interactions
         Rectangle {
