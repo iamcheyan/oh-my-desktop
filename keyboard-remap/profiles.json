@@ -77,6 +77,13 @@
       "keydId": "0001:0001",
       "enabled": true,
       "remaps": []
+    },
+    "panasonic-laptop-support": {
+      "displayName": "panasonic laptop support",
+      "hyprName": "panasonic-laptop-support",
+      "keydId": "",
+      "enabled": true,
+      "remaps": []
     }
   }
 }
