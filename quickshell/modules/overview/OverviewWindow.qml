@@ -114,8 +114,12 @@ Item { // Window
     property real topRightRadius
     property real bottomLeftRadius
     property real bottomRightRadius
-
-    layer.enabled: true
+    // Rounded-corner masking via layer+OpacityMask adds an offscreen render
+    // pass per window. Keep it in balanced/visuals modes for the frosted
+    // rounded look; in performance mode skip it (square previews) to avoid
+    // N offscreen passes — especially costly when ScreencopyView is live.
+    readonly property bool perfMode: (Persistent.states?.display?.optimization ?? "balanced") === "performance"
+    layer.enabled: !perfMode
     layer.effect: OpacityMask {
         maskSource: Rectangle {
             width: root.width
