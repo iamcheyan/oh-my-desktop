@@ -310,3 +310,37 @@ bash ~/.config/omd/share/bin/omarchy-keyboard-setup
 If you ever run the apply script manually from the terminal under `sudo`, the script will automatically resolve your original non-root home directory (resolving `$SUDO_USER` instead of `$HOME` which defaults to `/root`), preventing path resolution bugs.
 
 Once set up, use **Settings -> Display -> Keyboard Remap** to manage mappings, and click **Apply changes**!
+
+---
+
+## 6. Setting Zsh as Default Shell on NixOS
+
+On NixOS, you cannot use the traditional `chsh -s $(which zsh)` command because `/etc/passwd` is managed declaratively by the NixOS configuration system. 
+
+To set Zsh as the default shell for a user, you must define it in `/etc/nixos/configuration.nix` by doing the following:
+
+### Step 1: Declare Zsh as user shell and enable it globally
+Add `shell = pkgs.zsh;` inside your user block, and enable the global zsh program so that PAM modules, system-wide zsh configurations, and `/etc/shells` are correctly populated:
+
+```nix
+users.users."tetsuya" = {
+  isNormalUser = true;
+  shell = pkgs.zsh;              # Set Zsh as default login/interactive shell
+  extraGroups = [ "networkmanager" "wheel" ];
+};
+
+# Enable global Zsh settings (crucial for NixOS shell initialization)
+programs.zsh.enable = true;
+```
+
+### Step 2: Apply system configuration
+Apply the changes to update the system profiles:
+```sh
+sudo nixos-rebuild switch
+```
+
+After rebuilding, verify that the shell has been updated:
+```sh
+getent passwd tetsuya
+# Output should end with: /run/current-system/sw/bin/zsh
+```
