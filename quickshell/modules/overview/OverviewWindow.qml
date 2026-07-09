@@ -147,11 +147,14 @@ Item { // Window
     ScreencopyView {
         id: windowPreview
         anchors.fill: parent
-        captureSource: GlobalStates.overviewOpen ? root.toplevel : null
-        // live:true keeps each window preview streaming frames continuously.
-        // On weak GPUs this is the #1 overview bottleneck — N live screencopy
-        // streams + N OpacityMask offscreen passes. In "performance" mode we
-        // capture a single snapshot (live:false) instead.
+        // Keep captureSource always bound to the toplevel so the preview
+        // already holds the latest frame the instant the overview opens —
+        // gating on overviewOpen means the first frame isn't captured until
+        // open, causing a visible "black box → thumbnail" pop. With live:false
+        // (performance mode) this is cheap: one snapshot kept around; with
+        // live:true (balanced/visuals) the stream runs continuously but that
+        // is the intended trade-off for those modes.
+        captureSource: root.toplevel
         live: (Persistent.states?.display?.optimization ?? "balanced") !== "performance"
 
         // Color overlay for interactions
@@ -166,8 +169,13 @@ Item { // Window
                 ColorUtils.transparentize(Appearance.colors.colLayer2)
         }
 
-        StyledImage {
+        Image {
             id: windowIcon
+            // Synchronous load: the icon is a tiny file and loads in well
+            // under a frame, so it appears together with the ScreencopyView
+            // snapshot instead of popping in a frame later. This avoids any
+            // fade/gate that would otherwise show a black box first.
+            asynchronous: false
             property real baseSize: Math.min(root.targetWindowWidth, root.targetWindowHeight)
             anchors {
                 top: root.centerIcons ? undefined : parent.top
@@ -176,11 +184,6 @@ Item { // Window
                 margins: baseSize * root.iconGapRatio
             }
             property var iconSize: {
-                // console.log("-=-=-", root.toplevel.title, "-=-=-")
-                // console.log("Target window size:", targetWindowWidth, targetWindowHeight)
-                // console.log("Icon ratio:", root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio)
-                // console.log("Scale:", root.monitorData.scale)
-                // console.log("Final:", Math.min(targetWindowWidth, targetWindowHeight) * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio) / root.monitorData.scale)
                 return baseSize * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio);
             }
             mipmap: true

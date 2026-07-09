@@ -11,17 +11,7 @@ Image {
     visible: opacity > 0
     opacity: (status === Image.Ready) ? 1 : 0
     Behavior on opacity {
-        // The animation system defaults to duration 0 in performance mode,
-        // which makes asynchronously-loaded icons "snap" in after their
-        // parent (e.g. a ScreencopyView snapshot) is already shown. Use a
-        // small fixed fade so the icon appears to land on the preview
-        // instead of popping in.
-        NumberAnimation {
-            duration: Appearance?.animation?.elementMoveEnter?.duration > 0
-                ? Appearance.animation.elementMoveEnter.duration
-                : 120
-            easing.type: Easing.OutCubic
-        }
+        animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
 
     property list<string> fallbacks: []

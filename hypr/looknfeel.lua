@@ -85,4 +85,4 @@ o.window("org.omarchy.voice-diagnose", { tag = "+floating-window", size = { 1000
 -- Force standard cursor theme (Adwaita) and bypass Hyprland's bibata waterdrop fallback
 hl.env("XCURSOR_THEME", "Adwaita")
 hl.env("HYPRCURSOR_THEME", "Adwaita")
-hl.exec_once("hyprctl setcursor Adwaita 24")
+o.exec_on_start("hyprctl setcursor Adwaita 24")
