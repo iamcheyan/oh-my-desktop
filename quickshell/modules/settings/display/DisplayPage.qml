@@ -21,6 +21,27 @@ ColumnLayout {
         id: configState
     }
 
+    property string optimizationMode: Persistent.ready ? (Persistent.states.display?.optimization ?? "balanced") : "balanced"
+
+    function applyOptimization(mode) {
+        if (!Persistent.ready) return;
+        Persistent.states.display.optimization = mode;
+
+        let blurEnabled = "true";
+        let blurPasses = 2;
+
+        if (mode === "performance") {
+            blurEnabled = "false";
+        } else if (mode === "balanced") {
+            blurPasses = 1;
+        } else if (mode === "visuals") {
+            blurPasses = 2;
+        }
+
+        Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:enabled", blurEnabled]);
+        Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:passes", blurPasses.toString()]);
+    }
+
     component SettingsSlider: Slider {
         id: sliderRoot
         Layout.fillWidth: true
@@ -172,6 +193,54 @@ ColumnLayout {
                     Layout.preferredWidth: 64
                     horizontalAlignment: Text.AlignRight
                 }
+            }
+        }
+
+        PanelCard {
+            Layout.fillWidth: true
+            title: "Performance & Effects"
+            subtitle: {
+                const mode = root.optimizationMode;
+                return mode === "performance" ? "High Performance" : mode === "balanced" ? "Balanced" : "Best Visuals";
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                SmallButton {
+                    Layout.fillWidth: true
+                    text: "High Perf"
+                    iconName: "speed"
+                    primary: root.optimizationMode === "performance"
+                    onClicked: root.applyOptimization("performance")
+                }
+                SmallButton {
+                    Layout.fillWidth: true
+                    text: "Balanced"
+                    iconName: "balance"
+                    primary: root.optimizationMode === "balanced"
+                    onClicked: root.applyOptimization("balanced")
+                }
+                SmallButton {
+                    Layout.fillWidth: true
+                    text: "Best Visuals"
+                    iconName: "palette"
+                    primary: root.optimizationMode === "visuals"
+                    onClicked: root.applyOptimization("visuals")
+                }
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.optimizationMode === "performance"
+                    ? "🏎️ High Performance: Frosted glass blur effect is disabled for maximum UI smoothness and battery life."
+                    : root.optimizationMode === "balanced"
+                        ? "⚖️ Balanced: 1 blur pass enabled. High-quality frosted glass look with 50% GPU load reduction (best for integrated GPUs)."
+                        : "✨ Best Visuals: 2 blur passes enabled. Full-resolution premium glass aesthetics (best for dedicated GPUs)."
+                color: "#a8a8a8"
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
             }
         }
 

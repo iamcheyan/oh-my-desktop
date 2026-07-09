@@ -18,6 +18,19 @@ Singleton {
     onReadyChanged: {
         root.previousHyprlandInstanceSignature = root.states.hyprlandInstanceSignature
         root.states.hyprlandInstanceSignature = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || ""
+
+        if (root.ready) {
+            const mode = root.states.display?.optimization ?? "balanced"
+            let blurEnabled = "true"
+            let blurPasses = 2
+            if (mode === "performance") {
+                blurEnabled = "false"
+            } else if (mode === "balanced") {
+                blurPasses = 1
+            }
+            Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:enabled", blurEnabled])
+            Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:passes", blurPasses.toString()])
+        }
     }
 
     Timer {
@@ -76,6 +89,10 @@ Singleton {
             property JsonObject settingsCenter: JsonObject {
                 property int width: 1080
                 property int height: 720
+            }
+
+            property JsonObject display: JsonObject {
+                property string optimization: "balanced"
             }
 
             property JsonObject timer: JsonObject {
