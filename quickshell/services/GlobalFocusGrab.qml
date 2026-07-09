@@ -52,14 +52,12 @@ Singleton {
         }
     }
 
-    function hasActive(element) {
-        if (!element)
-            return false;
-        return element.activeFocus || Array.from(
-            element.children || []
-        ).some(
-            (child) => hasActive(child)
-        );
+    // Returns true if any descendant of the window's contentItem currently
+    // holds active focus. QML's activeFocus property already propagates from
+    // descendants, so contentItem.activeFocus is equivalent to recursively
+    // scanning children — without the O(depth) traversal per binding eval.
+    function hasActive(contentItem) {
+        return contentItem?.activeFocus ?? false;
     }
 
     HyprlandFocusGrab {
