@@ -21,15 +21,17 @@ Singleton {
 
         if (root.ready) {
             const mode = root.states.display?.optimization ?? "balanced"
-            let blurEnabled = "true"
-            let blurPasses = 2
+            let evalStr = ""
             if (mode === "performance") {
-                blurEnabled = "false"
+                evalStr = "hl.config({ decoration = { blur = { enabled = false } } })"
             } else if (mode === "balanced") {
-                blurPasses = 1
+                evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } } })"
+            } else if (mode === "visuals") {
+                evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } } })"
             }
-            Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:enabled", blurEnabled])
-            Quickshell.execDetached(["hyprctl", "keyword", "decoration:blur:passes", blurPasses.toString()])
+            if (evalStr !== "") {
+                Quickshell.execDetached(["hyprctl", "eval", evalStr])
+            }
         }
     }
 
