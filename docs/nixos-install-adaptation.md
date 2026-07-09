@@ -8,8 +8,11 @@ This document describes how to install, configure, and adapt **oh-my-desktop (OM
 
 For Hyprland and Quickshell to start up correctly without a black screen or missing UI components, ensure that your `/etc/nixos/configuration.nix` contains the required graphical libraries. 
 
-In particular, the Quickshell UI relies on the `Qt5Compat.GraphicalEffects` module. Make sure to include `kdePackages.qt5compat` in your `environment.systemPackages` block:
+In particular:
+- The Quickshell UI relies on the `Qt5Compat.GraphicalEffects` module. Make sure to include `kdePackages.qt5compat` in your `environment.systemPackages` block.
+- Precompiled Python wheels (such as `sherpa-onnx` used by the Voice Input daemon) require dynamic library linking. You must enable `nix-ld` so they can resolve system libraries (like `libstdc++.so.6`).
 
+Update your configuration with the following:
 ```nix
 environment.systemPackages = with pkgs; [
   # OMD / Hyprland Core
@@ -41,18 +44,21 @@ environment.systemPackages = with pkgs; [
   # Optional TUI / Helpers
   ddcutil                    # For external monitor brightness controls
   libsecret                  # Required for secret-tool API key storage
-  ];
-  ```
+];
 
-  For non-root users who want to dynamically install it in their active profile, run:
-  ```sh
-  nix profile add nixpkgs#ffmpeg --extra-experimental-features "nix-command flakes"
-  ```
+# Enable nix-ld to load dynamic libraries (required for sherpa-onnx / voice input daemon)
+programs.nix-ld.enable = true;
+```
 
-  Remember to apply the system configuration after editing:
-  ```sh
-  sudo nixos-rebuild switch
-  ```
+For non-root users who want to dynamically install it in their active profile, run:
+```sh
+nix profile add nixpkgs#ffmpeg --extra-experimental-features "nix-command flakes"
+```
+
+Remember to apply the system configuration after editing:
+```sh
+sudo nixos-rebuild switch
+```
 
 ---
 
@@ -232,30 +238,63 @@ If you encounter a black screen or missing panels after entering from SDDM:
 
 ## 5. Keyboard Remapping (keyd) on NixOS
 
-Since keyboard remapping (keyd) intercepts kernel evdev keypresses, it requires root privileges and cannot run as a standalone user process. 
+Since keyboard remapping (`keyd`) intercepts kernel evdev keypresses, it requires root privileges and cannot run as a standalone user process. 
 
-To enable keyboard remapping on NixOS:
+To enable keyboard remapping on NixOS and avoid configurations locking up during system activation, follow these steps:
 
-### Step 1: Enable keyd service in `/etc/nixos/configuration.nix`
-Add the following service definition to your configuration:
+### Step 1: Declare keyd service and packages in `/etc/nixos/configuration.nix`
+In NixOS, you must enable the daemon service **and** explicitly add `keyd` to your system packages list. This ensures the binary is linked into your global `PATH` (`/run/current-system/sw/bin/keyd`), which OMD scripts depend on:
+
 ```nix
-# Enable the keyd keyboard remapping daemon
+# 1. Add keyd to your environment.systemPackages block:
+environment.systemPackages = with pkgs; [
+  keyd
+  # ... other packages
+];
+
+# 2. Enable the keyd keyboard remapping daemon:
 services.keyd = {
   enable = true;
 };
 ```
 
-### Step 2: Apply changes
-Rebuild your system:
+### Step 2: Create directory & placeholder config (CRITICAL AVOID-LOCK STEP)
+By default, the NixOS systemd unit for `keyd` will crash with **`status 255/EXCEPTION (opendir: No such file or directory)`** if `/etc/keyd` does not exist or has no configs. If the unit crashes, `nixos-rebuild switch` will hang or return a non-zero exit code, blocking path updates.
+
+Before rebuilding, run the following commands to create the directories and placeholder files:
+```sh
+# Create keyd folder and dummy configuration file
+sudo mkdir -p /etc/keyd
+sudo touch /etc/keyd/omd.conf
+
+# Ensure keyd system user group exists
+sudo groupadd -r keyd 2>/dev/null || true
+```
+
+### Step 3: Apply NixOS configuration
+Run rebuild to install and register the service:
 ```sh
 sudo nixos-rebuild switch
 ```
-This automatically installs the `keyd` package and registers the systemd `keyd.service` in the background.
 
-### Step 3: Run OMD keyboard remap setup
-Run the setup script from the repo to install the polkit rules so Quickshell settings can apply changes to `/etc/keyd/omd.conf` without prompting for a root password:
+### Step 4: Shebang Portability Patch
+Since NixOS does not have a physical `/bin/bash` path, OMD shell scripts (which default to `#!/bin/bash` in other distros) must use a portable shebang:
+`#!/usr/bin/env bash`
+
+The scripts under `share/bin/` related to keyboard mapping:
+- `share/bin/omarchy-keyboard-render`
+- `share/bin/omarchy-keyboard-apply`
+- `share/bin/omarchy-keyboard-setup`
+
+Have been patched to `#!/usr/bin/env bash` to run seamlessly on NixOS.
+
+### Step 5: Install Polkit Rules
+Run the OMD setup helper to allow the desktop environment to update `/etc/keyd/omd.conf` and reload mappings dynamically without prompting for root password:
 ```sh
-# Run the keyboard permission installer
+# Set up OMD Polkit rules for keyd
 bash ~/.config/omd/share/bin/omarchy-keyboard-setup
 ```
-Once done, click **Apply changes** in the Keyboard settings popup to start mapping keys.
+
+If you ever run the apply script manually from the terminal under `sudo`, the script will automatically resolve your original non-root home directory (resolving `$SUDO_USER` instead of `$HOME` which defaults to `/root`), preventing path resolution bugs.
+
+Once set up, use **Settings -> Display -> Keyboard Remap** to manage mappings, and click **Apply changes**!
