@@ -26,13 +26,27 @@ Singleton {
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
     property var knownWifiNames: []
     property var wifiAutoconnectByName: ({})
-    readonly property list<var> friendlyWifiNetworks: [...wifiNetworks].sort((a, b) => {
-        if (a.active && !b.active)
-            return -1;
-        if (!a.active && b.active)
-            return 1;
-        return b.strength - a.strength;
-    })
+    // Sorted view of wifiNetworks. Recomputed on a debounced timer rather
+    // than as a binding that re-sorts the whole list on every AP property
+    // change (signal strength updates fire frequently during a scan).
+    property list<var> friendlyWifiNetworks: []
+    Timer {
+        id: resortTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
+            root.friendlyWifiNetworks = [...root.wifiNetworks].sort((a, b) => {
+                if (a.active && !b.active)
+                    return -1;
+                if (!a.active && b.active)
+                    return 1;
+                return b.strength - a.strength;
+            });
+        }
+    }
+    function scheduleResort() {
+        resortTimer.restart();
+    }
     property string wifiStatus: "disconnected"
 
     property string networkName: ""
@@ -320,7 +334,7 @@ Singleton {
 
     Timer {
         id: debounceUpdateTimer
-        interval: 1500
+        interval: 2500
         repeat: false
         onTriggered: root.update()
     }
@@ -485,6 +499,7 @@ Singleton {
                         }));
                     }
                 }
+                root.scheduleResort();
             }
         }
     }
