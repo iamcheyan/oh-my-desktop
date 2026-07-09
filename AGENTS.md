@@ -122,61 +122,27 @@ symlink targets.
 │       ├── extensions/         Extension scripts
 │       └── themed/             Themed config templates
 │
-├── share/                    Omarchy framework (→ ~/.local/share/omarchy)
-│   ├── bin/                   306 omarchy-* command scripts
-│   │   ├── omarchy-theme-*      Theme management (set/list/install/switcher)
-│   │   ├── omarchy-nvim-setup   Link OMD's Neovim theme drop-in into LazyVim
+├── share/                    Omarchy framework (→ ~/.local/share/omd)
+│   ├── bin/                   264 omarchy-* command scripts (legacy, wrapped via
+│   │   │                       bin/omd-legacy-omarchy); called transitively by OMD
+│   │   ├── omarchy-theme-*      Theme management (set/install/switcher)
 │   │   ├── omarchy-hyprland-*   Hyprland control (toggles, monitors, windows)
 │   │   ├── omarchy-launch-*     Application launchers
-│   │   ├── omarchy-install-*    Package installers
-│   │   ├── omarchy-refresh-*    Config refreshers (copy from config/ templates)
 │   │   ├── omarchy-restart-*   Service restarters
-│   │   ├── omarchy-update-*     System update helpers
 │   │   ├── omarchy-toggle-*     Feature toggles
-│   │   ├── omarchy-hw-*         Hardware-specific fixes
+│   │   ├── omarchy-voice-*      Voice input (sherpa-onnx) setup/transcribe
+│   │   ├── omarchy-keyboard-*   Keyboard remap helpers
 │   │   └── ...
-│   ├── themes/                20 complete themes
+│   ├── themes/                22 complete themes
 │   │   ├── catppuccin/
 │   │   ├── everforest/
 │   │   ├── gruvbox/
 │   │   ├── last-horizon/        ← default theme
-│   │   ├── nord/
 │   │   ├── tokyo-night/
-│   │   ├── retro-82/
-│   │   └── ...                  (20 total, each with backgrounds/, colors, styles)
-│   ├── default/               Framework default modules
-│   │   ├── hypr/                Lua modules loaded by hyprland.lua via require()
-│   │   │   ├── omarchy.lua        Core setup (env vars, paths, defaults)
-│   │   │   ├── bindings.lua       Default keybindings
-│   │   │   ├── input.lua          Default input config
-│   │   │   ├── looknfeel.lua      Default appearance
-│   │   │   ├── autostart.lua      Default autostart
-│   │   │   ├── toggles.lua        Config flag toggles
-│   │   │   ├── windows.lua        Window rule helpers
-│   │   │   ├── helpers.lua        Utility functions
-│   │   │   └── ...
-│   │   ├── quickshell/          Default Quickshell snippets
-│   │   ├── sddm/                SDDM login theme
-│   │   ├── plymouth/            Plymouth boot theme
-│   │   ├── walker/               Default walker config
-│   │   ├── bash/                 Default bash config
-│   │   ├── pacman/               Pacman config
-│   │   └── ...
-│   ├── config/                Default config templates (used by omarchy-refresh-config)
-│   │   ├── hypr/                Default Hyprland configs (reset to these)
-│   │   ├── alacritty/           Default Alacritty config
-│   │   ├── foot/                Default Foot config
-│   │   ├── kitty/               Default Kitty config
-│   │   └── ...
-│   ├── install/               Install / first-run scripts
-│   │   ├── config/              System config setup
-│   │   ├── first-run/           First-run initialization
-│   │   ├── preflight/           Pre-install checks
-│   │   ├── packaging/           Package lists
-│   │   ├── post-install/        Post-install steps
-│   │   └── helpers/             Install helper functions
-│   ├── version                Omarchy version (4.0.0.alpha)
-│   ├── icon.txt / logo.txt    Branding assets
+│   │   └── ...                  (22 total, each with backgrounds/, colors, styles)
+│   ├── polkit-1/rules.d/      Polkit rules (keyboard remap)
+│   ├── version                OMD version (4.0.0.alpha)
+│   └── icon.txt / logo.txt    Branding assets
 │
 ├── bin/                      OMD launcher scripts
 │   ├── omd-restart            Restart all Quickshell apps
@@ -226,28 +192,24 @@ symlink targets.
 ## Runtime
 
 - Hyprland loads Omarchy config from `~/.config/omarchy/hypr/hyprland.lua`.
-- `hyprland.lua` loads Omarchy defaults via `require("default.hypr.omarchy")`
-  (resolved from `~/.local/share/omarchy/default/`) then loads user modules
-  from `~/.config/omarchy/hypr/` (monitors, input, bindings, looknfeel, autostart).
-- Omarchy autostart launches Quickshell via
-  `~/.config/omd/bin/omd-restart`.
+- `hyprland.lua` loads default modules via `require(...)` from the default
+  lookup paths, then loads user modules from `~/.config/omarchy/hypr/`
+  (monitors, input, bindings, looknfeel, autostart).
+- Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
   `omd-overview`, `omd-applauncher`, `omd-corners`, and `omd-clipboard`.
 - Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
-- Themes are stored in `~/.local/share/omarchy/themes/`. The active theme is
-  copied to `~/.config/omarchy/current/` by `omarchy-theme-set`.
+- Themes are stored in `~/.local/share/omd/themes/`. The active theme is
+  copied to `~/.config/omd/current/` by `omarchy-theme-set`.
 - Terminal configs are managed by OMD symlinks under `~/.config/{foot,kitty,alacritty,ghostty}`.
-  They import files from `~/.config/omarchy/current/theme/`, so Omarchy theme
+  They import files from `~/.config/omd/current/theme/`, so theme
   changes apply to new terminal windows and to supported live-reload paths.
-- Neovim theme integration is opt-in through
-  `~/.config/omd/share/bin/omarchy-nvim-setup`. It links OMD's
-  LazyVim drop-in into the existing `~/.config/nvim/lua/plugins/` directory so
-  Neovim reads `~/.config/omarchy/current/theme/neovim.lua` without OMD taking
-  over the whole Neovim config.
-- `omarchy-refresh-config` resets a config file by copying from
-  `~/.local/share/omarchy/config/` to `~/.config/`.
+- Neovim theme integration is opt-in. Run the Neovim setup helper to link
+  OMD's LazyVim drop-in into `~/.config/nvim/lua/plugins/` so Neovim reads
+  `~/.config/omd/current/theme/neovim.lua` without OMD taking over the whole
+  Neovim config.
 
 ## Planning Docs
 
