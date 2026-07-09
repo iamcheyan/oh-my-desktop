@@ -98,9 +98,9 @@ Singleton {
     }
 
     Timer {
-        interval: 30000
+        interval: 10000
         repeat: true
-        running: true
+        running: GlobalStates.barPopupType === "keyremap"
         onTriggered: root.refreshDevices()
     }
 
