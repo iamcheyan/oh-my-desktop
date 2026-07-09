@@ -149,7 +149,7 @@ def run_diagnostics():
     has_hyprctl = shutil.which("hyprctl")
     has_wtype = shutil.which("wtype")
     has_ydotool = shutil.which("ydotool")
-    paste_script = os.path.expanduser("~/.config/omd/share/bin/omd-paste-at-cursor")
+    paste_script = os.path.expanduser("~/.config/omd/bin/omd-paste-at-cursor")
     paste_backends = [name for name, ok in [
         ("hyprctl", has_hyprctl),
         ("wtype", has_wtype),

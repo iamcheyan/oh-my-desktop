@@ -23,6 +23,8 @@ WindowDialog {
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
     property string searchQuery: ""
     property int wallpaperRefreshNonce: 0
+    property var bluetoothConfirmDevice: null
+    property bool bluetoothConfirmOpen: false
 
     readonly property color cosmicBg: "#181818"
     readonly property color cosmicPanel: "#242424"
@@ -44,6 +46,19 @@ WindowDialog {
     readonly property int cosmicRoundRadius: 12
     readonly property int shellInset: 10
     readonly property int pageInset: 24
+    readonly property int minDialogWidth: 860
+    readonly property int minDialogHeight: 560
+    readonly property int maxDialogWidth: Math.max(minDialogWidth, width - 32)
+    readonly property int maxDialogHeight: Math.max(minDialogHeight, height - 48)
+    readonly property int defaultDialogWidth: Math.min(1080, Math.max(920, width - 52))
+    readonly property int defaultDialogHeight: Math.min(720, Math.max(600, height - 96))
+    property bool resizing: false
+    property real resizePressX: 0
+    property real resizePressY: 0
+    property real resizeStartWidth: 0
+    property real resizeStartHeight: 0
+    property real resizeStartOffsetX: 0
+    property real resizeStartOffsetY: 0
 
     readonly property var pages: [
         { key: "overview", icon: "settings", title: "Overview", keywords: "system summary home" },
@@ -65,8 +80,8 @@ WindowDialog {
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
     ]
 
-    backgroundWidth: Math.min(1080, Math.max(920, width - 52))
-    backgroundHeight: Math.min(720, Math.max(600, height - 96))
+    backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
+    backgroundHeight: clamp(Persistent.states.settingsCenter.height || defaultDialogHeight, minDialogHeight, maxDialogHeight)
     anchorPosition: 0
     contentPadding: 0
     dismissOnBackgroundPress: false
@@ -130,6 +145,52 @@ WindowDialog {
         return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
     }
 
+    function beginResize(handle, mouse) {
+        const pos = root.mapFromItem(handle, mouse.x, mouse.y);
+        resizePressX = pos.x;
+        resizePressY = pos.y;
+        resizeStartWidth = backgroundWidth;
+        resizeStartHeight = backgroundHeight;
+        resizeStartOffsetX = dragOffsetX;
+        resizeStartOffsetY = dragOffsetY;
+        resizing = true;
+    }
+
+    function updateResize(handle, mouse) {
+        if (!resizing)
+            return;
+        const pos = root.mapFromItem(handle, mouse.x, mouse.y);
+        const targetWidth = Math.round(clamp(resizeStartWidth + pos.x - resizePressX, minDialogWidth, maxDialogWidth));
+        const targetHeight = Math.round(clamp(resizeStartHeight + pos.y - resizePressY, minDialogHeight, maxDialogHeight));
+        Persistent.states.settingsCenter.width = targetWidth;
+        Persistent.states.settingsCenter.height = targetHeight;
+        dragOffsetX = clamp(resizeStartOffsetX + (targetWidth - resizeStartWidth) / 2, -(width - targetWidth) / 2, (width - targetWidth) / 2);
+        dragOffsetY = clamp(resizeStartOffsetY + (targetHeight - resizeStartHeight) / 2, -(height - targetHeight) / 2, (height - targetHeight) / 2);
+    }
+
+    function bluetoothDeviceName(device) {
+        return device?.name || device?.deviceName || device?.address || "Unknown device";
+    }
+
+    function openBluetoothConfirm(device) {
+        if (!device)
+            return;
+        bluetoothConfirmDevice = device;
+        bluetoothConfirmOpen = true;
+    }
+
+    function closeBluetoothConfirm() {
+        bluetoothConfirmOpen = false;
+        bluetoothConfirmDevice = null;
+    }
+
+    function confirmBluetoothAction() {
+        if (!bluetoothConfirmDevice)
+            return;
+        BluetoothStatus.connectDevice(bluetoothConfirmDevice);
+        closeBluetoothConfirm();
+    }
+
     function openWallpaperPicker(mode) {
         wallpaperPicker.open(mode);
     }
@@ -154,6 +215,11 @@ WindowDialog {
     }
 
     Keys.onPressed: (event) => {
+        if (root.bluetoothConfirmOpen && (event.key === Qt.Key_Escape || event.key === Qt.Key_Q)) {
+            root.closeBluetoothConfirm();
+            event.accepted = true;
+            return;
+        }
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
             root.dismiss();
             event.accepted = true;
@@ -408,6 +474,239 @@ WindowDialog {
                         }
                     }
                 }
+            }
+        }
+
+        Item {
+            anchors.fill: parent
+            visible: root.bluetoothConfirmOpen
+            z: 50
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#050505"
+                opacity: 0.72
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.closeBluetoothConfirm()
+                }
+            }
+
+            Rectangle {
+                width: Math.min(460, parent.width - 64)
+                height: 230
+                anchors.centerIn: parent
+                radius: root.cosmicRoundRadius
+                color: root.cosmicCard
+                border.width: 1
+                border.color: root.cosmicAccent
+
+                MouseArea {
+                    anchors.fill: parent
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 18
+                    spacing: 14
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        MaterialSymbol {
+                            text: root.bluetoothConfirmDevice?.connected ? "bluetooth_disabled" : "bluetooth_connected"
+                            iconSize: 22
+                            color: root.bluetoothConfirmDevice?.connected ? "#f07070" : root.cosmicAccent
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: root.bluetoothConfirmDevice?.connected ? "Disconnect Bluetooth device?" : "Connect Bluetooth device?"
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.bluetoothDeviceName(root.bluetoothConfirmDevice)
+                        color: root.cosmicFg
+                        font.pixelSize: Appearance.font.pixelSize.large
+                        font.weight: Font.Medium
+                        elide: Text.ElideRight
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.bluetoothConfirmDevice?.connected
+                            ? "This will disconnect the selected device."
+                            : "This will pair, trust, and connect the selected device."
+                        color: root.cosmicMuted
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        wrapMode: Text.WordWrap
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.bluetoothConfirmDevice?.address ? `Address: ${root.bluetoothConfirmDevice.address}` : "Address unavailable"
+                        color: root.bluetoothConfirmDevice?.address ? root.cosmicDim : "#f07070"
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        elide: Text.ElideRight
+                    }
+
+                    Item { Layout.fillHeight: true }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        SettingsButton {
+                            label: "Yes"
+                            iconName: "check"
+                            enabledState: !!root.bluetoothConfirmDevice?.address
+                            onClicked: root.confirmBluetoothAction()
+                        }
+
+                        SettingsButton {
+                            label: "Cancel"
+                            iconName: "close"
+                            onClicked: root.closeBluetoothConfirm()
+                        }
+                    }
+                }
+            }
+        }
+
+        Item {
+            anchors.fill: parent
+            visible: BluetoothStatus.actionRunning && BluetoothStatus.actionPasskey.length > 0
+            z: 55
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#050505"
+                opacity: 0.72
+            }
+
+            Rectangle {
+                width: Math.min(520, parent.width - 64)
+                height: 260
+                anchors.centerIn: parent
+                radius: root.cosmicRoundRadius
+                color: root.cosmicCard
+                border.width: 1
+                border.color: root.cosmicAccent
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 20
+                    spacing: 14
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: "Bluetooth pairing code"
+                        color: root.cosmicFg
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: BluetoothStatus.actionPasskey
+                        color: root.cosmicAccent
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: 48
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 4
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: "Type this number on the Bluetooth keyboard, then press Enter on that keyboard."
+                        color: root.cosmicFg
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        wrapMode: Text.WordWrap
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: BluetoothStatus.actionDeviceName
+                        color: root.cosmicMuted
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+            }
+        }
+
+        Item {
+            id: resizeOverlay
+            anchors.fill: parent
+            visible: root.resizing
+            z: 70
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.SizeFDiagCursor
+            }
+        }
+
+        Item {
+            id: resizeHandle
+            width: 34
+            height: 34
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            z: 65
+
+            Canvas {
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: 8
+                anchors.bottomMargin: 8
+                width: 16
+                height: 16
+                opacity: resizeMouse.containsMouse || root.resizing ? 0.9 : 0.5
+                onPaint: {
+                    const ctx = getContext("2d");
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.strokeStyle = root.cosmicMuted;
+                    ctx.lineWidth = 1.4;
+                    ctx.lineCap = "round";
+                    for (let i = 0; i < 3; i++) {
+                        const offset = i * 5;
+                        ctx.beginPath();
+                        ctx.moveTo(width - offset, height);
+                        ctx.lineTo(width, height - offset);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            MouseArea {
+                id: resizeMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.SizeFDiagCursor
+                acceptedButtons: Qt.LeftButton
+                onPressed: (mouse) => {
+                    root.beginResize(resizeMouse, mouse);
+                }
+                onPositionChanged: (mouse) => {
+                    if (pressed)
+                        root.updateResize(resizeMouse, mouse);
+                }
+                onReleased: root.resizing = false
+                onCanceled: root.resizing = false
             }
         }
 
@@ -1330,6 +1629,54 @@ WindowDialog {
                 }
             }
 
+            SettingsCard {
+                title: BluetoothStatus.actionRunning ? "Bluetooth Action" : "Last Bluetooth Action"
+                subtitle: BluetoothStatus.actionStatus
+                visible: BluetoothStatus.actionRunning || BluetoothStatus.actionMessage.length > 0 || BluetoothStatus.actionError.length > 0
+
+                SettingsRow {
+                    label: "Device"
+                    value: BluetoothStatus.actionDeviceName || "--"
+                    description: BluetoothStatus.actionAddress
+                    valueColor: BluetoothStatus.actionError.length > 0 ? "#f07070" : root.cosmicAccent
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: BluetoothStatus.actionPasskey.length > 0 ? 96 : 56
+                    radius: root.cosmicRadius
+                    color: BluetoothStatus.actionError.length > 0 ? "#3a2424" : root.cosmicPanelAlt
+                    border.width: 1
+                    border.color: BluetoothStatus.actionError.length > 0 ? "#f07070" : root.cosmicButtonBorder
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 6
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: BluetoothStatus.actionMessage
+                            color: BluetoothStatus.actionError.length > 0 ? "#f07070" : root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            wrapMode: Text.WordWrap
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: BluetoothStatus.actionPasskey.length > 0
+                            text: BluetoothStatus.actionPasskey
+                            color: root.cosmicAccent
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: 30
+                            font.weight: Font.DemiBold
+                            horizontalAlignment: Text.AlignHCenter
+                            font.letterSpacing: 2
+                        }
+                    }
+                }
+            }
+
             // ── Devices ──────────────────────────────────────────────────
             SettingsCard {
                 title: "Devices"
@@ -1351,6 +1698,14 @@ WindowDialog {
                         color: isConnected ? root.cosmicAccentSoft : (btMouse.containsMouse ? root.cosmicCardHover : "transparent")
                         border.width: isConnected ? 1 : 0
                         border.color: root.cosmicAccent
+
+                        MouseArea {
+                            id: btMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.openBluetoothConfirm(device)
+                        }
 
                         RowLayout {
                             anchors.fill: parent
@@ -1413,20 +1768,10 @@ WindowDialog {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     onClicked: {
-                                        if (isConnected)
-                                            device.disconnect()
-                                        else
-                                            device.connect()
+                                        root.openBluetoothConfirm(device)
                                     }
                                 }
                             }
-                        }
-
-                        MouseArea {
-                            id: btMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.NoButton
                         }
                     }
                 }

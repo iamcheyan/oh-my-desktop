@@ -5,9 +5,9 @@ import qs.modules.common.widgets
 Rectangle {
     id: root
 
-    required property var state
+    required property var displayState
 
-    readonly property var displayBounds: (state.revision, state.bounds())
+    readonly property var displayBounds: (displayState.revision, displayState.bounds())
 
     width: parent ? parent.width : 720
     height: 260
@@ -43,11 +43,11 @@ Rectangle {
         )
 
         Repeater {
-            model: root.state.visibleOutputs
+            model: root.displayState.visibleOutputs
 
             MonitorRect {
                 required property var modelData
-                state: root.state
+                displayState: root.displayState
                 output: modelData
                 canvasScaleFactor: canvas.scaleFactor
                 canvasOffset: canvas.offset

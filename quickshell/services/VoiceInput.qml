@@ -305,7 +305,7 @@ Singleton {
     Process {
         id: transcribeProc
         command: ["bash", "-c",
-            `"${root.venvDir}/bin/python3" "${root.shareDir}/omd-voice-transcribe" "${root.wavPath}"`]
+            `"${root.shareDir}/omd-voice-transcribe" "${root.wavPath}"`]
         stdout: SplitParser {
             onRead: (line) => {
                 try {

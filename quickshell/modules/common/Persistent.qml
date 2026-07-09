@@ -73,6 +73,11 @@ Singleton {
                 property bool inhibit: false
             }
 
+            property JsonObject settingsCenter: JsonObject {
+                property int width: 1080
+                property int height: 720
+            }
+
             property JsonObject timer: JsonObject {
                 property JsonObject pomodoro: JsonObject {
                     property bool running: false

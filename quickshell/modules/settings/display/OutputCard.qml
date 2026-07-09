@@ -7,17 +7,17 @@ import qs.modules.common.widgets
 Rectangle {
     id: root
 
-    required property var state
+    required property var displayState
     required property var output
 
-    readonly property var draft: (state.revision, state.draftFor(output.name))
+    readonly property var draft: (displayState.revision, displayState.draftFor(output.name))
 
     Layout.fillWidth: true
     implicitHeight: cardColumn.implicitHeight + 34
     radius: 14
     color: "#242424"
-    border.width: state.outputChanged(output) ? 1 : 0
-    border.color: state.outputChanged(output) ? TuiStyle.accent : "transparent"
+    border.width: displayState.outputChanged(output) ? 1 : 0
+    border.color: displayState.outputChanged(output) ? TuiStyle.accent : "transparent"
 
     ColumnLayout {
         id: cardColumn
@@ -41,7 +41,7 @@ Rectangle {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: state.displayName(output)
+                    text: displayState.displayName(output)
                     color: "#f4f4f4"
                     font.pixelSize: 17
                     font.weight: Font.DemiBold
@@ -74,18 +74,18 @@ Rectangle {
                 Layout.fillWidth: true
                 label: "Resolution & refresh"
                 model: output.modes.length > 0 ? output.modes : [draft.mode]
-                displayFormatter: root.state.formatModeLabel
+                displayFormatter: root.displayState.formatModeLabel
                 currentValue: draft.mode
-                onSelected: value => root.state.setDraftValue(root.output.name, "mode", value)
+                onSelected: value => root.displayState.setDraftValue(root.output.name, "mode", value)
             }
 
             SettingCombo {
                 Layout.fillWidth: true
                 label: "Rotation"
                 model: [0, 1, 2, 3, 4, 5, 6, 7]
-                displayFormatter: root.state.transformLabel
+                displayFormatter: root.displayState.transformLabel
                 currentValue: draft.transform
-                onSelected: value => root.state.setDraftValue(root.output.name, "transform", value)
+                onSelected: value => root.displayState.setDraftValue(root.output.name, "transform", value)
             }
 
             SettingSlider {
@@ -95,13 +95,13 @@ Rectangle {
                 to: 3
                 stepSize: 0.05
                 value: draft.scale
-                valueLabel: root.state.scaleLabel(draft.scale)
-                onMovedValue: value => root.state.setDraftValue(root.output.name, "scale", Number(value.toFixed(2)))
+                valueLabel: root.displayState.scaleLabel(draft.scale)
+                onMovedValue: value => root.displayState.setDraftValue(root.output.name, "scale", Number(value.toFixed(2)))
             }
 
             PositionEditor {
                 Layout.fillWidth: true
-                state: root.state
+                displayState: root.displayState
                 output: root.output
             }
         }
@@ -115,23 +115,23 @@ Rectangle {
             SmallButton {
                 text: "Reset"
                 iconName: "undo"
-                enabled: root.state.outputChanged(root.output)
+                enabled: root.displayState.outputChanged(root.output)
                 onClicked: {
-                    const base = root.state.makeDraft(root.output);
-                    root.state.setDraftValue(root.output.name, "mode", base.mode);
-                    root.state.setDraftValue(root.output.name, "x", base.x);
-                    root.state.setDraftValue(root.output.name, "y", base.y);
-                    root.state.setDraftValue(root.output.name, "scale", base.scale);
-                    root.state.setDraftValue(root.output.name, "transform", base.transform);
+                    const base = root.displayState.makeDraft(root.output);
+                    root.displayState.setDraftValue(root.output.name, "mode", base.mode);
+                    root.displayState.setDraftValue(root.output.name, "x", base.x);
+                    root.displayState.setDraftValue(root.output.name, "y", base.y);
+                    root.displayState.setDraftValue(root.output.name, "scale", base.scale);
+                    root.displayState.setDraftValue(root.output.name, "transform", base.transform);
                 }
             }
 
             SmallButton {
                 text: "Apply"
                 iconName: "check"
-                enabled: root.state.outputChanged(root.output)
+                enabled: root.displayState.outputChanged(root.output)
                 primary: true
-                onClicked: root.state.applyOutput(root.output.name)
+                onClicked: root.displayState.applyOutput(root.output.name)
             }
         }
     }
@@ -256,9 +256,9 @@ Rectangle {
 
     component PositionEditor: ColumnLayout {
         id: posRoot
-        required property var state
+        required property var displayState
         required property var output
-        readonly property var draft: (state.revision, state.draftFor(output.name))
+        readonly property var draft: (displayState.revision, displayState.draftFor(output.name))
 
         spacing: 8
         StyledText { text: "Position"; color: "#cfcfcf"; font.pixelSize: 13 }
@@ -271,7 +271,7 @@ Rectangle {
                 to: 20000
                 value: posRoot.draft.x
                 editable: true
-                onValueModified: posRoot.state.setDraftValue(posRoot.output.name, "x", value)
+                onValueModified: posRoot.displayState.setDraftValue(posRoot.output.name, "x", value)
             }
             SpinBox {
                 Layout.fillWidth: true
@@ -279,7 +279,7 @@ Rectangle {
                 to: 20000
                 value: posRoot.draft.y
                 editable: true
-                onValueModified: posRoot.state.setDraftValue(posRoot.output.name, "y", value)
+                onValueModified: posRoot.displayState.setDraftValue(posRoot.output.name, "y", value)
             }
         }
     }

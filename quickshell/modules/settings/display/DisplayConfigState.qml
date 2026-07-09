@@ -185,7 +185,7 @@ Item {
     }
 
     function snapToEdges(testName, posX, posY, testW, testH) {
-        const threshold = 80;
+        const threshold = 360;
         let bestX = posX;
         let bestY = posY;
         let bestDistance = threshold + 1;
@@ -206,10 +206,27 @@ Item {
             const size = logicalSize(output);
             const x = Number(draft.x || 0);
             const y = Number(draft.y || 0);
-            candidate(x + size.w, y);
-            candidate(x - testW, y);
-            candidate(x, y + size.h);
-            candidate(x, y - testH);
+
+            const alignX = [
+                x,
+                x + Math.round((size.w - testW) / 2),
+                x + size.w - testW
+            ];
+            const alignY = [
+                y,
+                y + Math.round((size.h - testH) / 2),
+                y + size.h - testH
+            ];
+
+            for (const targetY of alignY) {
+                candidate(x + size.w, targetY);
+                candidate(x - testW, targetY);
+            }
+            for (const targetX of alignX) {
+                candidate(targetX, y + size.h);
+                candidate(targetX, y - testH);
+            }
+
             candidate(x + size.w, y + size.h - testH);
             candidate(x - testW, y + size.h - testH);
         }
@@ -249,12 +266,24 @@ Item {
         return String(value || "").replace(/'/g, "'\\''");
     }
 
-    function monitorKeyword(output) {
+    function monitorSpec(output) {
         const draft = draftFor(output.name);
-        if (draft.disabled)
-            return `${output.name},disable`;
-        const mode = String(draft.mode || "preferred").replace(/Hz$/i, "");
-        return `${output.name},${mode},${Math.round(Number(draft.x || 0))}x${Math.round(Number(draft.y || 0))},${Number(draft.scale || 1).toFixed(2)},transform,${Number(draft.transform || 0)}`;
+        return {
+            output: output.name,
+            mode: String(draft.mode || "preferred").replace(/Hz$/i, ""),
+            x: Math.round(Number(draft.x || 0)),
+            y: Math.round(Number(draft.y || 0)),
+            scale: Number(draft.scale || 1),
+            transform: Number(draft.transform || 0),
+            disabled: Boolean(draft.disabled)
+        };
+    }
+
+    function monitorCommand() {
+        const specs = [];
+        for (const output of outputs)
+            specs.push(monitorSpec(output));
+        return `${Quickshell.env("HOME")}/.config/omd/bin/omd-display-config apply '${quote(JSON.stringify(specs))}'`;
     }
 
     function applyOutput(name) {
@@ -262,7 +291,8 @@ Item {
         if (!output)
             return;
         applying = true;
-        applyProc.command = ["bash", "-lc", `hyprctl keyword monitor '${quote(monitorKeyword(output))}'`];
+        errorText = "";
+        applyProc.command = ["bash", "-lc", monitorCommand()];
         applyProc.running = true;
     }
 
@@ -270,14 +300,9 @@ Item {
         const changed = pendingOutputNames();
         if (changed.length === 0)
             return;
-        const commands = [];
-        for (const name of changed) {
-            const output = outputByName(name);
-            if (output)
-                commands.push(`hyprctl keyword monitor '${quote(monitorKeyword(output))}'`);
-        }
         applying = true;
-        applyProc.command = ["bash", "-lc", commands.join(" && ")];
+        errorText = "";
+        applyProc.command = ["bash", "-lc", monitorCommand()];
         applyProc.running = true;
     }
 
@@ -358,7 +383,9 @@ Item {
     Process {
         id: applyProc
         command: ["true"]
-        stdout: StdioCollector {}
+        stdout: StdioCollector {
+            id: applyOutCollector
+        }
         stderr: StdioCollector {
             id: applyErrCollector
             onStreamFinished: {
@@ -368,11 +395,17 @@ Item {
         }
         onExited: (exitCode) => {
             root.applying = false;
-            if (exitCode === 0) {
+            const stdoutText = applyOutCollector.text.trim();
+            const stdoutLines = stdoutText.split(/\n+/).map(line => line.trim()).filter(line => line.length > 0);
+            const stdoutOk = stdoutLines.length === 0 || stdoutLines.every(line => line === "ok");
+            if (!stdoutOk)
+                root.errorText = stdoutText;
+            if (exitCode === 0 && root.errorText.length === 0) {
                 root.applied("Display configuration applied");
                 refreshDelay.restart();
             } else {
-                root.errorText = "Failed to apply display configuration.";
+                if (root.errorText.length === 0)
+                    root.errorText = "Failed to apply display configuration.";
             }
         }
     }

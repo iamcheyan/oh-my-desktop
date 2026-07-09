@@ -18,8 +18,7 @@ ColumnLayout {
     implicitHeight: content.implicitHeight
 
     DisplayConfigState {
-        id: displayState
-        onOutputsChanged: root.updateMonitorList()
+        id: configState
     }
 
     component SettingsSlider: Slider {
@@ -66,11 +65,11 @@ ColumnLayout {
         PanelCard {
             Layout.fillWidth: true
             title: "Display layout"
-            subtitle: displayState.refreshing ? "Reading Hyprland outputs..." : `${displayState.outputs.length} output(s)`
+            subtitle: configState.refreshing ? "Reading Hyprland outputs..." : `${configState.outputs.length} output(s)`
 
             MonitorCanvas {
                 Layout.fillWidth: true
-                state: displayState
+                displayState: configState
             }
 
             RowLayout {
@@ -80,27 +79,27 @@ ColumnLayout {
                 SmallButton {
                     text: "Identify"
                     iconName: "badge"
-                    onClicked: displayState.identify()
+                    onClicked: configState.identify()
                 }
                 SmallButton {
                     text: "Refresh"
                     iconName: "refresh"
-                    onClicked: displayState.refresh()
+                    onClicked: configState.refresh()
                 }
                 Item { Layout.fillWidth: true }
                 SmallButton {
                     text: "Apply all"
                     iconName: "check"
                     primary: true
-                    enabled: displayState.hasPendingChanges && !displayState.applying
-                    onClicked: displayState.applyAll()
+                    enabled: configState.hasPendingChanges && !configState.applying
+                    onClicked: configState.applyAll()
                 }
             }
 
             StyledText {
                 Layout.fillWidth: true
-                visible: displayState.errorText.length > 0
-                text: displayState.errorText
+                visible: configState.errorText.length > 0
+                text: configState.errorText
                 color: "#d8d8d8"
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
@@ -110,14 +109,14 @@ ColumnLayout {
         PanelCard {
             Layout.fillWidth: true
             title: "Outputs"
-            subtitle: displayState.hasPendingChanges ? "Pending changes" : "Current configuration"
+            subtitle: configState.hasPendingChanges ? "Pending changes" : "Current configuration"
 
             Repeater {
-                model: displayState.outputs
+                model: configState.outputs
 
                 OutputCard {
                     required property var modelData
-                    state: displayState
+                    displayState: configState
                     output: modelData
                 }
             }

@@ -87,20 +87,14 @@ WindowDialog {
     function connectSelected() {
         if (!selectedDevice)
             return;
-        if (selectedDevice.connected)
-            selectedDevice.disconnect();
-        else
-            selectedDevice.connect();
+        BluetoothStatus.connectDevice(selectedDevice);
         closeAction();
     }
 
     function pairSelected() {
         if (!selectedDevice)
             return;
-        if (selectedDevice.paired)
-            selectedDevice.forget();
-        else
-            selectedDevice.pair();
+        BluetoothStatus.pairDevice(selectedDevice);
         closeAction();
     }
 

@@ -5,16 +5,16 @@ import qs.modules.common.widgets
 Rectangle {
     id: root
 
-    required property var state
+    required property var displayState
     required property var output
     required property real canvasScaleFactor
     required property point canvasOffset
 
     property bool dragging: false
-    property point snappedLogical: Qt.point(state.draftFor(output.name).x, state.draftFor(output.name).y)
+    property point snappedLogical: Qt.point(displayState.draftFor(output.name).x, displayState.draftFor(output.name).y)
     property bool validPosition: true
-    readonly property var draft: (state.revision, state.draftFor(output.name))
-    readonly property var logicalSize: (state.revision, state.logicalSize(output))
+    readonly property var draft: (displayState.revision, displayState.draftFor(output.name))
+    readonly property var logicalSize: (displayState.revision, displayState.logicalSize(output))
 
     x: dragging ? x : draft.x * canvasScaleFactor + canvasOffset.x
     y: dragging ? y : draft.y * canvasScaleFactor + canvasOffset.y
@@ -53,7 +53,7 @@ Rectangle {
 
         StyledText {
             width: parent.width
-            text: root.state.displayName(root.output)
+            text: root.displayState.displayName(root.output)
             color: "#f4f4f4"
             font.pixelSize: Math.max(10, Math.min(13, root.width * 0.09))
             font.weight: Font.DemiBold
@@ -91,18 +91,20 @@ Rectangle {
                 return;
             const rawX = Math.round((root.x - root.canvasOffset.x) / root.canvasScaleFactor);
             const rawY = Math.round((root.y - root.canvasOffset.y) / root.canvasScaleFactor);
-            const snapped = root.state.snapToEdges(root.output.name, rawX, rawY, root.logicalSize.w, root.logicalSize.h);
+            const snapped = root.displayState.snapToEdges(root.output.name, rawX, rawY, root.logicalSize.w, root.logicalSize.h);
             root.snappedLogical = snapped;
-            root.validPosition = !root.state.checkOverlap(root.output.name, snapped.x, snapped.y, root.logicalSize.w, root.logicalSize.h);
+            root.validPosition = !root.displayState.checkOverlap(root.output.name, snapped.x, snapped.y, root.logicalSize.w, root.logicalSize.h);
         }
 
         onReleased: {
             if (!root.dragging)
                 return;
-            root.dragging = false;
-            if (!root.validPosition)
+            if (!root.validPosition) {
+                root.dragging = false;
                 return;
-            root.state.updatePosition(root.output.name, root.snappedLogical.x, root.snappedLogical.y);
+            }
+            root.displayState.updatePosition(root.output.name, root.snappedLogical.x, root.snappedLogical.y);
+            root.dragging = false;
         }
     }
 }
