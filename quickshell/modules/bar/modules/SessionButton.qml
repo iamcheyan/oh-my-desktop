@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 
 Item {
     id: root
@@ -17,23 +18,28 @@ Item {
 
     property bool hasSnapshot: false
     property int snapshotCount: 0
-    property bool canvasEmpty: true
+    // canvasEmpty is driven by the live Wayland toplevel manager instead of
+    // spawning `hyprctl -j clients | jq` every 5 seconds. ToplevelManager
+    // tracks mapped windows automatically and emits changes on its own.
+    property bool canvasEmpty: ToplevelManager.toplevels.values.length === 0
     property var previewData: ({ count: 0, workspaceCount: 0, workspaces: [] })
     readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
 
     function refreshStatus() {
         statusProc.running = false;
         statusProc.running = true;
-        clientCountProc.running = false;
-        clientCountProc.running = true;
     }
 
     Component.onCompleted: refreshStatus()
 
     Timer {
+        // Refresh the snapshot status only while the session menu is open.
+        // The canvas (mapped windows) state is tracked live via
+        // ToplevelManager, so no background poll is needed for it.
+        id: statusPollTimer
         interval: 5000
         repeat: true
-        running: true
+        running: sessionMenu.active
         onTriggered: root.refreshStatus()
     }
 
@@ -58,23 +64,6 @@ Item {
                 } catch (e) {
                     root.hasSnapshot = false;
                     root.snapshotCount = 0;
-                }
-            }
-        }
-    }
-
-    Process {
-        id: clientCountProc
-        command: ["bash", "-c", "hyprctl -j clients | jq '[.[] | select((.mapped // true) == true)] | length'"]
-        running: false
-        stdout: StdioCollector {
-            id: clientCountCollector
-            onStreamFinished: {
-                try {
-                    const n = parseInt(clientCountCollector.text.trim()) || 0;
-                    root.canvasEmpty = n === 0;
-                } catch (e) {
-                    root.canvasEmpty = false;
                 }
             }
         }
