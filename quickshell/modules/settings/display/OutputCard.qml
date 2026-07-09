@@ -251,6 +251,73 @@ Rectangle {
             valueRole: "value"
             currentIndex: Math.max(0, comboRoot.model.findIndex(value => String(value) === String(comboRoot.currentValue)))
             onActivated: comboRoot.selected(currentValue)
+
+            background: Rectangle {
+                implicitHeight: 38
+                color: "#1c1c1c"
+                border.color: combo.visualFocus ? TuiStyle.accent : "#3a3a3a"
+                border.width: 1
+                radius: 8
+            }
+
+            contentItem: StyledText {
+                leftPadding: 12
+                rightPadding: 24
+                text: combo.displayText
+                color: "#f4f4f4"
+                font.pixelSize: 13
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+
+            indicator: MaterialSymbol {
+                anchors.right: parent.right
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                text: combo.popup.visible ? "arrow_drop_up" : "arrow_drop_down"
+                iconSize: 20
+                color: "#b0b0b0"
+            }
+
+            popup: Popup {
+                y: combo.height + 4
+                width: combo.width
+                implicitHeight: contentItem.implicitHeight
+                padding: 1
+
+                contentItem: ListView {
+                    clip: true
+                    implicitHeight: contentHeight
+                    model: combo.popup.visible ? combo.delegateModel : null
+                    currentIndex: combo.highlightedIndex
+                    ScrollIndicator.vertical: ScrollIndicator { }
+                }
+
+                background: Rectangle {
+                    color: "#181818"
+                    border.color: "#303030"
+                    border.width: 1
+                    radius: 8
+                }
+            }
+
+            delegate: ItemDelegate {
+                id: itemDelegate
+                width: combo.width
+                height: 36
+                
+                background: Rectangle {
+                    color: itemDelegate.highlighted ? "#303030" : "transparent"
+                }
+
+                contentItem: StyledText {
+                    leftPadding: 12
+                    text: modelData.label
+                    color: itemDelegate.highlighted ? TuiStyle.accent : "#f4f4f4"
+                    font.pixelSize: 13
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
         }
     }
 
@@ -266,20 +333,130 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 8
             SpinBox {
+                id: spinX
                 Layout.fillWidth: true
                 from: -20000
                 to: 20000
                 value: posRoot.draft.x
                 editable: true
                 onValueModified: posRoot.displayState.setDraftValue(posRoot.output.name, "x", value)
+
+                background: Rectangle {
+                    implicitHeight: 38
+                    color: "#1c1c1c"
+                    border.color: spinX.activeFocus ? TuiStyle.accent : "#3a3a3a"
+                    border.width: 1
+                    radius: 8
+                }
+
+                contentItem: TextInput {
+                    text: spinX.displayText
+                    color: "#f4f4f4"
+                    font.pixelSize: 13
+                    font.family: TuiStyle.fontFamily
+                    horizontalAlignment: Qt.AlignHCenter
+                    verticalAlignment: Qt.AlignVCenter
+                    readOnly: !spinX.editable
+                    validator: spinX.validator
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    selectionColor: TuiStyle.accent
+                    selectedTextColor: "#111111"
+                }
+
+                down.indicator: Rectangle {
+                    x: 1
+                    y: 1
+                    height: parent.height - 2
+                    width: 28
+                    color: spinX.down.pressed ? "#303030" : "transparent"
+                    radius: 7
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "−"
+                        color: spinX.down.hovered ? TuiStyle.accent : "#cfcfcf"
+                        font.pixelSize: 15
+                        font.weight: Font.Bold
+                    }
+                }
+
+                up.indicator: Rectangle {
+                    x: parent.width - width - 1
+                    y: 1
+                    height: parent.height - 2
+                    width: 28
+                    color: spinX.up.pressed ? "#303030" : "transparent"
+                    radius: 7
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "+"
+                        color: spinX.up.hovered ? TuiStyle.accent : "#cfcfcf"
+                        font.pixelSize: 15
+                        font.weight: Font.Bold
+                    }
+                }
             }
             SpinBox {
+                id: spinY
                 Layout.fillWidth: true
                 from: -20000
                 to: 20000
                 value: posRoot.draft.y
                 editable: true
                 onValueModified: posRoot.displayState.setDraftValue(posRoot.output.name, "y", value)
+
+                background: Rectangle {
+                    implicitHeight: 38
+                    color: "#1c1c1c"
+                    border.color: spinY.activeFocus ? TuiStyle.accent : "#3a3a3a"
+                    border.width: 1
+                    radius: 8
+                }
+
+                contentItem: TextInput {
+                    text: spinY.displayText
+                    color: "#f4f4f4"
+                    font.pixelSize: 13
+                    font.family: TuiStyle.fontFamily
+                    horizontalAlignment: Qt.AlignHCenter
+                    verticalAlignment: Qt.AlignVCenter
+                    readOnly: !spinY.editable
+                    validator: spinY.validator
+                    inputMethodHints: Qt.ImhFormattedNumbersOnly
+                    selectionColor: TuiStyle.accent
+                    selectedTextColor: "#111111"
+                }
+
+                down.indicator: Rectangle {
+                    x: 1
+                    y: 1
+                    height: parent.height - 2
+                    width: 28
+                    color: spinY.down.pressed ? "#303030" : "transparent"
+                    radius: 7
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "−"
+                        color: spinY.down.hovered ? TuiStyle.accent : "#cfcfcf"
+                        font.pixelSize: 15
+                        font.weight: Font.Bold
+                    }
+                }
+
+                up.indicator: Rectangle {
+                    x: parent.width - width - 1
+                    y: 1
+                    height: parent.height - 2
+                    width: 28
+                    color: spinY.up.pressed ? "#303030" : "transparent"
+                    radius: 7
+                    StyledText {
+                        anchors.centerIn: parent
+                        text: "+"
+                        color: spinY.up.hovered ? TuiStyle.accent : "#cfcfcf"
+                        font.pixelSize: 15
+                        font.weight: Font.Bold
+                    }
+                }
             }
         }
     }
