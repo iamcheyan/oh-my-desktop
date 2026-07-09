@@ -26,6 +26,7 @@ import wave
 SOCKET_PATH = "/tmp/omd-voice.sock"
 DAEMON_PID_PATH = "/tmp/omd-voice.pid"
 CACHE_DIR = os.path.expanduser("~/.cache/omd-voice")
+LOG_PATH = os.path.join(CACHE_DIR, "transcribe.log")
 MODEL_DIR = os.environ.get(
     "OMD_VOICE_MODEL",
     os.path.join(CACHE_DIR, "sense-voice-small-int8"),
@@ -199,6 +200,8 @@ def _transcribe_file(recognizer, wav_path):
     """Run sherpa-onnx inference on a WAV file with ffmpeg volume boost."""
     import numpy as np
 
+    t_start = time.monotonic()
+
     # ffmpeg preprocessing: force 16kHz mono + 20dB gain (matches kazamo)
     processed_path = None
     if shutil.which("ffmpeg"):
@@ -218,6 +221,8 @@ def _transcribe_file(recognizer, wav_path):
                 os.unlink(processed_path)
             processed_path = None
 
+    t_ffmpeg = time.monotonic()
+
     try:
         with wave.open(wav_path, "rb") as f:
             sr = f.getframerate()
@@ -232,12 +237,32 @@ def _transcribe_file(recognizer, wav_path):
         if peak < MIN_PEAK_AMPLITUDE:
             return ""
 
+        t_load = time.monotonic()
+
         stream = recognizer.create_stream()
         stream.accept_waveform(sr, samples)
         recognizer.decode_stream(stream)
         text = strip_sensevoice_tags(stream.result.text.strip())
+
+        t_decode = time.monotonic()
+
         if not is_meaningful_text(text):
             return ""
+
+        elapsed = time.monotonic() - t_start
+        try:
+            with open(LOG_PATH, "a") as lf:
+                lf.write(json.dumps({
+                    "ts": int(time.time()),
+                    "ffmpeg_ms": int((t_ffmpeg - t_start) * 1000),
+                    "load_ms": int((t_load - t_ffmpeg) * 1000),
+                    "decode_ms": int((t_decode - t_load) * 1000),
+                    "audio_ms": int(duration * 1000),
+                    "total_ms": int(elapsed * 1000),
+                    "text": text[:60],
+                }) + "\n")
+        except Exception:
+            pass
 
         return text
     finally:
