@@ -10,8 +10,6 @@ o.bind("SUPER + CTRL + COMMA", "Toggle silencing notifications", "omd-toggle-not
 o.bind("SUPER + ALT + COMMA", "Invoke last notification", "makoctl invoke")
 o.bind("SUPER + SHIFT + ALT + COMMA", "Restore last notification", "makoctl restore")
 
-o.bind_toggle("SUPER + CTRL + I", "Toggle locking on idle", "idle")
-o.bind_toggle("SUPER + CTRL + N", "Toggle nightlight", "nightlight")
 o.bind("SUPER + CTRL + Delete", "Toggle laptop display", "omd-hyprland-monitor-internal toggle")
 o.bind("SUPER + CTRL + ALT + Delete", "Toggle laptop display mirroring", "omd-hyprland-monitor-internal-mirror toggle")
 o.bind("switch:on:Lid Switch", nil, "omd-hw-external-monitors && omd-hyprland-monitor-internal off", { locked = true })

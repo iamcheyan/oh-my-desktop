@@ -76,14 +76,6 @@ function o.launch_sole(match, command)
   return "omd-launch-or-focus " .. shell_quote(match) .. " " .. shell_quote(o.launch(command))
 end
 
-function o.bind_menu(keys, description, menu, options)
-  o.bind(keys, description, menu and ("omd-menu " .. menu) or "omd-menu", options)
-end
-
-function o.bind_toggle(keys, description, toggle, options)
-  o.bind(keys, description, "omd-toggle-" .. toggle, options)
-end
-
 function o.notify(message)
   return "notify-send -u low " .. shell_quote(message)
 end

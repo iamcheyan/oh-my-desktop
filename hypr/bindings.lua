@@ -36,8 +36,6 @@ o.bind("ALT + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
 -- Overwrite existing bindings with hl.unbind() first if needed.
--- hl.unbind("SUPER + SPACE")
--- o.bind("SUPER + SPACE", "Omarchy menu", "omarchy-menu")
 hl.unbind("SUPER + SHIFT + SPACE")
 o.bind("SUPER + SHIFT + SPACE", "Toggle Quickshell bar", "qs -p $HOME/.config/omd/apps/omd-bar ipc call bar toggle")
 
