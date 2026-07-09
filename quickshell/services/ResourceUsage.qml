@@ -35,65 +35,60 @@ Singleton {
         return (kb / (1024 * 1024)).toFixed(1) + " GB";
     }
 
-    function updateMemoryUsageHistory() {
-        memoryUsageHistory = [...memoryUsageHistory, memoryUsedPercentage]
-        if (memoryUsageHistory.length > historyLength) {
-            memoryUsageHistory.shift()
+    // Ring-buffer push: append one sample and trim to historyLength without
+    // allocating a new array via spread + shift (O(n) copy per sample).
+    function pushSample(history, sample) {
+        if (history.length >= historyLength) {
+            history.shift()
         }
-    }
-    function updateSwapUsageHistory() {
-        swapUsageHistory = [...swapUsageHistory, swapUsedPercentage]
-        if (swapUsageHistory.length > historyLength) {
-            swapUsageHistory.shift()
-        }
-    }
-    function updateCpuUsageHistory() {
-        cpuUsageHistory = [...cpuUsageHistory, cpuUsage]
-        if (cpuUsageHistory.length > historyLength) {
-            cpuUsageHistory.shift()
-        }
+        history.push(sample)
+        return history
     }
     function updateHistories() {
-        updateMemoryUsageHistory()
-        updateSwapUsageHistory()
-        updateCpuUsageHistory()
+        memoryUsageHistory = pushSample(memoryUsageHistory, memoryUsedPercentage)
+        swapUsageHistory = pushSample(swapUsageHistory, swapUsedPercentage)
+        cpuUsageHistory = pushSample(cpuUsageHistory, cpuUsage)
     }
 
 	Timer {
-		interval: 1
-        running: true 
+		interval: Config?.options?.resources?.updateInterval ?? 3000
+        running: true
         repeat: true
+        triggeredOnStart: true
 		onTriggered: {
-            // Reload files
-            fileMeminfo.reload()
-            fileStat.reload()
+            try {
+                // Reload files
+                fileMeminfo.reload()
+                fileStat.reload()
 
-            // Parse memory and swap usage
-            const textMeminfo = fileMeminfo.text()
-            memoryTotal = Number(textMeminfo.match(/MemTotal: *(\d+)/)?.[1] ?? 1)
-            memoryFree = Number(textMeminfo.match(/MemAvailable: *(\d+)/)?.[1] ?? 0)
-            swapTotal = Number(textMeminfo.match(/SwapTotal: *(\d+)/)?.[1] ?? 1)
-            swapFree = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0)
+                // Parse memory and swap usage
+                const textMeminfo = fileMeminfo.text()
+                memoryTotal = Number(textMeminfo.match(/MemTotal: *(\d+)/)?.[1] ?? 1)
+                memoryFree = Number(textMeminfo.match(/MemAvailable: *(\d+)/)?.[1] ?? 0)
+                swapTotal = Number(textMeminfo.match(/SwapTotal: *(\d+)/)?.[1] ?? 1)
+                swapFree = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0)
 
-            // Parse CPU usage
-            const textStat = fileStat.text()
-            const cpuLine = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/)
-            if (cpuLine) {
-                const stats = cpuLine.slice(1).map(Number)
-                const total = stats.reduce((a, b) => a + b, 0)
-                const idle = stats[3]
+                // Parse CPU usage
+                const textStat = fileStat.text()
+                const cpuLine = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/)
+                if (cpuLine) {
+                    const stats = cpuLine.slice(1).map(Number)
+                    const total = stats.reduce((a, b) => a + b, 0)
+                    const idle = stats[3]
 
-                if (previousCpuStats) {
-                    const totalDiff = total - previousCpuStats.total
-                    const idleDiff = idle - previousCpuStats.idle
-                    cpuUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) : 0
+                    if (previousCpuStats) {
+                        const totalDiff = total - previousCpuStats.total
+                        const idleDiff = idle - previousCpuStats.idle
+                        cpuUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) : 0
+                    }
+
+                    previousCpuStats = { total, idle }
                 }
 
-                previousCpuStats = { total, idle }
+                root.updateHistories()
+            } catch (err) {
+                console.warn("ResourceUsage: sample failed:", err)
             }
-
-            root.updateHistories()
-            interval = Config.options?.resources?.updateInterval ?? 3000
         }
 	}
 
