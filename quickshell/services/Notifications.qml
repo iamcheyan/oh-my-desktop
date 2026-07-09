@@ -20,7 +20,7 @@ Singleton {
         id: wrapper
         required property int notificationId // Could just be `id` but it conflicts with the default prop in QtObject
         property Notification notification
-        property list<var> actions: notification?.actions.map((action) => ({
+        property list<var> actions: notification?.actions?.map((action) => ({
             "identifier": action.identifier,
             "text": action.text,
         })) ?? []
@@ -92,20 +92,38 @@ Singleton {
     function stringifyList(list) {
         return JSON.stringify(list.map((notif) => notifToJSON(notif)), null, 2);
     }
-    
-    onListChanged: {
-        // Update latest time for each app
-        root.list.forEach((notif) => {
-            if (!root.latestTimeForApp[notif.appName] || notif.time > root.latestTimeForApp[notif.appName]) {
-                root.latestTimeForApp[notif.appName] = Math.max(root.latestTimeForApp[notif.appName] || 0, notif.time);
-            }
-        });
-        // Remove apps that no longer have notifications
-        Object.keys(root.latestTimeForApp).forEach((appName) => {
-            if (!root.list.some((notif) => notif.appName === appName)) {
-                delete root.latestTimeForApp[appName];
-            }
-        });
+
+    // Debounced persistence: writing the whole list to disk on every
+    // notification add/discard caused O(n) JSON.stringify + file writes on
+    // each event. Coalesce them into a single write after 500ms of quiet.
+    Timer {
+        id: persistTimer
+        interval: 500
+        repeat: false
+        onTriggered: notifFileView.setText(stringifyList(root.list))
+    }
+    function schedulePersist() {
+        persistTimer.restart()
+    }
+
+    // Incrementally maintain latestTimeForApp instead of rebuilding it from
+    // the full list on every listChanged.
+    function trackLatestTime(notif) {
+        const cur = root.latestTimeForApp[notif.appName] || 0;
+        if (notif.time > cur) {
+            const next = ({});
+            Object.assign(next, root.latestTimeForApp);
+            next[notif.appName] = notif.time;
+            root.latestTimeForApp = next;
+        }
+    }
+    function untrackAppIfStale(appName) {
+        if (!root.list.some((notif) => notif.appName === appName)) {
+            const next = ({});
+            Object.assign(next, root.latestTimeForApp);
+            delete next[appName];
+            root.latestTimeForApp = next;
+        }
     }
 
     function appNameListForGroups(groups) {
@@ -167,6 +185,7 @@ Singleton {
                 "time": Date.now(),
             });
 			root.list = [...root.list, newNotifObject];
+            root.trackLatestTime(newNotifObject);
 
             // Popup
             if (!root.popupInhibited) {
@@ -181,7 +200,7 @@ Singleton {
             }
             root.notify(newNotifObject);
             // console.log(notifToString(newNotifObject));
-            notifFileView.setText(stringifyList(root.list));
+            root.schedulePersist();
         }
     }
 
@@ -193,10 +212,15 @@ Singleton {
         console.log("[Notifications] Discarding notification with ID: " + id);
         const index = root.list.findIndex((notif) => notif.notificationId === id);
         const notifServerIndex = notifServer.trackedNotifications.values.findIndex((notif) => notif.id + root.idOffset === id);
+        let discardedAppName = null;
         if (index !== -1) {
+            discardedAppName = root.list[index]?.appName ?? null;
             root.list.splice(index, 1);
-            notifFileView.setText(stringifyList(root.list));
             triggerListChange()
+            root.schedulePersist();
+        }
+        if (discardedAppName !== null) {
+            root.untrackAppIfStale(discardedAppName);
         }
         if (notifServerIndex !== -1) {
             notifServer.trackedNotifications.values[notifServerIndex].dismiss()
@@ -206,8 +230,9 @@ Singleton {
 
     function discardAllNotifications() {
         root.list = []
+        root.latestTimeForApp = ({})
         triggerListChange()
-        notifFileView.setText(stringifyList(root.list));
+        root.schedulePersist();
         notifServer.trackedNotifications.values.forEach((notif) => {
             notif.dismiss()
         })
