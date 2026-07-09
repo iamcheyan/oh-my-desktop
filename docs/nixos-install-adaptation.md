@@ -227,3 +227,35 @@ If you encounter a black screen or missing panels after entering from SDDM:
    hyprctl reload                         # Reload Hyprland
    bash scripts/reload-quickshell          # Restart all QuickShell panels
    ```
+
+---
+
+## 5. Keyboard Remapping (keyd) on NixOS
+
+Since keyboard remapping (keyd) intercepts kernel evdev keypresses, it requires root privileges and cannot run as a standalone user process. 
+
+To enable keyboard remapping on NixOS:
+
+### Step 1: Enable keyd service in `/etc/nixos/configuration.nix`
+Add the following service definition to your configuration:
+```nix
+# Enable the keyd keyboard remapping daemon
+services.keyd = {
+  enable = true;
+};
+```
+
+### Step 2: Apply changes
+Rebuild your system:
+```sh
+sudo nixos-rebuild switch
+```
+This automatically installs the `keyd` package and registers the systemd `keyd.service` in the background.
+
+### Step 3: Run OMD keyboard remap setup
+Run the setup script from the repo to install the polkit rules so Quickshell settings can apply changes to `/etc/keyd/omd.conf` without prompting for a root password:
+```sh
+# Run the keyboard permission installer
+bash ~/.config/omd/share/bin/omarchy-keyboard-setup
+```
+Once done, click **Apply changes** in the Keyboard settings popup to start mapping keys.
