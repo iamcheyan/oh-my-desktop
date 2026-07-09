@@ -318,12 +318,19 @@ Singleton {
         }
     }
 
+    Timer {
+        id: debounceUpdateTimer
+        interval: 1500
+        repeat: false
+        onTriggered: root.update()
+    }
+
     Process {
         id: subscriber
         running: true
         command: ["nmcli", "monitor"]
         stdout: SplitParser {
-            onRead: root.update()
+            onRead: debounceUpdateTimer.restart()
         }
     }
 

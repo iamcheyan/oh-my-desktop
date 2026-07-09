@@ -98,7 +98,7 @@ Singleton {
     }
 
     Timer {
-        interval: 5000
+        interval: 30000
         repeat: true
         running: true
         onTriggered: root.refreshDevices()
