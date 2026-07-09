@@ -789,8 +789,14 @@ Scope {
 
                     TuiDetailRow {
                         keyText: "MODEL"
-                        valueText: VoiceInput.modelSizeMB > 0 ? `${VoiceInput.modelSizeMB} MB` : "missing"
+                        valueText: VoiceInput.modelSizeMB > 0 ? `SenseVoice Small (${VoiceInput.modelSizeMB} MB)` : "missing"
                         valueColor: VoiceInput.modelSizeMB > 0 ? TuiStyle.success : TuiStyle.danger
+                    }
+
+                    TuiDetailRow {
+                        keyText: "STATUS"
+                        valueText: VoiceInput.daemonRunning ? "Active (RAM Loaded)" : "Standby (0 RAM)"
+                        valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.muted
                     }
 
                     TuiDetailRow {
@@ -799,10 +805,25 @@ Scope {
                         valueColor: VoiceInput.state === "setup" ? TuiStyle.danger : TuiStyle.success
                     }
 
-                    TuiDetailRow {
-                        keyText: "DAEMON"
-                        valueText: VoiceInput.daemonRunning ? "running" : "stopped"
-                        valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.warning
+                    // 路径栏
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        StyledText {
+                            text: "MODEL PATH"
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.smaller - 2
+                            font.weight: Font.Bold
+                            color: TuiStyle.dim
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: VoiceInput.modelDir
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.smaller - 1
+                            color: TuiStyle.muted
+                            elide: Text.ElideLeft
+                        }
                     }
                 }
             }
