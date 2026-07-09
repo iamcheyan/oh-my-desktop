@@ -211,7 +211,10 @@ Item {
         radius: TuiStyle.radius
         color: "#181818"
         border.width: 0
-        visible: root.searchMode
+        // Keep visible while fading out so the opacity Behavior can animate.
+        // On show, searchMode flips true and opacity animates 0->1. On hide,
+        // opacity animates 1->0 and visible flips false when it reaches 0.
+        visible: root.searchMode || searchShell.opacity > 0
         opacity: root.searchMode ? 1 : 0
 
         Behavior on opacity {
