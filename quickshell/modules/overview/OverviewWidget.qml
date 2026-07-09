@@ -17,9 +17,6 @@ Item {
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
-    // Performance mode disables expensive per-window effects (live screencopy,
-    // OpacityMask, wallpaper Image) in exchange for faster overview opens.
-    readonly property bool perfMode: (Persistent.states?.display?.optimization ?? "balanced") === "performance"
     // Re-evaluate the model only when the HyprlandData dirty-flag, an
     // explicit overview refresh, or the toplevel count changes. The
     // dependencies are read explicitly so QML registers them; the actual
@@ -645,10 +642,7 @@ Item {
                     border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
                     clip: true
 
-                    // Wallpaper background for all workspaces (including trailing empty).
-                    // In performance mode skip the per-workspace wallpaper Image
-                    // (texture upload + sampling for every tile) and rely on the
-                    // workspace rectangle's solid color instead.
+                    // Wallpaper background for all workspaces (including trailing empty)
                     Image {
                         anchors.fill: parent
                         source: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
@@ -656,7 +650,6 @@ Item {
                         asynchronous: true
                         cache: true
                         mipmap: true
-                        visible: !root.perfMode
                     }
 
                     StyledText {
