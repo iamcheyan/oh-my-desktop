@@ -2,7 +2,13 @@
 # Generate keyd config from OMD profiles and install via pkexec.
 set -eu
 
-OMD_ROOT="${HOME}/.config/omd"
+# Resolve the true OMD_ROOT directory even if executed under sudo
+REAL_HOME="${HOME}"
+if [[ "${USER:-}" == "root" && -n "${SUDO_USER:-}" ]]; then
+    REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+fi
+
+OMD_ROOT="${REAL_HOME}/.config/omd"
 PROFILES="${OMD_ROOT}/keyboard-remap/profiles.json"
 GENERATED="${OMD_ROOT}/keyboard-remap/keyd.generated.conf"
 KEYD_DEST="/etc/keyd/omd.conf"
