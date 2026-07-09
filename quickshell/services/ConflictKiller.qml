@@ -24,7 +24,7 @@ Singleton {
 
     Process {
         id: checkConflictsProc
-        command: ["bash", "-c", `echo "$(pidof kded6);$(pidof mako dunst)"`]
+        command: ["bash", "-c", "pidof kded6; pidof mako dunst"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const output = this.text;
