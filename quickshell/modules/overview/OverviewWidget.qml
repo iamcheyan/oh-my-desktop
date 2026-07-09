@@ -735,12 +735,30 @@ Item {
         width: root.width
         height: root.height
 
+        // Defer window-preview creation so the workspace grid paints its
+        // first frame before the (relatively expensive) window delegates +
+        // ScreencopyViews are instantiated. In performance mode this makes
+        // the overview feel responsive immediately.
+        property bool windowsActive: !root.perfMode
+        Timer {
+            id: windowsActiveTimer
+            interval: 80
+            repeat: false
+            onTriggered: windowSpace.windowsActive = true
+        }
+        Component.onCompleted: {
+            if (root.perfMode)
+                windowsActiveTimer.start()
+        }
+
             Repeater { // Window repeater
                 model: ScriptModel {
                     values: {
                         // Register modelRevision as a dependency.
                         const _rev = root.modelRevision;
                         void _rev;
+                        if (!windowSpace.windowsActive)
+                            return [];
                         return ToplevelManager.toplevels.values.filter((toplevel) => {
                             const address = `0x${toplevel.HyprlandToplevel?.address}`
                             var win = windowByAddress[address]
