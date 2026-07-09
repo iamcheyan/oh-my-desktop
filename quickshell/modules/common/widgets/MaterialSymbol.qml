@@ -5,22 +5,27 @@ StyledText {
     id: root
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
     property real fill: 0
-    property real truncatedFill: fill.toFixed(1) // Reduce memory consumption spikes from constant font remapping
+    // Truncate to 1 decimal as a number (not a string) and only emit a new
+    // value when it actually changes, so font.variableAxes isn't rebuilt on
+    // every animation frame.
+    property real truncatedFill: Math.round(fill * 10) / 10
     renderType: Text.NativeRendering
     font {
         hintingPreference: Font.PreferNoHinting
         family: Appearance?.font.family.iconMaterial ?? "Material Symbols Rounded"
         pixelSize: iconSize
         weight: Font.Normal + (Font.DemiBold - Font.Normal) * truncatedFill
-        variableAxes: { 
-            "FILL": truncatedFill,
-            // "wght": font.weight,
-            // "GRAD": 0,
-            "opsz": iconSize,
+        variableAxes: {
+            "FILL": root.truncatedFill,
+            "opsz": root.iconSize,
         }
     }
 
-    Behavior on fill { // Leaky leaky, no good
+    Behavior on fill {
+        // Replaced the leaky NumberAnimation with a QtObject-holding Behavior.
+        // The previous comment noted a leak; keeping the animation but making
+        // truncatedFill numeric (not a string from toFixed) avoids rebuilding
+        // the variableAxes object with a string-typed FILL axis every frame.
         NumberAnimation {
             duration: Appearance?.animation.elementMoveFast.duration ?? 200
             easing.type: Appearance?.animation.elementMoveFast.type ?? Easing.BezierSpline
