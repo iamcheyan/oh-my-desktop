@@ -30,6 +30,7 @@ environment.systemPackages = with pkgs; [
   kdePackages.qtstyleplugin-kvantum
 
   # Media & Hardware Utilities
+  ffmpeg                     # Required for voice transcription audio processing (gain, resample)
   pamixer
   playerctl
   pavucontrol
@@ -40,13 +41,18 @@ environment.systemPackages = with pkgs; [
   # Optional TUI / Helpers
   ddcutil                    # For external monitor brightness controls
   libsecret                  # Required for secret-tool API key storage
-];
-```
+  ];
+  ```
 
-Remember to apply the configuration after editing:
-```sh
-sudo nixos-rebuild switch
-```
+  For non-root users who want to dynamically install it in their active profile, run:
+  ```sh
+  nix profile add nixpkgs#ffmpeg --extra-experimental-features "nix-command flakes"
+  ```
+
+  Remember to apply the system configuration after editing:
+  ```sh
+  sudo nixos-rebuild switch
+  ```
 
 ---
 
