@@ -186,7 +186,6 @@ symlink targets.
 │   ├── omd-applauncher       Launch app launcher
 │   ├── omd-clipboard          Launch clipboard UI process
 │   ├── omd-clipboard-store    Launch clipboard store watcher
-│   ├── omd-clipboard-pick    Launch clipboard picker (walker + auto-paste)
 │   ├── omd-corners            Launch corners process
 │   ├── omd-wallpaper          Wallpaper picker/rotation helper
 │   ├── omd-session            Workspace snapshot save/restore helper
@@ -234,11 +233,9 @@ symlink targets.
   `~/.config/omd/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
   `omd-overview`, `omd-applauncher`, `omd-corners`, and `omd-clipboard`.
-- Clipboard picking is handled by walker (`ALT+V` → `omd-clipboard-pick`);
+- Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
-- Walker reads launcher/clipboard options from `~/.config/omarchy/walker`,
-  which is managed by `omarchy/walker`.
 - Themes are stored in `~/.local/share/omarchy/themes/`. The active theme is
   copied to `~/.config/omarchy/current/` by `omarchy-theme-set`.
 - Terminal configs are managed by OMD symlinks under `~/.config/{foot,kitty,alacritty,ghostty}`.

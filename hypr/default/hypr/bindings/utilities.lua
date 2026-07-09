@@ -1,4 +1,3 @@
-o.bind("SUPER + CTRL + E", "Emoji picker", { omd = "walker -m symbols" })
 o.bind("XF86Calculator", "Calculator", "gnome-calculator")
 
 o.bind("SUPER + BACKSPACE", "Toggle window transparency", "omd-hyprland-window-transparency-toggle")

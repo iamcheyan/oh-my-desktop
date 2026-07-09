@@ -13,8 +13,6 @@ local function command_from(value, description)
 
   if value.omd then
     return "omd-launch-" .. value.omd
-  elseif value.omarchy then
-    return "omd-launch-" .. value.omarchy
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then

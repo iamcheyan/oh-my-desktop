@@ -1,6 +1,6 @@
 #!/bin/sh
 # Shared PATH for OMD launchers and systemd-run services.
-# Quickshell spawns cliphist/walker/etc. with the parent process PATH, which
+# Quickshell spawns cliphist etc. with the parent process PATH, which
 # systemd user units do not inherit from interactive shells (goenv, cargo, …).
 
 omd_prepend_path() {

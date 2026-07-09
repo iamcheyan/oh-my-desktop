@@ -105,7 +105,6 @@ o.bind("ALT + S", "Region screenshot", "qs -p $HOME/.config/omd/apps/omd-bar ipc
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
--- o.bind("SUPER + PERIOD", nil, { omd = "walker -m symbols" })
 hl.unbind("SUPER + CTRL + V")
 o.bind("CTRL + SHIFT + V", "Clipboard manager", "qs -p $HOME/.config/omd/apps/omd-clipboard ipc call clipboard toggle")
 hl.unbind("SUPER + CTRL + V")

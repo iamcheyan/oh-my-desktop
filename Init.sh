@@ -111,7 +111,6 @@ PACKAGES_DISPLAY=(
 # Clipboard
 PACKAGES_CLIPBOARD=(
     cliphist
-    walker
 )
 
 # Notification
@@ -223,7 +222,6 @@ get_debian_pkg() {
         swappy)                 echo "swappy" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         cliphist)               echo "cliphist" ;;
-        walker)                 echo "walker" ;;
         mako)                   echo "mako" ;;
         quickshell)             echo "quickshell" ;;
         fcitx5)                 echo "fcitx5" ;;
@@ -294,7 +292,6 @@ get_fedora_pkg() {
         swappy)                 echo "swappy" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         cliphist)               echo "cliphist" ;;
-        walker)                 echo "walker" ;;
         mako)                   echo "mako" ;;
         quickshell)             echo "quickshell" ;;
         fcitx5)                 echo "fcitx5" ;;
@@ -351,7 +348,6 @@ get_arch_pkg() {
         meslo-nerd-fonts)       echo "ttf-meslo-nerd" ;;
         material-symbols-fonts) echo "ttf-material-symbols-variable-git" ;;
         font-awesome)           echo "ttf-font-awesome" ;;
-        walker)                 echo "omarchy-walker" ;;
         kvantum)                echo "kvantum-qt5" ;;
         *)                      echo "$1" ;;
     esac
@@ -473,7 +469,6 @@ install_nixos_system_config() {
     hyprpicker
     xdg-desktop-portal-hyprland
     quickshell
-    walker
     cliphist
     wl-clipboard
     mako
@@ -783,175 +778,6 @@ install_user_fonts() {
     done
 }
 
-# ── User binary fallback installation ─────────────────────────────────────────
-# Some OMD dependencies are not packaged for every distro (notably walker and
-# elephant on Fedora). Download prebuilt binaries from upstream releases into
-# ~/.local/bin so OMD can still run end-to-end.
-detect_arch() {
-    local arch
-    arch="$(uname -m)"
-    case "$arch" in
-        x86_64|amd64)  echo "x86_64" ;;
-        aarch64|arm64) echo "aarch64" ;;
-        *) err "Unsupported architecture: $arch"; return 1 ;;
-    esac
-}
-
-install_github_release_binary() {
-    local repo="$1"          # e.g. "abenz1267/walker"
-    local asset_glob="$2"    # e.g. "walker-*-x86_64-unknown-linux-gnu.tar.gz"
-    local binary_name="$3"   # e.g. "walker"
-    local bin_dir="$HOME/.local/bin"
-    local tmp_dir
-
-    if command -v "$binary_name" >/dev/null 2>&1; then
-        ok "  $binary_name"
-        return 0
-    fi
-
-    info "Fetching $binary_name from $repo..."
-    tmp_dir="$(mktemp -d)"
-    if ! curl -fsSL "https://api.github.com/repos/$repo/releases/latest" \
-            | jq -r --arg glob "$asset_glob" '.assets[] | select(.name | test($glob)) | .browser_download_url' \
-            | head -n1 > "$tmp_dir/url"; then
-        warn "Could not query releases for $repo"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-
-    local url
-    url="$(cat "$tmp_dir/url")"
-    if [[ -z "$url" ]]; then
-        warn "No matching release asset for $binary_name"
-        rm -rf "$tmp_dir"
-        return 1
-    fi
-
-    mkdir -p "$bin_dir"
-    if [[ "$url" == *.tar.gz || "$url" == *.tgz ]]; then
-        if curl -fL "$url" | tar -xz -C "$tmp_dir" 2>/dev/null; then
-            if [[ -x "$tmp_dir/$binary_name" ]]; then
-                install -m 0755 "$tmp_dir/$binary_name" "$bin_dir/$binary_name"
-            else
-                local found
-                found="$(find "$tmp_dir" -name "$binary_name" -type f -executable | head -n1)"
-                if [[ -n "$found" ]]; then
-                    install -m 0755 "$found" "$bin_dir/$binary_name"
-                else
-                    warn "Could not locate $binary_name in archive"
-                    rm -rf "$tmp_dir"
-                    return 1
-                fi
-            fi
-        else
-            warn "Could not download $url"
-            rm -rf "$tmp_dir"
-            return 1
-        fi
-    else
-        if curl -fL "$url" -o "$bin_dir/$binary_name"; then
-            chmod +x "$bin_dir/$binary_name"
-        else
-            warn "Could not download $url"
-            rm -rf "$tmp_dir"
-            return 1
-        fi
-    fi
-    rm -rf "$tmp_dir"
-    ok "  installed $binary_name -> $bin_dir/$binary_name"
-}
-
-install_user_binaries() {
-    info "Checking OMD user binaries (walker, elephant, providers)..."
-
-    local arch
-    arch="$(detect_arch)" || return 0
-
-    # Walker launcher (Rust)
-    install_github_release_binary "abenz1267/walker" \
-        "walker-.*-${arch}-unknown-linux-gnu\.tar\.gz$" "walker" || true
-
-    # Elephant ships one main binary plus Go plugin providers (*.so).
-    local elephant_arch
-    case "$arch" in
-        x86_64)  elephant_arch="amd64" ;;
-        aarch64) elephant_arch="arm64" ;;
-    esac
-
-    local api_json
-    local tmp_dir
-    local url
-    tmp_dir="$(mktemp -d)"
-
-    if api_json="$(curl -fsSL "https://api.github.com/repos/abenz1267/elephant/releases/latest")"; then
-        url="$(jq -r --arg name "elephant-linux-${elephant_arch}.tar.gz" \
-            '.assets[] | select(.name == $name) | .browser_download_url' <<<"$api_json" | head -n1)"
-        if [[ -n "$url" && "$url" != "null" ]]; then
-            mkdir -p "$HOME/.local/bin"
-            if curl -fsSL "$url" | tar -xz -C "$tmp_dir" 2>/dev/null \
-                && [[ -f "$tmp_dir/elephant-linux-${elephant_arch}" ]]; then
-                install -m 0755 "$tmp_dir/elephant-linux-${elephant_arch}" "$HOME/.local/bin/elephant"
-                ok "  installed elephant -> $HOME/.local/bin/elephant"
-            else
-                warn "Could not install elephant"
-            fi
-        else
-            warn "No matching release asset for elephant"
-        fi
-    else
-        warn "Could not query releases for abenz1267/elephant"
-    fi
-
-    # Required providers used by ~/.config/walker/config.toml.
-    local providers=(
-        "calc"
-        "clipboard"
-        "desktopapplications"
-        "files"
-        "providerlist"
-        "symbols"
-        "websearch"
-    )
-    local p
-    local provider_dir="$HOME/.config/elephant/providers"
-    mkdir -p "$provider_dir"
-
-    for p in "${providers[@]}"; do
-        rm -rf "$tmp_dir"/*
-        url="$(jq -r --arg name "${p}-linux-${elephant_arch}.tar.gz" \
-            '.assets[] | select(.name == $name) | .browser_download_url' <<<"${api_json:-}" | head -n1)"
-        if [[ -z "$url" || "$url" == "null" ]]; then
-            warn "No matching release asset for elephant provider: $p"
-            continue
-        fi
-        if curl -fsSL "$url" | tar -xz -C "$tmp_dir" 2>/dev/null \
-            && [[ -f "$tmp_dir/${p}-linux-${elephant_arch}.so" ]]; then
-            install -m 0644 "$tmp_dir/${p}-linux-${elephant_arch}.so" "$provider_dir/${p}.so"
-            ok "  installed elephant provider: $provider_dir/${p}.so"
-        else
-            warn "Could not install elephant provider: $p"
-        fi
-    done
-
-    rm -rf "$tmp_dir"
-
-    for bin in walker elephant; do
-        if command -v "$bin" >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/$bin" ]]; then
-            ok "  binary available: $bin"
-        else
-            warn "binary still missing: $bin"
-        fi
-    done
-
-    for p in "${providers[@]}"; do
-        if [[ -f "$provider_dir/${p}.so" ]]; then
-            ok "  elephant provider available: ${p}.so"
-        else
-            warn "elephant provider still missing: ${p}.so"
-        fi
-    done
-}
-
 # ── Main installation flow ────────────────────────────────────────────────────
 install_all_dependencies() {
     info "Installing core dependencies..."
@@ -963,10 +789,6 @@ install_all_dependencies() {
 
         info "═══ Fonts & Icons ═══"
         install_user_fonts
-        echo
-
-        info "═══ User Binaries (walker, elephant) ═══"
-        install_user_binaries
         echo
 
         ok "NixOS dependencies installed!"
@@ -1050,11 +872,6 @@ install_all_dependencies() {
     install_user_fonts
     echo
 
-    # User binaries (walker, elephant, providers)
-    info "═══ User Binaries (walker, elephant) ═══"
-    install_user_binaries
-    echo
-
     # Qt/GTK
     info "═══ Qt/GTK Integration ═══"
     install_packages "${PACKAGES_QT_GTK[@]}"
@@ -1072,7 +889,6 @@ install_all_dependencies() {
 create_symlinks() {
     local LINKS=(
         "$HOME/.config/quickshell|$REPO/quickshell"
-        "$HOME/.config/walker|$REPO/config/walker"
         "$HOME/.config/foot|$REPO/config/foot"
         "$HOME/.config/kitty|$REPO/config/kitty"
         "$HOME/.config/alacritty|$REPO/config/alacritty"
@@ -1301,7 +1117,6 @@ main() {
     echo "  - Terminal (foot)"
     echo "  - Essential tools (jq, curl, git, ripgrep, fish, ydotool)"
     echo "  - Fonts/icons (Cantarell, Noto, Nerd Fonts, Material Symbols)"
-    echo "  - User binaries (walker, elephant + OMD-configured providers)"
     echo "  - Qt/GTK integration"
     echo
 
