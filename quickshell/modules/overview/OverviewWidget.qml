@@ -17,14 +17,23 @@ Item {
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
+    // Re-evaluate the model only when the HyprlandData dirty-flag, an
+    // explicit overview refresh, or the toplevel count changes. The
+    // dependencies are read explicitly so QML registers them; the actual
+    // data comes from cached/computed sources.
     readonly property int modelRevision: HyprlandData.dataSerial
         + GlobalStates.overviewRefreshSerial
         + (ToplevelManager.toplevels.values?.length ?? 0)
     // Clamp to avoid lock-screen temp workspace (2147483647 - N) leaking into UI
     readonly property int effectiveActiveWorkspaceId: Math.max(1, Math.min(100, monitor?.activeWorkspace?.id ?? 1))
-    readonly property var overviewEntries: OverviewSwitchingController.grabbed
-        ? (root.modelRevision, WorkspaceNavigation.switchingModeModel() ?? [])
-        : (root.modelRevision, HyprlandData.overviewWorkspaceEntriesGroupedByMonitor() ?? [])
+    readonly property var overviewEntries: {
+        // Register the revision as a dependency without the comma-operator hack.
+        const _rev = root.modelRevision;
+        void _rev;
+        if (OverviewSwitchingController.grabbed)
+            return WorkspaceNavigation.switchingModeModel() ?? [];
+        return HyprlandData.overviewWorkspaceEntries ?? [];
+    }
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var monitorGroups: {
         const groups = [];
@@ -722,7 +731,9 @@ Item {
             Repeater { // Window repeater
                 model: ScriptModel {
                     values: {
-                        const revision = root.modelRevision;
+                        // Register modelRevision as a dependency.
+                        const _rev = root.modelRevision;
+                        void _rev;
                         return ToplevelManager.toplevels.values.filter((toplevel) => {
                             const address = `0x${toplevel.HyprlandToplevel?.address}`
                             var win = windowByAddress[address]

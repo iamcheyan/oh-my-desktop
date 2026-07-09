@@ -24,6 +24,19 @@ Singleton {
     property var monitors: []
     property var layers: ({})
     property int dataSerial: 0
+    // Cached overview model recomputed only when the data dirty-flag
+    // (dataSerial) or the overview refresh serial changes. Consumers bind to
+    // this property instead of calling overviewWorkspaceEntriesGroupedByMonitor()
+    // inside a binding (which QML cannot track as a dependency).
+    property var overviewWorkspaceEntries: {
+        // Re-evaluate when the data dirty-flag or an explicit overview
+        // refresh request changes. Reading both properties here registers
+        // them as binding dependencies.
+        const _serial = root.dataSerial;
+        const _refresh = GlobalStates.overviewRefreshSerial;
+        void _serial; void _refresh;
+        return root.overviewWorkspaceEntriesGroupedByMonitor() ?? [];
+    }
 
     // Convenient stuff
 
