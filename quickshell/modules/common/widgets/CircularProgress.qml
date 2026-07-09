@@ -38,14 +38,11 @@ Item {
 
     }
 
-    Loader {
-        active: root.fill
+    Rectangle {
+        visible: root.fill
         anchors.fill: parent
-        
-        sourceComponent: Rectangle {
-            radius: 0
-            color: root.colSecondary
-        }
+        radius: 0
+        color: root.colSecondary
     }
 
     Shape {
