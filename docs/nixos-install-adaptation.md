@@ -1,0 +1,223 @@
+# NixOS Installation and Adaptation Guide
+
+This document describes how to install, configure, and adapt **oh-my-desktop (OMD)** on NixOS. Since NixOS handles package dependency, environment paths, and system sessions declaratively, running OMD requires specific declarative changes and hardware adjustments.
+
+---
+
+## 1. System Dependencies in `configuration.nix`
+
+For Hyprland and Quickshell to start up correctly without a black screen or missing UI components, ensure that your `/etc/nixos/configuration.nix` contains the required graphical libraries. 
+
+In particular, the Quickshell UI relies on the `Qt5Compat.GraphicalEffects` module. Make sure to include `kdePackages.qt5compat` in your `environment.systemPackages` block:
+
+```nix
+environment.systemPackages = with pkgs; [
+  # OMD / Hyprland Core
+  hyprland
+  hyprlock
+  hypridle
+  quickshell
+  walker
+  cliphist
+  wl-clipboard
+  mako
+  swaybg
+
+  # Qt / QML Integration (CRITICAL)
+  kdePackages.qtwayland
+  kdePackages.qt5compat      # Provides Qt5Compat.GraphicalEffects (needed for OMD UI)
+  kdePackages.qt6ct
+  kdePackages.qtstyleplugin-kvantum
+
+  # Media & Hardware Utilities
+  pamixer
+  playerctl
+  pavucontrol
+  brightnessctl
+  grim
+  slurp
+  
+  # Optional TUI / Helpers
+  ddcutil                    # For external monitor brightness controls
+  libsecret                  # Required for secret-tool API key storage
+];
+```
+
+Remember to apply the configuration after editing:
+```sh
+sudo nixos-rebuild switch
+```
+
+---
+
+## 2. Adapting Monitor and Resolution (Avoiding Black Screen)
+
+Hyprland will fail to render or boot to a black screen if your display settings in `hypr/monitors.lua` mismatch your actual hardware (e.g., trying to scale an unavailable resolution or choosing the wrong output interface).
+
+### Step 1: Detect your connected monitors
+Switch to a TTY or run the following command from another terminal emulator to find your active output name and supported resolutions:
+```sh
+wlr-randr
+# Example output:
+# eDP-1 connected primary 1920x1200+0+0
+```
+
+### Step 2: Auto-scaling configuration in `hypr/monitors.lua`
+Rather than hardcoding monitor configurations, OMD dynamically queries connected screens from `/sys/class/drm`, detects native resolutions, and automatically assigns industry-standard scaling factors.
+
+Here is the logic applied in `hypr/monitors.lua`:
+
+| Resolution Width | Device Category | Default Scale | Intended Layout Density |
+| --- | --- | --- | --- |
+| **<= 2000 px** | 1080p/1200p Laptop screen | **1.25x** | Comfortable font sizes for small screens |
+| **<= 2000 px** | 1080p/1200p External desktop | **1.0x** | High information density on large screens |
+| **2000 - 2600 px** | 2K / 1440p External desktop | **1.25x** | Ideal balance of workspace and readability |
+| **2600 - 3100 px** | 2.8K / 3K MacBook/Thinkpad retina | **2.0x** | Sharp pixel-doubling (Retina UI) |
+| **3100 - 3840 px** | 4K External desktop monitor | **1.5x** | Standard fractional scale for 4K desktop screens |
+| **> 3840 px** | 5K / 6K High-DPI Desktop | **2.0x** | Ultra-sharp Retina mode |
+
+Our `hypr/monitors.lua` automatically resolves these rules and arranges multiple connected screens side-by-side:
+
+```lua
+-- ~\.config\omd\hypr\monitors.lua
+-- Dynamic Monitor Auto-Scaling Configuration for Hyprland
+
+local function get_connected_monitors()
+  local monitors = {}
+  local p = io.popen("find /sys/class/drm/ -maxdepth 1 -name \"card*-*\" 2>/dev/null")
+  if not p then return monitors end
+
+  for path in p:lines() do
+    local status_file = io.open(path .. "/status", "r")
+    if status_file then
+      local status = status_file:read("*l")
+      status_file:close()
+      if status == "connected" then
+        local name = path:match("card%d+%-([^/]+)")
+        local modes_file = io.open(path .. "/modes", "r")
+        local mode = "preferred"
+        local w, h = 0, 0
+        if modes_file then
+          local first_line = modes_file:read("*l")
+          modes_file:close()
+          if first_line then
+            mode = first_line
+            w, h = first_line:match("(%d+)x(%d+)")
+            w, h = tonumber(w or 0), tonumber(h or 0)
+          end
+        end
+        table.insert(monitors, { name = name, mode = mode, w = w, h = h })
+      end
+    end
+  end
+  p:close()
+  return monitors
+end
+
+local primary_gdk_scale = 1
+local configured_any = false
+local x_offset = 0
+
+local connected = get_connected_monitors()
+
+for _, m in ipairs(connected) do
+  local is_internal = m.name:sub(1, 3) == "eDP"
+  local scale = 1.0
+  local gdk_scale = 1
+
+  if is_internal then
+    if m.w <= 2000 then
+      scale = 1.25
+      gdk_scale = 1
+    elseif m.w <= 3100 then
+      scale = 2.0
+      gdk_scale = 2
+    else
+      scale = 2.0
+      gdk_scale = 2
+    end
+  else
+    if m.w <= 2000 then
+      scale = 1.0
+      gdk_scale = 1
+    elseif m.w <= 2600 then
+      scale = 1.25
+      gdk_scale = 1
+    elseif m.w <= 3840 then
+      scale = 1.5
+      gdk_scale = 1
+    else
+      scale = 2.0
+      gdk_scale = 2
+    end
+  end
+
+  if is_internal or not configured_any then
+    primary_gdk_scale = gdk_scale
+  end
+
+  hl.monitor({
+    output = m.name,
+    mode = "preferred",
+    position = x_offset .. "x0",
+    scale = scale
+  })
+
+  local logical_width = math.floor(m.w / scale)
+  x_offset = x_offset + logical_width
+  configured_any = true
+end
+
+hl.env("GDK_SCALE", tostring(primary_gdk_scale))
+
+-- Wildcard adaptive fallback for safety
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+```
+
+---
+
+## 3. Dynamic QML Library Pathing (`omd-path.sh`)
+
+NixOS installs packages into isolated Nix store paths (`/nix/store/...`), which means standard Qt search paths might not automatically discover modules like `Qt5Compat`. 
+
+To prevent "Type ReloadPopup unavailable" or "module Qt5Compat.GraphicalEffects is not installed" errors, OMD uses `scripts/omd-path.sh` to dynamically query the Nix store for `qt5compat` and prepend it to `QML_IMPORT_PATH` before starting Quickshell services:
+
+```sh
+# scripts/omd-path.sh
+
+# Ensure Qt5Compat.GraphicalEffects QML module is available for Quickshell.
+_qt5compat_qml=$(find /nix/store -maxdepth 1 -name "*qt5compat*" -type d 2>/dev/null | head -1)
+if [ -n "$_qt5compat_qml" ] && [ -d "$_qt5compat_qml/lib/qt-6/qml" ]; then
+    _qt5compat_qml="$_qt5compat_qml/lib/qt-6/qml"
+    case ":${QML_IMPORT_PATH:-}:" in
+        *:"$_qt5compat_qml":*) ;;
+        *) export QML_IMPORT_PATH="$_qt5compat_qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" ;;
+    esac
+fi
+unset _qt5compat_qml
+```
+
+---
+
+## 4. Diagnostics & Troubleshooting
+
+If you encounter a black screen or missing panels after entering from SDDM:
+
+1. **Check if Quickshell processes are running:**
+   ```sh
+   pgrep -af '(quickshell|qs)'
+   ```
+
+2. **Examine the error logs of split services:**
+   OMD logs its individual component startups to `/tmp`:
+   ```sh
+   tail -n 30 /tmp/omd-bar.log
+   tail -n 30 /tmp/omd-desktop.log
+   ```
+
+3. **Manually trigger reload:**
+   If you made changes to `hypr/monitors.lua` or QuickShell QML files:
+   ```sh
+   hyprctl reload                         # Reload Hyprland
+   bash scripts/reload-quickshell          # Restart all QuickShell panels
+   ```

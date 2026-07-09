@@ -70,6 +70,13 @@
           "note": "minila 全角/半角键在底层识别为 grave (`)"
         }
       }
+    },
+    "at-translated-set-2-keyboard": {
+      "displayName": "at translated set 2 keyboard",
+      "hyprName": "at-translated-set-2-keyboard",
+      "keydId": "0001:0001",
+      "enabled": true,
+      "remaps": []
     }
   }
 }

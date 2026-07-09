@@ -2,6 +2,7 @@
 set -u
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PATH="$HOME/.local/bin:$PATH"
 failed=0
 warned=0
 
@@ -95,8 +96,13 @@ done
 for cmd in pavucontrol bluetoothctl nm-connection-editor kitty fish; do
   check_optional_cmd "$cmd"
 done
-for cmd in elephant elephant-desktopapplications elephant-providerlist elephant-files elephant-symbols elephant-calc elephant-websearch elephant-clipboard; do
-  check_optional_cmd "$cmd"
+check_optional_cmd elephant
+for provider in desktopapplications providerlist files symbols calc websearch clipboard; do
+  if [[ -f "$HOME/.config/elephant/providers/${provider}.so" ]]; then
+    ok "elephant provider: ${provider}.so"
+  else
+    warn "elephant provider missing: ${provider}.so"
+  fi
 done
 
 section "pickers"

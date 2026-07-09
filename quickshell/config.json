@@ -26,6 +26,9 @@
         "harmony": 0.6,
         "termFgBoost": 0.35
       }
+    },
+    "palette": {
+      "accentColor": ""
     }
   },
   "apps": {
@@ -49,7 +52,7 @@
   "background": {
     "hideWhenFullscreen": true,
     "thumbnailPath": "",
-    "wallpaperPath": "~/.config/omd/quickshell/assets/images/default_wallpaper.png",
+    "wallpaperPath": "/home/tetsuya/.config/omd/apps/omd-bar/assets/images/default_wallpaper.png",
     "widgets": {
       "clock": {
         "cookie": {

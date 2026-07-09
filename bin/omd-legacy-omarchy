@@ -4,6 +4,10 @@ set -euo pipefail
 cmd="$(basename "$0")"
 repo="${OMD_ROOT:-$HOME/.config/omd}"
 export PATH="$repo/bin:$PATH"
+if [[ -r "$repo/scripts/omd-path.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$repo/scripts/omd-path.sh"
+fi
 
 case "$cmd" in
   omd-keyboard-*) legacy="omarchy-${cmd#omd-}" ;;

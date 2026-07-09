@@ -37,6 +37,9 @@ detect_distro() {
 
     # Normalize distro family
     case "$DISTRO_ID" in
+        nixos)
+            DISTRO_FAMILY="nixos"
+            ;;
         ubuntu|debian|linuxmint|pop|elementary|zorin)
             DISTRO_FAMILY="debian"
             ;;
@@ -406,6 +409,10 @@ install_packages() {
     }
 
     case "$DISTRO_FAMILY" in
+        nixos)
+            info "NixOS detected; package installation is handled by /etc/nixos/configuration.nix."
+            return 0
+            ;;
         debian)
             info "Installing packages with apt..."
             sudo apt update
@@ -432,6 +439,193 @@ install_packages() {
             return 1
             ;;
     esac
+}
+
+install_nixos_system_config() {
+    local config_file="/etc/nixos/configuration.nix"
+    local backup_file
+    local stamp
+    stamp="$(date +%Y%m%d_%H%M%S)"
+    backup_file="${config_file}.bak-omd-${stamp}"
+
+    if [[ ! -f "$config_file" ]]; then
+        err "NixOS configuration not found: $config_file"
+        exit 1
+    fi
+
+    if grep -q "Codex/OMD: Hyprland + Quickshell desktop" "$config_file"; then
+        ok "NixOS OMD system configuration already present"
+        return 0
+    fi
+
+    info "Adding OMD Hyprland/Quickshell configuration to $config_file..."
+    sudo cp "$config_file" "$backup_file"
+
+    local tmp_file
+    local packages_file
+    tmp_file="$(mktemp)"
+    packages_file="$(mktemp)"
+    cat >"$packages_file" <<'EOF'
+    # OMD / Hyprland runtime
+    hyprland
+    hyprlock
+    hypridle
+    hyprpicker
+    xdg-desktop-portal-hyprland
+    quickshell
+    walker
+    cliphist
+    wl-clipboard
+    mako
+
+    # Audio, display, screenshot, power and session tools
+    pamixer
+    playerctl
+    pavucontrol
+    pulseaudio
+    networkmanagerapplet
+    brightnessctl
+    swaybg
+    grim
+    slurp
+    swappy
+    ydotool
+    libqalculate
+    imagemagick
+    power-profiles-daemon
+    gnome-keyring
+    polkit_gnome
+
+    # Terminals and shell/tooling
+    foot
+    kitty
+    jq
+    curl
+    git
+    ripgrep
+    fish
+    fontconfig
+    unzip
+    python3
+    python3Packages.pip
+
+    # Qt/GTK integration and file tools
+    kdePackages.qtwayland
+    kdePackages.qt6ct
+    kdePackages.qtstyleplugin-kvantum
+    adwaita-qt
+    gnome-themes-extra
+    xdg-desktop-portal-gtk
+    zenity
+    nautilus
+    evince
+    kdePackages.plasma-systemmonitor
+EOF
+
+    awk -v pkgfile="$packages_file" '
+      /environment\.systemPackages = with pkgs; \[/ && !inserted {
+        print
+        while ((getline line < pkgfile) > 0) print line
+        close(pkgfile)
+        inserted=1
+        next
+      }
+      { print }
+    ' "$config_file" | sed '$d' >"$tmp_file"
+    cat >>"$tmp_file" <<'EOF'
+
+  # Codex/OMD: Hyprland + Quickshell desktop
+  programs.hyprland = {
+    enable = true;
+    xwayland.enable = true;
+  };
+
+  xdg.portal = {
+    enable = true;
+    extraPortals = with pkgs; [
+      xdg-desktop-portal-hyprland
+      xdg-desktop-portal-gtk
+    ];
+  };
+
+  security.polkit.enable = true;
+  services.gnome.gnome-keyring.enable = true;
+  services.power-profiles-daemon.enable = true;
+  programs.dconf.enable = true;
+
+  fonts.packages = with pkgs; [
+    cantarell-fonts
+    noto-fonts
+    noto-fonts-cjk-sans
+    noto-fonts-color-emoji
+    nerd-fonts.jetbrains-mono
+    meslo-lgs-nf
+    material-symbols
+    font-awesome
+  ];
+
+  services.displayManager.sessionPackages = [
+    (pkgs.stdenvNoCC.mkDerivation {
+      pname = "oh-my-desktop-session";
+      version = "1";
+      dontUnpack = true;
+      passthru.providedSessions = [ "oh-my-desktop" ];
+      installPhase = ''
+        mkdir -p $out/bin $out/share/wayland-sessions
+        cp ${pkgs.writeShellScript "omd-hyprland-session" ''
+          export OMD_ROOT="''${HOME}/.config/omd"
+          export OMD_FORCE_NO_UWSM=1
+          export XDG_CURRENT_DESKTOP=Hyprland
+          export XDG_SESSION_DESKTOP=oh-my-desktop
+          export XDG_SESSION_TYPE=wayland
+          export QT_QPA_PLATFORM=wayland
+          export GDK_BACKEND=wayland,x11
+          export MOZ_ENABLE_WAYLAND=1
+          export PATH="''${HOME}/.local/bin:''${OMD_ROOT}/bin:${pkgs.hyprland}/bin:${pkgs.quickshell}/bin:${pkgs.coreutils}/bin:${pkgs.bash}/bin:/run/current-system/sw/bin:''${PATH}"
+
+          config="''${OMD_ROOT}/hypr/hyprland.lua"
+          if [[ ! -f "$config" ]]; then
+            echo "OMD Hyprland config not found: $config" >&2
+            exit 1
+          fi
+
+          if [[ -x ${pkgs.hyprland}/bin/start-hyprland ]]; then
+            exec ${pkgs.hyprland}/bin/start-hyprland -- -c "$config"
+          fi
+
+          exec ${pkgs.hyprland}/bin/Hyprland -c "$config"
+        ''} $out/bin/omd-hyprland-session
+        printf '%s\n' \
+          '[Desktop Entry]' \
+          'Name=Oh My Desktop' \
+          'Comment=OMD Hyprland session with Quickshell' \
+          "Exec=$out/bin/omd-hyprland-session" \
+          'Type=Application' \
+          'DesktopNames=Hyprland' \
+          'Keywords=tiling;wayland;compositor;' \
+          > $out/share/wayland-sessions/oh-my-desktop.desktop
+      '';
+    })
+  ];
+}
+EOF
+
+    sudo install -m 0644 "$tmp_file" "$config_file"
+    rm -f "$tmp_file" "$packages_file"
+
+    info "Validating NixOS configuration..."
+    if ! sudo nixos-rebuild dry-build; then
+        err "NixOS dry-build failed; restoring $backup_file"
+        sudo install -m 0644 "$backup_file" "$config_file"
+        exit 1
+    fi
+    info "Applying NixOS configuration..."
+    if ! sudo nixos-rebuild switch; then
+        err "nixos-rebuild switch failed; restoring $backup_file"
+        sudo install -m 0644 "$backup_file" "$config_file"
+        exit 1
+    fi
+    ok "NixOS OMD system configuration applied"
 }
 
 # ── Hyprland PPA/source installation helpers ──────────────────────────────────
@@ -677,19 +871,38 @@ install_user_binaries() {
     install_github_release_binary "abenz1267/walker" \
         "walker-.*-${arch}-unknown-linux-gnu\.tar\.gz$" "walker" || true
 
-    # Elephant provider daemon (Rust). Upstream ships linux-amd64/linux-arm64
-    # tarballs, not arch-named files, so translate.
+    # Elephant ships one main binary plus Go plugin providers (*.so).
     local elephant_arch
     case "$arch" in
         x86_64)  elephant_arch="amd64" ;;
         aarch64) elephant_arch="arm64" ;;
     esac
-    install_github_release_binary "abenz1267/elephant" \
-        "^elephant-linux-${elephant_arch}\.tar\.gz$" "elephant" || true
+
+    local api_json
+    local tmp_dir
+    local url
+    tmp_dir="$(mktemp -d)"
+
+    if api_json="$(curl -fsSL "https://api.github.com/repos/abenz1267/elephant/releases/latest")"; then
+        url="$(jq -r --arg name "elephant-linux-${elephant_arch}.tar.gz" \
+            '.assets[] | select(.name == $name) | .browser_download_url' <<<"$api_json" | head -n1)"
+        if [[ -n "$url" && "$url" != "null" ]]; then
+            mkdir -p "$HOME/.local/bin"
+            if curl -fsSL "$url" | tar -xz -C "$tmp_dir" 2>/dev/null \
+                && [[ -f "$tmp_dir/elephant-linux-${elephant_arch}" ]]; then
+                install -m 0755 "$tmp_dir/elephant-linux-${elephant_arch}" "$HOME/.local/bin/elephant"
+                ok "  installed elephant -> $HOME/.local/bin/elephant"
+            else
+                warn "Could not install elephant"
+            fi
+        else
+            warn "No matching release asset for elephant"
+        fi
+    else
+        warn "Could not query releases for abenz1267/elephant"
+    fi
 
     # Required providers used by ~/.config/walker/config.toml.
-    # We only install the ones referenced in the OMD walker config so we don't
-    # pull down every upstream provider.
     local providers=(
         "calc"
         "clipboard"
@@ -700,16 +913,41 @@ install_user_binaries() {
         "websearch"
     )
     local p
+    local provider_dir="$HOME/.config/elephant/providers"
+    mkdir -p "$provider_dir"
+
     for p in "${providers[@]}"; do
-        install_github_release_binary "abenz1267/elephant" \
-            "^${p}-linux-${elephant_arch}\.tar\.gz$" "elephant-${p}" || true
+        rm -rf "$tmp_dir"/*
+        url="$(jq -r --arg name "${p}-linux-${elephant_arch}.tar.gz" \
+            '.assets[] | select(.name == $name) | .browser_download_url' <<<"${api_json:-}" | head -n1)"
+        if [[ -z "$url" || "$url" == "null" ]]; then
+            warn "No matching release asset for elephant provider: $p"
+            continue
+        fi
+        if curl -fsSL "$url" | tar -xz -C "$tmp_dir" 2>/dev/null \
+            && [[ -f "$tmp_dir/${p}-linux-${elephant_arch}.so" ]]; then
+            install -m 0644 "$tmp_dir/${p}-linux-${elephant_arch}.so" "$provider_dir/${p}.so"
+            ok "  installed elephant provider: $provider_dir/${p}.so"
+        else
+            warn "Could not install elephant provider: $p"
+        fi
     done
 
-    for bin in walker elephant elephant-desktopapplications elephant-providerlist elephant-files elephant-symbols elephant-calc elephant-websearch elephant-clipboard; do
-        if command -v "$bin" >/dev/null 2>&1; then
+    rm -rf "$tmp_dir"
+
+    for bin in walker elephant; do
+        if command -v "$bin" >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/$bin" ]]; then
             ok "  binary available: $bin"
         else
             warn "binary still missing: $bin"
+        fi
+    done
+
+    for p in "${providers[@]}"; do
+        if [[ -f "$provider_dir/${p}.so" ]]; then
+            ok "  elephant provider available: ${p}.so"
+        else
+            warn "elephant provider still missing: ${p}.so"
         fi
     done
 }
@@ -718,6 +956,22 @@ install_user_binaries() {
 install_all_dependencies() {
     info "Installing core dependencies..."
     echo
+
+    if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
+        install_nixos_system_config
+        echo
+
+        info "═══ Fonts & Icons ═══"
+        install_user_fonts
+        echo
+
+        info "═══ User Binaries (walker, elephant) ═══"
+        install_user_binaries
+        echo
+
+        ok "NixOS dependencies installed!"
+        return 0
+    fi
 
     # Hyprland ecosystem
     info "═══ Hyprland Ecosystem ═══"
@@ -969,8 +1223,41 @@ EOF
     fi
 }
 
+install_nixos_session_files() {
+    echo
+    info "Installing NixOS-compatible OMD helper scripts..."
+
+    mkdir -p "$HOME/.local/bin"
+    cat >"$HOME/.local/bin/uwsm-app" <<'EOF'
+#!/bin/bash
+set -e
+
+if [[ ${OMD_FORCE_NO_UWSM:-0} == 1 ]]; then
+    [[ ${1:-} == -- ]] && shift
+    exec "$@"
+fi
+
+if command -v uwsm >/dev/null 2>&1; then
+    exec uwsm app -- "$@"
+fi
+
+[[ ${1:-} == -- ]] && shift
+exec "$@"
+EOF
+    chmod +x "$HOME/.local/bin/uwsm-app"
+    ok "  $HOME/.local/bin/uwsm-app"
+    ok "  Oh My Desktop session is managed by NixOS services.displayManager.sessionPackages"
+}
+
 # ── Print summary ─────────────────────────────────────────────────────────────
 print_summary() {
+    local login_manager="your display manager"
+    if systemctl is-enabled sddm.service >/dev/null 2>&1; then
+        login_manager="SDDM"
+    elif systemctl is-enabled gdm.service >/dev/null 2>&1; then
+        login_manager="GDM"
+    fi
+
     echo
     echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
     echo -e "${GREEN}  oh-my-desktop setup complete!${NC}"
@@ -978,7 +1265,7 @@ print_summary() {
     echo
     echo "Next steps:"
     echo "  1. Log out"
-    echo "  2. In GDM, click the gear icon and choose \"Oh My Desktop\""
+    echo "  2. In ${login_manager}, choose \"Oh My Desktop\" from the session menu"
     echo "  3. Log in; Hyprland will load ~/.config/omd/hypr and autostart Quickshell"
     echo
     echo "Useful commands:"
@@ -1027,7 +1314,11 @@ main() {
 
     install_all_dependencies
     create_symlinks
-    install_session_files
+    if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
+        install_nixos_session_files
+    else
+        install_session_files
+    fi
     print_summary
 }
 

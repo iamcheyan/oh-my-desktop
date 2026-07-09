@@ -1,5 +1,35 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # OMD compatibility implementation for omd-launch-tui.
 
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.$(basename "$1") -e "$1" "${@:2}"
+app_id="org.omd.$(basename "$1")"
+
+if command -v xdg-terminal-exec >/dev/null 2>&1; then
+  launch=(xdg-terminal-exec --app-id="$app_id" -e "$1" "${@:2}")
+else
+  launch=()
+  for terminal in kitty foot ghostty alacritty; do
+    if command -v "$terminal" >/dev/null 2>&1; then
+      launch=("$terminal" -e "$1" "${@:2}")
+      break
+    fi
+  done
+fi
+
+if [ "${#launch[@]}" -eq 0 ]; then
+  echo "No terminal launcher found for $1" >&2
+  exit 127
+fi
+
+if uwsm_app="$(command -v uwsm-app 2>/dev/null)"; then
+  case "$(head -n 1 "$uwsm_app" 2>/dev/null || true)" in
+    "#!/bin/bash")
+      exec setsid bash "$uwsm_app" -- "${launch[@]}"
+      ;;
+    *)
+      exec setsid "$uwsm_app" -- "${launch[@]}"
+      ;;
+  esac
+fi
+
+exec setsid "${launch[@]}"
