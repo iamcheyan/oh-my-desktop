@@ -29,11 +29,11 @@ ColumnLayout {
 
         let evalStr = "";
         if (mode === "performance") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = false } } })";
+            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })";
         } else if (mode === "balanced") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } } })";
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })";
         } else if (mode === "visuals") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } } })";
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })";
         }
 
         if (evalStr !== "") {
