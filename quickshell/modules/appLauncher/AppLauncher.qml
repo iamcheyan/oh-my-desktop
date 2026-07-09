@@ -13,6 +13,7 @@ import Quickshell.Hyprland
 
 PanelWindow {
     id: launcher
+    readonly property bool perfMode: (Persistent.states?.display?.optimization ?? "balanced") === "performance"
     color: "transparent"
 
     WlrLayershell.layer: WlrLayer.Overlay
@@ -307,12 +308,7 @@ PanelWindow {
         y: (parent.height - height) / 2 + launcher.cardOffsetY
         width: Math.min(parent.width * 0.72, 960)
         height: Math.min(parent.height * 0.80, 720)
-        color: TuiStyle.bg
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#ee151515" }
-            GradientStop { position: 0.42; color: "#e7080808" }
-            GradientStop { position: 1.0; color: "#ef111111" }
-        }
+        color: "#0f0f14"
         radius: 18
         border.color: TuiStyle.shellBorder
         border.width: TuiStyle.borderWidth
@@ -463,7 +459,7 @@ PanelWindow {
                     boundsMovement: Flickable.StopAtBounds
                     flickDeceleration: 2800
                     maximumFlickVelocity: 5200
-                    reuseItems: false
+                    reuseItems: launcher.perfMode
 
                     delegate: Item {
                         id: appItem

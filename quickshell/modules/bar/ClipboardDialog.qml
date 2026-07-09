@@ -26,12 +26,7 @@ Rectangle {
 
     width: 1000
     height: 640
-    color: TuiStyle.bg
-    gradient: Gradient {
-        GradientStop { position: 0.0; color: "#ee151515" }
-        GradientStop { position: 0.42; color: "#e7080808" }
-        GradientStop { position: 1.0; color: "#ef111111" }
-    }
+    color: "#0f0f14"
     border.color: "#8f8f8f"
     border.width: TuiStyle.borderWidth
     radius: 18

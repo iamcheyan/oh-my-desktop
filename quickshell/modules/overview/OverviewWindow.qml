@@ -152,10 +152,23 @@ Item { // Window
         // gating on overviewOpen means the first frame isn't captured until
         // open, causing a visible "black box → thumbnail" pop. With live:false
         // (performance mode) this is cheap: one snapshot kept around; with
-        // live:true (balanced/visuals) the stream runs continuously but that
-        // is the intended trade-off for those modes.
+        // live:true (balanced/visuals) the stream resumes naturally once the
+        // item becomes visible (Qt only renders visible items).
         captureSource: root.toplevel
-        live: (Persistent.states?.display?.optimization ?? "balanced") !== "performance"
+        live: !root.perfMode
+
+        // In performance mode (live:false) the ScreencopyView captures one
+        // frame at creation and never refreshes — so a long-closed overview
+        // would show a stale thumbnail. Refresh a single frame the instant
+        // the overview opens so the cached image is replaced with the current
+        // window contents. (live:true modes auto-capture on visible, so skip.)
+        Connections {
+            target: GlobalStates
+            function onOverviewOpenChanged() {
+                if (GlobalStates.overviewOpen && root.perfMode && windowPreview.live === false)
+                    windowPreview.captureFrame()
+            }
+        }
 
         // Color overlay for interactions
         Rectangle {
