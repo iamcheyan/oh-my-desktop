@@ -51,18 +51,13 @@ unaffected.
 |---|--------|--------|
 | 1 | `0ef2fa5` | `ScreencopyView.live: false` in performance mode (single snapshot instead of a continuous stream). |
 | 2 | `f436328` | `layer.enabled: false` in performance mode (square previews, no OpacityMask offscreen pass). |
-| 3 | `40ba52c` | Hide the per-workspace wallpaper `Image` in performance mode (solid-color tiles). |
-| 4 | `1a4213a` | Defer the window `Repeater` by 80ms in performance mode so the workspace grid paints first. |
 | 5 | `f03869f` | Disable the 6 `Behavior` animators on the focused-workspace indicator in performance mode. |
 
----
+Two earlier experiments were reverted because they hurt the visual:
+- Hiding the per-workspace wallpaper `Image` (made tiles grey).
+- Deferring the window `Repeater` by 80ms (caused a grey-then-snapshots flash).
 
-## How to verify
-
-1. Settings → Display → Performance & Effects → **High Perf**.
-2. Trigger the overview (Super or the configured keybind).
-3. The workspace grid should appear immediately; window snapshots fill in
-   ~80ms later.
-
-Switching back to **Balanced** or **Best Visuals** restores live previews,
-rounded corners, wallpaper tiles, and animations.
+Both made the overview feel worse despite being faster, so they were
+rolled back (`5395e1b`, `309a7f5`). The remaining three fixes address the
+real GPU bottlenecks (live screencopy streams + offscreen passes) without
+degrading the appearance.
