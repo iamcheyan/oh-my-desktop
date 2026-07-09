@@ -344,3 +344,149 @@ After rebuilding, verify that the shell has been updated:
 getent passwd tetsuya
 # Output should end with: /run/current-system/sw/bin/zsh
 ```
+
+---
+
+## 7. Declarative Multi-device NixOS Flake Architecture (Unified Config)
+
+For users running NixOS on multiple machines (e.g. laptop, desktop, server) who want to share their setups publicly while maintaining modularity and privacy, migrating to a **Nix Flake** structure located under the home directory (`~/nixos-config`) is the industry standard.
+
+### 📐 Directory Layout
+Create a clean directory tree under `~/nixos-config/`:
+
+```
+~/nixos-config/
+├── flake.nix                    # Entrypoint: declares host definitions (laptop, desktop)
+│
+├── hosts/                       # Physical machine profiles
+│   ├── laptop/                  # Laptop configurations
+│   │   ├── configuration.nix    # Laptop entrypoint (imports shared modules + sets hostname)
+│   │   └── hardware.nix         # Laptop-specific partition mounts (from hardware-configuration.nix)
+│   │
+│   └── desktop/                 # Desktop configurations
+│       ├── configuration.nix    # Desktop entrypoint (imports shared modules + graphics)
+│       └── hardware.nix         # Desktop-specific partition mounts
+│
+└── modules/                     # Generic, shareable modules
+    ├── core.nix                 # Base tools, locales, input method, unfree license
+    ├── desktop.nix              # Graphic sessions (Hyprland, portal, audio, fonts, GUI packages)
+    ├── keyd.nix                 # keyd daemon (sandbox fixes + auto config generation)
+    └── zsh.nix                  # Zsh default shell enablement
+```
+
+---
+
+### 📝 Core Configurations
+
+#### ① Entrypoint (`flake.nix`)
+Ties all outputs and hosts to nixpkgs channel versions:
+```nix
+{
+  description = "Tetsuya's Multi-device NixOS Flake Configuration";
+
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  };
+
+  outputs = { self, nixpkgs, ... }@inputs: {
+    nixosConfigurations = {
+      laptop = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [ ./hosts/laptop/configuration.nix ];
+      };
+      desktop = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [ ./hosts/desktop/configuration.nix ];
+      };
+    };
+  };
+}
+```
+
+#### ② Shared Modules: Keyd Guard (`modules/keyd.nix`)
+To prevent system activation lockups on clean installs where `/etc/keyd` is missing, we use systemd `preStart` hooks to automatically build directories and configuration placeholders:
+```nix
+{ config, pkgs, ... }:
+
+{
+  environment.systemPackages = [ pkgs.keyd ];
+  services.keyd.enable = true;
+
+  systemd.services.keyd = {
+    preStart = ''
+      mkdir -p /etc/keyd
+      if [ ! -f /etc/keyd/omd.conf ]; then
+        echo "# Placeholder config" > /etc/keyd/omd.conf
+      fi
+    '';
+    serviceConfig = {
+      CapabilityBoundingSet = [ "CAP_SYS_NICE" "CAP_IPC_LOCK" "CAP_SETGID" "CAP_SETUID" ];
+    };
+  };
+}
+```
+
+#### ③ Shared Modules: Zsh (`modules/zsh.nix`)
+```nix
+{ config, pkgs, ... }:
+{
+  programs.zsh.enable = true;
+}
+```
+
+#### ④ Host Profile Entry (`hosts/laptop/configuration.nix`)
+Simple and highly descriptive, linking hardware and desired modules together:
+```nix
+{ config, pkgs, ... }:
+
+{
+  imports = [
+    ./hardware.nix
+    ../../modules/core.nix
+    ../../modules/desktop.nix
+    ../../modules/keyd.nix
+    ../../modules/zsh.nix
+  ];
+
+  networking.hostName = "laptop";
+  time.timeZone = "Asia/Tokyo";
+
+  users.users."tetsuya" = {
+    isNormalUser = true;
+    shell = pkgs.zsh;
+    description = "tetsuya";
+    extraGroups = [ "networkmanager" "wheel" ];
+  };
+
+  system.stateVersion = "26.05";
+}
+```
+
+---
+
+### 🚀 Rebuilding and Switching System Profiles
+
+> [!IMPORTANT]
+> **Strict Nix Flake Git Constraint:**
+> Nix Flake builds are evaluated strictly inside a sandboxed Git tree. **Any new file that is not staged (i.e. `git add`-ed) will be ignored by Nix**, throwing "file not found" errors. Always stage all changes before rebuilding!
+
+1. Initialize git and stage configuration files:
+   ```sh
+   cd ~/nixos-config
+   git init
+   git add .
+   ```
+
+2. Build and switch the system over to the Flake configuration:
+   
+   - **For Laptop**:
+     ```sh
+     sudo nixos-rebuild switch --flake ~/nixos-config#laptop
+     ```
+   
+   - **For Desktop**:
+     ```sh
+     sudo nixos-rebuild switch --flake ~/nixos-config#desktop
+     ```
+
+Once verified, the repository `~/nixos-config` can be safely pushed to any public GitHub repository for shared use. Other users can copy your setup by simply matching their partition details inside a local `hardware.nix` config!
