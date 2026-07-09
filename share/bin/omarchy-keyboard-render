@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Render keyd config from OMD keyboard-remap profiles.
 set -eu
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Generate keyd config from OMD profiles and install via pkexec.
 set -eu
 
