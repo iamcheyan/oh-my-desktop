@@ -55,21 +55,14 @@ Item {
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: 40
                 color: TuiStyle.fg
-                text: {
-                    let totalSeconds = Math.floor(TimerService.stopwatchTime) / 100
-                    let minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0')
-                    let seconds = Math.floor(totalSeconds % 60).toString().padStart(2, '0')
-                    return `${minutes}:${seconds}`
-                }
+                text: TimerService.stopwatchMainDisplay
             }
             StyledText {
                 Layout.fillWidth: true
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: 40
                 color: TuiStyle.dim
-                text: {
-                    return `:<sub>${(Math.floor(TimerService.stopwatchTime) % 100).toString().padStart(2, '0')}</sub>`
-                }
+                text: `:<sub>${TimerService.stopwatchCentiDisplay}</sub>`
             }
         }
 
