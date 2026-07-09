@@ -116,13 +116,25 @@ Singleton {
         Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset temperature ${root.defaultColorTemperature}`]);
     }
 
+    // Debounce gamma application so dragging a slider doesn't spawn a
+    // pidof + hyprsunset + hyprctl process on every drag step.
+    Timer {
+        id: gammaApplyTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset gamma ${root.gamma}`]);
+        }
+    }
+
     function setGamma(gamma) {
         root.gamma = Math.max(root.gammaLowerLimit, Math.min(100, gamma));
 
         root.gammaChangeAttempt();
 
-        root.startHyprsunset();
-        Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset gamma ${root.gamma}`]);
+        // hyprsunset is ensured running by enableTemperature; don't re-check
+        // pidof on every gamma change.
+        gammaApplyTimer.restart();
     }
 
     function fetchState() {
@@ -162,11 +174,19 @@ Singleton {
     }
 
     // Change temp
+    Timer {
+        id: tempApplyTimer
+        interval: 200
+        repeat: false
+        onTriggered: {
+            if (!root.temperatureActive) return;
+            Quickshell.execDetached(["hyprctl", "hyprsunset", "temperature", `${Config.options.light.night.colorTemperature}`]);
+        }
+    }
     Connections {
         target: Config.options.light.night
         function onColorTemperatureChanged() {
-            if (!root.temperatureActive) return;
-            Quickshell.execDetached(["hyprctl", "hyprsunset", "temperature", `${Config.options.light.night.colorTemperature}`]);
+            tempApplyTimer.restart();
         }
     }
 }
