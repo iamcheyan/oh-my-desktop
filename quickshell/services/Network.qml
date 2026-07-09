@@ -285,8 +285,17 @@ Singleton {
     Process {
         id: changePasswordProc
         onExited: { // Re-attempt connection after changing password
-            connectProc.running = false
-            connectProc.running = true
+            // Re-launch connectProc with the same target's credentials.
+            // The previous running=false/true toggle could be coalesced into
+            // a no-op if the process had already exited.
+            if (root.wifiConnectTarget) {
+                connectProc.exec({
+                    "environment": {
+                        "SSID": root.wifiConnectTarget.ssid
+                    },
+                    "command": ["bash", "-c", 'nmcli connection up id "$SSID"']
+                });
+            }
         }
     }
 
