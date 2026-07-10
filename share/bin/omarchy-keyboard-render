@@ -20,24 +20,43 @@ fi
     echo
 
     jq -r '
-        def preset_remaps($id):
-          if $id == "alt-win-swap" then
-            [
-              {"from":"leftalt","to":"leftmeta"},
-              {"from":"leftmeta","to":"leftalt"},
-              {"from":"rightalt","to":"rightmeta"},
-              {"from":"rightmeta","to":"rightalt"}
-            ]
-          elif $id == "ctrl-caps-swap" then
-            [
-              {"from":"leftcontrol","to":"capslock"},
-              {"from":"capslock","to":"leftcontrol"}
-            ]
-          elif $id == "caps-esc" then
-            [{"from":"capslock","to":"escape"}]
-          else
-            []
-          end;
+        def preset_remaps($id; $overrides):
+          # Get base remaps, then apply per-device overrides for remap-type presets
+          (
+            if $id == "alt-win-swap" then
+              [
+                {"from":"leftalt","to":"leftmeta"},
+                {"from":"leftmeta","to":"leftalt"},
+                {"from":"rightalt","to":"rightmeta"},
+                {"from":"rightmeta","to":"rightalt"}
+              ]
+            elif $id == "ctrl-caps-swap" then
+              [
+                {"from":"leftcontrol","to":"capslock"},
+                {"from":"capslock","to":"leftcontrol"}
+              ]
+            elif $id == "caps-esc" then
+              [{"from":"capslock","to":"escape"}]
+            elif $id == "muhenkan-meta" then
+              [{"from":"muhenkan","to":"leftmeta"}]
+            elif $id == "meta-f13" then
+              [{"from":"leftmeta","to":"f13"}]
+            elif $id == "kana-left" then
+              [{"from":"katakanahiragana","to":"left"}]
+            elif $id == "rightalt-down" then
+              [{"from":"rightalt","to":"down"}]
+            elif $id == "delete-right" then
+              [{"from":"delete","to":"right"}]
+            elif $id == "rightctrl-up" then
+              [{"from":"rightcontrol","to":"up"}]
+            else
+              []
+            end
+          ) | map(
+            if ($overrides[$id] // "") | length > 0 then
+              . + {"to": $overrides[$id]}
+            else . end
+          );
 
         def clean_remaps($rows):
           reduce (($rows // []) | map(select(.from and .to))[]) as $row
@@ -45,25 +64,17 @@ fi
           | to_entries
           | map({"from": .key, "to": .value});
 
-        def keys_used($rows):
-          (($rows // []) | map([.from, .to]) | add // []) | unique;
+        def preset_rows($ids; $overrides):
+          ($ids // []) | map(preset_remaps(.; $overrides)) | add // [];
 
-        def intersects($a; $b):
-          (($a // []) as $left | ($b // []) as $right
-            | any($left[]; . as $item | ($right | index($item)) != null));
-
-        (.global.enabledPresets // []) as $enabledPresets
-        | .devices
+        .devices
         | to_entries[]
         | select(.value.enabled != false)
         | . as $dev
-        | ($dev.value.remaps // []) as $localRemaps
-        | keys_used($localRemaps) as $localKeys
-        | ($enabledPresets
-            | map(preset_remaps(.))
-            | add // []
-            | map(select(.from as $f | $localKeys | index($f) | not))) as $globalRemaps
-        | clean_remaps($globalRemaps + $localRemaps) as $remaps
+        | ($dev.value.enabledPresets // []) as $deviceEnabled
+        | ($dev.value.presetOverrides // {}) as $overrides
+        | preset_rows($deviceEnabled; $overrides) as $deviceRemaps
+        | clean_remaps($deviceRemaps) as $remaps
         | select($remaps | length > 0)
         | ($dev.value.keydId // "") as $id
         | if ($id | length) > 0 then
@@ -73,7 +84,7 @@ fi
                 | join("\n"))
             + "\n"
           else
-            "## WARN: device \($dev.key) has remaps but no keydId — skipped\n"
+            "## WARN: device \($dev.key) has presets but no keydId — skipped\n"
           end
     ' "$PROFILES"
 } | perl -0pe 's/\n+\z/\n/'
