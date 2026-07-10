@@ -17,13 +17,13 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 0
-        color: button.pressed ? (button.critical ? TuiStyle.dangerPanel : TuiStyle.panelAlt)
-            : button.hovered ? TuiStyle.panel
+        radius: TuiStyle.miniRadius
+        color: button.pressed ? (button.critical ? TuiStyle.dangerPanel : TuiStyle.surfacePressed)
+            : button.hovered ? TuiStyle.surfaceHover
             : "transparent"
         border.width: TuiStyle.borderWidth
         border.color: button.critical ? TuiStyle.danger
-            : button.hovered ? TuiStyle.accent
+            : button.hovered ? TuiStyle.shellBorder
             : TuiStyle.line
     }
 

@@ -106,9 +106,9 @@ MouseArea {
         width: parent.width
         radius: TuiStyle.radius
         clip: true
-        color: TuiStyle.surfaceSubtle
+        color: TuiStyle.bg
         border.width: TuiStyle.borderWidth
-        border.color: root.isCritical ? TuiStyle.danger : TuiStyle.line
+        border.color: root.isCritical ? TuiStyle.danger : TuiStyle.shellBorder
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
         Behavior on anchors.leftMargin {
@@ -126,7 +126,7 @@ MouseArea {
                 top: parent.top
                 bottom: parent.bottom
             }
-            width: root.isCritical ? 2 : 0
+            width: root.isCritical ? TuiStyle.borderWidth : 0
             color: TuiStyle.danger
         }
 
@@ -137,9 +137,9 @@ MouseArea {
             Rectangle {
                 id: titlebar
                 Layout.fillWidth: true
-                implicitHeight: 30
+                implicitHeight: 32
                 radius: TuiStyle.radius
-                color: root.isCritical ? ColorUtils.mix(TuiStyle.danger, TuiStyle.panel, 0.78)
+                color: root.isCritical ? TuiStyle.dangerPanel
                     : TuiStyle.surfaceRaised
 
                 Rectangle {
@@ -153,8 +153,8 @@ MouseArea {
                 RowLayout {
                     anchors {
                         fill: parent
-                        leftMargin: 10 + (root.isCritical ? 4 : 0)
-                        rightMargin: 8
+                        leftMargin: 12 + (root.isCritical ? 4 : 0)
+                        rightMargin: 10
                     }
                     spacing: 8
 
@@ -199,6 +199,7 @@ MouseArea {
                     }
                     height: 1
                     color: TuiStyle.line
+                    opacity: TuiStyle.dividerOpacity
                 }
             }
 
@@ -219,7 +220,7 @@ MouseArea {
                     notificationObject: modelData
                     expanded: root.expanded
                     onlyNotification: root.notificationCount === 1
-                    opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.55 : 1
+                    opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.5 : 1
                     visible: root.expanded || index < 2
                     anchors.left: parent?.left
                     anchors.right: parent?.right

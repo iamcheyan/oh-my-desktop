@@ -49,7 +49,7 @@ Item {
                 top: parent.top
                 bottom: parent.bottom
             }
-            width: root.critical ? 2 : 0
+            width: root.critical ? TuiStyle.borderWidth : 0
             color: TuiStyle.danger
         }
 
@@ -165,7 +165,7 @@ Item {
             }
             height: 1
             color: TuiStyle.line
-            opacity: root.expanded ? 0 : 0.55
+            opacity: root.expanded ? 0 : TuiStyle.dividerOpacity
         }
     }
 }

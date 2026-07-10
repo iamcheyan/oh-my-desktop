@@ -32,7 +32,7 @@ Scope {
             }
         }
 
-        sourceComponent: PanelWindow { // Session menu
+        sourceComponent: PanelWindow {
             id: sessionRoot
             visible: sessionLoader.active
             property string subtitle
@@ -45,7 +45,7 @@ Scope {
             WlrLayershell.namespace: "quickshell:session"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            color: ColorUtils.transparentize(Appearance.m3colors.m3background, Appearance.m3colors.darkmode ? 0.05 : 0.12)
+            color: TuiStyle.scrim
 
             anchors {
                 top: true
@@ -64,10 +64,10 @@ Scope {
                 }
             }
 
-            ColumnLayout { // Content column
+            ColumnLayout {
                 id: contentColumn
                 anchors.centerIn: parent
-                spacing: 15
+                spacing: 24
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
@@ -75,11 +75,13 @@ Scope {
                     }
                 }
 
+                // ── Title + instruction ──
+
                 ColumnLayout {
                     Layout.alignment: Qt.AlignHCenter
-                    spacing: 0
+                    spacing: 6
+
                     StyledText {
-                        // Title
                         Layout.alignment: Qt.AlignHCenter
                         horizontalAlignment: Text.AlignHCenter
                         font {
@@ -88,21 +90,24 @@ Scope {
                             variableAxes: Appearance.font.variableAxes.title
                         }
                         text: Translation.tr("Session")
+                        color: TuiStyle.fg
                     }
 
                     StyledText {
-                        // Small instruction
                         Layout.alignment: Qt.AlignHCenter
                         horizontalAlignment: Text.AlignHCenter
                         font.pixelSize: Appearance.font.pixelSize.normal
                         text: Translation.tr("Arrow keys to navigate, Enter to select\nEsc or click anywhere to cancel")
+                        color: TuiStyle.dim
                     }
                 }
 
+                // ── Button grid ──
+
                 GridLayout {
                     columns: 4
-                    columnSpacing: 15
-                    rowSpacing: 15
+                    columnSpacing: 18
+                    rowSpacing: 18
 
                     SessionActionButton {
                         id: sessionLock
@@ -232,19 +237,23 @@ Scope {
                     }
                 }
 
+                // ── Subtitle tooltip ──
+
                 DescriptionLabel {
                     Layout.alignment: Qt.AlignHCenter
                     text: sessionRoot.subtitle
                 }
             }
 
+            // ── Warnings ──
+
             ColumnLayout {
                 anchors {
                     top: contentColumn.bottom
-                    topMargin: 10
+                    topMargin: 14
                     horizontalCenter: contentColumn.horizontalCenter
                 }
-                spacing: 10
+                spacing: 8
 
                 Loader {
                     Layout.alignment: Qt.AlignHCenter
@@ -252,8 +261,9 @@ Scope {
                     visible: active
                     sourceComponent: DescriptionLabel {
                         text: Translation.tr("There might be a download in progress. Check your Downloads folder.")
-                        textColor: Appearance.m3colors.m3onErrorContainer
-                        color: Appearance.m3colors.m3errorContainer
+                        textColor: TuiStyle.danger
+                        color: TuiStyle.dangerPanel
+                        borderColor: TuiStyle.danger
                     }
                 }
 
@@ -263,23 +273,31 @@ Scope {
                     visible: active
                     sourceComponent: DescriptionLabel {
                         text: Translation.tr("Your package manager is running")
-                        textColor: Appearance.m3colors.m3onErrorContainer
-                        color: Appearance.m3colors.m3errorContainer
+                        textColor: TuiStyle.danger
+                        color: TuiStyle.dangerPanel
+                        borderColor: TuiStyle.danger
                     }
                 }
             }
         }
     }
 
-    component DescriptionLabel: Rectangle {
+    // ── Tooltip / warning label ──
+    // Uses TuiShell so it matches the bar popup panels exactly:
+    // TuiStyle.bg background, TuiStyle.borderWidth (2px) + TuiStyle.shellBorder,
+    // TuiStyle.radius (14px) corners, plus elevation shadow.
+
+    component DescriptionLabel: TuiShell {
         id: descriptionLabel
         property string text
-        property color textColor: Appearance.colors.colOnTooltip
-        color: Appearance.colors.colTooltip
-        clip: true
-        radius: Appearance.rounding.normal
-        implicitHeight: descriptionLabelText.implicitHeight + 10 * 2
-        implicitWidth: descriptionLabelText.implicitWidth + 15 * 2
+        property color textColor: TuiStyle.dim
+        property color borderColor: TuiStyle.shellBorder
+        color: TuiStyle.panel
+        border.color: descriptionLabel.borderColor
+        contentPadding: 8
+        opacity: 0.95
+        implicitHeight: descriptionLabelText.implicitHeight + contentPadding * 2
+        implicitWidth: descriptionLabelText.implicitWidth + contentPadding * 2 + 4
 
         Behavior on implicitWidth {
             animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
@@ -290,6 +308,7 @@ Scope {
             anchors.centerIn: parent
             color: descriptionLabel.textColor
             text: descriptionLabel.text
+            font.pixelSize: Appearance.font.pixelSize.small
         }
     }
 
