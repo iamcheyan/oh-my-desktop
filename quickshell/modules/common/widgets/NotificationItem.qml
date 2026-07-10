@@ -37,9 +37,9 @@ Item {
     Rectangle {
         id: rowBackground
         width: parent.width
-        radius: 0
-        color: root.expanded ? TuiStyle.panelAlt
-            : root.hovered ? TuiStyle.panel
+        radius: TuiStyle.miniRadius
+        color: root.expanded ? TuiStyle.surfaceHover
+            : root.hovered ? TuiStyle.surfaceSubtle
             : "transparent"
         implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
 
@@ -74,7 +74,7 @@ Item {
                     elide: Text.ElideRight
                     maximumLineCount: 1
                     font.pixelSize: root.fontSize
-                    font.family: Appearance.font.family.monospace
+                    font.family: Appearance.font.family.main
                     color: root.critical ? TuiStyle.danger : TuiStyle.fg
                     textFormat: Text.PlainText
                 }
@@ -99,7 +99,7 @@ Item {
                 wrapMode: root.expanded ? Text.Wrap : Text.NoWrap
                 elide: Text.ElideRight
                 font.pixelSize: root.fontSize
-                font.family: Appearance.font.family.monospace
+                font.family: Appearance.font.family.main
                 color: TuiStyle.dim
                 textFormat: root.expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {

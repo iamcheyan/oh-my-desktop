@@ -11,29 +11,109 @@ import Quickshell.Services.Notifications
 Item {
     id: root
 
-    implicitHeight: Notifications.list.length === 0 ? 96 : listView.contentHeight
+    property bool showHeader: false
+    property bool markReadOnVisible: false
+    property int maxListHeight: 360
+    property var expandedRows: ({})
 
-    readonly property color tuiBg: TuiStyle.bg
-    readonly property color tuiPanel: TuiStyle.panel
-    readonly property color tuiPanelAlt: TuiStyle.panelAlt
-    readonly property color tuiFg: TuiStyle.fg
-    readonly property color tuiDim: TuiStyle.dim
-    readonly property color tuiLine: TuiStyle.line
-    readonly property color tuiAccent: TuiStyle.accent
-    readonly property color tuiYellow: TuiStyle.yellow
-    readonly property color tuiBlue: TuiStyle.blue
-    readonly property color tuiPurple: TuiStyle.purple
-    readonly property color tuiRed: TuiStyle.red
+    readonly property int headerGap: showHeader ? 10 : 0
+    readonly property int listHeight: Math.max(112, Math.min(maxListHeight, listView.contentHeight))
+
+    implicitHeight: (showHeader ? header.implicitHeight : 0) + headerGap + listHeight
+
+    onVisibleChanged: {
+        if (visible && markReadOnVisible)
+            Notifications.markAllRead();
+    }
 
     function sortedNotifications() {
         return Notifications.list.slice().sort((a, b) => b.time - a.time);
     }
 
+    function isExpanded(notificationId) {
+        return expandedRows[notificationId] ?? false;
+    }
+
+    function setExpanded(notificationId, value) {
+        const next = Object.assign({}, expandedRows);
+        next[notificationId] = value;
+        expandedRows = next;
+    }
+
+    function toggleExpanded(notificationId) {
+        setExpanded(notificationId, !isExpanded(notificationId));
+    }
+
+    Rectangle {
+        id: header
+        visible: root.showHeader
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        implicitHeight: visible ? 38 : 0
+        color: "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            spacing: 8
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 1
+
+                StyledText {
+                    text: "Notifications"
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    font.weight: Font.DemiBold
+                    color: TuiStyle.fg
+                }
+
+                StyledText {
+                    text: Notifications.silent
+                        ? "Do not disturb is on"
+                        : (Notifications.list.length === 0
+                            ? "All clear"
+                            : `${Notifications.list.length} item${Notifications.list.length === 1 ? "" : "s"}`)
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: TuiStyle.dim
+                }
+            }
+
+            PillButton {
+                label: Notifications.silent ? "DND" : "Live"
+                active: !Notifications.silent
+                accent: Notifications.silent ? TuiStyle.warning : TuiStyle.success
+                onClicked: Notifications.silent = !Notifications.silent
+            }
+
+            IconButton {
+                symbol: "done_all"
+                tooltip: "Mark read"
+                enabled: Notifications.unread > 0
+                onClicked: Notifications.markAllRead()
+            }
+
+            IconButton {
+                symbol: "delete_sweep"
+                tooltip: "Clear all"
+                enabled: Notifications.list.length > 0
+                danger: true
+                onClicked: Notifications.discardAllNotifications()
+            }
+        }
+    }
+
     ListView {
         id: listView
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: root.showHeader ? header.bottom : parent.top
+        anchors.topMargin: root.headerGap
+        height: root.listHeight
         clip: true
-        spacing: 0
+        spacing: 8
         boundsBehavior: Flickable.StopAtBounds
         model: ScriptModel {
             values: root.sortedNotifications()
@@ -48,34 +128,52 @@ Item {
         }
     }
 
-    Rectangle {
-        anchors.centerIn: parent
+    Item {
+        anchors.fill: listView
         visible: Notifications.list.length === 0
-        width: Math.min(parent.width - 24, 360)
-        height: 96
-        color: TuiStyle.surfaceRaised
-        radius: TuiStyle.radius
-        border.width: 0
 
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 8
+            width: Math.min(parent.width - 24, 280)
+            spacing: 10
 
-            StyledText {
+            Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                text: "NO NOTIFICATIONS"
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.large
-                font.weight: Font.DemiBold
-                color: root.tuiFg
+                Layout.preferredWidth: 42
+                Layout.preferredHeight: 42
+                radius: 21
+                color: TuiStyle.surfaceHover
+                border.width: 1
+                border.color: TuiStyle.line
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: Notifications.silent ? "notifications_paused" : "notifications"
+                    iconSize: 22
+                    color: Notifications.silent ? TuiStyle.warning : TuiStyle.accent
+                }
             }
 
             StyledText {
                 Layout.alignment: Qt.AlignHCenter
-                text: "queue is clean"
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: Notifications.silent ? "Notifications paused" : "Nothing new"
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.weight: Font.DemiBold
+                color: TuiStyle.fg
+            }
+
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: Notifications.silent ? "Incoming popups stay quiet." : "New messages will appear here."
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: root.tuiDim
+                color: TuiStyle.dim
+                wrapMode: Text.Wrap
             }
         }
     }
@@ -87,8 +185,10 @@ Item {
         required property int rowIndex
         readonly property bool critical: notificationObject?.urgency == NotificationUrgency.Critical
             || notificationObject?.urgency == NotificationUrgency.Critical.toString()
-        readonly property bool expanded: expandedRows[notificationObject?.notificationId] ?? false
-        property var expandedRows: ({})
+        readonly property bool expanded: root.isExpanded(notificationObject?.notificationId)
+        readonly property bool hasBody: (notificationObject?.body || "").length > 0
+        readonly property bool hasActions: (notificationObject?.actions?.length ?? 0) > 0
+        readonly property string displayApp: notificationObject?.appName || "System"
 
         function bodyText() {
             return NotificationUtils.processNotificationBody(
@@ -97,25 +197,27 @@ Item {
             );
         }
 
-        function setExpanded(value) {
-            const next = Object.assign({}, expandedRows);
-            next[notificationObject.notificationId] = value;
-            expandedRows = next;
-        }
-
-        function toggleExpanded() {
-            setExpanded(!expanded);
-        }
-
         function discard() {
             Notifications.discardNotification(notificationObject.notificationId);
         }
 
+        function copyText() {
+            Quickshell.clipboardText = notificationObject?.body || notificationObject?.summary || "";
+            copyButton.symbol = "check";
+            copyReset.restart();
+        }
+
+        implicitHeight: rowContent.implicitHeight + 18
+        radius: TuiStyle.radius
         color: rowTap.pressed ? TuiStyle.surfacePressed
             : rowHover.hovered || expanded ? TuiStyle.surfaceHover
             : "transparent"
-        border.width: 0
-        implicitHeight: rowContent.implicitHeight + 18
+        border.width: rowHover.hovered || expanded || critical ? 1 : 0
+        border.color: critical ? TuiStyle.danger : TuiStyle.line
+
+        Behavior on color {
+            ColorAnimation { duration: 120 }
+        }
 
         HoverHandler {
             id: rowHover
@@ -128,8 +230,8 @@ Item {
             onTapped: (eventPoint, button) => {
                 if (button === Qt.MiddleButton)
                     row.discard();
-                else
-                    row.toggleExpanded();
+                else if (row.hasBody || row.hasActions)
+                    root.toggleExpanded(row.notificationObject.notificationId);
             }
         }
 
@@ -137,8 +239,9 @@ Item {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: critical ? 2 : 0
-            color: critical ? root.tuiRed : root.tuiAccent
+            width: critical ? 3 : 0
+            radius: TuiStyle.radius
+            color: TuiStyle.danger
         }
 
         ColumnLayout {
@@ -146,84 +249,142 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: critical ? 14 : 12
-            anchors.rightMargin: 8
-            spacing: 6
+            anchors.leftMargin: critical ? 13 : 10
+            anchors.rightMargin: 10
+            spacing: 7
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: 9
 
-                StyledText {
-                    text: String(rowIndex + 1).padStart(2, "0")
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: root.tuiDim
+                Item {
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+
+                    NotificationAppIcon {
+                        anchors.centerIn: parent
+                        scale: 28 / 38
+                        appIcon: notificationObject?.appIcon || ""
+                        image: notificationObject?.image || ""
+                        summary: notificationObject?.summary || ""
+                        urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+                    }
                 }
 
-                StyledText {
-                    Layout.preferredWidth: 120
-                    text: notificationObject?.appName || "notification"
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: critical ? root.tuiFg : root.tuiDim
-                    elide: Text.ElideRight
-                }
-
-                StyledText {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    text: notificationObject?.summary || ""
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: root.tuiFg
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    textFormat: Text.PlainText
+                    spacing: 1
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: notificationObject?.summary || row.displayApp
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.weight: Font.DemiBold
+                            color: TuiStyle.fg
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                            textFormat: Text.PlainText
+                        }
+
+                        StyledText {
+                            text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                            font.family: Appearance.font.family.monospace
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: TuiStyle.dim
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        StyledText {
+                            text: row.displayApp
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: TuiStyle.dim
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
+
+                        Rectangle {
+                            visible: row.hasActions
+                            Layout.preferredWidth: actionCount.implicitWidth + 10
+                            Layout.preferredHeight: 18
+                            radius: 9
+                            color: TuiStyle.surfaceSubtle
+
+                            StyledText {
+                                id: actionCount
+                                anchors.centerIn: parent
+                                text: `${notificationObject?.actions?.length ?? 0} action${(notificationObject?.actions?.length ?? 0) === 1 ? "" : "s"}`
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: TuiStyle.dim
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
                 }
 
-                StyledText {
-                    visible: notificationObject?.actions?.length > 0
-                    text: `A${notificationObject?.actions?.length ?? 0}`
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.Medium
-                    color: root.tuiDim
-                }
+                RowLayout {
+                    id: rowActions
+                    spacing: 4
+                    opacity: rowHover.hovered || row.expanded ? 1 : 0
+                    visible: opacity > 0
 
-                StyledText {
-                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: root.tuiDim
-                }
+                    Behavior on opacity {
+                        NumberAnimation { duration: 100 }
+                    }
 
-                MiniButton {
-                    label: expanded ? "-" : "+"
-                    accent: root.tuiYellow
-                    onClicked: row.toggleExpanded()
-                }
+                    IconButton {
+                        id: copyButton
+                        symbol: "content_copy"
+                        tooltip: "Copy"
+                        enabled: row.hasBody || (notificationObject?.summary || "").length > 0
+                        onClicked: row.copyText()
 
-                MiniButton {
-                    label: "x"
-                    accent: root.tuiRed
-                    onClicked: row.discard()
+                        Timer {
+                            id: copyReset
+                            interval: 1200
+                            repeat: false
+                            onTriggered: copyButton.symbol = "content_copy"
+                        }
+                    }
+
+                    IconButton {
+                        symbol: row.expanded ? "expand_less" : "expand_more"
+                        tooltip: row.expanded ? "Collapse" : "Expand"
+                        enabled: row.hasBody || row.hasActions
+                        onClicked: root.toggleExpanded(row.notificationObject.notificationId)
+                    }
+
+                    IconButton {
+                        symbol: "close"
+                        tooltip: "Dismiss"
+                        danger: true
+                        onClicked: row.discard()
+                    }
                 }
             }
 
             StyledText {
                 Layout.fillWidth: true
-                visible: (notificationObject?.body || "").length > 0
-                text: row.bodyText().replace(/\n/g, expanded ? "<br/>" : " ")
+                visible: row.hasBody
+                text: row.bodyText().replace(/\n/g, row.expanded ? "<br/>" : " ")
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: root.tuiDim
+                color: TuiStyle.dim
                 elide: Text.ElideRight
-                maximumLineCount: expanded ? 6 : 1
-                wrapMode: expanded ? Text.Wrap : Text.NoWrap
-                textFormat: expanded ? Text.RichText : Text.StyledText
+                maximumLineCount: row.expanded ? 7 : 2
+                wrapMode: row.expanded ? Text.Wrap : Text.NoWrap
+                textFormat: row.expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {
                     Qt.openUrlExternally(link);
                     GlobalStates.controlCenterOpen = false;
@@ -231,76 +392,91 @@ Item {
                 PointingHandLinkHover {}
             }
 
-            RowLayout {
+            Flow {
                 Layout.fillWidth: true
-                visible: expanded
+                visible: row.expanded && row.hasActions
                 spacing: 6
-
-                MiniButton {
-                    label: "close"
-                    accent: root.tuiRed
-                    onClicked: row.discard()
-                }
-
-                MiniButton {
-                    id: copyButton
-                    label: "copy"
-                    accent: root.tuiBlue
-                    onClicked: {
-                        Quickshell.clipboardText = notificationObject?.body || notificationObject?.summary || "";
-                        copyButton.label = "copied";
-                        copyTimer.restart();
-                    }
-
-                    Timer {
-                        id: copyTimer
-                        interval: 1500
-                        repeat: false
-                        onTriggered: copyButton.label = "copy"
-                    }
-                }
 
                 Repeater {
                     model: notificationObject?.actions ?? []
-                    MiniButton {
+                    PillButton {
                         required property var modelData
                         label: modelData.text
-                        accent: root.tuiPurple
+                        active: true
+                        accent: TuiStyle.accent
                         onClicked: Notifications.attemptInvokeAction(notificationObject.notificationId, modelData.identifier)
                     }
                 }
-
-                Item {
-                    Layout.fillWidth: true
-                }
             }
         }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: root.tuiLine
-            opacity: 0.22
-        }
-
     }
 
-    component MiniButton: Rectangle {
+    component IconButton: Rectangle {
+        id: button
+
+        property string symbol: ""
+        property string tooltip: ""
+        property bool danger: false
+        signal clicked()
+
+        implicitWidth: 28
+        implicitHeight: 28
+        width: implicitWidth
+        height: implicitHeight
+        Layout.preferredWidth: implicitWidth
+        Layout.preferredHeight: implicitHeight
+        radius: 8
+        color: buttonMouse.pressed ? TuiStyle.surfacePressed
+            : buttonMouse.containsMouse ? TuiStyle.surfaceHover
+            : "transparent"
+        opacity: enabled ? 1 : 0.38
+
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: button.symbol
+            iconSize: 18
+            color: button.danger ? TuiStyle.danger : TuiStyle.dim
+        }
+
+        StyledToolTip {
+            text: button.tooltip
+            extraVisibleCondition: button.tooltip.length > 0 && buttonMouse.containsMouse
+        }
+
+        MouseArea {
+            id: buttonMouse
+            anchors.fill: parent
+            enabled: button.enabled
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: mouse => {
+                mouse.accepted = true;
+                button.clicked();
+            }
+        }
+    }
+
+    component PillButton: Rectangle {
         id: button
 
         property string label: ""
-        property color accent: root.tuiAccent
+        property bool active: false
+        property color accent: TuiStyle.accent
         signal clicked()
 
-        Layout.preferredHeight: 22
-        Layout.preferredWidth: Math.max(24, labelText.implicitWidth + 12)
-        radius: TuiStyle.miniRadius
-        color: buttonMouse.pressed ? TuiStyle.miniControlPressed
-            : buttonMouse.containsMouse ? TuiStyle.miniControlHover
-            : "transparent"
-        border.width: 0
+        implicitWidth: Math.max(46, labelText.implicitWidth + 20)
+        implicitHeight: 28
+        width: implicitWidth
+        height: implicitHeight
+        Layout.preferredWidth: implicitWidth
+        Layout.preferredHeight: implicitHeight
+        radius: 14
+        color: buttonMouse.pressed ? TuiStyle.surfacePressed
+            : buttonMouse.containsMouse ? TuiStyle.surfaceHover
+            : (active ? Qt.rgba(accent.r, accent.g, accent.b, 0.14) : TuiStyle.surfaceSubtle)
+        border.width: 1
+        border.color: active ? accent : TuiStyle.line
+        opacity: enabled ? 1 : 0.4
 
         StyledText {
             id: labelText
@@ -309,13 +485,14 @@ Item {
             font.family: Appearance.font.family.main
             font.pixelSize: Appearance.font.pixelSize.smaller
             font.weight: Font.DemiBold
-            color: buttonMouse.containsMouse ? root.tuiFg : root.tuiDim
+            color: button.active ? button.accent : TuiStyle.dim
             elide: Text.ElideRight
         }
 
         MouseArea {
             id: buttonMouse
             anchors.fill: parent
+            enabled: button.enabled
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: mouse => {

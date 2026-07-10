@@ -13,6 +13,15 @@ MouseArea {
     id: root
     required property SystemTrayItem item
     property bool targetMenuOpen: false
+    readonly property string searchableIdentity: [
+        item.id,
+        item.title,
+        item.tooltipTitle,
+        item.tooltipDescription
+    ].join(" ").toLowerCase()
+    readonly property bool useArrowIcon: searchableIdentity.includes("search")
+        || searchableIdentity.includes("walker")
+        || searchableIdentity.includes("main-tray")
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
@@ -70,15 +79,23 @@ MouseArea {
 
     IconImage {
         id: trayIcon
-        visible: !Config.options.tray.monochromeIcons
+        visible: !root.useArrowIcon && !Config.options.tray.monochromeIcons
         source: root.item.icon
         anchors.centerIn: parent
         width: Config.options.bar.rightIconSize
         height: Config.options.bar.rightIconSize
     }
 
+    MaterialSymbol {
+        visible: root.useArrowIcon
+        anchors.centerIn: parent
+        text: "arrow_forward"
+        iconSize: Config.options.bar.rightIconSize
+        color: Appearance.colors.colBarText
+    }
+
     Loader {
-        active: Config.options.tray.monochromeIcons
+        active: !root.useArrowIcon && Config.options.tray.monochromeIcons
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {

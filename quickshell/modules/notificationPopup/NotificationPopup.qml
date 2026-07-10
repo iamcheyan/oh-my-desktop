@@ -40,7 +40,7 @@ Scope {
                 bottom: parent.bottom
                 right: parent.right
                 rightMargin: 4
-                topMargin: 4
+                topMargin: Config.options.bar.bottom ? 4 : Appearance.sizes.barHeight + 8
             }
             implicitWidth: parent.width - Appearance.sizes.elevationMargin * 2
             popup: true

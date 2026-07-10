@@ -48,7 +48,10 @@ LazyLoader {
             const xOffset = root.alignRight
                 ? root.hoverTarget.width - visualWidth
                 : (root.hoverTarget.width - visualWidth) / 2;
-            const globalX = root.hoverTarget?.mapToItem(null, xOffset, 0).x ?? 4;
+            const windowContent = root.hoverTarget?.QsWindow?.window?.contentItem ?? null;
+            const globalX = windowContent
+                ? root.hoverTarget.mapToItem(windowContent, xOffset, 0).x
+                : (root.hoverTarget?.mapToItem(null, xOffset, 0).x ?? 4);
             return root.globalToScreenX(globalX);
         }
         readonly property bool snapRight: !Config.options.bar.vertical
@@ -79,11 +82,10 @@ LazyLoader {
             top: {
                 if (!Config.options.bar.vertical)
                     return barOnBottom ? 0 : Appearance.sizes.barHeight + 4;
-                const globalY = root.hoverTarget?.mapToItem(
-                    null,
-                    0,
-                    (root.hoverTarget.height - visualHeight) / 2
-                ).y ?? 4;
+                const windowContent = root.hoverTarget?.QsWindow?.window?.contentItem ?? null;
+                const globalY = windowContent
+                    ? root.hoverTarget.mapToItem(windowContent, 0, (root.hoverTarget.height - visualHeight) / 2).y
+                    : (root.hoverTarget?.mapToItem(null, 0, (root.hoverTarget.height - visualHeight) / 2).y ?? 4);
                 return root.globalToScreenY(globalY);
             }
             right: {

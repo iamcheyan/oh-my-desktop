@@ -104,9 +104,9 @@ MouseArea {
         anchors.left: parent.left
         anchors.leftMargin: root.xOffset
         width: parent.width
-        radius: 0
+        radius: TuiStyle.radius
         clip: true
-        color: TuiStyle.bg
+        color: TuiStyle.surfaceSubtle
         border.width: TuiStyle.borderWidth
         border.color: root.isCritical ? TuiStyle.danger : TuiStyle.line
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
@@ -137,16 +137,24 @@ MouseArea {
             Rectangle {
                 id: titlebar
                 Layout.fillWidth: true
-                implicitHeight: 26
-                radius: 0
+                implicitHeight: 30
+                radius: TuiStyle.radius
                 color: root.isCritical ? ColorUtils.mix(TuiStyle.danger, TuiStyle.panel, 0.78)
-                    : TuiStyle.panel
+                    : TuiStyle.surfaceRaised
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: parent.radius
+                    color: parent.color
+                }
 
                 RowLayout {
                     anchors {
                         fill: parent
-                        leftMargin: 8 + (root.isCritical ? 4 : 0)
-                        rightMargin: 4
+                        leftMargin: 10 + (root.isCritical ? 4 : 0)
+                        rightMargin: 8
                     }
                     spacing: 8
 

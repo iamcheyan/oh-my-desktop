@@ -19,12 +19,26 @@ Item {
     function submit() {
         PolkitService.submit(inputField.text);
     }
+    function focusInput() {
+        inputField.forceActiveFocus();
+        inputFocusTimer.restart();
+    }
+
+    Component.onCompleted: focusInput()
+
+    Timer {
+        id: inputFocusTimer
+        interval: 80
+        repeat: false
+        onTriggered: inputField.forceActiveFocus()
+    }
+
     Connections {
         target: PolkitService
         function onInteractionAvailableChanged() {
             if (!PolkitService.interactionAvailable) return;
             inputField.text = "";
-            inputField.forceActiveFocus();
+            root.focusInput();
         }
     }
 
@@ -47,6 +61,7 @@ Item {
         show: false
         Component.onCompleted: {
             show = true
+            root.focusInput()
         }
 
         MaterialSymbol {

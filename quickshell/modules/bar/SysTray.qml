@@ -21,9 +21,9 @@ Item {
     property list<var> pinnedItems: TrayService.pinnedItems
     property list<var> unpinnedItems: TrayService.unpinnedItems
     readonly property bool hasVisibleItems: pinnedItems.length > 0 || (showOverflowMenu && unpinnedItems.length > 0)
-    implicitWidth: hasVisibleItems ? gridLayout.implicitWidth : 0
-    implicitHeight: hasVisibleItems ? gridLayout.implicitHeight : 0
-    visible: hasVisibleItems
+    implicitWidth: Math.max(Config.options.bar.rightIconSlotWidth, gridLayout.implicitWidth)
+    implicitHeight: Math.max(Config.options.bar.rightIconSlotWidth, gridLayout.implicitHeight)
+    visible: true
 
     onUnpinnedItemsChanged: {
         if (unpinnedItems.length == 0) root.closeOverflowMenu();
@@ -48,6 +48,7 @@ Item {
     }
 
     function closeOverflowMenu() {
+        root.trayOverflowOpen = false;
         focusGrab.active = false;
     }
 
@@ -79,7 +80,7 @@ Item {
 
         MouseArea {
             id: trayOverflowButton
-            visible: root.showOverflowMenu && root.unpinnedItems.length > 0
+            visible: root.showOverflowMenu
 
             Layout.fillHeight: !root.vertical
             Layout.fillWidth: root.vertical
@@ -91,9 +92,10 @@ Item {
 
             onClicked: root.trayOverflowOpen = !root.trayOverflowOpen
 
-            BarNerdIcon {
+            MaterialSymbol {
                 anchors.centerIn: parent
-                text: NerdIconMap.expandMore
+                text: "keyboard_arrow_down"
+                iconSize: Config.options.bar.rightIconSize
                 color: Appearance.colors.colBarText
                 opacity: root.trayOverflowOpen || trayOverflowButton.containsMouse ? 1 : 0.75
                 rotation: (root.trayOverflowOpen ? 180 : 0) - (90 * root.vertical) + (180 * root.invertSide)
@@ -109,14 +111,28 @@ Item {
             StyledPopup {
                 id: overflowPopup
                 hoverTarget: trayOverflowButton
-                active: root.trayOverflowOpen && root.unpinnedItems.length > 0
+                active: root.trayOverflowOpen
 
                 GridLayout {
                     id: trayOverflowLayout
                     anchors.centerIn: parent
-                    columns: Math.ceil(Math.sqrt(root.unpinnedItems.length))
+                    columns: Math.max(1, Math.ceil(Math.sqrt(root.unpinnedItems.length)))
                     columnSpacing: 10
                     rowSpacing: 10
+
+                    Item {
+                        visible: root.unpinnedItems.length === 0
+                        Layout.preferredWidth: 76
+                        Layout.preferredHeight: 52
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "keyboard"
+                            iconSize: 22
+                            color: Appearance.colors.colBarText
+                            opacity: 0.45
+                        }
+                    }
 
                     Repeater {
                         model: root.unpinnedItems

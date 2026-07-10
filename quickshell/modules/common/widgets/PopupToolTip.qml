@@ -74,9 +74,13 @@ Item {
                 left: {
                     const parentItem = root.parent;
                     if (!parentItem) return 4;
-                    const iconCenterLocalX = parentItem.mapToItem(null, parentItem.width / 2, 0).x;
+                    const windowContent = parentItem.QsWindow?.window?.contentItem ?? null;
+                    const iconCenterLocalX = windowContent
+                        ? parentItem.mapToItem(windowContent, parentItem.width / 2, 0).x
+                        : parentItem.mapToItem(null, parentItem.width / 2, 0).x;
                     const tooltipLeftLocalX = iconCenterLocalX - popupWindow.visualWidth / 2;
-                    return Math.max(4, tooltipLeftLocalX);
+                    const maxLeft = Math.max(4, (root.targetScreen?.width ?? 1920) - popupWindow.visualWidth - 4);
+                    return Math.min(maxLeft, Math.max(4, tooltipLeftLocalX));
                 }
                 top: {
                     if (barOnBottom) return 0;

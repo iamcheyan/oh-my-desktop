@@ -212,6 +212,8 @@ Singleton {
                 property list<string> centerModules: [
                 ]
                 property list<string> rightModules: [
+                    "systray",
+                    "util:bluetooth",
                     "sidebar",
                     "util:audio",
                     "util:idle",
@@ -222,10 +224,8 @@ Singleton {
                     "util:colorpicker",
                     "util:clipboard",
                     "util:wifi",
-                    "util:bluetooth",
                     "media",
                     "clock",
-                    "systray",
                     "spacer",
                     "weather"
                 ]
@@ -401,9 +401,9 @@ Singleton {
             property JsonObject tray: JsonObject {
                 property bool monochromeIcons: false
                 property bool showItemId: false
-                property bool invertPinnedItems: true // Makes the below a whitelist for the tray and blacklist for the pinned area
-                property list<var> pinnedItems: [ "Fcitx" ]
-                property bool filterPassive: true
+                property bool invertPinnedItems: false
+                property list<var> pinnedItems: []
+                property bool filterPassive: false
             }
 
             property JsonObject musicRecognition: JsonObject {

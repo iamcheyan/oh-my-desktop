@@ -139,11 +139,11 @@
     "rightIconSlotWidth": 28,
     "rightModuleSpacing": 8,
     "rightModules": [
+      "systray",
       "util:bluetooth",
       "util:audio",
       "util:voice",
       "util:keyremap",
-      "systray",
       "util:wifi",
       "util:clipboard",
       "util:session",
@@ -349,14 +349,10 @@
     "shortDateFormat": "dd/MM"
   },
   "tray": {
-    "filterPassive": true,
-    "invertPinnedItems": true,
+    "filterPassive": false,
+    "invertPinnedItems": false,
     "monochromeIcons": false,
-    "pinnedItems": [
-      "崩溃处理程序",
-      "Fcitx",
-      "tray-icon tray app main-tray"
-    ],
+    "pinnedItems": [],
     "showItemId": false
   },
   "updates": {

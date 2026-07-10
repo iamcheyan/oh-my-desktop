@@ -3,6 +3,7 @@ import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
+import qs.modules.controlCenter.notifications
 import qs.modules.schedulePopup
 import qs.services
 import QtQuick
@@ -87,8 +88,14 @@ Scope {
         }
 
         readonly property bool barOnBottom: Config.options.bar.bottom
-        readonly property bool large: root.activeType === "schedule"
-        readonly property int panelWidth: large ? Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32)) : 360
+        readonly property bool large: root.activeType === "schedule" || root.activeType === "battery"
+        readonly property int panelWidth: {
+            if (root.activeType === "schedule")
+                return Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32));
+            if (root.activeType === "battery")
+                return Math.min(460, Math.max(400, (screen?.width ?? 1920) - 32));
+            return 360;
+        }
 
         anchors {
             top: !barOnBottom
@@ -133,7 +140,8 @@ Scope {
         Item {
             id: panel
             anchors.right: parent.right
-            readonly property real shadowMargin: Appearance.sizes.elevationMargin
+            readonly property bool frameless: root.activeType === "battery"
+            readonly property real shadowMargin: frameless ? 0 : Appearance.sizes.elevationMargin
             implicitWidth: panelBg.implicitWidth + shadowMargin * 2
             implicitHeight: panelBg.implicitHeight + shadowMargin * 2
             width: implicitWidth
@@ -141,6 +149,7 @@ Scope {
 
             StyledRectangularShadow {
                 target: panelBg
+                visible: !panel.frameless
             }
 
             TuiShell {
@@ -149,6 +158,11 @@ Scope {
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
+                contentPadding: panel.frameless ? 0 : 14
+                color: panel.frameless ? "transparent" : TuiStyle.bg
+                border.width: panel.frameless ? 0 : TuiStyle.borderWidth
+                radius: panel.frameless ? 0 : TuiStyle.radius
+                clip: !panel.frameless
 
                 Loader {
                     id: contentLoader
@@ -217,6 +231,27 @@ Scope {
     component PopupColumn: ColumnLayout {
         spacing: 10
         width: parent?.width ?? implicitWidth
+    }
+
+    component PopupCard: Rectangle {
+        id: card
+        default property alias content: cardContent.data
+        property int padding: 12
+
+        Layout.fillWidth: true
+        implicitHeight: cardContent.implicitHeight + padding * 2
+        color: TuiStyle.surfaceSubtle
+        radius: TuiStyle.radius
+        border.width: 1
+        border.color: TuiStyle.line
+        clip: true
+
+        ColumnLayout {
+            id: cardContent
+            anchors.fill: parent
+            anchors.margins: card.padding
+            spacing: 10
+        }
     }
 
     component ActionRow: RowLayout {
@@ -327,66 +362,70 @@ Scope {
         id: batteryContent
         Item {
             id: batteryWrapper
-            implicitWidth: batteryPanel.implicitWidth
-            implicitHeight: batteryPanel.implicitHeight
+            implicitWidth: batteryStack.implicitWidth
+            implicitHeight: batteryStack.implicitHeight
             width: implicitWidth
             height: implicitHeight
 
             PopupColumn {
-                id: batteryPanel
+                id: batteryStack
                 anchors.left: parent.left
                 anchors.top: parent.top
 
-                function stateLabel() {
-                    if (!Battery.available) return "desktop";
-                    if (Battery.isCharging) return "charging";
-                    if (Battery.isPluggedIn) return "plugged";
-                    return "battery";
-                }
+                PopupCard {
+                    PopupColumn {
+                        id: batteryPanel
 
-                function headerTitle() {
-                    return Battery.available ? "BATTERY" : "POWER";
-                }
-
-                function headerTone() {
-                    if (!Battery.available) return TuiStyle.accent;
-                    if (Battery.isLowAndNotCharging) return TuiStyle.danger;
-                    if (Battery.isCharging) return TuiStyle.warning;
-                    return TuiStyle.success;
-                }
-                property bool hibernateAvailable: false
-
-                Component.onCompleted: {
-                    hibernateCheck.running = true
-                }
-
-                Process {
-                    id: hibernateCheck
-                    command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
-                    stdout: StdioCollector {
-                        onStreamFinished: {
-                            batteryPanel.hibernateAvailable = text.trim() === "YES"
+                        function stateLabel() {
+                            if (!Battery.available) return "desktop";
+                            if (Battery.isCharging) return "charging";
+                            if (Battery.isPluggedIn) return "plugged";
+                            return "battery";
                         }
-                    }
-                }
 
-                function executeAction(action) {
-                    if (action === "lock") { root.close(); Session.lock(); return; }
-                    if (action === "sleep") { Session.suspend(); root.close(); return; }
-                    if (action === "hibernate") { Session.hibernate(); root.close(); return; }
-                    if (action === "logout") { Session.logout(); root.close(); return; }
-                    if (action === "reboot") { Session.reboot(); root.close(); return; }
-                    if (action === "poweroff") { Session.poweroff(); root.close(); return; }
-                }
+                        function headerTitle() {
+                            return Battery.available ? "BATTERY" : "POWER";
+                        }
 
-                function requestAction(action, label) {
-                    if (action === "lock" || action === "sleep" || action === "hibernate") {
-                        executeAction(action)
-                        return
-                    }
-                    GlobalStates.requestSessionConfirm(action, label)
-                    root.close()
-                }
+                        function headerTone() {
+                            if (!Battery.available) return TuiStyle.accent;
+                            if (Battery.isLowAndNotCharging) return TuiStyle.danger;
+                            if (Battery.isCharging) return TuiStyle.warning;
+                            return TuiStyle.success;
+                        }
+                        property bool hibernateAvailable: false
+
+                        Component.onCompleted: {
+                            hibernateCheck.running = true
+                        }
+
+                        Process {
+                            id: hibernateCheck
+                            command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
+                            stdout: StdioCollector {
+                                onStreamFinished: {
+                                    batteryPanel.hibernateAvailable = text.trim() === "YES"
+                                }
+                            }
+                        }
+
+                        function executeAction(action) {
+                            if (action === "lock") { root.close(); Session.lock(); return; }
+                            if (action === "sleep") { Session.suspend(); root.close(); return; }
+                            if (action === "hibernate") { Session.hibernate(); root.close(); return; }
+                            if (action === "logout") { Session.logout(); root.close(); return; }
+                            if (action === "reboot") { Session.reboot(); root.close(); return; }
+                            if (action === "poweroff") { Session.poweroff(); root.close(); return; }
+                        }
+
+                        function requestAction(action, label) {
+                            if (action === "lock" || action === "sleep" || action === "hibernate") {
+                                executeAction(action)
+                                return
+                            }
+                            GlobalStates.requestSessionConfirm(action, label)
+                            root.close()
+                        }
 
                 Header {
                     title: batteryPanel.headerTitle()
@@ -556,15 +595,28 @@ Scope {
                     }
                 }
 
-                ActionRow {
-                    Layout.topMargin: 10
-                    TuiActionButton {
-                        label: "SETTINGS"
-                        accent: TuiStyle.accent
-                        onClicked: {
-                            root.close();
-                            GlobalStates.controlCenterOpen = true;
+                        ActionRow {
+                            Layout.topMargin: 10
+                            TuiActionButton {
+                                label: "SETTINGS"
+                                accent: TuiStyle.accent
+                                onClicked: {
+                                    root.close();
+                                    GlobalStates.controlCenterOpen = true;
+                                }
+                            }
                         }
+                    }
+                }
+
+                PopupCard {
+                    TuiNotificationList {
+                        id: notificationList
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.min(implicitHeight, 330)
+                        showHeader: true
+                        markReadOnVisible: true
+                        maxListHeight: 250
                     }
                 }
             }
