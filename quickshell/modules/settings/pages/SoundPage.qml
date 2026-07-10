@@ -1,0 +1,500 @@
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.functions
+import qs.modules.common.widgets
+import qs.modules.settings
+import qs.modules.settings.widgets
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+
+PageBody {
+    id: pageRoot
+    property var settingsRoot: null
+
+    // ── Output Devices card ──────────────────────────────────────
+            SettingsCard {
+                title: "Output Devices"
+                subtitle: `${Audio.typedSinks.length} device${Audio.typedSinks.length === 1 ? "" : "s"}`
+                visible: Audio.typedSinks.length > 0
+
+                // Loading overlay for WirePlumber reload
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    visible: Audio.wireplumberReloading
+                    radius: SettingsTokens.radius
+                    color: SettingsTokens.accentSoft
+                    border.width: 1
+                    border.color: SettingsTokens.accent
+
+                    RowLayout {
+                        anchors.centerIn: parent
+                        spacing: 10
+
+                        MaterialSymbol {
+                            text: "refresh"
+                            iconSize: 18
+                            color: SettingsTokens.accent
+                            RotationAnimator on rotation {
+                                running: Audio.wireplumberReloading
+                                loops: Animation.Infinite
+                                from: 0
+                                to: 360
+                                duration: 1200
+                            }
+                        }
+
+                        StyledText {
+                            text: "Restarting audio system..."
+                            color: SettingsTokens.fg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: Audio.typedSinks
+                    delegate: ColumnLayout {
+                        id: sinkDelegate
+                        required property var modelData
+                        readonly property var node: modelData
+                        readonly property bool isActive: Audio.sink?.name === node.name
+                        readonly property bool hasAlias: Audio.hasDeviceAlias(node.name)
+                        property bool editing: false
+                        property string aliasText: ""
+
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        // Device row
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 50
+                            radius: SettingsTokens.radius
+                            color: sinkDelegate.isActive ? SettingsTokens.accentSoft : "transparent"
+                            border.width: sinkDelegate.isActive ? 1 : 0
+                            border.color: SettingsTokens.accent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 10
+
+                                MaterialSymbol {
+                                    text: sinkDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                    iconSize: 18
+                                    color: sinkDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
+                                    Layout.preferredWidth: 22
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: Audio.setDefaultSink(sinkDelegate.node)
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.displayName(sinkDelegate.node)
+                                        color: SettingsTokens.fg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sinkDelegate.isActive ? Font.Medium : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: sinkDelegate.hasAlias ? Audio.originalName(sinkDelegate.node) : ""
+                                        visible: sinkDelegate.hasAlias
+                                        color: SettingsTokens.dim
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                // Per-device volume slider
+                                SettingsSlider {
+                                    Layout.preferredWidth: 100
+                                    value: sinkDelegate.node?.audio?.volume ?? 0
+                                    onValueChanged: {
+                                        if (sinkDelegate.node?.audio)
+                                            sinkDelegate.node.audio.volume = value
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 38
+                                    text: `${Math.round((sinkDelegate.node?.audio?.volume ?? 0) * 100)}%`
+                                    color: SettingsTokens.muted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                // Rename button
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: SettingsTokens.radius
+                                    color: renameMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+                                    visible: !sinkDelegate.editing
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "edit"
+                                        iconSize: 16
+                                        color: SettingsTokens.muted
+                                    }
+
+                                    MouseArea {
+                                        id: renameMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            sinkDelegate.aliasText = Audio.getDeviceAlias(sinkDelegate.node.name) || ""
+                                            sinkDelegate.editing = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Inline rename dialog
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            visible: sinkDelegate.editing
+                            radius: SettingsTokens.radius
+                            color: SettingsTokens.panelAlt
+                            border.width: 1
+                            border.color: SettingsTokens.accent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 8
+
+                                TextInput {
+                                    Layout.fillWidth: true
+                                    text: sinkDelegate.aliasText
+                                    color: SettingsTokens.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    clip: true
+                                    onTextEdited: sinkDelegate.aliasText = text
+                                    onAccepted: {
+                                        Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                        sinkDelegate.editing = false
+                                    }
+                                    Keys.onEscapePressed: sinkDelegate.editing = false
+                                    Component.onCompleted: forceActiveFocus()
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: SettingsTokens.radius
+                                    color: saveMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "check"
+                                        iconSize: 16
+                                        color: SettingsTokens.accent
+                                    }
+
+                                    MouseArea {
+                                        id: saveMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                            sinkDelegate.editing = false
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    radius: SettingsTokens.radius
+                                    color: cancelMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+                                    visible: sinkDelegate.hasAlias
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "delete"
+                                        iconSize: 16
+                                        color: "#f07070"
+                                    }
+
+                                    MouseArea {
+                                        id: cancelMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            Audio.removeDeviceAlias(sinkDelegate.node.name)
+                                            sinkDelegate.editing = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Input Devices card ───────────────────────────────────────
+            SettingsCard {
+                title: "Input Devices"
+                subtitle: `${Audio.typedSources.length} device${Audio.typedSources.length === 1 ? "" : "s"}`
+                visible: Audio.typedSources.length > 0
+
+                Repeater {
+                    model: Audio.typedSources
+                    delegate: ColumnLayout {
+                        id: sourceDelegate
+                        required property var modelData
+                        readonly property var node: modelData
+                        readonly property bool isActive: Audio.source?.name === node.name
+
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 50
+                            radius: SettingsTokens.radius
+                            color: sourceDelegate.isActive ? SettingsTokens.accentSoft : "transparent"
+                            border.width: sourceDelegate.isActive ? 1 : 0
+                            border.color: SettingsTokens.accent
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                spacing: 10
+
+                                MaterialSymbol {
+                                    text: sourceDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                    iconSize: 18
+                                    color: sourceDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
+                                    Layout.preferredWidth: 22
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: Audio.setDefaultSource(sourceDelegate.node)
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.displayName(sourceDelegate.node)
+                                        color: SettingsTokens.fg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sourceDelegate.isActive ? Font.Medium : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                SettingsSlider {
+                                    Layout.preferredWidth: 100
+                                    value: sourceDelegate.node?.audio?.volume ?? 0
+                                    onValueChanged: {
+                                        if (sourceDelegate.node?.audio)
+                                            sourceDelegate.node.audio.volume = value
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.preferredWidth: 38
+                                    text: `${Math.round((sourceDelegate.node?.audio?.volume ?? 0) * 100)}%`
+                                    color: SettingsTokens.muted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Master volume card ───────────────────────────────────────
+            SettingsCard {
+                title: "Master Volume"
+                subtitle: Audio.sink?.audio.muted ? "Muted" : `${Math.round((Audio.sink?.audio.volume ?? 0) * 100)}%`
+
+                SettingsSlider {
+                    value: Audio.sink?.audio.muted ? 0 : (Audio.sink?.audio.volume ?? 0)
+                    onValueChanged: {
+                        if (Audio.sink && !Audio.sink.audio.muted)
+                            Audio.sink.audio.volume = value
+                    }
+                }
+
+                SettingsToggleRow {
+                    label: "Mute output"
+                    description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
+                    checked: Audio.sink?.audio.muted ?? false
+                    onToggled: Audio.toggleMute()
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Cycle Output Device"
+                        iconName: "swap_horiz"
+                        onClicked: Audio.cycleAudioOutput()
+                    }
+                }
+            }
+
+            // ── Microphone card ──────────────────────────────────────────
+            SettingsCard {
+                title: "Microphone"
+                subtitle: Audio.source?.audio.muted ? "Muted" : `${Math.round((Audio.source?.audio.volume ?? 0) * 100)}%`
+
+                SettingsSlider {
+                    value: Audio.source?.audio.muted ? 0 : (Audio.source?.audio.volume ?? 0)
+                    onValueChanged: {
+                        if (Audio.source && !Audio.source.audio.muted)
+                            Audio.source.audio.volume = value
+                    }
+                }
+
+                SettingsToggleRow {
+                    label: "Mute microphone"
+                    description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
+                    checked: Audio.source?.audio.muted ?? false
+                    onToggled: Audio.toggleMicMute()
+                }
+            }
+
+SettingsCard {
+                title: "System Sounds"
+                subtitle: Config.options.sounds.theme ?? "freedesktop"
+
+                SettingsToggleRow {
+                    label: "Enable system sounds"
+                    description: "Play sound effects for system events"
+                    checked: Config.options.sounds.enabled ?? true
+                    onToggled: Config.setNestedValue("sounds.enabled", !Config.options.sounds.enabled)
+                }
+
+                SettingsDropdownRow {
+                    label: "Sound theme"
+                    description: "Freedesktop sound theme for event sounds"
+                    currentValue: Config.options.sounds.theme ?? "freedesktop"
+                    options: {
+                        const themes = []
+                        // Scan available sound themes
+                        const found = new Set()
+                        // Common themes
+                        const common = [
+                            {value: "freedesktop", label: "Freedesktop"},
+                            {value: "freedesktop-canon", label: "Freedesktop (Canon)"},
+                            {value: "KDE", label: "KDE"},
+                            {value: "GNOME", label: "GNOME"},
+                        ]
+                        for (const t of common) {
+                            themes.push(t)
+                            found.add(t.value)
+                        }
+                        return themes
+                    }
+                    onValueChanged: (v) => Config.setNestedValue("sounds.theme", v)
+                }
+            }
+
+            SettingsCard {
+                title: "Event Sounds"
+                subtitle: "Per-event sound toggles"
+
+                SettingsToggleRow {
+                    label: "Volume change"
+                    description: "Play sound when volume changes"
+                    checked: Config.options.sounds.volumeChange ?? false
+                    onToggled: Config.setNestedValue("sounds.volumeChange", !Config.options.sounds.volumeChange)
+                }
+
+                SettingsToggleRow {
+                    label: "Notifications"
+                    description: "Play sound on new notifications"
+                    checked: Config.options.sounds.notification ?? false
+                    onToggled: Config.setNestedValue("sounds.notification", !Config.options.sounds.notification)
+                }
+
+                SettingsToggleRow {
+                    label: "Login"
+                    description: "Play sound when logging in"
+                    checked: Config.options.sounds.login ?? false
+                    onToggled: Config.setNestedValue("sounds.login", !Config.options.sounds.login)
+                }
+
+                SettingsToggleRow {
+                    label: "Power plug/unplug"
+                    description: "Play sound when charger is connected/disconnected"
+                    checked: Config.options.sounds.powerPlug ?? false
+                    onToggled: Config.setNestedValue("sounds.powerPlug", !Config.options.sounds.powerPlug)
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Test Sound"
+                        iconName: "play_arrow"
+                        onClicked: Audio.playSystemSound("message")
+                    }
+                }
+            }
+
+
+            SettingsCard {
+                title: "Volume & Audio OSD"
+                subtitle: "On-screen indicators for audio changes"
+
+                SettingsToggleRow {
+                    label: "Volume"
+                    description: "Show OSD when volume changes"
+                    checked: Config.options.osd.volumeEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.volumeEnabled", !Config.options.osd.volumeEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Media volume"
+                    description: "Show OSD when media volume changes"
+                    checked: Config.options.osd.mediaVolumeEnabled ?? false
+                    onToggled: Config.setNestedValue("osd.mediaVolumeEnabled", !Config.options.osd.mediaVolumeEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Media playback"
+                    description: "Show OSD for play/pause/next/prev"
+                    checked: Config.options.osd.mediaPlaybackEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.mediaPlaybackEnabled", !Config.options.osd.mediaPlaybackEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Microphone mute"
+                    description: "Show OSD when mic is muted/unmuted"
+                    checked: Config.options.osd.micMuteEnabled ?? true
+                    onToggled: Config.setNestedValue("osd.micMuteEnabled", !Config.options.osd.micMuteEnabled)
+                }
+
+                SettingsToggleRow {
+                    label: "Audio output switch"
+                    description: "Show OSD when cycling audio output device"
+                    checked: Config.options.osd.audioOutputEnabled ?? false
+                    onToggled: Config.setNestedValue("osd.audioOutputEnabled", !Config.options.osd.audioOutputEnabled)
+                }
+            }
+}
