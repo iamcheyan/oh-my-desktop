@@ -1,13 +1,9 @@
-import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 import QtQuick
 import QtQuick.Layouts
 
-/**
- * SettingsTextFieldRow — a row with label/description on the left and a
- * text input field on the right.
- */
 Rectangle {
     id: root
     property string label: ""
@@ -19,7 +15,7 @@ Rectangle {
 
     Layout.fillWidth: true
     implicitHeight: 56
-    radius: TuiStyle.miniRadius
+    radius: SettingsTokens.radius
     color: "transparent"
 
     RowLayout {
@@ -35,7 +31,7 @@ Rectangle {
             StyledText {
                 Layout.fillWidth: true
                 text: root.label
-                color: TuiStyle.fg
+                color: SettingsTokens.fg
                 font.pixelSize: Appearance.font.pixelSize.small
                 elide: Text.ElideRight
             }
@@ -44,7 +40,7 @@ Rectangle {
                 visible: root.description.length > 0
                 Layout.fillWidth: true
                 text: root.description
-                color: TuiStyle.dim
+                color: SettingsTokens.dim
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 elide: Text.ElideRight
             }
@@ -53,25 +49,25 @@ Rectangle {
         Rectangle {
             Layout.preferredWidth: root.fieldWidth
             Layout.preferredHeight: 36
-            radius: TuiStyle.miniRadius
-            color: TuiStyle.control
+            radius: SettingsTokens.radius
+            color: SettingsTokens.button
             border.width: 1
-            border.color: field.activeFocus ? TuiStyle.controlActiveBorder : TuiStyle.line
+            border.color: tfInput.activeFocus ? SettingsTokens.accent : SettingsTokens.buttonBorder
 
             TextInput {
-                id: field
+                id: tfInput
                 anchors.fill: parent
                 anchors.leftMargin: 10
                 anchors.rightMargin: 10
                 verticalAlignment: Text.AlignVCenter
                 text: root.text
-                color: TuiStyle.fg
+                color: SettingsTokens.fg
                 font.pixelSize: Appearance.font.pixelSize.small
                 clip: true
 
                 onTextEdited: {
-                    root.text = field.text
-                    root.textEdited(field.text)
+                    root.text = tfInput.text
+                    root.textEdited(tfInput.text)
                 }
             }
         }

@@ -1,0 +1,3 @@
+module qs.modules.settings
+singleton SettingsTokens 1.0 SettingsTokens.qml
+SettingsCenter 1.0 SettingsCenter.qml

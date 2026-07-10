@@ -1,27 +1,23 @@
-import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-/**
- * SettingsDropdownRow — a row with label/description on the left and a
- * dropdown on the right. Uses TuiStyle tokens for visual consistency.
- */
 Rectangle {
     id: root
     property string label: ""
     property string description: ""
     property string currentValue: ""
-    property var options: []          // array of {value, label}
+    property var options: []
     property int dropdownWidth: 180
     signal valueChanged(string value)
 
     Layout.fillWidth: true
     implicitHeight: 56
-    radius: TuiStyle.miniRadius
-    color: rowMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+    radius: SettingsTokens.radius
+    color: rowMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
 
     RowLayout {
         anchors.fill: parent
@@ -36,7 +32,7 @@ Rectangle {
             StyledText {
                 Layout.fillWidth: true
                 text: root.label
-                color: TuiStyle.fg
+                color: SettingsTokens.fg
                 font.pixelSize: Appearance.font.pixelSize.small
                 elide: Text.ElideRight
             }
@@ -45,20 +41,20 @@ Rectangle {
                 visible: root.description.length > 0
                 Layout.fillWidth: true
                 text: root.description
-                color: TuiStyle.dim
+                color: SettingsTokens.dim
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 elide: Text.ElideRight
             }
         }
 
         Rectangle {
+            id: ddButton
             Layout.preferredWidth: root.dropdownWidth
             Layout.preferredHeight: 36
-            radius: TuiStyle.miniRadius
-            color: dropdownMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+            radius: SettingsTokens.radius
+            color: ddBtnMouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button
             border.width: 1
-            border.color: dropdownOpen ? TuiStyle.controlActiveBorder : TuiStyle.line
-
+            border.color: dropdownOpen ? SettingsTokens.accent : SettingsTokens.buttonBorder
             property bool dropdownOpen: false
 
             RowLayout {
@@ -75,43 +71,43 @@ Rectangle {
                         }
                         return root.currentValue
                     }
-                    color: TuiStyle.fg
+                    color: SettingsTokens.fg
                     font.pixelSize: Appearance.font.pixelSize.small
                     elide: Text.ElideRight
                 }
 
                 MaterialSymbol {
-                    text: root.dropdownOpen ? "expand_less" : "expand_more"
+                    text: ddButton.dropdownOpen ? "expand_less" : "expand_more"
                     iconSize: 18
-                    color: TuiStyle.muted
+                    color: SettingsTokens.muted
                 }
             }
 
             MouseArea {
-                id: dropdownMouse
+                id: ddBtnMouse
                 anchors.fill: parent
                 hoverEnabled: true
-                onClicked: root.dropdownOpen = !root.dropdownOpen
+                onClicked: ddButton.dropdownOpen = !ddButton.dropdownOpen
             }
 
             Popup {
-                id: dropdownPopup
-                y: parent.height + 4
+                id: ddPopup
+                y: ddButton.height + 4
                 width: root.dropdownWidth
-                height: Math.min(300, optionColumn.implicitHeight + 8)
-                visible: root.dropdownOpen
+                height: Math.min(300, ddOptCol.implicitHeight + 8)
+                visible: ddButton.dropdownOpen
 
                 background: Rectangle {
-                    radius: TuiStyle.miniRadius
-                    color: TuiStyle.bg
+                    radius: SettingsTokens.radius
+                    color: SettingsTokens.panel
                     border.width: 1
-                    border.color: TuiStyle.line
+                    border.color: SettingsTokens.line
                 }
 
-                onClosed: root.dropdownOpen = false
+                onClosed: ddButton.dropdownOpen = false
 
                 ColumnLayout {
-                    id: optionColumn
+                    id: ddOptCol
                     anchors.fill: parent
                     anchors.margins: 4
                     spacing: 0
@@ -123,27 +119,27 @@ Rectangle {
                             required property int index
                             Layout.fillWidth: true
                             Layout.preferredHeight: 34
-                            radius: TuiStyle.miniRadius
-                            color: optMouse.containsMouse ? TuiStyle.surfaceHover
-                                : (modelData.value === root.currentValue ? TuiStyle.selection : "transparent")
+                            radius: SettingsTokens.radius
+                            color: ddOptMouse.containsMouse ? SettingsTokens.cardHover
+                                : (modelData.value === root.currentValue ? SettingsTokens.accentSoft : "transparent")
 
                             StyledText {
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
                                 verticalAlignment: Text.AlignVCenter
                                 text: modelData.label
-                                color: TuiStyle.fg
+                                color: SettingsTokens.fg
                                 font.pixelSize: Appearance.font.pixelSize.small
                             }
 
                             MouseArea {
-                                id: optMouse
+                                id: ddOptMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     root.currentValue = modelData.value
                                     root.valueChanged(modelData.value)
-                                    dropdownPopup.close()
+                                    ddPopup.close()
                                 }
                             }
                         }
@@ -154,7 +150,7 @@ Rectangle {
     }
 
     MouseArea {
-        id: rowMouse
+        id: ddRowMouse
         anchors.fill: parent
         hoverEnabled: true
         propagateComposedEvents: true
