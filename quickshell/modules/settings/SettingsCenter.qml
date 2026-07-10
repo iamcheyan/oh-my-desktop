@@ -25,9 +25,9 @@ WindowDialog {
     property int wallpaperRefreshNonce: 0
     property var bluetoothConfirmDevice: null
     property bool bluetoothConfirmOpen: false
-    property bool keyremapEditorOpen: false
     property bool keyremapApplyConfirmOpen: false
     property bool keyremapDetailOpen: false
+    property string keyremapEditingPreset: ""
 
     readonly property color cosmicBg: "#181818"
     readonly property color cosmicPanel: "#242424"
@@ -645,6 +645,285 @@ WindowDialog {
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
+                    }
+                }
+            }
+        }
+
+        // ── Key editor overlay (floating layer for remap-type presets) ──
+
+        Item {
+            id: keyEditorOverlay
+            anchors.fill: parent
+            visible: root.keyremapEditingPreset !== ""
+            z: 55
+
+            Rectangle {
+                anchors.fill: parent
+                color: "#050505"
+                opacity: 0.72
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        if (keyEditorPopup.visible)
+                            keyEditorPopup.close()
+                        else
+                            root.keyremapEditingPreset = ""
+                    }
+                }
+            }
+
+            Rectangle {
+                width: Math.min(420, parent.width - 64)
+                height: keyEditorContent.implicitHeight + 48
+                anchors.centerIn: parent
+                radius: root.cosmicRoundRadius
+                color: root.cosmicCard
+                border.width: 1
+                border.color: root.cosmicAccent
+
+                ColumnLayout {
+                    id: keyEditorContent
+                    anchors.fill: parent
+                    anchors.margins: 24
+                    spacing: 16
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        MaterialSymbol {
+                            text: "edit"
+                            iconSize: 22
+                            color: root.cosmicAccent
+                        }
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: {
+                                const preset = KeyboardRemap.presetChoice(root.keyremapEditingPreset)
+                                return preset ? `Edit: ${preset.label}` : ""
+                            }
+                            color: root.cosmicFg
+                            font.pixelSize: Appearance.font.pixelSize.large
+                            font.weight: Font.DemiBold
+                        }
+
+                        Rectangle {
+                            width: 28
+                            height: 28
+                            radius: root.cosmicRadius
+                            color: closeBtnMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "close"
+                                iconSize: 18
+                                color: root.cosmicMuted
+                            }
+
+                            MouseArea {
+                                id: closeBtnMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    keyEditorPopup.close()
+                                    root.keyremapEditingPreset = ""
+                                }
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: {
+                            const preset = KeyboardRemap.presetChoice(root.keyremapEditingPreset)
+                            if (!preset)
+                                return ""
+                            const current = KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset)
+                            const target = current.length > 0 ? current : preset.remaps[0].to
+                            return `Source: ${preset.remaps[0].from}    Target: ${target}`
+                        }
+                        color: root.cosmicMuted
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        wrapMode: Text.WordWrap
+                    }
+
+                    // Key picker dropdown
+                    Rectangle {
+                        id: keyEditorTargetBox
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 48
+                        radius: root.cosmicRadius
+                        color: keyEditorMouse.containsMouse ? root.cosmicButtonHover : root.cosmicPanel
+                        border.width: 1
+                        border.color: keyEditorPopup.visible ? root.cosmicAccent : root.cosmicLine
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 10
+                            spacing: 10
+
+                            StyledText {
+                                text: "Target:"
+                                color: root.cosmicDim
+                                font.pixelSize: Appearance.font.pixelSize.small
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: {
+                                    const current = KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset)
+                                    const preset = KeyboardRemap.presetChoice(root.keyremapEditingPreset)
+                                    return current.length > 0 ? current : (preset?.remaps?.[0]?.to ?? "")
+                                }
+                                color: root.cosmicFg
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            MaterialSymbol {
+                                text: keyEditorPopup.visible ? "expand_less" : "expand_more"
+                                iconSize: 20
+                                color: root.cosmicMuted
+                            }
+                        }
+
+                        MouseArea {
+                            id: keyEditorMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (keyEditorPopup.visible)
+                                    keyEditorPopup.close()
+                                else
+                                    keyEditorPopup.open()
+                            }
+                        }
+
+                        Popup {
+                            id: keyEditorPopup
+                            y: keyEditorTargetBox.height + 4
+                            width: keyEditorTargetBox.width
+                            height: Math.min(260, keyEditorList.contentHeight + 8)
+                            padding: 4
+
+                            background: Rectangle {
+                                radius: root.cosmicRadius
+                                color: root.cosmicPanel
+                                border.width: 1
+                                border.color: root.cosmicLine
+                            }
+
+                            contentItem: ListView {
+                                id: keyEditorList
+                                clip: true
+                                model: KeyboardRemap.keyChoices
+                                delegate: Rectangle {
+                                    required property string modelData
+                                    required property int index
+                                    width: keyEditorList.width
+                                    height: 34
+                                    radius: root.cosmicRadius
+                                    readonly property string currentTarget: {
+                                        const o = KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset)
+                                        if (o.length > 0) return o
+                                        return KeyboardRemap.presetChoice(root.keyremapEditingPreset)?.remaps?.[0]?.to ?? ""
+                                    }
+                                    color: keyChoiceMouse.containsMouse
+                                        ? root.cosmicCardHover
+                                        : (modelData === currentTarget ? root.cosmicAccentSoft : "transparent")
+
+                                    StyledText {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 14
+                                        anchors.rightMargin: 10
+                                        text: modelData
+                                        color: root.cosmicFg
+                                        font.family: Appearance.font.family.monospace
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
+                                    }
+
+                                    MouseArea {
+                                        id: keyChoiceMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            KeyboardRemap.setPresetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset, modelData)
+                                            keyEditorPopup.close()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            radius: root.cosmicRadius
+                            color: resetMouse.containsMouse ? root.cosmicButtonHover : root.cosmicButton
+                            border.width: 1
+                            border.color: root.cosmicButtonBorder
+                            opacity: KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset).length > 0 ? 1 : 0.45
+
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 8
+                                MaterialSymbol { text: "refresh"; iconSize: 16; color: root.cosmicFg }
+                                StyledText { text: "Reset to default"; color: root.cosmicFg; font.pixelSize: Appearance.font.pixelSize.small }
+                            }
+
+                            MouseArea {
+                                id: resetMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                enabled: KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset).length > 0
+                                onClicked: KeyboardRemap.setPresetOverride(KeyboardRemap.selectedDeviceId, root.keyremapEditingPreset, "")
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            radius: root.cosmicRadius
+                            color: doneMouse.containsMouse ? root.cosmicButtonActive : root.cosmicAccent
+                            border.width: 1
+                            border.color: root.cosmicAccent
+
+                            RowLayout {
+                                anchors.centerIn: parent
+                                spacing: 8
+                                MaterialSymbol { text: "check"; iconSize: 16; color: "#111111" }
+                                StyledText { text: "Done"; color: "#111111"; font.pixelSize: Appearance.font.pixelSize.small; font.weight: Font.DemiBold }
+                            }
+
+                            MouseArea {
+                                id: doneMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    keyEditorPopup.close()
+                                    root.keyremapEditingPreset = ""
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -4343,36 +4622,7 @@ WindowDialog {
         PageBody {
             id: keyremapRoot
 
-            property string targetKey: KeyboardRemap.keyChoices.length > 0 ? KeyboardRemap.keyChoices[0] : ""
-
-            function syncTargetForCapturedKey() {
-                const existingTarget = KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey);
-                if (existingTarget !== "") {
-                    targetKey = existingTarget;
-                } else if (KeyboardRemap.keyChoices.indexOf(targetKey) < 0 && KeyboardRemap.keyChoices.length > 0) {
-                    targetKey = KeyboardRemap.keyChoices[0];
-                }
-            }
-
-            Item {
-                Layout.preferredHeight: 0
-                Layout.fillWidth: true
-                visible: false
-
-                Connections {
-                    target: KeyboardRemap
-                    function onCapturedFromKeyChanged() {
-                        keyremapRoot.syncTargetForCapturedKey();
-                    }
-                    function onSelectedDeviceIdChanged() {
-                        root.keyremapEditorOpen = false;
-                        keyremapRoot.syncTargetForCapturedKey();
-                    }
-                    function onDeviceProfilesChanged() {
-                        keyremapRoot.syncTargetForCapturedKey();
-                    }
-                }
-            }
+            // ── Status card (always visible) ──
 
             SettingsCard {
                 title: "Keyboard Remap"
@@ -4392,7 +4642,7 @@ WindowDialog {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: "Edit freely here. System authorization only appears when you press Apply changes."
+                    text: "Select a keyboard to enable presets for it."
                     color: root.cosmicMuted
                     font.pixelSize: Appearance.font.pixelSize.small
                     wrapMode: Text.WordWrap
@@ -4436,6 +4686,8 @@ WindowDialog {
                 }
             }
 
+            // ── Apply confirmation ──
+
             SettingsCard {
                 visible: root.keyremapApplyConfirmOpen && KeyboardRemap.hasPendingChanges
                 title: "Apply keyboard remaps?"
@@ -4444,7 +4696,7 @@ WindowDialog {
                 SettingsRow {
                     iconName: "security"
                     label: "Authorization required"
-                    description: `${KeyboardRemap.activeGlobalPresetCount()} global option${KeyboardRemap.activeGlobalPresetCount() === 1 ? "" : "s"}, ${KeyboardRemap.devices.length} keyboard profile${KeyboardRemap.devices.length === 1 ? "" : "s"}`
+                    description: `${KeyboardRemap.devices.length} keyboard${KeyboardRemap.devices.length === 1 ? "" : "s"}`
                     value: "keyd"
                     valueColor: root.cosmicAccent
                 }
@@ -4469,47 +4721,43 @@ WindowDialog {
                 }
             }
 
-            SettingsCard {
-                visible: !root.keyremapDetailOpen
-                title: "Global remaps"
-                subtitle: KeyboardRemap.activeGlobalPresetCount() > 0
-                    ? `${KeyboardRemap.activeGlobalPresetCount()} enabled for every active keyboard`
-                    : "Optional fixed mappings; off by default"
-
-                Repeater {
-                    model: KeyboardRemap.globalPresetChoices
-                    delegate: SettingsToggleRow {
-                        required property var modelData
-                        iconName: "tune"
-                        label: modelData.label
-                        description: modelData.description
-                        checked: KeyboardRemap.globalPresetEnabled(modelData.id)
-                        onToggled: KeyboardRemap.setGlobalPresetEnabled(modelData.id, !KeyboardRemap.globalPresetEnabled(modelData.id))
-                    }
-                }
-            }
+            // ══ TOP-LEVEL: Keyboard list ══
 
             SettingsCard {
                 visible: !root.keyremapDetailOpen
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 title: "Keyboards"
-                subtitle: KeyboardRemap.devices.length > 0 ? "Select a keyboard to edit its custom bindings" : "No keyboards detected"
+                subtitle: KeyboardRemap.devices.length > 0 ? "Click a keyboard to configure its presets" : "No keyboards detected"
 
                 Repeater {
                     model: KeyboardRemap.devices
                     delegate: SettingsRow {
                         required property var modelData
-                        readonly property int customCount: KeyboardRemap.remapCount(modelData.hyprName)
+                        readonly property int presetCount: KeyboardRemap.devicePresetCount(modelData.hyprName)
                         iconName: "keyboard"
-                        label: `${modelData.displayName}${modelData.main ? " · current" : ""}`
+                        label: modelData.displayName
                         description: modelData.keydId || "missing keyd id"
-                        value: `${customCount} custom`
-                        valueColor: customCount > 0 ? root.cosmicAccent : root.cosmicMuted
+                        value: presetCount > 0 ? `${presetCount} preset${presetCount === 1 ? "" : "s"}` : "no presets"
+                        valueColor: presetCount > 0 ? root.cosmicAccent : root.cosmicMuted
+                        rightInset: 30
                         showChevron: true
                         onClicked: {
                             KeyboardRemap.selectDevice(modelData.hyprName);
                             root.keyremapDetailOpen = true;
+                        }
+
+                        // Green dot — connected indicator
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.rightMargin: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 8
+                            height: 8
+                            radius: 4
+                            color: "#4ade80"
+                            border.width: 1
+                            border.color: "#22c55e"
                         }
                     }
                 }
@@ -4522,43 +4770,27 @@ WindowDialog {
                 }
             }
 
+            // ══ DETAIL VIEW: Per-keyboard preset configuration ══
+
+            // ── Device header + enable toggle ──
+
             SettingsCard {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 title: KeyboardRemap.selectedDeviceId !== "" ? (KeyboardRemap.selectedProfile?.displayName ?? KeyboardRemap.selectedDeviceId) : "Keyboard"
-                subtitle: KeyboardRemap.selectedDeviceId !== "" ? `${KeyboardRemap.selectedRemaps.length} custom binding${KeyboardRemap.selectedRemaps.length === 1 ? "" : "s"}` : ""
+                subtitle: {
+                    if (KeyboardRemap.selectedDeviceId === "")
+                        return ""
+                    const n = KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)
+                    return n > 0 ? `${n} preset${n === 1 ? "" : "s"} active` : "No presets active"
+                }
                 visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== ""
 
                 ButtonRow {
                     SettingsButton {
                         label: "Back to keyboards"
                         iconName: "chevron_left"
-                        onClicked: {
-                            root.keyremapDetailOpen = false;
-                            root.keyremapEditorOpen = false;
-                            KeyboardRemap.clearCapturedKey();
-                        }
-                    }
-                    SettingsButton {
-                        label: root.keyremapEditorOpen ? "Close editor" : "Add binding"
-                        iconName: root.keyremapEditorOpen ? "close" : "add"
-                        active: root.keyremapEditorOpen
-                        onClicked: {
-                            if (root.keyremapEditorOpen) {
-                                KeyboardRemap.clearCapturedKey();
-                            }
-                            root.keyremapEditorOpen = !root.keyremapEditorOpen
-                        }
-                    }
-                    SettingsButton {
-                        label: "Delete profile"
-                        iconName: "delete"
-                        onClicked: {
-                            const devId = KeyboardRemap.selectedDeviceId;
-                            KeyboardRemap.deleteProfile(devId);
-                            root.keyremapDetailOpen = false;
-                            root.keyremapEditorOpen = false;
-                        }
+                        onClicked: root.keyremapDetailOpen = false
                     }
                 }
 
@@ -4573,274 +4805,88 @@ WindowDialog {
                 SettingsToggleRow {
                     iconName: "power_settings_new"
                     label: "Enable this keyboard"
-                    description: "When off, neither global nor local rules are emitted for this keyboard."
+                    description: "When off, no presets are emitted for this keyboard."
                     checked: KeyboardRemap.selectedEnabled
                     onToggled: KeyboardRemap.setProfileEnabled(!KeyboardRemap.selectedEnabled)
                 }
-
-                SettingsRow {
-                    visible: KeyboardRemap.hasMinilaLikeSelectedDevice() && KeyboardRemap.activeGlobalPresetCount() > 0
-                    iconName: "warning"
-                    label: "MINILA note"
-                    description: "Global remaps also apply unless they touch keys used by this keyboard's custom bindings."
-                    value: "review"
-                    valueColor: "#f0a070"
-                }
-
-                Repeater {
-                    model: KeyboardRemap.selectedRemaps
-                    delegate: SettingsRow {
-                        required property var modelData
-                        iconName: "keyboard"
-                        label: `${modelData.from} -> ${modelData.to}`
-                        description: KeyboardRemap.selectedEnabled ? "Custom binding — click to edit" : "Disabled — enable keyboard to apply"
-                        value: "Edit"
-                        valueColor: KeyboardRemap.selectedEnabled ? root.cosmicAccent : root.cosmicMuted
-                        showChevron: true
-                        opacity: KeyboardRemap.selectedEnabled ? 1 : 0.5
-                        onClicked: {
-                            const existingTarget = KeyboardRemap.startEditRemap(modelData.from);
-                            if (existingTarget !== "") {
-                                keyremapRoot.targetKey = existingTarget;
-                            }
-                            root.keyremapEditorOpen = true;
-                        }
-                    }
-                }
-
-                SettingsRow {
-                    visible: KeyboardRemap.selectedRemaps.length === 0
-                    iconName: "info"
-                    label: "No custom bindings"
-                    description: "Use Add binding or a preset below."
-                }
             }
 
-            SettingsCard {
-                visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== "" && root.keyremapEditorOpen
-                title: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Edit binding" : "Add binding"
-                subtitle: "Capture the physical source key, choose what it should send, then save to draft"
-
-                ButtonRow {
-                    SettingsButton {
-                        label: KeyboardRemap.captureWindowOpen ? "Waiting for key" : "Capture source"
-                        iconName: "keyboard"
-                        active: KeyboardRemap.captureWindowOpen
-                        enabledState: !KeyboardRemap.captureWindowOpen
-                        onClicked: KeyboardRemap.startCapture()
-                    }
-                    SettingsButton {
-                        label: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Update" : "Save draft"
-                        iconName: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "edit" : "add"
-                        enabledState: KeyboardRemap.capturedFromKey !== ""
-                        onClicked: {
-                            KeyboardRemap.saveRemap(keyremapRoot.targetKey);
-                            root.keyremapEditorOpen = false;
-                        }
-                    }
-                    SettingsButton {
-                        label: "Remove"
-                        iconName: "delete"
-                        enabledState: KeyboardRemap.capturedFromKey !== "" && KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
-                        onClicked: {
-                            if (KeyboardRemap.capturedFromKey !== "")
-                                KeyboardRemap.removeRemap(KeyboardRemap.capturedFromKey);
-                            KeyboardRemap.clearCapturedKey();
-                            root.keyremapEditorOpen = false;
-                        }
-                    }
-                    SettingsButton {
-                        label: "Clear"
-                        iconName: "refresh"
-                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.captureWindowOpen
-                        onClicked: KeyboardRemap.clearCapturedKey()
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 44
-                        radius: root.cosmicRadius
-                        color: root.cosmicPanel
-                        border.width: 1
-                        border.color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicLine
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 0
-                            StyledText {
-                                text: "Source key"
-                                color: root.cosmicDim
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                            }
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: KeyboardRemap.capturedFromKey || "—"
-                                color: KeyboardRemap.capturedFromKey ? root.cosmicAccent : root.cosmicMuted
-                                font.family: Appearance.font.family.monospace
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
-                            }
-                        }
-                    }
-
-                    StyledText {
-                        text: "->"
-                        color: root.cosmicDim
-                        font.pixelSize: Appearance.font.pixelSize.large
-                        font.weight: Font.Bold
-                    }
-
-                    Rectangle {
-                        id: keyremapTargetBox
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 44
-                        radius: root.cosmicRadius
-                        color: targetMouse.containsMouse && KeyboardRemap.capturedFromKey !== "" ? root.cosmicButtonHover : root.cosmicPanel
-                        border.width: 1
-                        border.color: targetPopup.visible ? root.cosmicAccent : root.cosmicLine
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 0
-                            StyledText {
-                                text: "Target key"
-                                color: root.cosmicDim
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                            }
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: keyremapRoot.targetKey
-                                    color: KeyboardRemap.capturedFromKey !== "" ? root.cosmicFg : root.cosmicMuted
-                                    font.family: Appearance.font.family.monospace
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    elide: Text.ElideRight
-                                }
-                                MaterialSymbol {
-                                    text: targetPopup.visible ? "expand_less" : "expand_more"
-                                    iconSize: 18
-                                    color: root.cosmicMuted
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: targetMouse
-                            anchors.fill: parent
-                            enabled: KeyboardRemap.capturedFromKey !== ""
-                            hoverEnabled: true
-                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: targetPopup.open()
-                        }
-
-                        Popup {
-                            id: targetPopup
-                            y: keyremapTargetBox.height + 4
-                            width: keyremapTargetBox.width
-                            height: Math.min(280, targetList.contentHeight + 8)
-                            padding: 4
-
-                            background: Rectangle {
-                                radius: root.cosmicRadius
-                                color: root.cosmicPanel
-                                border.width: 1
-                                border.color: root.cosmicLine
-                            }
-
-                            contentItem: ListView {
-                                id: targetList
-                                clip: true
-                                model: KeyboardRemap.keyChoices
-                                currentIndex: KeyboardRemap.keyChoices.indexOf(keyremapRoot.targetKey)
-                                delegate: Rectangle {
-                                    required property string modelData
-                                    required property int index
-                                    width: targetList.width
-                                    height: 34
-                                    radius: root.cosmicRadius
-                                    color: targetChoiceMouse.containsMouse
-                                        ? root.cosmicCardHover
-                                        : (modelData === keyremapRoot.targetKey ? root.cosmicAccentSoft : "transparent")
-
-                                    StyledText {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 10
-                                        anchors.rightMargin: 10
-                                        text: modelData
-                                        color: root.cosmicFg
-                                        font.family: Appearance.font.family.monospace
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        verticalAlignment: Text.AlignVCenter
-                                        elide: Text.ElideRight
-                                    }
-
-                                    MouseArea {
-                                        id: targetChoiceMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            keyremapRoot.targetKey = modelData;
-                                            targetPopup.close();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                SettingsRow {
-                    visible: KeyboardRemap.capturedFromLabel.length > 0
-                    label: "Captured as"
-                    value: KeyboardRemap.capturedFromLabel
-                    description: KeyboardRemap.capturedFromCode.length > 0
-                        ? `Hardware code ${KeyboardRemap.capturedFromCode} → keyd ${KeyboardRemap.capturedFromKey}`
-                        : `keyd ${KeyboardRemap.capturedFromKey}`
-                    valueColor: root.cosmicAccent
-                }
-
-                SettingsRow {
-                    visible: KeyboardRemap.lastError.length > 0
-                    iconName: "warning"
-                    label: "Capture error"
-                    description: KeyboardRemap.lastError
-                    value: "Clear"
-                    valueColor: "#f07070"
-                    showChevron: true
-                    onClicked: KeyboardRemap.clearCapturedKey()
-                }
-
-                SettingsRow {
-                    visible: KeyboardRemap.capturedFromKey !== "" && KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
-                    label: "Existing mapping"
-                    value: `${KeyboardRemap.capturedFromKey} -> ${KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey)}`
-                    description: "Saving will update this existing source key instead of adding a duplicate"
-                    valueColor: root.cosmicAccent
-                }
-            }
+            // ── Preset toggles for this keyboard ──
 
             SettingsCard {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
                 title: "Presets"
-                subtitle: "Replace local rules for the selected keyboard only"
+                subtitle: {
+                    const n = KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)
+                    return n > 0 ? `${n} enabled` : "Toggle presets for this keyboard"
+                }
                 visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== ""
 
-                ButtonRow {
-                    Repeater {
-                        model: Object.keys(KeyboardRemap.presets)
-                        delegate: SettingsButton {
-                            required property string modelData
-                            label: KeyboardRemap.presets[modelData].label
-                            iconName: "auto_fix_high"
-                            onClicked: KeyboardRemap.applyPreset(modelData)
+                Repeater {
+                    model: KeyboardRemap.globalPresetChoices
+                    delegate: SettingsRow {
+                        required property var modelData
+                        readonly property bool isRemap: modelData.type === "remap"
+                        readonly property string overrideKey: KeyboardRemap.presetOverride(KeyboardRemap.selectedDeviceId, modelData.id)
+                        readonly property string effectiveTarget: overrideKey.length > 0 ? overrideKey : (modelData.remaps?.[0]?.to ?? "")
+                        iconName: "tune"
+                        label: modelData.label
+                        description: overrideKey.length > 0
+                            ? `${modelData.remaps[0].from} → ${overrideKey} (custom)`
+                            : modelData.description
+                        value: ""
+                        rightInset: isRemap ? 110 : 70
+                        showChevron: false
+                        onClicked: KeyboardRemap.setDevicePresetEnabled(KeyboardRemap.selectedDeviceId, modelData.id, !KeyboardRemap.devicePresetEnabled(KeyboardRemap.selectedDeviceId, modelData.id))
+
+                        // Edit button — only for remap-type presets
+                        Rectangle {
+                            visible: isRemap
+                            anchors.right: toggleSwitch.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 32
+                            height: 32
+                            radius: root.cosmicRadius
+                            color: editMouse.containsMouse ? root.cosmicButtonHover : "transparent"
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "edit"
+                                iconSize: 16
+                                color: overrideKey.length > 0 ? root.cosmicAccent : root.cosmicMuted
+                            }
+
+                            MouseArea {
+                                id: editMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.keyremapEditingPreset = modelData.id
+                            }
+                        }
+
+                        // Toggle switch
+                        Rectangle {
+                            id: toggleSwitch
+                            anchors.right: parent.right
+                            anchors.rightMargin: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 46
+                            height: 26
+                            radius: height / 2
+                            color: KeyboardRemap.devicePresetEnabled(KeyboardRemap.selectedDeviceId, modelData.id) ? root.cosmicAccent : root.cosmicLine
+
+                            Rectangle {
+                                width: 20
+                                height: 20
+                                radius: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: KeyboardRemap.devicePresetEnabled(KeyboardRemap.selectedDeviceId, modelData.id) ? parent.width - width - 3 : 3
+                                color: KeyboardRemap.devicePresetEnabled(KeyboardRemap.selectedDeviceId, modelData.id) ? "#111111" : "#dedede"
+                                Behavior on x { NumberAnimation { duration: 110 } }
+                            }
                         }
                     }
                 }

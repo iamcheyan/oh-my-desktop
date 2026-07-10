@@ -30,22 +30,14 @@ StyledPopup {
             value: "Disabled"
         }
 
-        Repeater {
-            model: KeyboardRemap.selectedRemaps
-            delegate: StyledPopupValueRow {
-                required property int index
-                required property var modelData
-                icon: NerdIconMap.keyboard
-                label: index === 0 ? "Remap:" : ""
-                value: `${modelData.from} → ${modelData.to}`
-            }
-        }
-
         StyledPopupValueRow {
-            visible: KeyboardRemap.selectedDeviceId !== "" && KeyboardRemap.selectedRemaps.length === 0
-            icon: NerdIconMap.info
-            label: "Remaps:"
-            value: "None"
+            visible: KeyboardRemap.selectedDeviceId !== ""
+            icon: NerdIconMap.tune
+            label: "Presets:"
+            value: {
+                const n = KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)
+                return n > 0 ? `${n} enabled` : "None"
+            }
         }
 
         StyledPopupValueRow {
