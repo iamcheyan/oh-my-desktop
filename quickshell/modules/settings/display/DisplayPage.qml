@@ -6,12 +6,13 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 
 ColumnLayout {
     id: root
 
     property var brightnessMonitor: ({ brightness: 0, setBrightness: function(){} })
-    property var openWallpaperPicker: function(mode) {}
+    property var settingsRoot: null
 
     width: parent ? parent.width : 760
     spacing: 18
@@ -54,13 +55,13 @@ ColumnLayout {
             width: sliderRoot.width
             height: 6
             radius: 3
-            color: "#454545"
+            color: SettingsTokens.line
 
             Rectangle {
                 width: sliderRoot.visualPosition * parent.width
                 height: parent.height
                 radius: parent.radius
-                color: TuiStyle.accent
+                color: SettingsTokens.accent
             }
         }
 
@@ -70,9 +71,9 @@ ColumnLayout {
             width: 16
             height: 16
             radius: 8
-            color: "#f4f4f4"
+            color: SettingsTokens.fg
             border.width: 2
-            border.color: sliderRoot.pressed ? TuiStyle.accent : "#4a4a4a"
+            border.color: sliderRoot.pressed ? SettingsTokens.accent : SettingsTokens.buttonBorder
             Behavior on border.color { ColorAnimation { duration: 100 } }
         }
     }
@@ -120,7 +121,7 @@ ColumnLayout {
                 Layout.fillWidth: true
                 visible: configState.errorText.length > 0
                 text: configState.errorText
-                color: "#d8d8d8"
+                color: SettingsTokens.fg
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
@@ -155,6 +156,13 @@ ColumnLayout {
                 value: root.brightnessMonitor.brightness
                 onMoved: root.brightnessMonitor.setBrightness(value)
             }
+
+            ToggleLine {
+                title: "Brightness OSD"
+                description: "Show on-screen display when brightness changes"
+                checked: Config.options.osd.brightnessEnabled ?? true
+                onToggled: Config.setNestedValue("osd.brightnessEnabled", !Config.options.osd.brightnessEnabled)
+            }
         }
 
         PanelCard {
@@ -174,7 +182,7 @@ ColumnLayout {
                 spacing: 12
                 StyledText {
                     text: "Color temperature"
-                    color: "#f4f4f4"
+                    color: SettingsTokens.fg
                     font.pixelSize: 14
                 }
                 SettingsSlider {
@@ -187,7 +195,7 @@ ColumnLayout {
                 }
                 StyledText {
                     text: `${Config.options.light.night.colorTemperature ?? 6000}K`
-                    color: "#a8a8a8"
+                    color: SettingsTokens.dim
                     font.pixelSize: 13
                     Layout.preferredWidth: 64
                     horizontalAlignment: Text.AlignRight
@@ -237,34 +245,12 @@ ColumnLayout {
                     : root.optimizationMode === "balanced"
                         ? "⚖️ Balanced: 1 blur pass enabled. High-quality frosted glass look with 50% GPU load reduction (best for integrated GPUs)."
                         : "✨ Best Visuals: 2 blur passes enabled. Full-resolution premium glass aesthetics (best for dedicated GPUs)."
-                color: "#a8a8a8"
+                color: SettingsTokens.dim
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
             }
         }
 
-        PanelCard {
-            Layout.fillWidth: true
-            title: "Wallpaper"
-            subtitle: "Single image or folder rotation"
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                SmallButton {
-                    Layout.fillWidth: true
-                    text: "Choose image"
-                    iconName: "image"
-                    onClicked: root.openWallpaperPicker("file")
-                }
-                SmallButton {
-                    Layout.fillWidth: true
-                    text: "Choose folder"
-                    iconName: "folder"
-                    onClicked: root.openWallpaperPicker("folder")
-                }
-            }
-        }
     }
 
     component PanelCard: Rectangle {
@@ -275,10 +261,10 @@ ColumnLayout {
 
         Layout.fillWidth: true
         implicitHeight: column.implicitHeight + 34
-        radius: 18
-        color: "#1b1b1b"
+        radius: TuiStyle.radius
+        color: SettingsTokens.card
         border.width: 1
-        border.color: "#303030"
+        border.color: SettingsTokens.line
 
         ColumnLayout {
             id: column
@@ -292,13 +278,13 @@ ColumnLayout {
                 StyledText {
                     Layout.fillWidth: true
                     text: card.title
-                    color: "#f4f4f4"
+                    color: SettingsTokens.fg
                     font.pixelSize: 17
                     font.weight: Font.DemiBold
                 }
                 StyledText {
                     text: card.subtitle
-                    color: "#a8a8a8"
+                    color: SettingsTokens.dim
                     font.pixelSize: 13
                 }
             }
@@ -306,7 +292,8 @@ ColumnLayout {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 1
-                color: "#363636"
+                color: SettingsTokens.line
+                opacity: TuiStyle.dividerOpacity
                 visible: body.children.length > 0
             }
 
@@ -328,9 +315,9 @@ ColumnLayout {
         Layout.preferredHeight: 42
         implicitWidth: label.implicitWidth + 64
         radius: 13
-        color: !enabled ? "#202020" : primary ? TuiStyle.accentWash(TuiStyle.accent) : (mouse.containsMouse ? "#373737" : "#292929")
+        color: !enabled ? SettingsTokens.bg : primary ? TuiStyle.accentWash(TuiStyle.accent) : (mouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button)
         border.width: 1
-        border.color: primary ? TuiStyle.accent : "#4a4a4a"
+        border.color: primary ? SettingsTokens.accent : SettingsTokens.buttonBorder
         opacity: enabled ? 1 : 0.45
 
         Row {
@@ -339,12 +326,12 @@ ColumnLayout {
             MaterialSymbol {
                 text: button.iconName
                 iconSize: 19
-                color: primary ? TuiStyle.accent : "#f4f4f4"
+                color: primary ? SettingsTokens.accent : SettingsTokens.fg
             }
             StyledText {
                 id: label
                 text: button.text
-                color: "#f4f4f4"
+                color: SettingsTokens.fg
                 font.pixelSize: 14
                 font.weight: Font.DemiBold
             }
@@ -372,8 +359,8 @@ ColumnLayout {
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
-            StyledText { text: toggleLine.title; color: "#f4f4f4"; font.pixelSize: 14; font.weight: Font.DemiBold }
-            StyledText { text: toggleLine.description; color: "#8f8f8f"; font.pixelSize: 13 }
+            StyledText { text: toggleLine.title; color: SettingsTokens.fg; font.pixelSize: 14; font.weight: Font.DemiBold }
+            StyledText { text: toggleLine.description; color: SettingsTokens.dim; font.pixelSize: 13 }
         }
         Switch {
             id: control
@@ -386,7 +373,7 @@ ColumnLayout {
                 x: control.leftPadding
                 y: parent.height / 2 - height / 2
                 radius: height / 2
-                color: control.checked ? TuiStyle.accent : "#454545"
+                color: control.checked ? SettingsTokens.accent : SettingsTokens.line
 
                 Rectangle {
                     x: control.checked ? parent.width - width - 3 : 3
