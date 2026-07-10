@@ -172,9 +172,15 @@ copy_theme() {
 }
 
 refresh_running_apps() {
-  if [[ -x "$OMD_ROOT/bin/omd-restart" ]]; then
-    "$OMD_ROOT/bin/omd-restart" >/dev/null 2>&1 || true
-  fi
+  local app qs_cmd="${QS_CMD:-qs}"
+  local apps=(omd-bar omd-desktop omd-overview omd-applauncher omd-corners omd-clipboard)
+
+  for app in "${apps[@]}"; do
+    [[ -d "$OMD_ROOT/apps/$app" ]] || continue
+    "$qs_cmd" -p "$OMD_ROOT/apps/$app" ipc call theme reload >/dev/null 2>&1 || true
+  done
+
+  # Hyprland border colors come from current/theme/hyprland.lua
   hyprctl reload >/dev/null 2>&1 || true
 }
 

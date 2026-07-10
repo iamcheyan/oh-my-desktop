@@ -20,6 +20,14 @@ Singleton {
         themeFile.reload();
     }
 
+    IpcHandler {
+        target: "theme"
+
+        function reload(): void {
+            root.reload();
+        }
+    }
+
     FileView {
         id: themeFile
         path: root.themePath
