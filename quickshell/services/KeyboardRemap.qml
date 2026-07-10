@@ -249,7 +249,7 @@ Singleton {
     Timer {
         interval: 10000
         repeat: true
-        running: GlobalStates.barPopupType === "keyremap"
+        running: GlobalStates.barDialogOpen && GlobalStates.barDialogType === "keyremap"
         onTriggered: root.refreshDevices()
     }
 

@@ -13,16 +13,26 @@ Item {
     property bool expanded: false
     property bool onlyNotification: false
     property real fontSize: Appearance.font.pixelSize.small
-    property real horizontalPadding: 8
-    property real verticalPadding: 6
+    property real horizontalPadding: onlyNotification ? 12 : 8
+    property real verticalPadding: onlyNotification ? 10 : 6
     readonly property bool critical: notificationObject?.urgency == NotificationUrgency.Critical
         || notificationObject?.urgency == NotificationUrgency.Critical.toString()
     readonly property bool hovered: hoverHandler.hovered
+    readonly property bool hasBody: (notificationObject?.body || "").length > 0
+    readonly property bool hasActions: (notificationObject?.actions?.length ?? 0) > 0
+    readonly property string displayApp: notificationObject?.appName || "notification"
 
     implicitHeight: rowBackground.implicitHeight
 
     function discard() {
         Notifications.discardNotification(notificationObject.notificationId);
+    }
+
+    function bodyText() {
+        return NotificationUtils.processNotificationBody(
+            notificationObject?.body || "",
+            notificationObject?.appName || notificationObject?.summary || ""
+        );
     }
 
     HoverHandler {
@@ -37,10 +47,12 @@ Item {
     Rectangle {
         id: rowBackground
         width: parent.width
-        radius: TuiStyle.miniRadius
-        color: root.expanded ? TuiStyle.surfaceHover
-            : root.hovered ? TuiStyle.surfaceSubtle
-            : "transparent"
+        radius: onlyNotification ? 8 : TuiStyle.miniRadius
+        color: onlyNotification
+            ? (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : TuiStyle.surfaceRaised)
+            : (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : "transparent")
+        border.width: onlyNotification ? TuiStyle.borderWidth : 0
+        border.color: critical ? TuiStyle.danger : TuiStyle.shellBorder
         implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
 
         Rectangle {
@@ -50,6 +62,7 @@ Item {
                 bottom: parent.bottom
             }
             width: root.critical ? TuiStyle.borderWidth : 0
+            radius: onlyNotification ? 8 : 0
             color: TuiStyle.danger
         }
 
@@ -62,7 +75,45 @@ Item {
                 leftMargin: root.horizontalPadding + (root.critical ? 6 : 0)
                 rightMargin: root.horizontalPadding
             }
-            spacing: 2
+            spacing: onlyNotification ? 6 : 2
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: onlyNotification
+                spacing: 8
+
+                Item {
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+
+                    NotificationAppIcon {
+                        anchors.centerIn: parent
+                        scale: 24 / 38
+                        appIcon: notificationObject?.appIcon || ""
+                        image: notificationObject?.image || ""
+                        summary: notificationObject?.summary || ""
+                        urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+                    }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: displayApp
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.main
+                    font.weight: Font.Medium
+                    color: TuiStyle.dim
+                }
+
+                StyledText {
+                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.monospace
+                    color: TuiStyle.dim
+                }
+            }
 
             RowLayout {
                 Layout.fillWidth: true
@@ -72,15 +123,17 @@ Item {
                     Layout.fillWidth: true
                     text: root.notificationObject?.summary || ""
                     elide: Text.ElideRight
-                    maximumLineCount: 1
-                    font.pixelSize: root.fontSize
+                    maximumLineCount: onlyNotification ? (expanded ? 3 : 2) : 1
+                    wrapMode: onlyNotification && expanded ? Text.Wrap : Text.NoWrap
+                    font.pixelSize: onlyNotification ? Appearance.font.pixelSize.normal : root.fontSize
                     font.family: Appearance.font.family.main
+                    font.weight: onlyNotification ? Font.DemiBold : Font.Normal
                     color: root.critical ? TuiStyle.danger : TuiStyle.fg
                     textFormat: Text.PlainText
                 }
 
                 StyledText {
-                    visible: root.notificationObject?.actions?.length > 0
+                    visible: !onlyNotification && root.notificationObject?.actions?.length > 0
                     text: `[${root.notificationObject?.actions?.length ?? 0}]`
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     font.family: Appearance.font.family.monospace
@@ -90,13 +143,10 @@ Item {
 
             StyledText {
                 Layout.fillWidth: true
-                visible: (root.notificationObject?.body || "").length > 0
-                text: NotificationUtils.processNotificationBody(
-                    root.notificationObject?.body || "",
-                    root.notificationObject?.appName || root.notificationObject?.summary || ""
-                ).replace(/\n/g, root.expanded ? "<br/>" : " ")
-                maximumLineCount: root.expanded ? 999 : 1
-                wrapMode: root.expanded ? Text.Wrap : Text.NoWrap
+                visible: root.hasBody
+                text: root.bodyText().replace(/\n/g, root.expanded ? "<br/>" : " ")
+                maximumLineCount: root.expanded ? 999 : (onlyNotification ? 3 : 1)
+                wrapMode: root.expanded || onlyNotification ? Text.Wrap : Text.NoWrap
                 elide: Text.ElideRight
                 font.pixelSize: root.fontSize
                 font.family: Appearance.font.family.main
@@ -111,18 +161,12 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 5
-                visible: root.expanded
+                Layout.topMargin: onlyNotification ? 4 : 5
+                visible: root.expanded || (onlyNotification && (root.hovered || root.hasActions))
                 spacing: 4
 
-                NotificationActionButton {
-                    buttonText: "close"
-                    urgency: root.notificationObject?.urgency
-                    onClicked: root.discard()
-                }
-
                 Repeater {
-                    model: root.notificationObject?.actions ?? []
+                    model: root.expanded ? (root.notificationObject?.actions ?? []) : []
                     NotificationActionButton {
                         required property var modelData
                         buttonText: modelData.text
@@ -138,11 +182,18 @@ Item {
                 }
 
                 NotificationActionButton {
+                    buttonText: "close"
+                    urgency: root.notificationObject?.urgency
+                    onClicked: root.discard()
+                }
+
+                NotificationActionButton {
                     id: copyButton
                     buttonText: "copy"
                     urgency: root.notificationObject?.urgency
+                    visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
                     onClicked: {
-                        Quickshell.clipboardText = root.notificationObject?.body || "";
+                        Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
                         copyButton.buttonText = "copied";
                         copyTimer.restart();
                     }
@@ -163,6 +214,7 @@ Item {
                 right: parent.right
                 bottom: parent.bottom
             }
+            visible: !onlyNotification
             height: 1
             color: TuiStyle.line
             opacity: root.expanded ? 0 : TuiStyle.dividerOpacity

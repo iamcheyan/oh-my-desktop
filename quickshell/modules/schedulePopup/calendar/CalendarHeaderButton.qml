@@ -8,8 +8,8 @@ RippleButton {
     property string tooltipText: ""
     property bool forceCircle: false
 
-    implicitHeight: 30
-    implicitWidth: forceCircle ? implicitHeight : (contentItem.implicitWidth + 10 * 2)
+    implicitHeight: 28
+    implicitWidth: forceCircle ? implicitHeight : (contentItem.implicitWidth + 16 * 2)
     Behavior on implicitWidth {
         SmoothedAnimation {
             velocity: Appearance.animation.elementMove.velocity
@@ -17,16 +17,17 @@ RippleButton {
     }
 
     background.anchors.fill: button
-    buttonRadius: TuiStyle.radius
-    colBackground: TuiStyle.panel
-    colBackgroundHover: TuiStyle.panelAlt
+    buttonRadius: forceCircle ? implicitHeight / 2 : 8
+    colBackground: TuiStyle.surfaceSubtle
+    colBackgroundHover: TuiStyle.surfaceHover
     colRipple: TuiStyle.line
 
     contentItem: StyledText {
         text: buttonText
         horizontalAlignment: Text.AlignHCenter
         font.family: Appearance.font.family.monospace
-        font.pixelSize: Appearance.font.pixelSize.larger
+        font.pixelSize: Appearance.font.pixelSize.small
+        font.weight: Font.DemiBold
         color: TuiStyle.fg
     }
 

@@ -29,17 +29,14 @@ Singleton {
     property var overviewPendingOccupiedWorkspaces: []
     property int overviewRefreshSerial: 0
     property bool regionSelectorOpen: false
-    property bool scheduleOpen: false
     property bool screenLocked: false
     property bool screenLockContainsCharacters: false
     property bool screenUnlockFailed: false
     property bool sessionOpen: false
     property bool superDown: false
     property bool superReleaseMightTrigger: false
-    property bool workspaceShowNumbers: false
     property bool barDialogOpen: false
     property string barDialogType: ""
-    property bool barAudioIsSink: true
     property string barPopupType: ""
     property string activeContextMenu: ""
     property bool sessionConfirmOpen: false
@@ -103,11 +100,6 @@ Singleton {
 
     onBarDialogOpenChanged: {
         if (GlobalStates.barDialogOpen)
-            GlobalStates.barPopupType = "";
-    }
-
-    onScheduleOpenChanged: {
-        if (GlobalStates.scheduleOpen)
             GlobalStates.barPopupType = "";
     }
 

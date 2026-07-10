@@ -70,8 +70,9 @@ Removed old standalone shell:
 quickshell/modules/schedulePopup/SchedulePopup.qml
 ```
 
-Do not delete the rest of `modules/schedulePopup/` while the unified time popup
-still uses `BottomWidgetGroup`, calendar, todo, and pomodoro components.
+The schedule hub now uses only `BottomWidgetGroup` (notifications + calendar) and
+`calendar/*`. Todo, pomodoro, and `controlCenter` dialog copies were removed in
+the 2026-07 dead-code cleanup (`docs/dead-code-cleanup.md`).
 
 ## Settings
 

@@ -99,15 +99,17 @@ MouseArea {
         }
     }
 
+    readonly property bool singleNotification: root.notificationCount === 1
+
     Rectangle {
         id: frame
         anchors.left: parent.left
         anchors.leftMargin: root.xOffset
         width: parent.width
-        radius: TuiStyle.radius
+        radius: root.singleNotification ? 8 : TuiStyle.radius
         clip: true
-        color: TuiStyle.bg
-        border.width: TuiStyle.borderWidth
+        color: root.singleNotification ? "transparent" : TuiStyle.bg
+        border.width: root.singleNotification ? 0 : TuiStyle.borderWidth
         border.color: root.isCritical ? TuiStyle.danger : TuiStyle.shellBorder
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
@@ -126,6 +128,7 @@ MouseArea {
                 top: parent.top
                 bottom: parent.bottom
             }
+            visible: !root.singleNotification
             width: root.isCritical ? TuiStyle.borderWidth : 0
             color: TuiStyle.danger
         }
@@ -137,7 +140,8 @@ MouseArea {
             Rectangle {
                 id: titlebar
                 Layout.fillWidth: true
-                implicitHeight: 32
+                visible: !root.singleNotification
+                implicitHeight: visible ? 32 : 0
                 radius: TuiStyle.radius
                 color: root.isCritical ? TuiStyle.dangerPanel
                     : TuiStyle.surfaceRaised

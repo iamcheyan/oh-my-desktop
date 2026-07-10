@@ -13,7 +13,6 @@ CircleUtilButton {
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     onClicked: {
-        GlobalStates.barAudioIsSink = false;
         GlobalStates.barDialogType = "audio";
         GlobalStates.barDialogOpen = true;
     }

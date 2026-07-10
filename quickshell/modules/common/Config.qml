@@ -184,15 +184,6 @@ Singleton {
             }
 
             property JsonObject bar: JsonObject {
-                property JsonObject autoHide: JsonObject {
-                    property bool enable: false
-                    property int hoverRegionWidth: 2
-                    property bool pushWindows: false
-                    property JsonObject showWhenPressingSuper: JsonObject {
-                        property bool enable: true
-                        property int delay: 140
-                    }
-                }
                 property bool bottom: false // Instead of top
                 property int cornerStyle: 0 // 0: Hug | 1: Float | 2: Plain rectangle
                 property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle == 1 (Float)
@@ -226,8 +217,7 @@ Singleton {
                     "util:wifi",
                     "media",
                     "clock",
-                    "spacer",
-                    "weather"
+                    "spacer"
                 ]
                 property JsonObject resources: JsonObject {
                     property bool alwaysShowSwap: true
@@ -237,21 +227,12 @@ Singleton {
                     property int cpuWarningThreshold: 90
                 }
                 property list<string> screenList: [] // Non-empty: show bar only on these monitors (hyprctl monitors)
-                property bool showOnFocusedMonitorOnly: false // When screenList is empty, show bars on all monitors
                 property JsonObject weather: JsonObject {
                     property bool enable: false
                     property bool enableGPS: true // IP-based location (wttr.in resolves via IP); when false, uses city
                     property string city: "" // When 'enableGPS' is false
                     property bool useUSCS: false // Instead of metric (SI) units
                     property int fetchInterval: 10 // minutes
-                }
-                property JsonObject indicators: JsonObject {
-                    property JsonObject notifications: JsonObject {
-                        property bool showUnreadCount: false
-                    }
-                }
-                property JsonObject tooltips: JsonObject {
-                    property bool clickToShow: false
                 }
             }
 
@@ -461,12 +442,6 @@ Singleton {
                 property string shortDateFormat: "dd/MM"
                 property string dateWithYearFormat: "dd/MM/yyyy"
                 property string dateFormat: "ddd, dd/MM"
-                property JsonObject pomodoro: JsonObject {
-                    property int breakTime: 300
-                    property int cyclesBeforeLongBreak: 4
-                    property int focus: 1500
-                    property int longBreak: 900
-                }
             }
 
             property JsonObject updates: JsonObject {

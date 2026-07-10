@@ -1,6 +1,7 @@
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.services
 import QtQuick
 import QtQuick.Layouts
 
@@ -39,6 +40,19 @@ Item {
         font.weight: Font.Normal
         color: Appearance.colors.colBarText
         text: root.displayText
+    }
+
+    Rectangle {
+        visible: !Notifications.silent && Notifications.unread > 0
+        anchors.right: clockText.right
+        anchors.top: clockText.top
+        anchors.rightMargin: -2
+        anchors.topMargin: -2
+        width: 6
+        height: 6
+        radius: 3
+        color: Appearance.colors.colBarText
+        z: 1
     }
 
     MouseArea {

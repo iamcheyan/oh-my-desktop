@@ -102,15 +102,6 @@
     }
   },
   "bar": {
-    "autoHide": {
-      "enable": false,
-      "hoverRegionWidth": 2,
-      "pushWindows": false,
-      "showWhenPressingSuper": {
-        "delay": 140,
-        "enable": true
-      }
-    },
     "borderless": false,
     "bottom": false,
     "centerIconSize": 18,
@@ -118,11 +109,6 @@
     "centerModules": [],
     "cornerStyle": 0,
     "floatStyleShadow": true,
-    "indicators": {
-      "notifications": {
-        "showUnreadCount": false
-      }
-    },
     "leftModules": [
       "appLauncher",
       "workspaces",
@@ -153,10 +139,6 @@
     ],
     "screenList": [],
     "showBackground": true,
-    "showOnFocusedMonitorOnly": true,
-    "tooltips": {
-      "clickToShow": true
-    },
     "vertical": false,
     "weather": {
       "city": "",
@@ -340,12 +322,6 @@
   "time": {
     "dateFormat": "ddd, dd/MM",
     "dateWithYearFormat": "dd/MM/yyyy",
-    "pomodoro": {
-      "breakTime": 300,
-      "cyclesBeforeLongBreak": 4,
-      "focus": 1500,
-      "longBreak": 900
-    },
     "shortDateFormat": "dd/MM"
   },
   "tray": {

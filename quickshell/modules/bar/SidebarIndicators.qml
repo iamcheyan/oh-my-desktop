@@ -13,12 +13,9 @@ Item {
     Layout.fillWidth: false
     Layout.fillHeight: true
 
-    implicitWidth: button.implicitWidth
-    implicitHeight: button.implicitHeight
-    // Always keep the power/battery slot; optional mute + keyboard indicators may add width.
-    visible: Battery.showBarIcon
-        || (Audio.sink?.audio?.muted ?? false)
-        || (HyprlandXkb.layoutCodes.length > 1)
+    implicitWidth: indicatorsRowLayout.implicitWidth
+    implicitHeight: indicatorsRowLayout.implicitHeight
+    visible: true
 
     property color colText: Appearance.colors.colBarText
 
@@ -34,12 +31,12 @@ Item {
         }
     }
 
-    RippleButton {
-        id: button
-        anchors.centerIn: parent
-        width: indicatorsRowLayout.implicitWidth
-        height: indicatorsRowLayout.implicitHeight
+    component BarIconButton: RippleButton {
+        id: iconButton
+        property string popupType: ""
 
+        Layout.preferredWidth: Config.options.bar.rightIconSlotWidth
+        Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
         buttonRadius: Appearance.rounding.full
         colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
@@ -47,41 +44,48 @@ Item {
         colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
         colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
         colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
-        toggled: GlobalStates.barPopupType === "battery"
+        toggled: GlobalStates.barPopupType === iconButton.popupType
 
         onPressed: {
-            GlobalStates.barPopupType = GlobalStates.barPopupType === "battery" ? "" : "battery";
+            GlobalStates.barPopupType = GlobalStates.barPopupType === iconButton.popupType
+                ? ""
+                : iconButton.popupType;
         }
+    }
 
-        RowLayout {
-            id: indicatorsRowLayout
-            anchors.centerIn: parent
-            spacing: Config.options.bar.rightModuleSpacing
+    RowLayout {
+        id: indicatorsRowLayout
+        anchors.centerIn: parent
+        spacing: Config.options.bar.rightModuleSpacing
 
-            Revealer {
-                reveal: Audio.sink?.audio?.muted ?? false
-                Layout.fillHeight: true
-                IconSlot {
-                    BarNerdIcon {
-                        anchors.centerIn: parent
-                        text: NerdIconMap.volumeOff
-                        color: container.colText
-                    }
-                }
-            }
+        Revealer {
+            reveal: Audio.sink?.audio?.muted ?? false
+            Layout.fillHeight: true
             IconSlot {
-                visible: xkbIndicator.active
-                implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
-                HyprlandXkbIndicator {
-                    id: xkbIndicator
+                BarNerdIcon {
                     anchors.centerIn: parent
+                    text: NerdIconMap.volumeOff
                     color: container.colText
                 }
             }
+        }
+
+        IconSlot {
+            visible: xkbIndicator.active
+            implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
+            HyprlandXkbIndicator {
+                id: xkbIndicator
+                anchors.centerIn: parent
+                color: container.colText
+            }
+        }
+
+        BarIconButton {
+            id: powerButton
+            popupType: "battery"
+            visible: Battery.showBarIcon
             IconSlot {
-                id: batteryIconSlot
-                visible: Battery.showBarIcon
-                implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
+                anchors.centerIn: parent
                 BarBatteryIcon {
                     anchors.centerIn: parent
                     color: container.colText
@@ -97,16 +101,8 @@ Item {
         }
     }
 
-    // Transparent MouseArea dedicated for hover detection (does not intercept clicks)
-    MouseArea {
-        id: hoverArea
-        anchors.fill: button
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-    }
-
     BatteryHoverPopup {
         id: batteryHoverPopup
-        hoverTarget: hoverArea
+        hoverTarget: powerButton
     }
 }

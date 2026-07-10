@@ -77,13 +77,6 @@ Singleton {
                 property int tabIndex: 0
             }
 
-            property JsonObject sidebar: JsonObject {
-                property JsonObject bottomGroup: JsonObject {
-                    property bool collapsed: false
-                    property int tab: 0
-                }
-            }
-
             property JsonObject idle: JsonObject {
                 property bool inhibit: false
             }
@@ -97,19 +90,6 @@ Singleton {
                 property string optimization: "balanced"
             }
 
-            property JsonObject timer: JsonObject {
-                property JsonObject pomodoro: JsonObject {
-                    property bool running: false
-                    property int start: 0
-                    property bool isBreak: false
-                    property int cycle: 0
-                }
-                property JsonObject stopwatch: JsonObject {
-                    property bool running: false
-                    property int start: 0
-                    property list<var> laps: []
-                }
-            }
         }
     }
 }

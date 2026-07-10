@@ -12,6 +12,3 @@ SettingsSlider 1.0 SettingsSlider.qml
 ButtonRow 1.0 ButtonRow.qml
 SettingsDropdownRow 1.0 SettingsDropdownRow.qml
 SettingsTextFieldRow 1.0 SettingsTextFieldRow.qml
-SettingsToggleCard 1.0 SettingsToggleCard.qml
-SettingsButtonGroup 1.0 SettingsButtonGroup.qml
-SettingsSliderCard 1.0 SettingsSliderCard.qml

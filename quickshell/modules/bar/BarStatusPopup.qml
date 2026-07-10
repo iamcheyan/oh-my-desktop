@@ -3,11 +3,9 @@ import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
-import qs.modules.controlCenter.notifications
 import qs.modules.schedulePopup
 import qs.services
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -28,10 +26,8 @@ Scope {
         GlobalStates.barPopupType = "";
     }
 
-    function openDialog(dialogType, isSink) {
+    function openDialog(dialogType) {
         root.close();
-        if (isSink !== undefined)
-            GlobalStates.barAudioIsSink = isSink;
         GlobalStates.barDialogType = dialogType;
         GlobalStates.barDialogOpen = true;
     }
@@ -65,7 +61,7 @@ Scope {
         }
 
         function open(type: string): void {
-            GlobalStates.barPopupType = type;
+            GlobalStates.barPopupType = type === "notifications" ? "schedule" : type;
         }
     }
 
@@ -88,10 +84,9 @@ Scope {
         }
 
         readonly property bool barOnBottom: Config.options.bar.bottom
-        readonly property bool large: root.activeType === "schedule" || root.activeType === "battery"
         readonly property int panelWidth: {
             if (root.activeType === "schedule")
-                return Math.min(Appearance.sizes.sidebarWidth, Math.max(520, (screen?.width ?? 1920) - 32));
+                return Math.min(720, Math.max(660, (screen?.width ?? 1920) - 32));
             if (root.activeType === "battery")
                 return Math.min(460, Math.max(400, (screen?.width ?? 1920) - 32));
             return 360;
@@ -120,7 +115,6 @@ Scope {
         }
 
         onVisibleChanged: {
-            console.log(`[BarStatusPopup] visible=${visible} activeType=${root.activeType} size=${implicitWidth}x${implicitHeight} screen=${screen?.name}`);
             if (visible) {
                 popupWindow.screen = root.focusedScreen;
                 dismissGuard.restart();
@@ -140,7 +134,7 @@ Scope {
         Item {
             id: panel
             anchors.right: parent.right
-            // Battery uses stacked ShellCards (power + notifications); other types use one outer shell.
+            // Power panel uses ShellCard chrome; other types use one outer shell.
             readonly property bool multiShell: root.activeType === "battery"
             readonly property real shadowMargin: multiShell ? 0 : Appearance.sizes.elevationMargin
             implicitWidth: panelBg.implicitWidth + shadowMargin * 2
@@ -174,7 +168,6 @@ Scope {
                         if (root.activeType === "audio") return audioContent;
                         if (root.activeType === "display") return displayContent;
                         if (root.activeType === "battery") return batteryContent;
-                        if (root.activeType === "resources") return resourcesContent;
                         if (root.activeType === "schedule") return scheduleContent;
                         if (root.activeType === "voice") return voiceContent;
                         return emptyContent;
@@ -380,7 +373,7 @@ Scope {
             TuiDetailRow { keyText: "INPUT"; valueText: source ? Audio.friendlyDeviceName(source) : "--"; valueColor: TuiStyle.muted }
             TuiDetailRow { keyText: "I STATUS"; valueText: sourceMuted ? "muted" : "active"; valueColor: sourceMuted ? TuiStyle.danger : TuiStyle.success }
             ActionRow {
-                TuiActionButton { label: "AUDIOCTL"; onClicked: root.openDialog("audio", true) }
+                TuiActionButton { label: "AUDIOCTL"; onClicked: root.openDialog("audio") }
             }
         }
     }
@@ -405,14 +398,9 @@ Scope {
 
     Component {
         id: batteryContent
-        // Two independent shell cards (power + notifications), each matching BarContextMenu chrome.
-        // Notifications card is hidden when the history list is empty.
-        ColumnLayout {
+        ShellCard {
             id: batteryStack
             width: parent?.width ?? implicitWidth
-            spacing: 0
-
-            readonly property bool hasNotifications: Notifications.list.length > 0
             property bool hibernateAvailable: false
 
             function stateLabel() {
@@ -493,11 +481,7 @@ Scope {
                 }
             }
 
-            ShellCard {
-                id: powerCard
-                gapBottom: batteryStack.hasNotifications ? 0 : gap
-
-                Header {
+            Header {
                     title: batteryStack.headerTitle()
                     status: batteryStack.stateLabel().toUpperCase()
                     tone: batteryStack.headerTone()
@@ -631,22 +615,6 @@ Scope {
                         }
                     }
                 }
-            }
-
-            ShellCard {
-                id: notificationCard
-                visible: batteryStack.hasNotifications
-                gapTop: 0
-
-                TuiNotificationList {
-                    id: notificationList
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Math.min(implicitHeight, 330)
-                    showHeader: true
-                    markReadOnVisible: true
-                    maxListHeight: 250
-                }
-            }
         }
     }
 
@@ -751,22 +719,16 @@ Scope {
     }
 
     Component {
-        id: resourcesContent
-        PopupColumn {
-            Header { title: "RESOURCES"; status: "LIVE"; tone: TuiStyle.accent }
-            TuiDetailRow { keyText: "RAM"; valueText: `${Math.round(ResourceUsage.memoryUsedPercentage * 100)}%`; valueColor: TuiStyle.info }
-            TuiDetailRow { keyText: "MEM USED"; valueText: `${(ResourceUsage.memoryUsed / (1024 * 1024)).toFixed(1)} GB`; valueColor: TuiStyle.fg }
-            TuiDetailRow { keyText: "MEM FREE"; valueText: `${(ResourceUsage.memoryFree / (1024 * 1024)).toFixed(1)} GB`; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "SWAP"; valueText: ResourceUsage.swapTotal > 0 ? `${(ResourceUsage.swapUsed / (1024 * 1024)).toFixed(1)} GB` : "none"; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "CPU"; valueText: `${Math.round(ResourceUsage.cpuUsage * 100)}%`; valueColor: TuiStyle.warning }
-        }
-    }
-
-    Component {
         id: scheduleContent
-        BottomWidgetGroup {
+        Item {
             width: parent?.width ?? implicitWidth
-            popupMode: true
+            implicitHeight: scheduleHub.implicitHeight
+
+            BottomWidgetGroup {
+                id: scheduleHub
+                anchors.horizontalCenter: parent.horizontalCenter
+                popupMode: true
+            }
         }
     }
 
