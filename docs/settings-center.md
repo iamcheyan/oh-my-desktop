@@ -37,42 +37,72 @@ quickshell/modules/bar/BarDialogOverlay.qml
 ```text
 wifi        -> Network & Wireless
 bluetooth   -> Bluetooth
-audio       -> Sound
+audio       -> Sound & Feedback
 nightlight  -> Displays
 battery     -> Power & Battery
 theme       -> Appearance
-themes      -> Themes
+themes      -> Appearance (alias)
 wallpaper   -> Appearance
+sounds      -> Sound & Feedback (alias)
+osd         -> Notifications (alias)
+session     -> Notifications (alias)
+notifications -> Notifications
+autostart   -> System (alias)
+windowrules -> System (alias)
+apps        -> System (alias)
 virtualization / vm / windows-vm -> Windows VM
 settings    -> Overview
 control     -> Overview
 ```
 
-## Style Ownership
-
-`SettingsCenter.qml` currently owns a small COSMIC-like token set:
+## Navigation (primary + Advanced)
 
 ```text
-cosmicBg
-cosmicPanel
-cosmicPanelAlt
-cosmicPanelHover
-cosmicCard
-cosmicCardHover
-cosmicFg
-cosmicMuted
-cosmicDim
-cosmicLine
-cosmicAccent
-cosmicAccentSoft
-cosmicRadius
-cosmicRoundRadius
+Overview
+Network & Wireless
+Bluetooth
+Sound & Feedback
+Displays
+Appearance
+Power & Battery
+Notifications
+System
+— Advanced —
+  Voice Input
+  Keyboard Remap
+  Windows VM
 ```
 
-Do not hand-style settings rows in each page. Use the local shared components
-inside `SettingsCenter.qml`:
+## File layout
 
 ```text
+quickshell/modules/settings/
+├── SettingsCenter.qml          # shell: nav, search, overlays, loader routing
+├── SettingsTokens.qml          # singleton palette (TuiStyle / OmarchyTheme)
+├── widgets/                    # shared shell rows/cards/buttons
+├── pages/
+│   ├── OverviewPage.qml
+│   ├── AppearancePage.qml      # themes + wallpaper + font
+│   ├── SoundPage.qml           # audio devices + system sounds + audio OSD
+│   ├── NotificationsPage.qml   # popups, history, clipboard, OSD position
+│   ├── PowerPage.qml
+│   └── SystemPage.qml          # autostart, window rules, default apps
+└── display/                    # Displays page (separate module)
+```
+
+Network, Bluetooth, Voice, Keyboard Remap, and Windows VM remain inline
+`Component` blocks in `SettingsCenter.qml` for now.
+
+## Style Ownership
+
+`SettingsTokens.qml` maps the settings palette from `TuiStyle` and
+`OmarchyTheme`. Shell widgets under `settings/widgets/` consume `SettingsTokens`.
+
+Do not hand-style settings rows in each page. Import shared widgets:
+
+```text
+qs.modules.settings.widgets.*
+PageBody
 SettingsNavItem
 SettingsCard
 SettingsRow
@@ -81,11 +111,11 @@ SettingsButton
 SettingsIconButton
 SettingsMeter
 SettingsStatusPill
+SettingsSlider
+SettingsDropdownRow
+SettingsTextFieldRow
 ButtonRow
 ```
-
-If this design stabilizes, move those components into
-`quickshell/modules/settings/widgets/` and keep the token source in one file.
 
 ## Window Behavior
 
@@ -162,9 +192,10 @@ If those are added later, prefer extending `DisplayConfigState.qml` and
 `OutputCard.qml` instead of embedding feature-specific code in the settings
 root.
 
-## Themes Page
+## Appearance / Themes
 
-The Themes page is backed by:
+Theme selection lives on the **Appearance** page (merged from the former
+standalone Themes page). It is backed by:
 
 ```text
 bin/omd-settings-theme
