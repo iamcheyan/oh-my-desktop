@@ -204,7 +204,6 @@ Singleton {
                 ]
                 property list<string> rightModules: [
                     "systray",
-                    "util:bluetooth",
                     "sidebar",
                     "util:audio",
                     "util:idle",
