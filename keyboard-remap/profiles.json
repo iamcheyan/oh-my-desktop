@@ -1,20 +1,12 @@
 {
   "version": 1,
+  "global": {
+    "enabledPresets": [
+      "ctrl-caps-swap",
+      "alt-win-swap"
+    ]
+  },
   "devices": {
-    "logitech-m585-m590": {
-      "displayName": "logitech m585/m590",
-      "hyprName": "logitech-m585-m590",
-      "keydId": "046d:406b",
-      "enabled": true,
-      "remaps": []
-    },
-    "glab-glab-2-4g-receiver-keyboard": {
-      "displayName": "glab glab 2.4g receiver keyboard",
-      "hyprName": "glab-glab-2-4g-receiver-keyboard",
-      "keydId": "4366:1024",
-      "enabled": true,
-      "remaps": []
-    },
     "logitech-usb-receiver": {
       "displayName": "logitech usb receiver",
       "hyprName": "logitech-usb-receiver",
@@ -31,34 +23,6 @@
         {
           "from": "muhenkan",
           "to": "leftmeta"
-        },
-        {
-          "from": "leftmeta",
-          "to": "f13"
-        },
-        {
-          "from": "grave",
-          "to": "escape"
-        },
-        {
-          "from": "escape",
-          "to": "grave"
-        },
-        {
-          "from": "katakanahiragana",
-          "to": "left"
-        },
-        {
-          "from": "rightalt",
-          "to": "down"
-        },
-        {
-          "from": "delete",
-          "to": "right"
-        },
-        {
-          "from": "rightcontrol",
-          "to": "up"
         }
       ],
       "captures": {
@@ -75,13 +39,6 @@
       "displayName": "at translated set 2 keyboard",
       "hyprName": "at-translated-set-2-keyboard",
       "keydId": "0001:0001",
-      "enabled": true,
-      "remaps": []
-    },
-    "panasonic-laptop-support": {
-      "displayName": "panasonic laptop support",
-      "hyprName": "panasonic-laptop-support",
-      "keydId": "",
       "enabled": true,
       "remaps": []
     }

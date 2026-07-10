@@ -28,6 +28,7 @@ Singleton {
     property string pendingPreset: ""
     property bool hasPendingChanges: false
     property bool reopenSettingsAfterCapture: false
+    property var globalSettings: ({ enabledPresets: [] })
 
     readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin`)
     readonly property string scriptsDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts`)
@@ -65,6 +66,35 @@ Singleton {
         }
     })
 
+    readonly property var globalPresetChoices: [
+        {
+            "id": "alt-win-swap",
+            "label": "Swap Alt / Win",
+            "description": "Applies left and right Alt <-> Win across every enabled keyboard.",
+            "remaps": [
+                { "from": "leftalt", "to": "leftmeta" },
+                { "from": "leftmeta", "to": "leftalt" },
+                { "from": "rightalt", "to": "rightmeta" },
+                { "from": "rightmeta", "to": "rightalt" }
+            ]
+        },
+        {
+            "id": "ctrl-caps-swap",
+            "label": "Swap Ctrl / Caps",
+            "description": "Applies left Ctrl <-> Caps Lock across every enabled keyboard.",
+            "remaps": [
+                { "from": "leftcontrol", "to": "capslock" },
+                { "from": "capslock", "to": "leftcontrol" }
+            ]
+        },
+        {
+            "id": "caps-esc",
+            "label": "Caps to Esc",
+            "description": "Makes Caps Lock send Escape across every enabled keyboard.",
+            "remaps": [{ "from": "capslock", "to": "escape" }]
+        }
+    ]
+
     readonly property var selectedProfile: selectedDeviceId !== "" ? (deviceProfiles[selectedDeviceId] ?? null) : null
     readonly property var selectedRemaps: selectedProfile?.remaps ?? []
     readonly property bool selectedEnabled: selectedProfile?.enabled !== false
@@ -80,6 +110,150 @@ Singleton {
     function remapCount(hyprName) {
         const profile = root.deviceProfiles[hyprName];
         return profile ? (profile.remaps ?? []).length : 0;
+    }
+
+    function globalPresetEnabled(presetId) {
+        return (root.globalSettings.enabledPresets ?? []).indexOf(presetId) >= 0;
+    }
+
+    function activeGlobalPresetCount() {
+        return (root.globalSettings.enabledPresets ?? []).length;
+    }
+
+    function presetChoice(presetId) {
+        return root.globalPresetChoices.find(p => p.id === presetId) ?? null;
+    }
+
+    function globalRemapsForEnabledPresets() {
+        let rows = [];
+        const enabled = root.globalSettings.enabledPresets ?? [];
+        for (let i = 0; i < enabled.length; ++i) {
+            const preset = root.presetChoice(enabled[i]);
+            if (preset)
+                rows = rows.concat(preset.remaps ?? []);
+        }
+        return rows;
+    }
+
+    function keysUsedByRemaps(rows) {
+        const keys = [];
+        const remaps = rows ?? [];
+        for (let i = 0; i < remaps.length; ++i) {
+            if (remaps[i].from && keys.indexOf(remaps[i].from) < 0)
+                keys.push(remaps[i].from);
+            if (remaps[i].to && keys.indexOf(remaps[i].to) < 0)
+                keys.push(remaps[i].to);
+        }
+        return keys;
+    }
+
+    function remapKeysIntersect(leftRows, rightRows) {
+        const left = root.keysUsedByRemaps(leftRows);
+        const right = root.keysUsedByRemaps(rightRows);
+        for (let i = 0; i < left.length; ++i) {
+            if (right.indexOf(left[i]) >= 0)
+                return true;
+        }
+        return false;
+    }
+
+    function globalRemapsForProfile(hyprName) {
+        const profile = root.deviceProfiles[hyprName];
+        const local = profile?.remaps ?? [];
+        let rows = [];
+        const enabled = root.globalSettings.enabledPresets ?? [];
+        for (let i = 0; i < enabled.length; ++i) {
+            const preset = root.presetChoice(enabled[i]);
+            const presetRows = preset?.remaps ?? [];
+            if (preset && !root.remapKeysIntersect(presetRows, local))
+                rows = rows.concat(presetRows);
+        }
+        return rows;
+    }
+
+    function presetSourceKeys(presetId) {
+        const preset = root.presetChoice(presetId);
+        return (preset?.remaps ?? []).map(r => r.from);
+    }
+
+    function presetsConflict(leftId, rightId) {
+        if (leftId === rightId)
+            return false;
+        const left = root.presetSourceKeys(leftId);
+        const right = root.presetSourceKeys(rightId);
+        for (let i = 0; i < left.length; ++i) {
+            if (right.indexOf(left[i]) >= 0)
+                return true;
+        }
+        return false;
+    }
+
+    function normalizedGlobalPresetIds(ids) {
+        let result = [];
+        const source = ids ?? [];
+        for (let i = 0; i < source.length; ++i) {
+            const id = source[i];
+            if (!root.presetChoice(id) || result.indexOf(id) >= 0)
+                continue;
+            result = result.filter(existing => !root.presetsConflict(existing, id));
+            result.push(id);
+        }
+        return result;
+    }
+
+    function effectiveRemapsForProfile(hyprName) {
+        const profile = root.deviceProfiles[hyprName];
+        if (!profile || profile.enabled === false)
+            return [];
+        const merged = {};
+        const globals = root.globalRemapsForProfile(hyprName);
+        for (let i = 0; i < globals.length; ++i)
+            merged[globals[i].from] = { from: globals[i].from, to: globals[i].to, source: "global" };
+        const local = profile.remaps ?? [];
+        for (let j = 0; j < local.length; ++j)
+            merged[local[j].from] = { from: local[j].from, to: local[j].to, source: "local" };
+        return Object.keys(merged).sort().map(k => merged[k]);
+    }
+
+    function globalOverrideCountForProfile(hyprName) {
+        const profile = root.deviceProfiles[hyprName];
+        if (!profile)
+            return 0;
+        const localSources = {};
+        const local = profile.remaps ?? [];
+        for (let i = 0; i < local.length; ++i)
+            localSources[local[i].from] = true;
+        const globals = root.globalRemapsForProfile(hyprName);
+        let count = 0;
+        for (let j = 0; j < globals.length; ++j) {
+            if (localSources[globals[j].from])
+                count++;
+        }
+        return count;
+    }
+
+    function hasMinilaLikeSelectedDevice() {
+        const name = `${root.selectedProfile?.displayName ?? ""} ${root.selectedDeviceId}`.toLowerCase();
+        return name.indexOf("minila") >= 0;
+    }
+
+    function setGlobalPresetEnabled(presetId, enabled) {
+        if (root.applyInProgress)
+            return;
+        let current = root.normalizedGlobalPresetIds(root.globalSettings.enabledPresets);
+        const idx = current.indexOf(presetId);
+        if (enabled && idx < 0) {
+            current = current.filter(id => !root.presetsConflict(id, presetId));
+            current.push(presetId);
+        } else if (!enabled && idx >= 0) {
+            current.splice(idx, 1);
+        } else {
+            return;
+        }
+        root.globalSettings = Object.assign({}, root.globalSettings, { enabledPresets: current });
+        root.hasPendingChanges = true;
+        root.lastError = "";
+        root.saveProfiles(false);
     }
 
     function remapTargetFor(fromKey) {
@@ -223,7 +397,7 @@ Singleton {
         onTriggered: {
             // Launch after the settings dialog has been unmapped, otherwise the
             // layer-shell settings window can race the GTK capture window.
-            Quickshell.execDetached([`${root.scriptsDir}/key-test`, "--remap-source"]);
+            Quickshell.execDetached([`${root.scriptsDir}/key-test-launcher`, "--remap-source"]);
             captureWaitTimer.restart();
         }
     }
@@ -364,6 +538,28 @@ Singleton {
         root.deviceProfiles = next;
         root.hasPendingChanges = true;
         root.saveProfiles(false);
+    }
+
+    function deleteProfile(hyprName) {
+        if (!hyprName)
+            return;
+        const next = Object.assign({}, root.deviceProfiles);
+        delete next[hyprName];
+        root.deviceProfiles = next;
+        if (root.selectedDeviceId === hyprName)
+            root.selectedDeviceId = "";
+        root.hasPendingChanges = true;
+        root.saveProfiles(false);
+    }
+
+    function startEditRemap(fromKey) {
+        const existingTarget = root.remapTargetFor(fromKey);
+        root.capturedFromKey = fromKey;
+        root.capturedFromLabel = fromKey;
+        root.capturedFromCode = "";
+        root.pendingCapture = null;
+        root.lastError = "";
+        return existingTarget;
     }
 
     function applyPreset(presetId) {
@@ -531,6 +727,10 @@ Singleton {
                 try {
                     const data = JSON.parse(text || "{}");
                     root.deviceProfiles = data.devices ?? {};
+                    const loadedGlobal = data.global ?? { enabledPresets: [] };
+                    const normalizedPresets = root.normalizedGlobalPresetIds(loadedGlobal.enabledPresets);
+                    const globalChanged = JSON.stringify(normalizedPresets) !== JSON.stringify(loadedGlobal.enabledPresets ?? []);
+                    root.globalSettings = Object.assign({}, loadedGlobal, { enabledPresets: normalizedPresets });
                     root.profilesLoaded = true;
                     root.hasPendingChanges = false;
                     if (root._pendingDevices.length > 0) {
@@ -538,10 +738,13 @@ Singleton {
                         root._pendingDevices = [];
                         root.mergeDevices(pending);
                     }
+                    if (globalChanged)
+                        root.saveProfiles(false);
                     root.checkPendingChanges();
                 } catch (e) {
                     console.error("[KeyboardRemap] profile load error:", e);
                     root.deviceProfiles = {};
+                    root.globalSettings = { enabledPresets: [] };
                     root.profilesLoaded = true;
                     root.hasPendingChanges = false;
                     root.checkPendingChanges();
@@ -567,7 +770,7 @@ Singleton {
         stdinEnabled: true
         onRunningChanged: {
             if (saveProc.running) {
-                const payload = JSON.stringify({ version: 1, devices: root.deviceProfiles });
+                const payload = JSON.stringify({ version: 1, global: root.globalSettings, devices: root.deviceProfiles });
                 saveProc.write(payload);
                 saveProc.stdinEnabled = false;
             }
@@ -593,6 +796,12 @@ Singleton {
         id: applyProc
         command: ["bash", `${root.shareDir}/omd-keyboard-apply`]
         stdout: SplitParser {
+            onRead: line => {
+                if (line.startsWith("ERROR:"))
+                    root.lastError = line.replace(/^ERROR:\s*/, "");
+            }
+        }
+        stderr: SplitParser {
             onRead: line => {
                 if (line.startsWith("ERROR:"))
                     root.lastError = line.replace(/^ERROR:\s*/, "");

@@ -20,16 +20,55 @@ fi
     echo
 
     jq -r '
-        .devices
+        def preset_remaps($id):
+          if $id == "alt-win-swap" then
+            [
+              {"from":"leftalt","to":"leftmeta"},
+              {"from":"leftmeta","to":"leftalt"},
+              {"from":"rightalt","to":"rightmeta"},
+              {"from":"rightmeta","to":"rightalt"}
+            ]
+          elif $id == "ctrl-caps-swap" then
+            [
+              {"from":"leftcontrol","to":"capslock"},
+              {"from":"capslock","to":"leftcontrol"}
+            ]
+          elif $id == "caps-esc" then
+            [{"from":"capslock","to":"escape"}]
+          else
+            []
+          end;
+
+        def clean_remaps($rows):
+          reduce (($rows // []) | map(select(.from and .to))[]) as $row
+            ({}; .[$row.from] = $row.to)
+          | to_entries
+          | map({"from": .key, "to": .value});
+
+        def keys_used($rows):
+          (($rows // []) | map([.from, .to]) | add // []) | unique;
+
+        def intersects($a; $b):
+          (($a // []) as $left | ($b // []) as $right
+            | any($left[]; . as $item | ($right | index($item)) != null));
+
+        (.global.enabledPresets // []) as $enabledPresets
+        | .devices
         | to_entries[]
         | select(.value.enabled != false)
-        | select((.value.remaps // []) | length > 0)
         | . as $dev
+        | ($dev.value.remaps // []) as $localRemaps
+        | keys_used($localRemaps) as $localKeys
+        | ($enabledPresets
+            | map(preset_remaps(.))
+            | map(select((intersects(keys_used(.); $localKeys) | not)))
+            | add // []) as $globalRemaps
+        | clean_remaps($globalRemaps + $localRemaps) as $remaps
+        | select($remaps | length > 0)
         | ($dev.value.keydId // "") as $id
         | if ($id | length) > 0 then
             "[ids]\nk:" + $id + "\n\n[main]\n"
-            + (($dev.value.remaps // [])
-                | map(select(.from and .to))
+            + ($remaps
                 | map(.from + " = " + .to)
                 | join("\n"))
             + "\n"

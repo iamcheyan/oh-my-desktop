@@ -15,23 +15,30 @@ def normalize_slug(name):
 def is_probable_keyboard(name, main):
     slug = normalize_slug(name)
     
-    # Negative filters
+    # Negative filters — devices that appear in Hyprland keyboard list
+    # but are NOT actual keyboards
     negatives = [
         'audio', 'sound', 'headset', 'headphone', 'microphone', 'speaker',
         'mouse', 'pointer', 'trackpad', 'touchpad', 'consumer-control',
-        'system-control', 'virtual-keyboard', 'fcitx'
+        'system-control', 'virtual-keyboard', 'fcitx',
+        'video-bus', 'intel-hid', 'button-array', 'laptop-support',
+        'power-button', 'sleep-button', 'wacom', 'tablet',
     ]
     if any(neg in slug for neg in negatives):
         return False
         
-    if main:
-        return True
-        
+    # keyd virtual keyboard should never be listed as a remappable device
+    if 'keyd-virtual' in slug:
+        return False
+    
+    # Positive filters — known keyboard names/patterns
     positives = [
         'keyboard', 'keychron', 'k380', 'k860', 'ergodox', 'hhkb',
-        'realforce', 'ansi', 'iso', 'logitech', 'microsoft', 'apple',
-        'dell', 'hp-', 'lenovo'
+        'realforce', 'ansi', 'iso', 'logitech-usb-receiver',
+        'microsoft', 'apple', 'dell', 'hp-', 'lenovo',
+        'minila', 'at-translated-set-2',
     ]
+    # Don't auto-include just because main=True (keyd-virtual can be main)
     return any(pos in slug for pos in positives)
 
 def parse_input_devices():
@@ -128,13 +135,19 @@ def main():
         keyd_id = lookup_keyd_id(slug, parsed_devices)
         display_name = name.replace('-', ' ')
         
+        # Determine "main" keyboard: prefer at-translated-set-2 (laptop internal)
+        # over external USB keyboards, since keyd-virtual often steals the flag.
+        is_main = slug == 'at-translated-set-2-keyboard' or (
+            main_flag and 'keyd-virtual' not in slug
+        )
+        
         results.append({
             'hyprName': slug,
             'rawName': name,
             'displayName': display_name,
             'keydId': keyd_id,
             'layout': kb.get('layout', ''),
-            'main': main_flag
+            'main': is_main
         })
         
     print(json.dumps(results))

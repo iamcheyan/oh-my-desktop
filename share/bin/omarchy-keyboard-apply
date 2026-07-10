@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Generate keyd config from OMD profiles and install via pkexec.
+# Generate keyd config from OMD profiles and install with an available
+# privilege helper.
 set -eu
 
 # Resolve the true OMD_ROOT directory even if executed under sudo
@@ -37,12 +38,7 @@ if ! command -v keyd >/dev/null 2>&1; then
     exit 2
 fi
 
-if ! command -v pkexec >/dev/null 2>&1; then
-    echo "ERROR: pkexec is required to install keyd config under /etc/keyd" >&2
-    exit 3
-fi
-
-pkexec bash -c "
+install_payload="
     set -eu
     mkdir -p /etc/keyd
     install -m 0644 '$GENERATED' '$KEYD_DEST'
@@ -54,5 +50,26 @@ pkexec bash -c "
         keyd &
     fi
 "
+
+apply_as_root() {
+    if command -v pkexec >/dev/null 2>&1 && pkexec bash -c "$install_payload"; then
+        return 0
+    fi
+
+    if command -v run0 >/dev/null 2>&1 && run0 --pipe bash -c "$install_payload"; then
+        return 0
+    fi
+
+    if command -v sudo >/dev/null 2>&1 && sudo -n bash -c "$install_payload"; then
+        return 0
+    fi
+
+    return 1
+}
+
+if ! apply_as_root; then
+    echo "ERROR: failed to install keyd config. pkexec/run0/sudo could not elevate privileges." >&2
+    exit 3
+fi
 
 echo "applied"

@@ -38,6 +38,9 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
 ```json
 {
   "version": 1,
+  "global": {
+    "enabledPresets": ["alt-win-swap", "ctrl-caps-swap"]
+  },
   "devices": {
     "logitech-k380": {
       "displayName": "Logitech K380",
@@ -46,7 +49,7 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
       "enabled": true,
       "remaps": [
         { "from": "capslock", "to": "escape" },
-        { "from": "leftctrl", "to": "leftmeta" }
+        { "from": "leftcontrol", "to": "leftmeta" }
       ]
     }
   }
@@ -56,6 +59,11 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
 - **Profile key** = Hyprland keyboard `name` (stable across reconnect for same device).
 - **displayName** = friendly label (editable; defaults from device name).
 - **keydId** = `vvvv:pppp` vendor:product (without keyd `k:` prefix). OMD adds the `k:` prefix when emitting `[ids]` blocks. Resolved from `/proc/bus/input/devices`.
+- **global.enabledPresets** = fixed all-keyboard toggles from Settings Center.
+  Current presets are `alt-win-swap`, `ctrl-caps-swap`, and `caps-esc`.
+  They apply to every enabled keyboard profile. Per-keyboard `remaps` are
+  merged after global preset remaps, so a local rule with the same `from` key
+  overrides the global rule for that keyboard only.
 - New keyboards auto-get an empty profile on first detection, persisted to `profiles.json`.
 
 ## keyd config generation
@@ -85,19 +93,20 @@ The UI compares `omarchy-keyboard-render` with `/etc/keyd/omd.conf` to decide wh
 
 | Section | Purpose |
 |---------|---------|
-| Header | Active keyboard name + keyd status |
-| Device list | All detected keyboards; select to edit profile |
-| Remap table | From → To rows, delete, enable profile toggle |
-| Presets | Caps→Esc, Ctrl↔Caps, Mac-like (Ctrl→Meta) |
-| Add row | Two dropdowns (from / to) + Add |
-| Actions | Apply, Setup keyd, Refresh devices |
+| Status | keyd status, device count, and whether draft changes are pending |
+| Global remaps | Fixed all-keyboard toggles such as Alt↔Win and Ctrl↔Caps |
+| Keyboards | All detected keyboards; each row shows only the custom binding count |
+| Keyboard detail | Secondary page for one keyboard: status, enable toggle, and custom bindings |
+| Add binding | Detail-only editor: capture source, choose target, save draft |
+| Apply confirmation | Explicit Apply step before system authorization appears |
 
 ### Draft vs applied config
 
 The settings page is intentionally two-stage:
 
 1. Add, Update, Remove, Enable/Disable, and Presets edit the local draft in `profiles.json`.
-2. The top-level **Apply changes** button renders and installs `/etc/keyd/omd.conf`.
+2. The top-level **Apply changes** button opens a confirmation card.
+3. Confirming Apply renders and installs `/etc/keyd/omd.conf`, which is the only step that can trigger system authorization.
 
 This matters because keyd continues to use the old `/etc/keyd/omd.conf` until Apply runs. If a mapping was removed from the UI but still works, compare these files:
 
@@ -107,6 +116,18 @@ cat /etc/keyd/omd.conf
 ```
 
 If they differ, the UI should show `pending changes`; press **Apply changes** to make keyd match the draft.
+
+### Global preset conflicts
+
+Global presets are convenience rules applied to every enabled keyboard. Presets
+that use the same source key are mutually exclusive in the UI. For example,
+`Caps to Esc` and `Ctrl <-> Caps` both write `capslock`, so enabling one removes
+the other from the global preset list.
+
+Local device rules still override global rules with the same source key. Global
+presets that touch keys already used by a keyboard's local rules are skipped for
+that keyboard, which keeps custom layouts such as MINILA from being overwritten
+by broad Alt/Win or modifier presets.
 
 ### Updating an existing source key
 

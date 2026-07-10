@@ -25,6 +25,9 @@ WindowDialog {
     property int wallpaperRefreshNonce: 0
     property var bluetoothConfirmDevice: null
     property bool bluetoothConfirmOpen: false
+    property bool keyremapEditorOpen: false
+    property bool keyremapApplyConfirmOpen: false
+    property bool keyremapDetailOpen: false
 
     readonly property color cosmicBg: "#181818"
     readonly property color cosmicPanel: "#242424"
@@ -2665,11 +2668,9 @@ WindowDialog {
                         from: 6
                         to: 24
                         stepSize: 1
+                        snapMode: Slider.SnapAlways
                         value: appearanceState.terminalFontSize
-                        onValueChanged: {
-                            appearanceState.terminalFontSize = Math.round(value)
-                            applyTerminalFontProc.running = true
-                        }
+                        onMoved: appearanceState.terminalFontSize = Math.round(value)
                     }
 
                     StyledText {
@@ -4258,7 +4259,7 @@ WindowDialog {
                     SettingsButton {
                         label: "Capture Key"
                         iconName: "keyboard"
-                        onClicked: Quickshell.execDetached([`${omdRoot}/scripts/key-test`, "--hotkey"])
+                        onClicked: Quickshell.execDetached([`${omdRoot}/scripts/key-test-launcher`, "--hotkey"])
                     }
                 }
 
@@ -4340,51 +4341,75 @@ WindowDialog {
     Component {
         id: keyremapPage
         PageBody {
+            id: keyremapRoot
+
+            property string targetKey: KeyboardRemap.keyChoices.length > 0 ? KeyboardRemap.keyChoices[0] : ""
+
+            function syncTargetForCapturedKey() {
+                const existingTarget = KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey);
+                if (existingTarget !== "") {
+                    targetKey = existingTarget;
+                } else if (KeyboardRemap.keyChoices.indexOf(targetKey) < 0 && KeyboardRemap.keyChoices.length > 0) {
+                    targetKey = KeyboardRemap.keyChoices[0];
+                }
+            }
+
+            Item {
+                Layout.preferredHeight: 0
+                Layout.fillWidth: true
+                visible: false
+
+                Connections {
+                    target: KeyboardRemap
+                    function onCapturedFromKeyChanged() {
+                        keyremapRoot.syncTargetForCapturedKey();
+                    }
+                    function onSelectedDeviceIdChanged() {
+                        root.keyremapEditorOpen = false;
+                        keyremapRoot.syncTargetForCapturedKey();
+                    }
+                    function onDeviceProfilesChanged() {
+                        keyremapRoot.syncTargetForCapturedKey();
+                    }
+                }
+            }
+
             SettingsCard {
                 title: "Keyboard Remap"
-                subtitle: KeyboardRemap.keydReady ? "keyd running" : "keyd not ready — setup required"
+                subtitle: KeyboardRemap.hasPendingChanges ? "Draft changes are waiting to be applied" : "Current keyd config matches this page"
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    SettingsStatusPill { label: KeyboardRemap.state; active: KeyboardRemap.state === "ready" }
-                    SettingsStatusPill { label: KeyboardRemap.keydReady ? "keyd up" : "keyd down"; active: KeyboardRemap.keydReady; warning: !KeyboardRemap.keydReady }
+                    SettingsStatusPill { label: KeyboardRemap.keydReady ? "keyd running" : "keyd not ready"; active: KeyboardRemap.keydReady; warning: !KeyboardRemap.keydReady }
+                    SettingsStatusPill { label: `${KeyboardRemap.devices.length} keyboard${KeyboardRemap.devices.length === 1 ? "" : "s"}`; active: KeyboardRemap.devices.length > 0 }
                     SettingsStatusPill {
-                        label: `${KeyboardRemap.devices.length} device${KeyboardRemap.devices.length === 1 ? "" : "s"}`
-                        active: KeyboardRemap.devices.length > 0
-                    }
-                    SettingsStatusPill {
-                        label: KeyboardRemap.hasPendingChanges ? "pending changes" : "applied"
-                        active: KeyboardRemap.hasPendingChanges
+                        label: KeyboardRemap.hasPendingChanges ? "pending" : "applied"
+                        active: !KeyboardRemap.hasPendingChanges
                         warning: KeyboardRemap.hasPendingChanges
                     }
                 }
 
-                SettingsRow {
-                    label: "Active keyboard"
-                    value: KeyboardRemap.selectedProfile?.displayName ?? KeyboardRemap.selectedDeviceId ?? "--"
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "Edit freely here. System authorization only appears when you press Apply changes."
+                    color: root.cosmicMuted
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    wrapMode: Text.WordWrap
                 }
-                SettingsRow {
-                    label: "Device ID"
-                    value: KeyboardRemap.selectedDevice?.keydId || "--"
-                }
-                SettingsRow {
-                    visible: KeyboardRemap.selectedKeydIdMissing
-                    label: "Warning"
-                    description: "This keyboard has no keyd vendor:product ID. Remaps cannot be applied until it is resolved (try reconnecting or check /proc/bus/input/devices)."
-                    value: "no keydId"
-                    valueColor: "#f0a070"
-                }
+
                 SettingsRow {
                     visible: KeyboardRemap.lastError.length > 0
-                    label: "Last error"
+                    iconName: "warning"
+                    label: "Apply error"
                     description: KeyboardRemap.lastError
+                    valueColor: "#f07070"
                 }
 
                 ButtonRow {
                     SettingsButton {
                         label: KeyboardRemap.state === "setup" ? "Setup keyd" : "Recheck"
-                        iconName: "download"
+                        iconName: KeyboardRemap.state === "setup" ? "download" : "refresh"
                         onClicked: {
                             if (KeyboardRemap.state === "setup")
                                 KeyboardRemap.setup();
@@ -4393,10 +4418,11 @@ WindowDialog {
                         }
                     }
                     SettingsButton {
-                        label: KeyboardRemap.applyInProgress ? "Applying…" : (KeyboardRemap.hasPendingChanges ? "Apply changes" : "Apply")
+                        label: KeyboardRemap.applyInProgress ? "Applying..." : "Apply changes"
                         iconName: "check"
-                        enabledState: !KeyboardRemap.applyInProgress
-                        onClicked: KeyboardRemap.apply()
+                        active: KeyboardRemap.hasPendingChanges
+                        enabledState: KeyboardRemap.hasPendingChanges && !KeyboardRemap.applyInProgress
+                        onClicked: root.keyremapApplyConfirmOpen = true
                     }
                     SettingsButton {
                         label: "Refresh"
@@ -4411,38 +4437,154 @@ WindowDialog {
             }
 
             SettingsCard {
-                title: "Keyboards"
-                subtitle: KeyboardRemap.devices.length > 0 ? "Select a keyboard to edit its profile" : "No keyboards detected"
-                visible: KeyboardRemap.devices.length > 0
+                visible: root.keyremapApplyConfirmOpen && KeyboardRemap.hasPendingChanges
+                title: "Apply keyboard remaps?"
+                subtitle: "This writes /etc/keyd/omd.conf and restarts keyd"
 
-                Repeater {
-                    model: KeyboardRemap.devices
-                    delegate: SettingsRow {
-                        required property var modelData
-                        iconName: "keyboard"
-                        label: `${modelData.displayName}${modelData.main ? " • main" : ""}`
-                        value: {
-                            const count = KeyboardRemap.remapCount(modelData.hyprName);
-                            if (KeyboardRemap.selectedDeviceId === modelData.hyprName)
-                                return count > 0 ? `Selected • ${count} remap${count === 1 ? "" : "s"}` : "Selected";
-                            return count > 0 ? `${count} remap${count === 1 ? "" : "s"}` : (modelData.keydId || "");
+                SettingsRow {
+                    iconName: "security"
+                    label: "Authorization required"
+                    description: `${KeyboardRemap.activeGlobalPresetCount()} global option${KeyboardRemap.activeGlobalPresetCount() === 1 ? "" : "s"}, ${KeyboardRemap.devices.length} keyboard profile${KeyboardRemap.devices.length === 1 ? "" : "s"}`
+                    value: "keyd"
+                    valueColor: root.cosmicAccent
+                }
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Apply"
+                        iconName: "check"
+                        active: true
+                        enabledState: !KeyboardRemap.applyInProgress
+                        onClicked: {
+                            root.keyremapApplyConfirmOpen = false;
+                            KeyboardRemap.apply();
                         }
-                        valueColor: KeyboardRemap.selectedDeviceId === modelData.hyprName ? root.cosmicAccent : root.cosmicMuted
-                        onClicked: KeyboardRemap.selectDevice(modelData.hyprName)
+                    }
+                    SettingsButton {
+                        label: "Cancel"
+                        iconName: "close"
+                        enabledState: !KeyboardRemap.applyInProgress
+                        onClicked: root.keyremapApplyConfirmOpen = false
                     }
                 }
             }
 
             SettingsCard {
-                title: "Profile"
-                subtitle: KeyboardRemap.selectedDeviceId !== "" ? "Per-keyboard remap rules" : "Select a keyboard first"
-                visible: KeyboardRemap.selectedDeviceId !== ""
+                visible: !root.keyremapDetailOpen
+                title: "Global remaps"
+                subtitle: KeyboardRemap.activeGlobalPresetCount() > 0
+                    ? `${KeyboardRemap.activeGlobalPresetCount()} enabled for every active keyboard`
+                    : "Optional fixed mappings; off by default"
+
+                Repeater {
+                    model: KeyboardRemap.globalPresetChoices
+                    delegate: SettingsToggleRow {
+                        required property var modelData
+                        iconName: "tune"
+                        label: modelData.label
+                        description: modelData.description
+                        checked: KeyboardRemap.globalPresetEnabled(modelData.id)
+                        onToggled: KeyboardRemap.setGlobalPresetEnabled(modelData.id, !KeyboardRemap.globalPresetEnabled(modelData.id))
+                    }
+                }
+            }
+
+            SettingsCard {
+                visible: !root.keyremapDetailOpen
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                title: "Keyboards"
+                subtitle: KeyboardRemap.devices.length > 0 ? "Select a keyboard to edit its custom bindings" : "No keyboards detected"
+
+                Repeater {
+                    model: KeyboardRemap.devices
+                    delegate: SettingsRow {
+                        required property var modelData
+                        readonly property int customCount: KeyboardRemap.remapCount(modelData.hyprName)
+                        iconName: "keyboard"
+                        label: `${modelData.displayName}${modelData.main ? " · current" : ""}`
+                        description: modelData.keydId || "missing keyd id"
+                        value: `${customCount} custom`
+                        valueColor: customCount > 0 ? root.cosmicAccent : root.cosmicMuted
+                        showChevron: true
+                        onClicked: {
+                            KeyboardRemap.selectDevice(modelData.hyprName);
+                            root.keyremapDetailOpen = true;
+                        }
+                    }
+                }
+
+                SettingsRow {
+                    visible: KeyboardRemap.devices.length === 0
+                    iconName: "info"
+                    label: "No keyboards found"
+                    description: "Refresh after connecting a keyboard."
+                }
+            }
+
+            SettingsCard {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                title: KeyboardRemap.selectedDeviceId !== "" ? (KeyboardRemap.selectedProfile?.displayName ?? KeyboardRemap.selectedDeviceId) : "Keyboard"
+                subtitle: KeyboardRemap.selectedDeviceId !== "" ? `${KeyboardRemap.selectedRemaps.length} custom binding${KeyboardRemap.selectedRemaps.length === 1 ? "" : "s"}` : ""
+                visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== ""
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Back to keyboards"
+                        iconName: "chevron_left"
+                        onClicked: {
+                            root.keyremapDetailOpen = false;
+                            root.keyremapEditorOpen = false;
+                            KeyboardRemap.clearCapturedKey();
+                        }
+                    }
+                    SettingsButton {
+                        label: root.keyremapEditorOpen ? "Close editor" : "Add binding"
+                        iconName: root.keyremapEditorOpen ? "close" : "add"
+                        active: root.keyremapEditorOpen
+                        onClicked: {
+                            if (root.keyremapEditorOpen) {
+                                KeyboardRemap.clearCapturedKey();
+                            }
+                            root.keyremapEditorOpen = !root.keyremapEditorOpen
+                        }
+                    }
+                    SettingsButton {
+                        label: "Delete profile"
+                        iconName: "delete"
+                        onClicked: {
+                            const devId = KeyboardRemap.selectedDeviceId;
+                            KeyboardRemap.deleteProfile(devId);
+                            root.keyremapDetailOpen = false;
+                            root.keyremapEditorOpen = false;
+                        }
+                    }
+                }
+
+                SettingsRow {
+                    iconName: "badge"
+                    label: KeyboardRemap.selectedDevice?.keydId || "Missing keyd id"
+                    description: KeyboardRemap.selectedKeydIdMissing ? "Remaps cannot apply until this ID is resolved." : "keyd vendor:product id"
+                    value: KeyboardRemap.selectedEnabled ? "Enabled" : "Disabled"
+                    valueColor: KeyboardRemap.selectedEnabled ? root.cosmicAccent : root.cosmicMuted
+                }
 
                 SettingsToggleRow {
-                    label: "Enabled"
-                    description: "Disable to keep profile but skip applying remaps"
+                    iconName: "power_settings_new"
+                    label: "Enable this keyboard"
+                    description: "When off, neither global nor local rules are emitted for this keyboard."
                     checked: KeyboardRemap.selectedEnabled
                     onToggled: KeyboardRemap.setProfileEnabled(!KeyboardRemap.selectedEnabled)
+                }
+
+                SettingsRow {
+                    visible: KeyboardRemap.hasMinilaLikeSelectedDevice() && KeyboardRemap.activeGlobalPresetCount() > 0
+                    iconName: "warning"
+                    label: "MINILA note"
+                    description: "Global remaps also apply unless they touch keys used by this keyboard's custom bindings."
+                    value: "review"
+                    valueColor: "#f0a070"
                 }
 
                 Repeater {
@@ -4450,117 +4592,75 @@ WindowDialog {
                     delegate: SettingsRow {
                         required property var modelData
                         iconName: "keyboard"
-                        label: `${modelData.from} → ${modelData.to}`
-                        value: "Remove"
-                        valueColor: "#f07070"
-                        onClicked: KeyboardRemap.removeRemap(modelData.from)
+                        label: `${modelData.from} -> ${modelData.to}`
+                        description: KeyboardRemap.selectedEnabled ? "Custom binding — click to edit" : "Disabled — enable keyboard to apply"
+                        value: "Edit"
+                        valueColor: KeyboardRemap.selectedEnabled ? root.cosmicAccent : root.cosmicMuted
+                        showChevron: true
+                        opacity: KeyboardRemap.selectedEnabled ? 1 : 0.5
+                        onClicked: {
+                            const existingTarget = KeyboardRemap.startEditRemap(modelData.from);
+                            if (existingTarget !== "") {
+                                keyremapRoot.targetKey = existingTarget;
+                            }
+                            root.keyremapEditorOpen = true;
+                        }
                     }
                 }
 
                 SettingsRow {
                     visible: KeyboardRemap.selectedRemaps.length === 0
                     iconName: "info"
-                    label: "No remaps yet"
-                    description: "Capture a source key below, pick a target, then add. Press Apply changes when you are done."
+                    label: "No custom bindings"
+                    description: "Use Add binding or a preset below."
                 }
             }
 
             SettingsCard {
-                id: addRemapCard
-                title: "Add Remap"
-                subtitle: KeyboardRemap.capturedFromKey !== ""
-                    ? (KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
-                        ? `Source already mapped — choose a new target to update the draft`
-                        : `Source captured — pick a target and add to the draft`)
-                    : "Press a key to capture, then choose a target"
-                visible: KeyboardRemap.selectedDeviceId !== ""
-                property string targetKey: KeyboardRemap.keyChoices.length > 0 ? KeyboardRemap.keyChoices[0] : ""
+                visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== "" && root.keyremapEditorOpen
+                title: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Edit binding" : "Add binding"
+                subtitle: "Capture the physical source key, choose what it should send, then save to draft"
 
-                function syncTargetForCapturedKey() {
-                    const existingTarget = KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey);
-                    if (existingTarget !== "") {
-                        targetKey = existingTarget;
-                    } else if (KeyboardRemap.keyChoices.indexOf(targetKey) < 0 && KeyboardRemap.keyChoices.length > 0) {
-                        targetKey = KeyboardRemap.keyChoices[0];
-                    }
-                }
-
-                Item {
-                    Layout.preferredHeight: 0
-                    Layout.fillWidth: true
-                    visible: false
-
-                    Connections {
-                        target: KeyboardRemap
-                        function onCapturedFromKeyChanged() {
-                            addRemapCard.syncTargetForCapturedKey();
-                        }
-                        function onSelectedDeviceIdChanged() {
-                            addRemapCard.syncTargetForCapturedKey();
-                        }
-                        function onDeviceProfilesChanged() {
-                            addRemapCard.syncTargetForCapturedKey();
-                        }
-                    }
-                }
-
-                // Step 1: Capture button
                 ButtonRow {
                     SettingsButton {
-                        label: KeyboardRemap.captureWindowOpen
-                            ? "Waiting… (settings hidden while capture window is open)"
-                            : "Press a key to capture"
+                        label: KeyboardRemap.captureWindowOpen ? "Waiting for key" : "Capture source"
                         iconName: "keyboard"
                         active: KeyboardRemap.captureWindowOpen
                         enabledState: !KeyboardRemap.captureWindowOpen
                         onClicked: KeyboardRemap.startCapture()
                     }
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    visible: !KeyboardRemap.captureWindowOpen
-                    text: "Click the button above to open a capture window. Settings will hide while you press a key, then return with the captured key auto-filled."
-                    color: root.cosmicMuted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    wrapMode: Text.WordWrap
-                }
-
-                // Error / pending (unsupported key) notice
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: pendingNoticeCol.implicitHeight + 16
-                    radius: root.cosmicRadius
-                    color: "#3a1f1f"
-                    border.width: 1
-                    border.color: "#f07070"
-                    visible: KeyboardRemap.lastError.length > 0
-                    ColumnLayout {
-                        id: pendingNoticeCol
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        spacing: 4
-                        StyledText {
-                            text: KeyboardRemap.lastError
-                            color: "#f0a070"
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
+                    SettingsButton {
+                        label: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Update" : "Save draft"
+                        iconName: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "edit" : "add"
+                        enabledState: KeyboardRemap.capturedFromKey !== ""
+                        onClicked: {
+                            KeyboardRemap.saveRemap(keyremapRoot.targetKey);
+                            root.keyremapEditorOpen = false;
                         }
-                        SettingsButton {
-                            label: "Dismiss"
-                            iconName: "close"
-                            onClicked: KeyboardRemap.clearCapturedKey()
+                    }
+                    SettingsButton {
+                        label: "Remove"
+                        iconName: "delete"
+                        enabledState: KeyboardRemap.capturedFromKey !== "" && KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
+                        onClicked: {
+                            if (KeyboardRemap.capturedFromKey !== "")
+                                KeyboardRemap.removeRemap(KeyboardRemap.capturedFromKey);
+                            KeyboardRemap.clearCapturedKey();
+                            root.keyremapEditorOpen = false;
                         }
+                    }
+                    SettingsButton {
+                        label: "Clear"
+                        iconName: "refresh"
+                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.captureWindowOpen
+                        onClicked: KeyboardRemap.clearCapturedKey()
                     }
                 }
 
-                // Source → Target row
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
 
-                    // Source key (auto-filled from capture)
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 44
@@ -4590,13 +4690,12 @@ WindowDialog {
                     }
 
                     StyledText {
-                        text: "→"
+                        text: "->"
                         color: root.cosmicDim
                         font.pixelSize: Appearance.font.pixelSize.large
                         font.weight: Font.Bold
                     }
 
-                    // Target key dropdown
                     Rectangle {
                         id: keyremapTargetBox
                         Layout.fillWidth: true
@@ -4619,7 +4718,7 @@ WindowDialog {
                                 spacing: 6
                                 StyledText {
                                     Layout.fillWidth: true
-                                    text: addRemapCard.targetKey
+                                    text: keyremapRoot.targetKey
                                     color: KeyboardRemap.capturedFromKey !== "" ? root.cosmicFg : root.cosmicMuted
                                     font.family: Appearance.font.family.monospace
                                     font.pixelSize: Appearance.font.pixelSize.small
@@ -4660,7 +4759,7 @@ WindowDialog {
                                 id: targetList
                                 clip: true
                                 model: KeyboardRemap.keyChoices
-                                currentIndex: KeyboardRemap.keyChoices.indexOf(addRemapCard.targetKey)
+                                currentIndex: KeyboardRemap.keyChoices.indexOf(keyremapRoot.targetKey)
                                 delegate: Rectangle {
                                     required property string modelData
                                     required property int index
@@ -4669,7 +4768,7 @@ WindowDialog {
                                     radius: root.cosmicRadius
                                     color: targetChoiceMouse.containsMouse
                                         ? root.cosmicCardHover
-                                        : (modelData === addRemapCard.targetKey ? root.cosmicAccentSoft : "transparent")
+                                        : (modelData === keyremapRoot.targetKey ? root.cosmicAccentSoft : "transparent")
 
                                     StyledText {
                                         anchors.fill: parent
@@ -4689,7 +4788,7 @@ WindowDialog {
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            addRemapCard.targetKey = modelData;
+                                            keyremapRoot.targetKey = modelData;
                                             targetPopup.close();
                                         }
                                     }
@@ -4699,7 +4798,6 @@ WindowDialog {
                     }
                 }
 
-                // Captured-as detail (collapsible info)
                 SettingsRow {
                     visible: KeyboardRemap.capturedFromLabel.length > 0
                     label: "Captured as"
@@ -4711,34 +4809,29 @@ WindowDialog {
                 }
 
                 SettingsRow {
+                    visible: KeyboardRemap.lastError.length > 0
+                    iconName: "warning"
+                    label: "Capture error"
+                    description: KeyboardRemap.lastError
+                    value: "Clear"
+                    valueColor: "#f07070"
+                    showChevron: true
+                    onClicked: KeyboardRemap.clearCapturedKey()
+                }
+
+                SettingsRow {
                     visible: KeyboardRemap.capturedFromKey !== "" && KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== ""
                     label: "Existing mapping"
                     value: `${KeyboardRemap.capturedFromKey} -> ${KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey)}`
                     description: "Saving will update this existing source key instead of adding a duplicate"
                     valueColor: root.cosmicAccent
                 }
-
-                // Apply / Clear buttons
-                ButtonRow {
-                    SettingsButton {
-                        label: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "Update" : "Add"
-                        iconName: KeyboardRemap.remapTargetFor(KeyboardRemap.capturedFromKey) !== "" ? "edit" : "add"
-                        enabledState: KeyboardRemap.capturedFromKey !== ""
-                        onClicked: KeyboardRemap.saveRemap(addRemapCard.targetKey)
-                    }
-                    SettingsButton {
-                        label: "Clear"
-                        iconName: "refresh"
-                        enabledState: KeyboardRemap.capturedFromKey !== "" || KeyboardRemap.captureWindowOpen
-                        onClicked: KeyboardRemap.clearCapturedKey()
-                    }
-                }
             }
 
             SettingsCard {
                 title: "Presets"
-                subtitle: "Replace the draft remaps with a preset layout"
-                visible: KeyboardRemap.selectedDeviceId !== ""
+                subtitle: "Replace local rules for the selected keyboard only"
+                visible: root.keyremapDetailOpen && KeyboardRemap.selectedDeviceId !== ""
 
                 ButtonRow {
                     Repeater {
@@ -4751,12 +4844,6 @@ WindowDialog {
                         }
                     }
                 }
-            }
-
-            SettingsCard {
-                title: "Storage"
-                SettingsRow { label: "Profiles"; value: KeyboardRemap.profilesPath }
-                SettingsRow { label: "Backend"; value: "/etc/keyd/omd.conf (via Apply)" }
             }
         }
     }
