@@ -13,7 +13,6 @@ import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.schedulePopup
-import qs.modules.controlCenter
 import qs.modules.regionSelector
 import qs.modules.sessionScreen
 import qs.modules.lock
@@ -62,7 +61,6 @@ ShellRoot {
             BarDialogOverlay {}
             SessionConfirmOverlay {}
             SessionAutoRestore {}
-            ControlCenter {}
             NotificationPopup {}
             OnScreenDisplay {}
             Polkit {}

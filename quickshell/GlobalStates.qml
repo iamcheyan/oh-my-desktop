@@ -12,7 +12,6 @@ Singleton {
     id: root
     property bool appLauncherOpen: false
     property bool barOpen: true
-    property bool controlCenterOpen: false
     property bool clipboardOpen: false
     property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false
@@ -100,14 +99,6 @@ Singleton {
             return;
         GlobalStates.overviewSuppressedEmptyWorkspaceIds =
             (GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? []).filter(id => id !== wsId);
-    }
-
-    onControlCenterOpenChanged: {
-        if (GlobalStates.controlCenterOpen) {
-            GlobalStates.barPopupType = "";
-            Notifications.timeoutAll();
-            Notifications.markAllRead();
-        }
     }
 
     onBarDialogOpenChanged: {

@@ -47,7 +47,7 @@ Item {
         colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
         colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
         colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
-        toggled: GlobalStates.controlCenterOpen
+        toggled: GlobalStates.barPopupType === "battery"
 
         onPressed: {
             GlobalStates.barPopupType = GlobalStates.barPopupType === "battery" ? "" : "battery";

@@ -13,7 +13,7 @@ QuickToggleModel {
     icon: "colorize"
 
     mainAction: () => {
-        GlobalStates.controlCenterOpen = false;
+        GlobalStates.barPopupType = "";
         delayedActionTimer.start();
     }
     Timer {

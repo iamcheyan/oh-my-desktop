@@ -13,7 +13,7 @@ QuickToggleModel {
     icon: "screenshot_region"
 
     mainAction: () => {
-        GlobalStates.controlCenterOpen = false;
+        GlobalStates.barPopupType = "";
         delayedActionTimer.start();
     }
     Timer {

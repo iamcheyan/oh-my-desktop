@@ -143,8 +143,7 @@ Item {
                 Layout.preferredHeight: 42
                 radius: 21
                 color: TuiStyle.surfaceHover
-                border.width: 1
-                border.color: TuiStyle.line
+                border.width: 0
 
                 MaterialSymbol {
                     anchors.centerIn: parent
@@ -207,13 +206,13 @@ Item {
             copyReset.restart();
         }
 
+        // Menu-row chrome (same as BarContextMenuItem): no outline, hover fill only
         implicitHeight: rowContent.implicitHeight + 18
-        radius: TuiStyle.radius
+        radius: 5
         color: rowTap.pressed ? TuiStyle.surfacePressed
             : rowHover.hovered || expanded ? TuiStyle.surfaceHover
             : "transparent"
-        border.width: rowHover.hovered || expanded || critical ? 1 : 0
-        border.color: critical ? TuiStyle.danger : TuiStyle.line
+        border.width: 0
 
         Behavior on color {
             ColorAnimation { duration: 120 }
@@ -239,8 +238,10 @@ Item {
             anchors.left: parent.left
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            width: critical ? 3 : 0
-            radius: TuiStyle.radius
+            anchors.topMargin: 6
+            anchors.bottomMargin: 6
+            width: critical ? TuiStyle.borderWidth : 0
+            radius: 1
             color: TuiStyle.danger
         }
 
@@ -387,7 +388,7 @@ Item {
                 textFormat: row.expanded ? Text.RichText : Text.StyledText
                 onLinkActivated: link => {
                     Qt.openUrlExternally(link);
-                    GlobalStates.controlCenterOpen = false;
+                    GlobalStates.barPopupType = "";
                 }
                 PointingHandLinkHover {}
             }
@@ -425,7 +426,7 @@ Item {
         height: implicitHeight
         Layout.preferredWidth: implicitWidth
         Layout.preferredHeight: implicitHeight
-        radius: 8
+        radius: 5
         color: buttonMouse.pressed ? TuiStyle.surfacePressed
             : buttonMouse.containsMouse ? TuiStyle.surfaceHover
             : "transparent"
@@ -470,12 +471,12 @@ Item {
         height: implicitHeight
         Layout.preferredWidth: implicitWidth
         Layout.preferredHeight: implicitHeight
-        radius: 14
+        radius: 5
         color: buttonMouse.pressed ? TuiStyle.surfacePressed
             : buttonMouse.containsMouse ? TuiStyle.surfaceHover
-            : (active ? Qt.rgba(accent.r, accent.g, accent.b, 0.14) : TuiStyle.surfaceSubtle)
-        border.width: 1
-        border.color: active ? accent : TuiStyle.line
+            : (active ? Qt.rgba(accent.r, accent.g, accent.b, 0.14) : "transparent")
+        border.width: active ? TuiStyle.borderWidth : 0
+        border.color: active ? TuiStyle.shellBorder : "transparent"
         opacity: enabled ? 1 : 0.4
 
         StyledText {

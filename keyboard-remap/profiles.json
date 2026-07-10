@@ -21,7 +21,10 @@
       "hyprName": "at-translated-set-2-keyboard",
       "keydId": "0001:0001",
       "enabled": true,
-      "enabledPresets": [],
+      "enabledPresets": [
+        "alt-win-swap",
+        "ctrl-caps-swap"
+      ],
       "presetOverrides": {}
     }
   }

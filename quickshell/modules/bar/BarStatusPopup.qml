@@ -140,8 +140,9 @@ Scope {
         Item {
             id: panel
             anchors.right: parent.right
-            readonly property bool frameless: root.activeType === "battery"
-            readonly property real shadowMargin: frameless ? 0 : Appearance.sizes.elevationMargin
+            // Battery uses stacked ShellCards (power + notifications); other types use one outer shell.
+            readonly property bool multiShell: root.activeType === "battery"
+            readonly property real shadowMargin: multiShell ? 0 : Appearance.sizes.elevationMargin
             implicitWidth: panelBg.implicitWidth + shadowMargin * 2
             implicitHeight: panelBg.implicitHeight + shadowMargin * 2
             width: implicitWidth
@@ -149,7 +150,7 @@ Scope {
 
             StyledRectangularShadow {
                 target: panelBg
-                visible: !panel.frameless
+                visible: !panel.multiShell
             }
 
             TuiShell {
@@ -158,11 +159,11 @@ Scope {
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
-                contentPadding: panel.frameless ? 0 : 14
-                color: panel.frameless ? "transparent" : TuiStyle.bg
-                border.width: panel.frameless ? 0 : TuiStyle.borderWidth
-                radius: panel.frameless ? 0 : TuiStyle.radius
-                clip: !panel.frameless
+                contentPadding: panel.multiShell ? 0 : 14
+                color: panel.multiShell ? "transparent" : TuiStyle.bg
+                border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
+                radius: panel.multiShell ? 0 : TuiStyle.shellRadius
+                clip: !panel.multiShell
 
                 Loader {
                     id: contentLoader
@@ -214,7 +215,7 @@ Scope {
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 font.weight: Font.Medium
-                color: TuiStyle.fg
+                color: header.status.length > 0 ? header.tone : TuiStyle.fg
             }
         }
 
@@ -222,9 +223,9 @@ Scope {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: TuiStyle.borderWidth
+            height: 1
             color: TuiStyle.line
-            opacity: 0.28
+            opacity: TuiStyle.dividerOpacity
         }
     }
 
@@ -233,25 +234,69 @@ Scope {
         width: parent?.width ?? implicitWidth
     }
 
-    component PopupCard: Rectangle {
+    // Stacked card chrome — same tokens as BarContextMenu (bg / shellBorder / shellRadius).
+    component ShellCard: Item {
         id: card
-        default property alias content: cardContent.data
-        property int padding: 12
+        default property alias content: cardColumn.data
+        property int padding: 14
+        property int gap: Appearance.sizes.elevationMargin
+        property int gapTop: gap
+        property int gapBottom: gap
 
         Layout.fillWidth: true
-        implicitHeight: cardContent.implicitHeight + padding * 2
-        color: TuiStyle.surfaceSubtle
-        radius: TuiStyle.radius
-        border.width: 1
-        border.color: TuiStyle.line
-        clip: true
+        implicitWidth: parent?.width ?? 0
+        implicitHeight: visible ? (cardBg.implicitHeight + gapTop + gapBottom) : 0
+        height: implicitHeight
+        visible: true
 
-        ColumnLayout {
-            id: cardContent
-            anchors.fill: parent
-            anchors.margins: card.padding
-            spacing: 10
+        StyledRectangularShadow {
+            target: cardBg
+            visible: card.visible
         }
+
+        Rectangle {
+            id: cardBg
+            anchors {
+                left: parent.left
+                right: parent.right
+                top: parent.top
+                leftMargin: card.gap
+                rightMargin: card.gap
+                topMargin: card.gapTop
+                bottomMargin: card.gapBottom
+            }
+            color: TuiStyle.bg
+            radius: TuiStyle.shellRadius
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.shellBorder
+            clip: true
+            implicitHeight: cardColumn.implicitHeight + card.padding * 2
+            height: implicitHeight
+
+            ColumnLayout {
+                id: cardColumn
+                anchors {
+                    left: parent.left
+                    right: parent.right
+                    top: parent.top
+                    margins: card.padding
+                }
+                spacing: 10
+            }
+        }
+    }
+
+    component SectionLabel: StyledText {
+        property int topInset: 6
+        property int bottomInset: 2
+
+        Layout.fillWidth: true
+        Layout.topMargin: topInset
+        Layout.bottomMargin: bottomInset
+        font.family: Appearance.font.family.monospace
+        font.pixelSize: Appearance.font.pixelSize.smaller
+        font.weight: Font.Bold
+        color: TuiStyle.dim
     }
 
     component ActionRow: RowLayout {
@@ -360,77 +405,102 @@ Scope {
 
     Component {
         id: batteryContent
-        Item {
-            id: batteryWrapper
-            implicitWidth: batteryStack.implicitWidth
-            implicitHeight: batteryStack.implicitHeight
-            width: implicitWidth
-            height: implicitHeight
+        // Two independent shell cards (power + notifications), each matching BarContextMenu chrome.
+        // Notifications card is hidden when the history list is empty.
+        ColumnLayout {
+            id: batteryStack
+            width: parent?.width ?? implicitWidth
+            spacing: 0
 
-            PopupColumn {
-                id: batteryStack
-                anchors.left: parent.left
-                anchors.top: parent.top
+            readonly property bool hasNotifications: Notifications.list.length > 0
+            property bool hibernateAvailable: false
 
-                PopupCard {
-                    PopupColumn {
-                        id: batteryPanel
+            function stateLabel() {
+                if (!Battery.available) return "desktop";
+                if (Battery.isCharging) return "charging";
+                if (Battery.isPluggedIn) return "plugged";
+                return "battery";
+            }
 
-                        function stateLabel() {
-                            if (!Battery.available) return "desktop";
-                            if (Battery.isCharging) return "charging";
-                            if (Battery.isPluggedIn) return "plugged";
-                            return "battery";
-                        }
+            function headerTitle() {
+                return Battery.available ? "BATTERY" : "POWER";
+            }
 
-                        function headerTitle() {
-                            return Battery.available ? "BATTERY" : "POWER";
-                        }
+            function headerTone() {
+                if (!Battery.available) return TuiStyle.accent;
+                if (Battery.isLowAndNotCharging) return TuiStyle.danger;
+                if (Battery.isCharging) return TuiStyle.warning;
+                return TuiStyle.success;
+            }
 
-                        function headerTone() {
-                            if (!Battery.available) return TuiStyle.accent;
-                            if (Battery.isLowAndNotCharging) return TuiStyle.danger;
-                            if (Battery.isCharging) return TuiStyle.warning;
-                            return TuiStyle.success;
-                        }
-                        property bool hibernateAvailable: false
+            function formatDuration(seconds) {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                if (h > 0)
+                    return `${h}h ${m}m`;
+                return `${m}m`;
+            }
 
-                        Component.onCompleted: {
-                            hibernateCheck.running = true
-                        }
+            function showTimeEstimate() {
+                const timeValue = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
+                const power = Battery.energyRate;
+                return Battery.available
+                    && !(Battery.chargeState === 4 || timeValue <= 0 || power <= 0.01);
+            }
 
-                        Process {
-                            id: hibernateCheck
-                            command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
-                            stdout: StdioCollector {
-                                onStreamFinished: {
-                                    batteryPanel.hibernateAvailable = text.trim() === "YES"
-                                }
-                            }
-                        }
+            function timeEstimateLabel() {
+                return Battery.isCharging ? "TIME TO FULL" : "TIME LEFT";
+            }
 
-                        function executeAction(action) {
-                            if (action === "lock") { root.close(); Session.lock(); return; }
-                            if (action === "sleep") { Session.suspend(); root.close(); return; }
-                            if (action === "hibernate") { Session.hibernate(); root.close(); return; }
-                            if (action === "logout") { Session.logout(); root.close(); return; }
-                            if (action === "reboot") { Session.reboot(); root.close(); return; }
-                            if (action === "poweroff") { Session.poweroff(); root.close(); return; }
-                        }
+            function timeEstimateValue() {
+                const seconds = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
+                return formatDuration(seconds);
+            }
 
-                        function requestAction(action, label) {
-                            if (action === "lock" || action === "sleep" || action === "hibernate") {
-                                executeAction(action)
-                                return
-                            }
-                            GlobalStates.requestSessionConfirm(action, label)
-                            root.close()
-                        }
+            function timeEstimateColor() {
+                if (Battery.isLowAndNotCharging) return TuiStyle.danger;
+                if (Battery.isCharging) return TuiStyle.warning;
+                return TuiStyle.muted;
+            }
+
+            function executeAction(action) {
+                if (action === "lock") { root.close(); Session.lock(); return; }
+                if (action === "sleep") { Session.suspend(); root.close(); return; }
+                if (action === "hibernate") { Session.hibernate(); root.close(); return; }
+                if (action === "logout") { Session.logout(); root.close(); return; }
+                if (action === "reboot") { Session.reboot(); root.close(); return; }
+                if (action === "poweroff") { Session.poweroff(); root.close(); return; }
+            }
+
+            function requestAction(action, label) {
+                if (action === "lock" || action === "sleep" || action === "hibernate") {
+                    executeAction(action)
+                    return
+                }
+                GlobalStates.requestSessionConfirm(action, label)
+                root.close()
+            }
+
+            Component.onCompleted: hibernateCheck.running = true
+
+            Process {
+                id: hibernateCheck
+                command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        batteryStack.hibernateAvailable = text.trim() === "YES"
+                    }
+                }
+            }
+
+            ShellCard {
+                id: powerCard
+                gapBottom: batteryStack.hasNotifications ? 0 : gap
 
                 Header {
-                    title: batteryPanel.headerTitle()
-                    status: batteryPanel.stateLabel().toUpperCase()
-                    tone: batteryPanel.headerTone()
+                    title: batteryStack.headerTitle()
+                    status: batteryStack.stateLabel().toUpperCase()
+                    tone: batteryStack.headerTone()
                 }
 
                 RowLayout {
@@ -457,317 +527,225 @@ Scope {
                     }
                 }
 
-                // Power profile controls (Power Mode Selection)
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 20
-                    color: "transparent"
+                TuiDetailRow {
+                    visible: batteryStack.showTimeEstimate()
+                    keyText: batteryStack.timeEstimateLabel()
+                    valueText: batteryStack.timeEstimateValue()
+                    valueColor: batteryStack.timeEstimateColor()
+                    keyWidth: 96
+                }
+
+                TuiDetailRow {
+                    visible: Battery.available && Battery.chargeState !== 4 && Battery.energyRate > 0.01
+                    keyText: "POWER DRAW"
+                    valueText: `${Battery.energyRate.toFixed(1)}W`
+                    valueColor: Battery.isCharging ? TuiStyle.warning : TuiStyle.info
+                    keyWidth: 96
+                }
+
+                SectionLabel {
+                    visible: PowerProfiles.available
+                    text: "POWER PROFILE"
+                    topInset: Battery.available ? 2 : 0
+                }
+
+                TileTrack {
+                    Layout.preferredHeight: 40
                     visible: PowerProfiles.available
 
-                    StyledText {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "POWER PROFILE"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: TuiStyle.dim
+                    PanelTile {
+                        active: PowerProfiles.currentProfile === "power-saver"
+                        icon: NerdIconMap.eco
+                        label: "SAVER"
+                        onClicked: PowerProfiles.setProfile("power-saver")
+                    }
+                    PanelTile {
+                        active: PowerProfiles.currentProfile === "balanced"
+                        icon: NerdIconMap.balance
+                        label: "BALANCED"
+                        onClicked: PowerProfiles.setProfile("balanced")
+                    }
+                    PanelTile {
+                        active: PowerProfiles.currentProfile === "performance"
+                        icon: NerdIconMap.speed
+                        label: "PERFORMANCE"
+                        showDivider: false
+                        onClicked: PowerProfiles.setProfile("performance")
                     }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 48
-                    color: "transparent"
-                    border.width: 0
-                    clip: false
-                    visible: PowerProfiles.available
+                SectionLabel { text: "SESSION" }
 
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: 8
-
-                        ProfileButton {
-                            profile: "power-saver"
-                            label: "SAVER"
-                            onClicked: PowerProfiles.setProfile("power-saver")
-                        }
-                        ProfileButton {
-                            profile: "balanced"
-                            label: "BALANCED"
-                            onClicked: PowerProfiles.setProfile("balanced")
-                        }
-                        ProfileButton {
-                            profile: "performance"
-                            label: "PERFORMANCE"
-                            onClicked: PowerProfiles.setProfile("performance")
-                        }
-                    }
-                }
-
-                // Session controls
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 28
-                    color: "transparent"
-
-                    StyledText {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "SESSION"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: TuiStyle.dim
-                    }
-                }
-
-                PowerButtonRow {
-                    readonly property int buttonCount: 3 + (batteryPanel.hibernateAvailable ? 1 : 0)
-
-                    PowerButton {
+                TileTrack {
+                    PanelTile {
                         icon: NerdIconMap.lock
                         label: "LOCK"
                         tone: TuiStyle.accent
-                        onClicked: batteryPanel.requestAction("lock", "Lock")
+                        onClicked: batteryStack.requestAction("lock", "Lock")
                     }
-                    PowerButton {
+                    PanelTile {
                         icon: NerdIconMap.darkMode
                         label: "SLEEP"
                         tone: TuiStyle.info
-                        onClicked: batteryPanel.requestAction("sleep", "Sleep")
+                        onClicked: batteryStack.requestAction("sleep", "Sleep")
                     }
-                    PowerButton {
+                    PanelTile {
                         icon: NerdIconMap.download
                         label: "HIBERNATE"
                         tone: TuiStyle.purple
-                        visible: batteryPanel.hibernateAvailable
-                        onClicked: batteryPanel.requestAction("hibernate", "Hibernate")
+                        visible: batteryStack.hibernateAvailable
+                        onClicked: batteryStack.requestAction("hibernate", "Hibernate")
                     }
-                    PowerButton {
+                    PanelTile {
                         icon: NerdIconMap.logout
                         label: "LOGOUT"
                         tone: TuiStyle.warning
-                        onClicked: batteryPanel.requestAction("logout", "Logout")
+                        showDivider: false
+                        onClicked: batteryStack.requestAction("logout", "Logout")
                     }
                 }
 
-                // Power controls
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 28
-                    color: "transparent"
+                SectionLabel { text: "POWER" }
 
-                    StyledText {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "POWER"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: TuiStyle.dim
-                    }
-                }
-
-                PowerButtonRow {
-                    readonly property int buttonCount: 3
-
-                    PowerButton {
+                TileTrack {
+                    PanelTile {
                         icon: NerdIconMap.restart
                         label: "REBOOT"
                         tone: TuiStyle.info
-                        onClicked: batteryPanel.requestAction("reboot", "Reboot")
+                        onClicked: batteryStack.requestAction("reboot", "Reboot")
                     }
-                    PowerButton {
+                    PanelTile {
                         icon: NerdIconMap.powerSettingsNew
                         label: "SHUTDOWN"
                         tone: TuiStyle.danger
-                        onClicked: batteryPanel.requestAction("poweroff", "Shutdown")
+                        onClicked: batteryStack.requestAction("poweroff", "Shutdown")
                     }
-                    PowerButton {
+                    PanelTile {
                         icon: NerdIconMap.refresh
                         label: "RELOAD"
                         tone: TuiStyle.accent
+                        showDivider: false
                         onClicked: {
                             Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
                             root.close();
                         }
                     }
                 }
-
-                        ActionRow {
-                            Layout.topMargin: 10
-                            TuiActionButton {
-                                label: "SETTINGS"
-                                accent: TuiStyle.accent
-                                onClicked: {
-                                    root.close();
-                                    GlobalStates.controlCenterOpen = true;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                PopupCard {
-                    TuiNotificationList {
-                        id: notificationList
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(implicitHeight, 330)
-                        showHeader: true
-                        markReadOnVisible: true
-                        maxListHeight: 250
-                    }
-                }
             }
 
+            ShellCard {
+                id: notificationCard
+                visible: batteryStack.hasNotifications
+                gapTop: 0
+
+                TuiNotificationList {
+                    id: notificationList
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.min(implicitHeight, 330)
+                    showHeader: true
+                    markReadOnVisible: true
+                    maxListHeight: 250
+                }
+            }
         }
     }
 
-    component PowerButtonRow: Item {
-        id: buttonRow
-        property int buttonCount: 0
-        property int rowSpacing: 6
-        property int minButtonWidth: 64
-        default property alias buttons: row.data
+    // Shared tile chrome — one subtle outer track, inner cells separated by hairline dividers.
+    readonly property color tileTrackBorder: Qt.rgba(TuiStyle.line.r, TuiStyle.line.g, TuiStyle.line.b, 0.22)
+
+    component TileTrack: Rectangle {
+        id: track
+        default property alias cells: cellRow.data
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 60
-        implicitHeight: 60
-
-        readonly property int resolvedButtonCount: {
-            if (buttonCount > 0)
-                return buttonCount;
-            let count = 0;
-            for (let i = 0; i < row.children.length; ++i) {
-                const child = row.children[i];
-                if (child.visible !== false)
-                    count++;
-            }
-            return Math.max(count, 1);
-        }
-
-        readonly property real sharedButtonWidth: {
-            const gaps = Math.max(resolvedButtonCount - 1, 0) * rowSpacing;
-            const available = width > 0 ? width : 0;
-            if (available <= gaps)
-                return minButtonWidth;
-            return Math.max(minButtonWidth, (available - gaps) / resolvedButtonCount);
-        }
+        Layout.preferredHeight: 50
+        implicitHeight: 50
+        radius: TuiStyle.miniRadius + 4
+        color: TuiStyle.controlMuted
+        border.width: 1
+        border.color: tileTrackBorder
+        clip: true
 
         RowLayout {
-            id: row
+            id: cellRow
             anchors.fill: parent
-            spacing: buttonRow.rowSpacing
+            spacing: 0
         }
     }
 
-    component PowerButton: Item {
-        id: pb
+    component PanelTile: Item {
+        id: tile
         property string icon: ""
         property string label: ""
         property color tone: TuiStyle.accent
+        property bool active: false
+        property bool showDivider: true
         signal clicked()
-        Layout.fillHeight: true
+
         Layout.fillWidth: true
+        Layout.fillHeight: true
         Layout.minimumWidth: 0
-        Layout.preferredWidth: {
-            const rowHost = pb.parent?.parent;
-            return rowHost && rowHost.sharedButtonWidth > 0 ? rowHost.sharedButtonWidth : -1;
-        }
+
+        readonly property bool engaged: tile.active || tileMouse.pressed || tileMouse.containsMouse
 
         Rectangle {
+            id: tileBg
             anchors.fill: parent
-            radius: TuiStyle.miniRadius
-            color: pbMouseArea.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle
-            border.width: 0
-            clip: true
+            color: tileMouse.pressed ? TuiStyle.surfacePressed
+                : tile.active ? TuiStyle.panelAlt
+                : tileMouse.containsMouse ? TuiStyle.surfaceHover
+                : "transparent"
 
-            MouseArea {
-                id: pbMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: pb.clicked()
-
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    width: Math.max(0, pb.width - 8)
-                    spacing: 3
-
-                    NerdIcon {
-                        Layout.alignment: Qt.AlignHCenter
-                        iconSize: 20
-                        text: pb.icon
-                        color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
-                    }
-
-                    StyledText {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.fillWidth: true
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                        text: pb.label
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: pbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim
-                    }
-                }
+            Behavior on color {
+                ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
             }
         }
-    }
-
-    component ProfileButton: Item {
-        id: prb
-        property string profile: ""
-        property string label: ""
-        readonly property bool active: PowerProfiles.currentProfile === profile
-        signal clicked()
-        Layout.fillHeight: true
-        Layout.fillWidth: true
-        Layout.minimumWidth: 80
 
         Rectangle {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: parent.height * 0.55
+            radius: 0.5
+            color: TuiStyle.line
+            opacity: 0.18
+            visible: tile.showDivider
+        }
+
+        MouseArea {
+            id: tileMouse
             anchors.fill: parent
-            radius: TuiStyle.miniRadius
-            color: prb.active ? TuiStyle.surfaceHover : (prbMouseArea.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle)
-            border.width: prb.active ? 1 : 0
-            border.color: TuiStyle.controlActiveBorder
-            clip: true
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tile.clicked()
+        }
 
-            MouseArea {
-                id: prbMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: prb.clicked()
+        ColumnLayout {
+            anchors.centerIn: parent
+            width: Math.max(0, tile.width - 6)
+            spacing: tile.active ? 2 : 3
 
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 2
+            NerdIcon {
+                Layout.alignment: Qt.AlignHCenter
+                iconSize: tile.active ? 17 : 19
+                text: tile.icon
+                color: tile.active ? TuiStyle.accent
+                    : tile.engaged ? tile.tone
+                    : TuiStyle.dim
+            }
 
-                    NerdIcon {
-                        Layout.alignment: Qt.AlignHCenter
-                        iconSize: 18
-                        text: {
-                            if (profile === "power-saver") return NerdIconMap.eco;
-                            if (profile === "balanced") return NerdIconMap.balance;
-                            if (profile === "performance") return NerdIconMap.speed;
-                            return NerdIconMap.settings;
-                        }
-                        color: prb.active ? TuiStyle.fg : (prbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim)
-                    }
-
-                    StyledText {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: prb.label
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: prb.active ? TuiStyle.fg : (prbMouseArea.containsMouse ? TuiStyle.fg : TuiStyle.dim)
-                    }
-                }
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                text: tile.label
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: tile.active ? Font.Bold : Font.DemiBold
+                color: tile.active ? TuiStyle.fg
+                    : tile.engaged ? TuiStyle.fg
+                    : TuiStyle.dim
             }
         }
     }

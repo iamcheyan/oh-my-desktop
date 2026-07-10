@@ -17,7 +17,6 @@ Item { // Bar content region
     readonly property int titleAreaWidth: 280
     readonly     property color barOpaqueColor: "#000000"
     readonly property bool anyChildActive: GlobalStates.barDialogOpen
-        || GlobalStates.controlCenterOpen
         || GlobalStates.scheduleOpen
         || GlobalStates.overviewOpen
 

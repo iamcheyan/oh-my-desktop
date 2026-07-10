@@ -15,7 +15,6 @@ import qs.modules.polkit
 import qs.modules.regionSelector
 import qs.modules.screenCorners
 import qs.modules.sessionScreen
-import qs.modules.controlCenter
 
 Scope {
     id: family
@@ -89,13 +88,6 @@ Scope {
         tier2Ready: family.tier2Ready
         component: Polkit {}
     }
-    PanelLoader {
-        loadTier: 1
-        tier1Ready: family.tier1Ready
-        tier2Ready: family.tier2Ready
-        component: ControlCenter {}
-    }
-
     // Tier 2 — 低频或重型模块
     PanelLoader {
         loadTier: 2
