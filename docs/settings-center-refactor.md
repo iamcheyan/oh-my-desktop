@@ -54,8 +54,8 @@ Status legend: `[ ]` pending · `[x]` done
 
 - [x] **4.1** `~/.config/omd/bin/omd-restart` — no QML errors
 - [x] **4.2** `rg "Appearance\\.tiling" quickshell/modules/settings` — clean
-- [ ] **4.3** Manual page smoke: appearance, sound, notifications, power, system, display
-- [ ] **4.4** Commit + push `refactor/settings-center`
+- [x] **4.3** Manual page smoke: appearance, sound, notifications, power, system, display
+- [x] **4.4** Commit + push `refactor/settings-center`
 
 ---
 
