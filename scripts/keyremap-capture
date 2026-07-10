@@ -6,15 +6,15 @@ import subprocess
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-KEY_TEST = os.path.join(SCRIPT_DIR, "key-test")
+KEY_TEST_LAUNCHER = os.path.join(SCRIPT_DIR, "key-test-launcher")
 
 sys.path.insert(0, SCRIPT_DIR)
 from keyremap_keymap import hypr_to_keyd  # noqa: E402
 
 
 def run_key_test() -> None:
-    if os.path.exists(KEY_TEST):
-        subprocess.run([sys.executable, KEY_TEST, "--remap-source"], check=False)
+    if os.path.exists(KEY_TEST_LAUNCHER):
+        subprocess.run([KEY_TEST_LAUNCHER, "--remap-source"], check=False)
     else:
         subprocess.run(["key-test", "--remap-source"], check=False)
 

@@ -15,7 +15,7 @@ import time
 CONFIG_DIR = os.path.expanduser("~/.config/omd/config")
 BINDINGS_FILE = os.path.join(CONFIG_DIR, "voice_bindings.txt")
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-KEY_TEST_SCRIPT = os.path.join(SCRIPT_DIR, "key-test")
+KEY_TEST_LAUNCHER = os.path.join(SCRIPT_DIR, "key-test-launcher")
 sys.path.insert(0, SCRIPT_DIR)
 from key_capture_clipboard import parse_clipboard_text  # noqa: E402
 
@@ -51,9 +51,8 @@ def save_bindings(bindings):
         return False
 
 def run_key_capture():
-    if os.path.exists(KEY_TEST_SCRIPT):
-        # We launch the GTK key-test window
-        subprocess.run([sys.executable, KEY_TEST_SCRIPT, "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.path.exists(KEY_TEST_LAUNCHER):
+        subprocess.run([KEY_TEST_LAUNCHER, "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         subprocess.run(["key-test", "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
