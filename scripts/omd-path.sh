@@ -37,7 +37,7 @@ export PATH
 # Ensure Qt5Compat.GraphicalEffects QML module is available for Quickshell.
 # NixOS does not automatically expose all Qt packages to the QML search path,
 # so we probe the nix store and prepend the path when found.
-_qt5compat_qml=$(find /nix/store -maxdepth 1 -name "*qt5compat*" -type d 2>/dev/null | head -1)
+_qt5compat_qml=$( { find /nix/store -maxdepth 1 -name "*qt5compat*" -type d 2>/dev/null || true; } | head -1)
 if [ -n "$_qt5compat_qml" ] && [ -d "$_qt5compat_qml/lib/qt-6/qml" ]; then
     _qt5compat_qml="$_qt5compat_qml/lib/qt-6/qml"
     case ":${QML_IMPORT_PATH:-}:" in
