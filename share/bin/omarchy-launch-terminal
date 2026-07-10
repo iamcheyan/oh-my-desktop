@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Launch a terminal in the active terminal's current directory
+# omarchy:args=[command...]
+# Cross-platform: uses xdg-terminal-exec with uwsm-app when available.
+
+cwd="$(omarchy-cmd-terminal-cwd)"
+
+if [[ "$(omarchy-default-terminal)" == "kitty" ]]; then
+  socket="${XDG_RUNTIME_DIR:-/tmp}/omd-kitty-$RANDOM-$$.sock"
+  exec setsid uwsm-app -- kitty --listen-on="unix:$socket" --directory "$cwd" "$@"
+fi
+
+exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "$@"
