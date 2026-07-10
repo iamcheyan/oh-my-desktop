@@ -26,25 +26,105 @@ theme_base() {
   fi
 }
 
+color_from_toml() {
+  local toml="$1"
+  local key="$2"
+  [[ -f "$toml" ]] || return 0
+  awk -F= -v key="$key" '
+    $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+      value = $2
+      gsub(/[[:space:]"\047]/, "", value)
+      print value
+      exit
+    }
+  ' "$toml"
+}
+
+hex_strip() {
+  local hex="$1"
+  hex="${hex#\#}"
+  printf '%s\n' "$hex"
+}
+
+hex_to_rgb() {
+  local hex
+  hex="$(hex_strip "$1")"
+  [[ ${#hex} -eq 6 ]] || { printf '0,0,0'; return; }
+  printf '%d,%d,%d' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+}
+
 theme_color() {
   local slug="$1"
   local key="$2"
   local base
 
   base="$(theme_base "$slug")"
-  if [[ -n "$base" && -f "$base/colors.toml" ]]; then
-    awk -F= -v key="$key" '
-      $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
-        value = $2
-        gsub(/[[:space:]"\047]/, "", value)
-        print value
-        exit
-      }
-    ' "$base/colors.toml"
+  if [[ -n "$base" ]]; then
+    color_from_toml "$base/colors.toml" "$key"
     return
   fi
 
   printf '\n'
+}
+
+# Theme packs ship colors.toml only. After Omarchy cleanup removed
+# omarchy-theme-set-templates, OMD must generate runtime artifacts here.
+generate_theme_derivatives() {
+  local dir="${1:-$CURRENT_THEME_DIR}"
+  local toml="$dir/colors.toml"
+  local accent background foreground
+
+  [[ -d "$dir" && -f "$toml" ]] || return 0
+
+  accent="$(color_from_toml "$toml" accent)"
+  background="$(color_from_toml "$toml" background)"
+  foreground="$(color_from_toml "$toml" foreground)"
+
+  [[ -n "$accent" ]] || accent="#eeeeee"
+  [[ -n "$background" ]] || background="#050505"
+  [[ -n "$foreground" ]] || foreground="#f4f4f4"
+
+  if [[ ! -f "$dir/quickshell.json" ]]; then
+    cat >"$dir/quickshell.json" <<EOF
+{
+  "primary": "$accent",
+  "background": "$background",
+  "backgroundText": "$foreground"
+}
+EOF
+  fi
+
+  if [[ ! -f "$dir/hyprland.lua" ]]; then
+    local accent_strip
+    accent_strip="$(hex_strip "$accent")"
+    cat >"$dir/hyprland.lua" <<EOF
+local active_border_color = "rgb(${accent_strip})"
+
+hl.config({
+  general = {
+    col = {
+      active_border = active_border_color,
+    },
+  },
+
+  group = {
+    col = {
+      border_active = active_border_color,
+    },
+  },
+})
+EOF
+  fi
+
+  if [[ ! -f "$dir/hyprlock.conf" ]]; then
+    cat >"$dir/hyprlock.conf" <<EOF
+\$color = rgba($(hex_to_rgb "$background"), 1.0)
+\$inner_color = rgba($(hex_to_rgb "$background"), 0.8)
+\$outer_color = rgba($(hex_to_rgb "$foreground"), 1.0)
+\$font_color = rgba($(hex_to_rgb "$foreground"), 1.0)
+\$check_color = rgba($(hex_to_rgb "$accent"), 1.0)
+EOF
+  fi
 }
 
 list_themes() {
@@ -88,10 +168,13 @@ copy_theme() {
   mkdir -p "$CURRENT_DIR"
   rm -rf "$CURRENT_THEME_DIR"
   cp -a "$source" "$CURRENT_THEME_DIR"
+  generate_theme_derivatives "$CURRENT_THEME_DIR"
 }
 
 refresh_running_apps() {
-  qs -p "$OMD_ROOT/apps/omd-bar" ipc call theme reload >/dev/null 2>&1 || true
+  if [[ -x "$OMD_ROOT/bin/omd-restart" ]]; then
+    "$OMD_ROOT/bin/omd-restart" >/dev/null 2>&1 || true
+  fi
   hyprctl reload >/dev/null 2>&1 || true
 }
 
@@ -108,12 +191,28 @@ apply_theme() {
   refresh_running_apps
 }
 
+repair_current_theme() {
+  local slug
+  slug="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+  if [[ -z "$slug" ]]; then
+    echo "no active theme in $CURRENT_NAME_FILE" >&2
+    exit 1
+  fi
+  if [[ ! -d "$CURRENT_THEME_DIR" || ! -f "$CURRENT_THEME_DIR/colors.toml" ]]; then
+    apply_theme "$slug"
+    return
+  fi
+  generate_theme_derivatives "$CURRENT_THEME_DIR"
+  refresh_running_apps
+}
+
 case "${1:-list}" in
   list) list_themes ;;
   current) current_theme ;;
   apply) apply_theme "${2:-}" ;;
+  repair) repair_current_theme ;;
   *)
-    echo "usage: omd-settings-theme list|current|apply <theme-slug>" >&2
+    echo "usage: omd-settings-theme list|current|apply <theme-slug>|repair" >&2
     exit 2
     ;;
 esac
