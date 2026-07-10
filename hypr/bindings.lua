@@ -2,6 +2,7 @@ local paths = require("default.hypr.paths")
 
 -- Application bindings.
 o.bind("SUPER + RETURN", "Terminal", { omd = "terminal" })
+o.bind("SUPER + Q", "Terminal", { omd = "terminal" })
 o.bind("SUPER + ALT + RETURN", "Tmux", { omd = "terminal-tmux" })
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omd = "browser" })
 o.bind("SUPER + SHIFT + B", "Browser", { omd = "browser" })
@@ -28,6 +29,8 @@ o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
 
 -- Add extra bindings below.
 -- o.bind("SUPER + SHIFT + R", "SSH", "alacritty -e ssh your-server")
+
+o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
