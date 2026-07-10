@@ -23,6 +23,34 @@
         {
           "from": "muhenkan",
           "to": "leftmeta"
+        },
+        {
+          "from": "leftmeta",
+          "to": "f13"
+        },
+        {
+          "from": "rightalt",
+          "to": "down"
+        },
+        {
+          "from": "grave",
+          "to": "escape"
+        },
+        {
+          "from": "escape",
+          "to": "grave"
+        },
+        {
+          "from": "katakanahiragana",
+          "to": "left"
+        },
+        {
+          "from": "delete",
+          "to": "right"
+        },
+        {
+          "from": "rightcontrol",
+          "to": "up"
         }
       ],
       "captures": {

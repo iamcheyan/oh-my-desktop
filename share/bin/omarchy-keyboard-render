@@ -61,8 +61,8 @@ fi
         | keys_used($localRemaps) as $localKeys
         | ($enabledPresets
             | map(preset_remaps(.))
-            | map(select((intersects(keys_used(.); $localKeys) | not)))
-            | add // []) as $globalRemaps
+            | add // []
+            | map(select(.from as $f | $localKeys | index($f) | not))) as $globalRemaps
         | clean_remaps($globalRemaps + $localRemaps) as $remaps
         | select($remaps | length > 0)
         | ($dev.value.keydId // "") as $id
