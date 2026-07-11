@@ -71,6 +71,15 @@ Legacy/default entry point:
 - `quickshell/scripts/colors/random/`
   - Old random wallpaper downloader scripts.
   - Current wallpaper randomization is handled by `bin/omd-wallpaper`.
+- `quickshell/modules/bar/ClipboardHoverPopup.qml`
+  - The current clipboard bar button launches `bin/omd-clipboard` and no longer
+    instantiates this hover popup.
+- `quickshell/modules/overview/OverviewSearch.qml`
+  - File was explicitly marked as a legacy backup.
+  - Current overview keeps search inline in `OverviewWidget`.
+- `quickshell/modules/lock/PasswordChars.qml`
+  - Old animated password-character renderer.
+  - Current lock surface uses `TextInput.Password` directly.
 
 ## Confirmed Already Removed Or In Progress
 
