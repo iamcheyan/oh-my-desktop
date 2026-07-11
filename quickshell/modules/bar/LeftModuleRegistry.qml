@@ -16,7 +16,7 @@ QtObject {
         "appLauncher": { component: Qt.createComponent("AppLauncherButton.qml"), description: qsTr("App launcher toggle button") },
         "workspaces": { component: Qt.createComponent("Workspaces.qml"), description: qsTr("Workspaces button") },
         "activeWindow": { component: Qt.createComponent("ActiveWindow.qml"), description: qsTr("Active window icon and title") },
-        "clock": { component: Qt.createComponent("ClockWidget.qml"), description: qsTr("Clock (click to open schedule)") },
+        "clock": { component: Qt.createComponent("ClockWidget.qml"), description: qsTr("Clock") },
         "media": { component: Qt.createComponent("Media.qml"), description: qsTr("Media controls") },
         "spacer": { component: Qt.createComponent("SpacerItem.qml"), description: qsTr("Flexible spacer") }
     })

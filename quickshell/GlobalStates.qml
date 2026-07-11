@@ -10,7 +10,6 @@ pragma ComponentBehavior: Bound
 
 Singleton {
     id: root
-    property bool appLauncherOpen: false
     property bool barOpen: true
     property bool clipboardOpen: false
     property bool osdBrightnessOpen: false
@@ -59,7 +58,6 @@ Singleton {
 
     onOverviewOpenChanged: {
         if (GlobalStates.overviewOpen) {
-            GlobalStates.appLauncherOpen = false;
             GlobalStates.clipboardOpen = false;
             GlobalStates.overviewSearchMode = false;
         }

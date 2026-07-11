@@ -125,7 +125,7 @@ Item {
             id: listView
             anchors.fill: parent
             clip: true
-            spacing: root.hubStyle ? 0 : 8
+            spacing: root.hubStyle ? 0 : 6
             boundsBehavior: Flickable.StopAtBounds
             model: ScriptModel {
                 values: root.sortedNotifications()
@@ -335,15 +335,12 @@ Item {
 
         implicitHeight: row.hubStyle
             ? hubRow.implicitHeight + 16
-            : rowContent.implicitHeight + 24
-        radius: row.hubStyle ? 0 : 8
+            : rowContent.implicitHeight + 20
+        radius: row.hubStyle ? 0 : 6
         color: rowTap.pressed ? TuiStyle.surfacePressed
-            : rowHover.hovered || expanded ? TuiStyle.surfaceHover
+            : rowHover.hovered || expanded ? TuiStyle.surfaceSubtle
             : (row.hubStyle ? "transparent" : TuiStyle.surfaceSubtle)
-        border.width: row.hubStyle ? 0 : TuiStyle.borderWidth
-        border.color: critical ? TuiStyle.danger
-            : rowHover.hovered || expanded ? TuiStyle.shellBorder
-            : Qt.rgba(TuiStyle.shellBorder.r, TuiStyle.shellBorder.g, TuiStyle.shellBorder.b, 0.45)
+        border.width: 0
 
         Behavior on color {
             ColorAnimation { duration: 120 }
@@ -363,16 +360,6 @@ Item {
                 else if (row.interactive)
                     root.toggleExpanded(row.notificationObject.notificationId);
             }
-        }
-
-        Rectangle {
-            visible: !row.hubStyle
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: critical ? TuiStyle.borderWidth : 0
-            radius: row.radius
-            color: TuiStyle.danger
         }
 
         RowLayout {
@@ -472,11 +459,11 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: critical ? 14 : 12
+            anchors.leftMargin: 12
             anchors.rightMargin: 12
-            anchors.topMargin: 12
+            anchors.topMargin: 10
             anchors.bottomMargin: 10
-            spacing: 8
+            spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
@@ -505,6 +492,53 @@ Item {
                     color: TuiStyle.dim
                     elide: Text.ElideRight
                     maximumLineCount: 1
+                }
+
+                Item {
+                    Layout.preferredWidth: 88
+                    Layout.preferredHeight: 28
+                    Layout.alignment: Qt.AlignVCenter
+
+                    RowLayout {
+                        anchors.fill: parent
+                        enabled: rowHover.hovered || row.expanded
+                        opacity: enabled ? 1 : 0
+                        spacing: 4
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: 100 }
+                        }
+
+                        IconButton {
+                            id: copyButton
+                            symbol: "content_copy"
+                            tooltip: "Copy"
+                            enabled: row.hasBody || (notificationObject?.summary || "").length > 0
+                            onClicked: row.copyText()
+
+                            Timer {
+                                id: copyReset
+                                interval: 1200
+                                repeat: false
+                                onTriggered: copyButton.symbol = "content_copy"
+                            }
+                        }
+
+                        IconButton {
+                            symbol: row.expanded ? "expand_less" : "expand_more"
+                            tooltip: row.expanded ? "Collapse" : "Expand"
+                            visible: row.interactive
+                            enabled: row.interactive
+                            onClicked: root.toggleExpanded(row.notificationObject.notificationId)
+                        }
+
+                        IconButton {
+                            symbol: "close"
+                            tooltip: "Dismiss"
+                            danger: true
+                            onClicked: row.discard()
+                        }
+                    }
                 }
 
                 StyledText {
@@ -548,65 +582,19 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: row.hasBody || row.hasActions ? 2 : 0
+                Layout.topMargin: row.hasBody ? 2 : 0
+                visible: row.expanded && row.hasActions
                 spacing: 6
-                visible: !row.compactActions || rowHover.hovered || row.expanded
-                opacity: visible ? 1 : 0
 
-                Behavior on opacity {
-                    NumberAnimation { duration: 100 }
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    visible: row.expanded && row.hasActions
-                    spacing: 6
-
-                    Repeater {
-                        model: notificationObject?.actions ?? []
-                        PillButton {
-                            required property var modelData
-                            label: modelData.text
-                            active: true
-                            accent: TuiStyle.accent
-                            onClicked: Notifications.attemptInvokeAction(notificationObject.notificationId, modelData.identifier)
-                        }
+                Repeater {
+                    model: notificationObject?.actions ?? []
+                    PillButton {
+                        required property var modelData
+                        label: modelData.text
+                        active: true
+                        accent: TuiStyle.accent
+                        onClicked: Notifications.attemptInvokeAction(notificationObject.notificationId, modelData.identifier)
                     }
-                }
-
-                Item {
-                    Layout.fillWidth: true
-                    visible: !(row.expanded && row.hasActions)
-                }
-
-                IconButton {
-                    id: copyButton
-                    symbol: "content_copy"
-                    tooltip: "Copy"
-                    enabled: row.hasBody || (notificationObject?.summary || "").length > 0
-                    onClicked: row.copyText()
-
-                    Timer {
-                        id: copyReset
-                        interval: 1200
-                        repeat: false
-                        onTriggered: copyButton.symbol = "content_copy"
-                    }
-                }
-
-                IconButton {
-                    symbol: row.expanded ? "expand_less" : "expand_more"
-                    tooltip: row.expanded ? "Collapse" : "Expand"
-                    visible: row.interactive
-                    enabled: row.interactive
-                    onClicked: root.toggleExpanded(row.notificationObject.notificationId)
-                }
-
-                IconButton {
-                    symbol: "close"
-                    tooltip: "Dismiss"
-                    danger: true
-                    onClicked: row.discard()
                 }
             }
         }

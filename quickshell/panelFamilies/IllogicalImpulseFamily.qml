@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 
 import qs.modules.common
-import qs.modules.appLauncher
 import qs.modules.background
 import qs.modules.bar
 import qs.modules.lock
@@ -48,12 +47,6 @@ Scope {
         tier1Ready: family.tier1Ready
         tier2Ready: family.tier2Ready
         component: Overview {}
-    }
-    PanelLoader {
-        loadTier: 1
-        tier1Ready: family.tier1Ready
-        tier2Ready: family.tier2Ready
-        component: AppLauncher {}
     }
     PanelLoader {
         loadTier: 1

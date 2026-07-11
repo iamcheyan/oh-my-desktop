@@ -1,13 +1,12 @@
 import qs.modules.common
 import qs.modules.common.functions
 import qs.services
-import Qt5Compat.GraphicalEffects
 import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
 
-MaterialShape { // App icon
+Item { // App icon
     id: root
     property var appIcon: ""
     property var summary: ""
@@ -17,18 +16,14 @@ MaterialShape { // App icon
     property real materialIconScale: 0.57
     property real appIconScale: 0.8
     property real smallAppIconScale: 0.49
-    property real materialIconSize: implicitSize * materialIconScale
-    property real appIconSize: implicitSize * appIconScale
-    property real smallAppIconSize: implicitSize * smallAppIconScale
+    readonly property real baseSize: 38 * scale
+    property real materialIconSize: baseSize * materialIconScale
+    property real appIconSize: baseSize * appIconScale
+    property real smallAppIconSize: baseSize * smallAppIconScale
 
-    implicitSize: 38 * scale
-    property list<var> urgentShapes: [
-        MaterialShape.Shape.VerySunny,
-        MaterialShape.Shape.SoftBurst,
-    ]
-    shape: isUrgent ? urgentShapes[Math.floor(Math.random() * urgentShapes.length)] : MaterialShape.Shape.Circle
+    implicitWidth: baseSize
+    implicitHeight: baseSize
 
-    color: isUrgent ? Appearance.colors.colPrimaryContainer : Appearance.colors.colSecondaryContainer
     Loader {
         id: materialSymbolLoader
         active: root.appIcon == "" && root.image == ""
@@ -41,7 +36,7 @@ MaterialShape { // App icon
                     "priority_high" : guessedIcon
             }
             anchors.fill: parent
-            color: isUrgent ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnSecondaryContainer
+            color: isUrgent ? Appearance.colors.colError : Appearance.colors.colOnLayer1
             iconSize: root.materialIconSize
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -74,15 +69,6 @@ MaterialShape { // App icon
                 cache: false
                 antialiasing: true
                 asynchronous: true
-
-                layer.enabled: true
-                layer.effect: OpacityMask {
-                    maskSource: Rectangle {
-                        width: notifImage.size
-                        height: notifImage.size
-                        radius: Appearance.rounding.full
-                    }
-                }
             }
             Loader {
                 id: notifImageAppIconLoader

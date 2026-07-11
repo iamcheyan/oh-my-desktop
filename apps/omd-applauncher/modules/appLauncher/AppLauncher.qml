@@ -620,7 +620,6 @@ PanelWindow {
                         }
 
                         Rectangle {
-                            visible: appItem.isRunning
                             anchors.top: iconWrapper.bottom
                             anchors.topMargin: 3
                             anchors.horizontalCenter: parent.horizontalCenter
@@ -629,7 +628,15 @@ PanelWindow {
                             color: "#ffc23a"
                             border.color: "#803a2400"
                             border.width: 1
+                            opacity: appItem.isRunning ? 1 : 0
                             z: 1
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 160
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
                         }
 
                         // Label

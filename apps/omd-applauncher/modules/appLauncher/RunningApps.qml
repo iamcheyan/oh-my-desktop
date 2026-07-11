@@ -1,5 +1,5 @@
 import QtQuick
-import Quickshell.Hyprland
+import Quickshell.Io
 
 Item {
     id: root
@@ -7,9 +7,9 @@ Item {
 
     property var runningSet: ({})
 
-    function updateRunningSet() {
+    function updateRunningSet(clients) {
         const set = {};
-        const wl = HyprlandData.windowList || [];
+        const wl = clients || [];
         for (let i = 0; i < wl.length; i++) {
             const w = wl[i];
             if (!w || !w.mapped || w.hidden) continue;
@@ -21,12 +21,29 @@ Item {
         root.runningSet = set;
     }
 
-    Component.onCompleted: updateRunningSet()
+    function refresh() {
+        clientsProc.running = false;
+        clientsProc.running = true;
+    }
 
-    Connections {
-        target: HyprlandData
-        function onWindowListChanged() {
-            root.updateRunningSet();
+    Component.onCompleted: refresh()
+
+    Process {
+        id: clientsProc
+        command: ["hyprctl", "clients", "-j"]
+        stdout: StdioCollector {
+            id: clientsCollector
+            onStreamFinished: {
+                try {
+                    root.updateRunningSet(JSON.parse(clientsCollector.text || "[]"));
+                } catch (err) {
+                    console.warn("[AppLauncher] Failed to parse running apps:", err);
+                    root.runningSet = {};
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) root.runningSet = {};
         }
     }
 }

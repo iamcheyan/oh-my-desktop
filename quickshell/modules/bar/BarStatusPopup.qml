@@ -3,7 +3,7 @@ import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
-import qs.modules.schedulePopup
+import qs.modules.schedulePopup.notifications
 import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.services
@@ -37,23 +37,6 @@ Scope {
     }
 
     IpcHandler {
-        target: "schedule"
-
-        function toggle(): void {
-            GlobalStates.barPopupType = GlobalStates.barPopupType === "schedule" ? "" : "schedule";
-        }
-
-        function close(): void {
-            if (GlobalStates.barPopupType === "schedule")
-                GlobalStates.barPopupType = "";
-        }
-
-        function open(): void {
-            GlobalStates.barPopupType = "schedule";
-        }
-    }
-
-    IpcHandler {
         target: "barPopup"
 
         function toggle(type: string): void {
@@ -65,7 +48,7 @@ Scope {
         }
 
         function open(type: string): void {
-            GlobalStates.barPopupType = type === "notifications" ? "schedule" : type;
+            GlobalStates.barPopupType = type;
         }
     }
 
@@ -89,12 +72,12 @@ Scope {
 
         readonly property bool barOnBottom: Config.options.bar.bottom
         readonly property int panelWidth: {
-            if (root.activeType === "schedule")
-                return Math.min(720, Math.max(660, (screen?.width ?? 1920) - 32));
             if (root.activeType === "battery")
                 return Math.min(460, Math.max(400, (screen?.width ?? 1920) - 32));
             if (root.activeType === "audio")
                 return Math.min(420, Math.max(400, (screen?.width ?? 1920) - 32));
+            if (root.activeType === "notifications")
+                return Math.min(560, Math.max(500, (screen?.width ?? 1920) - 32));
             return 360;
         }
 
@@ -174,7 +157,7 @@ Scope {
                         if (root.activeType === "audio") return audioContent;
                         if (root.activeType === "display") return displayContent;
                         if (root.activeType === "battery") return batteryContent;
-                        if (root.activeType === "schedule") return scheduleContent;
+                        if (root.activeType === "notifications") return notificationsContent;
                         if (root.activeType === "voice") return voiceContent;
                         return emptyContent;
                     }
@@ -1033,15 +1016,26 @@ Scope {
     }
 
     Component {
-        id: scheduleContent
-        Item {
-            width: parent?.width ?? implicitWidth
-            implicitHeight: scheduleHub.implicitHeight
+        id: notificationsContent
+        PopupColumn {
+            Header {
+                Layout.fillWidth: true
+                title: "Notifications"
+                status: Notifications.silent
+                    ? "Do not disturb"
+                    : (Notifications.list.length === 0
+                        ? "All clear"
+                        : `${Notifications.list.length} item${Notifications.list.length === 1 ? "" : "s"}`)
+                tone: Notifications.silent ? TuiStyle.warning : TuiStyle.success
+            }
 
-            BottomWidgetGroup {
-                id: scheduleHub
-                anchors.horizontalCenter: parent.horizontalCenter
-                popupMode: true
+            TuiNotificationList {
+                Layout.fillWidth: true
+                showHeader: false
+                showFooter: true
+                compactRows: true
+                markReadOnVisible: true
+                maxListHeight: Math.max(420, (popupWindow.screen?.height ?? 900) - Appearance.sizes.barHeight - 150)
             }
         }
     }

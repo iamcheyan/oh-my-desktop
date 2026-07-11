@@ -267,18 +267,9 @@ assets/icons/fluent/             # Waffle 专用 Fluent 图标（~936 KB，232 �
 
 ---
 
-## 背景小部件（你当前全关）
+## 背景小部件
 
-`config.json` → `background.widgets.clock.enable: false`，`weather.enable: false`
-
-可删除以减负：
-
-```
-modules/ii/background/widgets/clock/    # 整个目录
-modules/ii/background/widgets/weather/
-```
-
-保留 `Background.qml` 本体（壁纸层仍需要）。
+背景时钟和天气小部件已经移除。保留 `Background.qml` 本体（壁纸层和桌面交互仍需要）。
 
 ---
 
@@ -289,11 +280,8 @@ modules/ii/background/widgets/weather/
 | `dock.enable` | 删 Dock 模块 | `false` ✅ |
 | `policies.weeb` | 删 Anime/Booru | `0` ✅ |
 | `sidebar.translator.enable` | 删翻译页 | `false` ✅ |
-| `bar.weather.enable` | 删 Weather 服务+栏组件 | `true` |
 | `updates.enableCheck` | 推迟/关闭更新检查 | `true` |
 | `overview.enable` | 删 Overview | `true` |
-| `background.widgets.clock.enable` | 删时钟小部件 | `false` ✅ |
-| `background.widgets.weather.enable` | 删天气小部件 | `false` ✅ |
 | `startup.staggerPanelLoading` | 启动分档 | `true` ✅ |
 
 ---

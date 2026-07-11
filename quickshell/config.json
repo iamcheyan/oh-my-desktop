@@ -59,54 +59,7 @@
     "background": {
         "hideWhenFullscreen": true,
         "thumbnailPath": "",
-        "wallpaperPath": "/home/tetsuya/.config/omd/apps/omd-bar/assets/images/default_wallpaper.png",
-        "widgets": {
-            "clock": {
-                "cookie": {
-                    "constantlyRotate": false,
-                    "dateInClock": true,
-                    "dateStyle": "bubble",
-                    "dialNumberStyle": "full",
-                    "hourHandStyle": "fill",
-                    "hourMarks": false,
-                    "minuteHandStyle": "medium",
-                    "secondHandStyle": "dot",
-                    "sides": 14,
-                    "timeIndicators": true,
-                    "useSineCookie": false
-                },
-                "digital": {
-                    "adaptiveAlignment": true,
-                    "animateChange": true,
-                    "font": {
-                        "family": "MesloLGS Nerd Font Mono",
-                        "roundness": 0,
-                        "size": 90,
-                        "weight": 350,
-                        "width": 100
-                    },
-                    "showDate": true,
-                    "vertical": false
-                },
-                "enable": false,
-                "placementStrategy": "leastBusy",
-                "quote": {
-                    "enable": false,
-                    "text": ""
-                },
-                "showOnlyWhenLocked": false,
-                "style": "cookie",
-                "styleLocked": "cookie",
-                "x": 100,
-                "y": 100
-            },
-            "weather": {
-                "enable": false,
-                "placementStrategy": "free",
-                "x": 400,
-                "y": 100
-            }
-        }
+        "wallpaperPath": "/home/tetsuya/.config/omd/apps/omd-bar/assets/images/default_wallpaper.png"
     },
     "bar": {
         "borderless": false,
@@ -146,14 +99,7 @@
         "screenList": [
         ],
         "showBackground": true,
-        "vertical": false,
-        "weather": {
-            "city": "",
-            "enable": false,
-            "enableGPS": true,
-            "fetchInterval": 10,
-            "useUSCS": false
-        }
+        "vertical": false
     },
     "battery": {
         "automaticSuspend": true,
@@ -161,9 +107,6 @@
         "full": 100,
         "low": 20,
         "suspend": 3
-    },
-    "calendar": {
-        "locale": "en-GB"
     },
     "cheatsheet": {
         "fontSize": {

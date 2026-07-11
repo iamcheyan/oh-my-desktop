@@ -56,15 +56,8 @@ Item {
     }
 
     MouseArea {
-        id: mouseArea
         anchors.fill: parent
-        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "schedule" ? "" : "schedule"
-    }
-
-    ClockHoverPopup {
-        id: clockHoverPopup
-        hoverTarget: mouseArea
+        onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "notifications" ? "" : "notifications"
     }
 }

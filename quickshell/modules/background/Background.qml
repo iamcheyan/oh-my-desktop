@@ -4,18 +4,12 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.widgets.widgetCanvas
 import qs.modules.common.functions as CF
 import QtQuick
-import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
-
-import qs.modules.background.widgets
-import qs.modules.background.widgets.clock
-import qs.modules.background.widgets.weather
 
 Variants {
     id: root
@@ -103,46 +97,6 @@ Variants {
                         opacity: GlobalStates.screenLocked ? 1 : 0
                         anchors.fill: parent
                         color: CF.ColorUtils.transparentize(Appearance.colors.colLayer0, 0.7)
-                    }
-                }
-            }
-
-            WidgetCanvas {
-                id: widgetCanvas
-                anchors.fill: parent
-
-                transitions: Transition {
-                    PropertyAnimation {
-                        properties: "width,height"
-                        duration: Appearance.animation.elementMove.duration
-                        easing.type: Appearance.animation.elementMove.type
-                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-                    }
-                    AnchorAnimation {
-                        duration: Appearance.animation.elementMove.duration
-                        easing.type: Appearance.animation.elementMove.type
-                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-                    }
-                }
-
-                FadeLoader {
-                    shown: Config.options.background.widgets.weather.enable
-                    sourceComponent: WeatherWidget {
-                        screenWidth: bgRoot.screen.width
-                        screenHeight: bgRoot.screen.height
-                        scaledScreenWidth: bgRoot.screen.width
-                        scaledScreenHeight: bgRoot.screen.height
-                    }
-                }
-
-                FadeLoader {
-                    shown: Config.options.background.widgets.clock.enable
-                    sourceComponent: ClockWidget {
-                        screenWidth: bgRoot.screen.width
-                        screenHeight: bgRoot.screen.height
-                        scaledScreenWidth: bgRoot.screen.width
-                        scaledScreenHeight: bgRoot.screen.height
-                        wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
                     }
                 }
             }
