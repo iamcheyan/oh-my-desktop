@@ -183,6 +183,8 @@ PanelWindow {
     Process {
         id: cacheRefreshProcess
         onExited: (exitCode, exitStatus) => {
+            // Allow the next open to trigger a fresh rebuild.
+            launcher.cacheRebuildRequested = false;
             if (exitCode === 0) {
                 cacheFileView.reload();
             } else {
@@ -192,6 +194,16 @@ PanelWindow {
                 launcher.tryOpenOnDemand();
             }
         }
+    }
+
+    // After the launcher UI is fully rendered, silently rebuild the app cache
+    // in the background so newly-installed apps appear on the next open
+    // (or update the current list if the launcher stays open).
+    Timer {
+        id: backgroundCacheRefreshTimer
+        interval: 800
+        repeat: false
+        onTriggered: launcher.requestCacheRebuild()
     }
 
     // In on-demand mode the window opens only when both apps and pinned IDs
@@ -370,12 +382,15 @@ PanelWindow {
             cardOffsetX = 0;
             cardOffsetY = 0;
             runningDataDelayTimer.restart();
+            // After UI renders, silently refresh cache to pick up newly-installed apps.
+            backgroundCacheRefreshTimer.restart();
             Qt.callLater(function() {
                 searchField.forceActiveFocus();
                 if (Qt.inputMethod) Qt.inputMethod.show();
             });
         } else {
             runningDataDelayTimer.stop();
+            backgroundCacheRefreshTimer.stop();
             runningAppsLoader.active = false;
             runningSet = {};
             searchField.text = "";
