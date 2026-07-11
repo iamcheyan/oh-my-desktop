@@ -70,11 +70,20 @@ Scope {
         GlobalStates.regionSelectorOpen = true
     }
 
+    function edit() {
+        root.action = RegionSelection.SnipAction.Edit
+        root.selectionMode = RegionSelection.SelectionMode.RectCorners
+        GlobalStates.regionSelectorOpen = true
+    }
+
     IpcHandler {
         target: "region"
 
         function screenshot() {
             root.screenshot()
+        }
+        function edit() {
+            root.edit()
         }
         function search() {
             root.search()

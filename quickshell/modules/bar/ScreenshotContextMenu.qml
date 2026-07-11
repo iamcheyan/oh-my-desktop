@@ -22,6 +22,15 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
+        iconName:  NerdIconMap.edit
+        label:     Translation.tr("Capture & Edit")
+        releaseAction: () => {
+            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "edit"]);
+            root.close();
+        }
+    }
+
+    BarContextMenuItem {
         iconName:  NerdIconMap.camera
         label:     Translation.tr("Capture Fullscreen")
         releaseAction: () => {
