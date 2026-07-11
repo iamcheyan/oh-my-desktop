@@ -32,8 +32,6 @@ Singleton {
     property bool screenUnlockFailed: false
     property bool superDown: false
     property bool superReleaseMightTrigger: false
-    property bool barDialogOpen: false
-    property string barDialogType: ""
     property string barPopupType: ""
     // Ephemeral popups (e.g. volume OSD) auto-close; pinned ones stay until dismissed.
     property bool barPopupEphemeral: false
@@ -94,11 +92,6 @@ Singleton {
             return;
         GlobalStates.overviewSuppressedEmptyWorkspaceIds =
             (GlobalStates.overviewSuppressedEmptyWorkspaceIds ?? []).filter(id => id !== wsId);
-    }
-
-    onBarDialogOpenChanged: {
-        if (GlobalStates.barDialogOpen)
-            GlobalStates.barPopupType = "";
     }
 
     onBarPopupTypeChanged: {

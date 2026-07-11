@@ -98,7 +98,7 @@ PanelWindow {
 
     function isAppRunning(app) {
         if (!app) return false;
-        if (app.id === "omd-settings-center.desktop") return GlobalStates.barDialogOpen;
+        if (app.id === "omd-settings-center.desktop") return false;
 
         const set = launcher.runningSet;
         if (!set) return false;

@@ -1,0 +1,1 @@
+../../../quickshell/services/VoiceInput.qml

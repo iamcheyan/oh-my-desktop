@@ -31,9 +31,7 @@ ShellRoot {
             if (GlobalStates.barPopupType !== "") {
                 GlobalStates.barPopupType = "";
             }
-            if (GlobalStates.barDialogOpen) {
-                GlobalStates.barDialogOpen = false;
-            }
+            // Settings is now a separate process (omd-settings)
         }
     }
 
@@ -64,7 +62,6 @@ ShellRoot {
             Lock {}
             BarDismissLayer {}
             BarStatusPopup {}
-            BarDialogOverlay {}
             SessionConfirmOverlay {}
             SessionAutoRestore {}
             OnScreenDisplay {}

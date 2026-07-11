@@ -290,7 +290,7 @@ Singleton {
     Timer {
         interval: 10000
         repeat: true
-        running: GlobalStates.barDialogOpen && GlobalStates.barDialogType === "keyremap"
+        running: true
         onTriggered: root.refreshDevices()
     }
 
@@ -440,8 +440,7 @@ Singleton {
 
     function openSettings() {
         GlobalStates.barPopupType = "";
-        GlobalStates.barDialogType = "keyremap";
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "keyremap"]);
     }
 
     function openPanel() {

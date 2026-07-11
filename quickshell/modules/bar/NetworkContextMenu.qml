@@ -13,9 +13,8 @@ BarContextMenu {
 
     function openSettings(type) {
         GlobalStates.barPopupType = "";
-        GlobalStates.barDialogType = type;
-        GlobalStates.barDialogOpen = true;
         root.close();
+        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", type]);
     }
 
     BarContextMenuItem {

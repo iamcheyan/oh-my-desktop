@@ -16,8 +16,7 @@ Item { // Bar content region
     readonly property int barSidePadding: 10
     readonly property int titleAreaWidth: 280
     readonly     property color barOpaqueColor: "#000000"
-    readonly property bool anyChildActive: GlobalStates.barDialogOpen
-        || GlobalStates.overviewOpen
+    readonly property bool anyChildActive: GlobalStates.overviewOpen
 
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)

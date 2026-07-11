@@ -32,8 +32,7 @@ Scope {
 
     function openDialog(dialogType) {
         root.close();
-        GlobalStates.barDialogType = dialogType;
-        GlobalStates.barDialogOpen = true;
+        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", dialogType]);
     }
 
     IpcHandler {

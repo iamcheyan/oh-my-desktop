@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Io
 import qs.modules.bar
 import qs
 import qs.services
@@ -28,8 +29,7 @@ Item {
 
         onClicked: {
             GlobalStates.barPopupType = "";
-            GlobalStates.barDialogType = "wifi";
-            GlobalStates.barDialogOpen = true;
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "wifi"]);
         }
     }
 

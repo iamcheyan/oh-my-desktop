@@ -16,7 +16,7 @@ BarContextMenu {
         iconName:  NerdIconMap.crop
         label:     Translation.tr("Capture Area")
         releaseAction: () => {
-            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
             root.close();
         }
     }
@@ -25,7 +25,7 @@ BarContextMenu {
         iconName:  NerdIconMap.edit
         label:     Translation.tr("Capture & Edit")
         releaseAction: () => {
-            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "edit"]);
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "edit"]);
             root.close();
         }
     }
@@ -88,8 +88,7 @@ BarContextMenu {
         releaseAction: () => {
             root.close();
             Quickshell.execDetached([
-                "qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-bar`,
-                "ipc", "call", "barDialog", "open", "nightlight"
+                `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "display"
             ]);
         }
     }
