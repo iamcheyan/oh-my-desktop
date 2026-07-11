@@ -504,15 +504,6 @@ PanelWindow {
             }
             spacing: 6
 
-            OptionsToolbar {
-                Synchronizer on action {
-                    property alias source: root.action
-                }
-                Synchronizer on selectionMode {
-                    property alias source: root.selectionMode
-                }
-                onDismiss: root.dismiss();
-            }
             ToolbarPairedFab {
                 anchors.verticalCenter: parent.verticalCenter
                 iconText: "close"
