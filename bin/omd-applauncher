@@ -15,8 +15,12 @@ app_dir="$HOME/.config/omd/apps/omd-applauncher"
 qs_launcher="$HOME/.config/omd/quickshell/scripts/quickshell"
 cache_script="$HOME/.config/omd/bin/omd-applauncher-cache"
 
-# Refresh desktop entry cache in background (non-blocking)
-"$cache_script" >/dev/null 2>&1 &
+# Refresh desktop entry cache in background (non-blocking) only if it is missing
+# or older than 10 minutes to avoid redundant background CPU scans on frequent opens.
+cache_file="$HOME/.local/state/omd/applauncher/apps.json"
+if [ ! -f "$cache_file" ] || [ $(($(date +%s) - $(date -r "$cache_file" +%s))) -gt 600 ]; then
+    "$cache_script" >/dev/null 2>&1 &
+fi
 
 # Detect a running omd-applauncher Quickshell instance. Match the -p path
 # (config dir) to avoid collisions with other omd-* processes.
