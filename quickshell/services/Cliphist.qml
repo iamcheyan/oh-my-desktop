@@ -15,16 +15,14 @@ Singleton {
     property string pressPasteCommand: "YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0"
     property real scoreThreshold: 0.2
     property int maxEntries: 100
+    property bool loaded: false
+    property bool precacheImagesWhenReady: false
     property list<string> entries: []
     readonly property var preparedEntries: entries.map(a => ({
         name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
         entry: a
     }))
 
-    Component.onCompleted: {
-        // Preload entries on shell startup so clipboard dialog opens instantly
-        root.refresh();
-    }
     function fuzzyQuery(search: string): var {
         if (search.trim() === "") {
             return entries;
@@ -43,8 +41,23 @@ Singleton {
     }
 
     function refresh() {
+        root.loaded = true
         readProc.buffer = []
         readProc.running = true
+    }
+
+    function ensureLoaded() {
+        if (!root.loaded) {
+            root.refresh()
+        } else if (root.precacheImagesWhenReady) {
+            root.precacheImages()
+        }
+    }
+
+    function setDialogVisible(visible: bool) {
+        root.precacheImagesWhenReady = visible
+        if (visible)
+            root.ensureLoaded()
     }
 
     function precacheImages() {
@@ -154,7 +167,6 @@ Singleton {
     Connections {
         target: Quickshell
         function onClipboardTextChanged() {
-            console.log("[Cliphist] onClipboardTextChanged fired, refreshing")
             delayedUpdateTimer.restart()
         }
     }
@@ -195,7 +207,8 @@ Singleton {
                     if (deduped.length >= root.maxEntries) break
                 }
                 root.entries = deduped
-                root.precacheImages()
+                if (root.precacheImagesWhenReady)
+                    root.precacheImages()
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)
             }

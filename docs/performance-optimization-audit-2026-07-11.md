@@ -113,7 +113,7 @@ Validation:
 
 ### 6. Reduce Always-On Split Apps
 
-Status: pending
+Status: partial
 
 Problem: `omd-applauncher`, `omd-overview`, and `omd-clipboard` are all resident
 Quickshell processes. This improves responsiveness, but costs roughly 250 MB RSS
@@ -126,6 +126,8 @@ Fix:
 
 Validation:
 - Compare RSS and open latency before/after.
+- Clipboard history list and image decoding now load on first dialog open instead
+  of shell startup.
 
 ### 7. Overview Screencopy Cost
 

@@ -89,8 +89,10 @@ Rectangle {
             searchField.text = "";
             mode = "normal";
             clipboardDialog.forceActiveFocus();
-            Cliphist.refresh();
+            Cliphist.setDialogVisible(true);
             loadCurrentPreviewActual();
+        } else {
+            Cliphist.setDialogVisible(false);
         }
     }
 
