@@ -70,6 +70,7 @@ ShellRoot {
             GlobalStates.clipboardOpen = false;
         }
 
+
         Timer {
             id: dismissGuard
             interval: 150
