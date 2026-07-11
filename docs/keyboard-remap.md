@@ -59,11 +59,15 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
 - **Profile key** = Hyprland keyboard `name` (stable across reconnect for same device).
 - **displayName** = friendly label (editable; defaults from device name).
 - **keydId** = `vvvv:pppp` vendor:product (without keyd `k:` prefix). OMD adds the `k:` prefix when emitting `[ids]` blocks. Resolved from `/proc/bus/input/devices`.
-- **global.enabledPresets** = fixed all-keyboard toggles from Settings Center.
-  Current presets are `alt-win-swap`, `ctrl-caps-swap`, and `caps-esc`.
-  They apply to every enabled keyboard profile. Per-keyboard `remaps` are
-  merged after global preset remaps, so a local rule with the same `from` key
-  overrides the global rule for that keyboard only.
+- **enabledPresets** = fixed per-keyboard toggles from Settings Center.
+  Current presets include `alt-win-swap`, `ctrl-caps-swap`,
+  `grave-esc-swap`, and `caps-esc`.
+  `grave-esc-swap` emits both `grave = escape` and `escape = grave`; on the
+  tested Japanese MINILA keyboard, the physical 全角/半角 key is `grave` at
+  the evdev/keyd layer.
+  Presets are selected independently for each keyboard profile. Enabling one
+  updates the draft profile; keyd keeps using the installed configuration
+  until the user applies the pending changes.
 - New keyboards auto-get an empty profile on first detection, persisted to `profiles.json`.
 
 ## keyd config generation

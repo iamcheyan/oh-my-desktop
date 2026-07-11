@@ -35,6 +35,11 @@ fi
                 {"from":"leftcontrol","to":"capslock"},
                 {"from":"capslock","to":"leftcontrol"}
               ]
+            elif $id == "grave-esc-swap" then
+              [
+                {"from":"grave","to":"escape"},
+                {"from":"escape","to":"grave"}
+              ]
             elif $id == "caps-esc" then
               [{"from":"capslock","to":"escape"}]
             elif $id == "muhenkan-meta" then

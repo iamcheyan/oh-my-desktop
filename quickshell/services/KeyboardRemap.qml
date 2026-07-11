@@ -60,6 +60,16 @@ Singleton {
             ]
         },
         {
+            "id": "grave-esc-swap",
+            "label": "Swap Grave / Esc",
+            "description": "Swaps the Grave (`) and Escape keys.",
+            "type": "swap",
+            "remaps": [
+                { "from": "grave", "to": "escape" },
+                { "from": "escape", "to": "grave" }
+            ]
+        },
+        {
             "id": "caps-esc",
             "label": "Caps to Esc",
             "description": "Makes Caps Lock send Escape.",
