@@ -59,6 +59,18 @@ Legacy/default entry point:
 - `Config.options.sidebar.cornerOpen` and `Config.options.sidebar.keepRightSidebarLoaded`
   - Only used by the removed screen-corners/sidebar-corner path.
 - `omd-corners` references in restart/stop/theme-refresh scripts.
+- `quickshell/modules/common/widgets/widgetCanvas/`
+  - Only served the removed desktop clock/weather widget system.
+  - No remaining QML imports or component references.
+- `quickshell/scripts/images/least_busy_region.py`
+- `quickshell/scripts/images/least-busy-region-venv.sh`
+  - Only supported old "least busy wallpaper region" widget placement.
+  - Current region selector uses `find-regions-venv.sh`, which is kept.
+- `quickshell/scripts/cava/raw_output_config.txt`
+  - No remaining runtime references.
+- `quickshell/scripts/colors/random/`
+  - Old random wallpaper downloader scripts.
+  - Current wallpaper randomization is handled by `bin/omd-wallpaper`.
 
 ## Confirmed Already Removed Or In Progress
 
