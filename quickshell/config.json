@@ -47,7 +47,7 @@
             },
             "alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.iec958-stereo": {
                 "muted": false,
-                "volume": 0.5500335693359375
+                "volume": 0.530029296875
             }
         },
         "protection": {
@@ -66,7 +66,8 @@
         "bottom": false,
         "centerIconSize": 18,
         "centerModuleSpacing": 8,
-        "centerModules": [],
+        "centerModules": [
+        ],
         "cornerStyle": 0,
         "floatStyleShadow": true,
         "leftModules": [
@@ -95,7 +96,8 @@
             "clock",
             "sidebar"
         ],
-        "screenList": [],
+        "screenList": [
+        ],
         "showBackground": true,
         "vertical": false
     },
@@ -243,7 +245,8 @@
         "filterPassive": false,
         "invertPinnedItems": false,
         "monochromeIcons": false,
-        "pinnedItems": [],
+        "pinnedItems": [
+        ],
         "showItemId": false
     },
     "updates": {
