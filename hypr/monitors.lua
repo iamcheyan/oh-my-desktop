@@ -47,22 +47,21 @@ local connected = get_connected_monitors()
 local function same_monitor_set(saved, current)
   if type(saved) ~= "table" or type(saved.outputs) ~= "table" then return false end
 
+  -- If sysfs returned nothing (race at boot), trust saved layout rather than fallback.
+  if #current == 0 then return true end
+
   local current_names = {}
-  local current_count = 0
   for _, m in ipairs(current) do
     current_names[m.name] = true
-    current_count = current_count + 1
   end
 
-  local saved_count = 0
   for _, m in ipairs(saved.outputs) do
     if not m.disabled then
       if not current_names[m.output] then return false end
-      saved_count = saved_count + 1
     end
   end
 
-  return saved_count == current_count
+  return true
 end
 
 local saved_layout_path = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/omd/display/layout.lua"
@@ -126,9 +125,9 @@ for _, m in ipairs(connected) do
       scale = 1.25
       gdk_scale = 1
     elseif m.w <= 3840 then
-      -- 4K external: 1.5x scale (fractional) or 2.0x depending on size. 1.5x is a perfect compromise.
-      scale = 1.5
-      gdk_scale = 1
+      -- 4K external: 2.0x scale provides crisp UI and matches the most common user preference.
+      scale = 2.0
+      gdk_scale = 2
     else
       -- 5K/6K external (Retina): 2.0x scale
       scale = 2.0

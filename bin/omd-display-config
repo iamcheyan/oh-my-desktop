@@ -21,29 +21,6 @@ def lua_number(value, default):
         return default
 
 
-def monitor_expr(spec):
-    output = spec.get("output") or spec.get("name")
-    if not output:
-        raise ValueError("display spec is missing output")
-    if bool(spec.get("disabled")):
-        return f"hl.monitor({{ output = {lua_string(output)}, disabled = true }})"
-
-    mode = str(spec.get("mode") or "preferred").removesuffix("Hz")
-    x = round(lua_number(spec.get("x"), 0))
-    y = round(lua_number(spec.get("y"), 0))
-    scale = lua_number(spec.get("scale"), 1)
-    transform = round(lua_number(spec.get("transform"), 0))
-    return (
-        "hl.monitor({ "
-        f"output = {lua_string(output)}, "
-        f"mode = {lua_string(mode)}, "
-        f"position = {lua_string(f'{x}x{y}')}, "
-        f"scale = {scale:.2f}, "
-        f"transform = {transform} "
-        "})"
-    )
-
-
 def write_layout(specs):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     lines = [
@@ -78,18 +55,48 @@ def write_layout(specs):
     tmp.replace(LAYOUT_FILE)
 
 
+def lua_escaped(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
 def apply_specs(specs):
     if not isinstance(specs, list) or not specs:
         raise ValueError("expected a non-empty display spec list")
 
     write_layout(specs)
 
-    proc = subprocess.run(["hyprctl", "reload"], text=True, capture_output=True)
+    stmts = []
+    for spec in specs:
+        output = spec.get("output") or spec.get("name")
+        if not output:
+            continue
+        if bool(spec.get("disabled")):
+            stmts.append(f'hl.monitor({{output = "{lua_escaped(output)}", disabled = true}})')
+        else:
+            mode = str(spec.get("mode") or "preferred").removesuffix("Hz")
+            x = round(lua_number(spec.get("x"), 0))
+            y = round(lua_number(spec.get("y"), 0))
+            scale = lua_number(spec.get("scale"), 1)
+            transform = round(lua_number(spec.get("transform"), 0))
+            stmts.append(
+                f'hl.monitor({{'
+                f'output = "{lua_escaped(output)}", '
+                f'mode = "{lua_escaped(mode)}", '
+                f'position = "{x}x{y}", '
+                f'scale = {scale:.2f}, '
+                f'transform = {transform} '
+                f'}})'
+            )
+
+    stmts.append('hl.monitor({output = "", mode = "preferred", position = "auto", scale = 1})')
+
+    lua_code = "; ".join(stmts)
+    proc = subprocess.run(["hyprctl", "eval", lua_code], text=True, capture_output=True)
     stdout = proc.stdout.strip()
     stderr = proc.stderr.strip()
     if proc.returncode != 0:
-        raise RuntimeError(stderr or stdout or "hyprctl reload failed")
-    if stdout and any(line.strip() != "ok" for line in stdout.splitlines() if line.strip()):
+        raise RuntimeError(stderr or stdout or "hyprctl eval failed")
+    if stdout and "error" in stdout.lower():
         raise RuntimeError(stdout)
     print("ok")
 
