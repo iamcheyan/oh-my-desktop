@@ -1316,15 +1316,18 @@ WindowDialog {
                     visible: BluetoothStatus.enabled
                 }
 
-                ButtonRow {
-                    visible: BluetoothStatus.enabled && Bluetooth.defaultAdapter
-                    SettingsButton {
-                        label: Bluetooth.defaultAdapter.discovering ? "Stop Discovery" : "Start Discovery"
-                        iconName: "search"
-                        active: Bluetooth.defaultAdapter.discovering
-                        onClicked: Bluetooth.defaultAdapter.discovering = !Bluetooth.defaultAdapter.discovering
-                    }
-                }
+	                ButtonRow {
+	                    visible: BluetoothStatus.enabled && Bluetooth.defaultAdapter
+	                    SettingsButton {
+	                        label: (Bluetooth.defaultAdapter?.discovering ?? false) ? "Stop Discovery" : "Start Discovery"
+	                        iconName: "search"
+	                        active: Bluetooth.defaultAdapter?.discovering ?? false
+	                        onClicked: {
+	                            if (Bluetooth.defaultAdapter)
+	                                Bluetooth.defaultAdapter.discovering = !Bluetooth.defaultAdapter.discovering
+	                        }
+	                    }
+	                }
             }
 
             SettingsCard {

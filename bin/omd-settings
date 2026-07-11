@@ -18,27 +18,10 @@ is_running() {
 }
 
 ipc_call() {
-    qs -p "$app_dir" ipc call settings "$1" 2>/dev/null || true
+    qs -p "$app_dir" ipc call settings "$@" 2>/dev/null || true
 }
 
 launch_direct() {
-    qs_bin="${OMD_QS_BIN:-}"
-    if [ -z "$qs_bin" ]; then
-        if [ -x /usr/bin/qs ]; then
-            qs_bin=/usr/bin/qs
-        elif [ -x /usr/bin/quickshell ]; then
-            qs_bin=/usr/bin/quickshell
-        elif [ -x "$HOME/.local/bin/qs" ]; then
-            qs_bin="$HOME/.local/bin/qs"
-        elif [ -x "$HOME/.local/bin/quickshell" ]; then
-            qs_bin="$HOME/.local/bin/quickshell"
-        fi
-    fi
-    if [ -z "$qs_bin" ]; then
-        echo "Quickshell executable not found" >&2
-        exit 127
-    fi
-
     repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
     export OMD_REPO_ROOT="$repo_root"
     export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
@@ -48,17 +31,7 @@ launch_direct() {
     export OMD_SETTINGS_ON_DEMAND=1
     export OMD_SETTINGS_PAGE="${1:-overview}"
 
-    if [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-        for socket in "$runtime_dir"/wayland-*; do
-            if [ -S "$socket" ]; then
-                export WAYLAND_DISPLAY="$(basename "$socket")"
-                break
-            fi
-        done
-    fi
-
-    exec "$qs_bin" -p "$app_dir"
+    nohup "$repo_root/quickshell/scripts/quickshell" "$app_dir" >/tmp/omd-settings.log 2>&1 &
 }
 
 action="${1:-open}"

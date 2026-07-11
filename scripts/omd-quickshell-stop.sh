@@ -10,8 +10,8 @@ omd_stop_quickshell() {
     runtime_dir="/run/user/$(id -u)"
     apps="omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
 
-    for app in omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard; do
-        pkill -f "quickshell -p ${omd_root}/apps/${app}$" 2>/dev/null || true
+    for app in omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-settings omd-screenshot; do
+        pkill -f "(quickshell|qs).* -p ${omd_root}/apps/${app}( |$)" 2>/dev/null || true
     done
 
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
@@ -24,7 +24,7 @@ omd_stop_quickshell() {
     pkill -f "wl-paste --type image --watch cliphist store" 2>/dev/null || true
     sleep 0.3
 
-    pkill -9 -f "quickshell -p ${omd_root}/apps/omd-" 2>/dev/null || true
+    pkill -9 -f "(quickshell|qs).* -p ${omd_root}/apps/omd-" 2>/dev/null || true
 
     for app in $apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true

@@ -20,22 +20,27 @@ import Quickshell.Hyprland
 ShellRoot {
     id: root
 
-    readonly property string initialPage: EnvVar.string("OMD_SETTINGS_PAGE", "overview")
+    readonly property string initialPage: Quickshell.env("OMD_SETTINGS_PAGE") ?? "overview"
 
     Component.onCompleted: {
-        if (EnvVar.string("OMD_SETTINGS_ON_DEMAND", "0") === "1") {
+        if ((Quickshell.env("OMD_SETTINGS_ON_DEMAND") ?? "0") === "1") {
             root.showSettings(root.initialPage);
         }
     }
 
     function showSettings(page: string) {
         settingsLoader.active = true;
-        settingsCenter.requestedPage = page;
-        settingsCenter.show = true;
+        Qt.callLater(() => {
+            if (settingsLoader.item) {
+                settingsLoader.item.openPage(page);
+            }
+        });
     }
 
     function closeSettings() {
-        settingsCenter.show = false;
+        if (settingsLoader.item) {
+            settingsLoader.item.hidePage();
+        }
         Qt.quit();
     }
 
@@ -51,7 +56,7 @@ ShellRoot {
         }
 
         function toggle(page: string): void {
-            if (settingsCenter.show) {
+            if (settingsLoader.item && settingsLoader.item.isOpen) {
                 root.closeSettings();
             } else {
                 root.showSettings(page);
@@ -77,16 +82,21 @@ ShellRoot {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             color: "transparent"
+            visible: true
+
+            property bool isOpen: settingsCenter.show
 
             function close() {
                 root.closeSettings();
             }
 
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_Escape) {
-                    close();
-                    event.accepted = true;
-                }
+            function openPage(page: string) {
+                settingsCenter.requestedPage = page;
+                settingsCenter.show = true;
+            }
+
+            function hidePage() {
+                settingsCenter.show = false;
             }
 
             SettingsCenter {

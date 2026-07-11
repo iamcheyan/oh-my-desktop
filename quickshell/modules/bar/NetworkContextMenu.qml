@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
@@ -24,10 +25,28 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
+        iconName: NerdIconMap.wifi
+        label: Translation.tr("Network Manager")
+        releaseAction: () => {
+            root.close();
+            Quickshell.execDetached(["nm-connection-editor"]);
+        }
+    }
+
+    BarContextMenuItem {
         iconName: BluetoothStatus.connected ? NerdIconMap.bluetoothConnected
             : BluetoothStatus.enabled ? NerdIconMap.bluetooth
             : NerdIconMap.bluetoothDisabled
         label: Translation.tr("Bluetooth Settings")
         releaseAction: () => root.openSettings("bluetooth")
+    }
+
+    BarContextMenuItem {
+        iconName: NerdIconMap.bluetooth
+        label: Translation.tr("Bluetooth Manager")
+        releaseAction: () => {
+            root.close();
+            Quickshell.execDetached(["blueman-manager"]);
+        }
     }
 }
