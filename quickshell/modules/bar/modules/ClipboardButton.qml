@@ -25,8 +25,7 @@ Item {
             root.isFirstClick = true;
             // Single click: open the main clipboard dialog
             Quickshell.execDetached([
-                "qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-clipboard`,
-                "ipc", "call", "clipboard", "toggle"
+                `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`, "toggle"
             ]);
         }
     }

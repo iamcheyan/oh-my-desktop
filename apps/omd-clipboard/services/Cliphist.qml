@@ -17,6 +17,8 @@ Singleton {
     property bool loaded: false
     property bool precacheImagesWhenReady: false
     property list<string> entries: []
+    readonly property string cacheDir: Directories.cache + "/omd/clipboard"
+    readonly property string cacheFile: cacheDir + "/entries.json"
     readonly property var preparedEntries: entries.map(a => ({
         name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
         entry: a
@@ -206,6 +208,7 @@ Singleton {
                     if (deduped.length >= root.maxEntries) break
                 }
                 root.entries = deduped
+                root.saveToCache()
                 if (root.precacheImagesWhenReady)
                     root.precacheImages()
             } else {
@@ -219,6 +222,29 @@ Singleton {
 
         function update(): void {
             root.refresh()
+        }
+    }
+
+    function saveToCache() {
+        const payload = JSON.stringify(root.entries);
+        Quickshell.execDetached(["bash", "-c", `mkdir -p '${root.cacheDir}' && printf %s '${StringUtils.shellSingleQuoteEscape(payload)}' > '${root.cacheFile}'`]);
+    }
+
+    FileView {
+        id: cacheFileView
+        path: root.cacheFile
+        onLoaded: {
+            var content = text();
+            if (content.length > 0) {
+                try {
+                    var cached = JSON.parse(content);
+                    if (Array.isArray(cached) && cached.length > 0) {
+                        root.entries = cached;
+                    }
+                } catch (e) {
+                    console.error("[Cliphist] Failed to parse entries cache:", e);
+                }
+            }
         }
     }
 }

@@ -206,6 +206,23 @@ FocusScope {
         width: Math.min(390, parent.width - 48)
         spacing: 12
 
+        Rectangle {
+            Layout.alignment: Qt.AlignHCenter
+            Layout.preferredWidth: 64
+            Layout.preferredHeight: 64
+            radius: 32
+            color: Qt.rgba(1, 1, 1, 0.15)
+            border.width: 2
+            border.color: Qt.rgba(1, 1, 1, 0.3)
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: "account_circle"
+                iconSize: 40
+                color: "#f4f4f4"
+            }
+        }
+
         StyledText {
             Layout.alignment: Qt.AlignHCenter
             text: SystemInfo.username
