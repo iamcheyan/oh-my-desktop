@@ -169,7 +169,12 @@ Item { // Bar content region
             spacing: Config.options.bar.rightModuleSpacing
 
             Repeater {
-                model: Config.options.bar.rightModules
+                model: {
+                    const modules = Config.options.bar.rightModules
+                    if (!modules.includes("util:audio"))
+                        return modules
+                    return modules.filter(name => name !== "util:voice")
+                }
                 delegate: Loader {
                     required property string modelData
                     readonly property bool fixedIconSlot: modelData.startsWith("util:")

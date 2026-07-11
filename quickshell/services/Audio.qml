@@ -350,33 +350,155 @@ Singleton {
     readonly property list<var> outputDevices: root.devices(true)
     readonly property list<var> inputDevices: root.devices(false)
 
+    // ── Volume persistence (config.json → audio.levels) ───────────────────
+    property bool restoringLevel: false
+
+    function scheduleLevelSave() {
+        if (root.restoringLevel)
+            return
+        levelSaveTimer.restart()
+    }
+
+    function writeDeviceLevels() {
+        const levels = {}
+        const existing = Config.options.audio.levels
+        if (existing) {
+            for (const key in existing)
+                levels[key] = existing[key]
+        }
+        if (root.sink?.name && root.sink?.audio) {
+            levels[root.sink.name] = {
+                volume: root.sink.audio.volume,
+                muted: root.sink.audio.muted,
+            }
+        }
+        if (root.source?.name && root.source?.audio) {
+            levels[root.source.name] = {
+                volume: root.source.audio.volume,
+                muted: root.source.audio.muted,
+            }
+        }
+        Config.setNestedValue("audio.levels", levels)
+    }
+
+    function restoreNodeLevel(node) {
+        if (!node?.name || !node?.audio)
+            return
+        const saved = Config.options.audio.levels?.[node.name]
+        if (!saved)
+            return
+        root.restoringLevel = true
+        if (saved.volume !== undefined && saved.volume !== null)
+            node.audio.volume = Math.max(0, Math.min(1, saved.volume))
+        if (saved.muted !== undefined && saved.muted !== null)
+            node.audio.muted = saved.muted
+        root.restoringLevel = false
+    }
+
+    function setSinkVolume(value) {
+        if (!sink?.audio)
+            return
+        const clamped = Math.max(0, Math.min(1, value))
+        sink.audio.volume = clamped
+        if (sink.audio.muted && clamped > 0)
+            sink.audio.muted = false
+        root.scheduleLevelSave()
+    }
+
+    function setSourceVolume(value) {
+        if (!source?.audio)
+            return
+        const clamped = Math.max(0, Math.min(1, value))
+        source.audio.volume = clamped
+        if (source.audio.muted && clamped > 0)
+            source.audio.muted = false
+        root.scheduleLevelSave()
+    }
+
     // ── Controls ─────────────────────────────────────────────────────────
     function toggleMute() {
-        if (sink?.audio) sink.audio.muted = !sink.audio.muted
+        if (sink?.audio) {
+            sink.audio.muted = !sink.audio.muted
+            root.scheduleLevelSave()
+        }
     }
 
     function toggleMicMute() {
         if (source?.audio) {
             source.audio.muted = !source.audio.muted
             micMuteChanged()
+            root.scheduleLevelSave()
         }
     }
 
     function incrementVolume() {
         const currentVolume = root.value
         const step = currentVolume < 0.1 ? 0.01 : 0.02
-        if (sink?.audio) sink.audio.volume = Math.min(1, sink.audio.volume + step)
+        if (sink?.audio) {
+            sink.audio.volume = Math.min(1, sink.audio.volume + step)
+            root.scheduleLevelSave()
+        }
     }
 
     function decrementVolume() {
         const currentVolume = root.value
         const step = currentVolume < 0.1 ? 0.01 : 0.02
-        if (sink?.audio) sink.audio.volume -= step
+        if (sink?.audio) {
+            sink.audio.volume -= step
+            root.scheduleLevelSave()
+        }
+    }
+
+    Timer {
+        id: levelSaveTimer
+        interval: 250
+        repeat: false
+        onTriggered: root.writeDeviceLevels()
+    }
+
+    Connections {
+        target: root
+        function onReadyChanged() {
+            if (!root.ready)
+                return
+            if (root.sink)
+                root.restoreNodeLevel(root.sink)
+            if (root.source)
+                root.restoreNodeLevel(root.source)
+        }
+        function onSinkChanged() {
+            if (root.sink)
+                Qt.callLater(() => root.restoreNodeLevel(root.sink))
+        }
+        function onSourceChanged() {
+            if (root.source)
+                Qt.callLater(() => root.restoreNodeLevel(root.source))
+        }
     }
 
     // ── Internals ────────────────────────────────────────────────────────
     PwObjectTracker {
         objects: [sink, source]
+    }
+
+    Connections {
+        target: root.sink?.audio ?? null
+        function onVolumeChanged() {
+            root.scheduleLevelSave()
+        }
+        function onMutedChanged() {
+            root.scheduleLevelSave()
+        }
+    }
+
+    Connections {
+        target: root.source?.audio ?? null
+        function onVolumeChanged() {
+            root.scheduleLevelSave()
+        }
+        function onMutedChanged() {
+            root.scheduleLevelSave()
+        }
     }
 
     Connections {

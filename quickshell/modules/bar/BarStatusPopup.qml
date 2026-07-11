@@ -4,12 +4,15 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.modules.schedulePopup
+import qs.modules.settings
+import qs.modules.settings.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import Quickshell.Wayland
 
@@ -23,6 +26,7 @@ Scope {
         ?? null
 
     function close() {
+        GlobalStates.barPopupEphemeral = false;
         GlobalStates.barPopupType = "";
     }
 
@@ -89,6 +93,8 @@ Scope {
                 return Math.min(720, Math.max(660, (screen?.width ?? 1920) - 32));
             if (root.activeType === "battery")
                 return Math.min(460, Math.max(400, (screen?.width ?? 1920) - 32));
+            if (root.activeType === "audio")
+                return Math.min(420, Math.max(400, (screen?.width ?? 1920) - 32));
             return 360;
         }
 
@@ -109,7 +115,7 @@ Scope {
 
         Timer {
             id: dismissGuard
-            interval: 150
+            interval: 300
             repeat: false
             onTriggered: GlobalFocusGrab.addDismissable(popupWindow)
         }
@@ -298,6 +304,73 @@ Scope {
         Item { Layout.fillWidth: true }
     }
 
+    component AudioSliderRow: RowLayout {
+        id: audioSliderRow
+        property string icon: ""
+        property real level: 0
+        property bool muted: false
+        signal moved(real value)
+        signal iconClicked()
+
+        Layout.fillWidth: true
+        spacing: 10
+
+        Item {
+            Layout.preferredWidth: 28
+            Layout.preferredHeight: 28
+
+            NerdIcon {
+                anchors.centerIn: parent
+                iconSize: 18
+                text: audioSliderRow.icon
+                color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: audioSliderRow.iconClicked()
+            }
+        }
+
+        SettingsSlider {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+            trackColor: TuiStyle.meterTrack
+            highlightColor: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.accent
+            handleColor: TuiStyle.fg
+            value: audioSliderRow.muted ? 0 : audioSliderRow.level
+            onValueChanged: {
+                if (pressed)
+                    audioSliderRow.moved(value)
+            }
+        }
+
+        StyledText {
+            Layout.preferredWidth: 40
+            horizontalAlignment: Text.AlignRight
+            text: `${Math.round((audioSliderRow.muted ? 0 : audioSliderRow.level) * 100)}%`
+            font.family: Appearance.font.family.main
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            font.weight: Font.Medium
+            color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.dim
+        }
+    }
+
+    function adjustOutputVolumeFromWheel(wheel, accumHolder) {
+        GlobalStates.barPopupEphemeral = false;
+        const r = WheelUtils.getSteps(wheel.angleDelta.y, accumHolder.wheelAccum)
+        accumHolder.wheelAccum = r.accum
+        for (let i = 0; i < Math.abs(r.steps); i++) {
+            if (r.steps > 0)
+                Audio.incrementVolume()
+            else if (r.steps < 0)
+                Audio.decrementVolume()
+        }
+        wheel.accepted = true
+    }
+
     Component {
         id: emptyContent
         Item { implicitHeight: 1 }
@@ -359,21 +432,186 @@ Scope {
 
     Component {
         id: audioContent
-        PopupColumn {
+        Item {
+            id: audioPanel
+            width: parent?.width ?? implicitWidth
+            implicitWidth: audioColumn.implicitWidth
+            implicitHeight: audioColumn.implicitHeight
+
+            property real wheelAccum: 0
             readonly property PwNode sink: Pipewire.defaultAudioSink
             readonly property PwNode source: Pipewire.defaultAudioSource
             readonly property real sinkVolume: sink?.audio.volume ?? 0
+            readonly property real sourceVolume: source?.audio.volume ?? 0
             readonly property bool sinkMuted: sink?.audio.muted ?? false
             readonly property bool sourceMuted: source?.audio.muted ?? false
+            readonly property MprisPlayer activePlayer: MprisController.activePlayer
+            readonly property bool hasActivePlayer: activePlayer !== null && activePlayer !== undefined
+            readonly property string trackTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || "--"
+            readonly property string trackArtist: activePlayer?.trackArtist ?? ""
+            readonly property bool isPlaying: activePlayer?.isPlaying ?? false
+            readonly property bool showBarMedia: Config.options.bar.rightModules.includes("media")
 
-            Header { title: "AUDIO"; status: sinkMuted ? "MUTED" : "ACTIVE"; tone: sinkMuted ? TuiStyle.danger : TuiStyle.success }
-            TuiMeterBar { Layout.fillWidth: true; Layout.preferredHeight: 10; value: sinkMuted ? 0 : sinkVolume * 100; accent: sinkMuted ? TuiStyle.danger : TuiStyle.info }
-            TuiDetailRow { keyText: "OUTPUT"; valueText: sink ? Audio.friendlyDeviceName(sink) : "--"; valueColor: TuiStyle.info }
-            TuiDetailRow { keyText: "O LEVEL"; valueText: `${Math.round(sinkVolume * 100)}%`; valueColor: sinkMuted ? TuiStyle.danger : TuiStyle.fg }
-            TuiDetailRow { keyText: "INPUT"; valueText: source ? Audio.friendlyDeviceName(source) : "--"; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "I STATUS"; valueText: sourceMuted ? "muted" : "active"; valueColor: sourceMuted ? TuiStyle.danger : TuiStyle.success }
-            ActionRow {
-                TuiActionButton { label: "AUDIOCTL"; onClicked: root.openDialog("audio") }
+            function headerStatus() {
+                if (audioPanel.sinkMuted) return "MUTED";
+                return `${Math.round(audioPanel.sinkVolume * 100)}%`;
+            }
+
+            function headerTone() {
+                if (audioPanel.sinkMuted) return TuiStyle.danger;
+                return TuiStyle.accent;
+            }
+
+            function voiceStateLabel() {
+                if (VoiceInput.state === "idle") return "ready";
+                if (VoiceInput.state === "recording") return "recording";
+                if (VoiceInput.state === "transcribing") return "transcribing";
+                return VoiceInput.state;
+            }
+
+            function pinOpen() {
+                GlobalStates.barPopupEphemeral = false;
+            }
+
+            function setSinkVolume(value) {
+                audioPanel.pinOpen();
+                Audio.setSinkVolume(value);
+            }
+
+            function setSourceVolume(value) {
+                audioPanel.pinOpen();
+                Audio.setSourceVolume(value);
+            }
+
+            function toggleBarMediaModule(enabled) {
+                const modules = [...Config.options.bar.rightModules];
+                const index = modules.indexOf("media");
+                if (enabled && index < 0)
+                    modules.splice(Math.max(0, modules.indexOf("util:audio")), 0, "media");
+                else if (!enabled && index >= 0)
+                    modules.splice(index, 1);
+                Config.setNestedValue("bar.rightModules", modules);
+            }
+
+            ColumnLayout {
+                id: audioColumn
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                spacing: 10
+
+                Header {
+                    title: "AUDIO"
+                    status: audioPanel.headerStatus()
+                    tone: audioPanel.headerTone()
+                }
+
+                SectionLabel { text: "OUTPUT"; topInset: 0 }
+
+                AudioSliderRow {
+                    icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
+                    level: audioPanel.sinkVolume
+                    muted: audioPanel.sinkMuted
+                    onMoved: value => audioPanel.setSinkVolume(value)
+                    onIconClicked: Audio.toggleMute()
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: -6
+                    text: audioPanel.sink ? Audio.friendlyDeviceName(audioPanel.sink) : "--"
+                    wrapMode: Text.Wrap
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: TuiStyle.dim
+                }
+
+                SectionLabel { text: "INPUT" }
+
+                AudioSliderRow {
+                    icon: audioPanel.sourceMuted ? NerdIconMap.micOff : NerdIconMap.mic
+                    level: audioPanel.sourceVolume
+                    muted: audioPanel.sourceMuted
+                    onMoved: value => audioPanel.setSourceVolume(value)
+                    onIconClicked: Audio.toggleMicMute()
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: -6
+                    text: audioPanel.source ? Audio.friendlyDeviceName(audioPanel.source) : "--"
+                    wrapMode: Text.Wrap
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: TuiStyle.dim
+                }
+
+                SectionLabel {
+                    visible: audioPanel.hasActivePlayer
+                    text: "MEDIA"
+                }
+
+                TuiDetailRow {
+                    visible: audioPanel.hasActivePlayer
+                    keyText: "TRACK"
+                    valueText: audioPanel.trackTitle
+                    valueColor: TuiStyle.fg
+                    keyWidth: 56
+                }
+
+                TuiDetailRow {
+                    visible: audioPanel.hasActivePlayer
+                    keyText: "STATE"
+                    valueText: audioPanel.isPlaying ? "playing" : "paused"
+                    valueColor: audioPanel.isPlaying ? TuiStyle.success : TuiStyle.muted
+                    keyWidth: 56
+                }
+
+                ActionRow {
+                    visible: audioPanel.hasActivePlayer
+                    TuiActionButton {
+                        label: audioPanel.isPlaying ? "PAUSE" : "PLAY"
+                        onClicked: audioPanel.activePlayer?.togglePlaying()
+                    }
+                    TuiActionButton {
+                        label: "EXPAND"
+                        filled: false
+                        onClicked: GlobalStates.mediaControlsOpen = true
+                    }
+                }
+
+                TuiDetailRow {
+                    keyText: "BAR"
+                    valueText: audioPanel.showBarMedia ? "shown" : "hidden"
+                    valueColor: audioPanel.showBarMedia ? TuiStyle.success : TuiStyle.muted
+                    keyWidth: 56
+                }
+
+                ActionRow {
+                    TuiActionButton {
+                        label: audioPanel.showBarMedia ? "HIDE" : "SHOW"
+                        onClicked: audioPanel.toggleBarMediaModule(!audioPanel.showBarMedia)
+                    }
+                }
+
+                TuiDetailRow {
+                    keyText: "VOICE"
+                    valueText: audioPanel.voiceStateLabel()
+                    valueColor: VoiceInput.state === "recording" ? TuiStyle.warning : TuiStyle.muted
+                    keyWidth: 56
+                }
+
+                ActionRow {
+                    TuiActionButton { label: "SETTINGS"; onClicked: root.openDialog("sound") }
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.NoButton
+                hoverEnabled: false
+                z: -1
+                onWheel: wheel => root.adjustOutputVolumeFromWheel(wheel, audioPanel)
             }
         }
     }
@@ -402,6 +640,11 @@ Scope {
             id: batteryStack
             width: parent?.width ?? implicitWidth
             property bool hibernateAvailable: false
+            readonly property var brightnessMonitor: Brightness.getMonitorForScreen(
+                Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
+            )
+            readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
+            readonly property int chargeLimit: Config.options.battery.full ?? 100
 
             function stateLabel() {
                 if (!Battery.available) return "desktop";
@@ -412,6 +655,11 @@ Scope {
 
             function headerTitle() {
                 return Battery.available ? "BATTERY" : "POWER";
+            }
+
+            function headerStatus() {
+                if (!Battery.available) return "DESKTOP";
+                return `${Math.round(Battery.percentage * 100)}%`;
             }
 
             function headerTone() {
@@ -451,6 +699,14 @@ Scope {
                 return TuiStyle.muted;
             }
 
+            function profileLabel() {
+                const profile = PowerProfiles.currentProfile;
+                if (profile === "performance") return "performance";
+                if (profile === "balanced") return "balanced";
+                if (profile === "power-saver") return "power saver";
+                return profile;
+            }
+
             function executeAction(action) {
                 if (action === "lock") { root.close(); Session.lock(); return; }
                 if (action === "sleep") { Session.suspend(); root.close(); return; }
@@ -482,139 +738,202 @@ Scope {
             }
 
             Header {
-                    title: batteryStack.headerTitle()
-                    status: batteryStack.stateLabel().toUpperCase()
-                    tone: batteryStack.headerTone()
-                }
+                title: batteryStack.headerTitle()
+                status: batteryStack.headerStatus()
+                tone: batteryStack.headerTone()
+            }
 
-                RowLayout {
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: Battery.available ? 24 : 0
+                spacing: 12
+                visible: Battery.available
+
+                TuiMeterBar {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Battery.available ? 24 : 0
-                    spacing: 12
-                    visible: Battery.available
-
-                    TuiMeterBar {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 10
-                        Layout.alignment: Qt.AlignVCenter
-                        value: Battery.percentage * 100
-                        accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success
-                    }
-
-                    StyledText {
-                        Layout.alignment: Qt.AlignVCenter
-                        text: `${Math.round(Battery.percentage * 100)}%`
-                        font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.DemiBold
-                        color: Battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
-                    }
+                    Layout.preferredHeight: 10
+                    Layout.alignment: Qt.AlignVCenter
+                    value: Battery.percentage * 100
+                    accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success
                 }
 
-                TuiDetailRow {
-                    visible: batteryStack.showTimeEstimate()
-                    keyText: batteryStack.timeEstimateLabel()
-                    valueText: batteryStack.timeEstimateValue()
-                    valueColor: batteryStack.timeEstimateColor()
-                    keyWidth: 96
+                StyledText {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: `${Math.round(Battery.percentage * 100)}%`
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    font.weight: Font.DemiBold
+                    color: Battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
                 }
+            }
 
-                TuiDetailRow {
-                    visible: Battery.available && Battery.chargeState !== 4 && Battery.energyRate > 0.01
-                    keyText: "POWER DRAW"
-                    valueText: `${Battery.energyRate.toFixed(1)}W`
-                    valueColor: Battery.isCharging ? TuiStyle.warning : TuiStyle.info
-                    keyWidth: 96
+            TuiDetailRow {
+                visible: Battery.available
+                keyText: "STATE"
+                valueText: batteryStack.stateLabel()
+                valueColor: batteryStack.headerTone()
+                keyWidth: 96
+            }
+
+            TuiDetailRow {
+                visible: batteryStack.showTimeEstimate()
+                keyText: batteryStack.timeEstimateLabel()
+                valueText: batteryStack.timeEstimateValue()
+                valueColor: batteryStack.timeEstimateColor()
+                keyWidth: 96
+            }
+
+            TuiDetailRow {
+                visible: Battery.available && Battery.chargeState !== 4 && Battery.energyRate > 0.01
+                keyText: "POWER DRAW"
+                valueText: `${Battery.energyRate.toFixed(1)}W`
+                valueColor: Battery.isCharging ? TuiStyle.warning : TuiStyle.info
+                keyWidth: 96
+            }
+
+            SectionLabel {
+                visible: PowerProfiles.available
+                text: "POWER PROFILE"
+                topInset: Battery.available ? 2 : 0
+            }
+
+            TileTrack {
+                Layout.preferredHeight: 40
+                visible: PowerProfiles.available
+
+                PanelTile {
+                    active: PowerProfiles.currentProfile === "power-saver"
+                    icon: NerdIconMap.eco
+                    label: "SAVER"
+                    onClicked: PowerProfiles.setProfile("power-saver")
                 }
-
-                SectionLabel {
-                    visible: PowerProfiles.available
-                    text: "POWER PROFILE"
-                    topInset: Battery.available ? 2 : 0
+                PanelTile {
+                    active: PowerProfiles.currentProfile === "balanced"
+                    icon: NerdIconMap.balance
+                    label: "BALANCED"
+                    onClicked: PowerProfiles.setProfile("balanced")
                 }
+                PanelTile {
+                    active: PowerProfiles.currentProfile === "performance"
+                    icon: NerdIconMap.speed
+                    label: "PERFORMANCE"
+                    showDivider: false
+                    onClicked: PowerProfiles.setProfile("performance")
+                }
+            }
 
-                TileTrack {
-                    Layout.preferredHeight: 40
-                    visible: PowerProfiles.available
+            TuiDetailRow {
+                visible: PowerProfiles.available
+                keyText: "ACTIVE"
+                valueText: batteryStack.profileLabel()
+                valueColor: TuiStyle.accent
+                keyWidth: 96
+            }
 
-                    PanelTile {
-                        active: PowerProfiles.currentProfile === "power-saver"
-                        icon: NerdIconMap.eco
-                        label: "SAVER"
-                        onClicked: PowerProfiles.setProfile("power-saver")
-                    }
-                    PanelTile {
-                        active: PowerProfiles.currentProfile === "balanced"
-                        icon: NerdIconMap.balance
-                        label: "BALANCED"
-                        onClicked: PowerProfiles.setProfile("balanced")
-                    }
-                    PanelTile {
-                        active: PowerProfiles.currentProfile === "performance"
-                        icon: NerdIconMap.speed
-                        label: "PERFORMANCE"
-                        showDivider: false
-                        onClicked: PowerProfiles.setProfile("performance")
+            SectionLabel {
+                visible: Battery.available
+                text: "CHARGE LIMIT"
+            }
+
+            TileTrack {
+                Layout.preferredHeight: 40
+                visible: Battery.available
+
+                PanelTile {
+                    active: batteryStack.chargeLimit <= 80
+                    icon: NerdIconMap.battery80
+                    label: "80%"
+                    onClicked: Config.setNestedValue("battery.full", 80)
+                }
+                PanelTile {
+                    active: batteryStack.chargeLimit > 80
+                    icon: NerdIconMap.batteryFull
+                    label: "100%"
+                    showDivider: false
+                    onClicked: Config.setNestedValue("battery.full", 100)
+                }
+            }
+
+            SectionLabel { text: "BRIGHTNESS" }
+
+            TuiMeterBar {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 10
+                value: batteryStack.brightnessValue * 100
+                accent: TuiStyle.warning
+            }
+
+            TuiDetailRow {
+                keyText: "LEVEL"
+                valueText: `${Math.round(batteryStack.brightnessValue * 100)}%`
+                valueColor: TuiStyle.warning
+                keyWidth: 96
+            }
+
+            ActionRow {
+                TuiActionButton {
+                    label: "SETTINGS"
+                    onClicked: root.openDialog("power")
+                }
+            }
+
+            SectionLabel { text: "SESSION" }
+
+            TileTrack {
+                PanelTile {
+                    icon: NerdIconMap.lock
+                    label: "LOCK"
+                    tone: TuiStyle.accent
+                    onClicked: batteryStack.requestAction("lock", "Lock")
+                }
+                PanelTile {
+                    icon: NerdIconMap.darkMode
+                    label: "SLEEP"
+                    tone: TuiStyle.info
+                    onClicked: batteryStack.requestAction("sleep", "Sleep")
+                }
+                PanelTile {
+                    icon: NerdIconMap.download
+                    label: "HIBERNATE"
+                    tone: TuiStyle.purple
+                    visible: batteryStack.hibernateAvailable
+                    onClicked: batteryStack.requestAction("hibernate", "Hibernate")
+                }
+                PanelTile {
+                    icon: NerdIconMap.logout
+                    label: "LOGOUT"
+                    tone: TuiStyle.warning
+                    showDivider: false
+                    onClicked: batteryStack.requestAction("logout", "Logout")
+                }
+            }
+
+            SectionLabel { text: "POWER" }
+
+            TileTrack {
+                PanelTile {
+                    icon: NerdIconMap.restart
+                    label: "REBOOT"
+                    tone: TuiStyle.info
+                    onClicked: batteryStack.requestAction("reboot", "Reboot")
+                }
+                PanelTile {
+                    icon: NerdIconMap.powerSettingsNew
+                    label: "SHUTDOWN"
+                    tone: TuiStyle.danger
+                    onClicked: batteryStack.requestAction("poweroff", "Shutdown")
+                }
+                PanelTile {
+                    icon: NerdIconMap.refresh
+                    label: "RELOAD"
+                    tone: TuiStyle.accent
+                    showDivider: false
+                    onClicked: {
+                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                        root.close();
                     }
                 }
-
-                SectionLabel { text: "SESSION" }
-
-                TileTrack {
-                    PanelTile {
-                        icon: NerdIconMap.lock
-                        label: "LOCK"
-                        tone: TuiStyle.accent
-                        onClicked: batteryStack.requestAction("lock", "Lock")
-                    }
-                    PanelTile {
-                        icon: NerdIconMap.darkMode
-                        label: "SLEEP"
-                        tone: TuiStyle.info
-                        onClicked: batteryStack.requestAction("sleep", "Sleep")
-                    }
-                    PanelTile {
-                        icon: NerdIconMap.download
-                        label: "HIBERNATE"
-                        tone: TuiStyle.purple
-                        visible: batteryStack.hibernateAvailable
-                        onClicked: batteryStack.requestAction("hibernate", "Hibernate")
-                    }
-                    PanelTile {
-                        icon: NerdIconMap.logout
-                        label: "LOGOUT"
-                        tone: TuiStyle.warning
-                        showDivider: false
-                        onClicked: batteryStack.requestAction("logout", "Logout")
-                    }
-                }
-
-                SectionLabel { text: "POWER" }
-
-                TileTrack {
-                    PanelTile {
-                        icon: NerdIconMap.restart
-                        label: "REBOOT"
-                        tone: TuiStyle.info
-                        onClicked: batteryStack.requestAction("reboot", "Reboot")
-                    }
-                    PanelTile {
-                        icon: NerdIconMap.powerSettingsNew
-                        label: "SHUTDOWN"
-                        tone: TuiStyle.danger
-                        onClicked: batteryStack.requestAction("poweroff", "Shutdown")
-                    }
-                    PanelTile {
-                        icon: NerdIconMap.refresh
-                        label: "RELOAD"
-                        tone: TuiStyle.accent
-                        showDivider: false
-                        onClicked: {
-                            Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
-                            root.close();
-                        }
-                    }
-                }
+            }
         }
     }
 

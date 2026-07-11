@@ -38,6 +38,8 @@ Singleton {
     property bool barDialogOpen: false
     property string barDialogType: ""
     property string barPopupType: ""
+    // Ephemeral popups (e.g. volume OSD) auto-close; pinned ones stay until dismissed.
+    property bool barPopupEphemeral: false
     property string activeContextMenu: ""
     property bool sessionConfirmOpen: false
     property string sessionConfirmAction: ""
@@ -101,6 +103,11 @@ Singleton {
     onBarDialogOpenChanged: {
         if (GlobalStates.barDialogOpen)
             GlobalStates.barPopupType = "";
+    }
+
+    onBarPopupTypeChanged: {
+        if (!GlobalStates.barPopupType)
+            GlobalStates.barPopupEphemeral = false;
     }
 
     GlobalShortcut {
