@@ -20,11 +20,13 @@ Item { // Window
     property real scaleY: scale * heightRatio
     property bool restrictToWorkspace: true
     property real widthRatio: {
+        if (!widgetMonitor || !monitorData) return 1;
         const widgetWidth = widgetMonitor.transform & 1 ? widgetMonitor.height : widgetMonitor.width;
         const monitorWidth = monitorData.transform & 1 ? monitorData.height : monitorData.width;
         return (widgetWidth * monitorData.scale) / (monitorWidth * widgetMonitor.scale);
     }
     property real heightRatio: {
+        if (!widgetMonitor || !monitorData) return 1;
         const widgetHeight = widgetMonitor.transform & 1 ? widgetMonitor.width : widgetMonitor.height;
         const monitorHeight = monitorData.transform & 1 ? monitorData.width : monitorData.height;
         return (widgetHeight * monitorData.scale) / (monitorHeight * widgetMonitor.scale);
@@ -41,7 +43,7 @@ Item { // Window
     property real workspaceWidth: 1
     property real workspaceHeight: 1
     property var widgetMonitor
-    property int widgetMonitorId: widgetMonitor.id
+    property int widgetMonitorId: widgetMonitor?.id ?? -1
 
     // Monitor logical dimensions (accounting for transforms)
     property real monitorLogicalWidth: {

@@ -155,3 +155,16 @@ Fix:
 
 Validation:
 - Restart Quickshell and check startup logs for those warning lines.
+
+### 9. Guard Overview Startup Bindings
+
+Status: done
+
+Problem: overview delegates can evaluate geometry bindings before their monitor
+properties are populated, producing repeated startup warnings.
+
+Fix:
+- Add null guards for `widgetMonitor` and `monitorData` in `OverviewWindow`.
+
+Validation:
+- Restart Quickshell and check overview logs for missing monitor binding errors.
