@@ -11,8 +11,6 @@ import "services"
 import qs.modules.bar
 import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
-import qs.modules.polkit
-import qs.modules.regionSelector
 import qs.modules.lock
 
 import QtQuick
@@ -72,8 +70,6 @@ ShellRoot {
             SessionAutoRestore {}
             NotificationPopup {}
             OnScreenDisplay {}
-            Polkit {}
-            RegionSelector {}
         }
     }
 }
