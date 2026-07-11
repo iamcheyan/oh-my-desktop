@@ -23,6 +23,10 @@ hl.config({
 -- as frosted glass instead of plain alpha over the wallpaper.
 hl.layer_rule({ match = { namespace = "quickshell:.*" }, blur = true, ignore_alpha = 0.1 })
 
+-- 关闭应用启动器和剪贴板的图层过渡动画，使其在冷启动下直接瞬间弹出，以达到极致的高性能响应
+hl.layer_rule({ match = { namespace = "quickshell:appLauncher" }, no_anim = true })
+hl.layer_rule({ match = { namespace = "quickshell:clipboard" }, no_anim = true })
+
 -- Float and center our new Wi-Fi TUI manager with premium sizing
 o.window("org.omarchy.omarchy-wifi-tui", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omd.impala", { tag = "+floating-window", size = { 1000, 700 } })
