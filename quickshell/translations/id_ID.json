@@ -1,5 +1,4 @@
 {
-  "Material cookie": "Material cookie",
   "Style: Blurred": "Gaya: Buram",
   "Unknown device": "Perangkat tidak dikenal",
   "Change any time later with /dark, /light, /wallpaper in the launcher\nIf the shell's colors aren't changing:\n    1. Open the right sidebar with Super+N\n    2. Click \"Reload Hyprland & Quickshell\" in the top-right corner": "Ubah kapan saja dengan /dark, /light, /wallpaper di peluncur\nJika warna shell tidak berubah:\n    1. Buka sidebar kanan dengan Super+N\n    2. Klik \"Muat Ulang Hyprland & Quickshell\" di pojok kanan atas",
@@ -149,7 +148,6 @@
   "Unknown Album": "Album Tidak Dikenal",
   "Pick wallpaper image on your system": "Pilih gambar wallpaper di sistem Anda",
   "Used:": "Digunakan:",
-  "Cheat sheet": "Lembar contekan",
   "Clock style": "Gaya jam",
   "No audio source": "Tidak ada sumber audio",
   "Paired": "Dipasangkan",

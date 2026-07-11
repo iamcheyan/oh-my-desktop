@@ -1,5 +1,4 @@
 {
-  "Material cookie": "Material cookie",
   "Style: Blurred": "Style : Flouté",
   "Unknown device": "Appareil inconnu",
   "Change any time later with /dark, /light, /wallpaper in the launcher\nIf the shell's colors aren't changing:\n    1. Open the right sidebar with Super+N\n    2. Click \"Reload Hyprland & Quickshell\" in the top-right corner": "Modifiez à tout moment avec /dark, /light, /wallpaper dans le lanceur\nSi les couleurs du shell ne changent pas :\n    1. Ouvrez le panneau latéral droit avec Super+N\n    2. Cliquez sur \"Recharger Hyprland & Quickshell\" dans le coin supérieur droit",
@@ -150,7 +149,6 @@
   "Unknown Album": "Album inconnu",
   "Pick wallpaper image on your system": "Choisir une image de fond d'écran sur votre système",
   "Used:": "Utilisé :",
-  "Cheat sheet": "Aide-mémoire",
   "Clock style": "Style d'horloge",
   "No audio source": "Aucune source audio",
   "Paired": "Jumelé",
