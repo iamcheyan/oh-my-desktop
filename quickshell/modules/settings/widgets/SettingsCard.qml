@@ -14,6 +14,8 @@ Rectangle {
     implicitHeight: cardColumn.implicitHeight + 32
     radius: SettingsTokens.roundRadius
     color: SettingsTokens.card
+    border.width: 1
+    border.color: Qt.rgba(SettingsTokens.line.r, SettingsTokens.line.g, SettingsTokens.line.b, TuiStyle.dividerOpacity)
 
     ColumnLayout {
         id: cardColumn

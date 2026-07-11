@@ -25,7 +25,7 @@ SettingsRow {
             radius: 10
             anchors.verticalCenter: parent.verticalCenter
             x: toggleRow.checked ? parent.width - width - 3 : 3
-            color: toggleRow.checked ? "#111111" : "#dedede"
+            color: toggleRow.checked ? SettingsTokens.bg : SettingsTokens.fg
             Behavior on x { NumberAnimation { duration: 110 } }
         }
     }

@@ -11,12 +11,12 @@ import qs.services
 QtObject {
     id: root
 
-    readonly property color bg: TuiStyle.surfaceSubtle
-    readonly property color panel: TuiStyle.surfaceHover
-    readonly property color panelAlt: TuiStyle.surfaceRaised
-    readonly property color panelHover: TuiStyle.surfacePressed
-    readonly property color card: TuiStyle.surfacePressed
-    readonly property color cardHover: TuiStyle.controlHover
+    readonly property color bg: TuiStyle.bg
+    readonly property color panel: TuiStyle.panel
+    readonly property color panelAlt: TuiStyle.panelAlt
+    readonly property color panelHover: TuiStyle.surfaceHover
+    readonly property color card: TuiStyle.panel
+    readonly property color cardHover: TuiStyle.surfaceHover
     readonly property color button: TuiStyle.control
     readonly property color buttonHover: TuiStyle.controlHover
     readonly property color buttonActive: TuiStyle.accentWash(TuiStyle.accent)

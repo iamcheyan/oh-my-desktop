@@ -40,6 +40,9 @@ Scope {
     function triggerBarPopup(type) {
         root.popupIndicatorType = type;
         GlobalStates.osdVolumeOpen = false;
+        if (GlobalStates.barPopupType === type && !GlobalStates.barPopupEphemeral)
+            return;
+        GlobalStates.barPopupEphemeral = true;
         GlobalStates.barPopupType = type;
         popupTimeout.restart();
     }
@@ -61,8 +64,9 @@ Scope {
         repeat: false
         running: false
         onTriggered: {
-            if (GlobalStates.barPopupType === root.popupIndicatorType)
+            if (GlobalStates.barPopupEphemeral && GlobalStates.barPopupType === root.popupIndicatorType)
                 GlobalStates.barPopupType = "";
+            GlobalStates.barPopupEphemeral = false;
             root.popupIndicatorType = "";
         }
     }

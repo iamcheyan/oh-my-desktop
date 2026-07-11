@@ -17,7 +17,7 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: 56
     radius: SettingsTokens.radius
-    color: rowMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
+    color: ddRowMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
 
     RowLayout {
         anchors.fill: parent
@@ -155,5 +155,6 @@ Rectangle {
         hoverEnabled: true
         propagateComposedEvents: true
         acceptedButtons: Qt.NoButton
+        cursorShape: Qt.ArrowCursor
     }
 }
