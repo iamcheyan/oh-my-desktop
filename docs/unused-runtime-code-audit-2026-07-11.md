@@ -83,6 +83,8 @@ Legacy/default entry point:
 - `quickshell/modules/common/models/quickToggles/`
   - Old quick-toggle model set from the removed control-center/sidebar path.
   - No current bar, settings, or split-app module instantiates these models.
+- `quickshell/services/HyprlandAntiFlashbangShader.qml`
+  - Became zero-reference after removing the old quick-toggle models.
 
 ## Confirmed Already Removed Or In Progress
 
