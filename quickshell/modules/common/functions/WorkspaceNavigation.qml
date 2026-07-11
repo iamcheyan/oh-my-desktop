@@ -11,8 +11,6 @@ import Quickshell.Hyprland
 Singleton {
     id: root
 
-    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
-
     property int pendingDragRefreshes: 0
 
     Timer {
@@ -30,7 +28,7 @@ Singleton {
 
     function openAppLauncher() {
         Quickshell.execDetached([
-            "qs", "-p", root.appLauncherApp, "ipc", "call", "appLauncher", "open"
+            "sh", "-c", "$HOME/.config/omd/bin/omd-applauncher open"
         ]);
     }
 

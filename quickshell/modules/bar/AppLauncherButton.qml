@@ -7,11 +7,9 @@ import Quickshell
 Item {
     id: root
 
-    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
-
     function toggleAppLauncher() {
         Quickshell.execDetached([
-            "qs", "-p", root.appLauncherApp, "ipc", "call", "appLauncher", "toggle"
+            "sh", "-c", "$HOME/.config/omd/bin/omd-applauncher toggle"
         ]);
     }
 

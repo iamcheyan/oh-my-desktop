@@ -67,7 +67,7 @@ hl.gesture({
   fingers = 4,
   direction = "pinchin",
   action = function()
-    hl.dispatch(hl.dsp.exec_cmd("qs -p $HOME/.config/omd/apps/omd-applauncher ipc call appLauncher open"))
+    hl.dispatch(hl.dsp.exec_cmd("$HOME/.config/omd/bin/omd-applauncher open"))
   end,
 })
 

@@ -45,8 +45,6 @@ Item {
             } else if (event.button === Qt.LeftButton) {
                 if (root.hasActivePlayer) {
                     MprisController.togglePlaying();
-                } else {
-                    GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
                 }
             }
         }

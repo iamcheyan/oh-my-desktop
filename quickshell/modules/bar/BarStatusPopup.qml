@@ -573,11 +573,6 @@ Scope {
                         label: audioPanel.isPlaying ? "PAUSE" : "PLAY"
                         onClicked: audioPanel.activePlayer?.togglePlaying()
                     }
-                    TuiActionButton {
-                        label: "EXPAND"
-                        filled: false
-                        onClicked: GlobalStates.mediaControlsOpen = true
-                    }
                 }
 
                 TuiDetailRow {

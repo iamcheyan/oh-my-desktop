@@ -77,7 +77,6 @@ ShellRoot {
             OnScreenDisplay {}
             Polkit {}
             RegionSelector {}
-            SessionScreen {}
         }
     }
 }

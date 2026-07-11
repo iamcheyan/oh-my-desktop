@@ -1,6 +1,7 @@
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Controls
@@ -27,6 +28,7 @@ PanelWindow {
 
     readonly property string stateDir: Quickshell.shellDir + "/.state"
     readonly property string stateFile: stateDir + "/pinned-apps"
+    readonly property string cacheFile: (Quickshell.env("HOME") ?? "") + "/.local/state/omd/applauncher/apps.json"
 
     property bool open: false
     property real cardOffsetX: 0
@@ -157,8 +159,7 @@ PanelWindow {
 
     function loadPinnedIds() {
         if (pinnedIdsLoaded) return;
-        pinnedLoadProcess.running = false;
-        pinnedLoadProcess.running = true;
+        pinnedFileView.reload();
     }
 
     function loadApps() {
@@ -183,6 +184,87 @@ PanelWindow {
             allApps = apps;
         } else if (pinnedIdsLoaded) {
             buildFilteredList();
+        }
+    }
+
+    function loadAppsFromCache(text) {
+        try {
+            const cached = JSON.parse(text);
+            if (!Array.isArray(cached) || cached.length === 0) return false;
+            const apps = cached.map(app => ({
+                id: app.id,
+                name: app.name,
+                icon: app.icon,
+                execString: app.exec,
+                command: app.exec.split(" "),
+                genericName: app.genericName || "",
+                comment: app.comment || "",
+                keywords: (app.keywords || "").split(";").filter(k => k.length > 0),
+                workingDirectory: app.workingDirectory || ""
+            }));
+            apps.push({
+                id: "omd-settings-center.desktop",
+                name: "OMD settings center",
+                icon: "preferences-system",
+                command: ["omd-settings"],
+                genericName: "System Settings",
+                comment: "Configure OMD desktop options",
+                keywords: ["settings", "control", "theme", "config", "overview", "omd"]
+            });
+            if (!sameAppList(allApps, apps)) {
+                allApps = apps;
+            }
+            if (!appsLoaded) {
+                appsLoaded = true;
+                if (pinnedIdsLoaded) buildFilteredList();
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // In on-demand mode the window opens only when both apps and pinned IDs
+    // are ready, so the grid is never shown empty. A 400 ms fallback timer
+    // ensures the window always appears even when the cache is missing.
+    Timer {
+        id: onDemandReadyTimer
+        interval: 400
+        repeat: false
+        onTriggered: {
+            if (launcher.onDemand && !launcher.open)
+                launcher.open = true;
+        }
+    }
+
+    function tryOpenOnDemand() {
+        if (!onDemand || open) return;
+        if (appsLoaded && pinnedIdsLoaded) {
+            onDemandReadyTimer.stop();
+            launcher.open = true;
+        }
+    }
+
+    FileView {
+        id: cacheFileView
+        path: launcher.cacheFile
+        onLoaded: {
+            var content = text();
+            if (content.length > 0) {
+                // If cache loads successfully, do NOT call loadApps() to trigger
+                // the slow DesktopEntries system scan. Only fall back to it
+                // if cache parsing fails.
+                if (!launcher.loadAppsFromCache(content)) {
+                    launcher.loadApps();
+                }
+            } else {
+                launcher.loadApps();
+            }
+            launcher.tryOpenOnDemand();
+        }
+        onLoadFailed: error => {
+            launcher.loadApps();
+            launcher.tryOpenOnDemand();
         }
     }
 
@@ -239,24 +321,28 @@ PanelWindow {
     onPinnedIdsChanged: if (appsLoaded) buildFilteredList()
     onRunningSetChanged: if (pinnedIdsLoaded && appsLoaded) buildFilteredList()
 
-    Process {
-        id: pinnedLoadProcess
-        command: ["sh", "-c", "cat " + launcher.quote(launcher.stateFile) + " 2>/dev/null || true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const ids = {};
-                const lines = text.split("\n");
-                for (let i = 0; i < lines.length; i++) {
-                    const id = lines[i].trim();
-                    if (id !== "") ids[id] = true;
-                }
-                launcher.pinnedIdsLoaded = true;
-                if (!launcher.samePinnedIds(launcher.pinnedIds, ids)) {
-                    launcher.pinnedIds = ids;
-                } else if (launcher.appsLoaded) {
-                    launcher.buildFilteredList();
-                }
+    FileView {
+        id: pinnedFileView
+        path: launcher.stateFile
+        onLoaded: {
+            var content = text();
+            const ids = {};
+            const lines = content.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const id = lines[i].trim();
+                if (id !== "") ids[id] = true;
             }
+            launcher.pinnedIdsLoaded = true;
+            if (!launcher.samePinnedIds(launcher.pinnedIds, ids)) {
+                launcher.pinnedIds = ids;
+            } else if (launcher.appsLoaded) {
+                launcher.buildFilteredList();
+            }
+            launcher.tryOpenOnDemand();
+        }
+        onLoadFailed: error => {
+            launcher.pinnedIdsLoaded = true;
+            launcher.tryOpenOnDemand();
         }
     }
 
@@ -275,15 +361,39 @@ PanelWindow {
         }
     }
 
+    readonly property bool onDemand: (Quickshell.env("OMD_APP_ON_DEMAND") ?? "") === "1"
+
     Component.onCompleted: {
-        loadApps();
+        // Kick off all data loading synchronously before anything renders.
+        // In on-demand mode the window stays closed until tryOpenOnDemand()
+        // confirms both appsLoaded and pinnedIdsLoaded, eliminating the
+        // black-grid flash. The fallback timer opens it after 400 ms worst-case.
         loadPinnedIds();
         updateRunningSet();
+        if (!appsLoaded) {
+            cacheFileView.reload();
+        }
+        if (onDemand) {
+            onDemandReadyTimer.start();
+            // If data already loaded (hot-reload), open immediately.
+            if (appsLoaded && pinnedIdsLoaded)
+                launcher.open = true;
+        }
+    }
+
+    onOpenChanged: {
+        if (onDemand && !open) {
+            Qt.quit();
+        }
     }
 
     onVisibleChanged: {
         if (visible) {
-            if (!appsLoaded) loadApps();
+            // Data is pre-loaded in onCompleted; this fallback covers
+            // persistent (non-on-demand) mode or repeated opens.
+            if (!appsLoaded) {
+                cacheFileView.reload();
+            }
             updateRunningSet();
             cardOffsetX = 0;
             cardOffsetY = 0;

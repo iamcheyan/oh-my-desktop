@@ -152,9 +152,8 @@ Variants {
                 acceptedButtons: Qt.LeftButton
                 enabled: !GlobalStates.screenLocked
                 onDoubleClicked: {
-                    var appLauncherApp = `${CF.FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`;
                     Quickshell.execDetached([
-                        "qs", "-p", appLauncherApp, "ipc", "call", "appLauncher", "toggle"
+                        "sh", "-c", "$HOME/.config/omd/bin/omd-applauncher toggle"
                     ]);
                 }
             }

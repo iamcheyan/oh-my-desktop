@@ -40,6 +40,16 @@
         "volumeMixer": "pavucontrol-qt"
     },
     "audio": {
+        "levels": {
+            "alsa_input.usb-USB_2.0_USB_Audio_Device_20210726905926-00.mono-fallback": {
+                "muted": false,
+                "volume": 0.9949798583984375
+            },
+            "alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.iec958-stereo": {
+                "muted": false,
+                "volume": 0.8191986083984375
+            }
+        },
         "protection": {
             "enable": true,
             "maxAllowed": 99,

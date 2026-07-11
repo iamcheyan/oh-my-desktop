@@ -13,7 +13,6 @@ Singleton {
     property bool appLauncherOpen: false
     property bool barOpen: true
     property bool clipboardOpen: false
-    property bool mediaControlsOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property bool overviewOpen: false
@@ -32,7 +31,6 @@ Singleton {
     property bool screenLocked: false
     property bool screenLockContainsCharacters: false
     property bool screenUnlockFailed: false
-    property bool sessionOpen: false
     property bool superDown: false
     property bool superReleaseMightTrigger: false
     property bool barDialogOpen: false
