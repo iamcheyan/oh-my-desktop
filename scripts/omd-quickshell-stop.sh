@@ -1,0 +1,38 @@
+#!/bin/sh
+# Stop OMD Quickshell processes without killing unrelated apps in unit cgroups.
+#
+# Foot terminals, tmux, and other apps launched from omd-applauncher inherit its
+# systemd cgroup. `systemctl stop` tears down the whole cgroup, so we only signal
+# the unit main process and rely on targeted pkill for the quickshell binary.
+
+omd_stop_quickshell() {
+    omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+    runtime_dir="/run/user/$(id -u)"
+    apps="omd-bar omd-desktop omd-overview omd-applauncher omd-corners omd-clipboard omd-clipboard-store"
+
+    for app in omd-bar omd-desktop omd-overview omd-applauncher omd-corners omd-clipboard; do
+        pkill -f "quickshell -p ${omd_root}/apps/${app}$" 2>/dev/null || true
+    done
+
+    # Legacy monolith config (pre-split)
+    pkill -f "quickshell -p ${omd_root}/quickshell$" 2>/dev/null || true
+    pkill -f "quickshell -p ${HOME}/.config/quickshell$" 2>/dev/null || true
+
+    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
+    sleep 0.3
+
+    pkill -9 -f "quickshell -p ${omd_root}/apps/omd-" 2>/dev/null || true
+    pkill -9 -f "quickshell -p ${omd_root}/quickshell$" 2>/dev/null || true
+    pkill -9 -f "quickshell -p ${HOME}/.config/quickshell$" 2>/dev/null || true
+
+    for app in $apps; do
+        systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
+    done
+    sleep 0.2
+
+    for app in $apps; do
+        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
+        rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
+    done
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+}

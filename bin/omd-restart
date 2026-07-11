@@ -3,28 +3,17 @@ set -eu
 
 # shellcheck source=../scripts/omd-path.sh
 . "$HOME/.config/omd/scripts/omd-path.sh"
+# shellcheck source=../scripts/omd-quickshell-stop.sh
+. "$HOME/.config/omd/scripts/omd-quickshell-stop.sh"
 
-# Kill ALL quickshell processes (split apps + monolith + stray)
-pkill -f "(quickshell|qs) -p " 2>/dev/null || true
-pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
-# Wait for processes to die
-sleep 0.3
-# Hard kill any survivors
-pkill -9 -f "(quickshell|qs) -p " 2>/dev/null || true
+omd_stop_quickshell
 
 start_app() {
     app="$1"
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
-        systemctl --user stop "$app.service" >/dev/null 2>&1 || true
-        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
-        rm -f "/run/user/$(id -u)/systemd/transient/$app.service" 2>/dev/null || true
-        systemctl --user daemon-reload >/dev/null 2>&1 || true
-        # KillMode=process: only kill the main shell process, NOT child processes.
-        # Quickshell launches apps (Firefox, etc.) via execDetached — those become
-        # children of the quickshell process. control-group (the default) would
-        # kill them too, destroying apps on other workspaces during reload.
-        # The pkill above handles killing the actual quickshell binary.
-        # DO NOT change to control-group — it will kill user apps on reload.
+        # KillMode=process: only kill the unit main process, NOT the whole cgroup.
+        # Apps launched from omd-applauncher (foot, tmux, browsers) stay in this
+        # cgroup — never use `systemctl stop` here; see omd-quickshell-stop.sh.
         systemd-run --user --unit="$app" --collect \
             --property=KillMode=process \
             --setenv=PATH="$PATH" \

@@ -3,6 +3,9 @@ set -eu
 
 omd_root="${OMD_ROOT:-$HOME/.config/omd}"
 
+# shellcheck source=omd-quickshell-stop.sh
+. "$omd_root/scripts/omd-quickshell-stop.sh"
+
 # Refuse to reload while the screen is locked — killing the bar process
 # during an active Wayland session lock causes Hyprland to show the
 # "lockscreen app died" error and leaves the screen in an unusable state.
@@ -15,14 +18,7 @@ if hyprctl -j activewindow 2>/dev/null | grep -qi '"class":"hyprlock"' \
 fi
 
 stop_quickshell() {
-    # Kill ALL quickshell processes: split apps + monolith + stray
-    pkill -f "(quickshell|qs) -p " 2>/dev/null || true
-    # Kill clipboard watcher
-    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
-    # Wait for processes to die
-    sleep 0.3
-    # Hard kill any survivors
-    pkill -9 -f "(quickshell|qs) -p " 2>/dev/null || true
+    omd_stop_quickshell
 }
 
 stop_waybar() {
