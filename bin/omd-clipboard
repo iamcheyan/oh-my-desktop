@@ -42,7 +42,7 @@ launch_direct() {
     fi
 
     # Set up Quickshell/OMD environment variables directly
-    repo_root="/home/tetsuya/Development/oh-my-desktop"
+    repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
     export OMD_REPO_ROOT="$repo_root"
     export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
     export QS_CONFIG_DIR="$app_dir"
