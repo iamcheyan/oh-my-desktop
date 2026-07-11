@@ -133,6 +133,16 @@ Legacy/default entry point:
   - Removed weather/calendar widget labels, EasyEffects/SongRec/music
     recognition labels, quick-toggle labels, and cheatsheet-only help strings
     from `quickshell/translations/*.json`.
+- Current project docs updated:
+  - `AGENTS.md` no longer lists deleted monolithic, corners, weather,
+    cheatsheet, or standalone voice-button paths.
+  - `docs/voice-input.md`, `docs/bar-right-modules.md`, and
+    `docs/tui-style-system.md` now point to current components.
+- Deleted obsolete upstream/old-migration Quickshell docs:
+  - `quickshell/docs/config-guide.md`
+  - `quickshell/docs/slimming-guide.md`
+  - `quickshell/docs/startup-performance.md`
+  - `quickshell/docs/tiling-design-system.md`
 
 ## Confirmed Already Removed Or In Progress
 
@@ -157,6 +167,8 @@ old launcher references:
 
 - `quickshell/docs/config-guide.md`
 - `quickshell/docs/slimming-guide.md`
+- `quickshell/docs/startup-performance.md`
+- `quickshell/docs/tiling-design-system.md`
 - `docs/quickshell-cleanup-audit.md`
 - `docs/bar-right-modules.md`
 - `docs/module-split-plan.md`
@@ -165,3 +177,8 @@ old launcher references:
 
 Suggested action: clean docs after runtime cleanup, otherwise they
 will keep pointing future work back to deleted features.
+
+Remaining matches for deleted feature names are confined to historical audit,
+migration, or debugging logs such as `docs/process-split-log.md` and
+`docs/right-module-spacing-debug.md`. Those files describe past states and were
+left intact rather than rewritten as current operating docs.

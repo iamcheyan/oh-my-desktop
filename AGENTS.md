@@ -22,36 +22,30 @@ symlink targets.
 ├── Init.sh                   Setup script: creates runtime symlinks
 │
 ├── quickshell/               Quickshell config root (→ ~/.config/quickshell)
-│   ├── shell.qml              ShellRoot, imports modules/services/panelFamilies
 │   ├── config.json            Quickshell runtime/user options
-│   ├── GlobalStates.qml       Shared global state (bar/overview/corners)
+│   ├── GlobalStates.qml       Shared global state (bar/overview)
 │   ├── killDialog.qml         Quickshell kill dialog
 │   ├── ReloadPopup.qml        Hot-reload notification
 │   ├── welcome.qml            First-run welcome
 │   ├── modules/               UI modules
-│   │   ├── appLauncher/        Application launcher
 │   │   ├── background/         Desktop wallpaper layer
 │   │   ├── bar/                Status bars (top/bottom, left/right modules)
-│   │   ├── cheatsheet/         Keybinding cheatsheet
 │   │   ├── common/             Shared widgets (NerdIcon, MaterialSymbol, RippleButton, etc.)
 │   │   ├── lock/               Screen lock overlay
-│   │   ├── mediaControls/      Media playback controls
 │   │   ├── notificationPopup/  Notification popups
 │   │   ├── onScreenDisplay/    OSD (volume/brightness/media)
 │   │   ├── overview/           Workspace overview / switcher
 │   │   ├── polkit/              Polkit authentication agent
 │   │   ├── regionSelector/      Screen region selector for screenshots
-│   │   ├── schedulePopup/       Schedule/calendar popup
-│   │   ├── screenCorners/       Screen corner rounding overlay
-│   │   ├── sessionScreen/       Logout/shutdown/reboot screen
-│   │   └── sidebarRight/        Right sidebar
+│   │   ├── schedulePopup/       Notification list content
+│   │   └── settings/            Settings Center pages/widgets
 │   ├── services/              QML singleton services
 │   │   ├── Audio.qml            Volume control
 │   │   ├── Battery.qml          Battery status
 │   │   ├── BluetoothStatus.qml  Bluetooth state
 │   │   ├── Brightness.qml       Brightness control
 │   │   ├── Cliphist.qml         Clipboard history
-│   │   ├── DateTime.qml         Clock/calendar
+│   │   ├── DateTime.qml         Clock/time formatting
 │   │   ├── HyprlandData.qml      Workspace/window data
 │   │   ├── Hyprsunset.qml       Nightlight
 │   │   ├── Idle.qml             Idle detection
@@ -60,15 +54,10 @@ symlink targets.
 │   │   ├── PolkitService.qml     Polkit daemon
 │   │   ├── ResourceUsage.qml     CPU/RAM usage
 │   │   ├── SystemInfo.qml        System info
-│   │   ├── TimerService.qml      Timer service
 │   │   ├── Translation.qml       i18n service
 │   │   ├── TrayService.qml       System tray
 │   │   ├── Updates.qml           System update checker
-│   │   ├── Weather.qml           Weather service
 │   │   └── ...
-│   ├── panelFamilies/         Panel loaders
-│   │   ├── IllogicalImpulseFamily.qml
-│   │   └── PanelLoader.qml
 │   ├── scripts/               Shell-side helper scripts and launcher
 │   ├── assets/                Icons and images
 │   └── translations/          i18n JSON
@@ -78,7 +67,6 @@ symlink targets.
 │   ├── omd-desktop/           Desktop surface process (wallpaper/interactions)
 │   ├── omd-overview/          Workspace overview process
 │   ├── omd-applauncher/       Application launcher process
-│   ├── omd-corners/           Screen corners process
 │   └── omd-clipboard/         Clipboard UI process
 │
 ├── omarchy/                  User config overlay (→ ~/.config/omarchy)
@@ -235,7 +223,8 @@ symlink targets.
 - Bar status popups are unified through `quickshell/modules/bar/BarStatusPopup.qml`.
   Do not add new per-module `XxxInfoPopup.qml` files; add a content component or
   section to `BarStatusPopup.qml` instead.
-- Voice input module at `quickshell/modules/bar/modules/VoiceButton.qml`. Uses
+- Voice input is integrated into `quickshell/modules/bar/modules/AudioButton.qml`
+  and `quickshell/modules/bar/BarStatusPopup.qml`. It uses
   `VoiceInput` singleton service for state machine: nomodel → venv → downloading
   → idle → recording → transcribing → paste (wl-copy + ydotool Ctrl+V). Python
   inference via sherpa-onnx over Unix socket. Hotkey: ALT+A. Use
@@ -249,8 +238,8 @@ symlink targets.
 
 ### Omarchy / Hyprland
 
-- Active user config is in `omarchy/hypr/*.lua`.
-- Autostart lives in `omarchy/hypr/autostart.lua`.
+- Active user config is in `hypr/*.lua`.
+- Autostart lives in `hypr/autostart.lua`.
 - Use `hyprctl reload` to reload Hyprland Lua config.
 
 ## Git

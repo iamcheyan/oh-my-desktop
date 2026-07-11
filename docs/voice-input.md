@@ -132,7 +132,7 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
 
 ### Visual & Interactive Feedback
 
-The status bar button (`VoiceButton.qml`) provides distinct visual states so the
+The status bar audio button (`AudioButton.qml`) provides distinct visual states so the
 user can tell at a glance whether the system is recording, transcribing, or idle:
 
 | State | Icon | Color | Animation | Ring |
@@ -267,8 +267,9 @@ quickshell/services/
 
 quickshell/modules/bar/
 ├── VoiceContextMenu.qml         # Right-click popup menu (Start, Test, Capture, Diagnostic)
-├── modules/VoiceButton.qml      # Bar button with simplified state colors + Tooltip
-├── RightModuleRegistry.qml      # registers "util:voice"
+├── AudioVoiceHoverPopup.qml     # Hover details for the combined audio/voice button
+├── modules/AudioButton.qml      # Combined audio popup button and voice state/action button
+├── RightModuleRegistry.qml      # registers "util:audio"
 └── BarStatusPopup.qml           # adds voiceContent settings panel
 
 omarchy/hypr/
@@ -296,11 +297,11 @@ The IPC is triggered by global keybinds or the dynamic `escape` hook to control 
 - `omarchy/hypr/bindings.lua` — key bindings definitions
 - `omarchy/hypr/looknfeel.lua` — window floating rules
 - `quickshell/services/VoiceInput.qml` — voice service state machine
-- `quickshell/modules/bar/modules/VoiceButton.qml` — bar status button
+- `quickshell/modules/bar/modules/AudioButton.qml` — combined bar audio/voice button
 - `scripts/key-test --hotkey` — GTK4 hotkey capture after keyd remaps
 - `scripts/voice-diagnose` — TUI diagnostic tool
 gs.lua`: `ALT + A` → `qs -p ... ipc call voice toggle`
-- `VoiceButton.qml`: left click
+- `AudioButton.qml`: left click while voice is active toggles recording; otherwise opens audio status popup
 - `VoiceContextMenu.qml`: test action
 
 The bar also exposes `barPopup` IPC for opening the settings panel:

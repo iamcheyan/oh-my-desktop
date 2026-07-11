@@ -156,11 +156,10 @@ so `BarBatteryIcon` applies the battery-specific scale in one place.
 
 | 模块 | 图标 | 文件 |
 |------|------|------|
-| `util:audio` | `status/audio-volume-high-symbolic`（静音: `status/audio-volume-muted-symbolic`） | `modules/AudioButton.qml` |
+| `util:audio` | `status/audio-volume-high-symbolic`（静音: `status/audio-volume-muted-symbolic`；录音时显示 mic/hourglass 状态） | `modules/AudioButton.qml` |
 | `util:wifi` | `status/network-wireless-signal-good-symbolic` 等信号变体 | `modules/WifiButton.qml`（图标来自 `services/Network.qml`） |
 | `util:bluetooth` | `status/bluetooth-active-symbolic`（连接）/ `devices/bluetooth-symbolic`（未连接）/ `status/bluetooth-disabled-symbolic`（禁用） | `modules/BluetoothButton.qml` |
 | `util:mic` | `status/microphone-sensitivity-high-symbolic`（静音: `status/microphone-sensitivity-muted-symbolic`） | `modules/MicButton.qml` |
-| `util:voice` | `status/microphone-sensitivity-high-symbolic`（颜色变化：idle=barText, active=yellow, error=red） | `modules/VoiceButton.qml` |
 | `util:clipboard` | `actions/edit-paste-symbolic` | `modules/ClipboardButton.qml` |
 | `util:nightlight` | `status/display-brightness-symbolic` | `modules/NightLightButton.qml` |
 | `util:colorpicker` | `actions/pencil-symbolic` | `modules/ColorPickerButton.qml` |
@@ -207,7 +206,6 @@ OMD 的 Bar 图标使用 **Nerd Font glyphs**。顶部 bar 自绘图标通过
 | `util:mic` | 🎤 / 🔇 | `mic` / `micOff` | `MicButton.qml` |
 | `util:nightlight` | ☀️ | `brightness6` | `NightLightButton.qml` |
 | `util:screenshot` | 📸 | `screenshot` | `ScreenshotButton.qml` |
-| `util:voice` | 🎙 | `mic` | `VoiceButton.qml` |
 | `util:wifi` | 📶 | `Network.nerdIcon`（动态） | `WifiButton.qml` |
 | `sidebar` | 🔇+🔋 | `volumeOff` / `power` / `batteryFull` | `SidebarIndicators.qml` |
 | `battery` | 🔋 | `power` / `batteryFull` | `BatteryIndicator.qml` |
