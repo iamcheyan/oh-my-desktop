@@ -32,6 +32,13 @@ Legacy/default entry point:
 - `GlobalStates.appLauncherOpen`
   - No remaining consumers.
   - The current launcher is controlled by `bin/omd-applauncher` and IPC.
+- `quickshell/services/HyprlandKeybinds.qml`
+  - Static search found no references outside the service file.
+  - The old cheatsheet/keybind consumer is no longer part of the current split
+    runtime.
+- `quickshell/services/SessionWarnings.qml`
+  - Static search found no references outside the service file.
+  - No current shell imports or calls it.
 
 ## Confirmed Already Removed Or In Progress
 
@@ -73,16 +80,6 @@ Reason: `bin/omd-restart` explicitly keeps `omd-corners` disabled, and
 Suggested action: delete if hot corners and screen-corner overlays are no
 longer part of OMD's design.
 
-### Zero-Reference Services
-
-Static search found no references outside the service files themselves:
-
-- `quickshell/services/HyprlandKeybinds.qml`
-- `quickshell/services/SessionWarnings.qml`
-
-Suggested action: inspect old cheatsheet/session modules before deleting. They
-look like upstream leftovers in the current split session.
-
 ## Documentation / Translation Debris
 
 The following are not runtime code, but still contain stale weather/calendar or
@@ -98,4 +95,3 @@ old launcher references:
 
 Suggested action: clean docs/translations after runtime cleanup, otherwise they
 will keep pointing future work back to deleted features.
-
