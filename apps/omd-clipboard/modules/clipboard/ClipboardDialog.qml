@@ -21,8 +21,8 @@ Rectangle {
     property bool show: false
     signal dismiss()
 
-    width: 1000
-    height: 640
+    width: Math.min(parent ? parent.width - 40 : 1000, Math.round(1000 * fontScale))
+    height: Math.min(parent ? parent.height - 40 : 640, Math.round(640 * fontScale))
     color: "#0f0f14"
     border.color: "#8f8f8f"
     border.width: TuiStyle.borderWidth
@@ -189,7 +189,7 @@ Rectangle {
         // Search bar
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: Math.round(32 * fontScale)
             color: "#181818"
             radius: TuiStyle.radius
             border.width: 0
@@ -276,7 +276,7 @@ Rectangle {
 
             // History list
             Rectangle {
-                Layout.preferredWidth: 520
+                Layout.preferredWidth: Math.round(520 * fontScale)
                 Layout.fillHeight: true
                 color: "#181818"
                 radius: TuiStyle.radius
