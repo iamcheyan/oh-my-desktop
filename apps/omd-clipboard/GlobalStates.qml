@@ -1,1 +1,8 @@
-../../quickshell/GlobalStates.qml
+pragma Singleton
+import QtQuick
+import Quickshell
+
+Singleton {
+    id: root
+    property bool clipboardOpen: false
+}

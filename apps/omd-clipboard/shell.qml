@@ -4,11 +4,9 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
-import "modules/common"
+import "modules/clipboard"
 import "services"
-
-import qs.modules.bar
-import qs.modules.common.widgets
+import "modules/clipboard/widgets"
 
 import QtQuick
 import Quickshell
@@ -18,7 +16,22 @@ import Quickshell.Io
 ShellRoot {
     id: root
 
-    ReloadPopup {}
+    readonly property bool onDemand: (Quickshell.env("OMD_CLIPBOARD_ON_DEMAND") ?? "") === "1"
+
+    Component.onCompleted: {
+        if (onDemand) {
+            GlobalStates.clipboardOpen = true;
+        }
+    }
+
+    Connections {
+        target: GlobalStates
+        function onClipboardOpenChanged() {
+            if (onDemand && !GlobalStates.clipboardOpen) {
+                Qt.quit();
+            }
+        }
+    }
 
     IpcHandler {
         target: "clipboard"
@@ -61,21 +74,21 @@ ShellRoot {
             id: dismissGuard
             interval: 150
             repeat: false
-            onTriggered: GlobalFocusGrab.addDismissable(clipboardWindow)
-        }
-
-        onVisibleChanged: {
-            if (visible) {
-                dismissGuard.restart();
-            } else {
-                dismissGuard.stop();
-                GlobalFocusGrab.removeDismissable(clipboardWindow);
+            onTriggered: {
+                // Since we decoupled from the global GlobalFocusGrab,
+                // we can dismiss directly when clicking outside or losing focus.
             }
         }
 
-        Connections {
-            target: GlobalFocusGrab
-            function onDismissed() {
+        // Handle Escape key to close the window
+        Keys.onEscapePressed: {
+            clipboardWindow.close();
+        }
+
+        // Close on clicking the empty outer space
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
                 clipboardWindow.close();
             }
         }
@@ -87,10 +100,5 @@ ShellRoot {
             show: GlobalStates.clipboardOpen
             onDismiss: clipboardWindow.close()
         }
-    }
-
-    LazyLoader {
-        active: Config.ready
-        component: Item {}
     }
 }
