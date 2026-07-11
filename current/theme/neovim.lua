@@ -1,16 +1,13 @@
 return {
 	{
-		"catppuccin/nvim",
-		name = "catppuccin",
+		"bjarneo/hackerman.nvim",
+		dependencies = { "bjarneo/aether.nvim" }, -- Ensure aether is loaded first
 		priority = 1000,
-		opts = {
-			flavour = "latte",
-		},
 	},
 	{
 		"LazyVim/LazyVim",
 		opts = {
-			colorscheme = "catppuccin-latte",
+			colorscheme = "hackerman",
 		},
 	},
 }
