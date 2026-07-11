@@ -85,6 +85,12 @@ Legacy/default entry point:
   - No current bar, settings, or split-app module instantiates these models.
 - `quickshell/services/HyprlandAntiFlashbangShader.qml`
   - Became zero-reference after removing the old quick-toggle models.
+- `quickshell/services/EasyEffects.qml`
+  - Became zero-reference after removing the old quick-toggle models.
+- `quickshell/services/SongRec.qml`
+- `quickshell/scripts/musicRecognition/`
+- `Config.options.musicRecognition`
+  - Music recognition was only reachable through the removed quick-toggle model.
 
 ## Confirmed Already Removed Or In Progress
 

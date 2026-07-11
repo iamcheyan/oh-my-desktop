@@ -66,8 +66,7 @@
         "bottom": false,
         "centerIconSize": 18,
         "centerModuleSpacing": 8,
-        "centerModules": [
-        ],
+        "centerModules": [],
         "cornerStyle": 0,
         "floatStyleShadow": true,
         "leftModules": [
@@ -96,8 +95,7 @@
             "clock",
             "sidebar"
         ],
-        "screenList": [
-        ],
+        "screenList": [],
         "showBackground": true,
         "vertical": false
     },
@@ -175,10 +173,6 @@
     },
     "media": {
         "filterDuplicatePlayers": true
-    },
-    "musicRecognition": {
-        "interval": 4,
-        "timeout": 16
     },
     "networking": {
         "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
@@ -260,8 +254,7 @@
         "filterPassive": false,
         "invertPinnedItems": false,
         "monochromeIcons": false,
-        "pinnedItems": [
-        ],
+        "pinnedItems": [],
         "showItemId": false
     },
     "updates": {
