@@ -179,10 +179,40 @@ PanelWindow {
         root.targetedRegionHeight = 0;
     }
 
-    property real regionWidth: Math.abs(draggingX - dragStartX)
-    property real regionHeight: Math.abs(draggingY - dragStartY)
-    property real regionX: Math.min(dragStartX, draggingX)
-    property real regionY: Math.min(dragStartY, draggingY)
+    property bool shiftPressed: false
+
+    property real regionWidth: {
+        const dx = draggingX - dragStartX;
+        const dy = draggingY - dragStartY;
+        if (shiftPressed) {
+            return Math.max(Math.abs(dx), Math.abs(dy));
+        }
+        return Math.abs(dx);
+    }
+    property real regionHeight: {
+        const dx = draggingX - dragStartX;
+        const dy = draggingY - dragStartY;
+        if (shiftPressed) {
+            return Math.max(Math.abs(dx), Math.abs(dy));
+        }
+        return Math.abs(dy);
+    }
+    property real regionX: {
+        const dx = draggingX - dragStartX;
+        if (shiftPressed) {
+            const size = regionWidth;
+            return dx >= 0 ? dragStartX : dragStartX - size;
+        }
+        return Math.min(dragStartX, draggingX);
+    }
+    property real regionY: {
+        const dy = draggingY - dragStartY;
+        if (shiftPressed) {
+            const size = regionHeight;
+            return dy >= 0 ? dragStartY : dragStartY - size;
+        }
+        return Math.min(dragStartY, draggingY);
+    }
 
     property bool isRecording: root.action === RegionSelection.SnipAction.Record || root.action === RegionSelection.SnipAction.RecordWithSound
     property bool recordingShouldStop: false
@@ -300,6 +330,13 @@ PanelWindow {
         Keys.onPressed: (event) => { // Esc to close
             if (event.key === Qt.Key_Escape) {
                 root.dismiss();
+            } else if (event.key === Qt.Key_Shift) {
+                root.shiftPressed = true;
+            }
+        }
+        Keys.onReleased: (event) => {
+            if (event.key === Qt.Key_Shift) {
+                root.shiftPressed = false;
             }
         }
     }
@@ -313,6 +350,7 @@ PanelWindow {
 
         // Controls
         onPressed: (mouse) => {
+            root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
             root.dragStartX = mouse.x;
             root.dragStartY = mouse.y;
             root.draggingX = mouse.x;
@@ -321,6 +359,7 @@ PanelWindow {
             root.mouseButton = mouse.button;
         }
         onReleased: (mouse) => {
+            root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
             // Detect if it was a click -> Try to select targeted region
             if (root.draggingX === root.dragStartX && root.draggingY === root.dragStartY) {
                 if (root.targetedRegionValid()) {
@@ -343,6 +382,7 @@ PanelWindow {
             root.snip();
         }
         onPositionChanged: (mouse) => {
+            root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
             root.updateTargetedRegion(mouse.x, mouse.y);
             if (!root.dragging) return;
             root.draggingX = mouse.x;
