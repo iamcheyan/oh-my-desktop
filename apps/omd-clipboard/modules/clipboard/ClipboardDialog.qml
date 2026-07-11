@@ -1,7 +1,6 @@
 import "widgets"
 import "../../services"
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
@@ -78,9 +77,9 @@ Rectangle {
             Cliphist.deleteEntry(filteredEntries[keyboardIndex]);
     }
 
-    onCurrentEntryChanged: loadCurrentPreview()
+    onCurrentEntryChanged: if (visible && show) loadCurrentPreview()
 
-    Component.onCompleted: loadCurrentPreviewActual()
+    Component.onCompleted: textDecoder.decodedText = ""
 
     onVisibleChanged: {
         if (visible) {
@@ -90,7 +89,7 @@ Rectangle {
             mode = "normal";
             clipboardDialog.forceActiveFocus();
             Cliphist.setDialogVisible(true);
-            loadCurrentPreviewActual();
+            loadCurrentPreview();
         } else {
             Cliphist.setDialogVisible(false);
         }
@@ -106,7 +105,7 @@ Rectangle {
 
     Timer {
         id: previewDebounceTimer
-        interval: 100 // 100ms debounce to prevent process spawn storm
+        interval: 180
         repeat: false
         onTriggered: loadCurrentPreviewActual()
     }
@@ -246,17 +245,15 @@ Rectangle {
                     color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.dim
                 }
 
-                TextField {
+                TextInput {
                     id: searchField
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    placeholderText: "SEARCH..."
-                    placeholderTextColor: TuiStyle.dim
                     color: TuiStyle.fg
                     font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
                     focus: true
-                    background: null
+                    verticalAlignment: TextInput.AlignVCenter
                     onActiveFocusChanged: {
                         if (activeFocus)
                             clipboardDialog.enterInsertMode();
@@ -444,21 +441,29 @@ Rectangle {
                         color: "transparent"
                         clip: true
 
-                        CliphistImage {
-                            anchors.centerIn: parent
-                            visible: clipboardDialog.currentIsImage
-                            entry: visible ? clipboardDialog.currentEntry : ""
-                            maxWidth: parent.width - 24
-                            maxHeight: parent.height - 24
-                        }
+                            CliphistImage {
+                                anchors.centerIn: parent
+                                visible: clipboardDialog.currentIsImage
+                                entry: visible ? clipboardDialog.currentEntry : ""
+                                active: visible
+                                maxWidth: parent.width - 24
+                                maxHeight: parent.height - 24
+                            }
 
-                        ScrollView {
+                        Flickable {
                             anchors.fill: parent
                             anchors.margins: 8
                             visible: clipboardDialog.currentEntry !== "" && !clipboardDialog.currentIsImage
                             clip: true
+                            contentWidth: width
+                            contentHeight: previewText.paintedHeight + 16
+                            boundsBehavior: Flickable.StopAtBounds
 
-                            TextArea {
+                            TextEdit {
+                                id: previewText
+                                x: 8
+                                y: 8
+                                width: parent.width - 16
                                 readOnly: true
                                 selectByMouse: true
                                 wrapMode: TextEdit.Wrap
@@ -468,20 +473,16 @@ Rectangle {
                                 color: TuiStyle.fg
                                 selectedTextColor: TuiStyle.bg
                                 selectionColor: TuiStyle.accent
-                                background: Rectangle {
-                                    color: "transparent"
-                                }
                                 activeFocusOnPress: false
-                                padding: 8
                             }
                         }
 
-                        StyledText {
-                            anchors.centerIn: parent
-                            visible: clipboardDialog.currentEntry === ""
-                            text: "NO ITEM SELECTED"
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            StyledText {
+                                anchors.centerIn: parent
+                                visible: clipboardDialog.currentEntry === ""
+                                text: "NO ITEM SELECTED"
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
                             color: TuiStyle.dim
                         }

@@ -1,7 +1,6 @@
 import Quickshell
 import qs.modules.bar
 import qs
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -41,10 +40,9 @@ Item {
             } else {
                 doubleClickTimer.stop();
                 root.isFirstClick = true;
-                // Double click: paste the most recent item
-                if (Cliphist.entries.length > 0) {
-                    Cliphist.paste(Cliphist.entries[0]);
-                }
+                Quickshell.execDetached([
+                    `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard-paste-latest`
+                ]);
             }
         }
 
@@ -54,16 +52,4 @@ Item {
         }
     }
 
-    // Transparent MouseArea for hover detection (non-blocking for clicks)
-    MouseArea {
-        id: hoverArea
-        anchors.fill: clipboardButton
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-    }
-
-    ClipboardHoverPopup {
-        id: clipboardHoverPopup
-        hoverTarget: hoverArea
-    }
 }

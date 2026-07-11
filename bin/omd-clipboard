@@ -23,22 +23,19 @@ ipc_call() {
     qs -p "$app_dir" ipc call clipboard "$1" 2>/dev/null || true
 }
 
-find_qs_bin() {
-    for candidate in \
-        "$HOME/.local/bin/quickshell" \
-        "$HOME/.local/bin/qs" \
-        "/usr/bin/quickshell" \
-        "/usr/bin/qs"; do
-        if [ -x "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    command -v quickshell 2>/dev/null || command -v qs 2>/dev/null || true
-}
-
 launch_direct() {
-    qs_bin=$(find_qs_bin)
+    qs_bin="${OMD_QS_BIN:-}"
+    if [ -z "$qs_bin" ]; then
+        if [ -x /usr/bin/qs ]; then
+            qs_bin=/usr/bin/qs
+        elif [ -x /usr/bin/quickshell ]; then
+            qs_bin=/usr/bin/quickshell
+        elif [ -x "$HOME/.local/bin/qs" ]; then
+            qs_bin="$HOME/.local/bin/qs"
+        elif [ -x "$HOME/.local/bin/quickshell" ]; then
+            qs_bin="$HOME/.local/bin/quickshell"
+        fi
+    fi
     if [ -z "$qs_bin" ]; then
         echo "Quickshell executable not found" >&2
         exit 127

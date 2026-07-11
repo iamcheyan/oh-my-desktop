@@ -15,10 +15,10 @@ app_dir="$HOME/.config/omd/apps/omd-applauncher"
 qs_launcher="$HOME/.config/omd/quickshell/scripts/quickshell"
 cache_script="$HOME/.config/omd/bin/omd-applauncher-cache"
 
-# Refresh desktop entry cache in background (non-blocking) only if it is missing
-# or older than 10 minutes to avoid redundant background CPU scans on frequent opens.
+# Refresh desktop entry cache in background only if it is missing. Avoid date
+# checks on the hot path; the QML process can rebuild a corrupt cache itself.
 cache_file="$HOME/.local/state/omd/applauncher/apps.json"
-if [ ! -f "$cache_file" ] || [ $(($(date +%s) - $(date -r "$cache_file" +%s))) -gt 600 ]; then
+if [ ! -s "$cache_file" ]; then
     "$cache_script" >/dev/null 2>&1 &
 fi
 
@@ -32,23 +32,19 @@ ipc_call() {
     qs -p "$app_dir" ipc call appLauncher "$1" 2>/dev/null || true
 }
 
-# Resolve quickshell binary path directly to avoid fork/exec wrapper script overhead
-find_qs_bin() {
-    for candidate in \
-        "$HOME/.local/bin/quickshell" \
-        "$HOME/.local/bin/qs" \
-        "/usr/bin/quickshell" \
-        "/usr/bin/qs"; do
-        if [ -x "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    command -v quickshell 2>/dev/null || command -v qs 2>/dev/null || true
-}
-
 launch_direct() {
-    qs_bin=$(find_qs_bin)
+    qs_bin="${OMD_QS_BIN:-}"
+    if [ -z "$qs_bin" ]; then
+        if [ -x /usr/bin/qs ]; then
+            qs_bin=/usr/bin/qs
+        elif [ -x /usr/bin/quickshell ]; then
+            qs_bin=/usr/bin/quickshell
+        elif [ -x "$HOME/.local/bin/qs" ]; then
+            qs_bin="$HOME/.local/bin/qs"
+        elif [ -x "$HOME/.local/bin/quickshell" ]; then
+            qs_bin="$HOME/.local/bin/quickshell"
+        fi
+    fi
     if [ -z "$qs_bin" ]; then
         echo "Quickshell executable not found" >&2
         exit 127

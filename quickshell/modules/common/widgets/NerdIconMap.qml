@@ -97,7 +97,7 @@ QtObject {
     readonly property string edit: "\uDB80\uDFCA"             // mdi-pencil U+F03CA
     readonly property string contentPaste: "\uF0EA"           // fa-clipboard U+F0EA
     readonly property string screenshot: "\uDB83\uDC2B"       // mdi-screenshot U+F0C2B
-    readonly property string pushPin: "\uDB81\uDC3F"          // mdi-pin U+F043F
+    readonly property string pushPin: "\uDB81\uDC03"          // mdi-pin U+F0403
     readonly property string close: "\uDB80\uDD56"            // mdi-close U+F0156
     readonly property string check: "\uDB80\uDD2C"            // mdi-check U+F012C
     readonly property string add: "\uDB80\uDC2F"              // mdi-plus U+F002F

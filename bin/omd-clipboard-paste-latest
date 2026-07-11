@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+latest=$(cliphist list | sed -n '1p')
+[ -n "$latest" ] || exit 0
+
+printf '%s' "$latest" | cliphist decode | wl-copy
+sleep 0.1
+YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0

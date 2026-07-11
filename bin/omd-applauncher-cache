@@ -24,6 +24,7 @@ done
         for f in "$d"/*.desktop; do
             [ -f "$f" ] || continue
             id=$(basename "$f")
+            desktop_file="$f"
             name=""
             icon=""
             exec_raw=""
@@ -65,8 +66,8 @@ done
             first=0
             # Escape for JSON
             esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' '; }
-            printf '  {"id":"%s","name":"%s","icon":"%s","exec":"%s","genericName":"%s","comment":"%s","keywords":"%s","workingDirectory":"%s"}' \
-                "$(esc "$id")" "$(esc "$name")" "$(esc "$icon")" "$(esc "$exec_raw")" \
+            printf '  {"id":"%s","desktopId":"%s","desktopFile":"%s","name":"%s","icon":"%s","exec":"%s","genericName":"%s","comment":"%s","keywords":"%s","workingDirectory":"%s"}' \
+                "$(esc "$id")" "$(esc "$id")" "$(esc "$desktop_file")" "$(esc "$name")" "$(esc "$icon")" "$(esc "$exec_raw")" \
                 "$(esc "$generic_name")" "$(esc "$comment")" "$(esc "$keywords")" "$(esc "$working_dir")"
         done
     done

@@ -147,7 +147,7 @@ PageBody {
                     description: Cliphist.entries.length > 0 ? StringUtils.cleanCliphistEntry(Cliphist.entries[0]).slice(0, 120) : "--"
                 }
                 ButtonRow {
-                    SettingsButton { label: "Open Picker"; iconName: "content_paste"; onClicked: Quickshell.execDetached(["qs", "-p", `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-clipboard`, "ipc", "call", "clipboard", "toggle"]) }
+                    SettingsButton { label: "Open Picker"; iconName: "content_paste"; onClicked: Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`, "toggle"]) }
                     SettingsButton { label: "Refresh"; iconName: "refresh"; onClicked: Cliphist.refresh() }
                 }
             }

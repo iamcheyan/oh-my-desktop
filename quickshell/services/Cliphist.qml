@@ -16,7 +16,6 @@ Singleton {
     property real scoreThreshold: 0.2
     property int maxEntries: 100
     property bool loaded: false
-    property bool precacheImagesWhenReady: false
     property list<string> entries: []
     readonly property var preparedEntries: entries.map(a => ({
         name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
@@ -47,42 +46,12 @@ Singleton {
     }
 
     function ensureLoaded() {
-        if (!root.loaded) {
-            root.refresh()
-        } else if (root.precacheImagesWhenReady) {
-            root.precacheImages()
-        }
+        root.refresh()
     }
 
     function setDialogVisible(visible: bool) {
-        root.precacheImagesWhenReady = visible
         if (visible)
             root.ensureLoaded()
-    }
-
-    function precacheImages() {
-        const imageEntries = entries.filter(e => entryIsImage(e));
-        if (imageEntries.length === 0) return;
-        // Batch all image decodes into a single process to avoid spawning many bash processes
-        const commands = [];
-        for (let i = 0; i < imageEntries.length; i++) {
-            const entry = imageEntries[i];
-            const match = entry.match(/^(\d+)\t/);
-            if (!match) continue;
-            const entryNum = match[1];
-            const filePath = `${Directories.cliphistDecode}/${entryNum}`;
-            const escapedEntry = StringUtils.shellSingleQuoteEscape(entry);
-            // Skip if file exists and is a valid image, otherwise decode fresh
-            commands.push(`file '${filePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' || printf '${escapedEntry}' | ${root.cliphistBinary} decode > '${filePath}'`);
-        }
-        if (commands.length > 0) {
-            precacheProc.command = ["bash", "-c", commands.join(" & ")];
-            precacheProc.running = true;
-        }
-    }
-
-    Process {
-        id: precacheProc
     }
 
     function copy(entry) {
@@ -207,8 +176,6 @@ Singleton {
                     if (deduped.length >= root.maxEntries) break
                 }
                 root.entries = deduped
-                if (root.precacheImagesWhenReady)
-                    root.precacheImages()
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)
             }

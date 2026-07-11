@@ -12,6 +12,7 @@ Rectangle {
     property string entry
     property real maxWidth: 0
     property real maxHeight: 0
+    property bool active: true
     property bool blur: false
     property string blurText: "Image hidden"
 
@@ -51,13 +52,13 @@ Rectangle {
     clip: true
 
     function decodeImage() {
-        if (entry) {
+        if (entry && active) {
             imageSource = "";
             checkAndDecode.running = false;
             const num = entryNumber;
             const filePath = `${imageDecodePath}/${num}`;
             const escaped = StringUtils.shellSingleQuoteEscape(entry);
-            checkAndDecode.command = ["bash", "-c", `if file '${filePath}' 2>/dev/null | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif'; then echo cached; else rm -f '${filePath}' && printf '${escaped}' | ${Cliphist.cliphistBinary} decode > '${filePath}' 2>/dev/null && file '${filePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' && echo decoded; fi`];
+            checkAndDecode.command = ["bash", "-c", `mkdir -p '${imageDecodePath}' && if file '${filePath}' 2>/dev/null | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif'; then echo cached; else rm -f '${filePath}' && printf '${escaped}' | ${Cliphist.cliphistBinary} decode > '${filePath}' 2>/dev/null && file '${filePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' && echo decoded; fi`];
             checkAndDecode.running = true;
         } else {
             imageSource = "";
@@ -66,16 +67,33 @@ Rectangle {
     }
 
     onEntryChanged: {
-        decodeImage();
+        decodeTimer.restart();
+    }
+
+    onActiveChanged: {
+        if (active)
+            decodeTimer.restart();
+        else {
+            decodeTimer.stop();
+            checkAndDecode.running = false;
+            imageSource = "";
+        }
     }
 
     Component.onCompleted: {
-        decodeImage();
+        decodeTimer.restart();
+    }
+
+    Timer {
+        id: decodeTimer
+        interval: 50
+        repeat: false
+        onTriggered: root.decodeImage()
     }
 
     Process {
         id: checkAndDecode
-        command: ["bash", "-c", `if file '${imageDecodeFilePath}' 2>/dev/null | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif'; then echo cached; else rm -f '${imageDecodeFilePath}' && printf '${StringUtils.shellSingleQuoteEscape(root.entry)}' | ${Cliphist.cliphistBinary} decode > '${imageDecodeFilePath}' 2>/dev/null && file '${imageDecodeFilePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' && echo decoded; fi`]
+        command: ["bash", "-c", `mkdir -p '${imageDecodePath}' && if file '${imageDecodeFilePath}' 2>/dev/null | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif'; then echo cached; else rm -f '${imageDecodeFilePath}' && printf '${StringUtils.shellSingleQuoteEscape(root.entry)}' | ${Cliphist.cliphistBinary} decode > '${imageDecodeFilePath}' 2>/dev/null && file '${imageDecodeFilePath}' | grep -qi 'image\\|png\\|jpeg\\|bmp\\|webp\\|gif' && echo decoded; fi`]
         stdout: StdioCollector {
             onStreamFinished: {
                 const result = text.trim();

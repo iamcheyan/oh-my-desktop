@@ -4,13 +4,11 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Wayland
-import Quickshell.Hyprland
 
 PanelWindow {
     id: launcher
@@ -29,6 +27,7 @@ PanelWindow {
     readonly property string stateDir: Quickshell.shellDir + "/.state"
     readonly property string stateFile: stateDir + "/pinned-apps"
     readonly property string cacheFile: (Quickshell.env("HOME") ?? "") + "/.local/state/omd/applauncher/apps.json"
+    readonly property string cacheScript: (Quickshell.env("HOME") ?? "") + "/.config/omd/bin/omd-applauncher-cache"
 
     property bool open: false
     property real cardOffsetX: 0
@@ -51,33 +50,18 @@ PanelWindow {
             ]);
             return;
         }
-        if (!desktopEntry.command || desktopEntry.command.length === 0) return;
-
         const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
-        const cmd = desktopEntry.command;
-        let program = cmd[0];
-        const args = [];
-        for (let i = 1; i < cmd.length; i++) {
-            if (cmd[i].startsWith("%")) continue;
-            args.push(cmd[i]);
-        }
+        const appId = desktopEntry.desktopId || desktopEntry.id || "";
+        if (appId.length === 0) return;
 
-        if (program.includes("/")) {
-            const command = [detach];
-            if ((desktopEntry.workingDirectory || "").length > 0)
-                command.push("--cwd", desktopEntry.workingDirectory);
-            Quickshell.execDetached(command.concat([program]).concat(args));
-        } else {
-            // Filter ~/.local/bin out of PATH so wrapper scripts (labwc-era)
-            // don't override native Hyprland scaling.
-            const q = (s) => "'" + s.replace(/'/g, "'\\''") + "'";
-            Quickshell.execDetached([
-                detach, "sh", "-c",
-                'p=$(echo ":$PATH:" | sed "s|:$HOME/.local/bin:|:|g" | sed "s/^://; s/:$//") && ' +
-                'exec "$(PATH="$p" command -v ' + q(program) + ')" ' + args.map(q).join(" ")
-            ]);
-        }
-        console.log("[AppLauncher] Launched " + (program.includes("/") ? program : program + " " + args.join(" ")));
+        // Let GTK/GIO handle Desktop Entry Exec quoting, field codes, Path, and
+        // terminal semantics. Splitting Exec by spaces breaks real-world apps.
+        const q = (s) => "'" + s.replace(/'/g, "'\\''") + "'";
+        Quickshell.execDetached([
+            detach, "sh", "-c",
+            "gtk-launch " + q(appId) + " || gio launch " + q(desktopEntry.desktopFile || appId)
+        ]);
+        console.log("[AppLauncher] Launched desktop entry " + appId);
     }
 
     function iconSource(icon) {
@@ -95,6 +79,7 @@ PanelWindow {
     property var runningSet: ({})
     property bool pinnedIdsLoaded: false
     property bool appsLoaded: false
+    property bool cacheRebuildRequested: false
 
     function sameAppList(a, b) {
         if (!a || !b || a.length !== b.length) return false;
@@ -114,45 +99,26 @@ PanelWindow {
         return true;
     }
 
-    function updateRunningSet() {
-        const set = {};
-        const wl = HyprlandData.windowList || [];
-        for (let i = 0; i < wl.length; i++) {
-            const w = wl[i];
-            if (!w || !w.mapped || w.hidden) continue;
-            const cls = (w.class || "").toLowerCase();
-            const initial = (w.initialClass || "").toLowerCase();
-            if (cls) set[cls] = true;
-            if (initial) set[initial] = true;
-        }
-        launcher.runningSet = set;
-    }
-
     function isAppRunning(app) {
         if (!app) return false;
-        if (app.id === "omd-settings-center.desktop") {
-            return GlobalStates.barDialogOpen;
-        }
+        if (app.id === "omd-settings-center.desktop") return GlobalStates.barDialogOpen;
+
         const set = launcher.runningSet;
         if (!set) return false;
-        let any = false;
-        for (const _ in set) { any = true; break; }
-        if (!any) return false;
 
         const id = (app.id || "").split("/").pop().split(".").pop().toLowerCase();
-        let exec = (app.execString || "").split(" ")[0].split("/").pop().toLowerCase();
+        const exec = (app.execString || "").split(" ")[0].split("/").pop().toLowerCase();
         const stripped = exec.replace(/-stable$/, "").replace(/-bin$/, "").replace(/^env-/, "");
         const candidates = [id, exec, stripped];
         for (let i = 0; i < candidates.length; i++) {
             const c = candidates[i];
-            if (!c) continue;
-            if (set[c]) return true;
+            if (c && set[c]) return true;
         }
         for (const k in set) {
             if (!k) continue;
-            if (k === id || k === exec || k === stripped) return true;
-            if (id && (k.indexOf(id) >= 0 || id.indexOf(k) >= 0)) return true;
-            if (exec && (k.indexOf(exec) >= 0 || exec.indexOf(k) >= 0)) return true;
+            if (id && (k === id || k.indexOf(id) >= 0 || id.indexOf(k) >= 0)) return true;
+            if (exec && (k === exec || k.indexOf(exec) >= 0 || exec.indexOf(k) >= 0)) return true;
+            if (stripped && k === stripped) return true;
         }
         return false;
     }
@@ -163,28 +129,20 @@ PanelWindow {
     }
 
     function loadApps() {
-        const entries = DesktopEntries.applications.values;
-        const apps = [];
-        for (let i = 0; i < entries.length; i++) {
-            const app = entries[i];
-            if (!app || app.noDisplay || !app.name || !app.id) continue;
-            apps.push(app);
+        requestCacheRebuild();
+    }
+
+    function requestCacheRebuild() {
+        if (cacheRebuildRequested) {
+            appsLoaded = true;
+            if (pinnedIdsLoaded) buildFilteredList();
+            tryOpenOnDemand();
+            return;
         }
-        apps.push({
-            id: "omd-settings-center.desktop",
-            name: "OMD settings center",
-            icon: "preferences-system",
-            command: ["omd-settings"],
-            genericName: "System Settings",
-            comment: "Configure OMD desktop options",
-            keywords: ["settings", "control", "theme", "config", "overview", "omd"]
-        });
-        appsLoaded = true;
-        if (!sameAppList(allApps, apps)) {
-            allApps = apps;
-        } else if (pinnedIdsLoaded) {
-            buildFilteredList();
-        }
+        cacheRebuildRequested = true;
+        cacheRefreshProcess.running = false;
+        cacheRefreshProcess.command = [launcher.cacheScript];
+        cacheRefreshProcess.running = true;
     }
 
     function loadAppsFromCache(text) {
@@ -193,10 +151,11 @@ PanelWindow {
             if (!Array.isArray(cached) || cached.length === 0) return false;
             const apps = cached.map(app => ({
                 id: app.id,
+                desktopId: app.desktopId || app.id,
+                desktopFile: app.desktopFile || "",
                 name: app.name,
                 icon: app.icon,
                 execString: app.exec,
-                command: app.exec.split(" "),
                 genericName: app.genericName || "",
                 comment: app.comment || "",
                 keywords: (app.keywords || "").split(";").filter(k => k.length > 0),
@@ -204,9 +163,9 @@ PanelWindow {
             }));
             apps.push({
                 id: "omd-settings-center.desktop",
+                desktopId: "omd-settings-center.desktop",
                 name: "OMD settings center",
                 icon: "preferences-system",
-                command: ["omd-settings"],
                 genericName: "System Settings",
                 comment: "Configure OMD desktop options",
                 keywords: ["settings", "control", "theme", "config", "overview", "omd"]
@@ -221,6 +180,20 @@ PanelWindow {
             return true;
         } catch (e) {
             return false;
+        }
+    }
+
+    Process {
+        id: cacheRefreshProcess
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                cacheFileView.reload();
+            } else {
+                console.error("[AppLauncher] Cache refresh failed with code", exitCode, "and status", exitStatus);
+                launcher.appsLoaded = true;
+                if (launcher.pinnedIdsLoaded) launcher.buildFilteredList();
+                launcher.tryOpenOnDemand();
+            }
         }
     }
 
@@ -251,9 +224,9 @@ PanelWindow {
         onLoaded: {
             var content = text();
             if (content.length > 0) {
-                // If cache loads successfully, do NOT call loadApps() to trigger
-                // the slow DesktopEntries system scan. Only fall back to it
-                // if cache parsing fails.
+                // If cache parsing fails, rebuild the cache in a background
+                // process instead of pulling Quickshell's DesktopEntries model
+                // into this cold-start UI process.
                 if (!launcher.loadAppsFromCache(content)) {
                     launcher.loadApps();
                 }
@@ -304,13 +277,9 @@ PanelWindow {
             list.push(app);
         }
         function byPriority(a, b) {
-            const aRunning = isAppRunning(a) ? 1 : 0;
-            const bRunning = isAppRunning(b) ? 1 : 0;
             const aPinned = pinnedIds[a.id] ? 1 : 0;
             const bPinned = pinnedIds[b.id] ? 1 : 0;
-            const aScore = aPinned * 2 + aRunning;
-            const bScore = bPinned * 2 + bRunning;
-            if (aScore !== bScore) return bScore - aScore;
+            if (aPinned !== bPinned) return bPinned - aPinned;
             return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
         }
         list.sort(byPriority);
@@ -319,7 +288,30 @@ PanelWindow {
 
     onAllAppsChanged: if (pinnedIdsLoaded) buildFilteredList()
     onPinnedIdsChanged: if (appsLoaded) buildFilteredList()
-    onRunningSetChanged: if (pinnedIdsLoaded && appsLoaded) buildFilteredList()
+
+    Loader {
+        id: runningAppsLoader
+        active: false
+        asynchronous: true
+        source: "RunningApps.qml"
+        visible: false
+        onLoaded: launcher.runningSet = item.runningSet
+    }
+
+    Connections {
+        target: runningAppsLoader.item
+        enabled: runningAppsLoader.item !== null
+        function onRunningSetChanged() {
+            launcher.runningSet = runningAppsLoader.item.runningSet;
+        }
+    }
+
+    Timer {
+        id: runningDataDelayTimer
+        interval: 220
+        repeat: false
+        onTriggered: runningAppsLoader.active = true
+    }
 
     FileView {
         id: pinnedFileView
@@ -346,21 +338,6 @@ PanelWindow {
         }
     }
 
-    Connections {
-        target: DesktopEntries
-        function onApplicationsChanged() {
-            launcher.appsLoaded = false;
-            launcher.loadApps();
-        }
-    }
-
-    Connections {
-        target: HyprlandData
-        function onWindowListChanged() {
-            launcher.updateRunningSet();
-        }
-    }
-
     readonly property bool onDemand: (Quickshell.env("OMD_APP_ON_DEMAND") ?? "") === "1"
 
     Component.onCompleted: {
@@ -369,7 +346,6 @@ PanelWindow {
         // confirms both appsLoaded and pinnedIdsLoaded, eliminating the
         // black-grid flash. The fallback timer opens it after 400 ms worst-case.
         loadPinnedIds();
-        updateRunningSet();
         if (!appsLoaded) {
             cacheFileView.reload();
         }
@@ -394,14 +370,17 @@ PanelWindow {
             if (!appsLoaded) {
                 cacheFileView.reload();
             }
-            updateRunningSet();
             cardOffsetX = 0;
             cardOffsetY = 0;
+            runningDataDelayTimer.restart();
             Qt.callLater(function() {
                 searchField.forceActiveFocus();
                 if (Qt.inputMethod) Qt.inputMethod.show();
             });
         } else {
+            runningDataDelayTimer.stop();
+            runningAppsLoader.active = false;
+            runningSet = {};
             searchField.text = "";
             if (Qt.inputMethod) Qt.inputMethod.hide();
         }
@@ -461,12 +440,6 @@ PanelWindow {
                     anchors.rightMargin: 6
                     spacing: 6
 
-                    CosmicIcon {
-                        name: "actions/application-menu-symbolic"
-                        iconSize: Appearance.font.pixelSize.small
-                        color: TuiStyle.fg
-                    }
-
                     StyledText {
                         text: "App Launcher"
                         font.pixelSize: Appearance.font.pixelSize.small
@@ -490,9 +463,10 @@ PanelWindow {
                             anchors.rightMargin: 8
                             spacing: 6
 
-                            CosmicIcon {
-                                name: "actions/system-search-symbolic"
-                                iconSize: Appearance.font.pixelSize.small
+                            StyledText {
+                                text: "/"
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.family: Appearance.font.family.main
                                 color: TuiStyle.dim
                             }
 
@@ -510,7 +484,7 @@ PanelWindow {
                                     color: TuiStyle.dim
                                 }
 
-                                TextField {
+                                TextInput {
                                     id: searchField
                                     anchors.fill: parent
                                     color: TuiStyle.fg
@@ -519,8 +493,6 @@ PanelWindow {
                                     font.family: Appearance.font.family.main
                                     font.pixelSize: Appearance.font.pixelSize.normal
                                     verticalAlignment: TextInput.AlignVCenter
-                                    background: null
-                                    padding: 0
                                     renderType: Text.NativeRendering
                                     onTextChanged: launcher.buildFilteredList()
                                     Keys.onEscapePressed: launcher.open = false
@@ -605,10 +577,11 @@ PanelWindow {
                             border.width: 0
                             z: 2
 
-                            CosmicIcon {
+                            StyledText {
                                 anchors.centerIn: parent
-                                name: "actions/pin-symbolic"
-                                iconSize: 11
+                                text: NerdIconMap.pushPin
+                                font.pixelSize: 12
+                                font.family: Appearance.font.family.main
                                 color: appItem.isPinned ? TuiStyle.bg : TuiStyle.dim
                             }
                         }
@@ -644,12 +617,11 @@ PanelWindow {
                                 anchors.fill: parent
                                 source: appItem.resolvedIconSource
                                 implicitSize: 48
-                                asynchronous: false
+                                asynchronous: true
                                 mipmap: true
                             }
                         }
 
-                        // Running indicator
                         Rectangle {
                             visible: appItem.isRunning
                             anchors.top: iconWrapper.bottom
