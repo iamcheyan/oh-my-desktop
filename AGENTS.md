@@ -69,42 +69,35 @@ symlink targets.
 │   ├── omd-applauncher/       Application launcher process
 │   └── omd-clipboard/         Clipboard UI process
 │
-├── omarchy/                  User config overlay (→ ~/.config/omarchy)
-│   ├── hypr/                  Hyprland Lua config
-│   │   ├── hyprland.lua         Main entry — loads default modules + user files
-│   │   ├── bindings.lua         Keybindings (application launch, window mgmt, Quickshell)
-│   │   ├── looknfeel.lua        Appearance (opacity, gaps, window rules)
-│   │   ├── monitors.lua         Monitor layout
-│   │   ├── input.lua            Input devices (keyboard, touchpad)
-│   │   ├── autostart.lua        Autostart programs
-│   │   ├── hypridle.conf        Idle behavior config
-│   │   └── hyprsunset.conf      Nightlight config
-│   ├── current/               Active theme snapshot
-│   │   ├── theme/               Theme files (colors, app styles, wallpapers)
-│   │   │   ├── backgrounds/      Active theme wallpapers
-│   │   │   ├── colors.toml      Color palette
-│   │   │   ├── hyprland.lua     Hyprland border colors
-│   │   │   ├── quickshell.json  Quickshell theme colors
-│   │   │   └── ...
-│   │   ├── theme.name           Active theme name (e.g. "last-horizon")
-│   │   └── background           Active wallpaper binary
+├── hypr/                     Hyprland Lua config
+│   ├── hyprland.lua            Main entry — loads default + user config
+│   ├── bindings.lua            Keybindings (application launch, window mgmt, Quickshell)
+│   ├── looknfeel.lua           Appearance (opacity, gaps, window rules)
+│   ├── monitors.lua            Monitor layout
+│   ├── input.lua               Input devices (keyboard, touchpad)
+│   ├── autostart.lua           Autostart programs
+│   ├── hypridle.conf           Idle behavior config
+│   ├── hyprsunset.conf         Nightlight config
+│   ├── default/                Default Omarchy Hyprland modules (loaded by hyprland.lua)
+│   └── xdph.conf               XDG portal config
+│
+├── config/                   Terminal/app configs (→ ~/.config/{foot,kitty,…})
 │   ├── alacritty/             Alacritty config
 │   ├── foot/                  Foot terminal config
 │   ├── ghostty/               Ghostty config
 │   ├── kitty/                 Kitty config
-│   ├── nvim/                  Neovim Omarchy theme drop-in for LazyVim
-│   ├── chromium/              Chromium config
-│   ├── fastfetch/             Fastfetch config
 │   ├── fcitx5/                Fcitx5 input method
-│   ├── fontconfig/            Font config
-│   ├── git/                   Git config
-│   ├── btop/                  btop config
-│   ├── walker/                Walker config (→ ~/.config/walker)
-│   ├── starship.toml           Starship prompt
-│   ├── autostart/              XDG autostart entries
-│   └── omarchy/               Omarchy extensions and hooks
-│       ├── extensions/         Extension scripts
-│       └── themed/             Themed config templates
+│   └── nvim/                  Neovim theme drop-in for LazyVim
+│
+├── current/                  Active theme snapshot
+│   ├── theme/                 Theme files (colors, app styles, wallpapers)
+│   │   ├── backgrounds/        Active theme wallpapers
+│   │   ├── colors.toml        Color palette
+│   │   ├── hyprland.lua       Hyprland border colors
+│   │   ├── quickshell.json    Quickshell theme colors
+│   │   └── ...
+│   ├── theme.name             Active theme name (e.g. "last-horizon")
+│   └── background             Symlink to the active wallpaper
 │
 ├── share/                    Omarchy framework (→ ~/.local/share/omd)
 │   ├── bin/                   264 omarchy-* command scripts (legacy, wrapped via
@@ -142,15 +135,13 @@ symlink targets.
 │   ├── omd-settings-windows-vm Settings Center Windows VM status/action helper
 │   └── omd-doctor             Runtime dependency and portability checker
 │
-├── scripts/                  Helper scripts
-│   ├── launch-tui-tool        TUI tool launcher
-│   └── reload-quickshell      Quickshell reload helper
-│
+├── scripts/                  Helper scripts (launch tools, voice, keyboard, reload)
 ├── docs/                     Project notes
 │   ├── agent-working-agreement.md
 │   ├── module-split-plan.md
 │   └── ...
-│
+├── keyboard-remap/           Keyd configuration and profiles
+├── icons/                    OS distro icons (used by ActiveWindow.qml)
 └── .migration-backups/       Local migration backups (not tracked)
 ```
 
@@ -160,24 +151,27 @@ symlink targets.
 
 ```
 ~/.config/quickshell     -> ~/development/OMD/quickshell
-~/.config/omarchy        -> ~/development/OMD/omarchy
-~/.config/walker         -> ~/development/OMD/omarchy/walker
-~/.config/foot           -> ~/development/OMD/omarchy/foot
-~/.config/kitty          -> ~/development/OMD/omarchy/kitty
-~/.config/alacritty      -> ~/development/OMD/omarchy/alacritty
-~/.config/ghostty        -> ~/development/OMD/omarchy/ghostty
+~/.config/foot           -> ~/development/OMD/config/foot
+~/.config/kitty          -> ~/development/OMD/config/kitty
+~/.config/alacritty      -> ~/development/OMD/config/alacritty
+~/.config/ghostty        -> ~/development/OMD/config/ghostty
 ~/.config/omd            -> ~/development/OMD
-~/.local/share/omarchy   -> ~/development/OMD/share
 ```
 
-`~/.config/hypr` is legacy and not part of the current Omarchy session.
+Additional manual symlinks (not created by Init.sh):
+
+```
+~/.config/walker         -> ~/development/OMD/config/walker     # (if walker is used)
+~/.config/fcitx5         -> ~/development/OMD/config/fcitx5     # (if fcitx5 is used)
+```
+
+`~/.config/hypr` is legacy and not part of the current session.
 
 ## Runtime
 
-- Hyprland loads Omarchy config from `~/.config/omarchy/hypr/hyprland.lua`.
-- `hyprland.lua` loads default modules via `require(...)` from the default
-  lookup paths, then loads user modules from `~/.config/omarchy/hypr/`
-  (monitors, input, bindings, looknfeel, autostart).
+- Hyprland loads config from `~/.config/omd/hypr/hyprland.lua`.
+- `hyprland.lua` loads default modules from `hypr/default/`, then user
+  modules from `hypr/` (monitors, input, bindings, looknfeel, autostart).
 - Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
   `omd-overview`, `omd-applauncher`, and `omd-clipboard`.
@@ -187,7 +181,7 @@ symlink targets.
 - Themes are stored in `~/.local/share/omd/themes/`. The active theme is
   copied to `~/.config/omd/current/` by `omarchy-theme-set`.
 - Terminal configs are managed by OMD symlinks under `~/.config/{foot,kitty,alacritty,ghostty}`.
-  They import files from `~/.config/omd/current/theme/`, so theme
+  They import theme files from `~/.config/omd/current/theme/`, so theme
   changes apply to new terminal windows and to supported live-reload paths.
 - Neovim theme integration is opt-in. Run the Neovim setup helper to link
   OMD's LazyVim drop-in into `~/.config/nvim/lua/plugins/` so Neovim reads
