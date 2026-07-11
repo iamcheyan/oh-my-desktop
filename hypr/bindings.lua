@@ -102,7 +102,8 @@ end
 for _, key in ipairs(voice_bindings) do
   o.bind(key, "Voice input toggle", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
 end
-o.bind("ALT + S", "Region screenshot", "qs -p $HOME/.config/omd/apps/omd-bar ipc call region screenshot")
+-- Prefer absolute path (same tool as PrintScreen). Re-press cancels if open.
+o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-screenshot screenshot")
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + H", nil, "voxtype record toggle")

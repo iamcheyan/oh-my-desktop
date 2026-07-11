@@ -50,10 +50,10 @@ Rectangle {
         sourceComponent: Rectangle {
             property real verticalPadding: 5
             property real horizontalPadding: 10
-            radius: 10
-            color: root.colBackground
+            radius: TuiStyle.miniRadius
+            color: TuiStyle.surfaceSubtle
             border.width: 1
-            border.color: Appearance.m3colors.m3outlineVariant
+            border.color: TuiStyle.line
             implicitWidth: regionInfoRow.implicitWidth + horizontalPadding * 2
             implicitHeight: regionInfoRow.implicitHeight + verticalPadding * 2
 

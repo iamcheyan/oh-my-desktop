@@ -38,12 +38,6 @@ PanelWindow {
     property bool captureReady: false
     signal dismiss()
 
-    Keys.onPressed: (event) => {
-        if (event.key === Qt.Key_Escape) {
-            root.dismiss();
-        }
-    }
-
     // Styles
     property string screenshotDir: Directories.screenshotTemp
     property color overlayColor: ColorUtils.transparentize("#000000", 0.5)
@@ -71,10 +65,10 @@ PanelWindow {
 
     // Screen & interaction vars
     readonly property HyprlandMonitor hyprlandMonitor: Hyprland.monitorFor(screen)
-    readonly property real monitorScale: hyprlandMonitor.scale
-    readonly property real monitorOffsetX: hyprlandMonitor.x
-    readonly property real monitorOffsetY: hyprlandMonitor.y
-    property int activeWorkspaceId: hyprlandMonitor.activeWorkspace?.id ?? 0
+    readonly property real monitorScale: hyprlandMonitor?.scale ?? 1
+    readonly property real monitorOffsetX: hyprlandMonitor?.x ?? 0
+    readonly property real monitorOffsetY: hyprlandMonitor?.y ?? 0
+    property int activeWorkspaceId: hyprlandMonitor?.activeWorkspace?.id ?? 0
     property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
     property string savedScreenshotPath: ""
     property string tempScreenshotPath: ""
@@ -89,18 +83,22 @@ PanelWindow {
     property list<point> points: []
     property var mouseButton: null
     property var imageRegions: []
-    readonly property list<var> windowRegions: RegionFunctions.filterWindowRegionsByLayers(
-        root.windows.filter(w => w.workspace.id === root.activeWorkspaceId),
-        root.layerRegions
-    ).map(window => {
-        return {
-            at: [window.at[0] - root.monitorOffsetX, window.at[1] - root.monitorOffsetY],
-            size: [window.size[0], window.size[1]],
-            class: window.class,
-            title: window.title,
-        }
-    })
+    readonly property list<var> windowRegions: {
+        if (!root.hyprlandMonitor) return [];
+        return RegionFunctions.filterWindowRegionsByLayers(
+            root.windows.filter(w => w.workspace?.id === root.activeWorkspaceId),
+            root.layerRegions
+        ).map(window => {
+            return {
+                at: [window.at[0] - root.monitorOffsetX, window.at[1] - root.monitorOffsetY],
+                size: [window.size[0], window.size[1]],
+                class: window.class,
+                title: window.title,
+            }
+        });
+    }
     readonly property list<var> layerRegions: {
+        if (!root.hyprlandMonitor) return [];
         const layersOfThisMonitor = root.layers[root.hyprlandMonitor.name]
         const topLayers = layersOfThisMonitor?.levels["2"]
         if (!topLayers) return [];
@@ -125,8 +123,9 @@ PanelWindow {
 
     // Config
     property bool isCircleSelection: (root.selectionMode === RegionSelection.SelectionMode.Circle)
-    property bool enableWindowRegions: false
-    property bool enableLayerRegions: false
+    // Window click-to-select must stay enabled; content regions need OpenCV which we removed.
+    property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection
+    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection
     property bool enableContentRegions: false
 
     // Target
@@ -390,6 +389,11 @@ PanelWindow {
             if (root.draggingX === root.dragStartX && root.draggingY === root.dragStartY) {
                 if (root.targetedRegionValid()) {
                     root.setRegionToTargeted();
+                } else {
+                    // Empty click (no window target): keep overlay open instead of
+                    // treating it as a zero-size capture that immediately dismisses.
+                    root.dragging = false;
+                    return;
                 }
             }
             // Circle dragging?

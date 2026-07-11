@@ -26,18 +26,11 @@ Item {
         colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
         colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
-        onClicked: {
-            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
+        releaseAction: () => {
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
         }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onPressed: (event) => {
-            if (event.button === Qt.RightButton) {
-                screenshotMenu.open();
-            }
+        altAction: () => {
+            screenshotMenu.open();
         }
     }
 

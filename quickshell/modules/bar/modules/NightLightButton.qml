@@ -21,7 +21,7 @@ Item {
         anchors.centerIn: parent
 
         onClicked: {
-            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "region", "screenshot"]);
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
         }
 
         content: BarNerdIcon {

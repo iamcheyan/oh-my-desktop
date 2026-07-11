@@ -15,9 +15,13 @@ o.bind("SUPER + CTRL + ALT + Delete", "Toggle laptop display mirroring", "omd-hy
 o.bind("switch:on:Lid Switch", nil, "omd-hw-external-monitors && omd-hyprland-monitor-internal off", { locked = true })
 o.bind("switch:off:Lid Switch", nil, "omd-hyprland-monitor-internal on", { locked = true })
 
-o.bind("PRINT", "Screenshot", "omd-capture-screenshot")
+-- Region selector lives in the on-demand omd-screenshot process.
+-- Use an absolute path so Hyprland keybinds work even with a minimal PATH.
+-- Re-press while open cancels (handled inside omd-screenshot).
+local paths = require("default.hypr.paths")
+o.bind("PRINT", "Screenshot", paths.omd_root .. "/bin/omd-screenshot screenshot")
 o.bind("SUPER + PRINT", "Color picker", "pkill hyprpicker || hyprpicker -a")
-o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", "omd-capture-text-extraction")
+o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", paths.omd_root .. "/bin/omd-screenshot ocr")
 
 o.bind("SUPER + CTRL + A", "Audio controls", { omd = "audio" })
 o.bind("SUPER + CTRL + B", "Bluetooth controls", { omd = "bluetooth" })

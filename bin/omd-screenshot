@@ -1,0 +1,146 @@
+#!/bin/sh
+set -eu
+
+# On-demand Screenshot / Region Selector process.
+# Usage:
+#   omd-screenshot              # screenshot (copy)
+#   omd-screenshot screenshot   # same as above
+#   omd-screenshot edit         # screenshot & edit
+#   omd-screenshot search       # search with Google Lens
+#   omd-screenshot ocr          # OCR text recognition
+#   omd-screenshot record       # record region
+#   omd-screenshot toggle       # open if closed, cancel if already open
+#
+# Starts a Quickshell process that auto-opens the region selector
+# and quits when the selection is complete or cancelled.
+# Re-invoking while open cancels the current selection (toggle).
+
+app_dir="$HOME/.config/omd/apps/omd-screenshot"
+log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
+action="${1:-screenshot}"
+
+# Normalize legacy aliases.
+case "$action" in
+    toggle|"")
+        action="screenshot"
+        toggle_mode=1
+        ;;
+    *)
+        toggle_mode=0
+        ;;
+esac
+
+is_running() {
+    # Same pattern as omd-clipboard / omd-settings: match qs -p <app_dir>
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+list_running_pids() {
+    # pgrep -f prints "PID cmdline"; take only the PID column.
+    pgrep -f "(quickshell|qs).* -p ${app_dir}( |$)" 2>/dev/null || true
+}
+
+kill_running() {
+    pids=$(list_running_pids)
+    if [ -z "${pids:-}" ]; then
+        return 0
+    fi
+    # shellcheck disable=SC2086
+    kill $pids 2>/dev/null || true
+    i=0
+    while is_running && [ "$i" -lt 20 ]; do
+        sleep 0.05
+        i=$((i + 1))
+    done
+    if is_running; then
+        pids=$(list_running_pids)
+        # shellcheck disable=SC2086
+        [ -n "${pids:-}" ] && kill -9 $pids 2>/dev/null || true
+    fi
+}
+
+# Re-press while open = cancel (same mental model as slurp toggle).
+if is_running; then
+    kill_running
+    # Explicit cancel request: do not relaunch.
+    if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
+        exit 0
+    fi
+    # Explicit actions from the bar/keybind should be reliable wake requests:
+    # clear stale or half-visible instances, then launch a fresh selector.
+    sleep 0.08
+fi
+
+launch_direct() {
+    qs_bin="${OMD_QS_BIN:-}"
+    if [ -z "$qs_bin" ]; then
+        if [ -x /usr/bin/qs ]; then
+            qs_bin=/usr/bin/qs
+        elif [ -x /usr/bin/quickshell ]; then
+            qs_bin=/usr/bin/quickshell
+        elif [ -x "$HOME/.local/bin/qs" ]; then
+            qs_bin="$HOME/.local/bin/qs"
+        elif [ -x "$HOME/.local/bin/quickshell" ]; then
+            qs_bin="$HOME/.local/bin/quickshell"
+        fi
+    fi
+    if [ -z "$qs_bin" ]; then
+        echo "Quickshell executable not found" >&2
+        exit 127
+    fi
+
+    repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+    export OMD_REPO_ROOT="$repo_root"
+    export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
+    export QS_CONFIG_DIR="$app_dir"
+    export QS_COMPOSITOR=hyprland
+    export OMD_APP_DIR="$app_dir"
+    export OMD_SCREENSHOT_ACTION="$action"
+
+    # Hyprland binds often run with a minimal PATH; keep capture tools reachable.
+    export PATH="/usr/bin:/usr/local/bin:${HOME}/.local/bin:${PATH:-}"
+
+    runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+    # Prefer the live Hyprland instance (correct WAYLAND_DISPLAY + signature).
+    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        for candidate in "$runtime_dir"/hypr/*/hyprland.lock; do
+            [ -f "$candidate" ] || continue
+            pid="$(sed -n '1p' "$candidate" 2>/dev/null || true)"
+            display="$(sed -n '2p' "$candidate" 2>/dev/null || true)"
+            [ -n "$pid" ] || continue
+            kill -0 "$pid" 2>/dev/null || continue
+            export HYPRLAND_INSTANCE_SIGNATURE="$(basename "$(dirname "$candidate")")"
+            [ -n "$display" ] && export WAYLAND_DISPLAY="$display"
+            break
+        done
+    fi
+
+    if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$runtime_dir/${WAYLAND_DISPLAY:-}" ]; then
+        for socket in "$runtime_dir"/wayland-*; do
+            if [ -S "$socket" ]; then
+                export WAYLAND_DISPLAY="$(basename "$socket")"
+                break
+            fi
+        done
+    fi
+
+    if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        echo "No Wayland display socket found. Start this from inside Hyprland." >&2
+        exit 1
+    fi
+
+    # Keep the wake request short-lived. Hyprland binds and bar clicks should
+    # fire-and-forget instead of inheriting the selector process lifetime.
+    nohup "$qs_bin" -p "$app_dir" >>"$log_file" 2>&1 &
+}
+
+case "$action" in
+    screenshot|edit|search|ocr|record|recordWithSound)
+        launch_direct
+        ;;
+    *)
+        echo "usage: omd-screenshot [screenshot|edit|search|ocr|record|recordWithSound|toggle]" >&2
+        exit 2
+        ;;
+esac
