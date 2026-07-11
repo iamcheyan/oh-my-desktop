@@ -72,7 +72,6 @@ detect_distro() {
 # Core Hyprland ecosystem
 PACKAGES_HYPRLAND=(
     hyprland
-    hyprlock
     hypridle
     hyprpicker
     xdg-desktop-portal-hyprland
@@ -199,7 +198,6 @@ PACKAGES_FILES=(
 get_debian_pkg() {
     case "$1" in
         hyprland)               echo "hyprland" ;;
-        hyprlock)               echo "hyprlock" ;;
         hypridle)               echo "hypridle" ;;
         hyprpicker)             echo "hyprpicker" ;;
         xdg-desktop-portal-hyprland) echo "xdg-desktop-portal-hyprland" ;;
@@ -269,7 +267,6 @@ get_debian_pkg() {
 get_fedora_pkg() {
     case "$1" in
         hyprland)               echo "hyprland" ;;
-        hyprlock)               echo "hyprlock" ;;
         hypridle)               echo "hypridle" ;;
         hyprpicker)             echo "hyprpicker" ;;
         xdg-desktop-portal-hyprland) echo "xdg-desktop-portal-hyprland" ;;
@@ -464,7 +461,6 @@ install_nixos_system_config() {
     cat >"$packages_file" <<'EOF'
     # OMD / Hyprland runtime
     hyprland
-    hyprlock
     hypridle
     hyprpicker
     xdg-desktop-portal-hyprland

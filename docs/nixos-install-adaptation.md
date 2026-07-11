@@ -17,7 +17,6 @@ Update your configuration with the following:
 environment.systemPackages = with pkgs; [
   # OMD / Hyprland Core
   hyprland
-  hyprlock
   hypridle
   quickshell
   walker

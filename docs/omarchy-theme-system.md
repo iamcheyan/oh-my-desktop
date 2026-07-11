@@ -18,7 +18,7 @@ In this repo, that path is:
 omarchy/current/theme
 ```
 
-Hyprland, hyprlock, terminals, walker, swayosd, browser integrations, and other
+Hyprland, terminals, walker, swayosd, browser integrations, and other
 apps read generated files from that current theme snapshot.
 
 ## Theme Locations
@@ -54,7 +54,6 @@ Typical active theme files:
 colors.toml
 quickshell.json
 hyprland.lua
-hyprlock.conf
 walker.css
 waybar.css
 kitty.conf
@@ -238,23 +237,6 @@ require("omarchy.current.theme.hyprland")
 
 So theme-specific Hyprland colors and overrides come from the active current
 theme snapshot, not from a hard-coded Hyprland config file.
-
-## Hyprlock Integration
-
-`omarchy/hypr/hyprlock.conf` begins with:
-
-```conf
-source = ~/.config/omarchy/current/theme/hyprlock.conf
-```
-
-The lockscreen background points at:
-
-```conf
-path = ~/.config/omarchy/current/background
-```
-
-So theme switching changes hyprlock colors through `hyprlock.conf`, and wallpaper
-changes are reflected through the `current/background` symlink.
 
 ## Neovim Integration
 

@@ -44,9 +44,6 @@
   - `omd-lock`
   - `omd-wake`
   - `omd-launch-screensaver`
-- `hypr/hyprlock.conf` 改读：
-  - `~/.config/omd/current/theme/hyprlock.conf`
-  - `~/.local/state/omd/toggles/hyprlock.conf`
 - 复制出的默认 autostart 删除了 Waybar、first-run 和 post-boot hook 启动项。
 
 ## OMD 命令兼容层

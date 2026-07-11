@@ -238,7 +238,6 @@ weather          — 天气
 
 ```json
 "lock": {
-    "useHyprlock": false,
     "launchOnStartup": false,
     "centerClock": true,
     "showLockedText": true,

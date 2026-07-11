@@ -91,7 +91,6 @@ symlink targets.
 │   │   ├── monitors.lua         Monitor layout
 │   │   ├── input.lua            Input devices (keyboard, touchpad)
 │   │   ├── autostart.lua        Autostart programs
-│   │   ├── hyprlock.conf        Screen lock config
 │   │   ├── hypridle.conf        Idle behavior config
 │   │   └── hyprsunset.conf      Nightlight config
 │   ├── current/               Active theme snapshot
@@ -99,7 +98,6 @@ symlink targets.
 │   │   │   ├── backgrounds/      Active theme wallpapers
 │   │   │   ├── colors.toml      Color palette
 │   │   │   ├── hyprland.lua     Hyprland border colors
-│   │   │   ├── hyprlock.conf    Lock screen theme
 │   │   │   ├── quickshell.json  Quickshell theme colors
 │   │   │   └── ...
 │   │   ├── theme.name           Active theme name (e.g. "last-horizon")

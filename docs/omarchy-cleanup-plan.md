@@ -76,10 +76,10 @@ Quickshell 本身大部分已经是 OMD 命名空间：
 share/themes/*
   -> omarchy-theme-set
   -> ~/.config/omarchy/current/theme/*
-  -> quickshell.json / hyprland.lua / hyprlock.conf / foot.ini / alacritty.toml / ...
+  -> quickshell.json / hyprland.lua / foot.ini / alacritty.toml / ...
 ```
 
-Quickshell、Hyprland、hyprlock、终端配置都会读取 `omarchy/current/theme`。这意味着主题系统是另一个大依赖。清理时需要先决定：
+Quickshell、Hyprland、终端配置都会读取 `omarchy/current/theme`。这意味着主题系统是另一个大依赖。清理时需要先决定：
 
 1. 是否保留多主题能力。
 2. 是否只保留当前主题快照。
@@ -260,7 +260,6 @@ rg -n "omarchy-|default\\.hypr|~/.local/share/omarchy|\\.local/share/omarchy|\\.
   - `quickshell/services/OmarchyTheme.qml`
   - `bin/omd-wallpaper`
   - `bin/omd-settings-theme`
-  - `hyprlock.conf`
   - 终端配置 `foot/kitty/alacritty/ghostty`
   - Neovim 主题 drop-in
 - 旧路径保留为 symlink 或兼容读路径。
@@ -320,7 +319,7 @@ rg -n "omarchy-|default\\.hypr|~/.local/share/omarchy|\\.local/share/omarchy|\\.
 
 - 登录入口风险最高。`/usr/local/bin/omd-hyprland-session` 一旦指向不存在的配置，会导致图形会话无法启动。
 - `share/default/hypr` 现在提供了大量默认快捷键。断开后如果没有补齐核心窗口管理绑定，会感觉桌面“按键全坏了”。
-- 主题路径同时被 Quickshell、Hyprland、hyprlock、终端、Neovim 使用，迁移时要一次性提供兼容路径。
+- 主题路径同时被 Quickshell、Hyprland、终端、Neovim 使用，迁移时要一次性提供兼容路径。
 - `PATH` 里移除 `~/.local/share/omarchy/bin` 前，必须确认所有运行时命令都有 OMD 版本。
 - `Init.sh` 现在既安装依赖又创建 symlink，还写系统 session 文件。清理时要把“安装器清理”和“运行时清理”分开做。
 
