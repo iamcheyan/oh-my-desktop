@@ -208,18 +208,19 @@ FocusScope {
 
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
-            Layout.preferredWidth: 64
-            Layout.preferredHeight: 64
-            radius: 32
-            color: Qt.rgba(1, 1, 1, 0.15)
+            Layout.preferredWidth: 96
+            Layout.preferredHeight: 96
+            radius: 48
+            color: Qt.rgba(1, 1, 1, 0.12)
             border.width: 2
-            border.color: Qt.rgba(1, 1, 1, 0.3)
+            border.color: Qt.rgba(1, 1, 1, 0.25)
 
             MaterialSymbol {
                 anchors.centerIn: parent
-                text: "account_circle"
-                iconSize: 40
+                text: "person"
+                iconSize: 52
                 color: "#f4f4f4"
+                fill: 1
             }
         }
 
