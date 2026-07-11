@@ -12,10 +12,11 @@ import Quickshell.Hyprland
 
 Scope {
     id: screenCorners
+    // NOTE: 屏幕圆角和边缘热区功能暂时关闭（hotCornersEnabled = false），以节省后台空转内存。
+    // 如果日后想重新启用该功能，请将此属性设为 true，并重新启用 bin/omd-restart 中的 start_app omd-corners。
     property bool hotCornersEnabled: false
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
     readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
-    readonly property string appLauncherApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-applauncher`
     // ... (rest unchanged)
 
     function callOverview(method) {
@@ -26,7 +27,7 @@ Scope {
 
     function callAppLauncher(method) {
         Quickshell.execDetached([
-            "qs", "-p", screenCorners.appLauncherApp, "ipc", "call", "appLauncher", method
+            "sh", "-c", `$HOME/.config/omd/bin/omd-applauncher ${method}`
         ]);
     }
 
