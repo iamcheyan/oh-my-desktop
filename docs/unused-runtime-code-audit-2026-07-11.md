@@ -105,6 +105,17 @@ Legacy/default entry point:
   - Stray copied OS icon directory tracked by Git.
   - Runtime OS icons are loaded from `icons/OS/` by `ActiveWindow.qml`; no code
     references the copied path.
+- Legacy zero-reference `quickshell/modules/common/widgets/` controls:
+  - Removed old config/sidebar controls such as `Config*`, `Content*`,
+    `NavigationRail*`, `SecondaryTab*`, `WindowDialog*` subcontrols,
+    `StyledComboBox`, `StyledSwitch`, and related helper widgets.
+  - Current Settings Center uses `quickshell/modules/settings/widgets/` instead.
+- `quickshell/modules/common/models/AdaptedMaterialScheme.qml`
+- `quickshell/modules/common/models/NestableObject.qml`
+  - No current QML instantiates these models.
+- `quickshell/modules/common/widgets/shapes/`
+  - Vendored Material shape library became unreachable after removing the old
+    placeholder/material-shape widgets.
 
 ## Confirmed Already Removed Or In Progress
 
