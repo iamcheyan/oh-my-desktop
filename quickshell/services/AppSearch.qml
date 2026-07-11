@@ -61,6 +61,7 @@ Singleton {
         if (!desktopEntry || !desktopEntry.command || desktopEntry.command.length === 0)
             return false;
 
+        const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
         const cmd = desktopEntry.command;
         const program = cmd[0];
         const args = [];
@@ -71,14 +72,14 @@ Singleton {
         }
 
         if (program.includes("/")) {
-            Quickshell.execDetached({
-                command: [program].concat(args),
-                workingDirectory: desktopEntry.workingDirectory || ""
-            });
+            const command = [detach];
+            if ((desktopEntry.workingDirectory || "").length > 0)
+                command.push("--cwd", desktopEntry.workingDirectory);
+            Quickshell.execDetached(command.concat([program]).concat(args));
         } else {
             const quote = s => "'" + s.replace(/'/g, "'\\''") + "'";
             Quickshell.execDetached([
-                "sh", "-c",
+                detach, "sh", "-c",
                 'p=$(echo ":$PATH:" | sed "s|:$HOME/.local/bin:|:|g" | sed "s/^://; s/:$//") && ' +
                 'exec "$(PATH="$p" command -v ' + quote(program) + ')" ' + args.map(quote).join(" ")
             ]);

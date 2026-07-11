@@ -46,7 +46,7 @@ Validation:
 
 ### 2. Detach User-Launched Apps From Quickshell Cgroups
 
-Status: in progress
+Status: done
 
 Problem: apps launched from Quickshell inherit the launcher service cgroup. This
 inflates `omd-bar.service`/`omd-applauncher.service` memory and makes service
@@ -65,7 +65,7 @@ Validation:
 
 ### 3. Make Network Wi-Fi Scans On-Demand
 
-Status: pending
+Status: in progress
 
 Problem: the bar needs connection status at idle, not a full AP list. Current
 `Network.qml` initializes several external `nmcli` commands, including access
