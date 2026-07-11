@@ -1662,7 +1662,7 @@ WindowDialog {
                     Layout.fillWidth: true
                     spacing: 8
                     SettingsStatusPill { label: KeyboardRemap.keydReady ? "keyd running" : "keyd not ready"; active: KeyboardRemap.keydReady; warning: !KeyboardRemap.keydReady }
-                    SettingsStatusPill { label: `${KeyboardRemap.devices.length} keyboard${KeyboardRemap.devices.length === 1 ? "" : "s"}`; active: KeyboardRemap.devices.length > 0 }
+                    SettingsStatusPill { label: `${KeyboardRemap.devices.length} connected`; active: KeyboardRemap.devices.length > 0 }
                     SettingsStatusPill {
                         label: KeyboardRemap.hasPendingChanges ? "pending" : "applied"
                         active: !KeyboardRemap.hasPendingChanges
@@ -1758,16 +1758,18 @@ WindowDialog {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 title: "Keyboards"
-                subtitle: KeyboardRemap.devices.length > 0 ? "Click a keyboard to configure its presets" : "No keyboards detected"
+                subtitle: KeyboardRemap.availableDevices.length > 0 ? "Connected and saved keyboard profiles" : "No keyboards detected"
 
                 Repeater {
-                    model: KeyboardRemap.devices
+                    model: KeyboardRemap.availableDevices
                     delegate: SettingsRow {
                         required property var modelData
                         readonly property int presetCount: KeyboardRemap.devicePresetCount(modelData.hyprName)
                         iconName: "keyboard"
                         label: modelData.displayName
-                        description: modelData.keydId || "missing keyd id"
+                        description: modelData.connected
+                            ? (modelData.keydId || "missing keyd id")
+                            : `${modelData.keydId || "missing keyd id"} · saved, disconnected`
                         value: presetCount > 0 ? `${presetCount} preset${presetCount === 1 ? "" : "s"}` : "no presets"
                         valueColor: presetCount > 0 ? SettingsTokens.accent : SettingsTokens.muted
                         rightInset: 30
@@ -1785,15 +1787,15 @@ WindowDialog {
                             width: 8
                             height: 8
                             radius: 4
-                            color: "#4ade80"
+                            color: modelData.connected ? "#4ade80" : SettingsTokens.muted
                             border.width: 1
-                            border.color: "#22c55e"
+                            border.color: modelData.connected ? "#22c55e" : SettingsTokens.line
                         }
                     }
                 }
 
                 SettingsRow {
-                    visible: KeyboardRemap.devices.length === 0
+                    visible: KeyboardRemap.availableDevices.length === 0
                     iconName: "info"
                     label: "No keyboards found"
                     description: "Refresh after connecting a keyboard."
@@ -1821,6 +1823,15 @@ WindowDialog {
                         label: "Back to keyboards"
                         iconName: "chevron_left"
                         onClicked: root.keyremapDetailOpen = false
+                    }
+                    SettingsButton {
+                        visible: KeyboardRemap.selectedDevice?.connected === false
+                        label: "Remove saved profile"
+                        iconName: "delete"
+                        onClicked: {
+                            KeyboardRemap.deleteProfile(KeyboardRemap.selectedDeviceId)
+                            root.keyremapDetailOpen = false
+                        }
                     }
                 }
 

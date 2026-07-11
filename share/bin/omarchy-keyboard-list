@@ -158,7 +158,7 @@ def main():
         if not keyd_id:
             continue
 
-        display_name = name.replace('-', ' ')
+        display_name = name.strip('- ').replace('-', ' ')
 
         is_main = slug == 'at-translated-set-2-keyboard' or (
             main_flag and 'keyd-virtual' not in slug

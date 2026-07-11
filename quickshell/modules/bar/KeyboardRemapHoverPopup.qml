@@ -32,7 +32,7 @@ StyledPopup {
 
         StyledPopupValueRow {
             visible: KeyboardRemap.selectedDeviceId !== ""
-            icon: NerdIconMap.tune
+            icon: NerdIconMap.settings
             label: "Presets:"
             value: {
                 const n = KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)

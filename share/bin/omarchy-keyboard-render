@@ -58,7 +58,8 @@ fi
               []
             end
           ) | map(
-            if ($overrides[$id] // "") | length > 0 then
+            if (["caps-esc", "muhenkan-meta", "meta-f13", "kana-left", "rightalt-down", "delete-right", "rightctrl-up"] | index($id))
+               and (($overrides[$id] // "") | length > 0) then
               . + {"to": $overrides[$id]}
             else . end
           );

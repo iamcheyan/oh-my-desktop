@@ -122,10 +122,34 @@ Singleton {
 
     readonly property var selectedProfile: selectedDeviceId !== "" ? (deviceProfiles[selectedDeviceId] ?? null) : null
     readonly property bool selectedEnabled: selectedProfile?.enabled !== false
+    readonly property var availableDevices: {
+        const merged = [];
+        const connectedIds = [];
+        for (let i = 0; i < root.devices.length; ++i) {
+            const device = root.devices[i];
+            connectedIds.push(device.hyprName);
+            merged.push(Object.assign({}, device, { connected: true }));
+        }
+        for (const hyprName of Object.keys(root.deviceProfiles)) {
+            if (connectedIds.indexOf(hyprName) >= 0)
+                continue;
+            const profile = root.deviceProfiles[hyprName];
+            merged.push({
+                hyprName: hyprName,
+                rawName: hyprName,
+                displayName: profile.displayName || hyprName,
+                keydId: profile.keydId || "",
+                layout: "",
+                main: false,
+                connected: false
+            });
+        }
+        return merged;
+    }
     readonly property var selectedDevice: {
-        for (let i = 0; i < devices.length; ++i) {
-            if (devices[i].hyprName === selectedDeviceId)
-                return devices[i];
+        for (let i = 0; i < availableDevices.length; ++i) {
+            if (availableDevices[i].hyprName === selectedDeviceId)
+                return availableDevices[i];
         }
         return null;
     }
@@ -269,8 +293,12 @@ Singleton {
     function checkPendingChanges() { pendingCheckProc.running = true; }
 
     function saveProfiles(runApplyAfter) {
+        saveProc.runApplyAfter = saveProc.runApplyAfter || !!runApplyAfter;
+        if (saveProc.running) {
+            saveProc.saveQueued = true;
+            return;
+        }
         saveProc.stdinEnabled = true;
-        saveProc.runApplyAfter = !!runApplyAfter;
         saveProc.running = true;
     }
 
@@ -369,7 +397,7 @@ Singleton {
         const fallbackId = mainId || firstWithPresetsId || firstId;
         if (!selected && fallbackId)
             selected = fallbackId;
-        else if (selected && !detected.some(d => d.hyprName === selected) && fallbackId)
+        else if (selected && !root.deviceProfiles[selected] && fallbackId)
             selected = fallbackId;
         root.selectedDeviceId = selected;
         if (anyNew)
@@ -503,6 +531,7 @@ Singleton {
     Process {
         id: saveProc
         property bool runApplyAfter: false
+        property bool saveQueued: false
         command: ["bash", "-c", `tmp="$(mktemp '${root.profilesPath}.XXXXXX')" || exit 1; if jq . > "$tmp"; then mv "$tmp" '${root.profilesPath}'; else rm -f "$tmp"; exit 1; fi`]
         stdinEnabled: true
         onRunningChanged: {
@@ -516,6 +545,13 @@ Singleton {
             if (code !== 0 && root.state !== "applying") {
                 root.lastError = `Failed to save profiles (jq exit ${code})`;
             }
+            if (code === 0 && saveProc.saveQueued) {
+                saveProc.saveQueued = false;
+                saveProc.stdinEnabled = true;
+                saveProc.running = true;
+                return;
+            }
+            saveProc.saveQueued = false;
             if (!saveProc.runApplyAfter)
                 return;
             saveProc.runApplyAfter = false;

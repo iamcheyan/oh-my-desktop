@@ -69,6 +69,9 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
   updates the draft profile; keyd keeps using the installed configuration
   until the user applies the pending changes.
 - New keyboards auto-get an empty profile on first detection, persisted to `profiles.json`.
+- Saved profiles remain visible when a keyboard is disconnected. Offline rows
+  can be disabled, edited, or removed, so rules that would be emitted by the
+  renderer are never hidden from Settings Center.
 
 ## keyd config generation
 
@@ -118,6 +121,10 @@ This matters because keyd continues to use the old `/etc/keyd/omd.conf` until Ap
 ~/.config/omd/share/bin/omarchy-keyboard-render
 cat /etc/keyd/omd.conf
 ```
+
+Profile writes are serialized. If several presets are toggled quickly, the
+latest in-memory state is queued and written before Apply is allowed to install
+the generated configuration.
 
 If they differ, the UI should show `pending changes`; press **Apply changes** to make keyd match the draft.
 

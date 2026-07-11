@@ -22,8 +22,7 @@
       "keydId": "0001:0001",
       "enabled": true,
       "enabledPresets": [
-        "alt-win-swap",
-        "ctrl-caps-swap"
+        "alt-win-swap"
       ],
       "presetOverrides": {}
     }
