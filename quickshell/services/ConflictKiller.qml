@@ -24,12 +24,12 @@ Singleton {
 
     Process {
         id: checkConflictsProc
-        command: ["bash", "-c", "pidof kded6; pidof mako dunst"]
+        command: ["bash", "-c", "pidof kded6 || true; printf '\\n'; pidof mako dunst || true"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const output = this.text;
-                const conflictingTrays = output.split(";")[0].trim().length > 0;
-                const conflictingNotifications = output.split(";")[1].trim().length > 0;
+                const lines = this.text.split("\n");
+                const conflictingTrays = (lines[0] ?? "").trim().length > 0;
+                const conflictingNotifications = (lines[1] ?? "").trim().length > 0;
                 var openDialog = false;
                 if (conflictingTrays) {
                     if (!Config.options.conflictKiller.autoKillTrays) openDialog = true;

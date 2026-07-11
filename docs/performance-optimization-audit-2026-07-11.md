@@ -140,3 +140,18 @@ Fix:
 
 Validation:
 - Measure overview process RSS before/after with performance mode enabled.
+
+### 8. Remove Hot Startup Warning Loops
+
+Status: done
+
+Problem: recurring QML warnings from startup code make real performance
+regressions harder to spot and can add avoidable log churn.
+
+Fix:
+- Make `ConflictKiller` parse deterministic two-line process output instead of
+  assuming shell separators appear in stdout.
+- Make `StyledPopup.active` evaluate to a real bool when no hover target exists.
+
+Validation:
+- Restart Quickshell and check startup logs for those warning lines.

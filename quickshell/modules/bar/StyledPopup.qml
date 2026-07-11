@@ -29,8 +29,8 @@ LazyLoader {
         return globalY;
     }
 
-    active: hoverTarget
-        && hoverTarget.containsMouse
+    active: hoverTarget !== null
+        && hoverTarget.containsMouse === true
         && GlobalStates.activeContextMenu === ""
         && !GlobalStates.screenLocked
 
