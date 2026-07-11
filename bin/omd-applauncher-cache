@@ -9,21 +9,34 @@ cache_dir="$HOME/.local/state/omd/applauncher"
 cache_file="$cache_dir/apps.json"
 mkdir -p "$cache_dir"
 
-# Collect .desktop file directories
-dirs="/usr/share/applications /usr/local/share/applications $HOME/.local/share/applications"
-for d in /var/lib/flatpak/exports/share/applications "$HOME/.local/share/flatpak/exports/share/applications"; do
-    [ -d "$d" ] && dirs="$dirs $d"
-done
+# Collect .desktop file directories in order of highest to lowest precedence
+dirs=""
+if [ -d "$HOME/.local/share/applications" ]; then dirs="$dirs $HOME/.local/share/applications"; fi
+if [ -d "$HOME/.local/share/flatpak/exports/share/applications" ]; then dirs="$dirs $HOME/.local/share/flatpak/exports/share/applications"; fi
+if [ -d "/usr/local/share/applications" ]; then dirs="$dirs /usr/local/share/applications"; fi
+if [ -d "/usr/share/applications" ]; then dirs="$dirs /usr/share/applications"; fi
+if [ -d "/var/lib/flatpak/exports/share/applications" ]; then dirs="$dirs /var/lib/flatpak/exports/share/applications"; fi
 
 # Generate JSON array of apps
 {
     echo '['
     first=1
+    seen_ids=" "
     for d in $dirs; do
         [ -d "$d" ] || continue
         for f in "$d"/*.desktop; do
             [ -f "$f" ] || continue
             id=$(basename "$f")
+
+            # Deduplicate: if an app with the same desktop ID has already been seen in a
+            # higher precedence directory, skip it.
+            case "$seen_ids" in
+                *" $id "*)
+                    continue
+                    ;;
+            esac
+            seen_ids="$seen_ids$id "
+
             desktop_file="$f"
             name=""
             icon=""
