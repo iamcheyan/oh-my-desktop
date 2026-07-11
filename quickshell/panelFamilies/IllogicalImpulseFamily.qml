@@ -5,16 +5,13 @@ import qs.modules.common
 import qs.modules.appLauncher
 import qs.modules.background
 import qs.modules.bar
-import qs.modules.cheatsheet
 import qs.modules.lock
-import qs.modules.mediaControls
 import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.overview
 import qs.modules.polkit
 import qs.modules.regionSelector
 import qs.modules.screenCorners
-import qs.modules.sessionScreen
 
 Scope {
     id: family
@@ -64,18 +61,7 @@ Scope {
         tier2Ready: family.tier2Ready
         component: RegionSelector {}
     }
-    PanelLoader {
-        loadTier: 1
-        tier1Ready: family.tier1Ready
-        tier2Ready: family.tier2Ready
-        component: SessionScreen {}
-    }
-    PanelLoader {
-        loadTier: 1
-        tier1Ready: family.tier1Ready
-        tier2Ready: family.tier2Ready
-        component: Cheatsheet {}
-    }
+
     PanelLoader {
         loadTier: 1
         tier1Ready: family.tier1Ready
@@ -87,12 +73,5 @@ Scope {
         tier1Ready: family.tier1Ready
         tier2Ready: family.tier2Ready
         component: Polkit {}
-    }
-    // Tier 2 — 低频或重型模块
-    PanelLoader {
-        loadTier: 2
-        tier1Ready: family.tier1Ready
-        tier2Ready: family.tier2Ready
-        component: MediaControls {}
     }
 }

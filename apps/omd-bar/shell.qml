@@ -13,7 +13,6 @@ import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.regionSelector
-import qs.modules.sessionScreen
 import qs.modules.lock
 
 import QtQuick
@@ -23,8 +22,6 @@ import Quickshell.Io
 
 ShellRoot {
     id: root
-
-    ReloadPopup {}
 
     // Esc closes active menus — Hyprland binds ESCAPE to 'dispatch exec qs -p ... ipc call menus close'
     IpcHandler {

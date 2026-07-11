@@ -41,6 +41,17 @@ Tracked cleanup from the 2026-07 audit. Completed 2026-07-11.
 - [x] Update `docs/quickshell-cleanup-audit.md` (schedule section)
 - [x] This execution log
 
+## Phase 7 — Delete legacy unused modules (SessionScreen, Cheatsheet, MediaControls, welcome, killDialog, ReloadPopup)
+
+- [x] Delete `quickshell/modules/sessionScreen/` (entire directory, 2 files)
+- [x] Delete `quickshell/modules/cheatsheet/` (entire directory, 6 files)
+- [x] Delete `quickshell/modules/mediaControls/` (entire directory, 2 files)
+- [x] Delete `quickshell/welcome.qml`, `quickshell/killDialog.qml`, `quickshell/ReloadPopup.qml`
+- [x] `apps/omd-bar/shell.qml`: Remove `SessionScreen {}` instantiation
+- [x] `quickshell/modules/bar/BarStatusPopup.qml`: Remove `EXPAND` button from Audio panel
+- [x] `quickshell/modules/bar/Media.qml`: Remove `mediaControlsOpen` toggle on empty player click
+- [x] `quickshell/GlobalStates.qml`: Remove unused `mediaControlsOpen` and `sessionOpen` states
+
 ## Deferred (out of scope — needs separate decision)
 
 - [~] `quickshell/shell.qml` + `panelFamilies/` — monolith fallback; keep until explicitly retired
