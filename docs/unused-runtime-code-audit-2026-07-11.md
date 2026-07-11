@@ -91,6 +91,16 @@ Legacy/default entry point:
 - `quickshell/scripts/musicRecognition/`
 - `Config.options.musicRecognition`
   - Music recognition was only reachable through the removed quick-toggle model.
+- `quickshell/modules/common/models/hyprland/HyprlandConfigOption.qml`
+- `quickshell/services/HyprlandConfig.qml`
+- `quickshell/scripts/hyprland/hyprconfigurator.py`
+  - Old dynamic Hyprland override writer used by the removed quick-toggle
+    models.
+  - No current settings page or split app calls this bridge.
+- `quickshell/modules/common/widgets/shapes/example.qml`
+- `quickshell/modules/common/widgets/shapes/example-squircle.qml`
+  - Manual demo files for the vendored shape library.
+  - Runtime shape components and JavaScript geometry helpers are kept.
 
 ## Confirmed Already Removed Or In Progress
 

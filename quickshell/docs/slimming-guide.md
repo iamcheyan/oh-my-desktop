@@ -260,8 +260,8 @@ assets/icons/fluent/             # Waffle 专用 Fluent 图标（~936 KB，232 �
 | **Ydotool** | 模拟输入 | cliphist 粘贴 | Cliphist 删则一并审 |
 | **GlobalFocusGrab** | 焦点抓取 | 多处依赖 | **保留** |
 | **TaskbarApps** | 任务栏应用 | Dock 关 | 审 Dock 删除后处理 |
-| **HyprlandConfig/Keybinds/Xkb** | Hyprland 集成 | cheatsheet 用 | 删 cheatsheet 后可审 |
-| **HyprlandAntiFlashbangShader** | 防闪光 | toggle 用 | 视习惯 |
+| **HyprlandXkb** | 键盘布局指示 | 顶栏输入法/布局显示 | 保留 |
+| **HyprlandConfig/Keybinds/AntiFlashbang** | Hyprland 旧集成 | 已随 quick toggles 删除 | 已删除 |
 | **DateTime** | 时间 | 多处 | **保留** |
 | **SystemInfo** | 系统信息 | 关于页/图标 | 保留 |
 

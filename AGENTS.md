@@ -52,9 +52,7 @@ symlink targets.
 │   │   ├── Brightness.qml       Brightness control
 │   │   ├── Cliphist.qml         Clipboard history
 │   │   ├── DateTime.qml         Clock/calendar
-│   │   ├── HyprlandConfig.qml   Hyprland config bridge
 │   │   ├── HyprlandData.qml      Workspace/window data
-│   │   ├── HyprlandKeybinds.qml Keybind state
 │   │   ├── Hyprsunset.qml       Nightlight
 │   │   ├── Idle.qml             Idle detection
 │   │   ├── Network.qml          Network status
