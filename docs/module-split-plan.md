@@ -33,7 +33,6 @@ quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 quickshell -p ~/.config/omd/apps/omd-applauncher
-quickshell -p ~/.config/omd/apps/omd-corners
 ```
 
 Current Omarchy autostart entry:

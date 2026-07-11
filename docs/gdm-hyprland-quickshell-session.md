@@ -52,7 +52,6 @@ omd-bar
 omd-desktop
 omd-overview
 omd-applauncher
-omd-corners
 omd-clipboard
 omd-clipboard-store
 ```

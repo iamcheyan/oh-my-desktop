@@ -54,7 +54,7 @@ GDM session
 
 Quickshell 本身大部分已经是 OMD 命名空间：
 
-- `bin/omd-restart` 启动 `omd-bar`、`omd-desktop`、`omd-overview`、`omd-applauncher`、`omd-corners`、`omd-clipboard`、`omd-clipboard-store`。
+- `bin/omd-restart` 启动 `omd-bar`、`omd-desktop`、`omd-overview`、`omd-applauncher`、`omd-clipboard`、`omd-clipboard-store`。
 - 各 app 入口位于 `apps/omd-*/shell.qml`。
 - QML 内部大量调用 `~/.config/omd/bin/omd-*`。
 

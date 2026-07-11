@@ -33,7 +33,6 @@ quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 quickshell -p ~/.config/omd/apps/omd-applauncher
-quickshell -p ~/.config/omd/apps/omd-corners
 quickshell -p ~/.config/omd/apps/omd-clipboard
 ```
 
@@ -125,7 +124,6 @@ quickshell -p $HOME/.config/omd/apps/omd-desktop
 quickshell -p $HOME/.config/omd/apps/omd-overview
 quickshell -p $HOME/.config/omd/apps/omd-switcher
 quickshell -p $HOME/.config/omd/apps/omd-applauncher
-quickshell -p $HOME/.config/omd/apps/omd-corners
 quickshell -p $HOME/.config/omd/apps/omd-clipboard
 ```
 

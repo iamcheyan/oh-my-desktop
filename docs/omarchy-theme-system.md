@@ -324,7 +324,6 @@ omd-desktop
 omd-overview
 omd-switcher
 omd-applauncher
-omd-corners
 omd-clipboard
 ```
 

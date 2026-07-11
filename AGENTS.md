@@ -136,7 +136,6 @@ symlink targets.
 │   ├── omd-applauncher       Launch app launcher
 │   ├── omd-clipboard          Launch clipboard UI process
 │   ├── omd-clipboard-store    Launch clipboard store watcher
-│   ├── omd-corners            Launch corners process
 │   ├── omd-wallpaper          Wallpaper picker/rotation helper
 │   ├── omd-session            Workspace snapshot save/restore helper
 │   ├── omd-settings-theme     Settings Center theme list/apply helper
@@ -181,7 +180,7 @@ symlink targets.
   (monitors, input, bindings, looknfeel, autostart).
 - Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
-  `omd-overview`, `omd-applauncher`, `omd-corners`, and `omd-clipboard`.
+  `omd-overview`, `omd-applauncher`, and `omd-clipboard`.
 - Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.

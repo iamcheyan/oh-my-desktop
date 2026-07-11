@@ -13,7 +13,7 @@ faster perceived UI response without removing core desktop behavior.
   - `omd-desktop`: about 81 MB
   - `omd-overview`: about 113 MB
   - `omd-applauncher`: about 82 MB
-  - `omd-corners`: about 42 MB
+
   - `omd-clipboard`: about 72 MB
 - There are duplicate clipboard watchers:
   - legacy `wl-paste --type text --watch cliphist store`
@@ -115,7 +115,7 @@ Validation:
 
 Status: partial
 
-Problem: `omd-applauncher`, `omd-overview`, and `omd-clipboard` are all resident
+Problem: `omd-applauncher` and `omd-clipboard` (on-demand) and `omd-overview` (always-on) are all resident
 Quickshell processes. This improves responsiveness, but costs roughly 250 MB RSS
 combined.
 
