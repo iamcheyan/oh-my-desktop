@@ -101,6 +101,10 @@ Legacy/default entry point:
 - `quickshell/modules/common/widgets/shapes/example-squircle.qml`
   - Manual demo files for the vendored shape library.
   - Runtime shape components and JavaScript geometry helpers are kept.
+- `icons/OS (副本)/`
+  - Stray copied OS icon directory tracked by Git.
+  - Runtime OS icons are loaded from `icons/OS/` by `ActiveWindow.qml`; no code
+    references the copied path.
 
 ## Confirmed Already Removed Or In Progress
 
