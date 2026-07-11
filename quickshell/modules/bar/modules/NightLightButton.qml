@@ -20,9 +20,11 @@ Item {
         id: nightLightButton
         anchors.centerIn: parent
 
-        onClicked: {
+        releaseAction: () => {
             Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
         }
+
+        altAction: () => screenshotMenu.open()
 
         content: BarNerdIcon {
             text: NerdIconMap.desktop
@@ -32,13 +34,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        propagateComposedEvents: true
-        onPressed: (event) => {
-            if (event.button === Qt.RightButton) {
-                screenshotMenu.open();
-            }
-        }
+        acceptedButtons: Qt.NoButton
         onWheel: wheel => {
             const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
             root.wheelAccum = r.accum

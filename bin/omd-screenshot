@@ -18,6 +18,12 @@ set -eu
 app_dir="$HOME/.config/omd/apps/omd-screenshot"
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"
+lock_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot.lock"
+
+# Serialize rapid bar/keybind clicks. Without this, a second invocation can race
+# the previous Quickshell process while it is still registering or shutting down.
+exec 9>"$lock_file"
+flock -w 1 9 || exit 0
 
 # Normalize legacy aliases.
 case "$action" in
@@ -59,16 +65,37 @@ kill_running() {
     fi
 }
 
+wait_until_not_running() {
+    i=0
+    while is_running && [ "$i" -lt 30 ]; do
+        sleep 0.05
+        i=$((i + 1))
+    done
+}
+
+wait_until_running_or_failed() {
+    i=0
+    while [ "$i" -lt 20 ]; do
+        if is_running; then
+            return 0
+        fi
+        sleep 0.05
+        i=$((i + 1))
+    done
+    return 1
+}
+
 # Re-press while open = cancel (same mental model as slurp toggle).
 if is_running; then
     kill_running
+    wait_until_not_running
     # Explicit cancel request: do not relaunch.
     if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
         exit 0
     fi
     # Explicit actions from the bar/keybind should be reliable wake requests:
     # clear stale or half-visible instances, then launch a fresh selector.
-    sleep 0.08
+    sleep 0.25
 fi
 
 launch_direct() {
@@ -133,6 +160,7 @@ launch_direct() {
     # Keep the wake request short-lived. Hyprland binds and bar clicks should
     # fire-and-forget instead of inheriting the selector process lifetime.
     nohup "$qs_bin" -p "$app_dir" >>"$log_file" 2>&1 &
+    wait_until_running_or_failed || true
 }
 
 case "$action" in
