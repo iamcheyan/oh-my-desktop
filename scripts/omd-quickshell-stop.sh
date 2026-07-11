@@ -23,6 +23,8 @@ omd_stop_quickshell() {
     # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
     pkill -f "^nmcli monitor$" 2>/dev/null || true
     pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
+    pkill -f "wl-paste --type text --watch cliphist store" 2>/dev/null || true
+    pkill -f "wl-paste --type image --watch cliphist store" 2>/dev/null || true
     sleep 0.3
 
     pkill -9 -f "quickshell -p ${omd_root}/apps/omd-" 2>/dev/null || true

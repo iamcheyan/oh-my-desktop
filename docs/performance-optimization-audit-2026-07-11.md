@@ -29,7 +29,7 @@ faster perceived UI response without removing core desktop behavior.
 
 ### 1. Restart Cleanup For Known Watchers
 
-Status: pending
+Status: done
 
 Problem: `omd-restart` avoids killing whole cgroups so user-launched terminals
 survive, but Quickshell child watcher processes can also survive. This leaves
@@ -46,7 +46,7 @@ Validation:
 
 ### 2. Detach User-Launched Apps From Quickshell Cgroups
 
-Status: pending
+Status: in progress
 
 Problem: apps launched from Quickshell inherit the launcher service cgroup. This
 inflates `omd-bar.service`/`omd-applauncher.service` memory and makes service
@@ -140,4 +140,3 @@ Fix:
 
 Validation:
 - Measure overview process RSS before/after with performance mode enabled.
-
