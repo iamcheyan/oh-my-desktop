@@ -33,7 +33,18 @@ done
             keywords=""
             working_dir=""
             hidden=""
+            section=""
             while IFS='=' read -r key val; do
+                # Track which section we're in; stop collecting once we leave [Desktop Entry]
+                case "$key" in
+                    \[*)
+                        section="$key"
+                        # Once we've entered a non-Desktop-Entry section, stop reading main fields
+                        [ "$section" = "[Desktop Entry]" ] || break
+                        continue
+                        ;;
+                esac
+                # Only collect fields from the [Desktop Entry] section
                 case "$key" in
                     Name) name="$val" ;;
                     Icon) icon="$val" ;;
