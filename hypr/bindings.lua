@@ -1,7 +1,7 @@
 local paths = require("default.hypr.paths")
 
 -- Application bindings.
-o.bind("SUPER + RETURN", "Terminal", { omd = "terminal" })
+o.bind("SUPER + RETURN", "Application launcher", "$HOME/.config/omd/bin/omd-applauncher")
 o.bind("SUPER + Q", "Terminal", { omd = "terminal" })
 o.bind("SUPER + ALT + RETURN", "Tmux", { omd = "terminal-tmux" })
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omd = "browser" })
