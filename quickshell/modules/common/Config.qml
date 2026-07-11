@@ -117,7 +117,7 @@ Singleton {
                     property real maxAllowed: 99
                 }
                 // Per-device volume/mute keyed by Pipewire node.name
-                property JsonObject levels: JsonObject {}
+                property var levels: ({})
             }
 
             property JsonObject apps: JsonObject {

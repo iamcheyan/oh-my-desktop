@@ -168,3 +168,17 @@ Fix:
 
 Validation:
 - Restart Quickshell and check overview logs for missing monitor binding errors.
+
+### 10. Fix Dynamic Audio Level Persistence
+
+Status: done
+
+Problem: `audio.levels` stores dynamic PipeWire device names, but the config
+schema declared it as a static `JsonObject`. Writing a plain JS object emitted
+`Cannot assign QJSValue to qs::io::JsonObject*` on startup.
+
+Fix:
+- Store `audio.levels` as a plain `var` object in the config adapter.
+
+Validation:
+- Restart Quickshell and confirm the Config assignment warning is gone.
