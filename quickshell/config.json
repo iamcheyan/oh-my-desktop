@@ -130,9 +130,6 @@
         "deadPixelWorkaround": {
             "enable": false
         },
-        "hotCorner": {
-            "triggerDelay": 300
-        },
         "scrolling": {
             "fasterTouchpadScroll": false,
             "mouseScrollDeltaThreshold": 120,
@@ -241,20 +238,6 @@
             "imageSearchEngineBaseUrl": "https://lens.google.com/uploadbyurl?url=",
             "useCircleSelection": false
         }
-    },
-    "sidebar": {
-        "cornerOpen": {
-            "bottom": false,
-            "clickless": false,
-            "clicklessCornerEnd": true,
-            "clicklessCornerVerticalOffset": 1,
-            "cornerRegionHeight": 5,
-            "cornerRegionWidth": 250,
-            "enable": true,
-            "valueScroll": true,
-            "visualize": false
-        },
-        "keepRightSidebarLoaded": false
     },
     "sounds": {
         "theme": "freedesktop"

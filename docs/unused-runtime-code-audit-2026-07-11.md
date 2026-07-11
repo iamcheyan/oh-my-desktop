@@ -47,6 +47,18 @@ Legacy/default entry point:
 - `quickshell/services/SessionWarnings.qml`
   - Static search found no references outside the service file.
   - No current shell imports or calls it.
+- `apps/omd-corners/`
+  - Not started by `bin/omd-restart`.
+  - Its underlying `ScreenCorners.qml` had `hotCornersEnabled: false`.
+- `quickshell/modules/screenCorners/`
+  - Only used by the removed `apps/omd-corners` process.
+- `bin/omd-corners`
+  - Launcher for the removed corners process.
+- `Config.options.interactions.hotCorner`
+  - Only used by the removed screen-corners module.
+- `Config.options.sidebar.cornerOpen` and `Config.options.sidebar.keepRightSidebarLoaded`
+  - Only used by the removed screen-corners/sidebar-corner path.
+- `omd-corners` references in restart/stop/theme-refresh scripts.
 
 ## Confirmed Already Removed Or In Progress
 
@@ -63,18 +75,6 @@ consumer under `quickshell/modules/schedulePopup/notifications/`.
 
 These appear unused in the current split session and should be reviewed for
 deletion in the next cleanup pass.
-
-### Corners / Hot Corners
-
-- `apps/omd-corners/`
-- `quickshell/modules/screenCorners/`
-- `bin/omd-corners`
-
-Reason: `bin/omd-restart` explicitly keeps `omd-corners` disabled, and
-`ScreenCorners.qml` has `hotCornersEnabled: false`.
-
-Suggested action: delete if hot corners and screen-corner overlays are no
-longer part of OMD's design.
 
 ## Documentation / Translation Debris
 

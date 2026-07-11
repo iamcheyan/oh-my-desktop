@@ -221,9 +221,6 @@ Singleton {
                 property JsonObject deadPixelWorkaround: JsonObject { // Hyprland leaves out 1 pixel on the right for interactions
                     property bool enable: false
                 }
-                property JsonObject hotCorner: JsonObject {
-                    property int triggerDelay: 150 // Delay in ms before hot corner triggers action
-                }
             }
 
             property JsonObject language: JsonObject {
@@ -348,22 +345,6 @@ Singleton {
                 property int backgroundTasksDelayMs: 4000
                 property bool deferUpdateCheck: true
                 property int updateCheckDelayMs: 30000
-            }
-
-            property JsonObject sidebar: JsonObject {
-                property bool keepRightSidebarLoaded: false
-                property JsonObject cornerOpen: JsonObject {
-                    property bool enable: true
-                    property bool bottom: false
-                    property bool valueScroll: true
-                    property bool clickless: false
-                    property int cornerRegionWidth: 250
-                    property int cornerRegionHeight: 5
-                    property bool visualize: false
-                    property bool clicklessCornerEnd: true
-                    property int clicklessCornerVerticalOffset: 1
-                }
-
             }
 
             property JsonObject screenRecord: JsonObject {

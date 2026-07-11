@@ -26,7 +26,4 @@ start_app() {
 start_app omd-bar
 start_app omd-desktop
 start_app omd-overview
-# omd-corners 暂时关闭以节省约 80MB-100MB 内存（在 ScreenCorners.qml 中 hotCornersEnabled 默认为 false）
-# 如果日后需要开启此功能，请取消下行的注释并重启桌面
-# start_app omd-corners
 start_app omd-clipboard-store

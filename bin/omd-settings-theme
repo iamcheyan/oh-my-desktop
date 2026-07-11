@@ -207,7 +207,7 @@ copy_theme() {
 
 refresh_running_apps() {
   local app qs_cmd="${QS_CMD:-qs}"
-  local apps=(omd-bar omd-desktop omd-overview omd-applauncher omd-corners omd-clipboard)
+  local apps=(omd-bar omd-desktop omd-overview omd-applauncher omd-clipboard)
 
   for app in "${apps[@]}"; do
     [[ -d "$OMD_ROOT/apps/$app" ]] || continue
