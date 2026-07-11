@@ -94,7 +94,7 @@ Singleton {
     Process {
         id: ddcProc
 
-        command: ["ddcutil", "detect", "--brief"]
+        command: [FileUtils.trimFileProtocol(`${Directories.home}/.config/omd/bin/omd-ddc-detect`)]
         stdout: SplitParser {
             splitMarker: "\n\n"
             onRead: data => {

@@ -99,7 +99,7 @@ Validation:
 
 ### 5. Throttle External Brightness/DDC Detection
 
-Status: pending
+Status: done
 
 Problem: `ddcutil detect` runs from multiple Quickshell processes at startup and
 can block or emit I2C lock warnings.
