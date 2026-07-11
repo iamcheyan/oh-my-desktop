@@ -9,6 +9,7 @@ QtObject {
     readonly property color bg: "#050505"
     readonly property color line: "#8a8a8a"
     readonly property color accent: "#00cc88"
+    readonly property color selection: "#1a00cc88"
     readonly property color shellBorder: "#333333"
     readonly property int borderWidth: 2
     readonly property int radius: 14
