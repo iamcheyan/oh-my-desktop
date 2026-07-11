@@ -73,10 +73,6 @@ Singleton {
 
             property string hyprlandInstanceSignature: ""
 
-            property JsonObject cheatsheet: JsonObject {
-                property int tabIndex: 0
-            }
-
             property JsonObject idle: JsonObject {
                 property bool inhibit: false
             }

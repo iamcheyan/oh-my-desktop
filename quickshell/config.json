@@ -106,17 +106,6 @@
         "low": 20,
         "suspend": 3
     },
-    "cheatsheet": {
-        "fontSize": {
-            "comment": 12,
-            "key": 12
-        },
-        "splitButtons": true,
-        "superKey": "",
-        "useFnSymbol": true,
-        "useMacSymbol": true,
-        "useMouseSymbol": true
-    },
     "conflictKiller": {
         "autoKillNotificationDaemons": true,
         "autoKillTrays": true

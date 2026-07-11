@@ -125,6 +125,10 @@ Legacy/default entry point:
 - `quickshell/modules/common/Images.qml`
   - Zero-reference common singletons.
   - Current runtime uses local icon/image helpers in active components instead.
+- `Config.options.cheatsheet`
+- `Persistent.states.cheatsheet`
+  - Cheatsheet module and `HyprlandKeybinds` service were already removed.
+  - Remaining config/state keys had no runtime readers.
 
 ## Confirmed Already Removed Or In Progress
 
