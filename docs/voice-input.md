@@ -200,7 +200,9 @@ It defaults to **Current key value**, which leaves keyd running, and can switch
 to **Original key value**, which temporarily pauses keyd. Changing modes clears
 the previous result so values from the two layers are not mixed.
 
-Integration callers use two explicit, locked modes:
+Integration callers use two explicit preferred modes. The switch remains
+visible for inspection, but only a capture made in the caller's expected mode
+is exported back to that workflow:
 
 | Mode | Used by | keyd state | Captures |
 |------|---------|------------|----------|

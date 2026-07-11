@@ -15,6 +15,9 @@ Running `scripts/key-test` without a flag shows a segmented switch in the
 window. **Current key value** is the default and shows the result after active
 keyd remaps. **Original key value** temporarily pauses keyd and shows the
 physical source key. Switching modes clears the previous capture.
+The switch is also visible when another OMD workflow opens the tool with a
+preferred mode. Results from the other mode are shown for inspection but are
+not exported back to the calling workflow.
 
 Use `--remap-source` only when editing Keyboard Remap source keys. It temporarily stops keyd, captures the physical key, then restores keyd. This prevents current remaps from changing what the source capture sees.
 

@@ -139,6 +139,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             title="OMD 键盘重映射 — 按键捕捉" if initial_mode == "original" else "OMD 高级按键捕获",
         )
         self.capture_mode = initial_mode
+        self.initial_mode = initial_mode
         self.mode_locked = mode_locked
         self.auto_return = mode_locked and initial_mode == "original"
         self._updating_mode = False
@@ -281,7 +282,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         mode_box.set_halign(Gtk.Align.CENTER)
         mode_box.add_css_class("linked")
         mode_box.add_css_class("mode-switch")
-        mode_box.set_visible(not self.mode_locked)
         main_box.append(mode_box)
 
         self.current_mode_btn = Gtk.ToggleButton(label="当前按键值")
@@ -436,6 +436,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.reset_capture_display()
         self.update_mode_text()
 
+    def can_export_capture(self):
+        return not self.mode_locked or self.capture_mode == self.initial_mode
+
     # ── 窗口事件回调 ──
     def on_realize(self, widget):
         surface = widget.get_surface()
@@ -555,6 +558,12 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 final_key, keyval, keycode, keyname, keyd_name, evdev_code
             )
             self.val_clipboard.set_label(clipboard_text.replace("\n", " / "))
+            if not self.can_export_capture():
+                expected = "原始按键值" if self.initial_mode == "original" else "当前按键值"
+                self.status_label.set_label(
+                    f"仅检测：此入口需要 {expected}，切回后再捕获即可返回"
+                )
+                return
             if copy_to_clipboard(clipboard_text):
                 write_capture_state(
                     final_key, keycode, keyval, keyname, keyd_name, evdev_code
