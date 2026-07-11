@@ -23,10 +23,6 @@ Singleton {
     }
 
     function lock() {
-        if (Config.options.lock.useHyprlock) {
-            Quickshell.execDetached(["bash", "-lc", "\"$HOME/.config/omd/bin/omd-lock\" || hyprlock || loginctl lock-session"]);
-            return;
-        }
         LockService.lock();
     }
 
