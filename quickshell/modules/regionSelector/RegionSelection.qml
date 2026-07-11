@@ -116,9 +116,9 @@ PanelWindow {
 
     // Config
     property bool isCircleSelection: (root.selectionMode === RegionSelection.SelectionMode.Circle)
-    property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection
-    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection
-    property bool enableContentRegions: Config.options.regionSelector.targetRegions.content
+    property bool enableWindowRegions: false
+    property bool enableLayerRegions: false
+    property bool enableContentRegions: false
 
     // Target
     property real targetedRegionX: -1
@@ -184,18 +184,6 @@ PanelWindow {
     property real regionX: Math.min(dragStartX, draggingX)
     property real regionY: Math.min(dragStartY, draggingY)
 
-    // Screenshot stuff
-    TempScreenshotProcess {
-        id: screenshotProc
-        running: true
-        screen: root.screen
-        screenshotDir: root.screenshotDir
-        screenshotPath: root.screenshotPath
-        onExited: (exitCode, exitStatus) => {
-            if (root.enableContentRegions) imageDetectionProcess.running = true;
-            root.preparationDone = !checkRecordingProc.running;
-        }
-    }
     property bool isRecording: root.action === RegionSelection.SnipAction.Record || root.action === RegionSelection.SnipAction.RecordWithSound
     property bool recordingShouldStop: false
     Process {
@@ -203,11 +191,16 @@ PanelWindow {
         running: isRecording
         command: ["pidof", "wf-recorder"]
         onExited: (exitCode, exitStatus) => {
-            root.preparationDone = !screenshotProc.running
             root.recordingShouldStop = (exitCode === 0);
+            root.preparationDone = true;
         }
     }
     property bool preparationDone: false
+    Component.onCompleted: {
+        if (!isRecording) {
+            preparationDone = true;
+        }
+    }
     onPreparationDoneChanged: {
         if (!preparationDone) return;
         if (root.isRecording && root.recordingShouldStop) {
@@ -216,24 +209,6 @@ PanelWindow {
             return;
         }
         root.visible = true;
-    }
-
-    Process {
-        id: imageDetectionProcess
-        command: ["bash", "-c", `${Directories.scriptPath}/images/find-regions-venv.sh ` 
-            + `--hyprctl ` 
-            + `--image '${StringUtils.shellSingleQuoteEscape(root.screenshotPath)}' ` 
-            + `--max-width ${Math.round(root.screen.width * root.falsePositivePreventionRatio)} ` 
-            + `--max-height ${Math.round(root.screen.height * root.falsePositivePreventionRatio)} `]
-        stdout: StdioCollector {
-            id: imageDimensionCollector
-            onStreamFinished: {
-                imageRegions = RegionFunctions.filterImageRegions(
-                    JSON.parse(imageDimensionCollector.text),
-                    root.windowRegions
-                );
-            }
-        }
     }
 
     function getScreenshotAction() {
@@ -257,12 +232,38 @@ PanelWindow {
         }
     }
 
+    Timer {
+        id: snipDelayTimer
+        interval: 100 // 100ms allows the window unmap animation to complete
+        repeat: false
+        onTriggered: {
+            const saveDir = Config.options.screenSnip.savePath !== "" ? Config.options.screenSnip.savePath : "";
+            var screenshotAction = root.getScreenshotAction();
+            const command = ScreenshotAction.getGrimCommand(
+                root.regionX + root.monitorOffsetX,
+                root.regionY + root.monitorOffsetY,
+                root.regionWidth,
+                root.regionHeight,
+                screenshotAction,
+                saveDir
+            );
+            Quickshell.execDetached(command);
+            if (root.action == RegionSelection.SnipAction.Record || root.action == RegionSelection.SnipAction.RecordWithSound) {
+                root.phase = RegionSelection.Phase.Post
+                root.selectionMode = RegionSelection.SelectionMode.RectCorners
+            } else {
+                root.dismiss();
+            }
+        }
+    }
+
     // Execution after selection
     function snip() {
         // Validity check
         if (root.regionWidth <= 0 || root.regionHeight <= 0) {
             console.warn("[Region Selector] Invalid region size, skipping snip.");
             root.dismiss();
+            return;
         }
 
         // Clamp region to screen bounds
@@ -275,26 +276,10 @@ PanelWindow {
         if (root.action === RegionSelection.SnipAction.Copy || root.action === RegionSelection.SnipAction.Edit) {
             root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit : RegionSelection.SnipAction.Copy;
         }
-        
-        const screenshotDir = Config.options.screenSnip.savePath !== "" ? //
-            Config.options.screenSnip.savePath : "";
-        var screenshotAction = root.getScreenshotAction();
-        const command = ScreenshotAction.getCommand(
-            root.regionX * root.monitorScale, //
-            root.regionY * root.monitorScale, //
-            root.regionWidth * root.monitorScale,// 
-            root.regionHeight * root.monitorScale, //
-            root.screenshotPath, //
-            screenshotAction, //
-            screenshotDir
-        )
-        Quickshell.execDetached(command);
-        if (root.action == RegionSelection.SnipAction.Record || root.action == RegionSelection.SnipAction.RecordWithSound) {
-            root.phase = RegionSelection.Phase.Post
-            root.selectionMode = RegionSelection.SelectionMode.RectCorners
-        } else {
-            root.dismiss();
-        }
+
+        // Hide overlay so it's not captured
+        root.visible = false;
+        snipDelayTimer.start();
     }
 
     // Only clickable in Selection phase
