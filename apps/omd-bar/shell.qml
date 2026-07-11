@@ -11,6 +11,7 @@ import "services"
 import qs.modules.bar
 import qs.modules.onScreenDisplay
 import qs.modules.lock
+import qs.modules.notificationPopup
 
 import QtQuick
 import Quickshell
@@ -59,6 +60,7 @@ ShellRoot {
         active: Config.ready
         component: Scope {
             Bar {}
+            NotificationPopup {}
             Lock {}
             BarDismissLayer {}
             BarStatusPopup {}
