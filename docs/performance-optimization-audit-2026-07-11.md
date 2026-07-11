@@ -131,7 +131,7 @@ Validation:
 
 ### 7. Overview Screencopy Cost
 
-Status: pending
+Status: done
 
 Problem: overview intentionally keeps its Loader active so ScreencopyViews retain
 frames. This avoids black thumbnails but keeps some state resident.
@@ -142,6 +142,8 @@ Fix:
 
 Validation:
 - Measure overview process RSS before/after with performance mode enabled.
+- In performance mode, overview now unloads its heavy thumbnail scene while
+  closed. Balanced/visual modes keep the existing always-warm previews.
 
 ### 8. Remove Hot Startup Warning Loops
 

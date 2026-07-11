@@ -381,15 +381,18 @@ Scope {
                 Loader {
                     id: overviewLoader
                     anchors.fill: parent
+                    readonly property bool perfMode: (Persistent.states?.display?.optimization ?? "balanced") === "performance"
                     // Keep the Loader always active so ScreencopyViews stay
                     // instantiated and hold the latest captured frame. This
                     // eliminates the "black box → thumbnail" pop that happens
                     // when the Loader is gated on overviewOpen: the
                     // ScreencopyView only starts capturing on open, so the
                     // first frame isn't ready until a frame or two later.
-                    // With live:false (performance mode) the cost of keeping
-                    // the views around is negligible (one snapshot each).
-                    active: Config?.options.overview.enable ?? true
+                    // In performance mode, unload while closed to release the
+                    // thumbnail scene entirely. Balanced/visual modes keep the
+                    // previous behavior for instant, non-black thumbnails.
+                    active: (Config?.options.overview.enable ?? true)
+                        && (!perfMode || GlobalStates.overviewOpen)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         searchQuery: overviewScope.overviewFilterQuery
