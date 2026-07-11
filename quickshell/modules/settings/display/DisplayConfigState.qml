@@ -39,7 +39,8 @@ Item {
         const parsed = parseMode(mode);
         if (!parsed)
             return mode || "Auto";
-        return `${parsed.w} x ${parsed.h} @ ${Math.round(parsed.hz)}Hz`;
+        const warning = parsed.hz < 50 ? " - low refresh" : "";
+        return `${parsed.w} x ${parsed.h} @ ${Math.round(parsed.hz)}Hz${warning}`;
     }
 
     function parseMode(mode) {
@@ -53,9 +54,57 @@ Item {
         };
     }
 
+    function modeIsLowRefresh(mode) {
+        const parsed = parseMode(mode);
+        return parsed ? parsed.hz < 50 : false;
+    }
+
+    function sortedModes(modes, currentMode) {
+        const seen = {};
+        const unique = [];
+        const source = [];
+        if (currentMode && String(currentMode).length > 0)
+            source.push(currentMode);
+        for (const mode of modes || [])
+            source.push(mode);
+
+        for (const mode of source) {
+            const normalized = normalizeMode(mode, { width: 1920, height: 1080, refreshRate: 60 });
+            if (seen[normalized])
+                continue;
+            seen[normalized] = true;
+            unique.push(normalized);
+        }
+
+        return unique.sort((left, right) => {
+            const a = parseMode(left);
+            const b = parseMode(right);
+            if (!a || !b)
+                return String(left).localeCompare(String(right));
+
+            const areaDiff = (b.w * b.h) - (a.w * a.h);
+            if (areaDiff !== 0)
+                return areaDiff;
+
+            const hzDiff = b.hz - a.hz;
+            if (Math.abs(hzDiff) > 0.5)
+                return hzDiff;
+
+            return b.hz - a.hz;
+        });
+    }
+
     function scaleLabel(scale) {
         const value = Number(scale || 1);
         return `${Math.round(value * 100)}%`;
+    }
+
+    function scaleChoices(currentScale) {
+        const base = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3];
+        const current = Number(Number(currentScale || 1).toFixed(2));
+        if (!base.includes(current))
+            base.push(current);
+        return base.sort((a, b) => a - b);
     }
 
     function transformLabel(transform) {
@@ -324,10 +373,8 @@ Item {
             const parsed = JSON.parse(raw);
             const list = Array.isArray(parsed) ? parsed : [];
             return list.map(item => {
-                const modes = Array.isArray(item.availableModes) ? item.availableModes : [];
                 const currentMode = `${item.width || 1920}x${item.height || 1080}@${Number(item.refreshRate || 60).toFixed(2)}Hz`;
-                if (!modes.includes(currentMode))
-                    modes.unshift(currentMode);
+                const modes = sortedModes(Array.isArray(item.availableModes) ? item.availableModes : [], currentMode);
                 return {
                     name: item.name || "unknown",
                     id: item.id || 0,

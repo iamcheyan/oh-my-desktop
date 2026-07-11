@@ -1,5 +1,10 @@
 pragma ComponentBehavior: Bound
 
+// Legacy backup, currently unused.
+// Overview now keeps search inline in OverviewWidget and only filters
+// workspace cards. This file is retained as a reference for the old
+// app/window search overlay implementation.
+
 import qs
 import qs.services
 import qs.modules.common

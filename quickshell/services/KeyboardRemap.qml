@@ -105,6 +105,13 @@ Singleton {
             "remaps": [{ "from": "rightalt", "to": "down" }]
         },
         {
+            "id": "rightmeta-down",
+            "label": "Right Win to Down",
+            "description": "Makes Right Super (Win) send Down arrow.",
+            "type": "remap",
+            "remaps": [{ "from": "rightmeta", "to": "down" }]
+        },
+        {
             "id": "delete-right",
             "label": "Delete to Right",
             "description": "Makes the Delete key send Right arrow.",

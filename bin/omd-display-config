@@ -82,17 +82,15 @@ def apply_specs(specs):
     if not isinstance(specs, list) or not specs:
         raise ValueError("expected a non-empty display spec list")
 
-    for spec in specs:
-        expr = monitor_expr(spec)
-        proc = subprocess.run(["hyprctl", "eval", expr], text=True, capture_output=True)
-        stdout = proc.stdout.strip()
-        stderr = proc.stderr.strip()
-        if proc.returncode != 0:
-            raise RuntimeError(stderr or stdout or f"hyprctl failed for {spec.get('output')}")
-        if stdout and any(line.strip() != "ok" for line in stdout.splitlines() if line.strip()):
-            raise RuntimeError(stdout)
-
     write_layout(specs)
+
+    proc = subprocess.run(["hyprctl", "reload"], text=True, capture_output=True)
+    stdout = proc.stdout.strip()
+    stderr = proc.stderr.strip()
+    if proc.returncode != 0:
+        raise RuntimeError(stderr or stdout or "hyprctl reload failed")
+    if stdout and any(line.strip() != "ok" for line in stdout.splitlines() if line.strip()):
+        raise RuntimeError(stdout)
     print("ok")
 
 

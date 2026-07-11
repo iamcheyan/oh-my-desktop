@@ -14,6 +14,7 @@ import Quickshell.Hyprland
 Item {
     id: root
     required property var screen
+    property string searchQuery: ""
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     readonly property var toplevels: ToplevelManager.toplevels
@@ -32,7 +33,7 @@ Item {
         void _rev;
         if (OverviewSwitchingController.grabbed)
             return WorkspaceNavigation.switchingModeModel() ?? [];
-        return HyprlandData.overviewWorkspaceEntries ?? [];
+        return root.filteredOverviewEntries(HyprlandData.overviewWorkspaceEntries ?? []);
     }
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var monitorGroups: {
@@ -155,6 +156,58 @@ Item {
     implicitHeight: root.height
 
     readonly property bool overviewNavigationActive: GlobalStates.overviewOpen
+
+    function normalizedSearchQuery() {
+        return String(root.searchQuery || "").toLowerCase().trim();
+    }
+
+    function windowMatchesSearch(win, query) {
+        if (!win || query.length === 0)
+            return false;
+        const workspace = win.workspace || {};
+        const text = [
+            win.title || "",
+            win.initialTitle || "",
+            win.class || "",
+            win.initialClass || "",
+            workspace.name || "",
+            workspace.id || "",
+            win.monitor || ""
+        ].join(" ").toLowerCase();
+        return text.indexOf(query) >= 0;
+    }
+
+    function entryMatchesSearch(entry, query) {
+        if (!entry || query.length === 0)
+            return true;
+        const entryText = [
+            entry.id || "",
+            entry.name || "",
+            entry.monitorName || "",
+            entry.monitorLabel || "",
+            entry.existingWorkspace ? "workspace" : "",
+            entry.isTrailingEmpty ? "new workspace" : ""
+        ].join(" ").toLowerCase();
+        if (entryText.indexOf(query) >= 0)
+            return true;
+
+        const windows = HyprlandData.windowList || [];
+        for (let i = 0; i < windows.length; ++i) {
+            const win = windows[i];
+            if (!win || !win.mapped || win.hidden || win.workspace?.id !== entry.id)
+                continue;
+            if (root.windowMatchesSearch(win, query))
+                return true;
+        }
+        return false;
+    }
+
+    function filteredOverviewEntries(entries) {
+        const query = root.normalizedSearchQuery();
+        if (query.length === 0)
+            return entries;
+        return (entries || []).filter(entry => root.entryMatchesSearch(entry, query));
+    }
 
     function groupedRowsForColumns(columns) {
         const cols = Math.max(1, columns);
@@ -515,7 +568,7 @@ Item {
     Item {
         id: monitorGroupUnderlay
         anchors.fill: parent
-        visible: root.monitorGroups.length > 0
+        visible: true
         z: root.workspaceZ - 1
 
         // Subtle "Type to search" hint above the focused group
@@ -523,8 +576,8 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             y: root.monitorGroups.length > 0 ? root.groupY(root.monitorGroups[0]) - 36 : 30
             z: 1000
-            visible: !GlobalStates.overviewSearchMode && !OverviewSwitchingController.grabbed
-            opacity: !GlobalStates.overviewSearchMode ? 1 : 0
+            visible: !OverviewSwitchingController.grabbed
+            opacity: visible ? 1 : 0
 
             Behavior on opacity {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
@@ -542,7 +595,9 @@ Item {
                 }
 
                 StyledText {
-                    text: Translation.tr("Type to search")
+                    text: GlobalStates.overviewSearchMode
+                        ? `${Translation.tr("Search")}: ${root.searchQuery}`
+                        : Translation.tr("Type to search")
                     color: "#8f98a8"
                     font.pixelSize: 13
                     anchors.verticalCenter: parent.verticalCenter

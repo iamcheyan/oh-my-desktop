@@ -61,7 +61,9 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
 - **keydId** = `vvvv:pppp` vendor:product (without keyd `k:` prefix). OMD adds the `k:` prefix when emitting `[ids]` blocks. Resolved from `/proc/bus/input/devices`.
 - **enabledPresets** = fixed per-keyboard toggles from Settings Center.
   Current presets include `alt-win-swap`, `ctrl-caps-swap`,
-  `grave-esc-swap`, and `caps-esc`.
+  `grave-esc-swap`, `caps-esc`, `muhenkan-meta`, `meta-f13`,
+  `kana-left`, `rightalt-down`, `rightmeta-down`, `delete-right`, and
+  `rightctrl-up`.
   `grave-esc-swap` emits both `grave = escape` and `escape = grave`; on the
   tested Japanese MINILA keyboard, the physical 全角/半角 key is `grave` at
   the evdev/keyd layer.

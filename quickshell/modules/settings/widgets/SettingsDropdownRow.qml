@@ -94,7 +94,7 @@ Rectangle {
                 id: ddPopup
                 y: ddButton.height + 4
                 width: root.dropdownWidth
-                height: Math.min(300, ddOptCol.implicitHeight + 8)
+                height: Math.min(300, ddOptList.contentHeight + 8)
                 visible: ddButton.dropdownOpen
 
                 background: Rectangle {
@@ -106,41 +106,45 @@ Rectangle {
 
                 onClosed: ddButton.dropdownOpen = false
 
-                ColumnLayout {
-                    id: ddOptCol
+                ListView {
+                    id: ddOptList
                     anchors.fill: parent
                     anchors.margins: 4
-                    spacing: 0
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: root.options
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ddOptList.contentHeight > ddOptList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                    }
 
-                    Repeater {
-                        model: root.options
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 34
-                            radius: SettingsTokens.radius
-                            color: ddOptMouse.containsMouse ? SettingsTokens.cardHover
-                                : (modelData.value === root.currentValue ? SettingsTokens.accentSoft : "transparent")
+                    delegate: Rectangle {
+                        required property var modelData
+                        required property int index
+                        width: ddOptList.width
+                        height: 34
+                        radius: SettingsTokens.radius
+                        color: ddOptMouse.containsMouse ? SettingsTokens.cardHover
+                            : (modelData.value === root.currentValue ? SettingsTokens.accentSoft : "transparent")
 
-                            StyledText {
-                                anchors.fill: parent
-                                anchors.leftMargin: 10
-                                verticalAlignment: Text.AlignVCenter
-                                text: modelData.label
-                                color: SettingsTokens.fg
-                                font.pixelSize: Appearance.font.pixelSize.small
-                            }
+                        StyledText {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: Text.AlignVCenter
+                            text: modelData.label
+                            color: SettingsTokens.fg
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            elide: Text.ElideRight
+                        }
 
-                            MouseArea {
-                                id: ddOptMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: {
-                                    root.currentValue = modelData.value
-                                    root.valueChanged(modelData.value)
-                                    ddPopup.close()
-                                }
+                        MouseArea {
+                            id: ddOptMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                root.currentValue = modelData.value
+                                root.valueChanged(modelData.value)
+                                ddPopup.close()
                             }
                         }
                     }

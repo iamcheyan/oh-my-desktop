@@ -18,6 +18,10 @@ omd_stop_quickshell() {
     pkill -f "quickshell -p ${omd_root}/quickshell$" 2>/dev/null || true
     pkill -f "quickshell -p ${HOME}/.config/quickshell$" 2>/dev/null || true
 
+    # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
+    # because we intentionally avoid tearing down the whole unit cgroup. Clean up
+    # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
+    pkill -f "^nmcli monitor$" 2>/dev/null || true
     pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
     sleep 0.3
 

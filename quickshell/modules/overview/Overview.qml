@@ -15,6 +15,7 @@ Scope {
     id: overviewScope
 
     property string lockedScreenName: ""
+    property string overviewFilterQuery: ""
     property var focusedScreen: Quickshell.screens.find(s => s.name === (overviewScope.lockedScreenName || Hyprland.focusedMonitor?.name))
         ?? Quickshell.screens[0]
         ?? null
@@ -229,10 +230,12 @@ Scope {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        if (GlobalStates.overviewSearchMode)
+                        if (GlobalStates.overviewSearchMode) {
                             GlobalStates.overviewSearchMode = false;
-                        else
+                            overviewScope.overviewFilterQuery = "";
+                        } else {
                             GlobalStates.overviewOpen = false;
+                        }
                     }
                 }
             }
@@ -247,6 +250,7 @@ Scope {
                     if (event.key === Qt.Key_Escape) {
                         if (GlobalStates.overviewSearchMode) {
                             GlobalStates.overviewSearchMode = false;
+                            overviewScope.overviewFilterQuery = "";
                             event.accepted = true;
                             return;
                         }
@@ -264,6 +268,33 @@ Scope {
                         overviewScope.handleOverviewNavigationKey(event);
                         return;
                     }
+                    if (GlobalStates.overviewSearchMode) {
+                        if (event.key === Qt.Key_Backspace) {
+                            overviewScope.overviewFilterQuery = overviewScope.overviewFilterQuery.slice(0, -1);
+                            if (overviewScope.overviewFilterQuery.length === 0)
+                                GlobalStates.overviewSearchMode = false;
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_Delete) {
+                            overviewScope.overviewFilterQuery = "";
+                            GlobalStates.overviewSearchMode = false;
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.text.length > 0
+                            && !(event.modifiers & Qt.ControlModifier)
+                            && !(event.modifiers & Qt.AltModifier)
+                            && !(event.modifiers & Qt.MetaModifier)
+                            && event.key !== Qt.Key_Tab
+                            && event.key !== Qt.Key_Space) {
+                            overviewScope.overviewFilterQuery += event.text;
+                            event.accepted = true;
+                            return;
+                        }
+                        overviewScope.handleOverviewNavigationKey(event);
+                        return;
+                    }
                     // In workspace mode, any printable character enters search mode
                     if (!GlobalStates.overviewSearchMode
                         && event.text.length > 0
@@ -274,7 +305,7 @@ Scope {
                         && event.key !== Qt.Key_Delete
                         && event.key !== Qt.Key_Tab
                         && event.key !== Qt.Key_Space) {
-                        overviewSearch.seedText = event.text;
+                        overviewScope.overviewFilterQuery = event.text;
                         GlobalStates.overviewSearchMode = true;
                         event.accepted = true;
                         return;
@@ -296,6 +327,10 @@ Scope {
                 Connections {
                     target: GlobalStates
                     function onOverviewOpenChanged() {
+                        if (!GlobalStates.overviewOpen) {
+                            GlobalStates.overviewSearchMode = false;
+                            overviewScope.overviewFilterQuery = "";
+                        }
                         if (GlobalStates.overviewOpen
                             && panelWindow.isFocusedOverviewWindow
                             && !OverviewSwitchingController.grabbed
@@ -303,6 +338,8 @@ Scope {
                             overviewKeyHandler.forceActiveFocus();
                     }
                     function onOverviewSearchModeChanged() {
+                        if (!GlobalStates.overviewSearchMode)
+                            overviewScope.overviewFilterQuery = "";
                         if (!GlobalStates.overviewSearchMode
                             && panelWindow.isFocusedOverviewWindow
                             && GlobalStates.overviewOpen
@@ -355,26 +392,9 @@ Scope {
                     active: Config?.options.overview.enable ?? true
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
+                        searchQuery: overviewScope.overviewFilterQuery
                         visible: GlobalStates.overviewOpen
                     }
-                    opacity: GlobalStates.overviewSearchMode ? 0 : 1
-                    Behavior on opacity {
-                        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-                    }
-                }
-
-                OverviewSearch {
-                    id: overviewSearch
-                    anchors {
-                        top: parent.top
-                        left: parent.left
-                        right: parent.right
-                        topMargin: 24
-                    }
-                    z: 1000
-                    active: panelWindow.isFocusedOverviewWindow
-                        && GlobalStates.overviewOpen
-                        && !OverviewSwitchingController.grabbed
                 }
 
 
@@ -412,9 +432,10 @@ Scope {
                 GlobalStates.superReleaseMightTrigger = false;
                 if (!GlobalStates.overviewOpen)
                     GlobalStates.overviewOpen = true;
-                else if (GlobalStates.overviewSearchMode)
+                else if (GlobalStates.overviewSearchMode) {
                     GlobalStates.overviewSearchMode = false;
-                else if (!OverviewSwitchingController.grabbed)
+                    overviewScope.overviewFilterQuery = "";
+                } else if (!OverviewSwitchingController.grabbed)
                     GlobalStates.overviewOpen = false;
             }
         }

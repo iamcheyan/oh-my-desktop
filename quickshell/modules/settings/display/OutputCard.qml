@@ -88,15 +88,13 @@ Rectangle {
                 onSelected: value => root.displayState.setDraftValue(root.output.name, "transform", value)
             }
 
-            SettingSlider {
+            SettingCombo {
                 Layout.fillWidth: true
                 label: "Scale"
-                from: 0.75
-                to: 3
-                stepSize: 0.05
-                value: draft.scale
-                valueLabel: root.displayState.scaleLabel(draft.scale)
-                onMovedValue: value => root.displayState.setDraftValue(root.output.name, "scale", Number(value.toFixed(2)))
+                model: root.displayState.scaleChoices(draft.scale)
+                displayFormatter: root.displayState.scaleLabel
+                currentValue: Number(draft.scale || 1)
+                onSelected: value => root.displayState.setDraftValue(root.output.name, "scale", Number(value))
             }
 
             PositionEditor {
@@ -104,6 +102,15 @@ Rectangle {
                 displayState: root.displayState
                 output: root.output
             }
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            visible: root.displayState.modeIsLowRefresh(draft.mode)
+            text: "This refresh rate can make cursor movement and animations feel choppy. Prefer 60Hz or higher when available."
+            color: TuiStyle.warning
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
         }
 
         RowLayout {
@@ -282,15 +289,18 @@ Rectangle {
             popup: Popup {
                 y: combo.height + 4
                 width: combo.width
-                implicitHeight: contentItem.implicitHeight
+                height: Math.min(320, listView.contentHeight + topPadding + bottomPadding)
                 padding: 1
 
                 contentItem: ListView {
+                    id: listView
                     clip: true
-                    implicitHeight: contentHeight
                     model: combo.popup.visible ? combo.delegateModel : null
                     currentIndex: combo.highlightedIndex
-                    ScrollIndicator.vertical: ScrollIndicator { }
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar {
+                        policy: listView.contentHeight > listView.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                    }
                 }
 
                 background: Rectangle {
