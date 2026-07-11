@@ -4,21 +4,12 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
-import "modules/common"
-import "services"
-
-import qs.modules.appLauncher
-
+import "modules/appLauncher"
 import QtQuick
 import Quickshell
 
 ShellRoot {
     id: root
 
-    ReloadPopup {}
-
-    LazyLoader {
-        active: Config.ready
-        component: AppLauncher {}
-    }
+    AppLauncher {}
 }

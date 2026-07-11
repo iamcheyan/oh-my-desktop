@@ -1,0 +1,823 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+import Quickshell.Widgets
+import Quickshell.Wayland
+import Quickshell.Hyprland
+
+import "widgets"
+import "../../services"
+
+PanelWindow {
+    id: launcher
+    readonly property bool perfMode: false
+    color: "transparent"
+
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.namespace: "quickshell:appLauncher"
+    WlrLayershell.keyboardFocus: launcher.open ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Ignore
+
+    anchors { top: true; left: true; right: true; bottom: true }
+
+    visible: launcher.open
+
+    readonly property string stateDir: Quickshell.shellDir + "/.state"
+    readonly property string stateFile: stateDir + "/pinned-apps"
+    readonly property string cacheFile: (Quickshell.env("HOME") ?? "") + "/.local/state/omd/applauncher/apps.json"
+
+    property bool open: false
+    property real cardOffsetX: 0
+    property real cardOffsetY: 0
+    property string focusedAppDescription: ""
+
+    function run(command) { Quickshell.execDetached(["sh", "-c", command]); }
+
+    function quote(value) {
+        return "'" + value.replace(/'/g, "'\\''") + "'";
+    }
+
+    function launchApp(desktopEntry) {
+        if (!desktopEntry) return;
+        if (desktopEntry.id === "omd-settings-center.desktop") {
+            launcher.open = false;
+            Quickshell.execDetached([
+                "qs", "-p", Quickshell.shellDir + "/../omd-bar",
+                "ipc", "call", "barDialog", "open", "settings"
+            ]);
+            return;
+        }
+        if (!desktopEntry.command || desktopEntry.command.length === 0) return;
+
+        const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
+        const cmd = desktopEntry.command;
+        let program = cmd[0];
+        const args = [];
+        for (let i = 1; i < cmd.length; i++) {
+            if (cmd[i].startsWith("%")) continue;
+            args.push(cmd[i]);
+        }
+
+        if (program.includes("/")) {
+            const command = [detach];
+            if ((desktopEntry.workingDirectory || "").length > 0)
+                command.push("--cwd", desktopEntry.workingDirectory);
+            Quickshell.execDetached(command.concat([program]).concat(args));
+        } else {
+            // Filter ~/.local/bin out of PATH so wrapper scripts (labwc-era)
+            // don't override native Hyprland scaling.
+            const q = (s) => "'" + s.replace(/'/g, "'\\''") + "'";
+            Quickshell.execDetached([
+                detach, "sh", "-c",
+                'p=$(echo ":$PATH:" | sed "s|:$HOME/.local/bin:|:|g" | sed "s/^://; s/:$//") && ' +
+                'exec "$(PATH="$p" command -v ' + q(program) + ')" ' + args.map(q).join(" ")
+            ]);
+        }
+        console.log("[AppLauncher] Launched " + (program.includes("/") ? program : program + " " + args.join(" ")));
+    }
+
+    function iconSource(icon) {
+        if (!icon) return "";
+        if (icon.startsWith("/")) return "file://" + icon;
+        const resolved = Quickshell.iconPath(icon, true);
+        if (resolved.startsWith("/")) return "file://" + resolved;
+        if (resolved) return resolved;
+        return "";
+    }
+
+    property var pinnedIds: ({})
+    property var allApps: []
+    property var filteredApps: []
+    property var runningSet: ({})
+    property bool pinnedIdsLoaded: false
+    property bool appsLoaded: false
+
+    function sameAppList(a, b) {
+        if (!a || !b || a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if ((a[i]?.id ?? "") !== (b[i]?.id ?? "")) return false;
+        }
+        return true;
+    }
+
+    function samePinnedIds(a, b) {
+        const ak = Object.keys(a || {}).filter(k => a[k]).sort();
+        const bk = Object.keys(b || {}).filter(k => b[k]).sort();
+        if (ak.length !== bk.length) return false;
+        for (let i = 0; i < ak.length; i++) {
+            if (ak[i] !== bk[i]) return false;
+        }
+        return true;
+    }
+
+    function updateRunningSet() {
+        const set = {};
+        const wl = HyprlandData.windowList || [];
+        for (let i = 0; i < wl.length; i++) {
+            const w = wl[i];
+            if (!w || !w.mapped || w.hidden) continue;
+            const cls = (w.class || "").toLowerCase();
+            const initial = (w.initialClass || "").toLowerCase();
+            if (cls) set[cls] = true;
+            if (initial) set[initial] = true;
+        }
+        launcher.runningSet = set;
+    }
+
+    function isAppRunning(app) {
+        if (!app) return false;
+        if (app.id === "omd-settings-center.desktop") {
+            return GlobalStates.barDialogOpen;
+        }
+        const set = launcher.runningSet;
+        if (!set) return false;
+        let any = false;
+        for (const _ in set) { any = true; break; }
+        if (!any) return false;
+
+        const id = (app.id || "").split("/").pop().split(".").pop().toLowerCase();
+        let exec = (app.execString || "").split(" ")[0].split("/").pop().toLowerCase();
+        const stripped = exec.replace(/-stable$/, "").replace(/-bin$/, "").replace(/^env-/, "");
+        const candidates = [id, exec, stripped];
+        for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            if (!c) continue;
+            if (set[c]) return true;
+        }
+        for (const k in set) {
+            if (!k) continue;
+            if (k === id || k === exec || k === stripped) return true;
+            if (id && (k.indexOf(id) >= 0 || id.indexOf(k) >= 0)) return true;
+            if (exec && (k.indexOf(exec) >= 0 || exec.indexOf(k) >= 0)) return true;
+        }
+        return false;
+    }
+
+    function loadPinnedIds() {
+        if (pinnedIdsLoaded) return;
+        pinnedFileView.reload();
+    }
+
+    function loadApps() {
+        const entries = DesktopEntries.applications.values;
+        const apps = [];
+        for (let i = 0; i < entries.length; i++) {
+            const app = entries[i];
+            if (!app || app.noDisplay || !app.name || !app.id) continue;
+            apps.push(app);
+        }
+        apps.push({
+            id: "omd-settings-center.desktop",
+            name: "OMD settings center",
+            icon: "preferences-system",
+            command: ["omd-settings"],
+            genericName: "System Settings",
+            comment: "Configure OMD desktop options",
+            keywords: ["settings", "control", "theme", "config", "overview", "omd"]
+        });
+        appsLoaded = true;
+        if (!sameAppList(allApps, apps)) {
+            allApps = apps;
+        } else if (pinnedIdsLoaded) {
+            buildFilteredList();
+        }
+    }
+
+    function loadAppsFromCache(text) {
+        try {
+            const cached = JSON.parse(text);
+            if (!Array.isArray(cached) || cached.length === 0) return false;
+            const apps = cached.map(app => ({
+                id: app.id,
+                name: app.name,
+                icon: app.icon,
+                execString: app.exec,
+                command: app.exec.split(" "),
+                genericName: app.genericName || "",
+                comment: app.comment || "",
+                keywords: (app.keywords || "").split(";").filter(k => k.length > 0),
+                workingDirectory: app.workingDirectory || ""
+            }));
+            apps.push({
+                id: "omd-settings-center.desktop",
+                name: "OMD settings center",
+                icon: "preferences-system",
+                command: ["omd-settings"],
+                genericName: "System Settings",
+                comment: "Configure OMD desktop options",
+                keywords: ["settings", "control", "theme", "config", "overview", "omd"]
+            });
+            if (!sameAppList(allApps, apps)) {
+                allApps = apps;
+            }
+            if (!appsLoaded) {
+                appsLoaded = true;
+                if (pinnedIdsLoaded) buildFilteredList();
+            }
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // In on-demand mode the window opens only when both apps and pinned IDs
+    // are ready, so the grid is never shown empty. A 400 ms fallback timer
+    // ensures the window always appears even when the cache is missing.
+    Timer {
+        id: onDemandReadyTimer
+        interval: 400
+        repeat: false
+        onTriggered: {
+            if (launcher.onDemand && !launcher.open)
+                launcher.open = true;
+        }
+    }
+
+    function tryOpenOnDemand() {
+        if (!onDemand || open) return;
+        if (appsLoaded && pinnedIdsLoaded) {
+            onDemandReadyTimer.stop();
+            launcher.open = true;
+        }
+    }
+
+    FileView {
+        id: cacheFileView
+        path: launcher.cacheFile
+        onLoaded: {
+            var content = text();
+            if (content.length > 0) {
+                // If cache loads successfully, do NOT call loadApps() to trigger
+                // the slow DesktopEntries system scan. Only fall back to it
+                // if cache parsing fails.
+                if (!launcher.loadAppsFromCache(content)) {
+                    launcher.loadApps();
+                }
+            } else {
+                launcher.loadApps();
+            }
+            launcher.tryOpenOnDemand();
+        }
+        onLoadFailed: error => {
+            launcher.loadApps();
+            launcher.tryOpenOnDemand();
+        }
+    }
+
+    function savePinnedIds() {
+        const ids = [];
+        for (const id in pinnedIds) {
+            if (pinnedIds[id]) ids.push(id);
+        }
+        ids.sort();
+        const payload = ids.join("\n") + (ids.length > 0 ? "\n" : "");
+        launcher.run("mkdir -p " + quote(stateDir) + " && printf %s " + quote(payload) + " > " + quote(stateFile));
+    }
+
+    function togglePinned(id) {
+        const copy = Object.assign({}, pinnedIds);
+        if (copy[id]) delete copy[id];
+        else copy[id] = true;
+        pinnedIds = copy;
+        savePinnedIds();
+    }
+
+    function buildFilteredList() {
+        const q = searchField.text.toLowerCase().trim();
+        const list = [];
+        for (let i = 0; i < allApps.length; i++) {
+            const app = allApps[i];
+            if (!app || !app.id || !app.name) continue;
+            const haystack = [
+                app.name,
+                app.id,
+                app.execString || "",
+                app.genericName || "",
+                app.comment || "",
+                (app.keywords || []).join(" ")
+            ].join(" ").toLowerCase();
+            if (q !== "" && haystack.indexOf(q) < 0) continue;
+            list.push(app);
+        }
+        function byPriority(a, b) {
+            const aRunning = isAppRunning(a) ? 1 : 0;
+            const bRunning = isAppRunning(b) ? 1 : 0;
+            const aPinned = pinnedIds[a.id] ? 1 : 0;
+            const bPinned = pinnedIds[b.id] ? 1 : 0;
+            const aScore = aPinned * 2 + aRunning;
+            const bScore = bPinned * 2 + bRunning;
+            if (aScore !== bScore) return bScore - aScore;
+            return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+        }
+        list.sort(byPriority);
+        if (!sameAppList(filteredApps, list)) filteredApps = list;
+    }
+
+    onAllAppsChanged: if (pinnedIdsLoaded) buildFilteredList()
+    onPinnedIdsChanged: if (appsLoaded) buildFilteredList()
+    onRunningSetChanged: if (pinnedIdsLoaded && appsLoaded) buildFilteredList()
+
+    FileView {
+        id: pinnedFileView
+        path: launcher.stateFile
+        onLoaded: {
+            var content = text();
+            const ids = {};
+            const lines = content.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const id = lines[i].trim();
+                if (id !== "") ids[id] = true;
+            }
+            launcher.pinnedIdsLoaded = true;
+            if (!launcher.samePinnedIds(launcher.pinnedIds, ids)) {
+                launcher.pinnedIds = ids;
+            } else if (launcher.appsLoaded) {
+                launcher.buildFilteredList();
+            }
+            launcher.tryOpenOnDemand();
+        }
+        onLoadFailed: error => {
+            launcher.pinnedIdsLoaded = true;
+            launcher.tryOpenOnDemand();
+        }
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() {
+            launcher.appsLoaded = false;
+            launcher.loadApps();
+        }
+    }
+
+    Connections {
+        target: HyprlandData
+        function onWindowListChanged() {
+            launcher.updateRunningSet();
+        }
+    }
+
+    readonly property bool onDemand: (Quickshell.env("OMD_APP_ON_DEMAND") ?? "") === "1"
+
+    Component.onCompleted: {
+        // Kick off all data loading synchronously before anything renders.
+        // In on-demand mode the window stays closed until tryOpenOnDemand()
+        // confirms both appsLoaded and pinnedIdsLoaded, eliminating the
+        // black-grid flash. The fallback timer opens it after 400 ms worst-case.
+        loadPinnedIds();
+        updateRunningSet();
+        if (!appsLoaded) {
+            cacheFileView.reload();
+        }
+        if (onDemand) {
+            onDemandReadyTimer.start();
+            // If data already loaded (hot-reload), open immediately.
+            if (appsLoaded && pinnedIdsLoaded)
+                launcher.open = true;
+        }
+    }
+
+    onOpenChanged: {
+        if (onDemand && !open) {
+            Qt.quit();
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            // Data is pre-loaded in onCompleted; this fallback covers
+            // persistent (non-on-demand) mode or repeated opens.
+            if (!appsLoaded) {
+                cacheFileView.reload();
+            }
+            updateRunningSet();
+            cardOffsetX = 0;
+            cardOffsetY = 0;
+            Qt.callLater(function() {
+                searchField.forceActiveFocus();
+                if (Qt.inputMethod) Qt.inputMethod.show();
+            });
+        } else {
+            searchField.text = "";
+            if (Qt.inputMethod) Qt.inputMethod.hide();
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        onClicked: launcher.open = false
+    }
+
+    Rectangle {
+        id: card
+        x: (parent.width - width) / 2 + launcher.cardOffsetX
+        y: (parent.height - height) / 2 + launcher.cardOffsetY
+        width: Math.min(parent.width * 0.72, 960)
+        height: Math.min(parent.height * 0.80, 720)
+        color: "#0f0f14"
+        radius: 18
+        border.color: TuiStyle.shellBorder
+        border.width: TuiStyle.borderWidth
+        clip: true
+
+        MouseArea { anchors.fill: parent; onClicked: {} }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            // ─── Titlebar ───
+            Rectangle {
+                id: titlebar
+                Layout.fillWidth: true
+                implicitHeight: 44
+                color: "transparent"
+                border.width: 0
+
+                MouseArea {
+                    anchors.fill: parent
+                    property real pressX: 0
+                    property real pressY: 0
+                    onPressed: (mouse) => {
+                        pressX = mouse.x
+                        pressY = mouse.y
+                    }
+                    onPositionChanged: (mouse) => {
+                        if (pressed) {
+                            launcher.cardOffsetX += mouse.x - pressX
+                            launcher.cardOffsetY += mouse.y - pressY
+                        }
+                    }
+                    cursorShape: Qt.SizeAllCursor
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 6
+                    spacing: 6
+
+                    CosmicIcon {
+                        name: "actions/application-menu-symbolic"
+                        iconSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.fg
+                    }
+
+                    StyledText {
+                        text: "App Launcher"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.family: Appearance.font.family.main
+                        color: TuiStyle.fg
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        Layout.preferredWidth: 280
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        color: "#181818"
+                        radius: TuiStyle.radius
+                        border.width: 0
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 6
+
+                            CosmicIcon {
+                                name: "actions/system-search-symbolic"
+                                iconSize: Appearance.font.pixelSize.small
+                                color: TuiStyle.dim
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+
+                                StyledText {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: searchField.text === ""
+                                    text: "Type to search..."
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.family: Appearance.font.family.main
+                                    color: TuiStyle.dim
+                                }
+
+                                TextField {
+                                    id: searchField
+                                    anchors.fill: parent
+                                    color: TuiStyle.fg
+                                    selectionColor: TuiStyle.accent
+                                    selectedTextColor: TuiStyle.bg
+                                    font.family: Appearance.font.family.main
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: null
+                                    padding: 0
+                                    renderType: Text.NativeRendering
+                                    onTextChanged: launcher.buildFilteredList()
+                                    Keys.onEscapePressed: launcher.open = false
+                                    Keys.onReturnPressed: {
+                                        if (launcher.filteredApps.length > 0) {
+                                            launcher.launchApp(launcher.filteredApps[0]);
+                                            launcher.open = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1
+                    color: TuiStyle.line
+                    opacity: 0.35
+                }
+            }
+
+            // ─── App grid ───
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.leftMargin: 8
+                Layout.rightMargin: 8
+                clip: true
+
+                GridView {
+                    id: grid
+                    anchors.fill: parent
+                    anchors.leftMargin: 2
+                    anchors.rightMargin: 10
+
+                    cellWidth: 100
+                    cellHeight: 104
+                    model: launcher.filteredApps
+                    clip: true
+
+                    boundsBehavior: Flickable.StopAtBounds
+                    boundsMovement: Flickable.StopAtBounds
+                    flickDeceleration: 2800
+                    maximumFlickVelocity: 5200
+                    reuseItems: launcher.perfMode
+
+                    delegate: Item {
+                        id: appItem
+                        width: grid.cellWidth
+                        height: grid.cellHeight
+
+                        required property var modelData
+                        required property int index
+
+                        property bool isPinned: modelData && !!launcher.pinnedIds[modelData.id]
+                        property bool isRunning: modelData && launcher.isAppRunning(modelData)
+                        property string resolvedIconSource: modelData ? launcher.iconSource(appItem.modelData.icon) : ""
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            radius: TuiStyle.radius
+                            color: ma.containsMouse ? "#333333" : "transparent"
+                            border.width: 0
+                        }
+
+                        // Pin badge
+                        Rectangle {
+                            id: pinBadge
+                            visible: ma.containsMouse || appItem.isPinned
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.topMargin: 3
+                            anchors.rightMargin: 3
+                            width: 18; height: 18
+                            radius: 9
+                            color: appItem.isPinned ? TuiStyle.accent : "#222222"
+                            border.width: 0
+                            z: 2
+
+                            CosmicIcon {
+                                anchors.centerIn: parent
+                                name: "actions/pin-symbolic"
+                                iconSize: 11
+                                color: appItem.isPinned ? TuiStyle.bg : TuiStyle.dim
+                            }
+                        }
+
+                        // Icon
+                        Item {
+                            id: iconWrapper
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.top: parent.top
+                            anchors.topMargin: 12
+                            width: 48; height: 48
+
+                            // Fallback: only show when icon truly doesn't exist
+                            Rectangle {
+                                visible: appItem.resolvedIconSource === "" || appIcon.status === Image.Error
+                                anchors.fill: parent
+                                radius: 8
+                                color: "#222222"
+                                border.width: 0
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: (appItem.modelData && appItem.modelData.name) ? appItem.modelData.name.charAt(0).toUpperCase() : "?"
+                                    font.pixelSize: Appearance.font.pixelSize.large
+                                    font.family: Appearance.font.family.main
+                                    font.weight: Font.DemiBold
+                                    color: TuiStyle.fg
+                                }
+                            }
+
+                            IconImage {
+                                id: appIcon
+                                anchors.fill: parent
+                                source: appItem.resolvedIconSource
+                                implicitSize: 48
+                                asynchronous: false
+                                mipmap: true
+                            }
+                        }
+
+                        // Running indicator
+                        Rectangle {
+                            visible: appItem.isRunning
+                            anchors.top: iconWrapper.bottom
+                            anchors.topMargin: 3
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: 8; height: 8
+                            radius: 4
+                            color: "#ffc23a"
+                            border.color: "#803a2400"
+                            border.width: 1
+                            z: 1
+                        }
+
+                        // Label
+                        StyledText {
+                            id: appLabel
+                            anchors.top: iconWrapper.bottom
+                            anchors.topMargin: 14
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin: 4
+                            anchors.rightMargin: 4
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                            text: appItem.modelData ? appItem.modelData.name : ""
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.family: Appearance.font.family.main
+                            color: ma.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                            lineHeight: 1.1
+                        }
+
+                        MouseArea {
+                            id: ma
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            z: 1
+                            cursorShape: Qt.PointingHandCursor
+                            onContainsMouseChanged: {
+                                if (containsMouse) {
+                                    launcher.focusedAppDescription = appItem.modelData.comment || appItem.modelData.genericName || ""
+                                } else if (launcher.focusedAppDescription === (appItem.modelData.comment || appItem.modelData.genericName || "")) {
+                                    launcher.focusedAppDescription = ""
+                                }
+                            }
+                            onClicked: (mouse) => {
+                                const localPinPos = mapToItem(pinBadge, mouse.x, mouse.y);
+                                if (localPinPos.x >= 0 && localPinPos.x <= pinBadge.width &&
+                                    localPinPos.y >= 0 && localPinPos.y <= pinBadge.height) {
+                                    launcher.togglePinned(appItem.modelData.id);
+                                    return;
+                                }
+                                launcher.launchApp(appItem.modelData);
+                                launcher.open = false;
+                            }
+                        }
+                    }
+                }
+
+                // Scrollbar
+                Rectangle {
+                    id: scrollTrack
+                    readonly property int columnCount: Math.max(1, Math.floor(grid.width / grid.cellWidth))
+                    readonly property int rowCount: Math.ceil(launcher.filteredApps.length / columnCount)
+                    readonly property real calculatedContentHeight: Math.max(grid.height, rowCount * grid.cellHeight)
+                    readonly property real scrollableHeight: Math.max(0, calculatedContentHeight - grid.height)
+                    readonly property real thumbHeight: Math.min(height, Math.max(36, height * grid.height / calculatedContentHeight))
+                    readonly property real thumbRange: Math.max(0, height - thumbHeight)
+
+                    visible: scrollableHeight > 1
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: parent.right
+                    width: 8
+                    radius: 4
+                    color: "transparent"
+                    border.width: 0
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: (mouse) => {
+                            const target = Math.max(0, mouse.y - scrollTrack.thumbHeight / 2);
+                            grid.contentY = Math.max(0, Math.min(1, target / Math.max(1, scrollTrack.thumbRange))) * scrollTrack.scrollableHeight;
+                        }
+                    }
+
+                    Rectangle {
+                        id: scrollThumb
+                        width: parent.width - 2
+                        x: 1
+                        height: scrollTrack.thumbHeight
+                        radius: 3
+                        color: thumbDrag.containsMouse || thumbDrag.pressed ? TuiStyle.accent : TuiStyle.dim
+
+                        property bool dragging: false
+
+                        Binding on y {
+                            when: !scrollThumb.dragging
+                            value: scrollTrack.scrollableHeight > 0
+                                ? Math.max(0, Math.min(1, grid.contentY / scrollTrack.scrollableHeight)) * scrollTrack.thumbRange
+                                : 0
+                        }
+
+                        MouseArea {
+                            id: thumbDrag
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            drag.target: scrollThumb
+                            drag.axis: Drag.YAxis
+                            drag.minimumY: 0
+                            drag.maximumY: scrollTrack.thumbRange
+
+                            onPressed: scrollThumb.dragging = true
+                            onReleased: scrollThumb.dragging = false
+                            onCanceled: scrollThumb.dragging = false
+                            onPositionChanged: {
+                                if (!pressed) return;
+                                grid.contentY = Math.max(0, Math.min(1, scrollThumb.y / Math.max(1, scrollTrack.thumbRange))) * scrollTrack.scrollableHeight;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── Status bar ───
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 22
+                color: "transparent"
+
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: 1
+                    color: TuiStyle.line
+                    opacity: 0.35
+                }
+
+                StyledText {
+                    anchors.centerIn: parent
+                    text: launcher.focusedAppDescription || launcher.filteredApps.length + " apps"
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    font.family: Appearance.font.family.main
+                    color: TuiStyle.fg
+                    elide: Text.ElideRight
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+    }
+
+    IpcHandler {
+        target: "appLauncher"
+
+        function toggle(): void {
+            launcher.open = !launcher.open;
+        }
+
+        function close(): void {
+            launcher.open = false;
+        }
+
+        function open(): void {
+            launcher.open = true;
+        }
+    }
+}

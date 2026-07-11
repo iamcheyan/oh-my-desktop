@@ -1,0 +1,1 @@
+../../../quickshell/services/HyprlandData.qml

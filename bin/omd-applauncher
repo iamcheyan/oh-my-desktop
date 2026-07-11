@@ -1,4 +1,101 @@
 #!/bin/sh
 set -eu
 
-exec "$HOME/.config/omd/quickshell/scripts/quickshell" "$HOME/.config/omd/apps/omd-applauncher"
+# On-demand App Launcher process.
+# Usage:
+#   omd-applauncher              # toggle: open if not running, close if running
+#   omd-applauncher toggle       # same as above
+#   omd-applauncher open         # open (launch if needed)
+#   omd-applauncher close        # close running instance (no-op if not running)
+#
+# When started fresh, exports OMD_APP_ON_DEMAND=1 so shell.qml auto-opens the
+# launcher and quits the process when the panel closes.
+
+app_dir="$HOME/.config/omd/apps/omd-applauncher"
+qs_launcher="$HOME/.config/omd/quickshell/scripts/quickshell"
+cache_script="$HOME/.config/omd/bin/omd-applauncher-cache"
+
+# Refresh desktop entry cache in background (non-blocking)
+"$cache_script" >/dev/null 2>&1 &
+
+# Detect a running omd-applauncher Quickshell instance. Match the -p path
+# (config dir) to avoid collisions with other omd-* processes.
+is_running() {
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+ipc_call() {
+    qs -p "$app_dir" ipc call appLauncher "$1" 2>/dev/null || true
+}
+
+# Resolve quickshell binary path directly to avoid fork/exec wrapper script overhead
+find_qs_bin() {
+    for candidate in \
+        "$HOME/.local/bin/quickshell" \
+        "$HOME/.local/bin/qs" \
+        "/usr/bin/quickshell" \
+        "/usr/bin/qs"; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    command -v quickshell 2>/dev/null || command -v qs 2>/dev/null || true
+}
+
+launch_direct() {
+    qs_bin=$(find_qs_bin)
+    if [ -z "$qs_bin" ]; then
+        echo "Quickshell executable not found" >&2
+        exit 127
+    fi
+
+    # Set up Quickshell/OMD environment variables directly
+    # This matches the setup in quickshell/scripts/quickshell but bypasses its execution time
+    repo_root="/home/tetsuya/Development/oh-my-desktop"
+    export OMD_REPO_ROOT="$repo_root"
+    export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
+    export QS_CONFIG_DIR="$app_dir"
+    export QS_COMPOSITOR=hyprland
+    export OMD_APP_DIR="$app_dir"
+    export OMD_APP_ON_DEMAND=1
+
+    # Ensure Wayland variables are available (fallback if not in environment)
+    if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        for socket in "$runtime_dir"/wayland-*; do
+            if [ -S "$socket" ]; then
+                export WAYLAND_DISPLAY="$(basename "$socket")"
+                break
+            fi
+        done
+    fi
+
+    exec "$qs_bin" -p "$app_dir"
+}
+
+case "${1:-toggle}" in
+    toggle)
+        if is_running; then
+            ipc_call toggle
+        else
+            launch_direct
+        fi
+        ;;
+    open)
+        if is_running; then
+            ipc_call open
+        else
+            launch_direct
+        fi
+        ;;
+    close)
+        if is_running; then
+            ipc_call close
+        fi
+        ;;
+    *)
+        echo "usage: omd-applauncher [toggle|open|close]" >&2
+        exit 2
+        ;;
+esac
