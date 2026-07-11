@@ -70,6 +70,13 @@ ShellRoot {
             GlobalStates.clipboardOpen = false;
         }
 
+        onVisibleChanged: {
+            if (visible) {
+                dialog.cardOffsetX = 0;
+                dialog.cardOffsetY = 0;
+            }
+        }
+
 
         Timer {
             id: dismissGuard
@@ -96,7 +103,8 @@ ShellRoot {
 
         ClipboardDialog {
             id: dialog
-            anchors.centerIn: parent
+            x: (parent.width - width) / 2 + cardOffsetX
+            y: (parent.height - height) / 2 + cardOffsetY
             visible: GlobalStates.clipboardOpen
             show: GlobalStates.clipboardOpen
             onDismiss: clipboardWindow.close()

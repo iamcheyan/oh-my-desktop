@@ -21,6 +21,9 @@ Rectangle {
     property bool show: false
     signal dismiss()
 
+    property real cardOffsetX: 0
+    property real cardOffsetY: 0
+
     width: Math.min(parent ? parent.width - 40 : 1000, Math.round(1000 * fontScale))
     height: Math.min(parent ? parent.height - 40 : 640, Math.round(640 * fontScale))
     color: "#0f0f14"
@@ -193,6 +196,23 @@ Rectangle {
             color: "#181818"
             radius: TuiStyle.radius
             border.width: 0
+
+            MouseArea {
+                anchors.fill: parent
+                property real pressX: 0
+                property real pressY: 0
+                onPressed: (mouse) => {
+                    pressX = mouse.x
+                    pressY = mouse.y
+                }
+                onPositionChanged: (mouse) => {
+                    if (pressed) {
+                        clipboardDialog.cardOffsetX += mouse.x - pressX
+                        clipboardDialog.cardOffsetY += mouse.y - pressY
+                    }
+                }
+                cursorShape: Qt.SizeAllCursor
+            }
 
             RowLayout {
                 anchors.fill: parent
