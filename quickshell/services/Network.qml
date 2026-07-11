@@ -316,7 +316,6 @@ Singleton {
         wifiStatusProcess.running = true
         updateNetworkName.running = true;
         updateNetworkStrength.running = true;
-        updateKnownWifiProfiles.running = true;
     }
 
     Process {
@@ -446,7 +445,6 @@ Singleton {
 
     Process {
         id: getNetworks
-        running: true
         command: ["nmcli", "-g", "ACTIVE,SIGNAL,FREQ,SSID,BSSID,SECURITY", "d", "w"]
         environment: ({
             LANG: "C",

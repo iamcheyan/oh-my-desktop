@@ -65,7 +65,7 @@ Validation:
 
 ### 3. Make Network Wi-Fi Scans On-Demand
 
-Status: in progress
+Status: done
 
 Problem: the bar needs connection status at idle, not a full AP list. Current
 `Network.qml` initializes several external `nmcli` commands, including access
@@ -84,7 +84,7 @@ Validation:
 
 ### 4. Prevent Duplicate Clipboard Watchers
 
-Status: pending
+Status: done
 
 Problem: legacy `wl-paste --type ... --watch cliphist store` processes can
 coexist with the current `omd-clipboard-store` watchers.
