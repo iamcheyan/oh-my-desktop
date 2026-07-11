@@ -129,6 +129,10 @@ Legacy/default entry point:
 - `Persistent.states.cheatsheet`
   - Cheatsheet module and `HyprlandKeybinds` service were already removed.
   - Remaining config/state keys had no runtime readers.
+- Stale translation keys for removed features:
+  - Removed weather/calendar widget labels, EasyEffects/SongRec/music
+    recognition labels, quick-toggle labels, and cheatsheet-only help strings
+    from `quickshell/translations/*.json`.
 
 ## Confirmed Already Removed Or In Progress
 
@@ -157,7 +161,7 @@ old launcher references:
 - `docs/bar-right-modules.md`
 - `docs/module-split-plan.md`
 - `docs/process-split-log.md`
-- `quickshell/translations/*.json`
+- `quickshell/translations/*.json` stale runtime keys were pruned in this pass.
 
-Suggested action: clean docs/translations after runtime cleanup, otherwise they
+Suggested action: clean docs after runtime cleanup, otherwise they
 will keep pointing future work back to deleted features.
