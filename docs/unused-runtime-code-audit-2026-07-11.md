@@ -80,6 +80,9 @@ Legacy/default entry point:
 - `quickshell/modules/lock/PasswordChars.qml`
   - Old animated password-character renderer.
   - Current lock surface uses `TextInput.Password` directly.
+- `quickshell/modules/common/models/quickToggles/`
+  - Old quick-toggle model set from the removed control-center/sidebar path.
+  - No current bar, settings, or split-app module instantiates these models.
 
 ## Confirmed Already Removed Or In Progress
 
