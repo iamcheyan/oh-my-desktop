@@ -116,16 +116,6 @@ hl.config({
 EOF
   fi
 
-  if [[ ! -f "$dir/hyprlock.conf" ]]; then
-    cat >"$dir/hyprlock.conf" <<EOF
-\$color = rgba($(hex_to_rgb "$background"), 1.0)
-\$inner_color = rgba($(hex_to_rgb "$background"), 0.8)
-\$outer_color = rgba($(hex_to_rgb "$foreground"), 1.0)
-\$font_color = rgba($(hex_to_rgb "$foreground"), 1.0)
-\$check_color = rgba($(hex_to_rgb "$accent"), 1.0)
-EOF
-  fi
-
   if [[ ! -f "$dir/foot.ini" ]]; then
     local bg fg c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15
     bg="$(hex_strip "$(color_from_toml "$toml" background)")"
