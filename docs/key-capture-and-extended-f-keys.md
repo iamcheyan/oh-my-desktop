@@ -11,6 +11,11 @@ scripts/key-test --remap-source
 scripts/key-test --hotkey
 ```
 
+Running `scripts/key-test` without a flag shows a segmented switch in the
+window. **Current key value** is the default and shows the result after active
+keyd remaps. **Original key value** temporarily pauses keyd and shows the
+physical source key. Switching modes clears the previous capture.
+
 Use `--remap-source` only when editing Keyboard Remap source keys. It temporarily stops keyd, captures the physical key, then restores keyd. This prevents current remaps from changing what the source capture sees.
 
 Use `--hotkey` for Voice Input and application shortcuts. It leaves keyd running and captures the final key seen by normal applications.

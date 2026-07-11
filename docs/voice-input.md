@@ -195,7 +195,12 @@ To resolve this, `scripts/key-test --hotkey` is written as a native **GTK4 / Lib
 
 ### Capture modes
 
-`scripts/key-test` has two explicit modes:
+Running `scripts/key-test` without arguments opens an in-window mode switch.
+It defaults to **Current key value**, which leaves keyd running, and can switch
+to **Original key value**, which temporarily pauses keyd. Changing modes clears
+the previous result so values from the two layers are not mixed.
+
+Integration callers use two explicit, locked modes:
 
 | Mode | Used by | keyd state | Captures |
 |------|---------|------------|----------|

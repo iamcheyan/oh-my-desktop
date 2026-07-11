@@ -133,12 +133,15 @@ def copy_to_clipboard(text):
 
 # ── 主窗口 ──
 class KeyTestWindow(Gtk.ApplicationWindow):
-    def __init__(self, app, remap_mode=False):
+    def __init__(self, app, initial_mode="current", mode_locked=False):
         super().__init__(
             application=app,
-            title="OMD 键盘重映射 — 按键捕捉" if remap_mode else "OMD 高级按键捕获",
+            title="OMD 键盘重映射 — 按键捕捉" if initial_mode == "original" else "OMD 高级按键捕获",
         )
-        self.remap_mode = remap_mode
+        self.capture_mode = initial_mode
+        self.mode_locked = mode_locked
+        self.auto_return = mode_locked and initial_mode == "original"
+        self._updating_mode = False
         self.set_default_size(700, 480)
         
         # 绑定系统事件
@@ -240,6 +243,16 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         button.quit-btn:hover {
             background-color: #2c313c;
         }
+        .mode-switch {
+            margin-top: 14px;
+            margin-bottom: 4px;
+        }
+        .mode-switch button {
+            min-width: 160px;
+            padding: 7px 14px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            font-weight: 700;
+        }
         """
         css_provider.load_from_data(css)
         Gtk.StyleContext.add_provider_for_display(
@@ -259,16 +272,30 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         title.add_css_class("title-label")
         main_box.append(title)
 
-        hint_text = (
-            "请按下要重映射的单个按键（包括 Win/Super、Ctrl、Alt、Shift）\n"
-            "捕获期间会临时绕过当前重映射，按下后自动返回设置中心"
-            if self.remap_mode
-            else "请按下任意按键 or 组合键 (包括 Globe/Fn, Super, Ctrl, Alt, Shift)"
-        )
-        hint = Gtk.Label(label=hint_text)
-        hint.set_halign(Gtk.Align.CENTER)
-        hint.add_css_class("hint-label")
-        main_box.append(hint)
+        self.hint = Gtk.Label()
+        self.hint.set_halign(Gtk.Align.CENTER)
+        self.hint.add_css_class("hint-label")
+        main_box.append(self.hint)
+
+        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        mode_box.set_halign(Gtk.Align.CENTER)
+        mode_box.add_css_class("linked")
+        mode_box.add_css_class("mode-switch")
+        mode_box.set_visible(not self.mode_locked)
+        main_box.append(mode_box)
+
+        self.current_mode_btn = Gtk.ToggleButton(label="当前按键值")
+        self.original_mode_btn = Gtk.ToggleButton(label="原始按键值")
+        self.original_mode_btn.set_group(self.current_mode_btn)
+        mode_box.append(self.current_mode_btn)
+        mode_box.append(self.original_mode_btn)
+
+        if self.capture_mode == "original":
+            self.original_mode_btn.set_active(True)
+        else:
+            self.current_mode_btn.set_active(True)
+        self.current_mode_btn.connect("toggled", self.on_mode_toggled, "current")
+        self.original_mode_btn.connect("toggled", self.on_mode_toggled, "original")
 
         # 核心键位展示区
         display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -316,6 +343,10 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.val_code = add_row(details_grid, 4, "XKB keycode:")
         self.val_bind = add_row(details_grid, 5, "Hypr bind:")
         self.val_clipboard = add_row(details_grid, 6, "Clipboard:")
+        self.detail_values = (
+            self.val_keyd, self.val_evdev, self.val_name, self.val_val,
+            self.val_code, self.val_bind, self.val_clipboard,
+        )
 
         # 分割线
         divider = Gtk.Box()
@@ -327,19 +358,11 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         info_box.add_css_class("info-box")
         main_box.append(info_box)
 
-        info_text = (
-            "💡 提示:\n"
-            "• 大字显示的是 keyd 物理键名（如 grave）—— 重映射请用这个，比 GDK 名更准确。\n"
-            "• 灰色小字是 Hyprland/GDK 绑定串（如 ZENKAKU_HANKAKU），日版布局下可能误导。\n"
-            "• 剪贴板含 keyd-name / evdev-code / gdk-keyval / hardware-code 等字段。\n"
-            "• XKB keycode = evdev + 8；minila 全角/半角键 evdev 41 → keyd grave。\n"
-            "• 按 Q 或 ESC 键可快速退出本捕获工具。"
-        )
-        info_lbl = Gtk.Label(label=info_text)
-        info_lbl.set_halign(Gtk.Align.START)
-        info_lbl.set_justify(Gtk.Justification.LEFT)
-        info_lbl.add_css_class("info-text")
-        info_box.append(info_lbl)
+        self.info_lbl = Gtk.Label()
+        self.info_lbl.set_halign(Gtk.Align.START)
+        self.info_lbl.set_justify(Gtk.Justification.LEFT)
+        self.info_lbl.add_css_class("info-text")
+        info_box.append(self.info_lbl)
 
         # 垫片
         spacer = Gtk.Box()
@@ -357,6 +380,61 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         key_ctrl = Gtk.EventControllerKey()
         key_ctrl.connect("key-pressed", self.on_key_pressed)
         self.add_controller(key_ctrl)
+        self.update_mode_text()
+
+    def is_original_mode(self):
+        return self.capture_mode == "original"
+
+    def update_mode_text(self):
+        if self.is_original_mode():
+            self.hint.set_label(
+                "原始按键值：临时暂停 keyd，显示键盘实际发出的物理按键\n"
+                "适合检查或设置重映射来源"
+            )
+            self.info_lbl.set_label(
+                "提示:\n"
+                "• 大字是原始 keyd 物理键名，可作为重映射的来源键。\n"
+                "• 此模式会暂停 keyd，所以不会受到现有映射影响。\n"
+                "• Escape 和 Q 也是可检测按键，请使用底部按钮退出。"
+            )
+        else:
+            self.hint.set_label(
+                "当前按键值：保持 keyd 运行，显示应用程序实际收到的按键\n"
+                "适合检查快捷键和重映射结果"
+            )
+            self.info_lbl.set_label(
+                "提示:\n"
+                "• 大字是 keyd 处理后的当前键值，不一定是原始物理按键。\n"
+                "• Hypr bind 是应用和 Hyprland 实际使用的快捷键名称。\n"
+                "• 按 Q、Escape 或底部按钮退出。"
+            )
+
+    def reset_capture_display(self):
+        clear_capture_state()
+        self.key_display.set_label("( 等待输入 )")
+        self.keyd_display.set_label("")
+        self.bind_display.set_label("")
+        self.status_label.set_label("")
+        for value in self.detail_values:
+            value.set_label("—")
+
+    def on_mode_toggled(self, button, mode):
+        if self._updating_mode or not button.get_active() or mode == self.capture_mode:
+            return
+
+        if mode == "original" and not bypass_keyd_for_capture() and keyd_is_active():
+            self._updating_mode = True
+            self.current_mode_btn.set_active(True)
+            self._updating_mode = False
+            self.status_label.set_label("✗ 无法暂停 keyd，仍在检测当前按键值")
+            return
+
+        if mode == "current":
+            restore_keyd_after_capture()
+
+        self.capture_mode = mode
+        self.reset_capture_display()
+        self.update_mode_text()
 
     # ── 窗口事件回调 ──
     def on_realize(self, widget):
@@ -417,7 +495,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         xf86_short_names = {
             "Tools": "XF86Tools",
         }
-        if not self.remap_mode and keyname in xf86_short_names:
+        if not self.is_original_mode() and keyname in xf86_short_names:
             return xf86_short_names[keyname]
         if keyname:
             mapped_name = keyname.upper()
@@ -440,7 +518,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
         # Q/ESC exits only in the generic key-test mode. Remap mode must be able
         # to capture those keys as valid remap sources.
-        if not self.remap_mode and not is_modifier and keyname in ("q", "Q", "Escape"):
+        if not self.is_original_mode() and not is_modifier and keyname in ("q", "Q", "Escape"):
             self.get_application().quit()
             return True
 
@@ -462,7 +540,11 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             evdev_code = gtk_keycode_to_evdev(keycode)
             if keyd_name:
                 self.key_display.set_label(keyd_name)
-                self.keyd_display.set_label("keyd 物理键名（用于重映射）")
+                self.keyd_display.set_label(
+                    "原始 keyd 物理键名"
+                    if self.is_original_mode()
+                    else "keyd 处理后的当前键值"
+                )
             else:
                 self.key_display.set_label(f"[ {final_key} ]")
                 self.keyd_display.set_label("未识别的物理键")
@@ -477,7 +559,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 write_capture_state(
                     final_key, keycode, keyval, keyname, keyd_name, evdev_code
                 )
-                if self.remap_mode:
+                if self.auto_return:
                     if keyd_name:
                         self.status_label.set_label(
                             f"✓ keyd-name:{keyd_name}（evdev {evdev_code}）已捕获，正在返回设置"
@@ -495,19 +577,19 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 self.status_label.set_label("✗ 复制失败 (请检查剪贴板服务)")
 
         # 格式化输出键名
-        if is_modifier and not self.remap_mode:
+        if is_modifier and not self.is_original_mode():
             # 单独按下修饰键只显示，不触发复制
             display_name = " + ".join(mods) or keyname.upper()
             keyd_name = gtk_keycode_to_keyd(keycode) or ""
             self.key_display.set_label(keyd_name or f"[ {display_name} ]")
             self.keyd_display.set_label(
-                "keyd 物理键名（用于重映射）" if keyd_name else ""
+                "keyd 处理后的当前键值" if keyd_name else ""
             )
             self.bind_display.set_label(
                 f"Hypr/GDK: {display_name}" if display_name else ""
             )
             self.status_label.set_label("")
-        elif is_modifier and self.remap_mode:
+        elif is_modifier and self.is_original_mode():
             final_key = self.preferred_bind_name(keyname, keycode)
             finalize_capture(final_key)
         else:
@@ -524,7 +606,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.val_name.set_label(keyname or "unknown")
         self.val_val.set_label(f"0x{keyval:08x} ({keyval})")
         self.val_code.set_label(str(keycode))
-        if is_modifier and not self.remap_mode:
+        if is_modifier and not self.is_original_mode():
             self.val_bind.set_label("—")
         else:
             mapped_name = self.preferred_bind_name(keyname, keycode)
@@ -535,12 +617,17 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
 
 class KeyTestApp(Adw.Application):
-    def __init__(self, remap_mode=False):
+    def __init__(self, initial_mode="current", mode_locked=False):
         super().__init__(application_id="org.omarchy.key-test", flags=Gio.ApplicationFlags.NON_UNIQUE)
-        self.remap_mode = remap_mode
+        self.initial_mode = initial_mode
+        self.mode_locked = mode_locked
 
     def do_activate(self):
-        win = KeyTestWindow(self, remap_mode=self.remap_mode)
+        win = KeyTestWindow(
+            self,
+            initial_mode=self.initial_mode,
+            mode_locked=self.mode_locked,
+        )
         win.present()
 
 
@@ -551,6 +638,9 @@ if __name__ == "__main__":
     remap_flags = {"--remap", "--remap-source"}
     hotkey_flags = {"--hotkey"}
     remap_mode = any(arg in remap_flags for arg in sys.argv)
+    hotkey_mode = any(arg in hotkey_flags for arg in sys.argv)
+    mode_locked = remap_mode or hotkey_mode
+    initial_mode = "original" if remap_mode else "current"
     custom_flags = remap_flags | hotkey_flags
     # Strip our custom flags before GTK/Adw sees sys.argv, otherwise
     # Adw.Application rejects them as "unknown option".
@@ -559,5 +649,5 @@ if __name__ == "__main__":
         clear_capture_state()
         bypass_keyd_for_capture()
     write_lock()
-    app = KeyTestApp(remap_mode=remap_mode)
+    app = KeyTestApp(initial_mode=initial_mode, mode_locked=mode_locked)
     sys.exit(app.run(sys.argv))
