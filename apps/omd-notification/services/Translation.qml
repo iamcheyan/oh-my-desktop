@@ -1,0 +1,1 @@
+../../../quickshell/services/Translation.qml

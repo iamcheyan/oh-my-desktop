@@ -8,9 +8,9 @@
 omd_stop_quickshell() {
     omd_root="${OMD_ROOT:-$HOME/.config/omd}"
     runtime_dir="/run/user/$(id -u)"
-    apps="omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
+    apps="omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
 
-    for app in omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard; do
+    for app in omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard; do
         pkill -f "quickshell -p ${omd_root}/apps/${app}$" 2>/dev/null || true
     done
 
