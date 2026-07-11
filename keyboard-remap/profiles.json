@@ -17,6 +17,22 @@
         "rightmeta-down"
       ],
       "presetOverrides": {}
+    },
+    "guo-magic-keyboard": {
+      "displayName": "guoのmagic keyboard",
+      "hyprName": "guo-magic-keyboard",
+      "keydId": "004c:029c",
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {}
+    },
+    "apple-spi-keyboard": {
+      "displayName": "apple spi keyboard",
+      "hyprName": "apple-spi-keyboard",
+      "keydId": "05ac:0342",
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {}
     }
   }
 }

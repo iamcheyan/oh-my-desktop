@@ -35,11 +35,18 @@ PanelWindow {
     property var action: RegionSelection.SnipAction.Copy
     property var selectionMode: RegionSelection.SelectionMode.RectCorners
     property var phase: RegionSelection.Phase.Select
+    property bool captureReady: false
     signal dismiss()
+
+    Keys.onPressed: (event) => {
+        if (event.key === Qt.Key_Escape) {
+            root.dismiss();
+        }
+    }
 
     // Styles
     property string screenshotDir: Directories.screenshotTemp
-    property color overlayColor: ColorUtils.transparentize("#000000", 0.4)
+    property color overlayColor: ColorUtils.transparentize("#000000", 0.5)
     property color brightText: Appearance.m3colors.darkmode ? Appearance.colors.colOnLayer0 : Appearance.colors.colLayer0
     property color brightSecondary: Appearance.m3colors.darkmode ? Appearance.colors.colSecondary : Appearance.colors.colOnSecondary
     property color brightTertiary: Appearance.m3colors.darkmode ? Appearance.colors.colTertiary : Qt.lighter(Appearance.colors.colPrimary)
@@ -69,6 +76,8 @@ PanelWindow {
     readonly property real monitorOffsetY: hyprlandMonitor.y
     property int activeWorkspaceId: hyprlandMonitor.activeWorkspace?.id ?? 0
     property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    property string savedScreenshotPath: ""
+    property string tempScreenshotPath: ""
     property real dragStartX: 0
     property real dragStartY: 0
     property real draggingX: 0
@@ -239,6 +248,14 @@ PanelWindow {
             return;
         }
         root.visible = true;
+        captureDelayTimer.start();
+    }
+
+    Timer {
+        id: captureDelayTimer
+        interval: 80
+        repeat: false
+        onTriggered: root.captureReady = true
     }
 
     function getScreenshotAction() {
@@ -264,11 +281,21 @@ PanelWindow {
 
     Timer {
         id: snipDelayTimer
-        interval: 100 // 100ms allows the window unmap animation to complete
+        interval: 100
         repeat: false
         onTriggered: {
             const saveDir = Config.options.screenSnip.savePath !== "" ? Config.options.screenSnip.savePath : "";
             var screenshotAction = root.getScreenshotAction();
+
+            if (root.action === RegionSelection.SnipAction.Edit) {
+                const region = `${Math.round(root.regionX + root.monitorOffsetX)},${Math.round(root.regionY + root.monitorOffsetY)} ${Math.round(root.regionWidth)}x${Math.round(root.regionHeight)}`;
+                root.tempScreenshotPath = `/tmp/omd-screenshot-${Date.now()}.png`;
+                Quickshell.execDetached(["bash", "-c", `grim -g "${region}" "${root.tempScreenshotPath}"`]);
+                root.phase = RegionSelection.Phase.Post;
+                root.visible = true;
+                return;
+            }
+
             const command = ScreenshotAction.getGrimCommand(
                 root.regionX + root.monitorOffsetX,
                 root.regionY + root.monitorOffsetY,
@@ -307,24 +334,23 @@ PanelWindow {
             root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit : RegionSelection.SnipAction.Copy;
         }
 
-        // Hide overlay so it's not captured
-        root.visible = false;
+        // Hide overlay so it's not captured (skip for Edit mode — overlay is outside selection)
+        if (root.action !== RegionSelection.SnipAction.Edit) {
+            root.visible = false;
+        }
         snipDelayTimer.start();
     }
 
     // Only clickable in Selection phase
     mask: Region {
-        item: switch(root.phase) {
-            case RegionSelection.Phase.Select: return mouseArea;
-            case RegionSelection.Phase.Post: return null;
-        }
+        item: root.phase === RegionSelection.Phase.Select ? mouseArea : actionBarMask
     }
 
     ScreencopyView { // For freezing
         anchors.fill: parent
         live: false
         captureSource: root.screen
-        visible: root.phase === RegionSelection.Phase.Select
+        visible: root.visible && root.phase === RegionSelection.Phase.Select
 
         focus: root.visible
         Keys.onPressed: (event) => { // Esc to close
@@ -344,9 +370,9 @@ PanelWindow {
     MouseArea {
         id: mouseArea
         anchors.fill: parent
-        cursorShape: Qt.CrossCursor
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        hoverEnabled: true
+        cursorShape: root.phase === RegionSelection.Phase.Select ? Qt.BlankCursor : Qt.ArrowCursor
+        acceptedButtons: root.phase === RegionSelection.Phase.Select ? Qt.LeftButton | Qt.RightButton : Qt.NoButton
+        hoverEnabled: root.phase === RegionSelection.Phase.Select
 
         // Controls
         onPressed: (mouse) => {
@@ -401,11 +427,16 @@ PanelWindow {
                 regionY: root.regionY
                 regionWidth: root.regionWidth
                 regionHeight: root.regionHeight
-                mouseX: mouseArea.mouseX
-                mouseY: mouseArea.mouseY
+                mouseX: root.dragging
+                    ? (root.draggingX >= root.dragStartX ? root.regionX + root.regionWidth : root.regionX)
+                    : mouseArea.mouseX
+                mouseY: root.dragging
+                    ? (root.draggingY >= root.dragStartY ? root.regionY + root.regionHeight : root.regionY)
+                    : mouseArea.mouseY
                 color: root.selectionBorderColor
                 overlayColor: root.overlayColor
-                breathingBorderOnly: root.phase === RegionSelection.Phase.Post
+                breathingBorderOnly: false
+                captureReady: root.captureReady
             }
         }
 
@@ -424,8 +455,12 @@ PanelWindow {
         CursorGuide {
             z: 9999
             visible: root.phase === RegionSelection.Phase.Select
-            x: root.dragging ? root.regionX + root.regionWidth : mouseArea.mouseX
-            y: root.dragging ? root.regionY + root.regionHeight : mouseArea.mouseY
+            x: root.dragging
+                ? (root.draggingX >= root.dragStartX ? root.regionX + root.regionWidth : root.regionX)
+                : mouseArea.mouseX
+            y: root.dragging
+                ? (root.draggingY >= root.dragStartY ? root.regionY + root.regionHeight : root.regionY)
+                : mouseArea.mouseY
             action: root.action
             selectionMode: root.selectionMode
         }
@@ -518,6 +553,115 @@ PanelWindow {
         }
 
 
-        
+    }
+
+    // Post-phase full-screen capture + action bar
+    Item {
+        id: actionBarMask
+        visible: root.phase === RegionSelection.Phase.Post
+        anchors.fill: parent
+        focus: true
+
+        Keys.onPressed: (event) => {
+            if (event.key === Qt.Key_Escape) {
+                root.dismiss();
+            }
+        }
+
+        // Full-screen mouse capture: click outside buttons = dismiss
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.ArrowCursor
+            onClicked: root.dismiss()
+        }
+
+        // Action bar (on top, buttons intercept clicks)
+        Item {
+            x: root.regionX
+            y: root.regionY + root.regionHeight + 12
+            width: actionBar.implicitWidth
+            height: actionBar.implicitHeight
+
+            Row {
+                id: actionBar
+                spacing: 8
+
+                Rectangle {
+                    width: 40; height: 40; radius: 8
+                    color: Appearance.colors.colPrimary
+                    border.width: 0
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 22
+                        color: Appearance.colors.colOnPrimary
+                        text: "save"
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const saveDir = Config.options.screenSnip.savePath !== "" ? Config.options.screenSnip.savePath : "";
+                            if (saveDir === "") {
+                                Quickshell.execDetached(["bash", "-c", `cat "${root.tempScreenshotPath}" | wl-copy && rm "${root.tempScreenshotPath}"`]);
+                            } else {
+                                Quickshell.execDetached(["bash", "-c",
+                                    `mkdir -p '${saveDir}' && saveFileName="screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && savePath="${saveDir}/$saveFileName" && cat "${root.tempScreenshotPath}" | tee "$savePath" | wl-copy && rm "${root.tempScreenshotPath}"`]);
+                            }
+                            root.dismiss();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 40; height: 40; radius: 8
+                    color: Appearance.colors.colPrimary
+                    border.width: 0
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 22
+                        color: Appearance.colors.colOnPrimary
+                        text: "image_search"
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const uploadAndGetUrl = `curl -sF files[]=@'${root.tempScreenshotPath}' https://uguu.se/upload | jq -r '.files[0].url'`;
+                            Quickshell.execDetached(["bash", "-c",
+                                `xdg-open "https://lens.google.com/uploadbyurl?url=$(${uploadAndGetUrl})" && rm "${root.tempScreenshotPath}"`]);
+                            root.dismiss();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 40; height: 40; radius: 8
+                    color: Appearance.colors.colPrimary
+                    border.width: 0
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 22
+                        color: Appearance.colors.colOnPrimary
+                        text: "edit"
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            const annotationCommand = `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
+                            Quickshell.execDetached(["bash", "-c",
+                                `cat "${root.tempScreenshotPath}" | ${annotationCommand} && rm "${root.tempScreenshotPath}"`]);
+                            root.dismiss();
+                        }
+                    }
+                }
+            }
+        }
     }
 }

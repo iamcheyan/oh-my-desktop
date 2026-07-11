@@ -13,6 +13,7 @@ Item {
     required property color color
     required property color overlayColor
     property bool showAimLines: Config.options.regionSelector.rect.showAimLines
+    property bool captureReady: true
 
     property bool breathingBorderOnly: false
 
@@ -21,7 +22,7 @@ Item {
     Rectangle {
         id: darkenOverlay
         z: 1
-        visible: !root.breathingBorderOnly
+        visible: root.captureReady && !root.breathingBorderOnly
         anchors {
             left: parent.left
             top: parent.top

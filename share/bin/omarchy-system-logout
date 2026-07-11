@@ -20,7 +20,7 @@ hyprland_alive() {
 # path that actually exits the compositor in this session. A successful exit may
 # make hyprctl report a broken socket, so verify by checking whether Hyprland is
 # still alive instead of trusting hyprctl's return code.
-hyprctl dispatch 'hl.dispatch("exit")' >/tmp/omd-logout-hyprland.log 2>&1 || true
+hyprctl dispatch 'hl.dispatch(hl.dsp.exit())' >/tmp/omd-logout-hyprland.log 2>&1 || true
 sleep 0.5
 hyprland_alive || exit 0
 

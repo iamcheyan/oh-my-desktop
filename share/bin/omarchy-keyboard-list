@@ -15,11 +15,9 @@ def normalize_slug(name):
     return name.strip('-')
 
 def parse_input_devices():
-    """Parse /proc/bus/input/devices into a list of device dicts.
-    Also builds a set of vendor:product IDs that have a mouse interface."""
+    """Parse /proc/bus/input/devices into a list of device dicts."""
     devices = []
     current = {}
-    mouse_vp_set = set()
     try:
         with open('/proc/bus/input/devices', 'r') as f:
             for line in f:
@@ -44,9 +42,6 @@ def parse_input_devices():
                         current['name'] = name_match.group(1)
                 elif prefix == 'H:':
                     current['handlers'] = line
-                    # Track vendor:product pairs that have a mouse interface
-                    if 'mouse' in line and current.get('vendor') and current.get('product'):
-                        mouse_vp_set.add(f"{current['vendor']}:{current['product']}")
                 elif prefix == 'B:' and 'KEY=' in line:
                     flat_hex = line.split('KEY=')[1].replace(' ', '')
                     try:
@@ -57,17 +52,15 @@ def parse_input_devices():
             devices.append(current)
     except Exception:
         pass
-    return devices, mouse_vp_set
+    return devices
 
-def is_real_keyboard(dev, mouse_vp_set):
+def is_real_keyboard(dev):
     """Determine if an input device is a real keyboard.
 
     Heuristics (all must pass):
     1. Handlers include "kbd" and "leds" (kernel sees it as a keyboard with LEDs)
     2. KEY bitmap includes letter keys (bit 30 = 'a') and ESC (bit 1)
-    3. The same vendor:product does NOT also have a mouse interface —
-       if it does, this is a mouse/keyboard combo receiver where the
-       keyboard interface is only for media keys, not real typing.
+    3. Does NOT have a mouse handler itself
     """
     handlers = dev.get('handlers', '')
     key_val = dev.get('key_val', 0)
@@ -77,17 +70,16 @@ def is_real_keyboard(dev, mouse_vp_set):
     has_esc = bool(key_val & (1 << 1))
     has_letter = bool(key_val & (1 << 30))
     vp = f"{dev.get('vendor', '')}:{dev.get('product', '')}"
-    has_mouse_sibling = vp in mouse_vp_set
-    return has_kbd and has_leds and not has_mouse and not has_mouse_sibling and has_esc and has_letter
+    return has_kbd and has_leds and not has_mouse and has_esc and has_letter
 
-def lookup_keyd_id(hypr_slug, parsed_devices, mouse_vp_set):
+def lookup_keyd_id(hypr_slug, parsed_devices):
     """Match a Hyprland keyboard slug to a /proc/bus/input/devices entry
     by name similarity, returning the vendor:product ID."""
     best_vendor, best_product = '', ''
     best_score = 0
 
     for dev in parsed_devices:
-        if not is_real_keyboard(dev, mouse_vp_set):
+        if not is_real_keyboard(dev):
             continue
         name = dev.get('name', '')
         vendor = dev.get('vendor', '')
@@ -137,7 +129,7 @@ def main():
         print('[]')
         sys.exit(0)
 
-    parsed_devices, mouse_vp_set = parse_input_devices()
+    parsed_devices = parse_input_devices()
 
     results = []
     for kb in keyboards:
@@ -149,7 +141,7 @@ def main():
             continue
 
         slug = normalize_slug(name)
-        keyd_id = lookup_keyd_id(slug, parsed_devices, mouse_vp_set)
+        keyd_id = lookup_keyd_id(slug, parsed_devices)
 
         # Skip devices without a keyd ID — they can't be remapped.
         # This filters out mouse-only receivers that Hyprland lists
