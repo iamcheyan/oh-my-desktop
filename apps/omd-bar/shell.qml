@@ -43,6 +43,19 @@ ShellRoot {
         }
     }
 
+    // Keep voice hotkeys independent from optional/dynamic bar modules.
+    IpcHandler {
+        target: "voice"
+
+        function toggle(): void {
+            VoiceInput.toggle()
+        }
+
+        function cancel(): void {
+            VoiceInput.cancel()
+        }
+    }
+
     Component.onCompleted: {
         Hyprsunset.load()
         FirstRunExperience.load()

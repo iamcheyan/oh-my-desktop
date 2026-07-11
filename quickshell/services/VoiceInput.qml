@@ -412,13 +412,4 @@ Singleton {
         GlobalStates.barPopupType = "voice"
     }
 
-    IpcHandler {
-        target: "voice"
-        function toggle(): void {
-            root.toggle()
-        }
-        function cancel(): void {
-            root.cancel()
-        }
-    }
 }
