@@ -477,42 +477,7 @@ PanelWindow {
             }
         }
 
-        // Controls
-        Row {
-            id: regionSelectionControls
-            z: 10
-            visible: root.phase === RegionSelection.Phase.Select
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-                bottom: parent.bottom
-                bottomMargin: -height
-            }
-            opacity: 0
-            Connections {
-                target: root
-                function onVisibleChanged() {
-                    if (!visible) return;
-                    regionSelectionControls.anchors.bottomMargin = 8;
-                    regionSelectionControls.opacity = 1;
-                }
-            }
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-            Behavior on anchors.bottomMargin {
-                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-            }
-            spacing: 6
 
-            ToolbarPairedFab {
-                anchors.verticalCenter: parent.verticalCenter
-                iconText: "close"
-                onClicked: root.dismiss();
-                StyledToolTip {
-                    text: Translation.tr("Close")
-                }
-            }
-        }
         
     }
 }
