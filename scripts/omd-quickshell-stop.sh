@@ -14,10 +14,6 @@ omd_stop_quickshell() {
         pkill -f "quickshell -p ${omd_root}/apps/${app}$" 2>/dev/null || true
     done
 
-    # Legacy monolith config (pre-split)
-    pkill -f "quickshell -p ${omd_root}/quickshell$" 2>/dev/null || true
-    pkill -f "quickshell -p ${HOME}/.config/quickshell$" 2>/dev/null || true
-
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
     # because we intentionally avoid tearing down the whole unit cgroup. Clean up
     # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
@@ -29,8 +25,6 @@ omd_stop_quickshell() {
     sleep 0.3
 
     pkill -9 -f "quickshell -p ${omd_root}/apps/omd-" 2>/dev/null || true
-    pkill -9 -f "quickshell -p ${omd_root}/quickshell$" 2>/dev/null || true
-    pkill -9 -f "quickshell -p ${HOME}/.config/quickshell$" 2>/dev/null || true
 
     for app in $apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true

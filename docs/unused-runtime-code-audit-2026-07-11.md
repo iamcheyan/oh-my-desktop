@@ -32,6 +32,14 @@ Legacy/default entry point:
 - `GlobalStates.appLauncherOpen`
   - No remaining consumers.
   - The current launcher is controlled by `bin/omd-applauncher` and IPC.
+- `quickshell/shell.qml`
+  - Legacy monolithic shell entry point.
+  - Current runtime starts split apps from `apps/omd-*`.
+- `quickshell/panelFamilies/`
+  - Only used by the deleted monolithic `quickshell/shell.qml`.
+- Legacy monolith kill rules in `scripts/omd-quickshell-stop.sh`
+  - Removed `pkill` rules for `.../quickshell` and `~/.config/quickshell`
+    monolith instances.
 - `quickshell/services/HyprlandKeybinds.qml`
   - Static search found no references outside the service file.
   - The old cheatsheet/keybind consumer is no longer part of the current split
@@ -55,18 +63,6 @@ consumer under `quickshell/modules/schedulePopup/notifications/`.
 
 These appear unused in the current split session and should be reviewed for
 deletion in the next cleanup pass.
-
-### Legacy Monolithic Shell
-
-- `quickshell/shell.qml`
-- `quickshell/panelFamilies/`
-
-Reason: current runtime starts split apps from `apps/omd-*`. Keeping the
-monolithic shell preserves an old path that can silently reintroduce duplicate
-modules.
-
-Suggested action: delete after confirming no scripts, docs, or manual workflows
-still call plain `qs` without `-p apps/omd-*`.
 
 ### Corners / Hot Corners
 
