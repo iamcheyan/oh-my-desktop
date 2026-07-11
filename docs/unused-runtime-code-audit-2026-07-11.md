@@ -116,6 +116,15 @@ Legacy/default entry point:
 - `quickshell/modules/common/widgets/shapes/`
   - Vendored Material shape library became unreachable after removing the old
     placeholder/material-shape widgets.
+- `quickshell/modules/bar/modules/VoiceButton.qml`
+- `quickshell/modules/bar/VoiceHoverPopup.qml`
+  - Old standalone voice button.
+  - Current bar registry uses `AudioButton.qml`, which combines audio popup and
+    voice-input state/actions, plus `AudioVoiceHoverPopup.qml`.
+- `quickshell/modules/common/Icons.qml`
+- `quickshell/modules/common/Images.qml`
+  - Zero-reference common singletons.
+  - Current runtime uses local icon/image helpers in active components instead.
 
 ## Confirmed Already Removed Or In Progress
 
