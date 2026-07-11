@@ -10,7 +10,7 @@ Rectangle {
     // Match BarContextMenu / WindowDialog shell chrome
     color: TuiStyle.bg
     border.width: TuiStyle.borderWidth
-    border.color: TuiStyle.shellBorder
+    border.color: TuiStyle.menuBorder
     radius: TuiStyle.shellRadius
     clip: true
 

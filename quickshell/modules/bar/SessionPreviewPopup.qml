@@ -49,7 +49,7 @@ PopupWindow {
             radius: TuiStyle.shellRadius
             color: TuiStyle.bg
             border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.shellBorder
+            border.color: TuiStyle.menuBorder
             clip: true
 
             Item {

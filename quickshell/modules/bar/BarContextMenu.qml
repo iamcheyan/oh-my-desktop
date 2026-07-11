@@ -127,7 +127,7 @@ PopupWindow {
             color:        TuiStyle.bg
             radius:       TuiStyle.shellRadius // unified rounded corners from design system
             border.width: TuiStyle.borderWidth // unified border stroke from design system
-            border.color: TuiStyle.shellBorder
+            border.color: TuiStyle.menuBorder
             clip:         true
 
             opacity: 0

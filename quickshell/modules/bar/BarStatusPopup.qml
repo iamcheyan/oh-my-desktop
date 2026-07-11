@@ -267,7 +267,7 @@ Scope {
             color: TuiStyle.bg
             radius: TuiStyle.shellRadius
             border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.shellBorder
+            border.color: TuiStyle.menuBorder
             clip: true
             implicitHeight: cardColumn.implicitHeight + card.padding * 2
             height: implicitHeight

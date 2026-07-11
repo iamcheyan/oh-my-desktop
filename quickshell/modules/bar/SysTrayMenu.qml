@@ -89,7 +89,7 @@ PopupWindow {
             color: TuiStyle.bg
             radius: TuiStyle.shellRadius
             border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.shellBorder
+            border.color: TuiStyle.menuBorder
             clip: true
 
             opacity: 0
