@@ -2,20 +2,8 @@
 set -euo pipefail
 
 COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
-
-terminal_run() {
-  local cmd="$*"
-  if command -v omd-launch-floating-terminal-with-presentation >/dev/null 2>&1; then
-    omd-launch-floating-terminal-with-presentation "$cmd"
-  elif command -v xdg-terminal-exec >/dev/null 2>&1; then
-    setsid xdg-terminal-exec --app-id=org.omd.windows-vm -e bash -lc "$cmd; printf '\nPress Enter to close...'; read -r _" >/dev/null 2>&1 &
-  elif command -v kitty >/dev/null 2>&1; then
-    setsid kitty --class org.omd.windows-vm --title "Windows VM" -e bash -lc "$cmd; printf '\nPress Enter to close...'; read -r _" >/dev/null 2>&1 &
-  else
-    echo "No supported terminal found" >&2
-    exit 1
-  fi
-}
+STORAGE_DIR="$HOME/.windows"
+SHARED_DIR="$HOME/Windows"
 
 compose_value() {
   local key="$1"
@@ -23,13 +11,8 @@ compose_value() {
 }
 
 status() {
-  local configured=false
-  local kvm=false
-  local docker_cli=false
-  local docker_running=false
-  local compose=false
-  local container="missing"
-  local web="http://127.0.0.1:8006"
+  local configured=false kvm=false docker_cli=false docker_running=false
+  local compose=false container="missing" web="http://127.0.0.1:8006"
 
   [[ -f "$COMPOSE_FILE" ]] && configured=true
   [[ -e /dev/kvm ]] && kvm=true
@@ -54,38 +37,352 @@ status() {
   printf 'container=%s\n' "$container"
   printf 'web=%s\n' "$web"
   printf 'composeFile=%s\n' "$COMPOSE_FILE"
-  printf 'storageDir=%s\n' "$HOME/.windows"
-  printf 'sharedDir=%s\n' "$HOME/Windows"
+  printf 'storageDir=%s\n' "$STORAGE_DIR"
+  printf 'sharedDir=%s\n' "$SHARED_DIR"
   printf 'ram=%s\n' "$(compose_value RAM_SIZE || true)"
   printf 'cpu=%s\n' "$(compose_value CPU_CORES || true)"
   printf 'disk=%s\n' "$(compose_value DISK_SIZE || true)"
   printf 'user=%s\n' "$(compose_value USERNAME || true)"
 }
 
+check_resources() {
+  local kvm=false docker_cli=false docker_running=false freerdp=false
+  local disk_avail=0 ram_total=0 cpu_total=0
+
+  [[ -e /dev/kvm ]] && kvm=true
+  command -v docker >/dev/null 2>&1 && docker_cli=true
+  if [[ "$docker_cli" == true ]] && docker info >/dev/null 2>&1; then
+    docker_running=true
+  fi
+  command -v xfreerdp3 >/dev/null 2>&1 && freerdp=true
+  disk_avail=$(df "$HOME" | awk 'NR==2 {print int($4/1024/1024)}')
+  ram_total=$(awk 'NR==1 {printf "%d", $2/1024/1024}' /proc/meminfo)
+  cpu_total=$(nproc)
+
+  printf 'kvm=%s\n' "$kvm"
+  printf 'dockerCli=%s\n' "$docker_cli"
+  printf 'dockerRunning=%s\n' "$docker_running"
+  printf 'freerdp=%s\n' "$freerdp"
+  printf 'diskAvailable=%s\n' "$disk_avail"
+  printf 'ramTotal=%s\n' "$ram_total"
+  printf 'cpuTotal=%s\n' "$cpu_total"
+}
+
+install_docker() {
+  if command -v pkexec >/dev/null 2>&1; then
+    pkexec bash -c '
+      systemctl enable docker --now 2>/dev/null || dockerd >/dev/null 2>&1 &
+      sleep 2
+      usermod -aG docker "$SUDO_USER"
+    '
+  else
+    echo "pkexec not available" >&2
+    return 1
+  fi
+}
+
+install_packages() {
+  local pkg_manager=""
+  if command -v dnf >/dev/null 2>&1; then
+    pkg_manager="dnf install -y"
+  elif command -v apt >/dev/null 2>&1; then
+    pkg_manager="apt install -y"
+  elif command -v pacman >/dev/null 2>&1; then
+    pkg_manager="pacman -S --noconfirm"
+  else
+    echo "Unknown package manager" >&2
+    return 1
+  fi
+
+  if command -v pkexec >/dev/null 2>&1; then
+    pkexec bash -c "$pkg_manager freerdp 2>/dev/null; $pkg_manager freerdp3 2>/dev/null; $pkg_manager openbsd-netcat 2>/dev/null; true"
+  else
+    echo "pkexec not available" >&2
+    return 1
+  fi
+}
+
+# Install: generate compose file and start container
+# Args: <ram> <cpu> <disk> <username> <password>
+install() {
+  local ram="${1:-4G}" cpu="${2:-2}" disk="${3:-64G}" user="${4:-docker}" pass="${5:-admin}"
+
+  mkdir -p "$STORAGE_DIR" "$(dirname "$COMPOSE_FILE")" "$SHARED_DIR"
+  mkdir -p "$HOME/.local/share/applications/icons"
+
+  # Determine timezone
+  local tz
+  tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo "UTC")
+
+  cat > "$COMPOSE_FILE" << EOF
+services:
+  windows:
+    image: dockurr/windows
+    container_name: omarchy-windows
+    environment:
+      VERSION: "11"
+      RAM_SIZE: "$ram"
+      CPU_CORES: "$cpu"
+      DISK_SIZE: "$disk"
+      USERNAME: "$user"
+      PASSWORD: "$pass"
+      TZ: "$tz"
+      ARGUMENTS: "-rtc base=localtime,clock=host,driftfix=slew"
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 127.0.0.1:8006:8006
+      - 127.0.0.1:3389:3389/tcp
+      - 127.0.0.1:3389:3389/udp
+    volumes:
+      - $STORAGE_DIR:/storage
+      - $SHARED_DIR:/shared
+    restart: unless-stopped
+    stop_grace_period: 2m
+EOF
+
+  # Install Windows VM icon and desktop file
+  local omd_icon="$HOME/.config/omd/share/applications/icons/windows.png"
+  if [[ -f "$omd_icon" ]]; then
+    cp "$omd_icon" "$HOME/.local/share/applications/icons/windows.png"
+  fi
+
+  cat > "$HOME/.local/share/applications/windows-vm.desktop" << EOF
+[Desktop Entry]
+Name=Windows
+Comment=Start Windows VM via Docker and connect with RDP
+Exec=uwsm app -- omarchy-windows-vm launch
+Icon=$HOME/.local/share/applications/icons/windows.png
+Terminal=false
+Type=Application
+Categories=System;Virtualization;
+EOF
+
+  # Start container
+  docker-compose -f "$COMPOSE_FILE" up -d 2>&1
+  sleep 3
+
+  # Open web console
+  xdg-open "http://127.0.0.1:8006" >/dev/null 2>&1 &
+}
+
+install_status() {
+  local container
+  container="$(docker inspect --format='{{.State.Status}}' omarchy-windows 2>/dev/null || true)"
+
+  if [[ -z "$container" ]]; then
+    echo "state=missing"
+    return
+  fi
+
+  echo "state=$container"
+
+  if [[ "$container" == "running" ]]; then
+    local logs
+    logs=$(docker logs omarchy-windows --tail 5 2>/dev/null || true)
+
+    if echo "$logs" | grep -qi "windows started successfully"; then
+      echo "ready=true"
+    elif echo "$logs" | grep -qi "downloading\|extracting\|converting"; then
+      echo "ready=false"
+      echo "phase=downloading"
+    else
+      echo "ready=false"
+      echo "phase=booting"
+    fi
+
+    # Check web console availability
+    if command -v curl >/dev/null 2>&1 && curl -s -o /dev/null --connect-timeout 2 http://127.0.0.1:8006/ 2>/dev/null; then
+      echo "webReachable=true"
+    else
+      echo "webReachable=false"
+    fi
+  fi
+}
+
+auto_fix() {
+  local fixed=false
+
+  echo "progress=Fixing issues..."
+
+  if [[ ! -e /dev/kvm ]]; then
+    echo "progress=KVM not available. Attempting to load module..."
+    sudo modprobe kvm-intel 2>/dev/null || sudo modprobe kvm-amd 2>/dev/null || true
+    if [[ -e /dev/kvm ]]; then
+      echo "progress=KVM module loaded."
+      fixed=true
+    else
+      echo "warning=KVM virtualization unavailable. Enable Intel VT-x / AMD-V in BIOS."
+    fi
+  fi
+
+  if ! docker info >/dev/null 2>&1; then
+    if command -v docker >/dev/null 2>&1; then
+      echo "progress=Starting Docker daemon..."
+      install_docker 2>/dev/null || true
+      local wait=0
+      until docker info >/dev/null 2>&1; do
+        sleep 1; wait=$((wait + 1))
+        if (( wait > 30 )); then break; fi
+      done
+      if docker info >/dev/null 2>&1; then
+        echo "progress=Docker is now running."
+        fixed=true
+      else
+        echo "warning=Could not start Docker. Try: sudo systemctl start docker"
+      fi
+    else
+      echo "warning=Docker is not installed. Install Docker first."
+    fi
+  fi
+
+  if ! command -v xfreerdp3 >/dev/null 2>&1; then
+    echo "progress=Installing FreeRDP..."
+    install_packages 2>/dev/null || true
+    if command -v xfreerdp3 >/dev/null 2>&1; then
+      echo "progress=FreeRDP installed."
+      fixed=true
+    else
+      echo "warning=Could not install FreeRDP."
+    fi
+  fi
+
+  local avail
+  avail=$(df "$HOME" | awk 'NR==2 {print int($4/1024/1024)}')
+  if (( avail < 42 )); then
+    echo "warning=Low disk space: ${avail}GB available. Need 42GB+."
+  fi
+
+  # Check if container exists but isn't running
+  local container
+  container=$(docker inspect --format='{{.State.Status}}' omarchy-windows 2>/dev/null || echo "")
+  if [[ -n "$container" ]] && [[ "$container" != "running" ]]; then
+    echo "progress=Restarting Windows container..."
+    if [[ -f "$COMPOSE_FILE" ]]; then
+      docker-compose -f "$COMPOSE_FILE" up -d 2>/dev/null || true
+      echo "progress=Container restarted."
+      fixed=true
+    fi
+  fi
+
+  if [[ "$fixed" == "true" ]]; then
+    echo "result=ok"
+  else
+    echo "result=nochange"
+  fi
+}
+
+logs() {
+  docker logs omarchy-windows --tail 50 2>&1 || echo "Container not found or not running"
+}
+
+stop() {
+  if [[ -f "$COMPOSE_FILE" ]]; then
+    docker-compose -f "$COMPOSE_FILE" down 2>&1
+  fi
+}
+
+remove() {
+  if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "Windows VM not configured."
+    exit 1
+  fi
+
+  docker-compose -f "$COMPOSE_FILE" down 2>/dev/null || true
+  docker rmi dockurr/windows 2>/dev/null || true
+  rm -f "$HOME/.local/share/applications/windows-vm.desktop"
+  rm -rf "$HOME/.config/windows"
+  rm -rf "$STORAGE_DIR"
+  echo "Windows VM removed."
+}
+
+launch_rdp() {
+  local keep_alive="${1:-false}"
+
+  if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "Not configured" >&2
+    exit 1
+  fi
+
+  local win_user win_pass
+  win_user=$(compose_value USERNAME) || win_user="docker"
+  win_pass=$(compose_value PASSWORD) || win_pass="admin"
+
+  # Start container if not running
+  local container_status
+  container_status=$(docker inspect --format='{{.State.Status}}' omarchy-windows 2>/dev/null || echo "")
+  if [[ "$container_status" != "running" ]]; then
+    notify-send "Starting Windows VM..." -t 5000
+    docker-compose -f "$COMPOSE_FILE" up -d 2>&1
+
+    # Wait for Windows to be ready
+    local waited=0
+    until docker logs omarchy-windows 2>&1 | grep -qi "windows started successfully"; do
+      sleep 2
+      waited=$((waited + 2))
+      if (( waited > 120 )); then
+        notify-send -u critical "Windows VM" "Failed to start within 2 minutes"
+        exit 1
+      fi
+    done
+  fi
+
+  # Detect scale
+  local scale_percent=100
+  if command -v hyprctl >/dev/null 2>&1; then
+    scale_percent=$(hyprctl monitors -j 2>/dev/null | python3 -c "
+import json,sys
+try:
+  d=json.load(sys.stdin)
+  for m in d:
+    if m.get('focused'):
+      print(int(m.get('scale',1)*100))
+      break
+  else:
+    print(100)
+except: print(100)
+" 2>/dev/null || echo 100)
+  fi
+
+  local rdp_scale=""
+  if (( scale_percent >= 170 )); then
+    rdp_scale="/scale:180"
+  elif (( scale_percent >= 130 )); then
+    rdp_scale="/scale:140"
+  fi
+
+  xfreerdp3 /u:"$win_user" /p:"$win_pass" /v:127.0.0.1:3389 \
+    -grab-keyboard /sound /microphone /clipboard /cert:ignore \
+    /title:"Windows VM - Omarchy" /dynamic-resolution /gfx:AVC444 \
+    /floatbar:sticky:off,default:visible,show:fullscreen $rdp_scale
+
+  if [[ "$keep_alive" != "true" ]]; then
+    docker-compose -f "$COMPOSE_FILE" down
+  fi
+}
+
 case "${1:-status}" in
-  status)
-    status
-    ;;
+  status) status ;;
+  check-resources) check_resources ;;
+  install-docker) install_docker ;;
+  install-packages) install_packages ;;
   install)
-    terminal_run "omd-windows-vm install"
+    shift
+    install "$@"
     ;;
-  launch)
-    terminal_run "omd-windows-vm launch"
-    ;;
-  launch-keepalive)
-    terminal_run "omd-windows-vm launch --keep-alive"
-    ;;
-  stop)
-    omd-windows-vm stop
-    ;;
-  remove)
-    terminal_run "omd-windows-vm remove"
-    ;;
-  web)
-    xdg-open "http://127.0.0.1:8006" >/dev/null 2>&1 &
-    ;;
+  install-status) install_status ;;
+  auto-fix) auto_fix ;;
+  logs) logs ;;
+  launch) launch_rdp false ;;
+  launch-keepalive) launch_rdp true ;;
+  stop) stop ;;
+  remove) remove ;;
+  web) xdg-open "http://127.0.0.1:8006" >/dev/null 2>&1 & ;;
   *)
-    echo "usage: omd-settings-windows-vm status|install|launch|launch-keepalive|stop|remove|web" >&2
+    echo "usage: $(basename "$0") status|check-resources|install-docker|install-packages|install <args>|install-status|auto-fix|logs|launch|launch-keepalive|stop|remove|web" >&2
     exit 2
     ;;
 esac

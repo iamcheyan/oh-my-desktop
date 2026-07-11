@@ -1939,125 +1939,120 @@ WindowDialog {
         id: windowsPage
         PageBody {
             QtObject {
-                id: windowsState
+                id: s
+
+                property string pageState: "idle"
+
                 property bool configured: false
                 property bool kvm: false
                 property bool dockerCli: false
                 property bool dockerRunning: false
                 property bool compose: false
+                property bool freerdp: false
                 property string container: "missing"
                 property string web: "http://127.0.0.1:8006"
-                property string composeFile: `${FileUtils.trimFileProtocol(Directories.home)}/.config/windows/docker-compose.yml`
-                property string storageDir: `${FileUtils.trimFileProtocol(Directories.home)}/.windows`
-                property string sharedDir: `${FileUtils.trimFileProtocol(Directories.home)}/Windows`
                 property string ram: ""
                 property string cpu: ""
                 property string disk: ""
                 property string user: ""
-                property string pendingDanger: ""
+
+                property int diskAvailable: 0
+                property int ramTotal: 0
+                property int cpuTotal: 0
+
+                property string installPhase: ""
+                property bool installReady: false
+                property bool webReachable: false
+                property bool installRunning: false
+                property string autoStep: ""
+                property string autoError: ""
+                property string autoWarning: ""
 
                 readonly property bool running: container === "running"
-                readonly property string displayStatus: !configured ? "Not installed" : running ? "Running" : container === "missing" ? "Configured" : container
+                readonly property bool allReady: s.kvm && s.dockerRunning && s.freerdp && s.diskAvailable >= 42
+                readonly property bool hasIssues: !s.kvm || !s.dockerRunning || !s.freerdp || s.diskAvailable < 42
+                    || (s.configured && s.container === "exited")
 
-                function refresh() {
-                    windowsStatusProc.running = true;
-                }
-
+                function refresh() { windowsStatusProc.running = true; }
                 function run(action) {
                     windowsActionProc.command = ["bash", "-c", `$HOME/.config/omd/bin/omd-settings-windows-vm ${action}`];
                     windowsActionProc.running = true;
                 }
+                function fmtr(val) { return val > 0 ? `${val} GB` : `--`; }
 
-                function launch(keepAlive) {
-                    Quickshell.execDetached(["bash", "-c", `$HOME/.config/omd/bin/omd-settings-windows-vm ${keepAlive ? "launch-keepalive" : "launch"}`]);
+                function startAutoInstall() {
+                    s.pageState = "auto";
+                    s.autoStep = "Checking KVM...";
+                    s.autoError = "";
+                    s.autoWarning = "";
+                    windowsAutoTimer.step = 0;
+                    autoDoStep();
                 }
+
             }
 
+            // === STATUS HEADER ===
             SettingsCard {
                 title: "Windows VM"
-                subtitle: windowsState.displayStatus
+                subtitle: s.running ? "Running" : s.configured ? "Installed" : "Not installed"
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
-                    SettingsStatusPill { label: windowsState.configured ? "configured" : "not installed"; active: windowsState.configured }
-                    SettingsStatusPill { label: windowsState.kvm ? "KVM ready" : "KVM missing"; active: windowsState.kvm; warning: !windowsState.kvm }
-                    SettingsStatusPill { label: windowsState.dockerRunning ? "Docker running" : windowsState.dockerCli ? "Docker stopped" : "Docker missing"; active: windowsState.dockerRunning; warning: !windowsState.dockerRunning }
-                    SettingsStatusPill { label: windowsState.compose ? "Compose ready" : "Compose missing"; active: windowsState.compose; warning: !windowsState.compose }
+                    SettingsStatusPill { label: "Status"; active: s.running; warning: s.configured && !s.running }
+                    SettingsStatusPill { label: s.kvm ? "KVM" : "No KVM"; active: s.kvm; warning: !s.kvm }
+                    SettingsStatusPill { label: s.dockerRunning ? "Docker" : "No Docker"; active: s.dockerRunning; warning: !s.dockerRunning }
                 }
 
                 SettingsRow {
                     label: "Container"
-                    description: "Docker container: omarchy-windows"
-                    value: windowsState.container
-                    valueColor: windowsState.running ? SettingsTokens.accent : SettingsTokens.muted
+                    value: s.container
+                    valueColor: s.running ? SettingsTokens.accent : SettingsTokens.muted
                 }
                 SettingsRow {
                     label: "Web console"
-                    description: "Browser console for installation and emergency access"
-                    value: windowsState.web
+                    value: s.web
                     showChevron: true
-                    onClicked: windowsState.run("web")
+                    onClicked: s.run("web")
                 }
             }
 
+            // === ONE-CLICK BUTTON ===
             SettingsCard {
-                title: "Actions"
-                subtitle: "Large downloads and destructive operations are confirmed"
+                title: s.pageState === "auto" ? "Auto Installing..." : "Quick Actions"
 
                 ButtonRow {
                     SettingsButton {
-                        label: windowsState.configured ? "Reinstall" : "Install"
-                        iconName: "download"
-                        active: windowsState.pendingDanger === "install"
-                        onClicked: {
-                            if (windowsState.pendingDanger === "install") {
-                                windowsState.pendingDanger = "";
-                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm install"]);
-                            } else {
-                                windowsState.pendingDanger = "install";
-                            }
+                        label: {
+                            if (s.pageState === "auto") return `${s.autoStep}...`;
+                            if (!s.configured) return "一键安装";
+                            if (s.hasIssues) return "一键修复";
+                            return "Reinstall";
                         }
-                    }
-                    SettingsButton {
-                        label: "Connect"
-                        iconName: "login"
-                        enabledState: windowsState.configured
-                        onClicked: windowsState.launch(false)
-                    }
-                    SettingsButton {
-                        label: "Keep Alive"
-                        iconName: "keep"
-                        enabledState: windowsState.configured
-                        onClicked: windowsState.launch(true)
-                    }
-                }
-
-                ButtonRow {
-                    SettingsButton {
-                        label: "Stop"
-                        iconName: "stop"
-                        enabledState: windowsState.configured && windowsState.container !== "missing"
-                        onClicked: windowsState.run("stop")
-                    }
-                    SettingsButton {
-                        label: "Open Console"
-                        iconName: "open_in_browser"
-                        enabledState: windowsState.configured
-                        onClicked: windowsState.run("web")
-                    }
-                    SettingsButton {
-                        label: windowsState.pendingDanger === "remove" ? "Confirm Delete" : "Remove"
-                        iconName: "delete"
-                        active: windowsState.pendingDanger === "remove"
-                        enabledState: windowsState.configured
+                        iconName: {
+                            if (s.pageState === "auto") return "hourglass";
+                            if (s.hasIssues) return "build";
+                            return "download";
+                        }
+                        active: s.pageState === "auto"
                         onClicked: {
-                            if (windowsState.pendingDanger === "remove") {
-                                windowsState.pendingDanger = "";
-                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm remove"]);
+                            if (s.pageState === "auto") return;
+                            if (s.configured) {
+                                // Reinstall — quick with defaults
+                                s.pageState = "auto";
+                                s.autoStep = "Reinstalling...";
+                                s.autoError = "";
+                                s.autoWarning = "";
+                                // Use existing config values if available
+                                const r = s.ram.replace(/[^0-9]/g, "") || Math.min(Math.floor(s.ramTotal / 2), 64);
+                                const c = s.cpu.replace(/[^0-9]/g, "") || Math.min(Math.floor(s.cpuTotal / 2), s.cpuTotal);
+                                const d = s.disk.replace(/[^0-9]/g, "") || "64";
+                                const u = s.user || "docker";
+                                s.run(`install ${r}G ${c} ${d}G "${u}" "admin"`);
+                                s.installRunning = true;
+                                windowsInstallTimer.running = true;
                             } else {
-                                windowsState.pendingDanger = "remove";
+                                s.startAutoInstall();
                             }
                         }
                     }
@@ -2065,65 +2060,374 @@ WindowDialog {
 
                 StyledText {
                     Layout.fillWidth: true
-                    visible: windowsState.pendingDanger.length > 0
-                    text: windowsState.pendingDanger === "remove"
-                        ? "Remove opens a terminal confirmation and deletes the VM data if confirmed there."
-                        : "Install opens an interactive terminal, downloads Windows, and allocates disk space."
-                    color: SettingsTokens.muted
+                    visible: s.autoWarning.length > 0
+                    text: s.autoWarning
+                    color: "#f9a825"
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.WordWrap
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: s.autoError.length > 0
+                    text: s.autoError
+                    color: "#e53935"
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.WordWrap
                 }
             }
 
+            // === AUTO-INSTALL PROGRESS ===
             SettingsCard {
-                title: "Configuration"
-                subtitle: windowsState.configured ? "Generated by omd-windows-vm" : "Created during install"
-                SettingsRow { label: "Compose file"; value: windowsState.composeFile }
-                SettingsRow { label: "Storage"; value: windowsState.storageDir }
-                SettingsRow { label: "Shared folder"; value: windowsState.sharedDir }
-                SettingsRow { label: "RAM"; value: windowsState.ram.length > 0 ? windowsState.ram : "--" }
-                SettingsRow { label: "CPU cores"; value: windowsState.cpu.length > 0 ? windowsState.cpu : "--" }
-                SettingsRow { label: "Disk"; value: windowsState.disk.length > 0 ? windowsState.disk : "--" }
-                SettingsRow { label: "Windows user"; value: windowsState.user.length > 0 ? windowsState.user : "--" }
+                visible: s.pageState === "auto"
+                title: "Installation Progress"
+
+                StyledProgressBar {
+                    Layout.fillWidth: true
+                    valueBarHeight: 8
+                    indeterminate: true
+                    wavy: true
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    text: {
+                        if (s.installReady) return "Windows is ready! Connecting...";
+                        if (s.webReachable) return "Web console reachable. Windows setup in progress...";
+                        if (s.autoStep.length > 0) return s.autoStep;
+                        if (s.installPhase.length > 0) return `Phase: ${s.installPhase}`;
+                        return "Preparing...";
+                    }
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    wrapMode: Text.WordWrap
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 200
+                    Layout.topMargin: 8
+                    visible: windowsLogsOutput.text.length > 0
+                    color: SettingsTokens.surface
+                    radius: 4
+                    clip: true
+                    StyledFlickable {
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        contentHeight: autoLogsText.height
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: StyledScrollBar {}
+                        TextEdit {
+                            id: autoLogsText
+                            text: windowsLogsOutput.text
+                            color: SettingsTokens.onSurface
+                            font.family: Appearance.font.monoFamily
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            selectByMouse: true
+                            readOnly: true
+                            wrapMode: TextEdit.Wrap
+                            width: parent.width
+                        }
+                    }
+                }
+
+                RowLayout {
+                    spacing: 8
+                    SettingsButton {
+                        label: "Open Web Console"
+                        iconName: "open_in_browser"
+                        enabledState: s.webReachable
+                        onClicked: s.run("web")
+                    }
+                    SettingsButton {
+                        label: "Details"
+                        iconName: "refresh"
+                        onClicked: { windowsInstallStatusProc.running = true; windowsLogsProc.running = true; }
+                    }
+                }
+            }
+
+            // === MANAGE ===
+            SettingsCard {
+                visible: s.pageState === "manage"
+                title: "Manage VM"
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "Connect"
+                        iconName: "login"
+                        enabledState: s.configured
+                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch"])
+                    }
+                    SettingsButton {
+                        label: "Keep Alive"
+                        iconName: "keep"
+                        enabledState: s.configured
+                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch-keepalive"])
+                    }
+                }
+                ButtonRow {
+                    SettingsButton {
+                        label: "Stop"
+                        iconName: "stop"
+                        enabledState: s.configured && s.container !== "missing"
+                        onClicked: s.run("stop")
+                    }
+                    SettingsButton {
+                        label: "Open Console"
+                        iconName: "open_in_browser"
+                        enabledState: s.configured
+                        onClicked: s.run("web")
+                    }
+                    SettingsButton {
+                        label: "Remove"
+                        iconName: "delete"
+                        enabledState: s.configured
+                        onClicked: { s.run("remove"); s.pageState = "idle"; }
+                    }
+                }
+
+                SettingsRow {
+                    label: "RAM"
+                    value: s.ram.length > 0 ? s.ram : "--"
+                }
+                SettingsRow {
+                    label: "CPU"
+                    value: s.cpu.length > 0 ? s.cpu : "--"
+                }
+                SettingsRow {
+                    label: "Disk"
+                    value: s.disk.length > 0 ? s.disk : "--"
+                }
+                SettingsRow {
+                    label: "User"
+                    value: s.user.length > 0 ? s.user : "--"
+                }
+            }
+
+            // === LOGS (manage state) ===
+            SettingsCard {
+                visible: s.pageState === "manage" && s.container !== "missing"
+                title: "Container Logs"
+                SettingsRow {
+                    label: "Refresh"
+                    showChevron: true
+                    onClicked: windowsLogsProc.running = true
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 180
+                    Layout.topMargin: 8
+                    visible: windowsLogsOutput.text.length > 0
+                    color: SettingsTokens.surface
+                    radius: 4
+                    clip: true
+                    StyledFlickable {
+                        anchors.fill: parent; anchors.margins: 4
+                        contentHeight: mgtLogsText.height
+                        boundsBehavior: Flickable.StopAtBounds
+                        ScrollBar.vertical: StyledScrollBar {}
+                        TextEdit {
+                            id: mgtLogsText
+                            text: windowsLogsOutput.text
+                            color: SettingsTokens.onSurface
+                            font.family: Appearance.font.monoFamily
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            selectByMouse: true; readOnly: true
+                            wrapMode: TextEdit.Wrap; width: parent.width
+                        }
+                    }
+                }
+            }
+
+            // === TIMERS ===
+
+            Timer {
+                id: windowsAutoTimer
+                interval: 500
+                repeat: false
+                running: false
+                property int step: 0
+                onTriggered: autoDoStep()
+            }
+
+            function autoDoStep() {
+                windowsAutoTimer.step++;
+                const step = windowsAutoTimer.step;
+
+                if (step === 1) {
+                    s.autoStep = "Checking KVM virtualization..."; s.run("check-resources"); return;
+                }
+                if (step === 2) {
+                    if (!s.kvm) { s.autoStep = "KVM missing. Attempting to load module..."; s.run("auto-fix"); return; }
+                    windowsAutoTimer.step = 3; autoDoStep(); return;
+                }
+                if (step === 3) {
+                    if (!s.kvm) { s.autoError = "KVM not available. Enable virtualization in BIOS."; s.pageState = "idle"; return; }
+                    windowsAutoTimer.step = 4; autoDoStep(); return;
+                }
+                if (step === 4) {
+                    s.autoStep = "Checking Docker..."; s.run("check-resources"); return;
+                }
+                if (step === 5) {
+                    if (!s.dockerRunning) { s.autoStep = "Starting Docker..."; s.run("install-docker"); return; }
+                    windowsAutoTimer.step = 7; autoDoStep(); return;
+                }
+                if (step === 6) {
+                    s.autoStep = "Verifying Docker..."; s.run("check-resources"); return;
+                }
+                if (step === 7) {
+                    if (!s.dockerRunning) { s.autoError = "Failed to start Docker."; s.pageState = "idle"; return; }
+                    windowsAutoTimer.step = 8; autoDoStep(); return;
+                }
+                if (step === 8) {
+                    s.autoStep = "Checking FreeRDP..."; s.run("check-resources"); return;
+                }
+                if (step === 9) {
+                    if (!s.freerdp) { s.autoStep = "Installing FreeRDP..."; s.run("install-packages"); return; }
+                    windowsAutoTimer.step = 11; autoDoStep(); return;
+                }
+                if (step === 10) {
+                    s.autoStep = "Verifying FreeRDP..."; s.run("check-resources"); return;
+                }
+                if (step === 11) {
+                    if (!s.freerdp) s.autoWarning = "FreeRDP not installed. RDP may fail.";
+                    windowsAutoTimer.step = 12; autoDoStep(); return;
+                }
+                if (step === 12) {
+                    s.autoStep = "Checking disk space..."; s.run("check-resources"); return;
+                }
+                if (step === 13) {
+                    if (s.diskAvailable < 42) { s.autoError = `Low disk: ${s.diskAvailable}GB. Need 42GB+.`; s.pageState = "idle"; return; }
+                    const r = Math.min(Math.max(2, Math.floor(s.ramTotal / 2)), 64);
+                    const c = Math.min(Math.max(1, Math.floor(s.cpuTotal / 2)), s.cpuTotal);
+                    const d = Math.min(Math.max(32, s.diskAvailable - 10), 256);
+                    s.autoStep = `Installing (${r}G RAM, ${c} CPU, ${d}G disk)...`;
+                    s.run(`install ${r}G ${c} ${d}G "docker" "admin"`);
+                    return;
+                }
+                if (step === 14) {
+                    s.autoStep = "Starting container...";
+                    s.installRunning = true;
+                    windowsInstallTimer.running = true;
+                    windowsLogsTimer.running = true;
+                }
+            }
+
+            Timer {
+                id: windowsInstallTimer
+                interval: 5000
+                repeat: true
+                running: false
+                onTriggered: {
+                    windowsInstallStatusProc.running = true;
+                }
+            }
+
+            Timer {
+                id: windowsLogsTimer
+                interval: 8000
+                repeat: true
+                running: false
+                onTriggered: windowsLogsProc.running = true
             }
 
             Timer {
                 interval: 8000
                 repeat: true
-                running: true
-                onTriggered: windowsState.refresh()
+                running: s.pageState !== "auto"
+                onTriggered: { s.refresh(); }
             }
+
+            // === PROCESSES ===
 
             Process {
                 id: windowsStatusProc
                 command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm status"]
                 running: true
                 stdout: StdioCollector {
-                    id: windowsStatusCollector
                     onStreamFinished: {
-                        const data = root.parseKeyValue(windowsStatusCollector.text);
-                        windowsState.configured = data.configured === "true";
-                        windowsState.kvm = data.kvm === "true";
-                        windowsState.dockerCli = data.dockerCli === "true";
-                        windowsState.dockerRunning = data.dockerRunning === "true";
-                        windowsState.compose = data.compose === "true";
-                        windowsState.container = data.container || "missing";
-                        windowsState.web = data.web || "http://127.0.0.1:8006";
-                        windowsState.composeFile = data.composeFile || windowsState.composeFile;
-                        windowsState.storageDir = data.storageDir || windowsState.storageDir;
-                        windowsState.sharedDir = data.sharedDir || windowsState.sharedDir;
-                        windowsState.ram = data.ram || "";
-                        windowsState.cpu = data.cpu || "";
-                        windowsState.disk = data.disk || "";
-                        windowsState.user = data.user || "";
+                        const d = root.parseKeyValue(text);
+                        s.configured = d.configured === "true";
+                        s.kvm = d.kvm === "true";
+                        s.dockerCli = d.dockerCli === "true";
+                        s.dockerRunning = d.dockerRunning === "true";
+                        s.compose = d.compose === "true";
+                        s.container = d.container || "missing";
+                        s.web = d.web || "http://127.0.0.1:8006";
+                        s.ram = d.ram || "";
+                        s.cpu = d.cpu || "";
+                        s.disk = d.disk || "";
+                        s.user = d.user || "";
                     }
                 }
             }
 
             Process {
+                id: windowsResourcesProc
+                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm check-resources"]
+                running: true
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        const d = root.parseKeyValue(text);
+                        s.kvm = d.kvm === "true";
+                        s.dockerCli = d.dockerCli === "true";
+                        s.dockerRunning = d.dockerRunning === "true";
+                        s.freerdp = d.freerdp === "true";
+                        s.diskAvailable = parseInt(d.diskAvailable || "0");
+                        s.ramTotal = parseInt(d.ramTotal || "0");
+                        s.cpuTotal = parseInt(d.cpuTotal || "0");
+                    }
+                }
+            }
+
+            Process {
+                id: windowsInstallStatusProc
+                running: false
+                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm install-status"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        const d = root.parseKeyValue(text);
+                        if (d.state === "running") {
+                            s.installPhase = d.phase || "booting";
+                            s.webReachable = d.webReachable === "true";
+                            if (d.ready === "true") {
+                                s.installReady = true;
+                                s.installRunning = false;
+                                s.autoStep = "Windows is ready!";
+                                windowsInstallTimer.running = false;
+                                windowsLogsTimer.running = false;
+                                s.pageState = "manage";
+                                s.refresh();
+                            }
+                        } else if (d.state === "exited") {
+                            s.autoStep = "Container stopped unexpectedly.";
+                            s.installRunning = false;
+                            windowsInstallTimer.running = false;
+                            s.autoWarning = "The container exited. Click 一键修复 or check logs.";
+                            s.pageState = "idle";
+                        }
+                    }
+                }
+            }
+
+            Process {
+                id: windowsLogsProc
+                running: false
+                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm logs"]
+                stdout: StdioCollector { id: windowsLogsOutput }
+            }
+
+            Process {
                 id: windowsActionProc
                 running: false
-                onExited: (exitCode, exitStatus) => windowsState.refresh()
+                onExited: (code, status) => {
+                    s.refresh();
+                    windowsResourcesProc.running = true;
+                    if (s.pageState === "auto" && !windowsInstallTimer.running) {
+                        windowsAutoTimer.running = true;
+                    }
+                }
             }
         }
     }
