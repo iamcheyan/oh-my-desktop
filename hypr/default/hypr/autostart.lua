@@ -2,7 +2,19 @@ o.launch_on_start("hypridle")
 o.launch_on_start("mako")
 o.launch_on_start("fcitx5 --disable notificationitem")
 o.launch_on_start("swaybg -i ~/.config/omd/current/background -m fill")
-o.exec_on_start("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
+local function file_exists(path)
+  local f = io.open(path, "r")
+  if f then
+    f:close()
+    return true
+  end
+  return false
+end
+
+local polkit_agent = "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+if file_exists(polkit_agent) then
+  o.exec_on_start(polkit_agent)
+end
 o.exec_on_start("omd-powerprofiles-init")
 o.launch_on_start("omd-hyprland-monitor-watch")
 

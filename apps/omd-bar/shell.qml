@@ -13,7 +13,6 @@ import qs.modules.notificationPopup
 import qs.modules.onScreenDisplay
 import qs.modules.polkit
 import qs.modules.regionSelector
-import qs.modules.lock
 
 import QtQuick
 import Quickshell
@@ -64,7 +63,6 @@ ShellRoot {
         active: Config.ready
         component: Scope {
             Bar {}
-            Lock {}
             BarDismissLayer {}
             BarStatusPopup {}
             BarDialogOverlay {}
