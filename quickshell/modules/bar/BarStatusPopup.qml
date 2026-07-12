@@ -8,13 +8,16 @@ import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.services
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
+import Quickshell.Bluetooth
 import Quickshell.Wayland
+import qs.modules.bar
 
 Scope {
     id: root
@@ -72,12 +75,13 @@ Scope {
         readonly property bool barOnBottom: Config.options.bar.bottom
         readonly property int panelWidth: {
             if (root.activeType === "battery")
-                return Math.min(460, Math.max(400, (screen?.width ?? 1920) - 32));
-            if (root.activeType === "audio")
-                return Math.min(420, Math.max(400, (screen?.width ?? 1920) - 32));
+                return Math.min(460, Math.max(420, (screen?.width ?? 1920) - 32));
             if (root.activeType === "notifications")
                 return Math.min(560, Math.max(500, (screen?.width ?? 1920) - 32));
-            return 360;
+            if (root.activeType === "xkb")
+                return Math.min(360, Math.max(320, (screen?.width ?? 1920) - 32));
+            // All other panels: 420px minimum for comfortable layout
+            return Math.min(460, Math.max(420, (screen?.width ?? 1920) - 32));
         }
 
         anchors {
@@ -142,9 +146,9 @@ Scope {
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
-                contentPadding: panel.multiShell ? 0 : 14
+                contentPadding: 0                           // Rows manage their own 20px margins
                 color: panel.multiShell ? "transparent" : TuiStyle.bg
-                border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
+                border.width: 0                             // No border — GNOME style
                 radius: panel.multiShell ? 0 : TuiStyle.shellRadius
                 clip: !panel.multiShell
 
@@ -159,6 +163,10 @@ Scope {
                         if (root.activeType === "battery") return batteryContent;
                         if (root.activeType === "notifications") return notificationsContent;
                         if (root.activeType === "voice") return voiceContent;
+                        if (root.activeType === "keyboard") return keyboardContent;
+                        if (root.activeType === "session") return sessionContent;
+                        if (root.activeType === "clipboard") return clipboardContent;
+                        if (root.activeType === "xkb") return xkbContent;
                         return emptyContent;
                     }
                 }
@@ -166,53 +174,8 @@ Scope {
         }
     }
 
-    component Header: Rectangle {
-        id: header
-        property string title: ""
-        property string status: ""
-        property color tone: TuiStyle.accent
-
-        Layout.fillWidth: true
-        Layout.preferredHeight: 44
-        color: "transparent"
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 4
-            anchors.rightMargin: 4
-            spacing: 10
-
-            StyledText {
-                text: header.title
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.DemiBold
-                color: TuiStyle.dim
-            }
-
-            Item { Layout.fillWidth: true }
-
-            StyledText {
-                text: header.status
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                font.weight: Font.Medium
-                color: header.status.length > 0 ? header.tone : TuiStyle.fg
-            }
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: TuiStyle.line
-            opacity: TuiStyle.dividerOpacity
-        }
-    }
-
     component PopupColumn: ColumnLayout {
-        spacing: 10
+        spacing: 0
         width: parent?.width ?? implicitWidth
     }
 
@@ -249,8 +212,7 @@ Scope {
             }
             color: TuiStyle.bg
             radius: TuiStyle.shellRadius
-            border.width: TuiStyle.borderWidth
-            border.color: TuiStyle.menuBorder
+            border.width: 0        // No border — GNOME style
             clip: true
             implicitHeight: cardColumn.implicitHeight + card.padding * 2
             height: implicitHeight
@@ -263,15 +225,23 @@ Scope {
                     top: parent.top
                     margins: card.padding
                 }
-                spacing: 10
+                spacing: 0
             }
         }
     }
 
+    // Thin section divider — extremely subtle, GNOME style.
+    component Divider: Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: TuiStyle.line
+        opacity: 0.10
+    }
+
+    // Section label (small dim caps) — kept for compact sub-headings.
     component SectionLabel: StyledText {
         property int topInset: 6
         property int bottomInset: 2
-
         Layout.fillWidth: true
         Layout.topMargin: topInset
         Layout.bottomMargin: bottomInset
@@ -281,13 +251,91 @@ Scope {
         color: TuiStyle.dim
     }
 
+    // Action row — right-aligned button cluster.
     component ActionRow: RowLayout {
         Layout.fillWidth: true
+        Layout.topMargin: 4
+        Layout.bottomMargin: 4
         spacing: 8
         Item { Layout.fillWidth: true }
     }
 
-    component AudioSliderRow: RowLayout {
+    // Icon action row — full-width evenly-spaced icon buttons.
+    // Each child should be a PopupIconButton.
+    component IconActionRow: Item {
+        Layout.fillWidth: true
+        Layout.leftMargin: 20
+        Layout.rightMargin: 20
+        Layout.topMargin: 4
+        Layout.bottomMargin: 8
+        implicitHeight: iconRowInner.implicitHeight
+
+        RowLayout {
+            id: iconRowInner
+            anchors { left: parent.left; right: parent.right }
+            spacing: 8
+        }
+
+        default property alias buttons: iconRowInner.data
+    }
+
+    // Individual icon button for IconActionRow.
+    component PopupIconButton: Item {
+        id: iconBtn
+        property string icon: ""
+        property string label: ""
+        property color accent: TuiStyle.fg
+        property bool enabledState: true
+        signal clicked()
+
+        Layout.fillWidth: true
+        implicitHeight: 60
+        opacity: iconBtn.enabledState ? 1.0 : 0.38
+
+        Rectangle {
+            id: iconBtnBg
+            anchors.fill: parent
+            radius: TuiStyle.radius
+            color: iconBtnMouse.containsMouse && iconBtn.enabledState
+                ? TuiStyle.controlHover : TuiStyle.control
+
+            Behavior on color { ColorAnimation { duration: 100 } }
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 4
+
+                NerdIcon {
+                    Layout.alignment: Qt.AlignHCenter
+                    iconSize: 20
+                    text: iconBtn.icon
+                    color: iconBtn.accent
+                }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: iconBtn.label
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.small - 1
+                    font.weight: Font.Medium
+                    color: TuiStyle.dim
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+
+        MouseArea {
+            id: iconBtnMouse
+            anchors.fill: parent
+            enabled: iconBtn.enabledState
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: iconBtn.clicked()
+        }
+    }
+
+    // Audio slider row — GNOME style: icon left, slider middle, number right. Height 56px.
+    component AudioSliderRow: Item {
         id: audioSliderRow
         property string icon: ""
         property real level: 0
@@ -296,48 +344,61 @@ Scope {
         signal iconClicked()
 
         Layout.fillWidth: true
-        spacing: 10
+        implicitHeight: 56
 
-        Item {
-            Layout.preferredWidth: 28
-            Layout.preferredHeight: 28
+        RowLayout {
+            anchors {
+                fill: parent
+                leftMargin: 20
+                rightMargin: 20
+            }
+            spacing: 12
 
-            NerdIcon {
-                anchors.centerIn: parent
-                iconSize: 18
-                text: audioSliderRow.icon
-                color: TuiStyle.fg
+            // Tappable icon
+            Item {
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignVCenter
+
+                NerdIcon {
+                    anchors.centerIn: parent
+                    iconSize: 22
+                    text: audioSliderRow.icon
+                    color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: audioSliderRow.iconClicked()
+                }
             }
 
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: audioSliderRow.iconClicked()
+            SettingsSlider {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                trackColor: TuiStyle.meterTrack
+                highlightColor: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.accent
+                handleColor: TuiStyle.accent
+                value: audioSliderRow.muted ? 0 : audioSliderRow.level
+                onValueChanged: {
+                    if (pressed)
+                        audioSliderRow.moved(value)
+                }
             }
-        }
 
-        SettingsSlider {
-            Layout.fillWidth: true
-            Layout.alignment: Qt.AlignVCenter
-            trackColor: TuiStyle.meterTrack
-            highlightColor: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.accent
-            handleColor: TuiStyle.fg
-            value: audioSliderRow.muted ? 0 : audioSliderRow.level
-            onValueChanged: {
-                if (pressed)
-                    audioSliderRow.moved(value)
+            // Right-aligned number — white, 18px
+            StyledText {
+                Layout.preferredWidth: 36
+                Layout.alignment: Qt.AlignVCenter
+                horizontalAlignment: Text.AlignRight
+                text: `${Math.round((audioSliderRow.muted ? 0 : audioSliderRow.level) * 100)}`
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.normal + 3   // ~18px
+                font.weight: Font.Medium
+                color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
             }
-        }
-
-        StyledText {
-            Layout.preferredWidth: 40
-            horizontalAlignment: Text.AlignRight
-            text: `${Math.round((audioSliderRow.muted ? 0 : audioSliderRow.level) * 100)}%`
-            font.family: Appearance.font.family.main
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.Medium
-            color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.dim
         }
     }
 
@@ -360,28 +421,385 @@ Scope {
     }
 
     Component {
-        id: wifiContent
+        id: keyboardContent
         PopupColumn {
-            id: wifiPanel
+            id: keyboardPanel
+
             function stateLabel() {
-                if (Network.ethernet) return "wired";
-                if (!Network.wifiEnabled || Network.wifiStatus === "disabled") return "disabled";
-                return Network.wifiStatus || "disconnected";
+                if (KeyboardRemap.state === "setup") return "Setup needed";
+                if (!KeyboardRemap.keydReady) return "keyd not running";
+                if (KeyboardRemap.selectedDeviceId) return "Ready";
+                return "No device";
             }
             function tone() {
-                if (stateLabel() === "connected" || stateLabel() === "wired") return TuiStyle.success;
-                if (stateLabel() === "disabled") return TuiStyle.danger;
-                if (stateLabel() === "connecting" || stateLabel() === "limited") return TuiStyle.warning;
+                if (stateLabel() === "Ready") return TuiStyle.success;
+                if (stateLabel() === "Setup needed" || stateLabel() === "keyd not running") return TuiStyle.danger;
                 return TuiStyle.muted;
             }
 
-            Header { title: Network.ethernet ? "ETHERNET" : "WI-FI"; status: wifiPanel.stateLabel().toUpperCase(); tone: wifiPanel.tone() }
-            TuiDetailRow { keyText: "SSID"; valueText: Network.ethernet ? (Network.networkName || "--") : (Network.active?.ssid || Network.networkName || "--") }
-            TuiDetailRow { keyText: "SIGNAL"; valueText: !Network.ethernet && stateLabel() === "connected" ? `${Network.active?.strength ?? Network.networkStrength}%` : "--"; valueColor: TuiStyle.info }
-            TuiDetailRow { keyText: "NETWORKS"; valueText: `${Network.friendlyWifiNetworks.length}`; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "SCANNING"; valueText: Network.wifiScanning ? "yes" : "no"; valueColor: Network.wifiScanning ? TuiStyle.warning : TuiStyle.muted }
-            ActionRow {
-                TuiActionButton { label: "MANAGE"; onClicked: root.openDialog("wifi") }
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.keyboard
+                title: "Keyboard"
+                subtitle: keyboardPanel.stateLabel()
+                tone: keyboardPanel.tone()
+            }
+
+            PopupInfoRow { label: "Device"; value: KeyboardRemap.selectedDeviceId || "--"; valueColor: KeyboardRemap.selectedDeviceId ? TuiStyle.fg : TuiStyle.dim }
+            PopupInfoRow { label: "Keyd"; value: KeyboardRemap.keydReady ? "Running" : "Not ready"; valueColor: KeyboardRemap.keydReady ? TuiStyle.success : TuiStyle.danger }
+            PopupInfoRow {
+                label: "Profile"
+                value: KeyboardRemap.selectedProfile?.displayName || "--"
+                valueColor: KeyboardRemap.selectedProfile ? TuiStyle.accent : TuiStyle.dim
+                showDivider: false
+            }
+
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "Keyboard settings…"
+                onClicked: { root.close(); KeyboardRemap.openSettings(); }
+            }
+        }
+    }
+
+    Component {
+        id: sessionContent
+        PopupColumn {
+            id: sessionPanel
+            readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
+            readonly property string snapshotFile: `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/omd/session/last.json`
+            property bool hasSnapshot: false
+            property int snapshotCount: 0
+            property bool canvasEmpty: ToplevelManager.toplevels.values.length === 0
+
+            FileView {
+                path: sessionPanel.snapshotFile
+                onLoaded: {
+                    try {
+                        const data = JSON.parse(text());
+                        const count = Array.isArray(data.clients) ? data.clients.length : 0;
+                        sessionPanel.hasSnapshot = count > 0;
+                        sessionPanel.snapshotCount = count;
+                    } catch (e) {
+                        sessionPanel.hasSnapshot = false;
+                        sessionPanel.snapshotCount = 0;
+                    }
+                }
+                onLoadFailed: {
+                    sessionPanel.hasSnapshot = false;
+                    sessionPanel.snapshotCount = 0;
+                }
+            }
+
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.workspaceSnapshot
+                title: "Session"
+                subtitle: sessionPanel.canvasEmpty ? "No windows open"
+                    : `${ToplevelManager.toplevels.values.length} window${ToplevelManager.toplevels.values.length === 1 ? "" : "s"} open`
+                tone: sessionPanel.canvasEmpty ? TuiStyle.muted : TuiStyle.success
+            }
+
+            PopupInfoRow {
+                label: "Saved snapshot"
+                value: sessionPanel.hasSnapshot ? `${sessionPanel.snapshotCount} windows` : "None"
+                valueColor: sessionPanel.hasSnapshot ? TuiStyle.accent : TuiStyle.dim
+                showDivider: false
+            }
+
+            IconActionRow {
+                PopupIconButton {
+                    icon: NerdIconMap.workspaceSnapshot
+                    label: sessionPanel.canvasEmpty ? "Snapshot" : "Snapshot"
+                    accent: TuiStyle.info
+                    enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
+                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "save"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.refresh
+                    label: "Restore"
+                    accent: TuiStyle.accent
+                    enabledState: sessionPanel.hasSnapshot
+                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "restore"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.close
+                    label: "Clear"
+                    accent: TuiStyle.danger
+                    enabledState: sessionPanel.hasSnapshot
+                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "clear"]); }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: clipboardContent
+        PopupColumn {
+            id: clipboardPanel
+            property list<string> entries: Cliphist.entries
+
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.contentPaste
+                title: "Clipboard"
+                subtitle: `${clipboardPanel.entries.length} item${clipboardPanel.entries.length === 1 ? "" : "s"} in history`
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.preferredHeight: Math.min(clipboardPanel.entries.length * 38 + 8, 300)
+                color: TuiStyle.panel
+                radius: TuiStyle.radius
+                clip: true
+                visible: clipboardPanel.entries.length > 0
+
+                ListView {
+                    id: clipboardListView
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    spacing: 2
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: clipboardPanel.entries.slice(0, 10)
+                    ScrollBar.vertical: StyledScrollBar {}
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: clipboardListView.width - 8
+                        height: 38
+                        radius: 8
+                        color: itemMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+
+                        Behavior on color { ColorAnimation { duration: 80 } }
+
+                        MouseArea {
+                            id: itemMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Cliphist.copy(modelData);
+                                root.close();
+                            }
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 8
+
+                            NerdIcon {
+                                iconSize: 14
+                                text: NerdIconMap.contentPaste
+                                color: itemMouse.containsMouse ? TuiStyle.accent : TuiStyle.dim
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                verticalAlignment: Text.AlignVCenter
+                                text: modelData.replace(/^\s*\S+\s+/, "")
+                                elide: Text.ElideRight
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                color: itemMouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Top divider for footer
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                height: 1
+                color: TuiStyle.line
+                opacity: 0.10
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 8
+                Layout.bottomMargin: 8
+                spacing: 10
+
+                StyledText {
+                    text: "Clipboard manager…"
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    color: linkMouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    MouseArea {
+                        id: linkMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.close();
+                            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`, "toggle"]);
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    visible: clipboardPanel.entries.length > 0
+                    implicitWidth: Math.max(88, clearClipLabel.implicitWidth + 24)
+                    implicitHeight: 32
+                    radius: TuiStyle.radius
+                    color: clearClipMouse.pressed ? TuiStyle.controlHover
+                        : clearClipMouse.containsMouse ? TuiStyle.controlHover
+                        : TuiStyle.control
+                    border.width: 0
+
+                    StyledText {
+                        id: clearClipLabel
+                        anchors.centerIn: parent
+                        text: "Clear All"
+                        font.family: Appearance.font.family.main
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.Medium
+                        color: TuiStyle.fg
+                    }
+
+                    MouseArea {
+                        id: clearClipMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { Cliphist.wipe(); root.close(); }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: xkbContent
+        PopupColumn {
+            id: xkbPanel
+            property list<string> layouts: HyprlandXkb.layoutCodes
+
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.keyboard
+                title: "Keyboard Layout"
+                subtitle: HyprlandXkb.currentLayoutName || "Unknown layout"
+                tone: TuiStyle.accent
+                showDivider: true
+            }
+
+            Repeater {
+                model: xkbPanel.layouts
+                delegate: Rectangle {
+                    required property string modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    color: modelData === HyprlandXkb.currentLayoutName ? TuiStyle.panelAlt
+                        : layoutMouse.containsMouse ? TuiStyle.surfaceHover
+                        : "transparent"
+                    radius: TuiStyle.miniRadius
+
+                    MouseArea {
+                        id: layoutMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Quickshell.execDetached(["hyprctl", "switchxkblayout", "all", `${xkbPanel.layouts.indexOf(modelData)}`]);
+                            root.close();
+                        }
+                    }
+
+                    StyledText {
+                        anchors.left: parent.left; anchors.leftMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData
+                        font.family: Appearance.font.family.main
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: modelData === HyprlandXkb.currentLayoutName ? Font.DemiBold : Font.Normal
+                        color: modelData === HyprlandXkb.currentLayoutName ? TuiStyle.fg : TuiStyle.dim
+                    }
+
+                    NerdIcon {
+                        anchors.right: parent.right; anchors.rightMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconSize: 14
+                        text: NerdIconMap.check
+                        color: TuiStyle.accent
+                        visible: modelData === HyprlandXkb.currentLayoutName
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: wifiContent
+        PopupColumn {
+            id: wifiPanel
+
+            function connStatus() {
+                if (Network.ethernet) return "Connected";
+                if (!Network.wifiEnabled || Network.wifiStatus === "disabled") return "Disabled";
+                const s = Network.wifiStatus || "disconnected";
+                return s.charAt(0).toUpperCase() + s.slice(1);
+            }
+            function connTone() {
+                const s = wifiPanel.connStatus();
+                if (s === "Connected") return TuiStyle.success;
+                if (s === "Disabled") return TuiStyle.danger;
+                if (s === "Connecting" || s === "Limited") return TuiStyle.warning;
+                return TuiStyle.muted;
+            }
+            function connIcon() {
+                return Network.ethernet ? NerdIconMap.ethernet : NerdIconMap.wifi
+            }
+            function connName() {
+                if (Network.ethernet) return Network.networkName || "Wired Connection";
+                return Network.active?.ssid || Network.networkName || "Not connected";
+            }
+            function connDetail() {
+                if (Network.ethernet) return "";
+                if (!Network.ethernet && Network.wifiStatus === "connected")
+                    return `Signal: ${Network.active?.strength ?? Network.networkStrength}%  ·  ${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} visible`;
+                return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} visible`;
+            }
+
+            PopupDeviceRow {
+                Layout.fillWidth: true
+                icon: wifiPanel.connIcon()
+                name: wifiPanel.connName()
+                detail: wifiPanel.connDetail()
+                status: wifiPanel.connStatus()
+                statusColor: wifiPanel.connTone()
+            }
+
+            PopupToggleRow {
+                label: "Wi-Fi"
+                checked: Network.wifiEnabled
+                onToggled: checked => Network.enableWifi(checked)
+            }
+
+            PopupToggleRow {
+                label: "Bluetooth"
+                checked: BluetoothStatus.enabled
+                enabled: BluetoothStatus.available
+                onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
+                showDivider: false
+            }
+
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "Network settings…"
+                onClicked: root.openDialog("wifi")
             }
         }
     }
@@ -391,24 +809,37 @@ Scope {
         PopupColumn {
             id: bluetoothPanel
             function stateLabel() {
-                if (!BluetoothStatus.available) return "unavailable";
-                if (!BluetoothStatus.enabled) return "disabled";
-                if (BluetoothStatus.connected) return "connected";
-                return "on";
+                if (!BluetoothStatus.available) return "Unavailable";
+                if (!BluetoothStatus.enabled) return "Off";
+                if (BluetoothStatus.connected) return "Connected";
+                return "On";
             }
             function tone() {
-                if (stateLabel() === "connected") return TuiStyle.success;
-                if (stateLabel() === "disabled") return TuiStyle.danger;
+                if (stateLabel() === "Connected") return TuiStyle.success;
+                if (stateLabel() === "Off" || stateLabel() === "Unavailable") return TuiStyle.danger;
                 return TuiStyle.muted;
             }
 
-            Header { title: "BLUETOOTH"; status: bluetoothPanel.stateLabel().toUpperCase(); tone: bluetoothPanel.tone() }
-            TuiDetailRow { keyText: "ADAPTER"; valueText: BluetoothStatus.available ? "present" : "missing"; valueColor: BluetoothStatus.available ? TuiStyle.success : TuiStyle.danger }
-            TuiDetailRow { keyText: "ENABLED"; valueText: BluetoothStatus.enabled ? "yes" : "no"; valueColor: BluetoothStatus.enabled ? TuiStyle.success : TuiStyle.danger }
-            TuiDetailRow { keyText: "DEVICES"; valueText: `${BluetoothStatus.friendlyDeviceList?.length ?? 0} total`; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "CONNECTED"; valueText: `${BluetoothStatus.activeDeviceCount}`; valueColor: BluetoothStatus.connected ? TuiStyle.success : TuiStyle.muted }
-            ActionRow {
-                TuiActionButton { label: "MANAGE"; onClicked: root.openDialog("bluetooth") }
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.bluetooth
+                title: "Bluetooth"
+                subtitle: `${stateLabel()}  ·  ${BluetoothStatus.activeDeviceCount} connected`
+                tone: tone()
+            }
+
+            PopupToggleRow {
+                label: "Bluetooth"
+                checked: BluetoothStatus.enabled
+                enabled: BluetoothStatus.available
+                onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
+                showDivider: false
+            }
+
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "Bluetooth settings…"
+                onClicked: root.openDialog("bluetooth")
             }
         }
     }
@@ -434,52 +865,18 @@ Scope {
             readonly property string trackArtist: activePlayer?.trackArtist ?? ""
             readonly property bool isPlaying: activePlayer?.isPlaying ?? false
 
-            function headerStatus() {
-                if (audioPanel.sinkMuted) return "MUTED";
-                return `${Math.round(audioPanel.sinkVolume * 100)}%`;
-            }
-
-            function headerTone() {
-                if (audioPanel.sinkMuted) return TuiStyle.danger;
-                return TuiStyle.accent;
-            }
-
-            function voiceStateLabel() {
-                if (VoiceInput.state === "idle") return "ready";
-                if (VoiceInput.state === "recording") return "recording";
-                if (VoiceInput.state === "transcribing") return "transcribing";
-                return VoiceInput.state;
-            }
-
-            function pinOpen() {
-                GlobalStates.barPopupEphemeral = false;
-            }
-
-            function setSinkVolume(value) {
-                audioPanel.pinOpen();
-                Audio.setSinkVolume(value);
-            }
-
-            function setSourceVolume(value) {
-                audioPanel.pinOpen();
-                Audio.setSourceVolume(value);
-            }
+            function pinOpen() { GlobalStates.barPopupEphemeral = false; }
+            function setSinkVolume(value) { audioPanel.pinOpen(); Audio.setSinkVolume(value); }
+            function setSourceVolume(value) { audioPanel.pinOpen(); Audio.setSourceVolume(value); }
 
             ColumnLayout {
                 id: audioColumn
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                spacing: 10
+                spacing: 0
 
-                Header {
-                    title: "AUDIO"
-                    status: audioPanel.headerStatus()
-                    tone: audioPanel.headerTone()
-                }
-
-                SectionLabel { text: "OUTPUT"; topInset: 0 }
-
+                // ── Sliders (no header above them) ────────────────────────
                 AudioSliderRow {
                     icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
                     level: audioPanel.sinkVolume
@@ -487,18 +884,6 @@ Scope {
                     onMoved: value => audioPanel.setSinkVolume(value)
                     onIconClicked: Audio.toggleMute()
                 }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    Layout.topMargin: -6
-                    text: audioPanel.sink ? Audio.friendlyDeviceName(audioPanel.sink) : "--"
-                    wrapMode: Text.Wrap
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: TuiStyle.dim
-                }
-
-                SectionLabel { text: "INPUT" }
 
                 AudioSliderRow {
                     icon: audioPanel.sourceMuted ? NerdIconMap.micOff : NerdIconMap.mic
@@ -508,14 +893,84 @@ Scope {
                     onIconClicked: Audio.toggleMicMute()
                 }
 
-                StyledText {
+                Divider {}
+
+                // ── Output device info ────────────────────────────────────
+                Item {
                     Layout.fillWidth: true
-                    Layout.topMargin: -6
-                    text: audioPanel.source ? Audio.friendlyDeviceName(audioPanel.source) : "--"
-                    wrapMode: Text.Wrap
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: TuiStyle.dim
+                    implicitHeight: outputColumn.implicitHeight + 16
+                    visible: true
+
+                    ColumnLayout {
+                        id: outputColumn
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: 20
+                            rightMargin: 20
+                        }
+                        spacing: 2
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Output"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.normal + 1
+                            font.weight: Font.Medium
+                            color: TuiStyle.fg
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: audioPanel.sink ? Audio.friendlyDeviceName(audioPanel.sink) : "--"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: TuiStyle.dim
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+
+                // ── Input device info ─────────────────────────────────────
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: inputColumn.implicitHeight + 16
+                    visible: true
+
+                    ColumnLayout {
+                        id: inputColumn
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: 20
+                            rightMargin: 20
+                        }
+                        spacing: 2
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Input"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.normal + 1
+                            font.weight: Font.Medium
+                            color: TuiStyle.fg
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: audioPanel.source ? Audio.friendlyDeviceName(audioPanel.source) : "--"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: TuiStyle.dim
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+
+                PopupFooterLink {
+                    Layout.fillWidth: true
+                    label: "Sound Settings…"
+                    onClicked: { root.close(); Quickshell.execDetached(["pavucontrol"]); }
                 }
             }
 
@@ -535,14 +990,64 @@ Scope {
             readonly property var brightnessMonitor: Brightness.getMonitorForScreen(Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0])
             readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
 
-            Header { title: "DISPLAY"; status: Hyprsunset.temperatureActive ? "NIGHT" : "NORMAL"; tone: Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.muted }
-            TuiMeterBar { Layout.fillWidth: true; Layout.preferredHeight: 10; value: brightnessValue * 100; accent: TuiStyle.warning }
-            TuiDetailRow { keyText: "BRIGHTNESS"; valueText: `${Math.round(brightnessValue * 100)}%`; valueColor: TuiStyle.warning }
-            TuiDetailRow { keyText: "NIGHT"; valueText: Hyprsunset.temperatureActive ? "on" : "off"; valueColor: Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.muted }
-            TuiDetailRow { keyText: "TEMP"; valueText: Hyprsunset.temperatureActive ? `${Hyprsunset.colorTemperature}K` : "--"; valueColor: TuiStyle.muted }
-            TuiDetailRow { keyText: "SCREENS"; valueText: `${Quickshell.screens.length}`; valueColor: TuiStyle.success }
-            ActionRow {
-                TuiActionButton { label: "SETTINGS"; onClicked: root.openDialog("nightlight") }
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.desktop
+                title: "Display"
+                subtitle: `Brightness ${Math.round(brightnessValue * 100)}%` +
+                    (Hyprsunset.temperatureActive ? "  ·  Night mode on" : "")
+                tone: Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.accent
+            }
+
+            // Brightness slider
+            AudioSliderRow {
+                icon: NerdIconMap.brightness6
+                level: brightnessValue
+                muted: false
+                onMoved: value => {
+                    const screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0];
+                    Brightness.setBrightnessForScreen(screen, value);
+                }
+            }
+
+            PopupToggleRow {
+                label: "Night mode"
+                checked: Hyprsunset.temperatureActive
+                onToggled: checked => Hyprsunset.toggleTemperature(checked)
+                showDivider: false
+            }
+
+            IconActionRow {
+                PopupIconButton {
+                    icon: NerdIconMap.screenshot
+                    label: "Capture"
+                    accent: TuiStyle.fg
+                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.edit
+                    label: "& Edit"
+                    accent: TuiStyle.info
+                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "edit"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.eyeDropper
+                    label: "Picker"
+                    accent: TuiStyle.accent
+                    onClicked: { root.close(); Quickshell.execDetached(["hyprpicker", "-a"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.video
+                    label: "Record"
+                    accent: TuiStyle.danger
+                    onClicked: { root.close(); Quickshell.execDetached([Directories.recordScriptPath]); }
+                }
+            }
+
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "Display settings…"
+                onClicked: root.openDialog("display")
             }
         }
     }
@@ -650,9 +1155,11 @@ Scope {
                 }
             }
 
-            Header {
-                title: batteryStack.headerTitle()
-                status: batteryStack.headerStatus()
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: Battery.available ? NerdIconMap.batteryFull : NerdIconMap.power
+                title: Battery.available ? "Power & Battery" : "Power"
+                subtitle: batteryStack.headerStatus() + (batteryStack.showTimeEstimate() ? "  ·  " + batteryStack.timeEstimateValue() + " remaining" : "")
                 tone: batteryStack.headerTone()
             }
 
@@ -707,31 +1214,84 @@ Scope {
             SectionLabel {
                 visible: PowerProfiles.available
                 text: "POWER PROFILE"
-                topInset: Battery.available ? 2 : 0
+                topInset: Battery.available ? 4 : 0
             }
 
-            TileTrack {
-                Layout.preferredHeight: 40
+            // ── Power Profile — vertical list, GNOME style ───────────────
+            Item {
+                Layout.fillWidth: true
                 visible: PowerProfiles.available
+                implicitHeight: profileList.implicitHeight
 
-                PanelTile {
-                    active: PowerProfiles.currentProfile === "power-saver"
-                    icon: NerdIconMap.eco
-                    label: "SAVER"
-                    onClicked: PowerProfiles.setProfile("power-saver")
-                }
-                PanelTile {
-                    active: PowerProfiles.currentProfile === "balanced"
-                    icon: NerdIconMap.balance
-                    label: "BALANCED"
-                    onClicked: PowerProfiles.setProfile("balanced")
-                }
-                PanelTile {
-                    active: PowerProfiles.currentProfile === "performance"
-                    icon: NerdIconMap.speed
-                    label: "PERFORMANCE"
-                    showDivider: false
-                    onClicked: PowerProfiles.setProfile("performance")
+                ColumnLayout {
+                    id: profileList
+                    anchors { left: parent.left; right: parent.right }
+                    spacing: 0
+
+                    Repeater {
+                        model: [
+                            { id: "power-saver",   title: "Power Saver",   desc: "Reduced power usage and performance." },
+                            { id: "balanced",      title: "Balanced",      desc: "Standard performance and battery usage." },
+                            { id: "performance",   title: "High Performance", desc: "High performance and power usage." }
+                        ]
+
+                        delegate: Item {
+                            Layout.fillWidth: true
+                            implicitHeight: profileRow.implicitHeight + 20
+
+                            required property var modelData
+                            readonly property bool isActive: PowerProfiles.currentProfile === modelData.id
+
+                            RowLayout {
+                                id: profileRow
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                    leftMargin: 20
+                                    rightMargin: 20
+                                }
+                                spacing: 8
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: modelData.title
+                                        font.family: Appearance.font.family.main
+                                        font.pixelSize: Appearance.font.pixelSize.normal + 1
+                                        font.weight: Font.Medium
+                                        color: TuiStyle.fg
+                                    }
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: modelData.desc
+                                        font.family: Appearance.font.family.main
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        color: TuiStyle.dim
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                // Checkmark for active profile
+                                NerdIcon {
+                                    iconSize: 16
+                                    text: NerdIconMap.check
+                                    color: TuiStyle.accent
+                                    visible: isActive
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: PowerProfiles.setProfile(modelData.id)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -932,21 +1492,30 @@ Scope {
     Component {
         id: notificationsContent
         PopupColumn {
-            Header {
+            PopupHeader {
                 Layout.fillWidth: true
+                icon: NerdIconMap.notifications
                 title: "Notifications"
-                status: Notifications.silent
+                subtitle: Notifications.silent
                     ? "Do not disturb"
                     : (Notifications.list.length === 0
                         ? "All clear"
-                        : `${Notifications.list.length} item${Notifications.list.length === 1 ? "" : "s"}`)
+                        : `${Notifications.list.length} notification${Notifications.list.length === 1 ? "" : "s"}`)
                 tone: Notifications.silent ? TuiStyle.warning : TuiStyle.success
+            }
+
+            PopupToggleRow {
+                label: "Do not disturb"
+                checked: Notifications.silent
+                onToggled: checked => Notifications.toggleSilent()
+                showDivider: false
             }
 
             TuiNotificationList {
                 Layout.fillWidth: true
                 showHeader: false
                 showFooter: true
+                showFooterDnd: false
                 compactRows: true
                 markReadOnVisible: true
                 maxListHeight: Math.max(420, (popupWindow.screen?.height ?? 900) - Appearance.sizes.barHeight - 150)
@@ -960,30 +1529,34 @@ Scope {
             id: voicePanel
 
             function stateLabel() {
-                if (VoiceInput.state === "setup") return "未安装";
-                if (VoiceInput.state === "idle") return "就绪";
-                if (VoiceInput.state === "recording") return "录音中";
-                if (VoiceInput.state === "transcribing") return "转写中";
-                if (VoiceInput.state === "success") return "完成";
-                if (VoiceInput.state === "error") return "错误";
+                if (VoiceInput.state === "setup") return "Not Installed";
+                if (VoiceInput.state === "idle") return "Ready";
+                if (VoiceInput.state === "recording") return "Recording";
+                if (VoiceInput.state === "transcribing") return "Transcribing";
+                if (VoiceInput.state === "success") return "Transcription Success";
+                if (VoiceInput.state === "error") return "Error";
                 return VoiceInput.state;
             }
             function tone() {
                 if (VoiceInput.state === "idle" || VoiceInput.state === "success") return TuiStyle.success;
-                if (VoiceInput.state === "recording") return TuiStyle.danger;
-                if (VoiceInput.state === "error") return TuiStyle.danger;
+                if (VoiceInput.state === "recording" || VoiceInput.state === "error") return TuiStyle.danger;
                 if (VoiceInput.state === "transcribing" || VoiceInput.state === "setup") return TuiStyle.warning;
                 return TuiStyle.muted;
             }
 
-            Header { title: "VOICE INPUT"; status: voicePanel.stateLabel().toUpperCase(); tone: voicePanel.tone() }
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.mic
+                title: "Voice Input"
+                subtitle: voicePanel.stateLabel()
+                tone: voicePanel.tone()
+            }
 
-            // ── 模型状态 ──
+            // Model status card
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: modelCol.implicitHeight + 16
                 color: TuiStyle.panel
-                border.width: 0
                 radius: TuiStyle.radius
                 clip: true
 
@@ -991,63 +1564,36 @@ Scope {
                     id: modelCol
                     anchors.fill: parent
                     anchors.margins: 8
-                    spacing: 6
+                    spacing: 4
 
-                    StyledText {
-                        text: "MODEL STATUS"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: TuiStyle.dim
-                    }
-
-                    TuiDetailRow {
-                        keyText: "MODEL"
-                        valueText: VoiceInput.modelSizeMB > 0 ? `SenseVoice Small (${VoiceInput.modelSizeMB} MB)` : "missing"
+                    PopupInfoRow {
+                        label: "Model"
+                        value: VoiceInput.modelSizeMB > 0 ? `SenseVoice Small (${VoiceInput.modelSizeMB} MB)` : "Missing"
                         valueColor: VoiceInput.modelSizeMB > 0 ? TuiStyle.success : TuiStyle.danger
+                        showDivider: true
                     }
 
-                    TuiDetailRow {
-                        keyText: "STATUS"
-                        valueText: VoiceInput.daemonRunning ? "Active (RAM Loaded)" : "Standby (0 RAM)"
-                        valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.muted
+                    PopupInfoRow {
+                        label: "Daemon Status"
+                        value: VoiceInput.daemonRunning ? "Active (RAM Loaded)" : "Standby"
+                        valueColor: VoiceInput.daemonRunning ? TuiStyle.success : TuiStyle.dim
+                        showDivider: true
                     }
 
-                    TuiDetailRow {
-                        keyText: "VENV"
-                        valueText: VoiceInput.state === "setup" ? "missing" : "ready"
+                    PopupInfoRow {
+                        label: "Virtual Env"
+                        value: VoiceInput.state === "setup" ? "Missing" : "Ready"
                         valueColor: VoiceInput.state === "setup" ? TuiStyle.danger : TuiStyle.success
-                    }
-
-                    // 路径栏
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        StyledText {
-                            text: "MODEL PATH"
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: Appearance.font.pixelSize.smaller - 2
-                            font.weight: Font.Bold
-                            color: TuiStyle.dim
-                        }
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: VoiceInput.modelDir
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: Appearance.font.pixelSize.smaller - 1
-                            color: TuiStyle.muted
-                            elide: Text.ElideLeft
-                        }
+                        showDivider: false
                     }
                 }
             }
 
-            // ── 调试测试面板 ──
+            // Debug test section
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: debugCol.implicitHeight + 16
                 color: TuiStyle.panel
-                border.width: 0
                 radius: TuiStyle.radius
                 clip: true
                 visible: VoiceInput.state !== "setup"
@@ -1058,37 +1604,25 @@ Scope {
                     anchors.margins: 8
                     spacing: 8
 
-                    StyledText {
-                        text: "DEBUG TEST"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: TuiStyle.dim
-                    }
-
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
+                        spacing: 12
 
+                        // Circle button for record toggle
                         Rectangle {
                             id: debugRecBtn
-                            Layout.preferredWidth: 64
-                            Layout.preferredHeight: 64
-                            radius: 32
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 48
+                            radius: 24
                             color: VoiceInput.state === "recording" ? TuiStyle.danger : recMouse.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceRaised
-                            border.width: 2
-                            border.color: VoiceInput.state === "recording" ? TuiStyle.danger : recMouse.containsMouse ? TuiStyle.accent : TuiStyle.line
-
-                            Behavior on scale {
-                                NumberAnimation { duration: 120 }
-                            }
-                            scale: VoiceInput.state === "recording" ? 1.08 : 1.0
+                            border.width: 1
+                            border.color: VoiceInput.state === "recording" ? TuiStyle.danger : TuiStyle.line
 
                             NerdIcon {
                                 anchors.centerIn: parent
-                                iconSize: 32
+                                iconSize: 20
                                 text: VoiceInput.state === "recording" ? NerdIconMap.stop : NerdIconMap.mic
-                                color: VoiceInput.state === "recording" ? TuiStyle.bg : recMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                                color: VoiceInput.state === "recording" ? TuiStyle.fg : TuiStyle.fg
                             }
 
                             MouseArea {
@@ -1099,9 +1633,9 @@ Scope {
                                 enabled: VoiceInput.state === "idle" || VoiceInput.state === "recording"
                                 onClicked: {
                                     if (VoiceInput.state === "recording") {
-                                        VoiceInput.stopRecording()
-                                    } else if (VoiceInput.state === "idle") {
-                                        VoiceInput.testRecording()
+                                        VoiceInput.stopRecording();
+                                    } else {
+                                        VoiceInput.testRecording();
                                     }
                                 }
                             }
@@ -1109,7 +1643,7 @@ Scope {
 
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 4
+                            spacing: 2
 
                             StyledText {
                                 text: {
@@ -1129,46 +1663,45 @@ Scope {
                                 Layout.fillWidth: true
                                 text: VoiceInput.lastError || VoiceInput.lastTranscription || "—"
                                 wrapMode: Text.Wrap
-                                maximumLineCount: 4
+                                maximumLineCount: 2
                                 elide: Text.ElideRight
                                 font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: VoiceInput.lastError ? TuiStyle.danger : TuiStyle.fg
                             }
                         }
                     }
 
-                        ActionRow {
-                            TuiActionButton {
-                                label: "COPY TEXT"
-                                accent: TuiStyle.info
-                                enabled: VoiceInput.lastTranscription.length > 0
-                                onClicked: {
-                                    Quickshell.execDetached(["bash", "-c",
-                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy`])
-                                    VoiceInput.notify("Copied", VoiceInput.lastTranscription, "edit-copy")
-                                }
-                            }
-                            TuiActionButton {
-                                label: "COPY & PASTE"
-                                accent: TuiStyle.accent
-                                enabled: VoiceInput.lastTranscription.length > 0
-                                onClicked: {
-                                    Quickshell.execDetached(["bash", "-c",
-                                        `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
-                                        `'${VoiceInput.shareDir}/omd-paste-at-cursor' auto`])
-                                }
+                    ActionRow {
+                        TuiActionButton {
+                            label: "COPY TEXT"
+                            accent: TuiStyle.info
+                            enabled: VoiceInput.lastTranscription.length > 0
+                            onClicked: {
+                                Quickshell.execDetached(["bash", "-c",
+                                    `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy`]);
+                                VoiceInput.notify("Copied", VoiceInput.lastTranscription, "edit-copy");
                             }
                         }
+                        TuiActionButton {
+                            label: "PASTE"
+                            accent: TuiStyle.accent
+                            enabled: VoiceInput.lastTranscription.length > 0
+                            onClicked: {
+                                Quickshell.execDetached(["bash", "-c",
+                                    `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
+                                    `'${VoiceInput.shareDir}/omd-paste-at-cursor' auto`]);
+                            }
+                        }
+                    }
                 }
             }
 
-            // ── 识别历史 ──
+            // History section
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(historyList.implicitHeight + 16, 220)
+                Layout.preferredHeight: Math.min(historyList.implicitHeight + 16, 160)
                 color: TuiStyle.panel
-                border.width: 0
                 radius: TuiStyle.radius
                 clip: true
                 visible: VoiceInput.history.length > 0
@@ -1177,10 +1710,10 @@ Scope {
                     id: historyList
                     anchors.fill: parent
                     anchors.margins: 8
-                    spacing: 6
+                    spacing: 4
 
                     StyledText {
-                        text: `HISTORY (${VoiceInput.history.length})`
+                        text: `History (${VoiceInput.history.length})`
                         font.family: Appearance.font.family.monospace
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         font.weight: Font.Bold
@@ -1189,16 +1722,13 @@ Scope {
 
                     ColumnLayout {
                         spacing: 0
-
                         Repeater {
-                            model: VoiceInput.history
+                            model: VoiceInput.history.slice(0, 5)
                             delegate: Rectangle {
                                 required property var modelData
-                                required property int index
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 28
+                                Layout.preferredHeight: 24
                                 color: histMouse.containsMouse ? TuiStyle.panelAlt : "transparent"
-                                clip: true
 
                                 MouseArea {
                                     id: histMouse
@@ -1207,15 +1737,15 @@ Scope {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         Quickshell.execDetached(["bash", "-c",
-                                            `printf '%s' '${StringUtils.shellSingleQuoteEscape(modelData.text)}' | wl-copy`])
+                                            `printf '%s' '${StringUtils.shellSingleQuoteEscape(modelData.text)}' | wl-copy`]);
                                         root.close();
                                     }
                                 }
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 6
-                                    anchors.rightMargin: 6
+                                    anchors.leftMargin: 4
+                                    anchors.rightMargin: 4
                                     spacing: 8
 
                                     StyledText {
@@ -1223,7 +1753,6 @@ Scope {
                                         font.family: Appearance.font.family.monospace
                                         font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: TuiStyle.dim
-                                        Layout.preferredWidth: 36
                                     }
 
                                     StyledText {
@@ -1235,38 +1764,27 @@ Scope {
                                         color: histMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
                                     }
                                 }
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    height: TuiStyle.borderWidth
-                                    color: TuiStyle.line
-                                    opacity: 0.5
-                                }
                             }
                         }
                     }
                 }
             }
 
-            // ── 操作按钮 ──
             ActionRow {
                 TuiActionButton {
-                    label: VoiceInput.state === "setup" ? "安装" : "测试"
+                    label: VoiceInput.state === "setup" ? "Setup" : "Test"
                     accent: TuiStyle.info
                     onClicked: {
                         if (VoiceInput.state === "setup") {
                             VoiceInput.setup();
-                        } else if (VoiceInput.state === "idle") {
+                        } else {
                             VoiceInput.testRecording();
                         }
                         root.close();
                     }
                 }
-
                 TuiActionButton {
-                    label: "检查"
+                    label: "Check State"
                     accent: TuiStyle.accent
                     onClicked: {
                         VoiceInput.checkState();
@@ -1274,12 +1792,20 @@ Scope {
                         VoiceInput.refreshDaemonStatus();
                     }
                 }
-
                 TuiActionButton {
-                    label: "清除"
+                    label: "Clear History"
                     accent: TuiStyle.danger
                     visible: VoiceInput.history.length > 0
                     onClicked: VoiceInput.clearHistory()
+                }
+            }
+
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "Voice Settings…"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "voice"]);
                 }
             }
         }
