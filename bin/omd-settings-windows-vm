@@ -201,12 +201,12 @@ detect_phase_from_logs() {
     printf 'stopped'
   elif echo "$logs" | grep -qi 'windows started successfully\|rdp.*ready\|ready'; then
     printf 'ready'
+  elif echo "$logs" | grep -qi 'extract\|convert'; then
+    printf 'preparing'
   elif echo "$logs" | grep -qi 'download\|pull\|fetch'; then
     printf 'downloading'
   elif echo "$logs" | grep -Eq '[[:space:]][0-9]+%'; then
     printf 'downloading'
-  elif echo "$logs" | grep -qi 'extract\|convert'; then
-    printf 'preparing'
   elif echo "$logs" | grep -qi 'installing\|setup\|oobe'; then
     printf 'installing'
   elif echo "$logs" | grep -qi 'error\|failed\|panic'; then
