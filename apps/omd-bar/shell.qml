@@ -56,17 +56,16 @@ ShellRoot {
         Updates.load()
     }
 
-    LazyLoader {
-        active: Config.ready
-        component: Scope {
-            Bar {}
-            NotificationPopup {}
-            Lock {}
-            BarDismissLayer {}
-            BarStatusPopup {}
-            SessionConfirmOverlay {}
-            SessionAutoRestore {}
-            OnScreenDisplay {}
-        }
+    // Create top-level windows immediately. Gating this scope on Config.ready
+    // lets Quickshell exit during cold login/reload before any window exists.
+    Scope {
+        Bar {}
+        NotificationPopup {}
+        Lock {}
+        BarDismissLayer {}
+        BarStatusPopup {}
+        SessionConfirmOverlay {}
+        SessionAutoRestore {}
+        OnScreenDisplay {}
     }
 }

@@ -21,27 +21,23 @@ ShellRoot {
     id: root
 
     readonly property string initialPage: Quickshell.env("OMD_SETTINGS_PAGE") ?? "overview"
+    readonly property bool onDemand: (Quickshell.env("OMD_SETTINGS_ON_DEMAND") ?? "0") === "1"
 
     Component.onCompleted: {
-        if ((Quickshell.env("OMD_SETTINGS_ON_DEMAND") ?? "0") === "1") {
+        if (root.onDemand) {
             root.showSettings(root.initialPage);
         }
     }
 
     function showSettings(page: string) {
-        settingsLoader.active = true;
-        Qt.callLater(() => {
-            if (settingsLoader.item) {
-                settingsLoader.item.openPage(page);
-            }
-        });
+        settingsWindow.openPage(page);
     }
 
     function closeSettings() {
-        if (settingsLoader.item) {
-            settingsLoader.item.hidePage();
+        settingsWindow.hidePage();
+        if (root.onDemand) {
+            Qt.callLater(Qt.quit);
         }
-        Qt.quit();
     }
 
     IpcHandler {
@@ -56,7 +52,7 @@ ShellRoot {
         }
 
         function toggle(page: string): void {
-            if (settingsLoader.item && settingsLoader.item.isOpen) {
+            if (settingsWindow.isOpen) {
                 root.closeSettings();
             } else {
                 root.showSettings(page);
@@ -64,49 +60,44 @@ ShellRoot {
         }
     }
 
-    Loader {
-        id: settingsLoader
-        active: false
+    PanelWindow {
+        id: settingsWindow
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
 
-        sourceComponent: PanelWindow {
-            id: overlayWindow
-            anchors {
-                top: true
-                bottom: true
-                left: true
-                right: true
-            }
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.namespace: "quickshell:settings"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: settingsCenter.show ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        color: "transparent"
+        visible: true
 
-            exclusionMode: ExclusionMode.Ignore
-            WlrLayershell.namespace: "quickshell:bardialog"
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            color: "transparent"
-            visible: true
+        property bool isOpen: settingsCenter.show
 
-            property bool isOpen: settingsCenter.show
+        function close() {
+            root.closeSettings();
+        }
 
-            function close() {
-                root.closeSettings();
-            }
+        function openPage(page: string) {
+            settingsCenter.requestedPage = page || "overview";
+            settingsCenter.show = true;
+        }
 
-            function openPage(page: string) {
-                settingsCenter.requestedPage = page;
-                settingsCenter.show = true;
-            }
+        function hidePage() {
+            settingsCenter.show = false;
+        }
 
-            function hidePage() {
-                settingsCenter.show = false;
-            }
-
-            SettingsCenter {
-                id: settingsCenter
-                anchors.fill: parent
-                requestedPage: root.initialPage
-                visible: true
-                show: true
-                onDismiss: overlayWindow.close()
-            }
+        SettingsCenter {
+            id: settingsCenter
+            anchors.fill: parent
+            requestedPage: root.initialPage
+            visible: settingsCenter.show
+            show: false
+            onDismiss: settingsWindow.close()
         }
     }
 }
