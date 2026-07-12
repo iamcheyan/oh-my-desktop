@@ -1,5 +1,10 @@
 # 右侧模块间距问题排查
 
+> 归档说明：这份文档记录的是旧的 `rightModules` / `Repeater` / `Loader`
+> 配置化布局时期的排查过程。当前 topbar 已改为在
+> `quickshell/modules/bar/BarContent.qml` 里直接实例化固定模块，保留本文只
+> 用于理解历史间距问题，不应再按文中的 `rightModules` 操作步骤修改配置。
+
 ## 目标
 
 设置 `rightModuleSpacing: 0` 后，右侧所有图标应完全紧贴，无任何间距。

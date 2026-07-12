@@ -269,7 +269,7 @@ quickshell/modules/bar/
 ├── VoiceContextMenu.qml         # Right-click popup menu (Start, Test, Capture, Diagnostic)
 ├── AudioVoiceHoverPopup.qml     # Hover details for the combined audio/voice button
 ├── modules/AudioButton.qml      # Combined audio popup button and voice state/action button
-├── RightModuleRegistry.qml      # registers "util:audio"
+├── BarContent.qml               # instantiates AudioButton directly in the fixed topbar
 └── BarStatusPopup.qml           # adds voiceContent settings panel
 
 omarchy/hypr/

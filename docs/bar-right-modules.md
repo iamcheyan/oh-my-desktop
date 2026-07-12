@@ -1,255 +1,99 @@
-# Bar 右侧模块自定义：声明式模块列表
+# Bar 顶部模块布局
 
-## 用法
+顶部模块布局是固定代码路径，不再从 `quickshell/config.json` 读取
+`leftModules` / `centerModules` / `rightModules`。当前顺序直接定义在
+`quickshell/modules/bar/BarContent.qml`，这样可以避免启动时通过字符串查表和
+`Loader` 动态创建组件。
 
-在 `~/.config/quickshell/config.json` 的 `bar` 对象里配置两个属性：
+## 当前顺序
 
-```json
-"bar": {
-  "rightModuleSpacing": 8,
-  "rightModules": [
-    "sidebar",
-    "util:audio",
-    "util:idle",
-    "util:nightlight",
-    "util:mic",
-    "util:colorpicker",
-    "util:screenshot",
-    "util:clipboard",
-    "util:wifi",
-    "util:bluetooth",
-    "battery",
-    "media",
-    "systray",
-    "spacer",
-    "weather"
-  ]
-}
-```
+左侧:
 
-### rightModules
+- `AppLauncherButton`
+- `Workspaces`
+- `ActiveWindow`
 
-- **数组顺序**：第一个 = 最右，最后一个 = 最左（因为 bar 右侧用
-  `layoutDirection: Qt.RightToLeft` 渲染）
-- **模块在数组里 = 显示**，不在 = 隐藏。无需额外开关
-- 修改后保存文件，quickshell 自动热重载
+中间:
 
-### rightModuleSpacing
+- 留空，用来避开刘海屏/居中遮挡问题
 
-- 模块之间的像素间距（整数）
-- 默认 `8`
-- 设 `0` = 模块紧贴
-- 设 `16` = 宽松
+右侧:
 
-### rightIconSlotWidth / rightIconSize
+- `SysTray`
+- `AudioButton`
+- `KeyboardRemapButton`
+- `WifiButton`
+- `ClipboardButton`
+- `SessionButton`
+- `DisplayButton`
+- `ClockWidget`
+- `SidebarIndicators`
 
-- `rightIconSlotWidth`：OMD 自绘图标模块的固定点击槽宽度
-- `rightIconSize`：槽内 glyph/image 的绘制尺寸
-- 默认 `rightIconSlotWidth=28`、`rightIconSize=20`
-- 当前运行配置在 `quickshell/config.json`
-- 默认配置在 `quickshell/modules/common/Config.qml`
+如果以后确实要调整顶部图标位置，直接修改 `BarContent.qml`。不要重新添加
+用户可配置的模块数组，除非同时恢复完整的配置 UI、迁移逻辑和错误处理。
 
-OMD 自绘的 Nerd Font 顶部图标必须使用 `BarNerdIcon`：
+## 尺寸配置
+
+- `rightModuleSpacing`: 右侧模块之间的像素间距，默认 `8`
+- `rightIconSlotWidth`: OMD 自绘图标模块的固定点击槽宽度，默认 `28`
+- `rightIconSize`: 槽内 Nerd Font glyph 的绘制尺寸，默认 `20`
+
+OMD 自绘顶部图标必须使用 `BarNerdIcon`：
 
 ```qml
 BarNerdIcon {
-  text: NerdIconMap.volumeHigh
-  color: Appearance.colors.colBarText
+    text: NerdIconMap.volumeHigh
+    color: Appearance.colors.colBarText
 }
 ```
 
-`BarNerdIcon` 统一读取 `rightIconSize`，并给每个 glyph 一个固定绘制盒。
-它还会用 `TextMetrics` 做轻量 optical balance：组件按 glyph 的宽高最大
-墨迹尺寸做比例校正，窄 glyph 会在同一绘制盒里稍微放大，电池这类块状
-glyph 会适度缩小，避免不同图标因为墨迹面积不同而显得大小不一。
-不要在单个模块里写 `iconSize: Config.options.bar.rightIconSize + N`；要调
-整整体大小时修改 `rightIconSize`，要调视觉校正则修改 `BarNerdIcon`。
+`BarNerdIcon` 统一读取 `rightIconSize`，并用 `TextMetrics` 做轻量 optical
+balance。不要在单个模块里写 `iconSize: Config.options.bar.rightIconSize + N`；
+要调整体大小时改 `rightIconSize`，要调视觉校正时改 `BarNerdIcon`。
 
-Battery glyph selection is centralized in `BarBatteryIcon`. The top-bar
-`sidebar` battery indicator and the optional standalone `battery` module must
-use that component instead of duplicating `batteryCharging*` / `battery*`
-threshold logic. MDI battery glyphs are visually denser than the other symbols,
-so `BarBatteryIcon` applies the battery-specific scale in one place.
+`BarBatteryIcon` 集中处理电池 glyph 选择和视觉缩放。右侧电源/电池指示只应
+通过 `SidebarIndicators.qml` 使用它，不要再添加独立 `BatteryIndicator`
+模块。
 
-系统托盘图标来自外部应用。OMD 会在 `SysTrayItem` 中把它们限制到
-`rightIconSize`，但不同应用提供的 SVG/bitmap 内容本身可能仍然显得有轻重
-差异。时间是文本模块，也不会使用 `rightIconSlotWidth`。
+## 当前模块职责
 
-## 可用模块
-
-| name | 说明 |
+| 组件 | 职责 |
 |---|---|
-| `weather` | 天气 |
-| `systray` | 系统托盘 |
-| `media` | 媒体控制 |
-| `battery` | 电池 |
-| `sidebar` | 右侧边栏按钮（音量/麦克风静音/键盘布局/通知/电源指示） |
-| `spacer` | 兼容旧配置的零宽占位；不会额外撑开模块 |
-| `util:bluetooth` | 蓝牙对话框 |
-| `util:wifi` | WiFi 对话框 |
-| `util:clipboard` | 剪贴板对话框 |
-| `util:screenshot` | 截图工具 |
-| `util:colorpicker` | 取色器 |
-| `util:mic` | 麦克风静音切换 |
-| `util:nightlight` | 夜灯切换 |
-| `util:idle` | 阻止自动休眠 |
-| `util:audio` | 音量对话框 |
+| `AppLauncherButton.qml` | 启动应用程序启动器 |
+| `Workspaces.qml` | 工作区切换 |
+| `ActiveWindow.qml` | 当前窗口图标和标题 |
+| `SysTray.qml` | 系统托盘和托盘溢出菜单 |
+| `AudioButton.qml` | 音量弹窗、滚轮调音量、语音输入状态/右键菜单 |
+| `KeyboardRemapButton.qml` | 键盘映射状态和设置入口 |
+| `WifiButton.qml` | 网络设置入口和右键网络菜单 |
+| `ClipboardButton.qml` | 剪贴板 UI / 双击粘贴最新内容 |
+| `SessionButton.qml` | 工作区快照保存/恢复 |
+| `DisplayButton.qml` | 截图入口、截图菜单、滚轮亮度 |
+| `ClockWidget.qml` | 时间文本和通知未读点，点击打开通知面板 |
+| `SidebarIndicators.qml` | 键盘布局、电源/电池入口 |
 
-## 示例
+## 运行时共享状态
 
-### 精简布局（只保留托盘、电池、电源）
+`BarRuntime.qml` 放置 bar 内部共享但不值得升格成全局 service 的状态。
+目前它集中维护截图选择器是否活动，供 `BarDismissLayer.qml` 和
+`BarStatusPopup.qml` 共用，避免两个组件各自每 100ms spawn `test -f`。
 
-```json
-"rightModules": [
-  "sidebar",
-  "battery",
-  "systray",
-  "spacer"
-]
-```
+## 已移除的旧路径
 
-### 紧凑无间距
+这些组件是旧的可配置 topbar 遗留模块，当前固定布局不再加载：
 
-```json
-"rightModuleSpacing": 0,
-"rightModules": [ ... ]
-```
+- `LeftModuleRegistry.qml`
+- `RightModuleRegistry.qml`
+- `BatteryIndicator.qml`
+- `Media.qml`
+- `MediaHoverPopup.qml`
+- `BluetoothHoverPopup.qml`
+- `SpacerItem.qml`
+- `modules/BluetoothButton.qml`
+- `modules/ColorPickerButton.qml`
+- `modules/IdleButton.qml`
+- `modules/MicButton.qml`
+- `modules/ScreenshotButton.qml`
 
-### 天气放最右边
-
-```json
-"rightModules": [
-  "weather",
-  "sidebar",
-  "battery",
-  "systray",
-  "spacer"
-]
-```
-
-## 实现细节
-
-- `Config.qml`：`bar.rightModules`（`list<string>`）和
-  `bar.rightModuleSpacing`（`int`，默认 8）
-- `RightModuleRegistry.qml`：模块名 → Component 映射
-- `BarContent.qml`：右侧 `RowLayout` 用 `Repeater` 遍历
-  `rightModules`，`spacing` 绑定到 `rightModuleSpacing`
-- 各模块组件在 `quickshell/modules/bar/modules/` 目录
-- `SidebarIndicators.qml`：从原 BarContent 抽出的右侧边栏指示器
-- `SpacerItem.qml`：零宽占位，保留旧配置里的 `"spacer"` 不会影响间距
-
-## 原版图标参考（已废弃 — 旧 CosmicIcon/freedesktop 格式）
-
-> ⚠️ 以下图标名称是迁移到 Nerd Font 之前的旧版本，仅供参考。当前所有 Bar 模块已迁移到 NerdIcon + NerdIconMap 系统，见下方 "NerdFont 图标系统" 章节。
-
-所有文件位于 `quickshell/modules/bar/`。
-
-### 左侧模块
-
-| 模块 | 图标 | 文件 |
-|------|------|------|
-| `appLauncher` | 无（文本 "Applications"） | `modules/AppLauncherButton.qml` |
-| `workspaces` | 无（文本 "Workspaces"） | `Workspaces.qml` |
-| `activeWindow` | 动态窗口图标 / OS logo | `ActiveWindow.qml` |
-
-### 右侧工具模块（CosmicIcon，freedesktop 格式）
-
-| 模块 | 图标 | 文件 |
-|------|------|------|
-| `util:audio` | `status/audio-volume-high-symbolic`（静音: `status/audio-volume-muted-symbolic`；录音时显示 mic/hourglass 状态） | `modules/AudioButton.qml` |
-| `util:wifi` | `status/network-wireless-signal-good-symbolic` 等信号变体 | `modules/WifiButton.qml`（图标来自 `services/Network.qml`） |
-| `util:bluetooth` | `status/bluetooth-active-symbolic`（连接）/ `devices/bluetooth-symbolic`（未连接）/ `status/bluetooth-disabled-symbolic`（禁用） | `modules/BluetoothButton.qml` |
-| `util:mic` | `status/microphone-sensitivity-high-symbolic`（静音: `status/microphone-sensitivity-muted-symbolic`） | `modules/MicButton.qml` |
-| `util:clipboard` | `actions/edit-paste-symbolic` | `modules/ClipboardButton.qml` |
-| `util:nightlight` | `status/display-brightness-symbolic` | `modules/NightLightButton.qml` |
-| `util:colorpicker` | `actions/pencil-symbolic` | `modules/ColorPickerButton.qml` |
-| `util:idle` | `actions/image-redeye-symbolic`（抑制中: `actions/document-properties-symbolic`） | `modules/IdleButton.qml` |
-| `util:screenshot` | `apps/accessories-screenshot-symbolic` | `modules/ScreenshotButton.qml` |
-
-### 右侧信息模块
-
-| 模块 | 图标 | 文件 |
-|------|------|------|
-| `battery` | `devices/battery-symbolic`（充电: `status/plugged-into-power-symbolic`） | `BatteryIndicator.qml` |
-| `media` | `actions/media-playback-pause-symbolic`（播放中）/ `actions/media-playback-start-symbolic`（暂停）/ `apps/multimedia-audio-player-symbolic`（无播放器） | `Media.qml` |
-| `sidebar` | 内含指示器：`status/audio-volume-muted-symbolic` / `devices/battery-symbolic` / `status/plugged-into-power-symbolic` | `SidebarIndicators.qml` |
-| `notification` | `status/notification-symbolic`（静默: `status/notification-disabled-symbolic`） | `NotificationUnreadCount.qml` |
-| `systray` | 溢出菜单：`actions/pan-down-symbolic`；托盘项使用动态图标 | `SysTray.qml` |
-| `clock` | 无（纯文本时钟） | `ClockWidget.qml` |
-
-### WiFi 信号强度图标变体（`Network.nerdIcon`）
-
-WiFi 图标现在统一使用 `NerdIconMap.wifi`，不再区分信号强度变体（Nerd Font 没有信号强度变体码点）。
-
-### NerdFont 图标系统
-
-OMD 的 Bar 图标使用 **Nerd Font glyphs**。顶部 bar 自绘图标通过
-`BarNerdIcon` 统一尺寸并做 optical balance，底层由 `NerdIcon` 渲染；
-图标映射定义在 `NerdIconMap.qml` 单例中。
-
-**字体**：`JetBrainsMono Nerd Font Mono`（与 Omarchy 上游 Waybar 一致）
-
-**配置位置**：
-- `quickshell/modules/common/Config.qml:87` → `iconNerd: "JetBrainsMono Nerd Font Mono"`
-- `quickshell/modules/common/widgets/NerdIcon.qml` → 渲染组件
-- `quickshell/modules/common/widgets/NerdIconMap.qml` → 图标名称 → Unicode 映射
-
-### 模块图标映射
-
-| 模块 | 图标 | NerdIconMap 属性 | 文件 |
-|------|------|-----------------|------|
-| `util:audio` | 🔊 / 🔇 | `volumeHigh` / `volumeOff` | `AudioButton.qml` |
-| `util:bluetooth` | 🔵 | `bluetoothConnected` / `bluetooth` / `bluetoothDisabled` | `BluetoothButton.qml` |
-| `util:clipboard` | 📋 | `contentPaste` | `ClipboardButton.qml` |
-| `util:colorpicker` | ✏️ | `edit` | `ColorPickerButton.qml` |
-| `util:idle` | 🚫 / 👁 | `block` / `visibility` | `IdleButton.qml` |
-| `util:mic` | 🎤 / 🔇 | `mic` / `micOff` | `MicButton.qml` |
-| `util:nightlight` | ☀️ | `brightness6` | `NightLightButton.qml` |
-| `util:screenshot` | 📸 | `screenshot` | `ScreenshotButton.qml` |
-| `util:wifi` | 📶 | `Network.nerdIcon`（动态） | `WifiButton.qml` |
-| `sidebar` | 🔇+🔋 | `volumeOff` / `power` / `batteryFull` | `SidebarIndicators.qml` |
-| `battery` | 🔋 | `power` / `batteryFull` | `BatteryIndicator.qml` |
-| `media` | ♾ / ⏯ | `musicNote` / `pause` / `play` | `Media.qml` |
-| `notification` | 🔔 | `notifications` / `notificationsOff` | `NotificationUnreadCount.qml` |
-| `systray` | ▼ | `expandMore` | `SysTray.qml` |
-| `resources` | 💾/🔄/⚙ | `memory` / `swapHoriz` / `cpu` | `Resource.qml` |
-
-### 悬浮弹窗图标
-
-| 弹窗 | 图标用途 | NerdIconMap 属性 |
-|------|---------|-----------------|
-| `BatteryHoverPopup` | 电池/充电/时间/功率/配置 | `batteryFull` / `bolt` / `schedule` / `settings` |
-| `BatteryPopup` | 电池详情 | `batteryFull` / `bolt` / `schedule` / `favorite` |
-| `WifiHoverPopup` | 网络状态/SSID/信号 | `Network.nerdIcon` / `wifi` |
-| `BluetoothHoverPopup` | 蓝牙状态/设备 | `bluetooth` / `bluetoothConnected` / `bluetoothDisabled` |
-| `ClockHoverPopup` | 时区 | `circle` |
-| `MediaHoverPopup` | 播放/专辑/均衡器/循环/随机 | `pause` / `play` / `album` / `graphicEq` / `repeat` / `shuffle` |
-
-### 公共组件图标
-
-| 组件 | 用途 | 文件 |
-|------|------|------|
-| `StyledPopupValueRow` | 弹窗值行图标 | `StyledPopupValueRow.qml` |
-| `StyledPopupHeaderRow` | 弹窗标题行图标 | `StyledPopupHeaderRow.qml` |
-| `BarContextMenuItem` | 右键菜单项图标 | `BarContextMenuItem.qml` |
-
-### 与 Omarchy 上游的关系
-
-OMD 的 Bar 图标字体与 Omarchy 官方 Waybar 一致：
-
-| 项目 | 字体 | 来源 |
-|------|------|------|
-| Omarchy Waybar | `JetBrainsMono Nerd Font` | `config/waybar/style.css:10` |
-| OMD Quickshell Bar | `JetBrainsMono Nerd Font Mono` | `Config.qml:87` |
-
-两者使用同一字体族（Mono 变体），图标 Unicode 码点完全兼容。
-
-## 图标尺寸与光学补偿规范
-
-为了确保各组件图标在视觉重量上尽量一致，OMD 状态栏右侧模块禁止在
-单个模块中硬编码图标物理尺寸。所有 OMD 自绘图标都应使用 `BarNerdIcon`。
-
-`BarNerdIcon` 的基础字号来自 `rightIconSize`，外围点击槽来自
-`rightIconSlotWidth`。组件内部会测量 glyph 的实际墨迹尺寸并自动做轻量
-optical balance；例如麦克风、音量这类窄 glyph 会稍微放大，电池这类块状
-glyph 会适度缩小，但这个逻辑只存在于 `BarNerdIcon` 一处。
+如果以后要恢复某个按钮，应该按当前固定布局直接加入 `BarContent.qml`，同时
+确认对应服务和设置入口仍然有效。

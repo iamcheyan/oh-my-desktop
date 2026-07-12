@@ -50,6 +50,11 @@ The topbar has a workspace session icon through the `util:session` module.
 - Saved snapshot: the menu shows `Restore Workspace Snapshot`.
 - A saved snapshot can also be cleared from the menu.
 
+For the idle topbar icon state, `SessionButton.qml` reads `last.json` directly
+with `FileView` instead of running `omd-session status` during bar startup.
+Preview, restore, and auto-restore still call `omd-session` because those paths
+need validation and Hyprland/process inspection.
+
 ## Logout / Shutdown Confirmation
 
 Session-ending actions use the shared screen-centered confirmation overlay:

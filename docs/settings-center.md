@@ -123,6 +123,56 @@ ButtonRow
 those offsets from its title bar so the whole control center can be dragged
 without changing how existing non-draggable dialogs are positioned.
 
+## Layer-Shell & External Program Launch
+
+The Settings Center runs as a Wayland **layer-shell** surface (`WlrLayer.Overlay`),
+which is always rendered above normal toplevel windows. This means:
+
+- Screenshot tools (`grim`, Hyprland thumbnails) do not capture it
+- External programs launched from within the Settings Center appear **behind** it
+  and are invisible to the user
+
+To work around this, any `onClicked` handler that launches an external GUI/TUI
+program must **dismiss the Settings Center first**:
+
+```qml
+onClicked: {
+    root.dismiss();
+    Quickshell.execDetached(["some-external-program"]);
+}
+```
+
+For sub-pages that access the settings root via `settingsRoot`:
+
+```qml
+onClicked: {
+    pageRoot.settingsRoot.dismiss();
+    Quickshell.execDetached(["some-external-program"]);
+}
+```
+
+### Current dismiss-on-launch locations
+
+| File | Program | Trigger |
+|---|---|---|
+| `SettingsCenter.qml` | `blueman-manager` | Bluetooth Manager button |
+| `SettingsCenter.qml` | `nm-connection-editor` | Connection Editor button |
+| `SettingsCenter.qml` | `nmtui` (foot) | Network TUI button |
+| `SettingsCenter.qml` | `omd-launch-tui voice-bind-tui` | Configure button |
+| `SettingsCenter.qml` | `key-test-launcher --hotkey` | Capture Key button |
+| `SettingsCenter.qml` | `omd-launch-tui voice-test-tui` | TUI Test button |
+| `SettingsCenter.qml` | `omd-launch-tui voice-diagnose` | Diagnose button |
+| `SettingsCenter.qml` | `omd-settings-windows-vm launch` | Connect button |
+| `SettingsCenter.qml` | `omd-settings-windows-vm launch-keepalive` | Keep Alive button |
+| `SoundPage.qml` | `pavucontrol` | Volume Control button |
+| `DisplayPage.qml` | `wlr-randr` (foot) | wlr-randr button |
+| `SystemPage.qml` | `xdg-open autostartDir` | Open Autostart Folder button |
+| `SystemPage.qml` | `zenity` file picker | Set Default Browser button |
+
+Do not add new external program launches without `dismiss()`. If the program
+is a background command with no visible window (e.g. `hyprctl reload`,
+`omd-wallpaper`, `notify-send`), `dismiss()` is unnecessary.
+
 ## Migration Rule
 
 New settings work should prefer this hierarchy:

@@ -58,6 +58,27 @@ Tracked cleanup from the 2026-07 audit. Completed 2026-07-11.
 - [~] Settings page stub toggles (~35 keys written but not read by services) — UI remains; wire or strip in a follow-up
 - [~] `share/bin/` scripts not called from Quickshell — may be used by Hyprland keybinds
 
+## Phase 8 — Fixed topbar cleanup
+
+- [x] `BarContent.qml`: replace configurable module registry + `Loader` path with direct fixed component instantiation
+- [x] Delete `LeftModuleRegistry.qml`, `RightModuleRegistry.qml`
+- [x] Delete obsolete standalone topbar modules: battery, media, bluetooth, color picker, idle, mic, screenshot, spacer
+- [x] Rename the screenshot/brightness topbar button from `NightLightButton.qml` to `DisplayButton.qml`
+- [x] Update `docs/bar-right-modules.md`
+
+## Phase 9 — Topbar runtime tightening
+
+- [x] Add `BarRuntime.qml` for bar-local shared runtime state
+- [x] Merge duplicate screenshot-active polling from `BarDismissLayer.qml` and `BarStatusPopup.qml`
+- [x] Change `ClockWidget.qml` from a 1s timer to minute-precision `SystemClock`
+- [x] Change `SessionButton.qml` idle status from `omd-session status` process spawn to direct `last.json` `FileView`
+
+## Phase 10 — Overview cleanup
+
+- [x] Remove unused overview wrapper functions and stale geometry helper properties
+- [x] Precompute search-matched workspace ids once per query/model update instead of scanning all windows for every workspace entry
+- [x] Disable per-window geometry animations in overview performance mode
+
 ## Verification
 
 ```sh
