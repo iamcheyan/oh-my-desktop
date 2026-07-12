@@ -246,3 +246,29 @@ On the validation machine, `xrdp.service` was already listening on host port
 3389, so the first Docker start left `omarchy-windows` in `created` with a port
 bind error. The backend now treats that as a recoverable local-port conflict
 instead of a failed Windows install.
+
+## Local Validation Notes
+
+The validation host had Docker CLI installed, but the daemon could not start
+through the packaged `docker.socket`. The root cause was a host SELinux/systemd
+packaging problem rather than the Settings page:
+
+- `docker.socket` failed before Docker could accept requests.
+- Docker and containerd binaries had broken SELinux labels.
+- `xrdp.service` already owned host port 3389.
+
+The machine was repaired by running Docker directly from `docker.service` with a
+Unix socket listener and `--selinux-enabled=false`, disabling `docker.socket`,
+and leaving SELinux permissive for the current boot. This is a host repair, not
+normal VM setup behavior. After that repair, `bin/omd-settings-windows-vm
+status` reported Docker/KVM/Compose/FreeRDP ready, and `start` launched
+`omarchy-windows` with:
+
+```text
+Web console: http://127.0.0.1:8006
+RDP endpoint: 127.0.0.1:3390
+```
+
+The Windows image download then proceeded inside the container. Until the logs
+show a real ready marker, the backend reports `ready=false` even if the RDP port
+is already open.
