@@ -15,7 +15,6 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
-    property bool hovered: actionButton.hovered || (voiceMenuLoader.item ? voiceMenuLoader.item.visible : false)
 
     readonly property string voiceState: VoiceInput.state
     readonly property bool isRecording: voiceState === "recording"
@@ -60,12 +59,12 @@ Item {
         height: Config.options.bar.rightIconSlotWidth
         buttonRadius: Appearance.rounding.full
 
-        colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
-        colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
-        colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
-        colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
+        colBackground: "transparent"
+        colBackgroundHover: "#18ffffff"
+        colRipple: "transparent"
+        colBackgroundToggled: "#30ffffff"
+        colBackgroundToggledHover: "#40ffffff"
+        colRippleToggled: "transparent"
         toggled: !root.usingVoiceUi && GlobalStates.barPopupType === "audio"
 
         onClicked: {
@@ -77,40 +76,6 @@ Item {
                 GlobalStates.barPopupEphemeral = false
                 GlobalStates.barPopupType = opening ? "audio" : ""
             }
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        onPressed: event => {
-            if (event.button === Qt.RightButton)
-                voiceMenuLoader.open()
-        }
-    }
-
-    Loader {
-        id: voiceMenuLoader
-        function open() {
-            if (voiceMenuLoader.item)
-                voiceMenuLoader.item.open()
-            else
-                voiceMenuLoader.active = true
-        }
-        active: false
-        sourceComponent: VoiceContextMenu {
-            Component.onCompleted: this.open()
-            anchor {
-                window: actionButton.QsWindow.window
-                item: actionButton
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            onMenuClosed: voiceMenuLoader.active = false
         }
     }
 
@@ -201,13 +166,6 @@ Item {
     }
 
     MouseArea {
-        id: hoverArea
-        anchors.fill: actionButton
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-    }
-
-    MouseArea {
         z: 20
         anchors.fill: parent
         acceptedButtons: Qt.NoButton
@@ -226,9 +184,5 @@ Item {
                 GlobalStates.barPopupType = "audio"
             }
         }
-    }
-
-    AudioVoiceHoverPopup {
-        hoverTarget: hoverArea
     }
 }

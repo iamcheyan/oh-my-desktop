@@ -17,26 +17,30 @@ Item {
 
     readonly property bool needsSetup: KeyboardRemap.state === "setup" || !KeyboardRemap.keydReady
 
-    BarNerdIcon {
-        id: icon
+    RippleButton {
+        id: keyboardButton
         anchors.centerIn: parent
-        text: NerdIconMap.keyboard
-        color: root.needsSetup ? "#F5C542" : Appearance.colors.colBarText
-    }
+        width: Config.options.bar.rightIconSlotWidth
+        height: Config.options.bar.rightIconSlotWidth
+        buttonRadius: Appearance.rounding.full
+        colBackground: "transparent"
+        colBackgroundHover: "#18ffffff"
+        colRipple: "transparent"
+        colBackgroundToggled: "#30ffffff"
+        colBackgroundToggledHover: "#40ffffff"
+        colRippleToggled: "transparent"
+        toggled: GlobalStates.barPopupType === "keyboard"
 
-    MouseArea {
-        id: interactionArea
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.RightButton
-        cursorShape: Qt.ArrowCursor
-        onPressed: event => {
-            if (event.button === Qt.RightButton)
-                KeyboardRemap.openSettings();
+        onClicked: {
+            if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "keyboard" ? "" : "keyboard";
         }
     }
 
-    KeyboardRemapHoverPopup {
-        hoverTarget: interactionArea
+    BarNerdIcon {
+        id: icon
+        anchors.centerIn: keyboardButton
+        text: NerdIconMap.keyboard
+        color: root.needsSetup ? "#F5C542" : Appearance.colors.colBarText
     }
 }

@@ -15,16 +15,32 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
+    property bool isFirstClick: true
+
+    Timer {
+        id: doubleClickTimer
+        interval: 250
+        repeat: false
+        onTriggered: {
+            root.isFirstClick = true;
+            GlobalStates.barPopupType = "display";
+        }
+    }
 
     CircleUtilButton {
         id: displayButton
         anchors.centerIn: parent
 
-        releaseAction: () => {
-            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
+        onClicked: {
+            if (root.isFirstClick) {
+                root.isFirstClick = false;
+                doubleClickTimer.start();
+            } else {
+                doubleClickTimer.stop();
+                root.isFirstClick = true;
+                Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
+            }
         }
-
-        altAction: () => screenshotMenu.open()
 
         content: BarNerdIcon {
             text: NerdIconMap.desktop
@@ -44,34 +60,6 @@ Item {
             }
             wheel.accepted = true;
             GlobalStates.barPopupType = "display";
-        }
-    }
-
-    Loader {
-        id: screenshotMenu
-        function open() {
-            if (screenshotMenu.item) {
-                screenshotMenu.item.open();
-            } else {
-                screenshotMenu.active = true;
-            }
-        }
-        active: false
-        sourceComponent: ScreenshotContextMenu {
-            Component.onCompleted: this.open();
-            anchor {
-                window: displayButton.QsWindow.window
-                item: displayButton
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            onMenuClosed: {
-                screenshotMenu.active = false;
-            }
         }
     }
 }

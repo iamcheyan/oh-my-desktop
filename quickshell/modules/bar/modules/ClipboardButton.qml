@@ -13,7 +13,6 @@ Item {
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
-
     property bool isFirstClick: true
 
     Timer {
@@ -22,10 +21,7 @@ Item {
         repeat: false
         onTriggered: {
             root.isFirstClick = true;
-            // Single click: open the main clipboard dialog
-            Quickshell.execDetached([
-                `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`, "toggle"
-            ]);
+            GlobalStates.barPopupType = "clipboard";
         }
     }
 
@@ -51,5 +47,4 @@ Item {
             color: Appearance.colors.colBarText
         }
     }
-
 }

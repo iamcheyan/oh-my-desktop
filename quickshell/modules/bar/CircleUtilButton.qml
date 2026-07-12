@@ -15,10 +15,10 @@ RippleButton {
     implicitWidth: slotSize
     contentItem: content
 
-    colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-    colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-    colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
-    colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
-    colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
-    colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
+    colBackground: "transparent"
+    colBackgroundHover: "#18ffffff"
+    colRipple: "transparent"
+    colBackgroundToggled: "#30ffffff"
+    colBackgroundToggledHover: "#40ffffff"
+    colRippleToggled: "transparent"
 }
