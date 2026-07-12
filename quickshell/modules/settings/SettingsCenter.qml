@@ -26,8 +26,6 @@ WindowDialog {
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
     property string searchQuery: ""
     property int wallpaperRefreshNonce: 0
-    property var bluetoothConfirmDevice: null
-    property bool bluetoothConfirmOpen: false
     property bool keyremapApplyConfirmOpen: false
     property bool keyremapDetailOpen: false
     property string keyremapEditingPreset: ""
@@ -50,25 +48,18 @@ WindowDialog {
 
     readonly property var primaryPages: [
         { key: "overview", icon: "settings", title: "Overview", keywords: "system summary home" },
-        { key: "network", icon: "wifi", title: "Network & Wireless", keywords: "wifi wireless lan internet ssid" },
-        { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bt adapter devices pair" },
+        { key: "network", icon: "wifi", title: "Devices & Connection", keywords: "wifi wireless bluetooth internet lan device connection" },
         { key: "sound", icon: "volume_up", title: "Sound & Feedback", keywords: "audio volume mute speaker microphone input output sounds feedback osd" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
-        { key: "notifications", icon: "notifications", title: "Notifications", keywords: "notifications clipboard session osd dnd popup" },
-        { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" }
-    ]
-
-    readonly property var advancedPages: [
+        { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
         { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" },
         { key: "windows", icon: "desktop_windows", title: "Windows VM", keywords: "virtualization virtual machine vm docker kvm rdp windows" }
     ]
 
-    readonly property var pages: primaryPages.concat(advancedPages)
-
-    property bool advancedNavExpanded: false
+    readonly property var pages: primaryPages
 
 
     backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
@@ -89,11 +80,6 @@ WindowDialog {
         if (page === "font") return "appearance";
         if (page === "wallpaper") return "appearance";
         if (page === "sounds") return "sound";
-        if (page === "osd") return "notifications";
-        if (page === "session") return "notifications";
-        if (page === "notifications") return "notifications";
-        if (page === "clipboard") return "notifications";
-        if (page === "idle") return "notifications";
         if (page === "autostart") return "system";
         if (page === "windowrules") return "system";
         if (page === "apps") return "system";
@@ -165,35 +151,11 @@ WindowDialog {
         dragOffsetY = clamp(resizeStartOffsetY + (targetHeight - resizeStartHeight) / 2, -(height - targetHeight) / 2, (height - targetHeight) / 2);
     }
 
-    function bluetoothDeviceName(device) {
-        return device?.name || device?.deviceName || device?.address || "Unknown device";
-    }
-
-    function openBluetoothConfirm(device) {
-        if (!device)
-            return;
-        bluetoothConfirmDevice = device;
-        bluetoothConfirmOpen = true;
-    }
-
-    function closeBluetoothConfirm() {
-        bluetoothConfirmOpen = false;
-        bluetoothConfirmDevice = null;
-    }
-
-    function confirmBluetoothAction() {
-        if (!bluetoothConfirmDevice)
-            return;
-        BluetoothStatus.connectDevice(bluetoothConfirmDevice);
-        closeBluetoothConfirm();
-    }
-
     function openWallpaperPicker(mode) {
         wallpaperPicker.open(mode);
     }
 
     readonly property var filteredPrimaryPages: primaryPages.filter(p => pageMatchesSearch(p))
-    readonly property var filteredAdvancedPages: advancedPages.filter(p => pageMatchesSearch(p))
 
     function pageMatchesSearch(pageEntry) {
         const q = root.searchQuery.trim().toLowerCase();
@@ -205,25 +167,15 @@ WindowDialog {
     }
 
     onRequestedPageChanged: currentPage = normalizePage(requestedPage)
-    onCurrentPageChanged: {
-        if (advancedPages.some(p => p.key === currentPage))
-            advancedNavExpanded = true;
-    }
+    onCurrentPageChanged: {}
     onVisibleChanged: {
         if (visible) {
             currentPage = normalizePage(requestedPage);
-            if (advancedPages.some(p => p.key === currentPage))
-                advancedNavExpanded = true;
             root.forceActiveFocus();
         }
     }
 
     Keys.onPressed: (event) => {
-        if (root.bluetoothConfirmOpen && (event.key === Qt.Key_Escape || event.key === Qt.Key_Q)) {
-            root.closeBluetoothConfirm();
-            event.accepted = true;
-            return;
-        }
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Q) {
             root.dismiss();
             event.accepted = true;
@@ -332,36 +284,15 @@ WindowDialog {
                                 }
                             }
 
-                            SettingsNavItem {
-                                Layout.fillWidth: true
-                                iconName: root.advancedNavExpanded ? "expand_less" : "expand_more"
-                                label: "Advanced"
-                                selected: root.advancedPages.some(p => p.key === root.currentPage)
-                                onClicked: root.advancedNavExpanded = !root.advancedNavExpanded
-                            }
-
-                            Repeater {
-                                model: root.advancedNavExpanded ? root.filteredAdvancedPages : []
-                                delegate: SettingsNavItem {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    Layout.leftMargin: 12
-                                    iconName: modelData.icon
-                                    label: modelData.title
-                                    selected: root.currentPage === modelData.key
-                                    onClicked: root.currentPage = modelData.key
-                                }
-                            }
-
                             Item {
                                 Layout.fillHeight: true
-                                visible: root.filteredPrimaryPages.length === 0 && root.filteredAdvancedPages.length === 0
+                                visible: root.filteredPrimaryPages.length === 0
                                 Layout.preferredHeight: 80
                             }
 
                             StyledText {
                                 Layout.fillWidth: true
-                                visible: root.filteredPrimaryPages.length === 0 && root.filteredAdvancedPages.length === 0
+                                visible: root.filteredPrimaryPages.length === 0
                                 text: "No matching settings"
                                 color: SettingsTokens.dim
                                 font.pixelSize: Appearance.font.pixelSize.small
@@ -479,7 +410,6 @@ WindowDialog {
                             width: Math.max(0, pageScroll.width - root.pageInset * 2)
                             sourceComponent: {
                                 if (root.currentPage === "network") return networkPage;
-                                if (root.currentPage === "bluetooth") return bluetoothPage;
                                 if (root.currentPage === "display") return migratedDisplayPage;
                                 if (root.currentPage === "voice") return voicePage;
                                 if (root.currentPage === "keyremap") return keyremapPage;
@@ -487,7 +417,6 @@ WindowDialog {
                                 if (root.currentPage === "overview") return overviewPageComponent;
                                 if (root.currentPage === "appearance") return appearancePageComponent;
                                 if (root.currentPage === "sound") return soundPageComponent;
-                                if (root.currentPage === "notifications") return notificationsPageComponent;
                                 if (root.currentPage === "power") return powerPageComponent;
                                 if (root.currentPage === "system") return systemPageComponent;
                                 return overviewPageComponent;
@@ -497,176 +426,6 @@ WindowDialog {
                                     item.settingsRoot = root;
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        Item {
-            anchors.fill: parent
-            visible: root.bluetoothConfirmOpen
-            z: 50
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#050505"
-                opacity: 0.72
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.closeBluetoothConfirm()
-                }
-            }
-
-            Rectangle {
-                width: Math.min(460, parent.width - 64)
-                height: 230
-                anchors.centerIn: parent
-                radius: SettingsTokens.roundRadius
-                color: SettingsTokens.card
-                border.width: 1
-                border.color: SettingsTokens.accent
-
-                MouseArea {
-                    anchors.fill: parent
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    spacing: 14
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        MaterialSymbol {
-                            text: root.bluetoothConfirmDevice?.connected ? "bluetooth_disabled" : "bluetooth_connected"
-                            iconSize: 22
-                            color: root.bluetoothConfirmDevice?.connected ? "#f07070" : SettingsTokens.accent
-                        }
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: root.bluetoothConfirmDevice?.connected ? "Disconnect Bluetooth device?" : "Connect Bluetooth device?"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.bluetoothDeviceName(root.bluetoothConfirmDevice)
-                        color: SettingsTokens.fg
-                        font.pixelSize: Appearance.font.pixelSize.large
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.bluetoothConfirmDevice?.connected
-                            ? "This will disconnect the selected device."
-                            : "This will pair, trust, and connect the selected device."
-                        color: SettingsTokens.muted
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        wrapMode: Text.WordWrap
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: root.bluetoothConfirmDevice?.address ? `Address: ${root.bluetoothConfirmDevice.address}` : "Address unavailable"
-                        color: root.bluetoothConfirmDevice?.address ? SettingsTokens.dim : "#f07070"
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        elide: Text.ElideRight
-                    }
-
-                    Item { Layout.fillHeight: true }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        SettingsButton {
-                            label: "Yes"
-                            iconName: "check"
-                            enabledState: !!root.bluetoothConfirmDevice?.address
-                            onClicked: root.confirmBluetoothAction()
-                        }
-
-                        SettingsButton {
-                            label: "Cancel"
-                            iconName: "close"
-                            onClicked: root.closeBluetoothConfirm()
-                        }
-                    }
-                }
-            }
-        }
-
-        Item {
-            anchors.fill: parent
-            visible: BluetoothStatus.actionRunning && BluetoothStatus.actionPasskey.length > 0
-            z: 55
-
-            Rectangle {
-                anchors.fill: parent
-                color: "#050505"
-                opacity: 0.72
-            }
-
-            Rectangle {
-                width: Math.min(520, parent.width - 64)
-                height: 260
-                anchors.centerIn: parent
-                radius: SettingsTokens.roundRadius
-                color: SettingsTokens.card
-                border.width: 1
-                border.color: SettingsTokens.accent
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: 14
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: "Bluetooth pairing code"
-                        color: SettingsTokens.fg
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.DemiBold
-                        horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: BluetoothStatus.actionPasskey
-                        color: SettingsTokens.accent
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: 48
-                        font.weight: Font.DemiBold
-                        font.letterSpacing: 4
-                        horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: "Type this number on the Bluetooth keyboard, then press Enter on that keyboard."
-                        color: SettingsTokens.fg
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        wrapMode: Text.WordWrap
-                        horizontalAlignment: Text.AlignHCenter
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: BluetoothStatus.actionDeviceName
-                        color: SettingsTokens.muted
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
                     }
                 }
             }
@@ -1030,7 +789,7 @@ WindowDialog {
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
     Component { id: soundPageComponent; SoundPage { settingsRoot: root } }
-    Component { id: notificationsPageComponent; NotificationsPage { settingsRoot: root } }
+
     Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
 
@@ -1045,6 +804,32 @@ WindowDialog {
     Component {
         id: networkPage
         PageBody {
+            // ── Bluetooth ──────────────────────────────────────────────
+            SettingsCard {
+                title: "Bluetooth"
+                subtitle: {
+                    if (!BluetoothStatus.available) return "Not available"
+                    if (!BluetoothStatus.enabled) return "Disabled"
+                    if (BluetoothStatus.connected) return `${BluetoothStatus.activeDeviceCount} connected`
+                    return "Enabled"
+                }
+
+                SettingsToggleRow {
+                    label: "Bluetooth radio"
+                    description: "Enable or disable Bluetooth"
+                    checked: BluetoothStatus.enabled
+                    onToggled: {
+                        if (Bluetooth.defaultAdapter)
+                            Bluetooth.defaultAdapter.enabled = !Bluetooth.defaultAdapter.enabled
+                    }
+                }
+
+                ButtonRow {
+                    visible: BluetoothStatus.available
+                    SettingsButton { label: "Bluetooth Manager"; iconName: "bluetooth"; onClicked: Quickshell.execDetached(["blueman-manager"]) }
+                }
+            }
+
             // ── Wi-Fi Status ─────────────────────────────────────────────
             SettingsCard {
                 title: "Wi-Fi"
@@ -1112,6 +897,7 @@ WindowDialog {
                 ButtonRow {
                     visible: Network.wifiEnabled
                     SettingsButton { label: "Connection Editor"; iconName: "edit"; onClicked: Quickshell.execDetached(["nm-connection-editor"]) }
+                    SettingsButton { label: "Network TUI"; iconName: "terminal"; onClicked: Quickshell.execDetached(["foot", "--app-id=nmtui", "--title=nmtui", "--window-size-pixels=880x620", "-e", "nmtui"]) }
                 }
             }
 
@@ -1282,214 +1068,6 @@ WindowDialog {
                     label: "Interface"
                     value: Network.networkName || "--"
                     visible: Network.ethernet
-                }
-            }
-        }
-    }
-
-    Component {
-        id: bluetoothPage
-        PageBody {
-            // ── Bluetooth Adapter ────────────────────────────────────────
-            SettingsCard {
-                title: "Bluetooth"
-                subtitle: {
-                    if (!BluetoothStatus.available) return "Not available"
-                    if (!BluetoothStatus.enabled) return "Disabled"
-                    if (BluetoothStatus.connected) return `${BluetoothStatus.activeDeviceCount} connected`
-                    return "Enabled"
-                }
-
-                SettingsToggleRow {
-                    label: "Adapter power"
-                    description: "Turn Bluetooth on or off"
-                    checked: BluetoothStatus.enabled
-                    onToggled: {
-                        if (Bluetooth.defaultAdapter)
-                            Bluetooth.defaultAdapter.enabled = !Bluetooth.defaultAdapter.enabled
-                    }
-                }
-
-                SettingsRow {
-                    label: "Connected devices"
-                    value: `${BluetoothStatus.activeDeviceCount}`
-                    visible: BluetoothStatus.enabled
-                }
-
-	                ButtonRow {
-	                    visible: BluetoothStatus.enabled && Bluetooth.defaultAdapter
-	                    SettingsButton {
-	                        label: (Bluetooth.defaultAdapter?.discovering ?? false) ? "Stop Discovery" : "Start Discovery"
-	                        iconName: "search"
-	                        active: Bluetooth.defaultAdapter?.discovering ?? false
-	                        onClicked: {
-	                            if (Bluetooth.defaultAdapter)
-	                                Bluetooth.defaultAdapter.discovering = !Bluetooth.defaultAdapter.discovering
-	                        }
-	                    }
-	                }
-            }
-
-            SettingsCard {
-                title: BluetoothStatus.actionRunning ? "Bluetooth Action" : "Last Bluetooth Action"
-                subtitle: BluetoothStatus.actionStatus
-                visible: BluetoothStatus.actionRunning || BluetoothStatus.actionMessage.length > 0 || BluetoothStatus.actionError.length > 0
-
-                SettingsRow {
-                    label: "Device"
-                    value: BluetoothStatus.actionDeviceName || "--"
-                    description: BluetoothStatus.actionAddress
-                    valueColor: BluetoothStatus.actionError.length > 0 ? "#f07070" : SettingsTokens.accent
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: BluetoothStatus.actionPasskey.length > 0 ? 96 : 56
-                    radius: SettingsTokens.radius
-                    color: BluetoothStatus.actionError.length > 0 ? "#3a2424" : SettingsTokens.panelAlt
-                    border.width: 1
-                    border.color: BluetoothStatus.actionError.length > 0 ? "#f07070" : SettingsTokens.buttonBorder
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 6
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: BluetoothStatus.actionMessage
-                            color: BluetoothStatus.actionError.length > 0 ? "#f07070" : SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            wrapMode: Text.WordWrap
-                        }
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            visible: BluetoothStatus.actionPasskey.length > 0
-                            text: BluetoothStatus.actionPasskey
-                            color: SettingsTokens.accent
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: 30
-                            font.weight: Font.DemiBold
-                            horizontalAlignment: Text.AlignHCenter
-                            font.letterSpacing: 2
-                        }
-                    }
-                }
-            }
-
-            // ── Devices ──────────────────────────────────────────────────
-            SettingsCard {
-                title: "Devices"
-                subtitle: `${BluetoothStatus.friendlyDeviceList.length} found`
-                visible: BluetoothStatus.enabled
-
-                Repeater {
-                    model: BluetoothStatus.friendlyDeviceList.slice(0, 15)
-                    delegate: Rectangle {
-                        id: btDelegate
-                        required property var modelData
-                        readonly property var device: modelData
-                        readonly property bool isConnected: device.connected ?? false
-                        readonly property bool isPaired: device.paired ?? false
-
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        radius: SettingsTokens.radius
-                        color: isConnected ? SettingsTokens.accentSoft : (btMouse.containsMouse ? SettingsTokens.cardHover : "transparent")
-                        border.width: isConnected ? 1 : 0
-                        border.color: SettingsTokens.accent
-
-                        MouseArea {
-                            id: btMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.openBluetoothConfirm(device)
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            spacing: 10
-
-                            MaterialSymbol {
-                                text: {
-                                    const name = (device.name || "").toLowerCase()
-                                    if (name.includes("headphone") || name.includes("headset") || name.includes("airpods")) return "headphones"
-                                    if (name.includes("mouse")) return "mouse"
-                                    if (name.includes("keyboard")) return "keyboard"
-                                    if (name.includes("phone") || name.includes("iphone")) return "smartphone"
-                                    if (name.includes("watch")) return "watch"
-                                    if (name.includes("speaker")) return "speaker"
-                                    return "bluetooth"
-                                }
-                                iconSize: 18
-                                color: isConnected ? SettingsTokens.accent : SettingsTokens.muted
-                                Layout.preferredWidth: 22
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: device.name || device.address || "Unknown device"
-                                    color: SettingsTokens.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    font.weight: isConnected ? Font.Medium : Font.Normal
-                                    elide: Text.ElideRight
-                                }
-
-                                StyledText {
-                                    text: isConnected ? "Connected" : isPaired ? "Paired" : "Not paired"
-                                    color: isConnected ? SettingsTokens.accent : SettingsTokens.dim
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                }
-                            }
-
-                            // Connect/disconnect button
-                            Rectangle {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                radius: SettingsTokens.radius
-                                color: btnMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: isConnected ? "bluetooth_disabled" : "bluetooth"
-                                    iconSize: 16
-                                    color: isConnected ? "#f07070" : SettingsTokens.accent
-                                }
-
-                                MouseArea {
-                                    id: btnMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: {
-                                        root.openBluetoothConfirm(device)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Empty state
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-                    visible: BluetoothStatus.friendlyDeviceList.length === 0
-                    color: "transparent"
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "No devices found. Start discovery to search."
-                        color: SettingsTokens.dim
-                        font.pixelSize: Appearance.font.pixelSize.small
-                    }
                 }
             }
         }

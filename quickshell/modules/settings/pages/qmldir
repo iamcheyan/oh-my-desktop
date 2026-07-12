@@ -2,6 +2,5 @@ module qs.modules.settings.pages
 OverviewPage 1.0 OverviewPage.qml
 AppearancePage 1.0 AppearancePage.qml
 SoundPage 1.0 SoundPage.qml
-NotificationsPage 1.0 NotificationsPage.qml
 PowerPage 1.0 PowerPage.qml
 SystemPage 1.0 SystemPage.qml

@@ -30,13 +30,11 @@ PageBody {
         title: "Quick Links"
         subtitle: "Open a category"
         ButtonRow {
-            SettingsButton { label: "Network"; iconName: "wifi"; onClicked: settingsRoot.currentPage = "network" }
-            SettingsButton { label: "Bluetooth"; iconName: "bluetooth"; onClicked: settingsRoot.currentPage = "bluetooth" }
+            SettingsButton { label: "Devices"; iconName: "wifi"; onClicked: settingsRoot.currentPage = "network" }
             SettingsButton { label: "Sound"; iconName: "volume_up"; onClicked: settingsRoot.currentPage = "sound" }
             SettingsButton { label: "Displays"; iconName: "desktop_windows"; onClicked: settingsRoot.currentPage = "display" }
             SettingsButton { label: "Appearance"; iconName: "palette"; onClicked: settingsRoot.currentPage = "appearance" }
             SettingsButton { label: "Power"; iconName: "battery_charging_full"; onClicked: settingsRoot.currentPage = "power" }
-            SettingsButton { label: "Notifications"; iconName: "notifications"; onClicked: settingsRoot.currentPage = "notifications" }
             SettingsButton { label: "System"; iconName: "settings_applications"; onClicked: settingsRoot.currentPage = "system" }
         }
     }
