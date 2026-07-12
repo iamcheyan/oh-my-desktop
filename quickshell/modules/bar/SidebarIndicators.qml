@@ -38,12 +38,12 @@ Item {
         Layout.preferredWidth: Config.options.bar.rightIconSlotWidth
         Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
         buttonRadius: Appearance.rounding.full
-        colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
-        colBackgroundToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 1)
-        colBackgroundToggledHover: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerHover, 1)
-        colRippleToggled: ColorUtils.transparentize(Appearance.colors.colSecondaryContainerActive, 1)
+        colBackground: "transparent"
+        colBackgroundHover: "#18ffffff"
+        colBackgroundToggled: "#30ffffff"
+        colBackgroundToggledHover: "#40ffffff"
+        colRipple: "transparent"
+        colRippleToggled: "transparent"
         toggled: GlobalStates.barPopupType === iconButton.popupType
 
         onPressed: {
@@ -59,13 +59,19 @@ Item {
         anchors.centerIn: parent
         spacing: Config.options.bar.rightModuleSpacing
 
-        IconSlot {
+        BarIconButton {
+            id: xkbButton
+            popupType: "xkb"
             visible: xkbIndicator.active
-            implicitWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
-            HyprlandXkbIndicator {
-                id: xkbIndicator
+            Layout.preferredWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
+            Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
+            IconSlot {
                 anchors.centerIn: parent
-                color: container.colText
+                HyprlandXkbIndicator {
+                    id: xkbIndicator
+                    anchors.centerIn: parent
+                    color: container.colText
+                }
             }
         }
 
@@ -87,45 +93,6 @@ Item {
                     visible: !Battery.available
                 }
             }
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.RightButton
-                z: 10
-                onPressed: event => {
-                    if (event.button === Qt.RightButton)
-                        powerContextMenuLoader.open();
-                }
-            }
         }
-    }
-
-    Loader {
-        id: powerContextMenuLoader
-        function open() {
-            if (powerContextMenuLoader.item)
-                powerContextMenuLoader.item.menu.open();
-            else
-                powerContextMenuLoader.active = true;
-        }
-        active: false
-        sourceComponent: PowerContextMenu {
-            Component.onCompleted: this.menu.open()
-            menu.anchor {
-                window: powerButton.QsWindow.window
-                item: powerButton
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            menu.onMenuClosed: powerContextMenuLoader.active = false
-        }
-    }
-
-    BatteryHoverPopup {
-        id: batteryHoverPopup
-        hoverTarget: powerButton
     }
 }
