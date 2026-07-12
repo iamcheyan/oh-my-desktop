@@ -42,8 +42,8 @@ PanelWindow {
         if (desktopEntry.id === "omd-settings-center.desktop") {
             launcher.open = false;
             Quickshell.execDetached([
-                "qs", "-p", Quickshell.shellDir + "/../omd-bar",
-                "ipc", "call", "barDialog", "open", "settings"
+                FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-settings`),
+                "open", "overview"
             ]);
             return;
         }
@@ -571,7 +571,7 @@ PanelWindow {
                             anchors.fill: parent
                             anchors.margins: 2
                             radius: TuiStyle.radius
-                            color: ma.containsMouse ? "#333333" : "transparent"
+                            color: "transparent"
                             border.width: 0
                         }
 
@@ -631,6 +631,15 @@ PanelWindow {
                                 implicitSize: 48
                                 asynchronous: true
                                 mipmap: true
+                            }
+
+                            // Hover tint overlay
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 8
+                                color: ma.containsMouse ? "#ffffff" : "transparent"
+                                opacity: ma.containsMouse ? 0.15 : 0
+                                visible: ma.containsMouse
                             }
                         }
 
