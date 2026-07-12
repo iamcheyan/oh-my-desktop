@@ -148,7 +148,8 @@ Scope {
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
                 contentPadding: 0                           // Rows manage their own 20px margins
                 color: panel.multiShell ? "transparent" : TuiStyle.bg
-                border.width: 0                             // No border — GNOME style
+                border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
+                border.color: TuiStyle.menuBorder
                 radius: panel.multiShell ? 0 : TuiStyle.shellRadius
                 clip: !panel.multiShell
 
@@ -212,7 +213,8 @@ Scope {
             }
             color: TuiStyle.bg
             radius: TuiStyle.shellRadius
-            border.width: 0        // No border — GNOME style
+            border.width: TuiStyle.borderWidth   // Unified border
+            border.color: TuiStyle.menuBorder
             clip: true
             implicitHeight: cardColumn.implicitHeight + card.padding * 2
             height: implicitHeight
@@ -235,7 +237,7 @@ Scope {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
         color: TuiStyle.line
-        opacity: 0.10
+        opacity: 0.22
     }
 
     // Section label (small dim caps) — kept for compact sub-headings.
@@ -617,7 +619,7 @@ Scope {
                 Layout.topMargin: 8
                 height: 1
                 color: TuiStyle.line
-                opacity: 0.10
+                opacity: 0.22
             }
 
             RowLayout {
