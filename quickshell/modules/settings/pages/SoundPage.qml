@@ -124,7 +124,7 @@ PageBody {
                                 SettingsSlider {
                                     Layout.preferredWidth: 100
                                     value: sinkDelegate.node?.audio?.volume ?? 0
-                                    onValueChanged: {
+                                    onMoved: {
                                         if (sinkDelegate.node?.audio)
                                             sinkDelegate.node.audio.volume = value
                                     }
@@ -311,7 +311,7 @@ PageBody {
                                 SettingsSlider {
                                     Layout.preferredWidth: 100
                                     value: sourceDelegate.node?.audio?.volume ?? 0
-                                    onValueChanged: {
+                                    onMoved: {
                                         if (sourceDelegate.node?.audio)
                                             sourceDelegate.node.audio.volume = value
                                     }
@@ -337,7 +337,7 @@ PageBody {
 
                 SettingsSlider {
                     value: Audio.sink?.audio.muted ? 0 : (Audio.sink?.audio.volume ?? 0)
-                    onValueChanged: {
+                    onMoved: {
                         if (Audio.sink && !Audio.sink.audio.muted)
                             Audio.sink.audio.volume = value
                     }
@@ -356,6 +356,11 @@ PageBody {
                         iconName: "swap_horiz"
                         onClicked: Audio.cycleAudioOutput()
                     }
+                    SettingsButton {
+                        label: "Volume Control"
+                        iconName: "tune"
+                        onClicked: Quickshell.execDetached(["pavucontrol"])
+                    }
                 }
             }
 
@@ -366,7 +371,7 @@ PageBody {
 
                 SettingsSlider {
                     value: Audio.source?.audio.muted ? 0 : (Audio.source?.audio.volume ?? 0)
-                    onValueChanged: {
+                    onMoved: {
                         if (Audio.source && !Audio.source.audio.muted)
                             Audio.source.audio.volume = value
                     }
@@ -377,124 +382,6 @@ PageBody {
                     description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
                     checked: Audio.source?.audio.muted ?? false
                     onToggled: Audio.toggleMicMute()
-                }
-            }
-
-SettingsCard {
-                title: "System Sounds"
-                subtitle: Config.options.sounds.theme ?? "freedesktop"
-
-                SettingsToggleRow {
-                    label: "Enable system sounds"
-                    description: "Play sound effects for system events"
-                    checked: Config.options.sounds.enabled ?? true
-                    onToggled: Config.setNestedValue("sounds.enabled", !Config.options.sounds.enabled)
-                }
-
-                SettingsDropdownRow {
-                    label: "Sound theme"
-                    description: "Freedesktop sound theme for event sounds"
-                    currentValue: Config.options.sounds.theme ?? "freedesktop"
-                    options: {
-                        const themes = []
-                        // Scan available sound themes
-                        const found = new Set()
-                        // Common themes
-                        const common = [
-                            {value: "freedesktop", label: "Freedesktop"},
-                            {value: "freedesktop-canon", label: "Freedesktop (Canon)"},
-                            {value: "KDE", label: "KDE"},
-                            {value: "GNOME", label: "GNOME"},
-                        ]
-                        for (const t of common) {
-                            themes.push(t)
-                            found.add(t.value)
-                        }
-                        return themes
-                    }
-                    onValueChanged: (v) => Config.setNestedValue("sounds.theme", v)
-                }
-            }
-
-            SettingsCard {
-                title: "Event Sounds"
-                subtitle: "Per-event sound toggles"
-
-                SettingsToggleRow {
-                    label: "Volume change"
-                    description: "Play sound when volume changes"
-                    checked: Config.options.sounds.volumeChange ?? false
-                    onToggled: Config.setNestedValue("sounds.volumeChange", !Config.options.sounds.volumeChange)
-                }
-
-                SettingsToggleRow {
-                    label: "Notifications"
-                    description: "Play sound on new notifications"
-                    checked: Config.options.sounds.notification ?? false
-                    onToggled: Config.setNestedValue("sounds.notification", !Config.options.sounds.notification)
-                }
-
-                SettingsToggleRow {
-                    label: "Login"
-                    description: "Play sound when logging in"
-                    checked: Config.options.sounds.login ?? false
-                    onToggled: Config.setNestedValue("sounds.login", !Config.options.sounds.login)
-                }
-
-                SettingsToggleRow {
-                    label: "Power plug/unplug"
-                    description: "Play sound when charger is connected/disconnected"
-                    checked: Config.options.sounds.powerPlug ?? false
-                    onToggled: Config.setNestedValue("sounds.powerPlug", !Config.options.sounds.powerPlug)
-                }
-
-                ButtonRow {
-                    SettingsButton {
-                        label: "Test Sound"
-                        iconName: "play_arrow"
-                        onClicked: Audio.playSystemSound("message")
-                    }
-                }
-            }
-
-
-            SettingsCard {
-                title: "Volume & Audio OSD"
-                subtitle: "On-screen indicators for audio changes"
-
-                SettingsToggleRow {
-                    label: "Volume"
-                    description: "Show OSD when volume changes"
-                    checked: Config.options.osd.volumeEnabled ?? true
-                    onToggled: Config.setNestedValue("osd.volumeEnabled", !Config.options.osd.volumeEnabled)
-                }
-
-                SettingsToggleRow {
-                    label: "Media volume"
-                    description: "Show OSD when media volume changes"
-                    checked: Config.options.osd.mediaVolumeEnabled ?? false
-                    onToggled: Config.setNestedValue("osd.mediaVolumeEnabled", !Config.options.osd.mediaVolumeEnabled)
-                }
-
-                SettingsToggleRow {
-                    label: "Media playback"
-                    description: "Show OSD for play/pause/next/prev"
-                    checked: Config.options.osd.mediaPlaybackEnabled ?? true
-                    onToggled: Config.setNestedValue("osd.mediaPlaybackEnabled", !Config.options.osd.mediaPlaybackEnabled)
-                }
-
-                SettingsToggleRow {
-                    label: "Microphone mute"
-                    description: "Show OSD when mic is muted/unmuted"
-                    checked: Config.options.osd.micMuteEnabled ?? true
-                    onToggled: Config.setNestedValue("osd.micMuteEnabled", !Config.options.osd.micMuteEnabled)
-                }
-
-                SettingsToggleRow {
-                    label: "Audio output switch"
-                    description: "Show OSD when cycling audio output device"
-                    checked: Config.options.osd.audioOutputEnabled ?? false
-                    onToggled: Config.setNestedValue("osd.audioOutputEnabled", !Config.options.osd.audioOutputEnabled)
                 }
             }
 }

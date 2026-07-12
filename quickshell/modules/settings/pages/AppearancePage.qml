@@ -15,6 +15,26 @@ PageBody {
     id: pageRoot
     property var settingsRoot: null
 
+    property string optimizationMode: Persistent.ready ? (Persistent.states.display?.optimization ?? "balanced") : "balanced"
+
+    function applyOptimization(mode) {
+        if (!Persistent.ready) return;
+        Persistent.states.display.optimization = mode;
+
+        let evalStr = "";
+        if (mode === "performance") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })";
+        } else if (mode === "balanced") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })";
+        } else if (mode === "visuals") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })";
+        }
+
+        if (evalStr !== "") {
+            Quickshell.execDetached(["hyprctl", "eval", evalStr]);
+        }
+    }
+
     QtObject {
                 id: wpState
                 property string mode: "file"
@@ -677,6 +697,44 @@ PageBody {
                     OmarchyTheme.reload();
                     themeState.applyingSlug = "";
                     themeState.refresh();
+                }
+            }
+
+            SettingsCard {
+                title: "Performance & Effects"
+                subtitle: pageRoot.optimizationMode === "performance" ? "High Performance" : pageRoot.optimizationMode === "balanced" ? "Balanced" : "Best Visuals"
+
+                ButtonRow {
+                    SettingsButton {
+                        label: "High Perf"
+                        iconName: "speed"
+                        active: pageRoot.optimizationMode === "performance"
+                        onClicked: pageRoot.applyOptimization("performance")
+                    }
+                    SettingsButton {
+                        label: "Balanced"
+                        iconName: "balance"
+                        active: pageRoot.optimizationMode === "balanced"
+                        onClicked: pageRoot.applyOptimization("balanced")
+                    }
+                    SettingsButton {
+                        label: "Best Visuals"
+                        iconName: "palette"
+                        active: pageRoot.optimizationMode === "visuals"
+                        onClicked: pageRoot.applyOptimization("visuals")
+                    }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: pageRoot.optimizationMode === "performance"
+                        ? "Frosted glass blur effect is disabled for maximum UI smoothness and battery life."
+                        : pageRoot.optimizationMode === "balanced"
+                            ? "1 blur pass enabled. High-quality frosted glass look with 50% GPU load reduction (best for integrated GPUs)."
+                            : "2 blur passes enabled. Full-resolution premium glass aesthetics (best for dedicated GPUs)."
+                    color: SettingsTokens.dim
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    wrapMode: Text.WordWrap
                 }
             }
 }

@@ -22,25 +22,7 @@ ColumnLayout {
         id: configState
     }
 
-    property string optimizationMode: Persistent.ready ? (Persistent.states.display?.optimization ?? "balanced") : "balanced"
-
-    function applyOptimization(mode) {
-        if (!Persistent.ready) return;
-        Persistent.states.display.optimization = mode;
-
-        let evalStr = "";
-        if (mode === "performance") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })";
-        } else if (mode === "balanced") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })";
-        } else if (mode === "visuals") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })";
-        }
-
-        if (evalStr !== "") {
-            Quickshell.execDetached(["hyprctl", "eval", evalStr]);
-        }
-    }
+    property string optimizationMode: ""
 
     component SettingsSlider: Slider {
         id: sliderRoot
@@ -205,49 +187,17 @@ ColumnLayout {
 
         PanelCard {
             Layout.fillWidth: true
-            title: "Performance & Effects"
-            subtitle: {
-                const mode = root.optimizationMode;
-                return mode === "performance" ? "High Performance" : mode === "balanced" ? "Balanced" : "Best Visuals";
-            }
+            title: "Display Tools"
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 10
 
                 SmallButton {
-                    Layout.fillWidth: true
-                    text: "High Perf"
-                    iconName: "speed"
-                    primary: root.optimizationMode === "performance"
-                    onClicked: root.applyOptimization("performance")
+                    text: "wlr-randr"
+                    iconName: "terminal"
+                    onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
                 }
-                SmallButton {
-                    Layout.fillWidth: true
-                    text: "Balanced"
-                    iconName: "balance"
-                    primary: root.optimizationMode === "balanced"
-                    onClicked: root.applyOptimization("balanced")
-                }
-                SmallButton {
-                    Layout.fillWidth: true
-                    text: "Best Visuals"
-                    iconName: "palette"
-                    primary: root.optimizationMode === "visuals"
-                    onClicked: root.applyOptimization("visuals")
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: root.optimizationMode === "performance"
-                    ? "🏎️ High Performance: Frosted glass blur effect is disabled for maximum UI smoothness and battery life."
-                    : root.optimizationMode === "balanced"
-                        ? "⚖️ Balanced: 1 blur pass enabled. High-quality frosted glass look with 50% GPU load reduction (best for integrated GPUs)."
-                        : "✨ Best Visuals: 2 blur passes enabled. Full-resolution premium glass aesthetics (best for dedicated GPUs)."
-                color: SettingsTokens.dim
-                font.pixelSize: 13
-                wrapMode: Text.WordWrap
             }
         }
 
