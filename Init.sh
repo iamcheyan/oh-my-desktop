@@ -93,6 +93,8 @@ PACKAGES_AUDIO=(
 PACKAGES_NETWORK=(
     network-manager
     network-manager-wifi
+    network-manager-tui
+    network-manager-editor
     iwd
     blueman
 )
@@ -100,10 +102,12 @@ PACKAGES_NETWORK=(
 # Display/brightness
 PACKAGES_DISPLAY=(
     brightnessctl
+    ddcutil
     swaybg
     grim
     slurp
     swappy
+    satty
     wl-clipboard
 )
 
@@ -154,6 +158,7 @@ PACKAGES_TOOLS=(
     python3
     python3-pip
     ydotool
+    ffmpeg
 )
 
 # Fonts used by Quickshell, Walker, terminals, and MaterialSymbol widgets
@@ -187,6 +192,12 @@ PACKAGES_QT_GTK=(
     kvantum
 )
 
+# Desktop extras (optional but used by OMD)
+PACKAGES_DESKTOP_EXTRAS=(
+    hyprsunset
+    keyd
+)
+
 # File managers
 PACKAGES_FILES=(
     nautilus
@@ -211,13 +222,17 @@ get_debian_pkg() {
         pavucontrol)            echo "pavucontrol" ;;
         network-manager)        echo "network-manager" ;;
         network-manager-wifi)   echo "network-manager" ;;
+        network-manager-tui)    echo "network-manager-tui" ;;
+        network-manager-editor) echo "network-manager-gnome" ;;
         iwd)                    echo "iwd" ;;
         blueman)                echo "blueman" ;;
         brightnessctl)          echo "brightnessctl" ;;
+        ddcutil)                echo "ddcutil" ;;
         swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
         slurp)                  echo "slurp" ;;
         swappy)                 echo "swappy" ;;
+        satty)                  echo "satty" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         cliphist)               echo "cliphist" ;;
         mako)                   echo "mako" ;;
@@ -240,6 +255,9 @@ get_debian_pkg() {
         python3)                echo "python3" ;;
         python3-pip)            echo "python3-pip" ;;
         ydotool)                echo "ydotool" ;;
+        ffmpeg)                 echo "ffmpeg" ;;
+        hyprsunset)             echo "hyprsunset" ;;
+        keyd)                   echo "keyd" ;;
         cantarell-fonts)        echo "fonts-cantarell" ;;
         noto-fonts)             echo "fonts-noto-core" ;;
         noto-cjk-fonts)         echo "fonts-noto-cjk" ;;
@@ -280,13 +298,17 @@ get_fedora_pkg() {
         pavucontrol)            echo "pavucontrol" ;;
         network-manager)        echo "NetworkManager" ;;
         network-manager-wifi)   echo "NetworkManager-wifi" ;;
+        network-manager-tui)    echo "NetworkManager-tui" ;;
+        network-manager-editor) echo "nm-connection-editor" ;;
         iwd)                    echo "iwd" ;;
         blueman)                echo "blueman" ;;
         brightnessctl)          echo "brightnessctl" ;;
+        ddcutil)                echo "ddcutil" ;;
         swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
         slurp)                  echo "slurp" ;;
         swappy)                 echo "swappy" ;;
+        satty)                  echo "satty" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         cliphist)               echo "cliphist" ;;
         mako)                   echo "mako" ;;
@@ -309,6 +331,9 @@ get_fedora_pkg() {
         python3)                echo "python3" ;;
         python3-pip)            echo "python3-pip" ;;
         ydotool)                echo "ydotool" ;;
+        ffmpeg)                 echo "ffmpeg-free" ;;
+        hyprsunset)             echo "hyprsunset" ;;
+        keyd)                   echo "keyd" ;;
         cantarell-fonts)        echo "abattis-cantarell-vf-fonts" ;;
         noto-fonts)             echo "google-noto-sans-vf-fonts" ;;
         noto-cjk-fonts)         echo "google-noto-sans-cjk-vf-fonts" ;;
@@ -337,6 +362,9 @@ get_arch_pkg() {
     case "$1" in
         network-manager)        echo "networkmanager" ;;
         network-manager-wifi)   echo "networkmanager" ;;
+        network-manager-tui)    echo "networkmanager" ;;
+        network-manager-editor) echo "nm-connection-editor" ;;
+        ffmpeg)                 echo "ffmpeg" ;;
         cantarell-fonts)        echo "cantarell-fonts" ;;
         noto-fonts)             echo "noto-fonts" ;;
         noto-cjk-fonts)         echo "noto-fonts-cjk" ;;
@@ -475,12 +503,18 @@ install_nixos_system_config() {
     pavucontrol
     pulseaudio
     networkmanagerapplet
+    networkmanager-tui
     brightnessctl
+    ddcutil
     swaybg
     grim
     slurp
     swappy
+    satty
     ydotool
+    ffmpeg
+    hyprsunset
+    keyd
     libqalculate
     imagemagick
     power-profiles-daemon
@@ -878,6 +912,11 @@ install_all_dependencies() {
     install_packages "${PACKAGES_FILES[@]}"
     echo
 
+    # Desktop extras (optional tools used by OMD)
+    info "═══ Desktop Extras ═══"
+    install_packages "${PACKAGES_DESKTOP_EXTRAS[@]}"
+    echo
+
     ok "All dependencies installed!"
 }
 
@@ -1165,14 +1204,15 @@ main() {
     echo "  - Hyprland ecosystem (compositor, lock, idle, portal)"
     echo "  - Quickshell dependencies"
     echo "  - Audio (PipeWire, WirePlumber)"
-    echo "  - Network (NetworkManager, iwd)"
-    echo "  - Display tools (brightnessctl, swaybg, grim, slurp, swappy)"
+    echo "  - Network (NetworkManager, nmtui, nm-connection-editor, iwd, blueman)"
+    echo "  - Display tools (brightnessctl, ddcutil, swaybg, grim, slurp, swappy, satty)"
     echo "  - Clipboard (cliphist, wl-clipboard)"
     echo "  - Notifications (mako)"
     echo "  - Quickshell"
     echo "  - Input method (fcitx5)"
     echo "  - Terminal (foot)"
-    echo "  - Essential tools (jq, curl, git, ripgrep, fish, ydotool)"
+    echo "  - Essential tools (jq, curl, git, ripgrep, fish, ydotool, ffmpeg)"
+    echo "  - Desktop extras (hyprsunset, keyd)"
     echo "  - Fonts/icons (Cantarell, Noto, Nerd Fonts, Material Symbols)"
     echo "  - Qt/GTK integration"
     echo

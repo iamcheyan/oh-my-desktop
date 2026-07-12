@@ -92,7 +92,12 @@ section "desktop helpers"
 for cmd in wl-copy wl-paste cliphist mako grim slurp swappy; do
   check_optional_cmd "$cmd"
 done
-for cmd in pavucontrol bluetoothctl nm-connection-editor kitty fish; do
+for cmd in pavucontrol bluetoothctl nm-connection-editor nmtui kitty fish; do
+  check_optional_cmd "$cmd"
+done
+
+section "display extras"
+for cmd in ddcutil ffplay hyprsunset satty; do
   check_optional_cmd "$cmd"
 done
 
