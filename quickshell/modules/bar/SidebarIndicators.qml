@@ -47,6 +47,7 @@ Item {
         toggled: GlobalStates.barPopupType === iconButton.popupType
 
         onPressed: {
+            if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             GlobalStates.barPopupType = GlobalStates.barPopupType === iconButton.popupType
                 ? ""
                 : iconButton.popupType;
@@ -57,18 +58,6 @@ Item {
         id: indicatorsRowLayout
         anchors.centerIn: parent
         spacing: Config.options.bar.rightModuleSpacing
-
-        Revealer {
-            reveal: Audio.sink?.audio?.muted ?? false
-            Layout.fillHeight: true
-            IconSlot {
-                BarNerdIcon {
-                    anchors.centerIn: parent
-                    text: NerdIconMap.volumeOff
-                    color: container.colText
-                }
-            }
-        }
 
         IconSlot {
             visible: xkbIndicator.active

@@ -1,22 +1,24 @@
 pragma ComponentBehavior: Bound
 
 import qs
-import qs.services
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import qs.modules.common
+import qs.services
 
 Scope {
     id: root
 
-    readonly property bool active: !GlobalStates.screenLocked
-        && (GlobalStates.activeContextMenu !== "" || GlobalStates.barPopupType !== "")
-
     function dismiss() {
+        console.log("[DISMISSLAYER] dismiss() called, screenshotActive=" + BarRuntime.screenshotActive + " barPopupType=" + GlobalStates.barPopupType + " activeContextMenu=" + GlobalStates.activeContextMenu);
+        if (BarRuntime.screenshotActive) return;
         if (GlobalStates.activeContextMenu !== "")
             GlobalStates.activeContextMenu = "";
-        if (GlobalStates.barPopupType !== "")
+        if (GlobalStates.barPopupType !== "") {
+            GlobalStates.barPopupDismissedAt = Date.now();
             GlobalStates.barPopupType = "";
+        }
         GlobalFocusGrab.dismiss();
     }
 
@@ -28,7 +30,7 @@ Scope {
             required property ShellScreen modelData
 
             screen: modelData
-            visible: root.active
+            visible: BarRuntime.dismissLayerActive && !BarRuntime.screenshotActive
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
@@ -36,11 +38,22 @@ Scope {
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
+            readonly property bool barOnBottom: Config.options.bar.bottom
+            readonly property int barGap: Appearance.sizes.barHeight
+
             anchors {
-                top: true
-                bottom: true
+                top: !barOnBottom
+                bottom: barOnBottom
                 left: true
                 right: true
+            }
+            // Leave a gap on the bar side so clicks reach the bar buttons
+            // directly, enabling toggle (click again to close) behavior.
+            // Without this gap the full-screen dismiss layer intercepts the
+            // second click and only closes - never toggles.
+            margins {
+                top: barOnBottom ? 0 : barGap
+                bottom: barOnBottom ? barGap : 0
             }
 
             MouseArea {

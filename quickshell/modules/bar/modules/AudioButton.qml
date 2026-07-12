@@ -69,6 +69,7 @@ Item {
         toggled: !root.usingVoiceUi && GlobalStates.barPopupType === "audio"
 
         onClicked: {
+            if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             if (root.usingVoiceUi)
                 VoiceInput.toggle()
             else {

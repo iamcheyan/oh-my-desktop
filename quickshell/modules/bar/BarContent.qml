@@ -3,7 +3,6 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Services.UPower
 import qs
 import qs.services
 import qs.modules.common
@@ -14,9 +13,7 @@ Item { // Bar content region
     id: root
 
     readonly property int barSidePadding: 10
-    readonly property int titleAreaWidth: 280
-    readonly     property color barOpaqueColor: "#000000"
-    readonly property bool anyChildActive: GlobalStates.overviewOpen
+    readonly property color barOpaqueColor: "#000000"
 
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
@@ -38,17 +35,6 @@ Item { // Bar content region
     readonly property color barBackgroundColor: Config.options.bar.showBackground
         ? root.barOpaqueColor
         : "transparent"
-    property var brightnessMonitor: Brightness.getMonitorForScreen(screen)
-    property real useShortenedForm: (Appearance.sizes.barHellaShortenScreenWidthThreshold >= screen?.width) ? 2 : (Appearance.sizes.barShortenScreenWidthThreshold >= screen?.width) ? 1 : 0
-    readonly property int centerSideModuleWidth: (useShortenedForm == 2) ? Appearance.sizes.barCenterSideModuleWidthHellaShortened : (useShortenedForm == 1) ? Appearance.sizes.barCenterSideModuleWidthShortened : Appearance.sizes.barCenterSideModuleWidth
-
-    component VerticalBarSeparator: Rectangle {
-        Layout.topMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.bottomMargin: Appearance.sizes.baseBarHeight / 3
-        Layout.fillHeight: true
-        implicitWidth: 1
-        color: Appearance.colors.colOutlineVariant
-    }
 
     // Background shadow
     Loader {
@@ -79,10 +65,6 @@ Item { // Bar content region
         }
     }
 
-    LeftModuleRegistry {
-        id: leftModuleRegistry
-    }
-
     RowLayout {
         id: leftSectionRowLayout
         anchors.left: parent.left
@@ -90,17 +72,16 @@ Item { // Bar content region
         anchors.verticalCenter: parent.verticalCenter
         spacing: 14
 
-        Repeater {
-            model: Config.options.bar.leftModules
-            delegate: Loader {
-                required property string modelData
-                Layout.alignment: Qt.AlignVCenter
-                sourceComponent: {
-                    const comp = leftModuleRegistry.componentForName(modelData);
-                    return comp;
-                }
-                active: sourceComponent !== null
-            }
+        AppLauncherButton {
+            Layout.alignment: Qt.AlignVCenter
+        }
+
+        Workspaces {
+            Layout.alignment: Qt.AlignVCenter
+        }
+
+        ActiveWindow {
+            Layout.alignment: Qt.AlignVCenter
         }
     }
 
@@ -113,27 +94,7 @@ Item { // Bar content region
             bottom: parent.bottom
             horizontalCenter: parent.horizontalCenter
         }
-        width: centerRowLayout.implicitWidth
-        implicitHeight: centerRowLayout.implicitHeight
-
-        RowLayout {
-            id: centerRowLayout
-            anchors.centerIn: parent
-            spacing: Config.options.bar.centerModuleSpacing
-
-            Repeater {
-                model: Config.options.bar.centerModules
-                delegate: Loader {
-                    required property string modelData
-                    Layout.alignment: Qt.AlignVCenter
-                    sourceComponent: {
-                        const comp = leftModuleRegistry.componentForName(modelData);
-                        return comp;
-                    }
-                    active: sourceComponent !== null
-                }
-            }
-        }
+        width: 0
     }
 
     FocusedScrollMouseArea { // Right side
@@ -152,10 +113,6 @@ Item { // Bar content region
         // onPressed removed — clicking individual modules should not
         // toggle the sidebar. Use the SidebarIndicators button instead.
 
-        RightModuleRegistry {
-            id: rightModuleRegistry
-        }
-
         // Visual content
 
         RowLayout {
@@ -167,34 +124,40 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
-            Repeater {
-                model: {
-                    const modules = Config.options.bar.rightModules
-                    if (!modules.includes("util:audio"))
-                        return modules
-                    return modules.filter(name => name !== "util:voice")
-                }
-                delegate: Loader {
-                    required property string modelData
-                    readonly property bool fixedIconSlot: modelData.startsWith("util:")
-                    readonly property int iconSlotWidth: Config.options.bar.rightIconSlotWidth
-                    readonly property int resolvedWidth: fixedIconSlot ? iconSlotWidth : (item?.implicitWidth ?? 0)
+            SysTray {
+                Layout.alignment: Qt.AlignVCenter
+            }
 
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.preferredWidth: resolvedWidth
-                    Layout.minimumWidth: resolvedWidth
-                    Layout.maximumWidth: resolvedWidth
-                    Layout.fillHeight: true
-                    width: resolvedWidth
-                    height: parent.height
-                    visible: item ? item.visible : true
+            AudioButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
 
-                    sourceComponent: {
-                        const comp = rightModuleRegistry.componentForName(modelData);
-                        return comp;
-                    }
-                    active: sourceComponent !== null
-                }
+            KeyboardRemapButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            WifiButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            ClipboardButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            SessionButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            DisplayButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            ClockWidget {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            SidebarIndicators {
+                Layout.alignment: Qt.AlignVCenter
             }
         }
     }

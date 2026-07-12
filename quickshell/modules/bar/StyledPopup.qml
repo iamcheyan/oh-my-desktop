@@ -32,6 +32,7 @@ LazyLoader {
     active: hoverTarget !== null
         && hoverTarget.containsMouse === true
         && GlobalStates.activeContextMenu === ""
+        && GlobalStates.barPopupType === ""
         && !GlobalStates.screenLocked
 
     component: PanelWindow {

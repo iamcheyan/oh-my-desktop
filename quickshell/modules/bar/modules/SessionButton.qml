@@ -24,10 +24,10 @@ Item {
     property bool canvasEmpty: ToplevelManager.toplevels.values.length === 0
     property var previewData: ({ count: 0, workspaceCount: 0, workspaces: [] })
     readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
+    readonly property string snapshotFile: `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/omd/session/last.json`
 
     function refreshStatus() {
-        statusProc.running = false;
-        statusProc.running = true;
+        snapshotFileView.reload();
     }
 
     Component.onCompleted: refreshStatus()
@@ -50,22 +50,23 @@ Item {
         onTriggered: root.refreshStatus()
     }
 
-    Process {
-        id: statusProc
-        command: [root.omdSession, "status"]
-        running: false
-        stdout: StdioCollector {
-            id: statusCollector
-            onStreamFinished: {
-                try {
-                    const data = JSON.parse(statusCollector.text);
-                    root.hasSnapshot = data.saved === true;
-                    root.snapshotCount = data.count || 0;
-                } catch (e) {
-                    root.hasSnapshot = false;
-                    root.snapshotCount = 0;
-                }
+    FileView {
+        id: snapshotFileView
+        path: root.snapshotFile
+        onLoaded: {
+            try {
+                const data = JSON.parse(snapshotFileView.text());
+                const count = Array.isArray(data.clients) ? data.clients.length : 0;
+                root.hasSnapshot = count > 0;
+                root.snapshotCount = count;
+            } catch (e) {
+                root.hasSnapshot = false;
+                root.snapshotCount = 0;
             }
+        }
+        onLoadFailed: {
+            root.hasSnapshot = false;
+            root.snapshotCount = 0;
         }
     }
 

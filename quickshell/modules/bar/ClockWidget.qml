@@ -4,6 +4,7 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
 Item {
     id: root
@@ -13,8 +14,8 @@ Item {
     readonly property var weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     readonly property var months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-    function formatDateTime() {
-        var d = new Date();
+    function formatDateTime(date) {
+        var d = date;
         var monthStr = root.months[d.getMonth()];
         var day = d.getDate();
         var wd = root.weekdays[d.getDay()];
@@ -23,13 +24,9 @@ Item {
         return wd + " " + monthStr + " " + day + " " + h + ":" + m;
     }
 
-    property string displayText: formatDateTime()
-
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: root.displayText = root.formatDateTime()
+    SystemClock {
+        id: clock
+        precision: SystemClock.Minutes
     }
 
     StyledText {
@@ -39,7 +36,7 @@ Item {
         font.pixelSize: Appearance.font.pixelSize.small
         font.weight: Font.Normal
         color: Appearance.colors.colBarText
-        text: root.displayText
+        text: root.formatDateTime(clock.date)
     }
 
     Rectangle {
@@ -58,6 +55,9 @@ Item {
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: GlobalStates.barPopupType = GlobalStates.barPopupType === "notifications" ? "" : "notifications"
+        onClicked: {
+            if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
+            GlobalStates.barPopupType = GlobalStates.barPopupType === "notifications" ? "" : "notifications"
+        }
     }
 }

@@ -19,9 +19,11 @@ MouseArea {
         item.tooltipTitle,
         item.tooltipDescription
     ].join(" ").toLowerCase()
+    readonly property string itemIconName: String(item.icon ?? "")
     readonly property bool useArrowIcon: searchableIdentity.includes("search")
         || searchableIdentity.includes("walker")
         || searchableIdentity.includes("main-tray")
+    readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
@@ -79,23 +81,23 @@ MouseArea {
 
     IconImage {
         id: trayIcon
-        visible: !root.useArrowIcon && !Config.options.tray.monochromeIcons
-        source: root.item.icon
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !Config.options.tray.monochromeIcons
+        source: visible ? root.itemIconName : ""
         anchors.centerIn: parent
         width: Config.options.bar.rightIconSize
         height: Config.options.bar.rightIconSize
     }
 
     MaterialSymbol {
-        visible: root.useArrowIcon
+        visible: root.useArrowIcon || root.useNetworkFallbackIcon
         anchors.centerIn: parent
-        text: "arrow_forward"
+        text: root.useNetworkFallbackIcon ? "sync_alt" : "arrow_forward"
         iconSize: Config.options.bar.rightIconSize
         color: Appearance.colors.colBarText
     }
 
     Loader {
-        active: !root.useArrowIcon && Config.options.tray.monochromeIcons
+        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && Config.options.tray.monochromeIcons
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {

@@ -115,7 +115,8 @@ Scope {
         Connections {
             target: GlobalFocusGrab
             function onDismissed() {
-                root.close();
+                console.log("[BARPOPUP] onDismissed, screenshotActive=" + BarRuntime.screenshotActive + " activeType=" + root.activeType);
+                if (!BarRuntime.screenshotActive) root.close();
             }
         }
 
@@ -432,7 +433,6 @@ Scope {
             readonly property string trackTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || "--"
             readonly property string trackArtist: activePlayer?.trackArtist ?? ""
             readonly property bool isPlaying: activePlayer?.isPlaying ?? false
-            readonly property bool showBarMedia: Config.options.bar.rightModules.includes("media")
 
             function headerStatus() {
                 if (audioPanel.sinkMuted) return "MUTED";
@@ -463,16 +463,6 @@ Scope {
             function setSourceVolume(value) {
                 audioPanel.pinOpen();
                 Audio.setSourceVolume(value);
-            }
-
-            function toggleBarMediaModule(enabled) {
-                const modules = [...Config.options.bar.rightModules];
-                const index = modules.indexOf("media");
-                if (enabled && index < 0)
-                    modules.splice(Math.max(0, modules.indexOf("util:audio")), 0, "media");
-                else if (!enabled && index >= 0)
-                    modules.splice(index, 1);
-                Config.setNestedValue("bar.rightModules", modules);
             }
 
             ColumnLayout {
@@ -526,60 +516,6 @@ Scope {
                     font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: TuiStyle.dim
-                }
-
-                SectionLabel {
-                    visible: audioPanel.hasActivePlayer
-                    text: "MEDIA"
-                }
-
-                TuiDetailRow {
-                    visible: audioPanel.hasActivePlayer
-                    keyText: "TRACK"
-                    valueText: audioPanel.trackTitle
-                    valueColor: TuiStyle.fg
-                    keyWidth: 56
-                }
-
-                TuiDetailRow {
-                    visible: audioPanel.hasActivePlayer
-                    keyText: "STATE"
-                    valueText: audioPanel.isPlaying ? "playing" : "paused"
-                    valueColor: audioPanel.isPlaying ? TuiStyle.success : TuiStyle.muted
-                    keyWidth: 56
-                }
-
-                ActionRow {
-                    visible: audioPanel.hasActivePlayer
-                    TuiActionButton {
-                        label: audioPanel.isPlaying ? "PAUSE" : "PLAY"
-                        onClicked: audioPanel.activePlayer?.togglePlaying()
-                    }
-                }
-
-                TuiDetailRow {
-                    keyText: "BAR"
-                    valueText: audioPanel.showBarMedia ? "shown" : "hidden"
-                    valueColor: audioPanel.showBarMedia ? TuiStyle.success : TuiStyle.muted
-                    keyWidth: 56
-                }
-
-                ActionRow {
-                    TuiActionButton {
-                        label: audioPanel.showBarMedia ? "HIDE" : "SHOW"
-                        onClicked: audioPanel.toggleBarMediaModule(!audioPanel.showBarMedia)
-                    }
-                }
-
-                TuiDetailRow {
-                    keyText: "VOICE"
-                    valueText: audioPanel.voiceStateLabel()
-                    valueColor: VoiceInput.state === "recording" ? TuiStyle.warning : TuiStyle.muted
-                    keyWidth: 56
-                }
-
-                ActionRow {
-                    TuiActionButton { label: "SETTINGS"; onClicked: root.openDialog("sound") }
                 }
             }
 

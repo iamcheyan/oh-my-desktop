@@ -1,3 +1,4 @@
+import Quickshell
 import qs.modules.bar
 import qs
 import qs.services
@@ -6,38 +7,44 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Hyprland
 
 Item {
+    id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
-    property bool hovered: screenshotButton.hovered
+    property real wheelAccum: 0
 
-    RippleButton {
-        id: screenshotButton
+    CircleUtilButton {
+        id: displayButton
         anchors.centerIn: parent
-        width: Config.options.bar.rightIconSlotWidth
-        height: Config.options.bar.rightIconSlotWidth
-        buttonRadius: Appearance.rounding.full
-        colBackground: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colBackgroundHover: ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-        colRipple: ColorUtils.transparentize(Appearance.colors.colLayer1Active, 1)
 
         releaseAction: () => {
             Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
         }
-        altAction: () => {
-            screenshotMenu.open();
+
+        altAction: () => screenshotMenu.open()
+
+        content: BarNerdIcon {
+            text: NerdIconMap.desktop
+            color: Appearance.colors.colBarText
         }
     }
 
-    BarNerdIcon {
-        anchors.centerIn: screenshotButton
-        text: NerdIconMap.screenshot
-        color: Appearance.colors.colBarText
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        onWheel: wheel => {
+            const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
+            root.wheelAccum = r.accum
+            const currentScreen = displayButton.QsWindow.window.screen
+            for (let i = 0; i < Math.abs(r.steps); i++) {
+                Brightness.adjustBrightnessForScreen(currentScreen, r.steps > 0)
+            }
+            wheel.accepted = true;
+            GlobalStates.barPopupType = "display";
+        }
     }
 
     Loader {
@@ -53,8 +60,8 @@ Item {
         sourceComponent: ScreenshotContextMenu {
             Component.onCompleted: this.open();
             anchor {
-                window: screenshotButton.QsWindow.window
-                item: screenshotButton
+                window: displayButton.QsWindow.window
+                item: displayButton
                 gravity: Config.options.bar.vertical
                     ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
                     : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
