@@ -162,7 +162,7 @@ Singleton {
             "environment": {
                 "SSID": accessPoint.ssid
             },
-            "command": ["bash", "-c", 'nmcli connection up id "$SSID" || nmcli dev wifi connect "$SSID"']
+            "command": ["bash", "-c", 'export LANG=C LC_ALL=C; nmcli connection up id "$SSID" || nmcli dev wifi connect "$SSID"']
         });
     }
 
@@ -175,7 +175,7 @@ Singleton {
                 "SSID": accessPoint.ssid,
                 "PASSWORD": password
             },
-            "command": ["bash", "-c", 'nmcli dev wifi connect "$SSID" password "$PASSWORD"']
+            "command": ["bash", "-c", 'export LANG=C LC_ALL=C; nmcli dev wifi connect "$SSID" password "$PASSWORD"']
         });
     }
 
@@ -293,7 +293,7 @@ Singleton {
                     "environment": {
                         "SSID": root.wifiConnectTarget.ssid
                     },
-                    "command": ["bash", "-c", 'nmcli connection up id "$SSID"']
+                    "command": ["bash", "-c", 'export LANG=C LC_ALL=C; nmcli connection up id "$SSID"']
                 });
             }
         }
@@ -320,7 +320,7 @@ Singleton {
 
     Process {
         id: updateKnownWifiProfiles
-        command: ["sh", "-c", "nmcli -t -f NAME,TYPE connection show | while IFS=: read -r name type; do [ \"$type\" = \"802-11-wireless\" ] || continue; key=$(nmcli -g 802-11-wireless-security.key-mgmt connection show \"$name\" 2>/dev/null); psk=$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show \"$name\" 2>/dev/null); if [ -z \"$key\" ] || [ -n \"$psk\" ]; then auto=$(nmcli -g connection.autoconnect connection show \"$name\" 2>/dev/null); printf '%s\\t%s\\n' \"$name\" \"$auto\"; fi; done"]
+        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE connection show | while IFS=: read -r name type; do [ \"$type\" = \"802-11-wireless\" ] || continue; key=$(nmcli -g 802-11-wireless-security.key-mgmt connection show \"$name\" 2>/dev/null); psk=$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show \"$name\" 2>/dev/null); if [ -z \"$key\" ] || [ -n \"$psk\" ]; then auto=$(nmcli -g connection.autoconnect connection show \"$name\" 2>/dev/null); printf '%s\\t%s\\n' \"$name\" \"$auto\"; fi; done"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const known = [];
@@ -359,7 +359,7 @@ Singleton {
     Process {
         id: updateConnectionType
         property string buffer
-        command: ["sh", "-c", "nmcli -t -f TYPE,STATE d status && nmcli -t -f CONNECTIVITY g"]
+        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f TYPE,STATE d status && nmcli -t -f CONNECTIVITY g"]
         running: true
         function startCheck() {
             buffer = "";
@@ -420,7 +420,7 @@ Singleton {
     Process {
         id: updateNetworkStrength
         running: true
-        command: ["sh", "-c", "nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\\*/{if (NR!=1) {print $2}}'"]
+        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\\*/{if (NR!=1) {print $2}}'"]
         stdout: SplitParser {
             onRead: data => {
                 root.networkStrength = parseInt(data);
@@ -430,7 +430,7 @@ Singleton {
 
     Process {
         id: wifiStatusProcess
-        command: ["nmcli", "radio", "wifi"]
+        command: ["env", "LANG=C", "LC_ALL=C", "nmcli", "radio", "wifi"]
         Component.onCompleted: running = true
         environment: ({
             LANG: "C",
@@ -445,11 +445,7 @@ Singleton {
 
     Process {
         id: getNetworks
-        command: ["nmcli", "-g", "ACTIVE,SIGNAL,FREQ,SSID,BSSID,SECURITY", "d", "w"]
-        environment: ({
-            LANG: "C",
-            LC_ALL: "C"
-        })
+        command: ["env", "LANG=C", "LC_ALL=C", "nmcli", "-g", "ACTIVE,SIGNAL,FREQ,SSID,BSSID,SECURITY", "d", "w"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const PLACEHOLDER = "STRINGWHICHHOPEFULLYWONTBEUSED";
