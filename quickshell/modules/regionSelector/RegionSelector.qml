@@ -11,6 +11,18 @@ Scope {
 
     function dismiss() {
         GlobalStates.regionSelectorOpen = false
+        GlobalStates.screenshotActive = false
+        Quickshell.execDetached(["rm", "-f", "/tmp/omd-screenshot-active"])
+        // Release the bar process from screenshot mode so it can resume
+        // normal popup/menu dismiss behavior. This mirrors the `screenshot
+        // begin` IPC call made in bin/omd-screenshot before launch.
+        // NOTE: FileUtils/Directories are not available in omd-screenshot process;
+        // use OMD_REPO_ROOT (set by bin/omd-screenshot) to build the bar path.
+        const barDir = (Quickshell.env("OMD_REPO_ROOT") ?? "") + "/apps/omd-bar"
+        Quickshell.execDetached([
+            "qs", "-p", barDir,
+            "ipc", "call", "screenshot", "end"
+        ])
     }
 
     property var action: {

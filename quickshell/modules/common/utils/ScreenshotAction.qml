@@ -25,109 +25,130 @@ Singleton {
     property string imageSearchEngineBaseUrl: Config.options.search.imageSearch.imageSearchEngineBaseUrl
     property string fileUploadApiEndpoint: "https://uguu.se/upload"
 
-    function getCommand(x, y, width, height, screenshotPath, action, saveDir = "") {
-        // Set command for action
+    function quote(value) {
+        return `'${StringUtils.shellSingleQuoteEscape(value)}'`;
+    }
+
+    function regionString(x, y, width, height) {
         const rx = Math.round(x);
         const ry = Math.round(y);
         const rw = Math.round(width);
         const rh = Math.round(height);
-        const cropBase = `magick ${StringUtils.shellSingleQuoteEscape(screenshotPath)} `
-            + `-crop ${rw}x${rh}+${rx}+${ry} +repage`
-        const cropToStdout = `${cropBase} -`
-        const cropInPlace = `${cropBase} '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
-        const cleanup = `rm '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
-        const slurpRegion = `${rx},${ry} ${rw}x${rh}`
-        const uploadAndGetUrl = (filePath) => {
-            return `curl -sF files[]=@'${StringUtils.shellSingleQuoteEscape(filePath)}' ${root.fileUploadApiEndpoint} | jq -r '.files[0].url'`
+        return `${rx},${ry} ${rw}x${rh}`;
+    }
+
+    function annotationCommand() {
+        return `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
+    }
+
+    function uploadCurrentTempCommand() {
+        return `curl -sF files[]=@"$tmpFile" ${quote(root.fileUploadApiEndpoint)} | jq -r '.files[0].url'`;
+    }
+
+    function tempFilePrefixForAction(action) {
+        switch (action) {
+            case ScreenshotAction.Action.Search:
+                return "omd-search";
+            case ScreenshotAction.Action.CharRecognition:
+                return "omd-ocr";
+            default:
+                return "omd-screenshot";
         }
-        const annotationCommand = `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
+    }
+
+    function getTempCaptureCommand(x, y, width, height, tempPath) {
+        const region = regionString(x, y, width, height);
+        return ["bash", "-c", `grim -g ${quote(region)} ${quote(tempPath)}`];
+    }
+
+    function getSnapshotCropCommand(x, y, width, height, snapshotPath, tempPath) {
+        const rx = Math.round(x);
+        const ry = Math.round(y);
+        const rw = Math.round(width);
+        const rh = Math.round(height);
+        return ["bash", "-c",
+            `magick ${quote(snapshotPath)} -crop ${rw}x${rh}+${rx}+${ry} +repage ${quote(tempPath)}`
+        ];
+    }
+
+    function getRegionCommand(x, y, width, height, action, saveDir = "") {
+        const region = regionString(x, y, width, height);
+        const regionArg = quote(region);
+        const tempPrefix = tempFilePrefixForAction(action);
+
+        switch (action) {
+            case ScreenshotAction.Action.Record:
+                return ["bash", "-c", `${quote(Directories.recordScriptPath)} --region ${regionArg}`];
+            case ScreenshotAction.Action.RecordWithSound:
+                return ["bash", "-c", `${quote(Directories.recordScriptPath)} --region ${regionArg} --sound`];
+            default: {
+                const command = `tmpFile=$(mktemp /tmp/${tempPrefix}.XXXXXX.png) && ` +
+                    `trap 'rm -f "$tmpFile"' EXIT && ` +
+                    `grim -g ${regionArg} "$tmpFile" && ` +
+                    tempFileActionScript("$tmpFile", action, saveDir, false);
+                return ["bash", "-c", command];
+            }
+        }
+    }
+
+    function tempFileActionScript(tempFileExpression, action, saveDir = "", installCleanupTrap = true) {
+        const setup = installCleanupTrap
+            ? `tmpFile=${quote(tempFileExpression)}; trap 'rm -f "$tmpFile"' EXIT; `
+            : "";
+
         switch (action) {
             case ScreenshotAction.Action.Copy:
                 if (saveDir === "") {
-                    // not saving the screenshot, just copy to clipboard
-                    return ["bash", "-c", `${cropToStdout} | wl-copy && ${cleanup}`]
-                    break;
+                    return `${setup}cat "$tmpFile" | wl-copy`;
                 }
-                return [
-                    "bash", "-c",
-                    `mkdir -p '${StringUtils.shellSingleQuoteEscape(saveDir)}' && \
-                    saveFileName="screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && \
-                    savePath="${saveDir}/$saveFileName" && \
-                    ${cropToStdout} | tee >(wl-copy) > "$savePath" && \
-                    ${cleanup}`
-                ]
-
-                break;
+                return `${setup}saveDir=${quote(saveDir)}; ` +
+                    `mkdir -p "$saveDir" && ` +
+                    `savePath="$saveDir/screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && ` +
+                    `cat "$tmpFile" | tee "$savePath" | wl-copy`;
             case ScreenshotAction.Action.Edit:
-                return ["bash", "-c", `${cropToStdout} | ${annotationCommand} && ${cleanup}`]
-                break;
+                return `${setup}cat "$tmpFile" | ${annotationCommand()}`;
             case ScreenshotAction.Action.Search:
-                return ["bash", "-c", `${cropInPlace} && xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadAndGetUrl(screenshotPath)})" && ${cleanup}`]
-                break;
+                return `${setup}xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadCurrentTempCommand()})"`;
             case ScreenshotAction.Action.CharRecognition:
-                return ["bash", "-c", `${cropInPlace} && tesseract '${StringUtils.shellSingleQuoteEscape(screenshotPath)}' stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\n' '+' | sed 's/\\+$/\\n/') | wl-copy && ${cleanup}`]
-                break;
+                return `${setup}tesseract "$tmpFile" stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\n' '+' | sed 's/\\+$/\\n/') | wl-copy`;
             case ScreenshotAction.Action.Record:
-                return ["bash", "-c", `${Directories.recordScriptPath} --region '${slurpRegion}'`]
-                break;
             case ScreenshotAction.Action.RecordWithSound:
-                return ["bash", "-c", `${Directories.recordScriptPath} --region '${slurpRegion}' --sound`]
-                break;
+                console.warn("[Region Selector] Record actions require a selected region, not a temp file.");
+                return `${setup}true`;
             default:
                 console.warn("[Region Selector] Unknown snip action, skipping snip.");
-                return;
+                return `${setup}false`;
+        }
+    }
+
+    function getTempFileCommand(tempPath, action, saveDir = "") {
+        return ["bash", "-c", tempFileActionScript(tempPath, action, saveDir, true)];
+    }
+
+    function getCommand(x, y, width, height, screenshotPath, action, saveDir = "") {
+        const rx = Math.round(x);
+        const ry = Math.round(y);
+        const rw = Math.round(width);
+        const rh = Math.round(height);
+        const cropBase = `magick "$screenshotFile" -crop ${rw}x${rh}+${rx}+${ry} +repage`;
+        const tempPrefix = tempFilePrefixForAction(action);
+
+        switch (action) {
+            case ScreenshotAction.Action.Record:
+            case ScreenshotAction.Action.RecordWithSound:
+                return getRegionCommand(x, y, width, height, action, saveDir);
+            default: {
+                const command = `tmpFile=$(mktemp /tmp/${tempPrefix}.XXXXXX.png) && ` +
+                    `screenshotFile=${quote(screenshotPath)} && ` +
+                    `trap 'rm -f "$tmpFile" "$screenshotFile"' EXIT && ` +
+                    `${cropBase} "$tmpFile" && ` +
+                    tempFileActionScript("$tmpFile", action, saveDir, false);
+                return ["bash", "-c", command];
+            }
         }
     }
 
     function getGrimCommand(x, y, width, height, action, saveDir = "") {
-        const rx = Math.round(x);
-        const ry = Math.round(y);
-        const rw = Math.round(width);
-        const rh = Math.round(height);
-        const region = `${rx},${ry} ${rw}x${rh}`;
-        
-        const uploadAndGetUrl = (filePath) => {
-            return `curl -sF files[]=@'${StringUtils.shellSingleQuoteEscape(filePath)}' ${root.fileUploadApiEndpoint} | jq -r '.files[0].url'`
-        }
-        const annotationCommand = `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
-        
-        switch (action) {
-            case ScreenshotAction.Action.Copy:
-                if (saveDir === "") {
-                    return ["bash", "-c", `grim -g "${region}" - | wl-copy`]
-                }
-                return [
-                    "bash", "-c",
-                    `mkdir -p '${StringUtils.shellSingleQuoteEscape(saveDir)}' && \
-                    saveFileName="screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && \
-                    savePath="${saveDir}/$saveFileName" && \
-                    grim -g "${region}" - | tee "$savePath" | wl-copy`
-                ]
-            case ScreenshotAction.Action.Edit:
-                return ["bash", "-c", `grim -g "${region}" - | ${annotationCommand}`]
-            case ScreenshotAction.Action.Search:
-                return [
-                    "bash", "-c",
-                    `tmpFile="/tmp/omd-search-$(date +%s).png" && \
-                    grim -g "${region}" "$tmpFile" && \
-                    xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadAndGetUrl("$tmpFile")})" && \
-                    rm "$tmpFile"`
-                ]
-            case ScreenshotAction.Action.CharRecognition:
-                return [
-                    "bash", "-c",
-                    `tmpFile="/tmp/omd-ocr-$(date +%s).png" && \
-                    grim -g "${region}" "$tmpFile" && \
-                    tesseract "$tmpFile" stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\n' '+' | sed 's/\\+$/\\n/') | wl-copy && \
-                    rm "$tmpFile"`
-                ]
-            case ScreenshotAction.Action.Record:
-                return ["bash", "-c", `${Directories.recordScriptPath} --region '${region}'`]
-            case ScreenshotAction.Action.RecordWithSound:
-                return ["bash", "-c", `${Directories.recordScriptPath} --region '${region}' --sound`]
-            default:
-                console.warn("[Region Selector] Unknown snip action, skipping snip.");
-                return [];
-        }
+        return getRegionCommand(x, y, width, height, action, saveDir);
     }
 }

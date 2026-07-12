@@ -90,6 +90,8 @@ flock -w 1 9 || exit 0
 if is_running; then
     kill_running
     wait_until_not_running
+    rm -f /tmp/omd-screenshot-active
+    qs -p "$app_dir/../omd-bar" ipc call screenshot end >/dev/null 2>&1 || true
     # Explicit cancel request: do not relaunch.
     if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
         exec 9>&-
@@ -165,7 +167,63 @@ launch_direct() {
     # The flock fd was already closed before entering launch_direct(), so
     # Quickshell and its children (grim, wl-copy, hyprpicker, ...) never
     # inherit the advisory lock.
-    nohup "$qs_bin" -p "$app_dir" >>"$log_file" 2>&1 &
+
+    # ── Snapshot-first approach ─────────────────────────────────────────────
+    # The fundamental problem: when the screenshot QS process creates its
+    # Overlay+Exclusive layer-shell surface, Hyprland moves focus away from
+    # the bar's popup/menu, triggering GlobalFocusGrab.onCleared which
+    # dismisses any visible overlay — *before* grim can capture it.
+    #
+    # Solution: run grim HERE (in the shell, before any QS process exists)
+    # so popups are still on screen. The snapshot files are passed to the
+    # QS process via OMD_SNAPSHOT_DIR; RegionSelection.qml skips its own
+    # grim call and loads the pre-captured images directly.
+    touch /tmp/omd-screenshot-active
+    qs -p "$app_dir/../omd-bar" ipc call screenshot begin > /dev/null 2>&1 || true
+
+    snapshot_dir="/tmp/quickshell/media/screenshot"
+    mkdir -p "$snapshot_dir"
+    export OMD_SNAPSHOT_DIR="$snapshot_dir"
+
+    # For recording actions, don't pre-capture (record captures live output).
+    # For all screenshot/edit/search/ocr actions, capture now while overlays
+    # are still visible.
+    if [ "$action" != "record" ] && [ "$action" != "recordWithSound" ]; then
+        # Capture each connected output. grim -o <output> captures one monitor.
+        # Use hyprctl to get monitor names; fall back to a single full-screen
+        # capture if hyprctl is unavailable.
+        snapshot_ts="$(date +%s%3N)"
+        snapshot_ok=0
+        if command -v hyprctl > /dev/null 2>&1; then
+            monitor_names="$(hyprctl monitors -j 2>/dev/null \
+                | python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin)]' \
+                2>/dev/null || true)"
+        else
+            monitor_names=""
+        fi
+
+        if [ -n "$monitor_names" ]; then
+            for mon in $monitor_names; do
+                snap_path="${snapshot_dir}/snapshot-${mon}-${snapshot_ts}.png"
+                if grim -o "$mon" "$snap_path" > /dev/null 2>&1; then
+                    # Export per-monitor env var: OMD_SNAPSHOT_PATH_HDMI_A_1 etc.
+                    # (dashes/dots in monitor names → underscores for valid env names)
+                    mon_env="$(echo "$mon" | sed 's/[-.]/_/g')"
+                    export "OMD_SNAPSHOT_PATH_${mon_env}=${snap_path}"
+                    snapshot_ok=1
+                fi
+            done
+        fi
+
+        if [ "$snapshot_ok" -eq 0 ]; then
+            # Fallback: single full-screen capture (no -o flag)
+            snap_path="${snapshot_dir}/snapshot-all-${snapshot_ts}.png"
+            grim "$snap_path" > /dev/null 2>&1 || true
+            export OMD_SNAPSHOT_PATH_ALL="$snap_path"
+        fi
+    fi
+
+    nohup "$qs_bin" -p "$app_dir" >> "$log_file" 2>&1 &
     wait_until_running_or_failed || true
 }
 

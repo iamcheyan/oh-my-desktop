@@ -18,7 +18,7 @@ PanelWindow {
     color: "transparent"
     WlrLayershell.namespace: "quickshell:regionSelector"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+    WlrLayershell.keyboardFocus: root.visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
     anchors {
         left: true
@@ -41,15 +41,17 @@ PanelWindow {
     // Styles
     property string screenshotDir: Directories.screenshotTemp
     property color overlayColor: ColorUtils.transparentize("#000000", 0.5)
-    property color brightText: Appearance.m3colors.darkmode ? Appearance.colors.colOnLayer0 : Appearance.colors.colLayer0
-    property color brightSecondary: Appearance.m3colors.darkmode ? Appearance.colors.colSecondary : Appearance.colors.colOnSecondary
-    property color brightTertiary: Appearance.m3colors.darkmode ? Appearance.colors.colTertiary : Qt.lighter(Appearance.colors.colPrimary)
-    property color selectionBorderColor: ColorUtils.mix(brightText, brightSecondary, 0.5)
-    property color selectionFillColor: "#33ffffff"
+    // Keep screenshot selection neutral. Theme accent colors can be bright
+    // green; using them here makes the capture mask visually distracting.
+    property color brightText: "#f4f4f4"
+    property color brightSecondary: "#b8b8b8"
+    property color brightTertiary: "#8f8f8f"
+    property color selectionBorderColor: "#e5e5e5"
+    property color selectionFillColor: "#22ffffff"
     property color windowBorderColor: brightSecondary
-    property color windowFillColor: ColorUtils.transparentize(windowBorderColor, 0.85)
+    property color windowFillColor: "#18ffffff"
     property color imageBorderColor: brightTertiary
-    property color imageFillColor: ColorUtils.transparentize(imageBorderColor, 0.85)
+    property color imageFillColor: "#14ffffff"
     property color onBorderColor: "#ff000000"
     property real targetRegionOpacity: Config.options.regionSelector.targetRegions.opacity
     property bool contentRegionOpacity: Config.options.regionSelector.targetRegions.contentRegionOpacity
@@ -69,9 +71,20 @@ PanelWindow {
     readonly property real monitorOffsetX: hyprlandMonitor?.x ?? 0
     readonly property real monitorOffsetY: hyprlandMonitor?.y ?? 0
     property int activeWorkspaceId: hyprlandMonitor?.activeWorkspace?.id ?? 0
-    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}-${Date.now()}.png`
+    // True when screenshotPath points to a pre-captured file (created by the
+    // shell script). We must not delete it on destruction since other monitor
+    // instances may still reference it.
+    property bool preCapSnapshot: false
+    // When true, send `menus close` to the bar immediately after the overlay
+    // becomes visible. This ensures the overlay covers the screen BEFORE the
+    // live menus are dismissed, preventing the user from seeing a frame where
+    // the menus have disappeared but the frozen snapshot has not yet appeared.
+    property bool closeMenusOnShow: false
+    property bool snapshotReady: false
     property string savedScreenshotPath: ""
     property string tempScreenshotPath: ""
+    property bool postCaptureReady: false
     property real dragStartX: 0
     property real dragStartY: 0
     property real draggingX: 0
@@ -127,6 +140,10 @@ PanelWindow {
     property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection
     property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection
     property bool enableContentRegions: false
+
+    function scaledSnapshotCoord(value) {
+        return value * root.monitorScale;
+    }
 
     // Target
     property real targetedRegionX: -1
@@ -239,6 +256,14 @@ PanelWindow {
             preparationDone = true;
         }
     }
+    Component.onDestruction: {
+        // Only delete the snapshot if we created it ourselves (snapshotProc).
+        // Pre-captured snapshots (preCapSnapshot=true) were created by the
+        // shell script and should not be removed here.
+        if (!root.preCapSnapshot && root.screenshotPath !== "") {
+            Quickshell.execDetached(["rm", "-f", root.screenshotPath]);
+        }
+    }
     onPreparationDoneChanged: {
         if (!preparationDone) return;
         if (root.isRecording && root.recordingShouldStop) {
@@ -246,15 +271,79 @@ PanelWindow {
             root.dismiss();
             return;
         }
-        root.visible = true;
-        captureDelayTimer.start();
+        if (root.isRecording) {
+            // Recording captures the live compositor output, so hide bar
+            // overlays before showing the selector.
+            const barDir = (Quickshell.env("OMD_REPO_ROOT") ?? "") + "/apps/omd-bar";
+            Quickshell.execDetached([
+                "qs", "-p", barDir,
+                "ipc", "call", "menus", "close"
+            ]);
+            root.visible = true;
+            root.captureReady = true;
+        } else {
+            // Try to use a pre-captured snapshot from the shell script.
+            // The shell exports OMD_SNAPSHOT_PATH_<MONITOR_ENV> where monitor
+            // name dashes/dots become underscores (e.g. HDMI-A-1 → HDMI_A_1).
+            const snapshotDir = Quickshell.env("OMD_SNAPSHOT_DIR") ?? "";
+            const monitorName = root.screen?.name ?? "";
+            const monEnv = monitorName.replace(/[-\.]/g, "_");
+            const preCapPath = Quickshell.env(`OMD_SNAPSHOT_PATH_${monEnv}`) ?? "";
+            if (preCapPath !== "") {
+                // Pre-captured snapshot exists — use it directly.
+                root.screenshotPath = preCapPath;
+                root.preCapSnapshot = true;
+                root.snapshotReady = true;
+                // Defer menus close until AFTER the overlay becomes visible
+                // (handled in showSnapshotTimer.onTriggered).
+                root.closeMenusOnShow = true;
+                showSnapshotTimer.restart();
+            } else {
+                // No pre-captured snapshot; fall back to capturing now.
+                snapshotProc.running = true;
+            }
+        }
     }
 
     Timer {
-        id: captureDelayTimer
-        interval: 80
+        id: showSnapshotTimer
+        interval: 60
         repeat: false
-        onTriggered: root.captureReady = true
+        onTriggered: {
+            root.visible = true;
+            root.captureReady = true;
+            // Send menus close AFTER the overlay is visible so the user never
+            // sees a frame where live menus are gone but the snapshot hasn't
+            // appeared yet.
+            if (root.closeMenusOnShow) {
+                root.closeMenusOnShow = false;
+                const barDir = (Quickshell.env("OMD_REPO_ROOT") ?? "") + "/apps/omd-bar";
+                Quickshell.execDetached([
+                    "qs", "-p", barDir,
+                    "ipc", "call", "menus", "close"
+                ]);
+            }
+        }
+    }
+
+    Process {
+        id: snapshotProc
+        running: false
+        command: ["bash", "-c",
+            `mkdir -p ${ScreenshotAction.quote(root.screenshotDir)} && grim -o ${ScreenshotAction.quote(root.screen.name)} ${ScreenshotAction.quote(root.screenshotPath)}`
+        ]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                root.snapshotReady = true;
+                // Defer menus close until AFTER the overlay becomes visible
+                // (handled in showSnapshotTimer.onTriggered).
+                root.closeMenusOnShow = true;
+                showSnapshotTimer.restart();
+            } else {
+                console.warn(`[Region Selector] Snapshot capture failed with exit code ${exitCode}.`);
+                root.dismiss();
+            }
+        }
     }
 
     function getScreenshotAction() {
@@ -287,22 +376,40 @@ PanelWindow {
             var screenshotAction = root.getScreenshotAction();
 
             if (root.action === RegionSelection.SnipAction.Edit) {
-                const region = `${Math.round(root.regionX + root.monitorOffsetX)},${Math.round(root.regionY + root.monitorOffsetY)} ${Math.round(root.regionWidth)}x${Math.round(root.regionHeight)}`;
                 root.tempScreenshotPath = `/tmp/omd-screenshot-${Date.now()}.png`;
-                Quickshell.execDetached(["bash", "-c", `grim -g "${region}" "${root.tempScreenshotPath}"`]);
+                root.postCaptureReady = false;
+                postCaptureProc.command = ScreenshotAction.getSnapshotCropCommand(
+                    root.scaledSnapshotCoord(root.regionX),
+                    root.scaledSnapshotCoord(root.regionY),
+                    root.scaledSnapshotCoord(root.regionWidth),
+                    root.scaledSnapshotCoord(root.regionHeight),
+                    root.screenshotPath,
+                    root.tempScreenshotPath
+                );
+                postCaptureProc.running = true;
                 root.phase = RegionSelection.Phase.Post;
                 root.visible = true;
                 return;
             }
 
-            const command = ScreenshotAction.getGrimCommand(
-                root.regionX + root.monitorOffsetX,
-                root.regionY + root.monitorOffsetY,
-                root.regionWidth,
-                root.regionHeight,
-                screenshotAction,
-                saveDir
-            );
+            const command = root.isRecording
+                ? ScreenshotAction.getRegionCommand(
+                    root.regionX + root.monitorOffsetX,
+                    root.regionY + root.monitorOffsetY,
+                    root.regionWidth,
+                    root.regionHeight,
+                    screenshotAction,
+                    saveDir
+                )
+                : ScreenshotAction.getCommand(
+                    root.scaledSnapshotCoord(root.regionX),
+                    root.scaledSnapshotCoord(root.regionY),
+                    root.scaledSnapshotCoord(root.regionWidth),
+                    root.scaledSnapshotCoord(root.regionHeight),
+                    root.screenshotPath,
+                    screenshotAction,
+                    saveDir
+                );
             Quickshell.execDetached(command);
             if (root.action == RegionSelection.SnipAction.Record || root.action == RegionSelection.SnipAction.RecordWithSound) {
                 root.phase = RegionSelection.Phase.Post
@@ -313,8 +420,27 @@ PanelWindow {
         }
     }
 
+    Process {
+        id: postCaptureProc
+        running: false
+        command: []
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                root.postCaptureReady = true;
+            } else {
+                console.warn(`[Region Selector] Post-capture failed with exit code ${exitCode}.`);
+                root.dismiss();
+            }
+        }
+    }
+
     // Execution after selection
     function snip() {
+        if (!root.snapshotReady && !root.isRecording) {
+            console.warn("[Region Selector] Snapshot is not ready, skipping snip.");
+            return;
+        }
+
         // Validity check
         if (root.regionWidth <= 0 || root.regionHeight <= 0) {
             console.warn("[Region Selector] Invalid region size, skipping snip.");
@@ -333,8 +459,8 @@ PanelWindow {
             root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit : RegionSelection.SnipAction.Copy;
         }
 
-        // Hide overlay so it's not captured (skip for Edit mode — overlay is outside selection)
-        if (root.action !== RegionSelection.SnipAction.Edit) {
+        // Recording still captures the live compositor output, so hide the overlay first.
+        if (root.isRecording) {
             root.visible = false;
         }
         snipDelayTimer.start();
@@ -345,14 +471,18 @@ PanelWindow {
         item: root.phase === RegionSelection.Phase.Select ? mouseArea : actionBarMask
     }
 
-    ScreencopyView { // For freezing
+    Image {
+        id: frozenSnapshot
         anchors.fill: parent
-        live: false
-        captureSource: root.screen
-        // Stay visible through Select AND Post phases so the frozen canvas
-        // covers the live desktop while the action bar is shown.
+        cache: false
+        fillMode: Image.Stretch
+        source: root.snapshotReady ? Qt.resolvedUrl(`file://${root.screenshotPath}`) : ""
         visible: root.visible
+    }
 
+    Item {
+        anchors.fill: parent
+        visible: root.visible
         focus: root.visible
         Keys.onPressed: (event) => { // Esc to close
             if (event.key === Qt.Key_Escape) {
@@ -377,6 +507,10 @@ PanelWindow {
 
         // Controls
         onPressed: (mouse) => {
+            if (!root.snapshotReady && !root.isRecording) {
+                mouse.accepted = true;
+                return;
+            }
             root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
             root.dragStartX = mouse.x;
             root.dragStartY = mouse.y;
@@ -386,6 +520,10 @@ PanelWindow {
             root.mouseButton = mouse.button;
         }
         onReleased: (mouse) => {
+            if (!root.dragging) {
+                mouse.accepted = true;
+                return;
+            }
             root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
             // Detect if it was a click -> Try to select targeted region
             if (root.draggingX === root.dragStartX && root.draggingY === root.dragStartY) {
@@ -583,7 +721,7 @@ PanelWindow {
 
         // Action bar (on top, buttons intercept clicks)
         Item {
-            x: root.regionX
+            x: root.regionX + root.regionWidth - width
             y: root.regionY + root.regionHeight + 12
             width: actionBar.implicitWidth
             height: actionBar.implicitHeight
@@ -591,78 +729,93 @@ PanelWindow {
             Row {
                 id: actionBar
                 spacing: 8
+                enabled: root.postCaptureReady
+                opacity: root.postCaptureReady ? 1 : 0.45
 
                 Rectangle {
+                    id: saveButton
                     width: 40; height: 40; radius: 8
-                    color: Appearance.colors.colPrimary
-                    border.width: 0
+                    color: saveMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+                    border.width: 1
+                    border.color: saveMouse.containsMouse ? TuiStyle.controlActiveBorder : TuiStyle.menuBorder
 
                     MaterialSymbol {
                         anchors.centerIn: parent
                         iconSize: 22
-                        color: Appearance.colors.colOnPrimary
+                        color: saveMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
                         text: "save"
                     }
 
                     MouseArea {
+                        id: saveMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             const saveDir = Config.options.screenSnip.savePath !== "" ? Config.options.screenSnip.savePath : "";
-                            if (saveDir === "") {
-                                Quickshell.execDetached(["bash", "-c", `cat "${root.tempScreenshotPath}" | wl-copy && rm "${root.tempScreenshotPath}"`]);
-                            } else {
-                                Quickshell.execDetached(["bash", "-c",
-                                    `mkdir -p '${saveDir}' && saveFileName="screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && savePath="${saveDir}/$saveFileName" && cat "${root.tempScreenshotPath}" | tee "$savePath" | wl-copy && rm "${root.tempScreenshotPath}"`]);
-                            }
+                            Quickshell.execDetached(ScreenshotAction.getTempFileCommand(
+                                root.tempScreenshotPath,
+                                ScreenshotAction.Action.Copy,
+                                saveDir
+                            ));
                             root.dismiss();
                         }
                     }
                 }
 
                 Rectangle {
+                    id: searchButton
                     width: 40; height: 40; radius: 8
-                    color: Appearance.colors.colPrimary
-                    border.width: 0
+                    color: searchMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+                    border.width: 1
+                    border.color: searchMouse.containsMouse ? TuiStyle.controlActiveBorder : TuiStyle.menuBorder
 
                     MaterialSymbol {
                         anchors.centerIn: parent
                         iconSize: 22
-                        color: Appearance.colors.colOnPrimary
+                        color: searchMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
                         text: "image_search"
                     }
 
                     MouseArea {
+                        id: searchMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            const uploadAndGetUrl = `curl -sF files[]=@'${root.tempScreenshotPath}' https://uguu.se/upload | jq -r '.files[0].url'`;
-                            Quickshell.execDetached(["bash", "-c",
-                                `xdg-open "https://lens.google.com/uploadbyurl?url=$(${uploadAndGetUrl})" && rm "${root.tempScreenshotPath}"`]);
+                            Quickshell.execDetached(ScreenshotAction.getTempFileCommand(
+                                root.tempScreenshotPath,
+                                ScreenshotAction.Action.Search
+                            ));
                             root.dismiss();
                         }
                     }
                 }
 
                 Rectangle {
+                    id: editButton
                     width: 40; height: 40; radius: 8
-                    color: Appearance.colors.colPrimary
-                    border.width: 0
+                    color: editMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+                    border.width: 1
+                    border.color: editMouse.containsMouse ? TuiStyle.controlActiveBorder : TuiStyle.menuBorder
 
                     MaterialSymbol {
                         anchors.centerIn: parent
                         iconSize: 22
-                        color: Appearance.colors.colOnPrimary
+                        color: editMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
                         text: "edit"
                     }
 
                     MouseArea {
+                        id: editMouse
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            const annotationCommand = `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
-                            Quickshell.execDetached(["bash", "-c",
-                                `cat "${root.tempScreenshotPath}" | ${annotationCommand} && rm "${root.tempScreenshotPath}"`]);
+                            Quickshell.execDetached(ScreenshotAction.getTempFileCommand(
+                                root.tempScreenshotPath,
+                                ScreenshotAction.Action.Edit
+                            ));
                             root.dismiss();
                         }
                     }
