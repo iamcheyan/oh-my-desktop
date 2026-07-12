@@ -241,6 +241,8 @@ The backend supports:
 - RDP host-port conflict detection. If another local service already listens on
   3389, the backend rewrites the compose mapping to a free 3390-3400 port and
   reports the actual endpoint to the Settings page.
+- download progress extraction from Dockurr logs through `progressPercent`, so
+  the Settings page can show `downloading 8%` without opening the raw logs.
 
 On the validation machine, `xrdp.service` was already listening on host port
 3389, so the first Docker start left `omarchy-windows` in `created` with a port

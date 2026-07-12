@@ -1541,6 +1541,7 @@ WindowDialog {
                 property string dockerError: ""
                 property string container: "missing"
                 property string phase: "not-installed"
+                property string progressPercent: ""
                 property bool ready: false
                 property bool webReachable: false
                 property bool rdpReachable: false
@@ -1610,9 +1611,14 @@ WindowDialog {
                 function statusText() {
                     if (!s.configured) return "Not installed";
                     if (s.ready) return "Ready";
-                    if (s.running) return `Running: ${s.phase}`;
+                    if (s.running) return `Running: ${s.phaseText()}`;
                     if (s.partial) return "Partial setup";
                     if (s.stopped) return "Stopped";
+                    return s.phaseText();
+                }
+                function phaseText() {
+                    if (s.progressPercent.length > 0)
+                        return `${s.phase} ${s.progressPercent}%`;
                     return s.phase;
                 }
                 function blockerText() {
@@ -1644,6 +1650,7 @@ WindowDialog {
                     s.dockerError = d.dockerError || "";
                     s.container = d.container || "missing";
                     s.phase = d.phase || "not-installed";
+                    s.progressPercent = d.progressPercent || "";
                     s.ready = s.parseBool(d.ready);
                     s.webReachable = s.parseBool(d.webReachable);
                     s.rdpReachable = s.parseBool(d.rdpReachable);
@@ -1684,7 +1691,7 @@ WindowDialog {
                     SettingsStatusPill { label: s.freerdp ? "RDP" : "No RDP"; active: s.freerdp; warning: !s.freerdp }
                 }
 
-                SettingsRow { label: "Phase"; value: s.phase }
+                SettingsRow { label: "Phase"; value: s.phaseText() }
                 SettingsRow { label: "Container"; value: s.container; valueColor: s.running ? SettingsTokens.accent : SettingsTokens.muted }
                 SettingsRow { label: "Web console"; value: s.web; showChevron: true; onClicked: s.run("web") }
                 SettingsRow { label: "RDP endpoint"; value: s.portText(); valueColor: s.rdpPortConflict ? "#f9a825" : SettingsTokens.onSurface }
@@ -1761,7 +1768,7 @@ WindowDialog {
                     wavy: true
                 }
 
-                SettingsRow { label: "Current phase"; value: s.phase }
+                SettingsRow { label: "Current phase"; value: s.phaseText() }
                 SettingsRow { label: "Web console"; value: s.webReachable ? "Reachable" : "Not ready" }
                 SettingsRow { label: "RDP"; value: s.rdpReachable ? `Reachable on ${s.rdpEndpoint}` : s.portText() }
 
@@ -1909,6 +1916,7 @@ WindowDialog {
                         const d = root.parseKeyValue(text);
                         if (d.state) s.container = d.state;
                         if (d.phase) s.phase = d.phase;
+                        s.progressPercent = d.progressPercent || "";
                         s.ready = d.ready === "true";
                         s.webReachable = d.webReachable === "true";
                         s.rdpReachable = d.rdpReachable === "true";

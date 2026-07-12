@@ -223,6 +223,11 @@ phase() {
   detect_phase_from_logs "$logs" "$status"
 }
 
+progress_percent_from_logs() {
+  local logs="$1"
+  echo "$logs" | grep -Eo '[[:space:]][0-9]+%' | tail -n 1 | tr -d ' %' || true
+}
+
 ready_state() {
   local status="$1" phase_value="$2"
   if [[ "$status" == "running" && "$phase_value" == "ready" ]]; then
@@ -236,6 +241,7 @@ print_common_status() {
   local configured=false storage_present=false kvm=false docker_cli=false docker_daemon=false docker_access=false
   local docker_socket=false docker_group=false compose_ok=false freerdp=false freerdp_path=""
   local status phase_value ready=false web_ok=false rdp_ok=false docker_err=""
+  local logs="" progress_percent=""
 
   [[ -f "$COMPOSE_FILE" ]] && configured=true
   [[ -d "$STORAGE_DIR" ]] && storage_present=true
@@ -254,7 +260,11 @@ print_common_status() {
   [[ "$docker_cli" == true && "$docker_access" == false ]] && docker_err="$(docker_error || true)"
 
   status="$(container_status)"
-  phase_value="$(phase "$status")"
+  if [[ "$status" == "running" && "$docker_access" == true ]]; then
+    logs="$(log_tail 120)"
+    progress_percent="$(progress_percent_from_logs "$logs")"
+  fi
+  phase_value="$(detect_phase_from_logs "$logs" "$status")"
   ready="$(ready_state "$status" "$phase_value")"
   web_reachable && web_ok=true
   [[ "$status" == "running" ]] && rdp_reachable && rdp_ok=true
@@ -275,6 +285,7 @@ print_common_status() {
   kv freerdpBin "$freerdp_path"
   kv container "$status"
   kv phase "$phase_value"
+  kv progressPercent "$progress_percent"
   kv ready "$ready"
   kv webReachable "$web_ok"
   kv rdpReachable "$rdp_ok"
@@ -605,11 +616,16 @@ start_connect() {
 }
 
 install_status() {
-  local status_value phase_value
+  local status_value phase_value logs progress_percent=""
   status_value="$(container_status)"
-  phase_value="$(phase "$status_value")"
+  if [[ "$status_value" == "running" ]] && docker_access_available; then
+    logs="$(log_tail 120)"
+    progress_percent="$(progress_percent_from_logs "$logs")"
+  fi
+  phase_value="$(detect_phase_from_logs "$logs" "$status_value")"
   kv state "$status_value"
   kv phase "$phase_value"
+  kv progressPercent "$progress_percent"
   kv ready "$(ready_state "$status_value" "$phase_value")"
   kv webReachable "$(bool web_reachable)"
   kv rdpPort "$(compose_rdp_port)"
