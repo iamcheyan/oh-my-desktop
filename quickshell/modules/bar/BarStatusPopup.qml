@@ -305,7 +305,7 @@ Scope {
                 anchors.centerIn: parent
                 iconSize: 18
                 text: audioSliderRow.icon
-                color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
+                color: TuiStyle.fg
             }
 
             MouseArea {
@@ -799,14 +799,6 @@ Scope {
                 }
             }
 
-            TuiDetailRow {
-                visible: PowerProfiles.available
-                keyText: "ACTIVE"
-                valueText: batteryStack.profileLabel()
-                valueColor: TuiStyle.accent
-                keyWidth: 96
-            }
-
             SectionLabel {
                 visible: Battery.available
                 text: "CHARGE LIMIT"
@@ -838,20 +830,6 @@ Scope {
                 Layout.preferredHeight: 10
                 value: batteryStack.brightnessValue * 100
                 accent: TuiStyle.warning
-            }
-
-            TuiDetailRow {
-                keyText: "LEVEL"
-                valueText: `${Math.round(batteryStack.brightnessValue * 100)}%`
-                valueColor: TuiStyle.warning
-                keyWidth: 96
-            }
-
-            ActionRow {
-                TuiActionButton {
-                    label: "SETTINGS"
-                    onClicked: root.openDialog("power")
-                }
             }
 
             SectionLabel { text: "SESSION" }
@@ -955,6 +933,7 @@ Scope {
         Rectangle {
             id: tileBg
             anchors.fill: parent
+            radius: TuiStyle.miniRadius + 2
             color: tileMouse.pressed ? TuiStyle.surfacePressed
                 : tile.active ? TuiStyle.panelAlt
                 : tileMouse.containsMouse ? TuiStyle.surfaceHover
