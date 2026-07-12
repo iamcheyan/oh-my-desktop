@@ -349,7 +349,9 @@ PanelWindow {
         anchors.fill: parent
         live: false
         captureSource: root.screen
-        visible: root.visible && root.phase === RegionSelection.Phase.Select
+        // Stay visible through Select AND Post phases so the frozen canvas
+        // covers the live desktop while the action bar is shown.
+        visible: root.visible
 
         focus: root.visible
         Keys.onPressed: (event) => { // Esc to close
