@@ -1614,8 +1614,8 @@ WindowDialog {
                 function blockerText() {
                     if (!s.kvm) return "KVM is unavailable. Enable virtualization in BIOS, then try again.";
                     if (!s.dockerCli) return "Docker is not installed.";
-                    if (!s.dockerDaemon) return "Docker is installed but the daemon is not running.";
                     if (!s.dockerAccess) return s.dockerError.length > 0 ? s.dockerError : "Current user cannot access Docker.";
+                    if (!s.dockerDaemon) return "Docker is installed but the daemon is not running.";
                     if (!s.compose) return "Docker Compose is not installed.";
                     if (s.diskAvailable < 74) return `Only ${s.diskAvailable} GB free. Windows VM needs at least 74 GB.`;
                     return "";
