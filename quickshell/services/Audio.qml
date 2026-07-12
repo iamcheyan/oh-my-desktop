@@ -35,6 +35,8 @@ Singleton {
     // ── Typed device lists (kept in sync with Pipewire) ──────────────────
     property list<var> typedSinks: []
     property list<var> typedSources: []
+    property var savedLevels: ({})
+    readonly property string levelsStatePath: FileUtils.trimFileProtocol(Directories.state) + "/audio-levels.json"
 
     // ── Signals ──────────────────────────────────────────────────────────
     signal sinkProtectionTriggered(string reason)
@@ -47,6 +49,7 @@ Singleton {
     Component.onCompleted: {
         rebuildTypedNodeLists()
         loadDeviceAliases()
+        loadDeviceLevels()
     }
 
     // ── Display name resolution ──────────────────────────────────────────
@@ -350,7 +353,7 @@ Singleton {
     readonly property list<var> outputDevices: root.devices(true)
     readonly property list<var> inputDevices: root.devices(false)
 
-    // ── Volume persistence (config.json → audio.levels) ───────────────────
+    // ── Volume persistence (state/audio-levels.json) ──────────────────────
     property bool restoringLevel: false
 
     function scheduleLevelSave() {
@@ -360,12 +363,7 @@ Singleton {
     }
 
     function writeDeviceLevels() {
-        const levels = {}
-        const existing = Config.options.audio.levels
-        if (existing) {
-            for (const key in existing)
-                levels[key] = existing[key]
-        }
+        const levels = Object.assign({}, root.savedLevels || {})
         if (root.sink?.name && root.sink?.audio) {
             levels[root.sink.name] = {
                 volume: root.sink.audio.volume,
@@ -378,13 +376,17 @@ Singleton {
                 muted: root.source.audio.muted,
             }
         }
-        Config.setNestedValue("audio.levels", levels)
+        root.savedLevels = levels
+        const stateDir = root.levelsStatePath.replace(/\/[^/]*$/, "")
+        const payload = JSON.stringify(levels).replace(/'/g, "'\\''")
+        levelWriteProc.command = ["sh", "-c", `mkdir -p '${stateDir}' && printf '%s' '${payload}' > '${root.levelsStatePath}'`]
+        levelWriteProc.running = true
     }
 
     function restoreNodeLevel(node) {
         if (!node?.name || !node?.audio)
             return
-        const saved = Config.options.audio.levels?.[node.name]
+        const saved = root.savedLevels?.[node.name]
         if (!saved)
             return
         root.restoringLevel = true
@@ -393,6 +395,39 @@ Singleton {
         if (saved.muted !== undefined && saved.muted !== null)
             node.audio.muted = saved.muted
         root.restoringLevel = false
+    }
+
+    function loadDeviceLevels() {
+        levelReadProc.running = true
+    }
+
+    Process {
+        id: levelReadProc
+        command: ["cat", root.levelsStatePath]
+        running: false
+        stdout: StdioCollector {
+            id: levelReadCollector
+            onStreamFinished: {
+                const text = levelReadCollector.text
+                if (!text || text.trim() === "")
+                    return
+                try {
+                    const parsed = JSON.parse(text)
+                    root.savedLevels = parsed && typeof parsed === "object" ? parsed : ({})
+                    if (root.sink)
+                        root.restoreNodeLevel(root.sink)
+                    if (root.source)
+                        root.restoreNodeLevel(root.source)
+                } catch (e) {
+                    root.savedLevels = ({})
+                }
+            }
+        }
+    }
+
+    Process {
+        id: levelWriteProc
+        running: false
     }
 
     function setSinkVolume(value) {

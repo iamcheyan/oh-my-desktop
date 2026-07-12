@@ -363,7 +363,7 @@ Rectangle {
                     text: spinX.displayText
                     color: "#f4f4f4"
                     font.pixelSize: 13
-                    font.family: TuiStyle.fontFamily
+                    font.family: Config.options.appearance.fonts.main
                     horizontalAlignment: Qt.AlignHCenter
                     verticalAlignment: Qt.AlignVCenter
                     readOnly: !spinX.editable
@@ -426,7 +426,7 @@ Rectangle {
                     text: spinY.displayText
                     color: "#f4f4f4"
                     font.pixelSize: 13
-                    font.family: TuiStyle.fontFamily
+                    font.family: Config.options.appearance.fonts.main
                     horizontalAlignment: Qt.AlignHCenter
                     verticalAlignment: Qt.AlignVCenter
                     readOnly: !spinY.editable

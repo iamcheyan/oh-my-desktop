@@ -116,8 +116,6 @@ Singleton {
                     property real maxAllowedIncrease: 10
                     property real maxAllowed: 99
                 }
-                // Per-device volume/mute keyed by Pipewire node.name
-                property var levels: ({})
             }
 
             property JsonObject apps: JsonObject {
@@ -205,6 +203,14 @@ Singleton {
                 property JsonObject deadPixelWorkaround: JsonObject { // Hyprland leaves out 1 pixel on the right for interactions
                     property bool enable: false
                 }
+            }
+
+            property JsonObject idle: JsonObject {
+                property int screensaverTimeout: 150
+                property int lockTimeout: 152
+                property int monitorOffTimeout: 300
+                property int suspendTimeout: 0
+                property bool lockBeforeSuspend: true
             }
 
             property JsonObject language: JsonObject {

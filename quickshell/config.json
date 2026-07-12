@@ -1,262 +1,256 @@
 {
-    "appearance": {
-        "extraBackgroundTint": true,
-        "fonts": {
-            "expressive": "Cantarell",
-            "iconNerd": "JetBrainsMono Nerd Font Mono",
-            "main": "Cantarell",
-            "monospace": "MesloLGS Nerd Font Mono",
-            "numbers": "Cantarell",
-            "reading": "Cantarell",
-            "title": "Cantarell"
-        },
-        "transparency": {
-            "automatic": false,
-            "backgroundTransparency": 0,
-            "contentTransparency": 0,
-            "enable": false
-        },
-        "wallpaperTheming": {
-            "enableAppsAndShell": false,
-            "enableQtApps": false,
-            "enableTerminal": false,
-            "terminalGenerationProps": {
-                "forceDarkMode": false,
-                "harmonizeThreshold": 100,
-                "harmony": 0.6,
-                "termFgBoost": 0.35
-            }
-        }
+  "appearance": {
+    "extraBackgroundTint": true,
+    "fonts": {
+      "expressive": "Cantarell",
+      "iconNerd": "JetBrainsMono Nerd Font Mono",
+      "main": "Cantarell",
+      "monospace": "MesloLGS Nerd Font Mono",
+      "numbers": "Cantarell",
+      "reading": "Cantarell",
+      "title": "Cantarell"
     },
-    "apps": {
-        "bluetooth": "kcmshell6 kcm_bluetooth",
-        "changePassword": "kitty -1 --hold=yes fish -i -c 'passwd'",
-        "manageUser": "kcmshell6 kcm_users",
-        "network": "kcmshell6 kcm_networkmanagement",
-        "networkEthernet": "kcmshell6 kcm_networkmanagement",
-        "taskManager": "plasma-systemmonitor --page-name Processes",
-        "terminal": "kitty -1",
-        "update": "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'",
-        "volumeMixer": "pavucontrol-qt"
+    "transparency": {
+      "automatic": false,
+      "backgroundTransparency": 0,
+      "contentTransparency": 0,
+      "enable": false
     },
-    "audio": {
-        "levels": {
-            "alsa_input.usb-USB_2.0_USB_Audio_Device_20210726905926-00.mono-fallback": {
-                "muted": false,
-                "volume": 0.9949798583984375
-            },
-            "alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.iec958-stereo": {
-                "muted": false,
-                "volume": 0.530029296875
-            }
-        },
-        "protection": {
-            "enable": true,
-            "maxAllowed": 99,
-            "maxAllowedIncrease": 10
-        }
-    },
-    "background": {
-        "hideWhenFullscreen": true,
-        "thumbnailPath": "",
-        "wallpaperPath": "/home/tetsuya/.config/omd/apps/omd-bar/assets/images/default_wallpaper.png"
-    },
-    "bar": {
-        "borderless": false,
-        "bottom": false,
-        "centerIconSize": 18,
-        "centerModuleSpacing": 8,
-        "centerModules": [
-        ],
-        "cornerStyle": 0,
-        "floatStyleShadow": true,
-        "leftModules": [
-            "appLauncher",
-            "workspaces",
-            "activeWindow"
-        ],
-        "resources": {
-            "alwaysShowCpu": true,
-            "alwaysShowSwap": true,
-            "cpuWarningThreshold": 90,
-            "memoryWarningThreshold": 95,
-            "swapWarningThreshold": 85
-        },
-        "rightIconSize": 20,
-        "rightIconSlotWidth": 28,
-        "rightModuleSpacing": 8,
-        "rightModules": [
-            "systray",
-            "util:audio",
-            "util:keyremap",
-            "util:wifi",
-            "util:clipboard",
-            "util:session",
-            "util:nightlight",
-            "clock",
-            "sidebar"
-        ],
-        "screenList": [
-        ],
-        "showBackground": true,
-        "vertical": false
-    },
-    "battery": {
-        "automaticSuspend": true,
-        "critical": 5,
-        "full": 100,
-        "low": 20,
-        "suspend": 3
-    },
-    "conflictKiller": {
-        "autoKillNotificationDaemons": true,
-        "autoKillTrays": true
-    },
-    "hacks": {
-        "arbitraryRaceConditionDelay": 20
-    },
-    "interactions": {
-        "deadPixelWorkaround": {
-            "enable": false
-        },
-        "scrolling": {
-            "fasterTouchpadScroll": false,
-            "mouseScrollDeltaThreshold": 120,
-            "mouseScrollFactor": 120,
-            "touchpadScrollFactor": 450
-        }
-    },
-    "language": {
-        "ui": "zh_CN"
-    },
-    "launcher": {
-        "pinnedApps": [
-            "org.kde.dolphin",
-            "kitty",
-            "cmake-gui"
-        ]
-    },
-    "light": {
-        "antiFlashbang": {
-            "enable": false
-        },
-        "night": {
-            "automatic": false,
-            "colorTemperature": 5800,
-            "from": "19:00",
-            "to": "06:30"
-        }
-    },
-    "lock": {
-        "blur": {
-            "enable": false,
-            "extraZoom": 1,
-            "radius": 0
-        },
-        "centerClock": true,
-        "launchOnStartup": false,
-        "materialShapeChars": true,
-        "security": {
-            "requirePasswordToPower": false,
-            "unlockKeyring": true
-        },
-        "showLockedText": true
-    },
-    "media": {
-        "filterDuplicatePlayers": true
-    },
-    "networking": {
-        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-    },
-    "notifications": {
-        "forceMonitor": {
-            "enable": false,
-            "name": ""
-        },
-        "timeout": 7000
-    },
-    "osd": {
-        "timeout": 1000
-    },
-    "overview": {
-        "centerIcons": true,
-        "columns": 5,
-        "enable": true,
-        "orderBottomUp": false,
-        "orderRightLeft": false,
-        "rows": 2,
-        "scale": 0.18
-    },
-    "regionSelector": {
-        "annotation": {
-            "useSatty": false
-        },
-        "circle": {
-            "padding": 10,
-            "strokeWidth": 6
-        },
-        "rect": {
-            "showAimLines": true
-        },
-        "targetRegions": {
-            "content": true,
-            "contentRegionOpacity": 0.8,
-            "layers": false,
-            "opacity": 0.3,
-            "selectionPadding": 5,
-            "showLabel": false,
-            "windows": true
-        }
-    },
-    "resources": {
-        "historyLength": 60,
-        "updateInterval": 3000
-    },
-    "screenRecord": {
-        "savePath": ""
-    },
-    "screenSnip": {
-        "savePath": ""
-    },
-    "search": {
-        "imageSearch": {
-            "imageSearchEngineBaseUrl": "https://lens.google.com/uploadbyurl?url=",
-            "useCircleSelection": false
-        }
-    },
-    "sounds": {
-        "theme": "freedesktop"
-    },
-    "startup": {
-        "backgroundTasksDelayMs": 4000,
-        "deferBackgroundTasks": true,
-        "deferUpdateCheck": true,
-        "staggerPanelLoading": true,
-        "tier1DelayMs": 1500,
-        "tier2DelayMs": 6000,
-        "updateCheckDelayMs": 30000
-    },
-    "time": {
-        "dateFormat": "ddd, dd/MM",
-        "dateWithYearFormat": "dd/MM/yyyy",
-        "shortDateFormat": "dd/MM"
-    },
-    "tray": {
-        "filterPassive": false,
-        "invertPinnedItems": false,
-        "monochromeIcons": false,
-        "pinnedItems": [
-        ],
-        "showItemId": false
-    },
-    "updates": {
-        "adviseUpdateThreshold": 75,
-        "checkInterval": 120,
-        "enableCheck": true,
-        "stronglyAdviseUpdateThreshold": 200
-    },
-    "windows": {
-        "centerTitle": true,
-        "showTitlebar": true
+    "wallpaperTheming": {
+      "enableAppsAndShell": false,
+      "enableQtApps": false,
+      "enableTerminal": false,
+      "terminalGenerationProps": {
+        "forceDarkMode": false,
+        "harmonizeThreshold": 100,
+        "harmony": 0.6,
+        "termFgBoost": 0.35
+      }
     }
+  },
+  "apps": {
+    "bluetooth": "kcmshell6 kcm_bluetooth",
+    "changePassword": "kitty -1 --hold=yes fish -i -c 'passwd'",
+    "manageUser": "kcmshell6 kcm_users",
+    "network": "kcmshell6 kcm_networkmanagement",
+    "networkEthernet": "kcmshell6 kcm_networkmanagement",
+    "taskManager": "plasma-systemmonitor --page-name Processes",
+    "terminal": "kitty -1",
+    "update": "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'",
+    "volumeMixer": "pavucontrol-qt"
+  },
+  "audio": {
+    "protection": {
+      "enable": true,
+      "maxAllowed": 99,
+      "maxAllowedIncrease": 10
+    }
+  },
+  "background": {
+    "hideWhenFullscreen": true,
+    "thumbnailPath": "",
+    "wallpaperPath": "/home/tetsuya/.config/omd/apps/omd-bar/assets/images/default_wallpaper.png"
+  },
+  "bar": {
+    "borderless": false,
+    "bottom": false,
+    "centerIconSize": 18,
+    "centerModuleSpacing": 8,
+    "centerModules": [],
+    "cornerStyle": 0,
+    "floatStyleShadow": true,
+    "leftModules": [
+      "appLauncher",
+      "workspaces",
+      "activeWindow"
+    ],
+    "resources": {
+      "alwaysShowCpu": true,
+      "alwaysShowSwap": true,
+      "cpuWarningThreshold": 90,
+      "memoryWarningThreshold": 95,
+      "swapWarningThreshold": 85
+    },
+    "rightIconSize": 20,
+    "rightIconSlotWidth": 28,
+    "rightModuleSpacing": 8,
+    "rightModules": [
+      "systray",
+      "util:audio",
+      "util:keyremap",
+      "util:wifi",
+      "util:clipboard",
+      "util:session",
+      "util:nightlight",
+      "clock",
+      "sidebar"
+    ],
+    "screenList": [],
+    "showBackground": true,
+    "vertical": false
+  },
+  "battery": {
+    "automaticSuspend": true,
+    "critical": 5,
+    "full": 100,
+    "low": 20,
+    "suspend": 3
+  },
+  "conflictKiller": {
+    "autoKillNotificationDaemons": true,
+    "autoKillTrays": true
+  },
+  "hacks": {
+    "arbitraryRaceConditionDelay": 20
+  },
+  "idle": {
+    "lockBeforeSuspend": true,
+    "lockTimeout": 152,
+    "monitorOffTimeout": 300,
+    "screensaverTimeout": 150,
+    "suspendTimeout": 0
+  },
+  "interactions": {
+    "deadPixelWorkaround": {
+      "enable": false
+    },
+    "scrolling": {
+      "fasterTouchpadScroll": false,
+      "mouseScrollDeltaThreshold": 120,
+      "mouseScrollFactor": 120,
+      "touchpadScrollFactor": 450
+    }
+  },
+  "language": {
+    "ui": "zh_CN"
+  },
+  "launcher": {
+    "pinnedApps": [
+      "org.kde.dolphin",
+      "kitty",
+      "cmake-gui"
+    ]
+  },
+  "light": {
+    "antiFlashbang": {
+      "enable": false
+    },
+    "night": {
+      "automatic": false,
+      "colorTemperature": 5800,
+      "from": "19:00",
+      "to": "06:30"
+    }
+  },
+  "lock": {
+    "blur": {
+      "enable": false,
+      "extraZoom": 1,
+      "radius": 0
+    },
+    "centerClock": true,
+    "launchOnStartup": false,
+    "materialShapeChars": true,
+    "security": {
+      "requirePasswordToPower": false,
+      "unlockKeyring": true
+    },
+    "showLockedText": true
+  },
+  "media": {
+    "filterDuplicatePlayers": true
+  },
+  "networking": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+  },
+  "notifications": {
+    "forceMonitor": {
+      "enable": false,
+      "name": ""
+    },
+    "timeout": 7000
+  },
+  "osd": {
+    "timeout": 1000
+  },
+  "overview": {
+    "centerIcons": true,
+    "columns": 5,
+    "enable": true,
+    "orderBottomUp": false,
+    "orderRightLeft": false,
+    "rows": 2,
+    "scale": 0.18
+  },
+  "regionSelector": {
+    "annotation": {
+      "useSatty": false
+    },
+    "circle": {
+      "padding": 10,
+      "strokeWidth": 6
+    },
+    "rect": {
+      "showAimLines": true
+    },
+    "targetRegions": {
+      "content": true,
+      "contentRegionOpacity": 0.8,
+      "layers": false,
+      "opacity": 0.3,
+      "selectionPadding": 5,
+      "showLabel": false,
+      "windows": true
+    }
+  },
+  "resources": {
+    "historyLength": 60,
+    "updateInterval": 3000
+  },
+  "screenRecord": {
+    "savePath": ""
+  },
+  "screenSnip": {
+    "savePath": ""
+  },
+  "search": {
+    "imageSearch": {
+      "imageSearchEngineBaseUrl": "https://lens.google.com/uploadbyurl?url=",
+      "useCircleSelection": false
+    }
+  },
+  "sounds": {
+    "theme": "freedesktop"
+  },
+  "startup": {
+    "backgroundTasksDelayMs": 4000,
+    "deferBackgroundTasks": true,
+    "deferUpdateCheck": true,
+    "staggerPanelLoading": true,
+    "tier1DelayMs": 1500,
+    "tier2DelayMs": 6000,
+    "updateCheckDelayMs": 30000
+  },
+  "time": {
+    "dateFormat": "ddd, dd/MM",
+    "dateWithYearFormat": "dd/MM/yyyy",
+    "shortDateFormat": "dd/MM"
+  },
+  "tray": {
+    "filterPassive": false,
+    "invertPinnedItems": false,
+    "monochromeIcons": false,
+    "pinnedItems": [],
+    "showItemId": false
+  },
+  "updates": {
+    "adviseUpdateThreshold": 75,
+    "checkInterval": 120,
+    "enableCheck": true,
+    "stronglyAdviseUpdateThreshold": 200
+  },
+  "windows": {
+    "centerTitle": true,
+    "showTitlebar": true
+  }
 }
