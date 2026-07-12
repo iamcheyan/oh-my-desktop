@@ -27,7 +27,6 @@ BarContextMenu {
     BarContextMenuItem {
         visible: root.canSnapshot
         iconName: NerdIconMap.download
-        iconColor: TuiStyle.accent
         label: `Snapshot & Close Workspaces (${root.snapshotLabel})`
         releaseAction: () => {
             root.previewRequested();
@@ -38,7 +37,6 @@ BarContextMenu {
     BarContextMenuItem {
         visible: root.canRestore
         iconName: NerdIconMap.restart
-        iconColor: TuiStyle.success
         label: `Restore Workspace Snapshot (${root.snapshotLabel})`
         releaseAction: () => {
             root.restoreRequested();
@@ -49,7 +47,6 @@ BarContextMenu {
     BarContextMenuItem {
         visible: root.hasSnapshot
         iconName: NerdIconMap.close
-        iconColor: TuiStyle.warning
         label: "Clear Snapshot"
         releaseAction: () => {
             Quickshell.execDetached([root.sessionCommand, "clear"]);

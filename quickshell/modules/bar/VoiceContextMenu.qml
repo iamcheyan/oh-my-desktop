@@ -21,7 +21,6 @@ BarContextMenu {
 
     BarContextMenuItem {
         iconName:  NerdIconMap.mic
-        iconColor: TuiStyle.info
         label:     Translation.tr("Test Voice Input")
         releaseAction: () => {
             Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-test-tui`]);
@@ -31,7 +30,6 @@ BarContextMenu {
 
     BarContextMenuItem {
         iconName:  NerdIconMap.keyboard
-        iconColor: TuiStyle.warning
         label:     Translation.tr("Key Capture")
         releaseAction: () => {
             Quickshell.execDetached([`${root.omdRoot}/scripts/key-test-launcher`, "--hotkey"]);
@@ -41,7 +39,6 @@ BarContextMenu {
 
     BarContextMenuItem {
         iconName:  NerdIconMap.settings
-        iconColor: TuiStyle.success
         label:     Translation.tr("Configure Keybindings")
         releaseAction: () => {
             Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-bind-tui`]);
@@ -60,10 +57,18 @@ BarContextMenu {
 
     BarContextMenuItem {
         iconName:  NerdIconMap.wrench
-        iconColor: TuiStyle.accent
         label:     Translation.tr("Diagnose Voice Service")
         releaseAction: () => {
             Quickshell.execDetached(["omd-launch-tui", `${root.omdRoot}/scripts/voice-diagnose`]);
+            root.close();
+        }
+    }
+
+    BarContextMenuItem {
+        iconName:  NerdIconMap.graphicEq
+        label:     Translation.tr("Volume Control")
+        releaseAction: () => {
+            Quickshell.execDetached(["pavucontrol"]);
             root.close();
         }
     }
@@ -78,12 +83,11 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName:  NerdIconMap.graphicEq
-        iconColor: TuiStyle.accent
-        label:     Translation.tr("Volume Control")
+        iconName:  NerdIconMap.settings
+        label:     Translation.tr("Voice Settings")
         releaseAction: () => {
-            Quickshell.execDetached(["pavucontrol"]);
             root.close();
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "voice"]);
         }
     }
 }

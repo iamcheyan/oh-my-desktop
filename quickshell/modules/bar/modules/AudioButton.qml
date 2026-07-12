@@ -151,14 +151,15 @@ Item {
         color: root.iconColor
 
         Behavior on color { ColorAnimation { duration: 120 } }
+    }
 
-        SequentialAnimation on opacity {
-            id: recordingBlink
-            running: root.isRecording && !root.isError
-            loops: Animation.Infinite
-            NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
-            NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
-        }
+    SequentialAnimation {
+        id: recordingBlink
+        running: root.isRecording && !root.isError
+        loops: Animation.Infinite
+        NumberAnimation { target: icon; property: "opacity"; from: 1.0; to: 0.3; duration: 500 }
+        NumberAnimation { target: icon; property: "opacity"; from: 0.3; to: 1.0; duration: 500 }
+        onStopped: icon.opacity = 1.0
     }
 
     SequentialAnimation {

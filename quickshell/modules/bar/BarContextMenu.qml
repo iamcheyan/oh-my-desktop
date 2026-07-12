@@ -23,15 +23,15 @@ PopupWindow {
     id: barContextMenu
 
     // ── Style tokens ────────────────────────────────────────────────────────
-    readonly property int   itemHeight:      TuiStyle.rowHeight  // row height (aligned to standard 38px)
+    readonly property int   itemHeight:      32   // row height
     readonly property int   itemRadius:       5   // row corner radius
-    readonly property int   iconColumnWidth: 26   // icon cell width
-    readonly property int   iconSize:        18   // icon render size
-    readonly property int   itemSpacing:      2   // gap between rows
+    readonly property int   iconColumnWidth: 24   // icon cell width
+    readonly property int   iconSize:        16   // icon render size
+    readonly property int   itemSpacing:      0   // gap between rows
     readonly property real  hPadding:         8   // left/right padding inside each row
-    readonly property real  menuPadding:      6   // inner padding of menu background
+    readonly property real  menuPadding:      4   // inner padding of menu background
     readonly property real  outerPadding:     Appearance.sizes.elevationMargin + 2   // space between window edge and background
-    readonly property int   separatorMargin:  4   // top/bottom margin around separators
+    readonly property int   separatorMargin:  2   // top/bottom margin around separators
     // ────────────────────────────────────────────────────────────────────────
 
     // Public API

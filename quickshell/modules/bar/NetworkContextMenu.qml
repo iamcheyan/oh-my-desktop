@@ -12,16 +12,13 @@ BarContextMenu {
     id: root
     menuName: "network"
 
-    function openSettings(type) {
-        GlobalStates.barPopupType = "";
-        root.close();
-        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", type]);
-    }
-
     BarContextMenuItem {
         iconName: NerdIconMap.wifi
         label: Translation.tr("Wi-Fi Settings")
-        releaseAction: () => root.openSettings("wifi")
+        releaseAction: () => {
+            root.close();
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "network"]);
+        }
     }
 
     BarContextMenuItem {
@@ -43,19 +40,29 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
-        iconName: BluetoothStatus.connected ? NerdIconMap.bluetoothConnected
-            : BluetoothStatus.enabled ? NerdIconMap.bluetooth
-            : NerdIconMap.bluetoothDisabled
-        label: Translation.tr("Bluetooth Settings")
-        releaseAction: () => root.openSettings("bluetooth")
-    }
-
-    BarContextMenuItem {
         iconName: NerdIconMap.bluetooth
         label: Translation.tr("Bluetooth Manager")
         releaseAction: () => {
             root.close();
             Quickshell.execDetached(["blueman-manager"]);
+        }
+    }
+
+    Rectangle {
+        Layout.fillWidth:    true
+        implicitHeight:      1
+        color:               TuiStyle.line
+        opacity:             TuiStyle.dividerOpacity
+        Layout.topMargin:    root.separatorMargin
+        Layout.bottomMargin: root.separatorMargin
+    }
+
+    BarContextMenuItem {
+        iconName: NerdIconMap.settings
+        label: Translation.tr("Device Settings")
+        releaseAction: () => {
+            root.close();
+            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "network"]);
         }
     }
 }

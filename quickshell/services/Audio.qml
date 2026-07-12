@@ -134,12 +134,14 @@ Singleton {
     function setDefaultSink(node) {
         if (!node) return false
         Pipewire.preferredDefaultAudioSink = node
+        Quickshell.execDetached(["wpctl", "set-default", node.id.toString()])
         return true
     }
 
     function setDefaultSource(node) {
         if (!node) return false
         Pipewire.preferredDefaultAudioSource = node
+        Quickshell.execDetached(["wpctl", "set-default", node.id.toString()])
         return true
     }
 
