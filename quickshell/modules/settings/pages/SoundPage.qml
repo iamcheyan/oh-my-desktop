@@ -75,9 +75,17 @@ PageBody {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 50
                             radius: SettingsTokens.radius
-                            color: sinkDelegate.isActive ? SettingsTokens.accentSoft : "transparent"
+                            color: sinkDelegate.isActive ? SettingsTokens.accentSoft : (sinkRowMouse.containsMouse ? SettingsTokens.buttonHover : "transparent")
                             border.width: sinkDelegate.isActive ? 1 : 0
                             border.color: SettingsTokens.accent
+
+                            MouseArea {
+                                id: sinkRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: Audio.setDefaultSink(sinkDelegate.node)
+                            }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -90,11 +98,6 @@ PageBody {
                                     iconSize: 18
                                     color: sinkDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
                                     Layout.preferredWidth: 22
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: Audio.setDefaultSink(sinkDelegate.node)
-                                    }
                                 }
 
                                 ColumnLayout {
@@ -272,9 +275,17 @@ PageBody {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 50
                             radius: SettingsTokens.radius
-                            color: sourceDelegate.isActive ? SettingsTokens.accentSoft : "transparent"
+                            color: sourceDelegate.isActive ? SettingsTokens.accentSoft : (sourceRowMouse.containsMouse ? SettingsTokens.buttonHover : "transparent")
                             border.width: sourceDelegate.isActive ? 1 : 0
                             border.color: SettingsTokens.accent
+
+                            MouseArea {
+                                id: sourceRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: Audio.setDefaultSource(sourceDelegate.node)
+                            }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -287,11 +298,6 @@ PageBody {
                                     iconSize: 18
                                     color: sourceDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
                                     Layout.preferredWidth: 22
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: Audio.setDefaultSource(sourceDelegate.node)
-                                    }
                                 }
 
                                 ColumnLayout {
