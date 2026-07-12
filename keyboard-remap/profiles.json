@@ -33,6 +33,22 @@
       "enabled": true,
       "enabledPresets": [],
       "presetOverrides": {}
+    },
+    "compx-2-4g-receiver": {
+      "displayName": "compx 2.4g receiver",
+      "hyprName": "compx-2-4g-receiver",
+      "keydId": "25a7:fa61",
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {}
+    },
+    "logitech-usb-receiver": {
+      "displayName": "logitech usb receiver",
+      "hyprName": "logitech-usb-receiver",
+      "keydId": "046d:c548",
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {}
     }
   }
 }

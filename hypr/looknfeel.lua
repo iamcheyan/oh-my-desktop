@@ -27,18 +27,23 @@ hl.layer_rule({ match = { namespace = "quickshell:.*" }, blur = true, ignore_alp
 hl.layer_rule({ match = { namespace = "quickshell:appLauncher" }, no_anim = true })
 hl.layer_rule({ match = { namespace = "quickshell:clipboard" }, no_anim = true })
 
--- Float and center our new Wi-Fi TUI manager with premium sizing
-o.window("org.omarchy.omarchy-wifi-tui", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omd.impala", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omd.wifitui", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omd.bluetui", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omarchy.voice-test-tui", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omarchy.voice-bind-tui", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omarchy.key-test", { tag = "+floating-window", size = { 1000, 700 } })
-o.window("org.omarchy.voice-diagnose", { tag = "+floating-window", size = { 1000, 700 } })
+-- Float and center transient TUI / GUI settings managers
+o.window("org.omarchy.omarchy-wifi-tui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.impala", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.wifitui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.bluetui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.voice-test-tui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omarchy.key-test", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000, 700 } })
 
 -- nmtui runs inside foot; float, center, and size it to fit the TUI content
 o.window("^nmtui$", { float = true, center = true, size = { 880, 620 } })
+
+-- GUI settings managers: float and center for a consistent transient-app experience
+o.window("nm-connection-editor", { float = true, center = true, size = { 900, 700 } })
+o.window("blueman-manager", { float = true, center = true, size = { 900, 700 } })
+o.window("org.pulseaudio.pavucontrol", { float = true, center = true, size = { 900, 700 } })
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
 -- hl.config({
