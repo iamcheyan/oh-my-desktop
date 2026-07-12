@@ -238,3 +238,11 @@ The backend supports:
 - `remove --yes`
 - both `xfreerdp3` and `xfreerdp`
 - both `docker compose` and `docker-compose`
+- RDP host-port conflict detection. If another local service already listens on
+  3389, the backend rewrites the compose mapping to a free 3390-3400 port and
+  reports the actual endpoint to the Settings page.
+
+On the validation machine, `xrdp.service` was already listening on host port
+3389, so the first Docker start left `omarchy-windows` in `created` with a port
+bind error. The backend now treats that as a recoverable local-port conflict
+instead of a failed Windows install.

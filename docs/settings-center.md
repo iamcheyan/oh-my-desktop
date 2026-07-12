@@ -317,6 +317,10 @@ ready=true|false
 webReachable=true|false
 rdpReachable=true|false
 web=http://127.0.0.1:8006
+rdpPort=3389
+rdpEndpoint=127.0.0.1:3389
+rdpPortBusy=true|false
+rdpPortConflict=true|false
 composeFile=~/.config/windows/docker-compose.yml
 storageDir=~/.windows
 sharedDir=~/Windows
@@ -349,6 +353,11 @@ Install is non-interactive after the user clicks the Settings button. The
 helper picks conservative defaults: roughly half RAM capped at 16G, half CPU
 cores capped at 8, 128G disk when space allows, user `win11`, and password
 `admin` unless an existing compose file already defines credentials.
+
+RDP defaults to `127.0.0.1:3389`, but the helper checks for host port conflicts
+before writing or starting the compose file. If another service such as `xrdp`
+already owns 3389, the VM is moved to the first free fallback port in the
+3390-3400 range and the Settings page shows the actual `rdpEndpoint`.
 
 Removal is destructive because it deletes the VM storage directory. The QML page
 requires a two-step remove click before invoking `remove --yes`.

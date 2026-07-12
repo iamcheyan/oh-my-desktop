@@ -1545,6 +1545,10 @@ WindowDialog {
                 property bool webReachable: false
                 property bool rdpReachable: false
                 property string web: "http://127.0.0.1:8006"
+                property string rdpPort: "3389"
+                property string rdpEndpoint: "127.0.0.1:3389"
+                property bool rdpPortBusy: false
+                property bool rdpPortConflict: false
                 property string composeFile: ""
                 property string storageDir: ""
                 property string sharedDir: ""
@@ -1620,6 +1624,10 @@ WindowDialog {
                     if (s.diskAvailable < 74) return `Only ${s.diskAvailable} GB free. Windows VM needs at least 74 GB.`;
                     return "";
                 }
+                function portText() {
+                    if (s.rdpPortConflict) return `Port ${s.rdpPort} is already used; start will switch to a free port.`;
+                    return s.rdpEndpoint;
+                }
                 function parseBool(value) { return value === "true"; }
                 function applyStatus(d) {
                     s.configured = s.parseBool(d.configured);
@@ -1640,6 +1648,10 @@ WindowDialog {
                     s.webReachable = s.parseBool(d.webReachable);
                     s.rdpReachable = s.parseBool(d.rdpReachable);
                     s.web = d.web || "http://127.0.0.1:8006";
+                    s.rdpPort = d.rdpPort || "3389";
+                    s.rdpEndpoint = d.rdpEndpoint || `127.0.0.1:${s.rdpPort}`;
+                    s.rdpPortBusy = s.parseBool(d.rdpPortBusy);
+                    s.rdpPortConflict = s.parseBool(d.rdpPortConflict);
                     s.composeFile = d.composeFile || "";
                     s.storageDir = d.storageDir || "";
                     s.sharedDir = d.sharedDir || "";
@@ -1675,6 +1687,7 @@ WindowDialog {
                 SettingsRow { label: "Phase"; value: s.phase }
                 SettingsRow { label: "Container"; value: s.container; valueColor: s.running ? SettingsTokens.accent : SettingsTokens.muted }
                 SettingsRow { label: "Web console"; value: s.web; showChevron: true; onClicked: s.run("web") }
+                SettingsRow { label: "RDP endpoint"; value: s.portText(); valueColor: s.rdpPortConflict ? "#f9a825" : SettingsTokens.onSurface }
                 SettingsRow { label: "Storage"; value: s.storageDir.length > 0 ? s.storageDir : "--" }
             }
 
@@ -1750,7 +1763,7 @@ WindowDialog {
 
                 SettingsRow { label: "Current phase"; value: s.phase }
                 SettingsRow { label: "Web console"; value: s.webReachable ? "Reachable" : "Not ready" }
-                SettingsRow { label: "RDP"; value: s.rdpReachable ? "Reachable" : "Not ready" }
+                SettingsRow { label: "RDP"; value: s.rdpReachable ? `Reachable on ${s.rdpEndpoint}` : s.portText() }
 
                 ButtonRow {
                     SettingsButton { label: "Open Console"; iconName: "open_in_browser"; enabledState: s.webReachable || s.configured; onClicked: s.run("web") }
@@ -1899,6 +1912,8 @@ WindowDialog {
                         s.ready = d.ready === "true";
                         s.webReachable = d.webReachable === "true";
                         s.rdpReachable = d.rdpReachable === "true";
+                        if (d.rdpPort) s.rdpPort = d.rdpPort;
+                        if (d.rdpEndpoint) s.rdpEndpoint = d.rdpEndpoint;
                         if (s.ready) {
                             s.mode = "idle";
                             windowsInstallTimer.running = false;

@@ -6,9 +6,11 @@ CONFIG_DIR="$(dirname "$COMPOSE_FILE")"
 STORAGE_DIR="${WINDOWS_VM_STORAGE_DIR:-$HOME/.windows}"
 SHARED_DIR="${WINDOWS_VM_SHARED_DIR:-$HOME/Windows}"
 CONTAINER_NAME="${WINDOWS_VM_CONTAINER:-omarchy-windows}"
-WEB_URL="${WINDOWS_VM_WEB_URL:-http://127.0.0.1:8006}"
+WEB_HOST="${WINDOWS_VM_WEB_HOST:-127.0.0.1}"
+WEB_PORT="${WINDOWS_VM_WEB_PORT:-8006}"
+WEB_URL="${WINDOWS_VM_WEB_URL:-http://$WEB_HOST:$WEB_PORT}"
 RDP_HOST="${WINDOWS_VM_RDP_HOST:-127.0.0.1}"
-RDP_PORT="${WINDOWS_VM_RDP_PORT:-3389}"
+DEFAULT_RDP_PORT="${WINDOWS_VM_RDP_PORT:-3389}"
 
 kv() {
   local key="$1" value="${2:-}"
@@ -61,6 +63,21 @@ compose_value() {
       exit
     }
   ' "$COMPOSE_FILE"
+}
+
+compose_rdp_port() {
+  [[ -f "$COMPOSE_FILE" ]] || {
+    printf '%s' "$DEFAULT_RDP_PORT"
+    return
+  }
+  local port
+  port="$(awk '
+    match($0, /127\.0\.0\.1:([0-9]+):3389\/tcp/, m) {
+      print m[1]
+      exit
+    }
+  ' "$COMPOSE_FILE")"
+  [[ -n "$port" ]] && printf '%s' "$port" || printf '%s' "$DEFAULT_RDP_PORT"
 }
 
 freerdp_bin() {
@@ -136,6 +153,30 @@ port_open() {
   fi
 }
 
+port_busy() {
+  local port="$1"
+  if have ss; then
+    ss -H -ltn "sport = :$port" 2>/dev/null | grep -q .
+  else
+    port_open 127.0.0.1 "$port"
+  fi
+}
+
+select_rdp_port() {
+  local port="$DEFAULT_RDP_PORT"
+  if ! port_busy "$port"; then
+    printf '%s' "$port"
+    return
+  fi
+  for port in 3390 3391 3392 3393 3394 3395 3396 3397 3398 3399 3400; do
+    if ! port_busy "$port"; then
+      printf '%s' "$port"
+      return
+    fi
+  done
+  printf '%s' "$DEFAULT_RDP_PORT"
+}
+
 web_reachable() {
   if have curl; then
     curl -fsS -o /dev/null --connect-timeout 2 "$WEB_URL/" >/dev/null 2>&1
@@ -145,7 +186,7 @@ web_reachable() {
 }
 
 rdp_reachable() {
-  port_open "$RDP_HOST" "$RDP_PORT"
+  port_open "$RDP_HOST" "$(compose_rdp_port)"
 }
 
 log_tail() {
@@ -160,12 +201,12 @@ detect_phase_from_logs() {
     printf 'stopped'
   elif echo "$logs" | grep -qi 'windows started successfully\|rdp.*ready\|ready'; then
     printf 'ready'
-  elif echo "$logs" | grep -qi 'installing\|setup\|oobe'; then
-    printf 'installing'
   elif echo "$logs" | grep -qi 'download\|pull\|fetch'; then
     printf 'downloading'
   elif echo "$logs" | grep -qi 'extract\|convert'; then
     printf 'preparing'
+  elif echo "$logs" | grep -qi 'installing\|setup\|oobe'; then
+    printf 'installing'
   elif echo "$logs" | grep -qi 'error\|failed\|panic'; then
     printf 'error'
   else
@@ -184,7 +225,7 @@ phase() {
 
 ready_state() {
   local status="$1" phase_value="$2"
-  if [[ "$status" == "running" ]] && { [[ "$phase_value" == "ready" ]] || rdp_reachable; }; then
+  if [[ "$status" == "running" && "$phase_value" == "ready" ]]; then
     printf true
   else
     printf false
@@ -238,6 +279,15 @@ print_common_status() {
   kv webReachable "$web_ok"
   kv rdpReachable "$rdp_ok"
   kv web "$WEB_URL"
+  kv rdpPort "$(compose_rdp_port)"
+  kv rdpEndpoint "$RDP_HOST:$(compose_rdp_port)"
+  if [[ "$status" != "running" ]] && port_busy "$(compose_rdp_port)"; then
+    kv rdpPortBusy true
+    kv rdpPortConflict true
+  else
+    kv rdpPortBusy false
+    kv rdpPortConflict false
+  fi
   kv composeFile "$COMPOSE_FILE"
   kv storageDir "$STORAGE_DIR"
   kv sharedDir "$SHARED_DIR"
@@ -313,8 +363,9 @@ EOF
 
 write_compose() {
   local ram="$1" cpu="$2" disk="$3" user="$4" pass="$5"
-  local tz
+  local tz rdp_port
   tz="$(timedatectl show -p Timezone --value 2>/dev/null || echo UTC)"
+  rdp_port="$(select_rdp_port)"
 
   mkdir -p "$CONFIG_DIR" "$STORAGE_DIR" "$SHARED_DIR"
   cat > "$COMPOSE_FILE" << EOF
@@ -337,9 +388,9 @@ services:
     cap_add:
       - NET_ADMIN
     ports:
-      - 127.0.0.1:8006:8006
-      - 127.0.0.1:3389:3389/tcp
-      - 127.0.0.1:3389:3389/udp
+      - $WEB_HOST:$WEB_PORT:8006
+      - 127.0.0.1:$rdp_port:3389/tcp
+      - 127.0.0.1:$rdp_port:3389/udp
     volumes:
       - $STORAGE_DIR:/storage
       - $SHARED_DIR:/shared
@@ -347,6 +398,22 @@ services:
     stop_grace_period: 2m
 EOF
   ensure_desktop_file
+}
+
+ensure_compose_ports_available() {
+  [[ -f "$COMPOSE_FILE" ]] || return 0
+  local current next
+  current="$(compose_rdp_port)"
+  if ! port_busy "$current"; then
+    return 0
+  fi
+  next="$(select_rdp_port)"
+  [[ "$next" != "$current" ]] || return 0
+  kv progress "RDP port $current is busy; switching Windows VM to $next..."
+  sed -i \
+    -e "s/127\\.0\\.0\\.1:$current:3389\\/tcp/127.0.0.1:$next:3389\\/tcp/" \
+    -e "s/127\\.0\\.0\\.1:$current:3389\\/udp/127.0.0.1:$next:3389\\/udp/" \
+    "$COMPOSE_FILE"
 }
 
 require_install_resources() {
@@ -468,6 +535,7 @@ start() {
     return 1
   }
   require_install_resources "$(compose_value DISK_SIZE || echo 64G)"
+  ensure_compose_ports_available
   kv progress "Starting Windows VM..."
   compose up -d 2>&1 | sed 's/^/log=/'
   kv result "started"
@@ -519,7 +587,7 @@ except Exception:
     rdp_scale=(/scale:140)
   fi
 
-  "$bin" /u:"$user" /p:"$pass" /v:"$RDP_HOST:$RDP_PORT" \
+  "$bin" /u:"$user" /p:"$pass" /v:"$RDP_HOST:$(compose_rdp_port)" \
     -grab-keyboard /sound /microphone /clipboard /cert:ignore \
     /title:"Windows VM - OMD" /dynamic-resolution /gfx:AVC444 \
     /floatbar:sticky:off,default:visible,show:fullscreen "${rdp_scale[@]}"
@@ -544,6 +612,8 @@ install_status() {
   kv phase "$phase_value"
   kv ready "$(ready_state "$status_value" "$phase_value")"
   kv webReachable "$(bool web_reachable)"
+  kv rdpPort "$(compose_rdp_port)"
+  kv rdpEndpoint "$RDP_HOST:$(compose_rdp_port)"
   if [[ "$status_value" == "running" ]]; then
     kv rdpReachable "$(bool rdp_reachable)"
   else
