@@ -64,7 +64,6 @@ symlink targets.
 │
 ├── apps/                     Split Quickshell app processes (each runs independently)
 │   ├── omd-bar/               Status bar process
-│   ├── omd-desktop/           Desktop surface process (wallpaper/interactions)
 │   ├── omd-overview/          Workspace overview process
 │   ├── omd-applauncher/       Application launcher process
 │   └── omd-clipboard/         Clipboard UI process
@@ -124,7 +123,6 @@ symlink targets.
 ├── bin/                      OMD launcher scripts
 │   ├── omd-restart            Restart all Quickshell apps
 │   ├── omd-bar                Launch bar process
-│   ├── omd-desktop            Launch desktop surface process
 │   ├── omd-overview           Launch overview process
 │   ├── omd-applauncher       Launch app launcher
 │   ├── omd-clipboard          Launch clipboard UI process
@@ -173,8 +171,11 @@ Additional manual symlinks (not created by Init.sh):
 - `hyprland.lua` loads default modules from `hypr/default/`, then user
   modules from `hypr/` (monitors, input, bindings, looknfeel, autostart).
 - Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
-- Quickshell runs as independent app processes: `omd-bar`, `omd-desktop`,
-  `omd-overview`, `omd-applauncher`, and `omd-clipboard`.
+- Quickshell runs as independent app processes: `omd-bar`, `omd-overview`,
+  `omd-applauncher`, and `omd-clipboard`.
+- Desktop wallpaper is handled by `swaybg` through Hyprland autostart and
+  `bin/omd-wallpaper` / `bin/omd-theme-bg-set`; there is no Quickshell
+  `omd-desktop` wallpaper process.
 - Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
@@ -197,6 +198,7 @@ Additional manual symlinks (not created by Init.sh):
 - Omarchy theme system: `docs/omarchy-theme-system.md`
 - Session persistence: `docs/session-persistence.md`
 - Deployment/portability: `docs/deployment-portability.md`
+- Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
 
 ## Editing
 
