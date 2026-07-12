@@ -34,6 +34,15 @@ BarContextMenu {
     }
 
     BarContextMenuItem {
+        iconName: NerdIconMap.wifi
+        label: Translation.tr("Network TUI")
+        releaseAction: () => {
+            root.close();
+            Quickshell.execDetached(["foot", "--app-id=nmtui", "--title=nmtui", "--window-size-pixels=880x620", "-e", "nmtui"]);
+        }
+    }
+
+    BarContextMenuItem {
         iconName: BluetoothStatus.connected ? NerdIconMap.bluetoothConnected
             : BluetoothStatus.enabled ? NerdIconMap.bluetooth
             : NerdIconMap.bluetoothDisabled

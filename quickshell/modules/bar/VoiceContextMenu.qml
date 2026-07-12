@@ -67,4 +67,23 @@ BarContextMenu {
             root.close();
         }
     }
+
+    Rectangle {
+        Layout.fillWidth:    true
+        implicitHeight:      1
+        color:               TuiStyle.line
+        opacity:             TuiStyle.dividerOpacity
+        Layout.topMargin:    root.separatorMargin
+        Layout.bottomMargin: root.separatorMargin
+    }
+
+    BarContextMenuItem {
+        iconName:  NerdIconMap.graphicEq
+        iconColor: TuiStyle.accent
+        label:     Translation.tr("Volume Control")
+        releaseAction: () => {
+            Quickshell.execDetached(["pavucontrol"]);
+            root.close();
+        }
+    }
 }
