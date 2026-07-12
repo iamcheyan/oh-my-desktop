@@ -37,14 +37,12 @@ Singleton {
     // Ephemeral popups (e.g. volume OSD) auto-close; pinned ones stay until dismissed.
     property bool barPopupEphemeral: false
     property real barPopupDismissedAt: 0
-    property string activeContextMenu: ""
     property bool sessionConfirmOpen: false
     property string sessionConfirmAction: ""
     property string sessionConfirmLabel: ""
 
     function requestSessionConfirm(action, label) {
         GlobalStates.barPopupType = "";
-        GlobalStates.activeContextMenu = "";
         GlobalStates.sessionConfirmAction = action;
         GlobalStates.sessionConfirmLabel = label;
         GlobalStates.sessionConfirmOpen = true;

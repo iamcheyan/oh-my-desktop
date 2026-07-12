@@ -10,6 +10,6 @@ Singleton {
     id: root
 
     readonly property bool dismissLayerActive: !GlobalStates.screenLocked
-        && (GlobalStates.activeContextMenu !== "" || GlobalStates.barPopupType !== "")
+        && GlobalStates.barPopupType !== ""
     property bool screenshotActive: GlobalStates.screenshotActive
 }

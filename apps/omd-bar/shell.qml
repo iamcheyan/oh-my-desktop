@@ -26,9 +26,6 @@ ShellRoot {
         target: "menus"
 
         function close(): void {
-            if (GlobalStates.activeContextMenu !== "") {
-                GlobalStates.activeContextMenu = "";
-            }
             if (GlobalStates.barPopupType !== "") {
                 GlobalStates.barPopupType = "";
             }
@@ -45,12 +42,10 @@ ShellRoot {
         target: "screenshot"
 
         function begin(): void {
-            console.log("[SCREENSHOT] begin received, screenshotActive=true, barPopupType=" + GlobalStates.barPopupType + " activeContextMenu=" + GlobalStates.activeContextMenu);
             GlobalStates.screenshotActive = true;
         }
 
         function end(): void {
-            console.log("[SCREENSHOT] end received, screenshotActive=false");
             GlobalStates.screenshotActive = false;
         }
     }

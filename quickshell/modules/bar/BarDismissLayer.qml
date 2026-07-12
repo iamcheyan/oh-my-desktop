@@ -11,10 +11,7 @@ Scope {
     id: root
 
     function dismiss() {
-        console.log("[DISMISSLAYER] dismiss() called, screenshotActive=" + BarRuntime.screenshotActive + " barPopupType=" + GlobalStates.barPopupType + " activeContextMenu=" + GlobalStates.activeContextMenu);
         if (BarRuntime.screenshotActive) return;
-        if (GlobalStates.activeContextMenu !== "")
-            GlobalStates.activeContextMenu = "";
         if (GlobalStates.barPopupType !== "") {
             GlobalStates.barPopupDismissedAt = Date.now();
             GlobalStates.barPopupType = "";
