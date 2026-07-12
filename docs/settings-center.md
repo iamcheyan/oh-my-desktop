@@ -290,33 +290,65 @@ The Windows VM page is backed by:
 bin/omd-settings-windows-vm
 ```
 
-It does not reimplement VM setup. It only exposes status and calls:
-
-```text
-share/bin/omarchy-windows-vm
-```
+This helper is the Settings Center backend for the full Windows VM lifecycle:
+status, resource checks, one-click default install, start, connect, stop,
+logs, web console, and confirmed removal. The old interactive
+`share/bin/omarchy-windows-vm` script is no longer the Settings page contract.
 
 Status is returned as simple `key=value` lines:
 
 ```text
 configured=true|false
+storagePresent=true|false
+storageUsedBytes=...
 kvm=true|false
 dockerCli=true|false
-dockerRunning=true|false
+dockerDaemon=true|false
+dockerAccess=true|false
+dockerSocket=true|false
+dockerGroupMember=true|false
+dockerError=...
 compose=true|false
+freerdp=true|false
+freerdpBin=...
 container=running|exited|missing|...
+phase=not-installed|downloading|preparing|installing|booting|ready|error|stopped
+ready=true|false
+webReachable=true|false
+rdpReachable=true|false
 web=http://127.0.0.1:8006
 composeFile=~/.config/windows/docker-compose.yml
 storageDir=~/.windows
 sharedDir=~/Windows
+diskAvailable=...
+ramTotal=...
+cpuTotal=...
 ram=...
 cpu=...
 disk=...
 user=...
 ```
 
-Install and remove are deliberately launched in an interactive terminal because
-they involve large downloads, disk allocation, sudo/package operations, and
-destructive deletion. The QML page adds a first confirmation click, and the
-underlying `omarchy-windows-vm` script still performs its own terminal
-confirmation.
+Primary commands used by the page:
+
+```text
+status
+install-status
+auto-fix
+install-defaults
+start
+launch
+launch-keepalive
+stop
+remove --yes
+logs
+web
+```
+
+Install is non-interactive after the user clicks the Settings button. The
+helper picks conservative defaults: roughly half RAM capped at 16G, half CPU
+cores capped at 8, 128G disk when space allows, user `win11`, and password
+`admin` unless an existing compose file already defines credentials.
+
+Removal is destructive because it deletes the VM storage directory. The QML page
+requires a two-step remove click before invoking `remove --yes`.

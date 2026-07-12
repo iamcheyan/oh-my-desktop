@@ -16,14 +16,15 @@ The Windows VM settings page should own the complete user workflow:
 
 ## Current Local State
 
-Observed on this machine:
+Observed on this machine before the redesign:
 
 - `~/.config/windows/docker-compose.yml` exists.
 - `~/.windows` exists but is empty.
 - `~/Windows` exists but is empty.
 - Docker CLI exists at `/usr/bin/docker`.
 - Docker daemon/socket is not available to the current user.
-- `/dev/kvm` does not exist.
+- `/dev/kvm` was not available in the initial restricted command context; in
+  the later unrestricted context it is available.
 - `xfreerdp` exists, but `xfreerdp3` does not.
 - Docker cannot inspect `omarchy-windows`; the container is effectively
   missing.
@@ -169,7 +170,8 @@ The current existing config uses:
 
 ## Implementation Plan
 
-Commit 1: document current state and target design.
+Commit 1: document current state and target design. Completed as
+`530763d`.
 
 Commit 2: harden `bin/omd-settings-windows-vm`.
 
@@ -180,6 +182,9 @@ Commit 2: harden `bin/omd-settings-windows-vm`.
 - Add richer status and phase detection.
 - Add non-interactive default install/start/connect/remove commands.
 
+Completed as `43289ca`, then extended in the Settings page commit with
+`auto-fix` KVM module loading.
+
 Commit 3: redesign the Windows VM Settings page.
 
 - Replace the confusing auto-step state machine with a clearer state model.
@@ -187,6 +192,8 @@ Commit 3: redesign the Windows VM Settings page.
 - Show install/progress/management sections based on status.
 - Add explicit destructive confirmation for removal.
 - Poll status/logs during install/start.
+
+Completed as `cc68e67`.
 
 Commit 4: update docs.
 
@@ -206,3 +213,28 @@ such as starting Docker through PolicyKit, enabling KVM in BIOS, or completing a
 Windows install. The code can be made robust, but final install/connect
 verification must happen in the real desktop session.
 
+## Implemented Behavior
+
+The Settings page now uses `bin/omd-settings-windows-vm` as the single backend.
+It no longer depends on the old interactive `share/bin/omarchy-windows-vm`
+script.
+
+The page shows:
+
+- status pills for VM state, KVM, Docker, and RDP
+- system requirement rows with a concrete blocker message
+- one primary setup button
+- progress rows for installing/booting/ready phases
+- web console and log access
+- connect, keep-alive connect, start, stop, and two-click remove actions
+
+The backend supports:
+
+- richer `status` output
+- `install-defaults`
+- `auto-fix`
+- `start`
+- `launch` and `launch-keepalive`
+- `remove --yes`
+- both `xfreerdp3` and `xfreerdp`
+- both `docker compose` and `docker-compose`
