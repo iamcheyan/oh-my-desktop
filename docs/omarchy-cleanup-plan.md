@@ -54,7 +54,8 @@ GDM session
 
 Quickshell 本身大部分已经是 OMD 命名空间：
 
-- `bin/omd-restart` 启动 `omd-bar`、`omd-desktop`、`omd-overview`、`omd-applauncher`、`omd-clipboard`、`omd-clipboard-store`。
+- `bin/omd-restart` 启动 `omd-bar`、`omd-overview`、`omd-polkit`、`omd-clipboard-store`；`omd-applauncher`、`omd-clipboard` 等按需冷启动。
+- 壁纸由 `swaybg` 负责，不再通过 `omd-desktop` 常驻 Quickshell 进程绘制。
 - 各 app 入口位于 `apps/omd-*/shell.qml`。
 - QML 内部大量调用 `~/.config/omd/bin/omd-*`。
 
@@ -346,4 +347,3 @@ rg -n "omarchy-|default\\.hypr|~/.local/share/omarchy|\\.local/share/omarchy|\\.
 - `PATH` 不再需要 `~/.local/share/omarchy/bin`。
 - `rg "omarchy-" quickshell apps bin scripts hypr` 没有运行时硬依赖。
 - 键盘映射、语音输入、剪贴板、壁纸、主题、锁屏、退出、overview、app launcher、session restore 都仍可用。
-

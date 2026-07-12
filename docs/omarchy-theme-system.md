@@ -320,12 +320,14 @@ components, but OMD uses split Quickshell apps instead:
 
 ```text
 omd-bar
-omd-desktop
 omd-overview
 omd-switcher
 omd-applauncher
 omd-clipboard
 ```
+
+Wallpaper is applied separately through `swaybg`; theme reload IPC is only sent
+to running Quickshell UI apps.
 
 When theme switching is added to Settings Center, do not reimplement the theme
 copy/template logic in QML. Use the existing Omarchy command:

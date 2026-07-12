@@ -49,12 +49,14 @@ back to `Hyprland -c <config>`.
 
 ```sh
 omd-bar
-omd-desktop
 omd-overview
 omd-applauncher
 omd-clipboard
 omd-clipboard-store
 ```
+
+Wallpaper is started by Hyprland/`omd-wallpaper` through `swaybg`, not by a
+Quickshell desktop app.
 
 ## Verification
 

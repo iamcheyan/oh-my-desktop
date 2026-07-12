@@ -29,11 +29,14 @@ Current Quickshell runtime is split into independent processes:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
-quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 quickshell -p ~/.config/omd/apps/omd-applauncher
 ```
+
+Wallpaper is handled by `swaybg` through Hyprland autostart and
+`bin/omd-wallpaper` / `bin/omd-theme-bg-set`; it is no longer drawn by a
+persistent Quickshell desktop process.
 
 Current Omarchy autostart entry:
 
@@ -54,7 +57,6 @@ Long-term target:
 │   └── translations/
 ├── apps/
 │   ├── omd-bar/
-│   ├── omd-desktop/
 │   ├── omd-overview/
 │   ├── omd-switcher/
 │   ├── omd-session/
@@ -75,7 +77,6 @@ Each runnable module should have its own Quickshell process:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
-quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 ```
@@ -110,37 +111,12 @@ Initial contents:
 - Wi-Fi and Bluetooth dialogs
 - Audio, mic, battery, power/sidebar indicators
 
-### `omd-desktop`
+### Desktop surface
 
-Owns the desktop surface behind windows.
-
-Initial contents:
-
-- Wallpaper/background layer
-- Blank desktop pointer interactions
-- Double-click blank desktop to toggle the application launcher
-
-Future contents:
-
-- Desktop icons
-- Desktop right-click menu
-- Drag/drop behavior on the desktop surface
-
-Reason to split: desktop interactions should stay independent from the bar and
-overview. If future icon or right-click menu code breaks, the status bar and
-overview should keep running.
-
-Likely services:
-
-- Audio
-- Battery
-- BluetoothStatus
-- Network
-- Notifications
-- TrayService
-- Weather
-- GlobalFocusGrab
-- PolkitService, if we keep a Quickshell polkit agent
+`omd-desktop` has been removed. Static wallpaper is handled by `swaybg`. If
+desktop icons, blank-desktop gestures, or desktop right-click menus are
+reintroduced later, create a new lightweight desktop interaction process that
+does not own wallpaper drawing.
 
 ### `omd-overview`
 
@@ -211,9 +187,6 @@ omd-bar:
   Audio, Battery, BluetoothStatus, Network, Notifications, TrayService,
   Weather, PolkitService, GlobalFocusGrab
 
-omd-desktop:
-  Hyprland workspace/fullscreen visibility data and background helpers only
-
 omd-overview:
   HyprlandData, HyprlandKeybinds only if required
 
@@ -236,7 +209,6 @@ Use stable names per process:
 
 ```text
 omd-bar
-omd-desktop
 omd-overview
 omd-switcher
 omd-session

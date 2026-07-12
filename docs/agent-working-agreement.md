@@ -29,12 +29,15 @@ Current runtime is split into independent Quickshell processes:
 
 ```sh
 quickshell -p ~/.config/omd/apps/omd-bar
-quickshell -p ~/.config/omd/apps/omd-desktop
 quickshell -p ~/.config/omd/apps/omd-overview
 quickshell -p ~/.config/omd/apps/omd-switcher
 quickshell -p ~/.config/omd/apps/omd-applauncher
 quickshell -p ~/.config/omd/apps/omd-clipboard
 ```
+
+Wallpaper is handled by `swaybg`. `omd-wallpaper` and `omd-theme-bg-set`
+update `~/.config/omd/current/background` and restart `swaybg`; there is no
+`omd-desktop` Quickshell wallpaper process.
 
 The launcher at `quickshell/scripts/quickshell` accepts an optional config
 directory:
@@ -120,7 +123,6 @@ Expected current processes include:
 
 ```text
 quickshell -p $HOME/.config/omd/apps/omd-bar
-quickshell -p $HOME/.config/omd/apps/omd-desktop
 quickshell -p $HOME/.config/omd/apps/omd-overview
 quickshell -p $HOME/.config/omd/apps/omd-switcher
 quickshell -p $HOME/.config/omd/apps/omd-applauncher

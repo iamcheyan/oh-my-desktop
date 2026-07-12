@@ -43,6 +43,24 @@ We worked on the `refactor/settings-center` branch and accomplished the followin
     3.  **Square Constraint**: Added `Shift` key constraint to force perfect `1:1` square selection crops.
     4.  **Edit Mode & Swappy/Satty Integration**: Fixed a bug where releasing the Left mouse button would reset the explicitly set `Edit` action back to `Copy`. Added a **"Capture & Edit"** option to the status bar screenshot right-click menu ([ScreenshotContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/ScreenshotContextMenu.qml)) which directly launches `swappy`/`satty` upon crop.
 
+### C. Standalone Screenshot Tool Split & Launch Fixes
+*   **Paths**: [shell.qml](file:///home/tetsuya/development/OMD/apps/omd-screenshot/shell.qml), [GlobalStates.qml](file:///home/tetsuya/development/OMD/apps/omd-screenshot/GlobalStates.qml)
+*   **Fixes**:
+    1.  **Directory-Level Symlinking**: Replaced individual file symlinks in `apps/omd-screenshot/modules/` and `apps/omd-screenshot/services/` with directory symlinks (`modules -> ../../quickshell/modules`, `services -> ../../quickshell/services`). This allows Quickshell's virtual interceptor to correctly generate virtual `qmldir` files, resolving styling singletons (`TuiStyle` and `OmarchyTheme`) automatically.
+    2.  **Prevent Startup Auto-Exit**: Set `regionSelectorOpen` to `true` by default in the standalone `GlobalStates.qml`. This instantiates the window immediately, keeping the event loop alive.
+    3.  **Correct Import Namespaces**: Swapped relative directory imports with the `qs` namespace (`import qs.modules.common` and `import qs.services`) in `shell.qml` to correctly resolve singleton instances.
+    4.  **Launcher Script Safety**: Bound `action="${1:-screenshot}"` at the top of [bin/omd-screenshot](file:///home/tetsuya/development/OMD/bin/omd-screenshot) to prevent unbound variable crashes under `set -u`.
+    5.  **UI Droplet Removal**: Rewrote [CursorGuide.qml](file:///home/tetsuya/development/OMD/quickshell/modules/regionSelector/CursorGuide.qml) and [TargetRegion.qml](file:///home/tetsuya/development/OMD/quickshell/modules/regionSelector/TargetRegion.qml) to replace droplet shapes with rounded rectangles matching `TuiStyle`.
+
+### D. Network TUI (nmtui) Sizing & Floating Fixes
+*   **Paths**: [NetworkContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/NetworkContextMenu.qml), [looknfeel.lua](file:///home/tetsuya/development/OMD/hypr/looknfeel.lua)
+*   **Issues**:
+    1.  **TUI Size Mismatch**: When launched, the terminal window was tiled/sized dynamically, causing `nmtui` to render with massive unpainted black margins because it missed the window manager's resize events.
+    2.  **Tiling/Floating Race**: Matching rules by window title (`title = "nmtui"`) is unreliable in Hyprland because the title is set asynchronously after mapping, causing the window to sometimes default to tiling.
+*   **Fixes**:
+    1.  **Pass Size on Startup**: Added `--window-size-pixels=880x620` to the `foot` command to force it to start at the target size.
+    2.  **Class/App-ID Matching**: Added `--app-id=nmtui` to the launcher, and matched the rule using `o.window("^nmtui$", ...)` directly, ensuring the window floats, centers, and scales perfectly with 100% blue canvas coverage.
+
 ---
 
 ## 3. Important Design Details & Development Gotchas
