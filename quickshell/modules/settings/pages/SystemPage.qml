@@ -195,8 +195,8 @@ PageBody {
                 ButtonRow {
                     SettingsButton {
                         label: "Open Autostart Folder"
-                        iconName: "folder_open"
-                        onClicked: Quickshell.execDetached(["xdg-open", pageRoot.autostartDir])
+                        iconName: "open_in_new"
+                        onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["xdg-open", pageRoot.autostartDir]) }
                     }
                     SettingsButton {
                         label: "Refresh"
@@ -487,8 +487,8 @@ PageBody {
                 ButtonRow {
                     SettingsButton {
                         label: "Set Default Browser"
-                        iconName: "web"
-                        onClicked: Quickshell.execDetached(["bash", "-c", "xdg-settings set default-web-browser $(zenity --file-selection --title='Select browser .desktop file' --filename=/usr/share/applications/ --file-filter='Desktop files | *.desktop') 2>/dev/null; true"])
+                        iconName: "open_in_new"
+                        onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["bash", "-c", "xdg-settings set default-web-browser $(zenity --file-selection --title='Select browser .desktop file' --filename=/usr/share/applications/ --file-filter='Desktop files | *.desktop') 2>/dev/null; true"]) }
                     }
                 }
             }

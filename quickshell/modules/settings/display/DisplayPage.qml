@@ -195,8 +195,8 @@ ColumnLayout {
 
                 SmallButton {
                     text: "wlr-randr"
-                    iconName: "terminal"
-                    onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
+                    iconName: "open_in_new"
+                    onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"]) }
                 }
             }
         }

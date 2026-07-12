@@ -826,7 +826,7 @@ WindowDialog {
 
                 ButtonRow {
                     visible: BluetoothStatus.available
-                    SettingsButton { label: "Bluetooth Manager"; iconName: "bluetooth"; onClicked: Quickshell.execDetached(["blueman-manager"]) }
+                    SettingsButton { label: "Bluetooth Manager"; iconName: "open_in_new"; onClicked: { root.dismiss(); Quickshell.execDetached(["blueman-manager"]) } }
                 }
             }
 
@@ -896,8 +896,8 @@ WindowDialog {
 
                 ButtonRow {
                     visible: Network.wifiEnabled
-                    SettingsButton { label: "Connection Editor"; iconName: "edit"; onClicked: Quickshell.execDetached(["nm-connection-editor"]) }
-                    SettingsButton { label: "Network TUI"; iconName: "terminal"; onClicked: Quickshell.execDetached(["foot", "--app-id=nmtui", "--title=nmtui", "--window-size-pixels=880x620", "-e", "nmtui"]) }
+                    SettingsButton { label: "Connection Editor"; iconName: "open_in_new"; onClicked: { root.dismiss(); Quickshell.execDetached(["nm-connection-editor"]) } }
+                    SettingsButton { label: "Network TUI"; iconName: "open_in_new"; onClicked: { root.dismiss(); Quickshell.execDetached(["foot", "--app-id=nmtui", "--title=nmtui", "--window-size-pixels=880x620", "-e", "nmtui"]) } }
                 }
             }
 
@@ -1143,13 +1143,13 @@ WindowDialog {
                 ButtonRow {
                     SettingsButton {
                         label: "Configure"
-                        iconName: "settings"
-                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-bind-tui`])
+                        iconName: "open_in_new"
+                        onClicked: { root.dismiss(); Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-bind-tui`]) }
                     }
                     SettingsButton {
                         label: "Capture Key"
-                        iconName: "keyboard"
-                        onClicked: Quickshell.execDetached([`${omdRoot}/scripts/key-test-launcher`, "--hotkey"])
+                        iconName: "open_in_new"
+                        onClicked: { root.dismiss(); Quickshell.execDetached([`${omdRoot}/scripts/key-test-launcher`, "--hotkey"]) }
                     }
                 }
 
@@ -1183,15 +1183,15 @@ WindowDialog {
                     }
                     SettingsButton {
                         label: "TUI Test"
-                        iconName: "terminal"
-                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-test-tui`])
+                        iconName: "open_in_new"
+                        onClicked: { root.dismiss(); Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-test-tui`]) }
                     }
                 }
                 ButtonRow {
                     SettingsButton {
                         label: "Diagnose"
-                        iconName: "health_and_safety"
-                        onClicked: Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-diagnose`])
+                        iconName: "open_in_new"
+                        onClicked: { root.dismiss(); Quickshell.execDetached(["omd-launch-tui", `${omdRoot}/scripts/voice-diagnose`]) }
                     }
                     SettingsButton {
                         label: "Clear History"
@@ -1736,15 +1736,15 @@ WindowDialog {
                 ButtonRow {
                     SettingsButton {
                         label: "Connect"
-                        iconName: "login"
+                        iconName: "open_in_new"
                         enabledState: s.configured
-                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch"])
+                        onClicked: { root.dismiss(); Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch"]) }
                     }
                     SettingsButton {
                         label: "Keep Alive"
-                        iconName: "keep"
+                        iconName: "open_in_new"
                         enabledState: s.configured
-                        onClicked: Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch-keepalive"])
+                        onClicked: { root.dismiss(); Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm launch-keepalive"]) }
                     }
                 }
                 ButtonRow {

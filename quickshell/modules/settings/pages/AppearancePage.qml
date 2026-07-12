@@ -520,7 +520,7 @@ PageBody {
                             }
                             SettingsButton {
                                 label: "Open Theme Folder"
-                                iconName: "folder"
+                                iconName: "open_in_new"
                                 onClicked: Quickshell.execDetached(["xdg-open", `${FileUtils.trimFileProtocol(Directories.config)}/omd/current/theme`])
                             }
                         }

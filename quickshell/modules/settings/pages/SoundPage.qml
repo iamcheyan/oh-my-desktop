@@ -364,8 +364,8 @@ PageBody {
                     }
                     SettingsButton {
                         label: "Volume Control"
-                        iconName: "tune"
-                        onClicked: Quickshell.execDetached(["pavucontrol"])
+                        iconName: "open_in_new"
+                        onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["pavucontrol"]) }
                     }
                 }
             }
