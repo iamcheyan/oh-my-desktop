@@ -37,15 +37,20 @@ RippleButton {
         }
         return null;
     }
-    readonly property int _itemHeight:      menu ? menu.itemHeight      : 48
-    readonly property int _itemRadius:      menu ? menu.itemRadius      : 5
-    readonly property int _iconColumnWidth: menu ? menu.iconColumnWidth : 26
+    readonly property int _itemHeight:      menu ? menu.itemHeight      : 32
+    readonly property int _itemRadius:      menu ? menu.itemRadius      : 4
+    readonly property int _iconColumnWidth: menu ? menu.iconColumnWidth : 20
     readonly property int _iconSize:        menu ? menu.iconSize        : 18
     readonly property real _hPadding:       menu ? menu.hPadding        : 8
     // ────────────────────────────────────────────────────────────────────────
 
     buttonRadius:      _itemRadius
     horizontalPadding: _hPadding
+    topPadding:        0
+    bottomPadding:     0
+
+    implicitHeight: _itemHeight
+    height: _itemHeight
 
     Layout.fillWidth:      true
     Layout.minimumHeight:  _itemHeight
@@ -58,9 +63,6 @@ RippleButton {
     borderWidth:        0
 
     contentItem: RowLayout {
-        anchors.fill:        parent
-        anchors.leftMargin:  root.horizontalPadding
-        anchors.rightMargin: root.horizontalPadding
         spacing: 8
 
         Item {
@@ -82,7 +84,7 @@ RippleButton {
             Layout.alignment:  Qt.AlignVCenter
             text:              root.label
             font.family:       Appearance.font.family.main
-            font.pixelSize:    Appearance.font.pixelSize.small
+            font.pixelSize:    Appearance.font.pixelSize.large
             font.weight:       Font.Normal
             color:             root.labelColor  // text colour (follows iconColor by default)
         }
