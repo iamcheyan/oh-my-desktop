@@ -27,7 +27,7 @@ QtObject {
     readonly property color shellGradientMid: "#080808"
     readonly property color shellGradientBottom: "#161616"
     readonly property color shellBorder: OmarchyTheme.accentBorder
-    readonly property color menuBorder: "#333333"
+    readonly property color menuBorder: "#4a4a4a"
 
     // Interior surfaces
     readonly property color surfaceSubtle: "#181818"

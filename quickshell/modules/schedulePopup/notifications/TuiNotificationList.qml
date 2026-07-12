@@ -19,6 +19,8 @@ Item {
     property int maxListHeight: 360
     property var expandedRows: ({})
 
+    property bool showFooterDnd: true
+
     readonly property int headerGap: showHeader ? 10 : 0
     readonly property int footerGap: showFooter ? 10 : 0
     readonly property int listHeight: Math.max(112, Math.min(maxListHeight, listView.contentHeight))
@@ -52,6 +54,8 @@ Item {
     ColumnLayout {
         id: column
         anchors.fill: parent
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
         spacing: 0
 
     Rectangle {
@@ -149,47 +153,47 @@ Item {
 
             ColumnLayout {
                 anchors.centerIn: parent
-            width: Math.min(parent.width - 24, 280)
-            spacing: 10
+                width: Math.min(parent.width - 24, 280)
+                spacing: 10
 
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 42
-                Layout.preferredHeight: 42
-                radius: 21
-                color: TuiStyle.surfaceHover
-                border.width: 0
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 42
+                    Layout.preferredHeight: 42
+                    radius: 21
+                    color: TuiStyle.surfaceHover
+                    border.width: 0
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: Notifications.silent ? "notifications_paused" : "notifications"
-                    iconSize: 22
-                    color: Notifications.silent ? TuiStyle.warning : TuiStyle.accent
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: Notifications.silent ? "notifications_paused" : "notifications"
+                        iconSize: 22
+                        color: Notifications.silent ? TuiStyle.warning : TuiStyle.accent
+                    }
+                }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Notifications.silent ? "Notifications paused" : "Nothing new"
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    font.weight: Font.DemiBold
+                    color: TuiStyle.fg
+                }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    text: Notifications.silent ? "Incoming popups stay quiet." : "New messages will appear here."
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: TuiStyle.dim
+                    wrapMode: Text.Wrap
                 }
             }
-
-            StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: Notifications.silent ? "Notifications paused" : "Nothing new"
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.DemiBold
-                color: TuiStyle.fg
-            }
-
-            StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: Notifications.silent ? "Incoming popups stay quiet." : "New messages will appear here."
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: TuiStyle.dim
-                wrapMode: Text.Wrap
-            }
-        }
         }
     }
 
@@ -206,7 +210,7 @@ Item {
             anchors.top: parent.top
             height: 1
             color: TuiStyle.line
-            opacity: TuiStyle.dividerOpacity
+            opacity: 0.10
         }
 
         RowLayout {
@@ -215,6 +219,7 @@ Item {
             spacing: 10
 
             StyledText {
+                visible: root.showFooterDnd
                 text: "Do Not Disturb"
                 font.family: Appearance.font.family.main
                 font.pixelSize: Appearance.font.pixelSize.small
@@ -222,6 +227,7 @@ Item {
             }
 
             TuiToggle {
+                visible: root.showFooterDnd
                 checked: Notifications.silent
                 onToggled: Notifications.silent = !Notifications.silent
             }
@@ -229,14 +235,13 @@ Item {
             Item { Layout.fillWidth: true }
 
             Rectangle {
-                implicitWidth: Math.max(78, clearLabel.implicitWidth + 20)
-                implicitHeight: 28
-                radius: 6
-                color: clearMouse.pressed ? TuiStyle.surfacePressed
-                    : clearMouse.containsMouse ? TuiStyle.surfaceHover
-                    : TuiStyle.controlMuted
-                border.width: root.hubStyle ? 0 : TuiStyle.borderWidth
-                border.color: TuiStyle.line
+                implicitWidth: Math.max(88, clearLabel.implicitWidth + 24)
+                implicitHeight: 32
+                radius: TuiStyle.radius
+                color: clearMouse.pressed ? TuiStyle.controlHover
+                    : clearMouse.containsMouse ? TuiStyle.controlHover
+                    : TuiStyle.control
+                border.width: 0
                 opacity: Notifications.list.length > 0 ? 1 : 0.45
 
                 StyledText {
@@ -244,7 +249,7 @@ Item {
                     anchors.centerIn: parent
                     text: "Clear All"
                     font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.Medium
                     color: TuiStyle.fg
                 }

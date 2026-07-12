@@ -12,3 +12,4 @@ SettingsSlider 1.0 SettingsSlider.qml
 ButtonRow 1.0 ButtonRow.qml
 SettingsDropdownRow 1.0 SettingsDropdownRow.qml
 SettingsTextFieldRow 1.0 SettingsTextFieldRow.qml
+SettingsOverlayDialog 1.0 SettingsOverlayDialog.qml

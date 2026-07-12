@@ -199,7 +199,9 @@ detect_phase_from_logs() {
     printf 'not-installed'
   elif [[ "$status" != "running" ]]; then
     printf 'stopped'
-  elif echo "$logs" | grep -qi 'windows started successfully\|rdp.*ready\|ready'; then
+  elif echo "$logs" | grep -qi 'error\|failed\|panic'; then
+    printf 'error'
+  elif echo "$logs" | grep -qi 'windows started successfully\|rdp.*ready'; then
     printf 'ready'
   elif echo "$logs" | grep -qi 'extract\|convert'; then
     printf 'preparing'
@@ -209,8 +211,6 @@ detect_phase_from_logs() {
     printf 'downloading'
   elif echo "$logs" | grep -qi 'installing\|setup\|oobe'; then
     printf 'installing'
-  elif echo "$logs" | grep -qi 'error\|failed\|panic'; then
-    printf 'error'
   else
     printf 'booting'
   fi
@@ -348,7 +348,7 @@ default_disk() {
   avail="$(disk_available_gb)"
   if (( avail >= 160 )); then
     printf '128G'
-  elif (( avail >= 96 )); then
+  elif (( avail >= 74 )); then
     printf '64G'
   else
     printf '0G'
@@ -460,7 +460,7 @@ install() {
 
   kv progress "Preparing Windows VM configuration..."
   if [[ "$disk" == "0G" ]]; then
-    kv error "Insufficient disk space for Windows VM."
+    kv error "Windows VM needs at least 74 GB free disk space."
     return 1
   fi
   require_install_resources "$disk"
