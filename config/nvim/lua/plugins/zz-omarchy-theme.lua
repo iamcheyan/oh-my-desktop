@@ -28,6 +28,8 @@ local function find_colorscheme(specs)
   end
 end
 
+local last_theme = nil
+
 local function apply_current_theme()
   local specs = load_theme_specs()
   local colorscheme = find_colorscheme(specs)
@@ -37,8 +39,14 @@ local function apply_current_theme()
     return
   end
 
+  if last_theme == colorscheme and vim.g.colors_name == colorscheme then
+    return
+  end
+
   local ok, err = pcall(vim.cmd.colorscheme, colorscheme)
-  if not ok then
+  if ok then
+    last_theme = colorscheme
+  else
     vim.notify(
       "OMD colorscheme '" .. colorscheme .. "' is not available yet. Run :Lazy sync or restart Neovim. " .. err,
       vim.log.levels.WARN
@@ -51,9 +59,7 @@ vim.api.nvim_create_user_command("OmarchyThemeReload", apply_current_theme, {})
 vim.api.nvim_create_autocmd({ "FocusGained", "VimEnter" }, {
   group = vim.api.nvim_create_augroup("omd-theme", { clear = true }),
   callback = function()
-    if vim.g.colors_name == nil then
-      apply_current_theme()
-    end
+    apply_current_theme()
   end,
 })
 

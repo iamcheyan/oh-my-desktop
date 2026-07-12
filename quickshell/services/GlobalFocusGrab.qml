@@ -1,6 +1,7 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 import QtQuick
+import qs
 import Quickshell
 import Quickshell.Hyprland
 
@@ -65,6 +66,14 @@ Singleton {
         windows: root.dismissable.length > 0 ? [...root.dismissable, ...root.persistent] : []
         active: root.dismissable.length > 0
         onCleared: () => {
+            // During screenshot capture the screenshot process steals focus,
+            // which would normally dismiss bar popups/menus. Suppress this so
+            // grim can capture them. `screenshotActive` is set synchronously
+            // via the `screenshot.begin` IPC handler before the screenshot
+            // process creates its layer-shell surfaces.
+            console.log("[FOCUSGRAB] onCleared fired, screenshotActive=" + GlobalStates.screenshotActive + " dismissable=" + root.dismissable.length);
+            if (GlobalStates.screenshotActive)
+                return;
             root.dismiss();
         }
     }

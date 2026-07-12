@@ -72,17 +72,59 @@ theme_color() {
 generate_theme_derivatives() {
   local dir="${1:-$CURRENT_THEME_DIR}"
   local toml="$dir/colors.toml"
-  local accent background foreground
+  local accent background foreground cursor selection_foreground selection_background
+  local c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15
 
   [[ -d "$dir" && -f "$toml" ]] || return 0
 
   accent="$(color_from_toml "$toml" accent)"
   background="$(color_from_toml "$toml" background)"
   foreground="$(color_from_toml "$toml" foreground)"
+  cursor="$(color_from_toml "$toml" cursor)"
+  selection_foreground="$(color_from_toml "$toml" selection_foreground)"
+  selection_background="$(color_from_toml "$toml" selection_background)"
 
+  c0="$(color_from_toml "$toml" color0)"
+  c1="$(color_from_toml "$toml" color1)"
+  c2="$(color_from_toml "$toml" color2)"
+  c3="$(color_from_toml "$toml" color3)"
+  c4="$(color_from_toml "$toml" color4)"
+  c5="$(color_from_toml "$toml" color5)"
+  c6="$(color_from_toml "$toml" color6)"
+  c7="$(color_from_toml "$toml" color7)"
+  c8="$(color_from_toml "$toml" color8)"
+  c9="$(color_from_toml "$toml" color9)"
+  c10="$(color_from_toml "$toml" color10)"
+  c11="$(color_from_toml "$toml" color11)"
+  c12="$(color_from_toml "$toml" color12)"
+  c13="$(color_from_toml "$toml" color13)"
+  c14="$(color_from_toml "$toml" color14)"
+  c15="$(color_from_toml "$toml" color15)"
+
+  # Apply defaults if empty
   [[ -n "$accent" ]] || accent="#eeeeee"
   [[ -n "$background" ]] || background="#050505"
   [[ -n "$foreground" ]] || foreground="#f4f4f4"
+  [[ -n "$cursor" ]] || cursor="$foreground"
+  [[ -n "$selection_foreground" ]] || selection_foreground="$background"
+  [[ -n "$selection_background" ]] || selection_background="$accent"
+
+  [[ -n "$c0" ]] || c0="#000000"
+  [[ -n "$c1" ]] || c1="#cc0403"
+  [[ -n "$c2" ]] || c2="#19cb00"
+  [[ -n "$c3" ]] || c3="#cecb00"
+  [[ -n "$c4" ]] || c4="#0d73cc"
+  [[ -n "$c5" ]] || c5="#cb1ed1"
+  [[ -n "$c6" ]] || c6="#0dcdcd"
+  [[ -n "$c7" ]] || c7="#dddddd"
+  [[ -n "$c8" ]] || c8="#767676"
+  [[ -n "$c9" ]] || c9="#f2201f"
+  [[ -n "$c10" ]] || c10="#23fd00"
+  [[ -n "$c11" ]] || c11="#fffd00"
+  [[ -n "$c12" ]] || c12="#1a8fff"
+  [[ -n "$c13" ]] || c13="#fd28ff"
+  [[ -n "$c14" ]] || c14="#14ffff"
+  [[ -n "$c15" ]] || c15="#ffffff"
 
   if [[ ! -f "$dir/quickshell.json" ]]; then
     cat >"$dir/quickshell.json" <<EOF
@@ -117,46 +159,160 @@ EOF
   fi
 
   if [[ ! -f "$dir/foot.ini" ]]; then
-    local bg fg c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15
-    bg="$(hex_strip "$(color_from_toml "$toml" background)")"
-    fg="$(hex_strip "$(color_from_toml "$toml" foreground)")"
-    c0="$(hex_strip "$(color_from_toml "$toml" color0)")"
-    c1="$(hex_strip "$(color_from_toml "$toml" color1)")"
-    c2="$(hex_strip "$(color_from_toml "$toml" color2)")"
-    c3="$(hex_strip "$(color_from_toml "$toml" color3)")"
-    c4="$(hex_strip "$(color_from_toml "$toml" color4)")"
-    c5="$(hex_strip "$(color_from_toml "$toml" color5)")"
-    c6="$(hex_strip "$(color_from_toml "$toml" color6)")"
-    c7="$(hex_strip "$(color_from_toml "$toml" color7)")"
-    c8="$(hex_strip "$(color_from_toml "$toml" color8)")"
-    c9="$(hex_strip "$(color_from_toml "$toml" color9)")"
-    c10="$(hex_strip "$(color_from_toml "$toml" color10)")"
-    c11="$(hex_strip "$(color_from_toml "$toml" color11)")"
-    c12="$(hex_strip "$(color_from_toml "$toml" color12)")"
-    c13="$(hex_strip "$(color_from_toml "$toml" color13)")"
-    c14="$(hex_strip "$(color_from_toml "$toml" color14)")"
-    c15="$(hex_strip "$(color_from_toml "$toml" color15)")"
+    local bg_s fg_s c0_s c1_s c2_s c3_s c4_s c5_s c6_s c7_s c8_s c9_s c10_s c11_s c12_s c13_s c14_s c15_s cur_s s_bg_s s_fg_s
+    bg_s="$(hex_strip "$background")"
+    fg_s="$(hex_strip "$foreground")"
+    cur_s="$(hex_strip "$cursor")"
+    s_fg_s="$(hex_strip "$selection_foreground")"
+    s_bg_s="$(hex_strip "$selection_background")"
+    c0_s="$(hex_strip "$c0")"
+    c1_s="$(hex_strip "$c1")"
+    c2_s="$(hex_strip "$c2")"
+    c3_s="$(hex_strip "$c3")"
+    c4_s="$(hex_strip "$c4")"
+    c5_s="$(hex_strip "$c5")"
+    c6_s="$(hex_strip "$c6")"
+    c7_s="$(hex_strip "$c7")"
+    c8_s="$(hex_strip "$c8")"
+    c9_s="$(hex_strip "$c9")"
+    c10_s="$(hex_strip "$c10")"
+    c11_s="$(hex_strip "$c11")"
+    c12_s="$(hex_strip "$c12")"
+    c13_s="$(hex_strip "$c13")"
+    c14_s="$(hex_strip "$c14")"
+    c15_s="$(hex_strip "$c15")"
 
     cat >"$dir/foot.ini" <<EOF
 [colors]
-background=${bg:-000000}
-foreground=${fg:-ffffff}
-regular0=${c0:-000000}
-regular1=${c1:-cc0403}
-regular2=${c2:-19cb00}
-regular3=${c3:-cecb00}
-regular4=${c4:-0d73cc}
-regular5=${c5:-cb1ed1}
-regular6=${c6:-0dcdcd}
-regular7=${c7:-dddddd}
-bright0=${c8:-767676}
-bright1=${c9:-f2201f}
-bright2=${c10:-23fd00}
-bright3=${c11:-fffd00}
-bright4=${c12:-1a8fff}
-bright5=${c13:-fd28ff}
-bright6=${c14:-14ffff}
-bright7=${c15:-ffffff}
+background=${bg_s}
+foreground=${fg_s}
+regular0=${c0_s}
+regular1=${c1_s}
+regular2=${c2_s}
+regular3=${c3_s}
+regular4=${c4_s}
+regular5=${c5_s}
+regular6=${c6_s}
+regular7=${c7_s}
+bright0=${c8_s}
+bright1=${c9_s}
+bright2=${c10_s}
+bright3=${c11_s}
+bright4=${c12_s}
+bright5=${c13_s}
+bright6=${c14_s}
+bright7=${c15_s}
+EOF
+  fi
+
+  if [[ ! -f "$dir/alacritty.toml" ]]; then
+    cat >"$dir/alacritty.toml" <<EOF
+[colors.primary]
+background = "${background}"
+foreground = "${foreground}"
+
+[colors.cursor]
+text = "${background}"
+cursor = "${cursor}"
+
+[colors.vi_mode_cursor]
+text = "${background}"
+cursor = "${cursor}"
+
+[colors.search.matches]
+foreground = "${background}"
+background = "${c3}"
+
+[colors.search.focused_match]
+foreground = "${background}"
+background = "${c1}"
+
+[colors.footer_bar]
+foreground = "${background}"
+background = "${foreground}"
+
+[colors.selection]
+text = "${selection_foreground}"
+background = "${selection_background}"
+
+[colors.normal]
+black = "${c0}"
+red = "${c1}"
+green = "${c2}"
+yellow = "${c3}"
+blue = "${c4}"
+magenta = "${c5}"
+cyan = "${c6}"
+white = "${c7}"
+
+[colors.bright]
+black = "${c8}"
+red = "${c9}"
+green = "${c10}"
+yellow = "${c11}"
+blue = "${c12}"
+magenta = "${c13}"
+cyan = "${c14}"
+white = "${c15}"
+EOF
+  fi
+
+  if [[ ! -f "$dir/kitty.conf" ]]; then
+    cat >"$dir/kitty.conf" <<EOF
+foreground ${foreground}
+background ${background}
+selection_foreground ${selection_foreground}
+selection_background ${selection_background}
+
+cursor ${cursor}
+cursor_text_color ${background}
+
+active_border_color ${accent}
+active_tab_background ${accent}
+
+color0 ${c0}
+color1 ${c1}
+color2 ${c2}
+color3 ${c3}
+color4 ${c4}
+color5 ${c5}
+color6 ${c6}
+color7 ${c7}
+color8 ${c8}
+color9 ${c9}
+color10 ${c10}
+color11 ${c11}
+color12 ${c12}
+color13 ${c13}
+color14 ${c14}
+color15 ${c15}
+EOF
+  fi
+
+  if [[ ! -f "$dir/ghostty.conf" ]]; then
+    cat >"$dir/ghostty.conf" <<EOF
+background = ${background}
+foreground = ${foreground}
+cursor-color = ${cursor}
+selection-background = ${selection_background}
+selection-foreground = ${selection_foreground}
+
+palette = 0=${c0}
+palette = 1=${c1}
+palette = 2=${c2}
+palette = 3=${c3}
+palette = 4=${c4}
+palette = 5=${c5}
+palette = 6=${c6}
+palette = 7=${c7}
+palette = 8=${c8}
+palette = 9=${c9}
+palette = 10=${c10}
+palette = 11=${c11}
+palette = 12=${c12}
+palette = 13=${c13}
+palette = 14=${c14}
+palette = 15=${c15}
 EOF
   fi
 }
@@ -216,6 +372,64 @@ refresh_running_apps() {
 
   # Hyprland border colors come from current/theme/hyprland.lua
   hyprctl reload >/dev/null 2>&1 || true
+
+  # Reload Alacritty config to trigger live-reload
+  if [[ -f "$HOME/.config/alacritty/alacritty.toml" ]]; then
+    touch "$HOME/.config/alacritty/alacritty.toml" || true
+  fi
+
+  # Reload Kitty config
+  if pgrep -x kitty >/dev/null; then
+    killall -SIGUSR1 kitty >/dev/null 2>&1 || true
+  fi
+
+  # Reload Ghostty config
+  if pgrep -x ghostty >/dev/null; then
+    killall -SIGUSR2 ghostty >/dev/null 2>&1 || true
+  fi
+
+  # Reload Foot terminals dynamically using TTY escape sequences
+  local foot_theme="$CURRENT_THEME_DIR/foot.ini"
+  if [[ -f "$foot_theme" ]] && pgrep -x foot >/dev/null; then
+    local foot_osc
+    foot_osc=$(awk -F= '
+      function color(value) { return "#" value }
+      /^background=/ { printf "\033]11;%s\007", color($2) }
+      /^foreground=/ { printf "\033]10;%s\007", color($2) }
+      /^regular[0-7]=/ { split($1, parts, "regular"); printf "\033]4;%d;%s\007", parts[2], color($2) }
+      /^bright[0-7]=/ { split($1, parts, "bright"); printf "\033]4;%d;%s\007", parts[2] + 8, color($2) }
+    ' "$foot_theme" 2>/dev/null || true)
+
+    if [[ -n "$foot_osc" ]]; then
+      local foot_pid child_pid tty
+      for foot_pid in $(pgrep -x foot || true); do
+        for child_pid in $(pgrep -P "$foot_pid" || true); do
+          tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null || true)
+          if [[ -n "$tty" && "$tty" == /dev/pts/* ]]; then
+            printf '%b' "$foot_osc" >"$tty" 2>/dev/null || true
+          fi
+        done
+      done
+    fi
+  fi
+
+  # Reload Helix instances
+  if pgrep -x helix >/dev/null; then
+    pkill -USR1 helix >/dev/null 2>&1 || true
+  fi
+
+  # Reload Neovim instances via remote server socket IPC
+  local socket_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  if [[ -d "$socket_dir" ]]; then
+    local sockets
+    sockets=($(find "$socket_dir" -name "nvim.*" 2>/dev/null || true))
+    local socket
+    for socket in "${sockets[@]}"; do
+      if [[ -S "$socket" ]]; then
+        sh -c 'nvim --server "$1" --remote-send "<C-\><C-N>:OmarchyThemeReload<CR>" >/dev/null 2>&1; true' _ "$socket" >/dev/null 2>&1 || true
+      fi
+    done
+  fi
 }
 
 apply_theme() {

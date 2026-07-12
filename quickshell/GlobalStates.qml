@@ -27,6 +27,7 @@ Singleton {
     property var overviewPendingOccupiedWorkspaces: []
     property int overviewRefreshSerial: 0
     property bool regionSelectorOpen: false
+    property bool screenshotActive: false
     property bool screenLocked: false
     property bool screenLockContainsCharacters: false
     property bool screenUnlockFailed: false
@@ -35,6 +36,7 @@ Singleton {
     property string barPopupType: ""
     // Ephemeral popups (e.g. volume OSD) auto-close; pinned ones stay until dismissed.
     property bool barPopupEphemeral: false
+    property real barPopupDismissedAt: 0
     property string activeContextMenu: ""
     property bool sessionConfirmOpen: false
     property string sessionConfirmAction: ""

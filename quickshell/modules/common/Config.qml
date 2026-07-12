@@ -148,28 +148,6 @@ Singleton {
                 property int rightIconSlotWidth: 28 // width of right-side icon-only slots
                 property int rightIconSize: 20 // size of right-side bar icons
                 property int centerIconSize: 18 // size of center-side bar icons
-                property list<string> leftModules: [
-                    "appLauncher",
-                    "workspaces",
-                    "activeWindow"
-                ]
-                property list<string> centerModules: [
-                ]
-                property list<string> rightModules: [
-                    "systray",
-                    "sidebar",
-                    "util:audio",
-                    "util:idle",
-                    "util:nightlight",
-                    "util:mic",
-                    "util:keyremap",
-                    "util:colorpicker",
-                    "util:clipboard",
-                    "util:wifi",
-                    "media",
-                    "clock",
-                    "spacer"
-                ]
                 property JsonObject resources: JsonObject {
                     property bool alwaysShowSwap: true
                     property bool alwaysShowCpu: true

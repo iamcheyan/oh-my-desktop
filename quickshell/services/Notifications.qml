@@ -208,6 +208,16 @@ Singleton {
         root.unread = 0;
     }
 
+    function toggleSilent() {
+        root.silent = !root.silent;
+    }
+
+    function discardLatestNotification() {
+        if (root.list.length === 0)
+            return;
+        root.discardNotification(root.list[root.list.length - 1].notificationId);
+    }
+
     function discardNotification(id) {
         console.log("[Notifications] Discarding notification with ID: " + id);
         const index = root.list.findIndex((notif) => notif.notificationId === id);

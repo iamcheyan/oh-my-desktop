@@ -17,7 +17,6 @@ Item {
     property string searchQuery: ""
     property real wheelAccum: 0
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
-    readonly property var toplevels: ToplevelManager.toplevels
     // Re-evaluate the model only when the HyprlandData dirty-flag, an
     // explicit overview refresh, or the toplevel count changes. The
     // dependencies are read explicitly so QML registers them; the actual
@@ -36,6 +35,22 @@ Item {
         return root.filteredOverviewEntries(HyprlandData.overviewWorkspaceEntries ?? []);
     }
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
+    readonly property var searchMatchWorkspaceIds: {
+        const query = root.normalizedSearchQuery();
+        const matches = ({});
+        if (query.length === 0)
+            return matches;
+
+        const windows = HyprlandData.windowList || [];
+        for (let i = 0; i < windows.length; ++i) {
+            const win = windows[i];
+            if (!win || !win.mapped || win.hidden || !win.workspace?.id)
+                continue;
+            if (root.windowMatchesSearch(win, query))
+                matches[win.workspace.id] = true;
+        }
+        return matches;
+    }
     readonly property var monitorGroups: {
         const groups = [];
         const byKey = {};
@@ -71,10 +86,7 @@ Item {
         const entry = group ? root.overviewEntries[group.start] : null;
         return entry?.id ?? root.effectiveActiveWorkspaceId;
     }
-    property bool monitorIsFocused: (Hyprland.focusedMonitor?.name == monitor?.name)
-    property var windows: HyprlandData.windowList
     property var windowByAddress: HyprlandData.windowByAddress
-    property var windowAddresses: HyprlandData.addresses
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
 
     // ── Adaptive scaling ──
@@ -145,8 +157,6 @@ Item {
     property real largeWorkspaceRadius: Appearance.rounding.large
     property real smallWorkspaceRadius: Appearance.rounding.verysmall
 
-    property real workspaceNumberMargin: 80
-    property real workspaceNumberSize: 250 * (monitor.scale ?? 1)
     property int workspaceZ: 0
     property int windowZ: 1
     property int windowDraggingZ: 99999
@@ -154,8 +164,6 @@ Item {
 
     implicitWidth: root.width
     implicitHeight: root.height
-
-    readonly property bool overviewNavigationActive: GlobalStates.overviewOpen
 
     function normalizedSearchQuery() {
         return String(root.searchQuery || "").toLowerCase().trim();
@@ -191,15 +199,7 @@ Item {
         if (entryText.indexOf(query) >= 0)
             return true;
 
-        const windows = HyprlandData.windowList || [];
-        for (let i = 0; i < windows.length; ++i) {
-            const win = windows[i];
-            if (!win || !win.mapped || win.hidden || win.workspace?.id !== entry.id)
-                continue;
-            if (root.windowMatchesSearch(win, query))
-                return true;
-        }
-        return false;
+        return root.searchMatchWorkspaceIds[entry.id] === true;
     }
 
     function filteredOverviewEntries(entries) {
@@ -236,22 +236,6 @@ Item {
                 return i;
         }
         return -1;
-    }
-
-    function getEntryRow(entryIndex) {
-        const cols = root.overviewGridColumns;
-        const normalRow = Math.floor(entryIndex / cols);
-        return Config.options.overview.orderBottomUp
-            ? root.overviewGridRows - normalRow - 1
-            : normalRow;
-    }
-
-    function getEntryColumn(entryIndex) {
-        const cols = root.overviewGridColumns;
-        const normalCol = entryIndex % cols;
-        return Config.options.overview.orderRightLeft
-            ? cols - normalCol - 1
-            : normalCol;
     }
 
     function groupLength(group) {
@@ -402,38 +386,6 @@ Item {
             + (root.groupWorkspaceHeight(group) + root.workspaceSpacing) * root.entryLocalRow(entryIndex);
     }
 
-    function groupRowStart(group) {
-        let row = root.getEntryRow(group.start);
-        for (let i = group.start + 1; i <= group.end; ++i)
-            row = Math.min(row, root.getEntryRow(i));
-        return row;
-    }
-
-    function groupRowEnd(group) {
-        let row = root.getEntryRow(group.start);
-        for (let i = group.start + 1; i <= group.end; ++i)
-            row = Math.max(row, root.getEntryRow(i));
-        return row;
-    }
-
-    function groupColStart(group) {
-        let col = root.getEntryColumn(group.start);
-        for (let i = group.start + 1; i <= group.end; ++i)
-            col = Math.min(col, root.getEntryColumn(i));
-        return col;
-    }
-
-    function groupColEnd(group) {
-        let col = root.getEntryColumn(group.start);
-        for (let i = group.start + 1; i <= group.end; ++i)
-            col = Math.max(col, root.getEntryColumn(i));
-        return col;
-    }
-
-    function cycleOverviewWorkspace(dir) {
-        WorkspaceNavigation.navigateByIndex(dir, false);
-    }
-
     function dispatchFocusWorkspace(wsId) {
         WorkspaceNavigation.dispatchFocusWorkspace(wsId);
     }
@@ -441,7 +393,6 @@ Item {
     property color activeBorderColor: TuiStyle.controlActiveBorder
 
     property Component windowComponent: OverviewWindow {}
-    property list<OverviewWindow> windowWidgets: []
     property var hoveredWindowData: null
     property var hoveredWorkspaceEntry: null
 
@@ -677,18 +628,6 @@ Item {
                     width: root.entryWidth(index)
                     height: root.entryHeight(index)
                     color: hoveredWhileDragging ? hoveredWorkspaceColor : defaultWorkspaceColor
-                    property bool workspaceAtLeft: colIndex === 0
-                    property bool workspaceAtRight: {
-                        const group = root.groupForEntry(index);
-                        const cols = root.groupColumns(group);
-                        return colIndex === cols - 1;
-                    }
-                    property bool workspaceAtTop: rowIndex === 0
-                    property bool workspaceAtBottom: {
-                        const group = root.groupForEntry(index);
-                        const rows = root.groupRows(group);
-                        return rowIndex === rows - 1;
-                    }
                     topLeftRadius: root.largeWorkspaceRadius
                     topRightRadius: root.largeWorkspaceRadius
                     bottomLeftRadius: root.largeWorkspaceRadius
@@ -830,8 +769,6 @@ Item {
                     widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
 
-                    property bool atInitPosition: (initX == x && initY == y)
-
                     // Offset on the canvas
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
                     visible: workspaceEntryIndex >= 0 && !!windowData
@@ -844,10 +781,6 @@ Item {
 
                     // Radius
                     property real minRadius: Appearance.rounding.small
-                    property bool workspaceAtLeft: true
-                    property bool workspaceAtRight: true
-                    property bool workspaceAtTop: true
-                    property bool workspaceAtBottom: true
                     property bool workspaceAtTopLeft: true
                     property bool workspaceAtTopRight: true
                     property bool workspaceAtBottomLeft: true
@@ -948,10 +881,6 @@ Item {
                 width: root.entryWidth(Math.max(0, entryIndex))
                 height: root.entryHeight(Math.max(0, entryIndex))
                 color: "transparent"
-                property bool workspaceAtLeft: true
-                property bool workspaceAtRight: true
-                property bool workspaceAtTop: true
-                property bool workspaceAtBottom: true
                 topLeftRadius: root.largeWorkspaceRadius
                 topRightRadius: root.largeWorkspaceRadius
                 bottomLeftRadius: root.largeWorkspaceRadius

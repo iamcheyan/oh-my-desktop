@@ -134,15 +134,19 @@ Item { // Window
     }
 
     Behavior on x {
+        enabled: !root.perfMode
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
     Behavior on y {
+        enabled: !root.perfMode
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
     Behavior on width {
+        enabled: !root.perfMode
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
     Behavior on height {
+        enabled: !root.perfMode
         animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
     }
 
@@ -226,14 +230,14 @@ Item { // Window
             width: windowIcon.width
             height: windowIcon.height
             radius: Math.max(4, width * 0.18)
-            color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.25)
+            color: ColorUtils.transparentize(TuiStyle.accent, 0.25)
 
             StyledText {
                 anchors.centerIn: parent
                 text: (windowData?.class || windowData?.title || "?").charAt(0).toUpperCase()
                 font.pixelSize: Math.max(10, parent.height * 0.45)
                 font.weight: Font.DemiBold
-                color: Appearance.colors.colOnPrimary
+                color: TuiStyle.fg
             }
         }
     }

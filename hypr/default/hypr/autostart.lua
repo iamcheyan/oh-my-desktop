@@ -1,5 +1,5 @@
-o.launch_on_start("hypridle")
-o.launch_on_start("mako")
+o.launch_on_start("hypridle -c $HOME/.config/omd/hypr/hypridle.conf")
+-- Notifications are handled by the OMD bar notification server.
 o.launch_on_start("fcitx5 --disable notificationitem")
 o.launch_on_start("swaybg -i ~/.config/omd/current/background -m fill")
 local function file_exists(path)

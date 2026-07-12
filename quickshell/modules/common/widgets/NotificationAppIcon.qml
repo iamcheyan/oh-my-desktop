@@ -13,6 +13,8 @@ Item { // App icon
     property var urgency: NotificationUrgency.Normal
     property bool isUrgent: urgency === NotificationUrgency.Critical
     property var image: ""
+    readonly property string resolvedAppIcon: root.appIcon === "network-transmit" ? "" : root.appIcon
+    readonly property string resolvedImage: root.image === "image://icon/network-transmit" ? "" : root.image
     property real materialIconScale: 0.57
     property real appIconScale: 0.8
     property real smallAppIconScale: 0.49
@@ -26,7 +28,7 @@ Item { // App icon
 
     Loader {
         id: materialSymbolLoader
-        active: root.appIcon == "" && root.image == ""
+        active: root.resolvedAppIcon == "" && root.resolvedImage == ""
         anchors.fill: parent
         sourceComponent: MaterialSymbol {
             text: {
@@ -44,18 +46,18 @@ Item { // App icon
     }
     Loader {
         id: appIconLoader
-        active: root.image == "" && root.appIcon != ""
+        active: root.resolvedImage == "" && root.resolvedAppIcon != ""
         anchors.centerIn: parent
         sourceComponent: IconImage {
             id: appIconImage
             implicitSize: root.appIconSize
             asynchronous: true
-            source: AppSearch.iconSource(root.appIcon)
+            source: AppSearch.iconSource(root.resolvedAppIcon)
         }
     }
     Loader {
         id: notifImageLoader
-        active: root.image != ""
+        active: root.resolvedImage != ""
         anchors.fill: parent
         sourceComponent: Item {
             anchors.fill: parent
@@ -64,7 +66,7 @@ Item { // App icon
                 anchors.fill: parent
                 readonly property int size: parent.width
 
-                source: root.image
+                source: root.resolvedImage
                 fillMode: Image.PreserveAspectCrop
                 cache: false
                 antialiasing: true
@@ -72,13 +74,13 @@ Item { // App icon
             }
             Loader {
                 id: notifImageAppIconLoader
-                active: root.appIcon != ""
+                active: root.resolvedAppIcon != ""
                 anchors.bottom: parent.bottom
                 anchors.right: parent.right
                 sourceComponent: IconImage {
                     implicitSize: root.smallAppIconSize
                     asynchronous: true
-                    source: AppSearch.iconSource(root.appIcon)
+                    source: AppSearch.iconSource(root.resolvedAppIcon)
                 }
             }
         }

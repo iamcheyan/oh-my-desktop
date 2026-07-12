@@ -22,44 +22,12 @@ Scope {
 
     signal requestOverviewFocus()
 
-    function overviewModel() {
-        return WorkspaceNavigation.overviewModel();
-    }
-
-    function overviewGridColumnsForModel(model) {
-        return WorkspaceNavigation.gridColumnsForModel(model);
-    }
-
-    function overviewIndexForWorkspace(model, wsId) {
-        return WorkspaceNavigation.indexForWorkspace(model, wsId);
-    }
-
-    function overviewFocusedWorkspaceId() {
-        return WorkspaceNavigation.focusedWorkspaceId();
-    }
-
-    function dispatchFocusWorkspace(wsId) {
-        WorkspaceNavigation.dispatchFocusWorkspace(wsId);
-    }
-
-    function selectOverviewWorkspace(wsId) {
-        WorkspaceNavigation.selectWorkspace(wsId);
-    }
-
     function navigateOverviewByIndex(delta) {
         WorkspaceNavigation.navigateByIndex(delta);
     }
 
-    function focusedEntryIsTrailingEmpty() {
-        return WorkspaceNavigation.focusedEntryIsTrailingEmpty();
-    }
-
     function navigateOverviewGrid(deltaRow, deltaCol) {
         WorkspaceNavigation.navigateGrid(deltaRow, deltaCol);
-    }
-
-    function cycleOverviewWorkspace(dir) {
-        overviewScope.navigateOverviewByIndex(dir);
     }
 
     function queueGrabbedCycle(dir) {
@@ -381,18 +349,12 @@ Scope {
                 Loader {
                     id: overviewLoader
                     anchors.fill: parent
-                    readonly property bool perfMode: (Persistent.states?.display?.optimization ?? "balanced") === "performance"
-                    // Keep the Loader always active so ScreencopyViews stay
-                    // instantiated and hold the latest captured frame. This
-                    // eliminates the "black box → thumbnail" pop that happens
-                    // when the Loader is gated on overviewOpen: the
-                    // ScreencopyView only starts capturing on open, so the
-                    // first frame isn't ready until a frame or two later.
-                    // In performance mode, unload while closed to release the
-                    // thumbnail scene entirely. Balanced/visual modes keep the
-                    // previous behavior for instant, non-black thumbnails.
+                    // Keep ScreencopyView resources scoped to the visible
+                    // overview. Holding them while closed gives nicer instant
+                    // thumbnails, but it also keeps GPU/DRM buffers alive and
+                    // can amplify driver instability during hot reload.
                     active: (Config?.options.overview.enable ?? true)
-                        && (!perfMode || GlobalStates.overviewOpen)
+                        && GlobalStates.overviewOpen
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         searchQuery: overviewScope.overviewFilterQuery

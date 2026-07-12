@@ -56,14 +56,8 @@
     "bottom": false,
     "centerIconSize": 18,
     "centerModuleSpacing": 8,
-    "centerModules": [],
     "cornerStyle": 0,
     "floatStyleShadow": true,
-    "leftModules": [
-      "appLauncher",
-      "workspaces",
-      "activeWindow"
-    ],
     "resources": {
       "alwaysShowCpu": true,
       "alwaysShowSwap": true,
@@ -74,17 +68,6 @@
     "rightIconSize": 20,
     "rightIconSlotWidth": 28,
     "rightModuleSpacing": 8,
-    "rightModules": [
-      "systray",
-      "util:audio",
-      "util:keyremap",
-      "util:wifi",
-      "util:clipboard",
-      "util:session",
-      "util:nightlight",
-      "clock",
-      "sidebar"
-    ],
     "screenList": [],
     "showBackground": true,
     "vertical": false

@@ -190,7 +190,7 @@ Singleton {
     function setup() {
         if (root.state !== "setup") return
         root.notify("⬇️ 正在准备语音输入",
-            "首次使用需要安装依赖和下载模型，约需30秒…", "network-transmit")
+            "首次使用需要安装依赖和下载模型，约需30秒…")
         setupProc.running = true
     }
 
@@ -214,7 +214,7 @@ Singleton {
                 return
             }
             if (root.state === "setup") {
-                root.notify("⬇️ 正在下载模型", "约需30秒…", "network-transmit")
+                root.notify("⬇️ 正在下载模型", "约需30秒…")
                 downloadProc.running = true
             }
         }

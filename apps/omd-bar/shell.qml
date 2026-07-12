@@ -36,6 +36,25 @@ ShellRoot {
         }
     }
 
+    // Screenshot coordination: the standalone omd-screenshot process calls
+    // these to freeze bar overlays *before* grim runs, so popups/menus are
+    // preserved in the captured image. Without this, HyprlandFocusGrab fires
+    // the moment the screenshot process creates its layer-shell surface and
+    // dismisses the live popup before grim can capture it.
+    IpcHandler {
+        target: "screenshot"
+
+        function begin(): void {
+            console.log("[SCREENSHOT] begin received, screenshotActive=true, barPopupType=" + GlobalStates.barPopupType + " activeContextMenu=" + GlobalStates.activeContextMenu);
+            GlobalStates.screenshotActive = true;
+        }
+
+        function end(): void {
+            console.log("[SCREENSHOT] end received, screenshotActive=false");
+            GlobalStates.screenshotActive = false;
+        }
+    }
+
     // Keep voice hotkeys independent from optional/dynamic bar modules.
     IpcHandler {
         target: "voice"
@@ -46,6 +65,22 @@ ShellRoot {
 
         function cancel(): void {
             VoiceInput.cancel()
+        }
+    }
+
+    IpcHandler {
+        target: "notifications"
+
+        function dismissLast(): void {
+            Notifications.discardLatestNotification()
+        }
+
+        function dismissAll(): void {
+            Notifications.discardAllNotifications()
+        }
+
+        function toggleSilent(): void {
+            Notifications.toggleSilent()
         }
     }
 

@@ -4,11 +4,9 @@ o.bind("SUPER + BACKSPACE", "Toggle window transparency", "omd-hyprland-window-t
 o.bind("SUPER + SHIFT + BACKSPACE", "Toggle window gaps", "omd-hyprland-window-gaps-toggle")
 o.bind("SUPER + CTRL + BACKSPACE", "Toggle single-window square aspect", "omd-hyprland-window-single-square-aspect-toggle")
 
-o.bind("SUPER + COMMA", "Dismiss last notification", "makoctl dismiss")
-o.bind("SUPER + SHIFT + COMMA", "Dismiss all notifications", "makoctl dismiss --all")
-o.bind("SUPER + CTRL + COMMA", "Toggle silencing notifications", "omd-toggle-notification-silencing")
-o.bind("SUPER + ALT + COMMA", "Invoke last notification", "makoctl invoke")
-o.bind("SUPER + SHIFT + ALT + COMMA", "Restore last notification", "makoctl restore")
+o.bind("SUPER + COMMA", "Dismiss last notification", "omd-notification-control dismiss-last")
+o.bind("SUPER + SHIFT + COMMA", "Dismiss all notifications", "omd-notification-control dismiss-all")
+o.bind("SUPER + CTRL + COMMA", "Toggle silencing notifications", "omd-notification-control toggle-silent")
 
 o.bind("SUPER + CTRL + Delete", "Toggle laptop display", "omd-hyprland-monitor-internal toggle")
 o.bind("SUPER + CTRL + ALT + Delete", "Toggle laptop display mirroring", "omd-hyprland-monitor-internal-mirror toggle")
