@@ -445,6 +445,23 @@ install_packages() {
   kv result "ok"
 }
 
+fix_kvm() {
+  [[ -e /dev/kvm ]] && {
+    kv result "ok"
+    return 0
+  }
+  have pkexec || {
+    kv error "pkexec is not installed."
+    return 1
+  }
+  kv progress "Loading KVM kernel module..."
+  pkexec bash -c 'modprobe kvm-intel 2>/dev/null || modprobe kvm-amd 2>/dev/null || modprobe kvm 2>/dev/null || true'
+  [[ -e /dev/kvm ]] && kv result "ok" || {
+    kv error "KVM is still unavailable. Enable Intel VT-x / AMD-V in BIOS."
+    return 1
+  }
+}
+
 start() {
   [[ -f "$COMPOSE_FILE" ]] || {
     kv error "Windows VM is not configured."
@@ -583,6 +600,7 @@ case "${1:-status}" in
   install-defaults) install_defaults ;;
   install-status) install_status ;;
   auto-fix)
+    fix_kvm || true
     install_docker || true
     install_packages || true
     ;;
