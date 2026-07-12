@@ -37,6 +37,9 @@ o.window("org.omarchy.voice-bind-tui", { tag = "+floating-window", size = { 1000
 o.window("org.omarchy.key-test", { tag = "+floating-window", size = { 1000, 700 } })
 o.window("org.omarchy.voice-diagnose", { tag = "+floating-window", size = { 1000, 700 } })
 
+-- nmtui runs inside foot; float, center, and size it to fit the TUI content
+o.window("^nmtui$", { float = true, center = true, size = { 880, 620 } })
+
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
 -- hl.config({
 --   general = {
