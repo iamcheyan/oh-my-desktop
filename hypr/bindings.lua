@@ -104,6 +104,7 @@ for _, key in ipairs(voice_bindings) do
 end
 -- Prefer absolute path (same tool as PrintScreen). Re-press cancels if open.
 o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-screenshot screenshot")
+o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/omd-screenshot edit")
 
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
