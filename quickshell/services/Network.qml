@@ -320,6 +320,7 @@ Singleton {
 
     Process {
         id: updateKnownWifiProfiles
+        running: true
         command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE connection show | while IFS=: read -r name type; do [ \"$type\" = \"802-11-wireless\" ] || continue; key=$(nmcli -g 802-11-wireless-security.key-mgmt connection show \"$name\" 2>/dev/null); psk=$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show \"$name\" 2>/dev/null); if [ -z \"$key\" ] || [ -n \"$psk\" ]; then auto=$(nmcli -g connection.autoconnect connection show \"$name\" 2>/dev/null); printf '%s\\t%s\\n' \"$name\" \"$auto\"; fi; done"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -445,6 +446,7 @@ Singleton {
 
     Process {
         id: getNetworks
+        running: true
         command: ["env", "LANG=C", "LC_ALL=C", "nmcli", "-g", "ACTIVE,SIGNAL,FREQ,SSID,BSSID,SECURITY", "d", "w"]
         stdout: StdioCollector {
             onStreamFinished: {
