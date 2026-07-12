@@ -25,7 +25,7 @@ stop_waybar() {
 
 start_quickshell() {
     if [ -x "$omd_root/bin/omd-restart" ]; then
-        "$omd_root/bin/omd-restart"
+        OMD_SKIP_STOP=1 "$omd_root/bin/omd-restart"
     else
         printf 'No Quickshell launcher found at %s/bin/omd-restart\n' "$omd_root" >&2
         exit 1
@@ -34,7 +34,6 @@ start_quickshell() {
 
 stop_quickshell
 stop_waybar
-sleep 0.2
 start_quickshell
 
 sleep 1

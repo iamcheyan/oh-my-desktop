@@ -6,7 +6,11 @@ set -eu
 # shellcheck source=../scripts/omd-quickshell-stop.sh
 . "$HOME/.config/omd/scripts/omd-quickshell-stop.sh"
 
-omd_stop_quickshell
+# Skip stop if already called by caller (e.g. reload-quickshell) to avoid
+# double-stop race that kills freshly started processes.
+if [ "${OMD_SKIP_STOP:-0}" != "1" ]; then
+    omd_stop_quickshell
+fi
 
 start_app() {
     app="$1"
@@ -24,7 +28,6 @@ start_app() {
 }
 
 start_app omd-bar
-start_app omd-desktop
 start_app omd-overview
 start_app omd-polkit
 start_app omd-clipboard-store

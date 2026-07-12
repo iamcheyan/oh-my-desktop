@@ -954,6 +954,37 @@ create_symlinks() {
     fi
 }
 
+repair_runtime_config() {
+    echo
+    info "Repairing runtime config..."
+
+    local config_file="$REPO/quickshell/config.json"
+    if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
+        local tmp_file
+        tmp_file="$(mktemp)"
+        if jq 'del(.audio.levels)' "$config_file" >"$tmp_file"; then
+            if ! cmp -s "$config_file" "$tmp_file"; then
+                mv "$tmp_file" "$config_file"
+                ok "  removed runtime-only audio.levels from quickshell/config.json"
+            else
+                rm -f "$tmp_file"
+                ok "  quickshell/config.json"
+            fi
+        else
+            rm -f "$tmp_file"
+            warn "  could not parse quickshell/config.json; leaving it unchanged"
+        fi
+    else
+        warn "  jq unavailable or config missing; skipped config repair"
+    fi
+
+    mkdir -p "$REPO/current"
+    if [[ ! -e "$REPO/current/background" ]]; then
+        ln -s "../quickshell/assets/images/default_wallpaper.png" "$REPO/current/background"
+        ok "  current/background -> ../quickshell/assets/images/default_wallpaper.png"
+    fi
+}
+
 # ── Session registration ──────────────────────────────────────────────────────
 install_session_files() {
     echo
@@ -1090,6 +1121,28 @@ print_summary() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
+    local runtime_only=0
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --runtime-only)
+                runtime_only=1
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: $0 [--runtime-only]"
+                echo
+                echo "  --runtime-only  Only repair symlinks and runtime config; do not install packages or session files."
+                exit 0
+                ;;
+            *)
+                err "Unknown option: $1"
+                echo "Usage: $0 [--runtime-only]" >&2
+                exit 2
+                ;;
+        esac
+    done
+
     echo
     echo -e "${CYAN}════════════════════════════════════════════════════════════════${NC}"
     echo -e "${CYAN}  oh-my-desktop installer${NC}"
@@ -1098,6 +1151,14 @@ main() {
 
     detect_distro
     echo
+
+    if [[ "$runtime_only" == 1 ]]; then
+        info "Runtime-only mode: repairing symlinks and runtime config."
+        create_symlinks
+        repair_runtime_config
+        ok "Runtime repair complete."
+        exit 0
+    fi
 
     # Ask for confirmation
     echo "This will install the following packages:"
@@ -1125,6 +1186,7 @@ main() {
 
     install_all_dependencies
     create_symlinks
+    repair_runtime_config
     if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
         install_nixos_session_files
     else

@@ -8,9 +8,10 @@
 omd_stop_quickshell() {
     omd_root="${OMD_ROOT:-$HOME/.config/omd}"
     runtime_dir="/run/user/$(id -u)"
-    apps="omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
+    apps="omd-notification omd-bar omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
+    legacy_apps="omd-desktop"
 
-    for app in omd-notification omd-bar omd-desktop omd-overview omd-polkit omd-applauncher omd-clipboard omd-settings omd-screenshot; do
+    for app in omd-notification omd-bar omd-overview omd-polkit omd-applauncher omd-clipboard omd-settings omd-screenshot $legacy_apps; do
         pkill -f "(quickshell|qs).* -p ${omd_root}/apps/${app}( |$)" 2>/dev/null || true
     done
 
@@ -29,9 +30,16 @@ omd_stop_quickshell() {
     for app in $apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
     done
+    for app in $legacy_apps; do
+        systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
+    done
     sleep 0.2
 
     for app in $apps; do
+        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
+        rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
+    done
+    for app in $legacy_apps; do
         systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
         rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
     done

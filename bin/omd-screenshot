@@ -20,11 +20,6 @@ log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"
 lock_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot.lock"
 
-# Serialize rapid bar/keybind clicks. Without this, a second invocation can race
-# the previous Quickshell process while it is still registering or shutting down.
-exec 9>"$lock_file"
-flock -w 1 9 || exit 0
-
 # Normalize legacy aliases.
 case "$action" in
     toggle|"")
@@ -85,18 +80,26 @@ wait_until_running_or_failed() {
     return 1
 }
 
+# Serialize the critical "kill + relaunch" section so rapid clicks do not
+# race each other. The lock is held ONLY for this section, then released before
+# launching Quickshell, so wl-copy/grim/hyprpicker never inherit it.
+exec 9>"$lock_file"
+flock -w 1 9 || exit 0
+
 # Re-press while open = cancel (same mental model as slurp toggle).
 if is_running; then
     kill_running
     wait_until_not_running
     # Explicit cancel request: do not relaunch.
     if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
+        exec 9>&-
         exit 0
     fi
     # Explicit actions from the bar/keybind should be reliable wake requests:
     # clear stale or half-visible instances, then launch a fresh selector.
-    sleep 0.25
+    sleep 0.1
 fi
+exec 9>&-
 
 launch_direct() {
     qs_bin="${OMD_QS_BIN:-}"
@@ -159,6 +162,9 @@ launch_direct() {
 
     # Keep the wake request short-lived. Hyprland binds and bar clicks should
     # fire-and-forget instead of inheriting the selector process lifetime.
+    # The flock fd was already closed before entering launch_direct(), so
+    # Quickshell and its children (grim, wl-copy, hyprpicker, ...) never
+    # inherit the advisory lock.
     nohup "$qs_bin" -p "$app_dir" >>"$log_file" 2>&1 &
     wait_until_running_or_failed || true
 }
