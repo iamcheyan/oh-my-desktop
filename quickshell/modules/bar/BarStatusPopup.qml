@@ -98,6 +98,8 @@ Scope {
 
         implicitWidth: panel.implicitWidth
         implicitHeight: panel.implicitHeight
+        Behavior on implicitHeight { }  // Disable height animation
+        Behavior on implicitWidth { }   // Disable width animation
 
         Timer {
             id: dismissGuard
