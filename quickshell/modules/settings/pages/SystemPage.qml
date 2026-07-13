@@ -372,6 +372,7 @@ PageBody {
 
             // ── Add New Rule ─────────────────────────────────────────────
             SettingsCard {
+                id: addRuleCard
                 title: "Add Rule"
                 subtitle: "Define a new window rule"
 
@@ -381,16 +382,16 @@ PageBody {
                 SettingsTextFieldRow {
                     label: "Application class"
                     description: "Window class to match (e.g. firefox, kitty, org.mozilla.firefox)"
-                    text: parent.newClass
-                    onTextEdited: (v) => parent.newClass = v
+                    text: addRuleCard.newClass
+                    onTextEdited: v => addRuleCard.newClass = v
                     placeholder: "class name"
                 }
 
                 SettingsTextFieldRow {
                     label: "Rules"
                     description: "Lua table fields (e.g. float = true, opacity = 0.9)"
-                    text: parent.newRules
-                    onTextEdited: (v) => parent.newRules = v
+                    text: addRuleCard.newRules
+                    onTextEdited: v => addRuleCard.newRules = v
                     placeholder: "float = true"
                     fieldWidth: 280
                 }
@@ -399,17 +400,17 @@ PageBody {
                     SettingsButton {
                         label: "Add Rule"
                         iconName: "add"
-                        enabledState: parent.newClass.length > 0
+                        enabledState: addRuleCard.newClass.length > 0
                         onClicked: {
-                            if (parent.newClass.length === 0) return
+                            if (addRuleCard.newClass.length === 0) return
                             pageRoot.rules.push({
-                                class: parent.newClass,
-                                rules: parent.newRules || "float = true",
+                                class: addRuleCard.newClass,
+                                rules: addRuleCard.newRules || "float = true",
                             })
                             pageRoot.rules = pageRoot.rules.slice(0)
                             pageRoot.saveRules()
-                            parent.newClass = ""
-                            parent.newRules = ""
+                            addRuleCard.newClass = ""
+                            addRuleCard.newRules = ""
                         }
                     }
                     SettingsButton {

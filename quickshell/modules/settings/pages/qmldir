@@ -4,3 +4,8 @@ AppearancePage 1.0 AppearancePage.qml
 SoundPage 1.0 SoundPage.qml
 PowerPage 1.0 PowerPage.qml
 SystemPage 1.0 SystemPage.qml
+NetworkPage 1.0 NetworkPage.qml
+VoicePage 1.0 VoicePage.qml
+WindowsVmPage 1.0 WindowsVmPage.qml
+KeyboardRemapPage 1.0 KeyboardRemapPage.qml
+KeyboardEditorOverlay 1.0 KeyboardEditorOverlay.qml
