@@ -49,6 +49,7 @@ WindowDialog {
     readonly property var primaryPages: [
         { key: "overview", icon: "settings", title: "Overview", keywords: "system summary home" },
         { key: "network", icon: "wifi", title: "Devices & Connection", keywords: "wifi wireless bluetooth internet lan device connection" },
+        { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth device pairing wireless" },
         { key: "sound", icon: "volume_up", title: "Sound & Feedback", keywords: "audio volume mute speaker microphone input output sounds feedback osd" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
@@ -94,6 +95,11 @@ WindowDialog {
     function pageTitle(page) {
         const match = pages.find(item => item.key === page);
         return match ? match.title : "Overview";
+    }
+
+    function pageIcon(page) {
+        const match = pages.find(item => item.key === page);
+        return match ? match.icon : "settings";
     }
 
     function formatBatteryTime(seconds) {
@@ -192,245 +198,106 @@ WindowDialog {
         border.color: TuiStyle.shellBorder
         clip: true
 
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
             anchors.margins: root.shellInset
             spacing: 0
 
             Rectangle {
-                Layout.preferredWidth: 274
-                Layout.fillHeight: true
+                id: titleBar
+                Layout.fillWidth: true
+                Layout.preferredHeight: 66
                 radius: TuiStyle.shellRadius - root.shellInset
-                color: SettingsTokens.panel
+                color: SettingsTokens.bg
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    width: parent.radius
-                    color: parent.color
-                }
-
-                ColumnLayout {
+                MouseArea {
+                    id: dragArea
                     anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 8
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        radius: 20
-                        color: SettingsTokens.panelAlt
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 14
-                            anchors.rightMargin: 14
-                            spacing: 10
-
-                            MaterialSymbol {
-                                text: "search"
-                                iconSize: 18
-                                color: SettingsTokens.accent
-                            }
-
-                            TextField {
-                                id: searchField
-                                Layout.fillWidth: true
-                                placeholderText: "Search settings"
-                                placeholderTextColor: SettingsTokens.dim
-                                color: SettingsTokens.fg
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                background: Item {}
-                                cursorVisible: focus
-                                selectByMouse: true
-                                onTextChanged: root.searchQuery = text
-                                Keys.onPressed: (event) => {
-                                    if (event.key === Qt.Key_Escape) {
-                                        if (text.length > 0) {
-                                            text = "";
-                                            event.accepted = true;
-                                        }
-                                    }
-                                }
-                            }
+                    acceptedButtons: Qt.LeftButton
+                    property real pressX: 0
+                    property real pressY: 0
+                    onPressed: (mouse) => {
+                        pressX = mouse.x;
+                        pressY = mouse.y;
+                        root.dragging = true;
+                    }
+                    onPositionChanged: (mouse) => {
+                        if (pressed) {
+                            root.dragOffsetX += mouse.x - pressX;
+                            root.dragOffsetY += mouse.y - pressY;
                         }
                     }
+                    onReleased: root.dragging = false
+                    onCanceled: root.dragging = false
+                }
 
-                    Item { Layout.preferredHeight: 4 }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 24
+                    anchors.rightMargin: 14
+                    spacing: 12
 
-                    StyledFlickable {
-                        id: navScroll
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        contentWidth: width
-                        contentHeight: navColumn.implicitHeight + 8
-
-                        ColumnLayout {
-                            id: navColumn
-                            width: navScroll.width
-                            spacing: 4
-
-                            Repeater {
-                                model: root.filteredPrimaryPages
-                                delegate: SettingsNavItem {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    iconName: modelData.icon
-                                    label: modelData.title
-                                    selected: root.currentPage === modelData.key
-                                    onClicked: root.currentPage = modelData.key
-                                }
-                            }
-
-                            Item {
-                                Layout.fillHeight: true
-                                visible: root.filteredPrimaryPages.length === 0
-                                Layout.preferredHeight: 80
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                visible: root.filteredPrimaryPages.length === 0
-                                text: "No matching settings"
-                                color: SettingsTokens.dim
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                horizontalAlignment: Text.AlignHCenter
-                            }
-                        }
+                    MaterialSymbol {
+                        text: root.pageIcon(root.currentPage)
+                        iconSize: 21
+                        color: SettingsTokens.accent
                     }
 
-                    SettingsButton {
+                    StyledText {
                         Layout.fillWidth: true
-                        label: "Reload Shell"
-                        iconName: "refresh"
-                        onClicked: Quickshell.reload(true)
+                        text: root.pageTitle(root.currentPage)
+                        color: SettingsTokens.fg
+                        font.pixelSize: Appearance.font.pixelSize.huge
+                        font.weight: Font.DemiBold
+                    }
+
+                    SettingsIconButton {
+                        iconName: "close"
+                        onClicked: root.dismiss()
                     }
                 }
-            }
-
-            Rectangle {
-                Layout.preferredWidth: 1
-                Layout.fillHeight: true
-                color: SettingsTokens.line
-                opacity: 0.55
             }
 
             Rectangle {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: SettingsTokens.line
+                opacity: 0.55
+            }
+
+            StyledFlickable {
+                id: pageScroll
+                Layout.fillWidth: true
                 Layout.fillHeight: true
-                radius: TuiStyle.shellRadius - root.shellInset
-                color: SettingsTokens.bg
                 clip: true
+                contentWidth: width
+                contentHeight: pageLoader.item ? pageLoader.item.implicitHeight + root.pageInset * 2 : 0
 
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.bottom: parent.bottom
-                    width: parent.radius
-                    color: parent.color
-                }
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    spacing: 0
-
-                    Rectangle {
-                        id: titleBar
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 66
-                        color: "transparent"
-
-                        MouseArea {
-                            id: dragArea
-                            anchors.fill: parent
-                            acceptedButtons: Qt.LeftButton
-                            property real pressX: 0
-                            property real pressY: 0
-                            property real startOffsetX: 0
-                            property real startOffsetY: 0
-                            onPressed: (mouse) => {
-                                pressX = mouse.x;
-                                pressY = mouse.y;
-                                startOffsetX = root.dragOffsetX;
-                                startOffsetY = root.dragOffsetY;
-                                root.dragging = true;
-                            }
-                            onPositionChanged: (mouse) => {
-                                if (pressed) {
-                                    root.dragOffsetX += mouse.x - pressX;
-                                    root.dragOffsetY += mouse.y - pressY;
-                                }
-                            }
-                            onReleased: root.dragging = false
-                            onCanceled: root.dragging = false
-                        }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 28
-                            anchors.rightMargin: 18
-                            spacing: 12
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: root.pageTitle(root.currentPage)
-                                color: SettingsTokens.fg
-                                font.pixelSize: Appearance.font.pixelSize.huge
-                                font.weight: Font.DemiBold
-                            }
-
-                            SettingsIconButton {
-                                iconName: "close"
-                                onClicked: root.dismiss()
-                            }
-                        }
+                Loader {
+                    id: pageLoader
+                    x: root.pageInset
+                    y: root.pageInset
+                    width: Math.max(0, pageScroll.width - root.pageInset * 2)
+                    sourceComponent: {
+                        if (root.currentPage === "network" || root.currentPage === "bluetooth") return networkPage;
+                        if (root.currentPage === "display") return migratedDisplayPage;
+                        if (root.currentPage === "voice") return voicePage;
+                        if (root.currentPage === "keyremap") return keyremapPage;
+                        if (root.currentPage === "windows") return windowsPage;
+                        if (root.currentPage === "overview") return overviewPageComponent;
+                        if (root.currentPage === "appearance") return appearancePageComponent;
+                        if (root.currentPage === "sound") return soundPageComponent;
+                        if (root.currentPage === "power") return powerPageComponent;
+                        if (root.currentPage === "system") return systemPageComponent;
+                        return overviewPageComponent;
                     }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: SettingsTokens.line
-                        opacity: 0.55
-                    }
-
-                    StyledFlickable {
-                        id: pageScroll
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        contentWidth: width
-                        contentHeight: pageLoader.item ? pageLoader.item.implicitHeight + root.pageInset * 2 : 0
-
-                        Loader {
-                            id: pageLoader
-                            x: root.pageInset
-                            y: root.pageInset
-                            width: Math.max(0, pageScroll.width - root.pageInset * 2)
-                            sourceComponent: {
-                                if (root.currentPage === "network") return networkPage;
-                                if (root.currentPage === "display") return migratedDisplayPage;
-                                if (root.currentPage === "voice") return voicePage;
-                                if (root.currentPage === "keyremap") return keyremapPage;
-                                if (root.currentPage === "windows") return windowsPage;
-                                if (root.currentPage === "overview") return overviewPageComponent;
-                                if (root.currentPage === "appearance") return appearancePageComponent;
-                                if (root.currentPage === "sound") return soundPageComponent;
-                                if (root.currentPage === "power") return powerPageComponent;
-                                if (root.currentPage === "system") return systemPageComponent;
-                                return overviewPageComponent;
-                            }
-                            onLoaded: {
-                                if (item && item.settingsRoot !== undefined)
-                                    item.settingsRoot = root;
-                            }
-                        }
+                    onLoaded: {
+                        if (item && item.settingsRoot !== undefined)
+                            item.settingsRoot = root;
                     }
                 }
             }
         }
-
         // ── Key editor overlay (floating layer for remap-type presets) ──
 
         Item {
@@ -807,6 +674,7 @@ WindowDialog {
             // ── Bluetooth ──────────────────────────────────────────────
             SettingsCard {
                 title: "Bluetooth"
+                visible: root.currentPage === "bluetooth"
                 subtitle: {
                     if (!BluetoothStatus.available) return "Not available"
                     if (!BluetoothStatus.enabled) return "Disabled"
@@ -833,6 +701,7 @@ WindowDialog {
             // ── Wi-Fi Status ─────────────────────────────────────────────
             SettingsCard {
                 title: "Wi-Fi"
+                visible: root.currentPage !== "bluetooth"
                 subtitle: {
                     if (!Network.wifiEnabled) return "Disabled"
                     if (Network.wifiScanning) return "Scanning..."
@@ -1057,7 +926,7 @@ WindowDialog {
             SettingsCard {
                 title: "Ethernet"
                 subtitle: Network.ethernet ? "Connected" : "Not connected"
-                visible: !Network.wifi || Network.ethernet
+                visible: root.currentPage !== "bluetooth" && (!Network.wifi || Network.ethernet)
 
                 SettingsRow {
                     label: "Status"

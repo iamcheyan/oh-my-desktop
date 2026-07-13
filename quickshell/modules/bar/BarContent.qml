@@ -152,6 +152,10 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
+            ToolsButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
             ClockWidget {
                 Layout.alignment: Qt.AlignVCenter
             }

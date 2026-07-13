@@ -168,6 +168,7 @@ Scope {
                         if (root.activeType === "session") return sessionContent;
                         if (root.activeType === "clipboard") return clipboardContent;
                         if (root.activeType === "xkb") return xkbContent;
+                        if (root.activeType === "tools") return toolsContent;
                         return emptyContent;
                     }
                 }
@@ -178,6 +179,71 @@ Scope {
     component PopupColumn: ColumnLayout {
         spacing: 0
         width: parent?.width ?? implicitWidth
+    }
+
+    component ToolLauncherRow: Rectangle {
+        id: toolRow
+
+        property string icon: ""
+        property string title: ""
+        property string subtitle: ""
+        signal clicked()
+
+        Layout.fillWidth: true
+        implicitHeight: 62
+        color: toolMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 20
+            anchors.rightMargin: 20
+            spacing: 14
+
+            NerdIcon {
+                Layout.alignment: Qt.AlignVCenter
+                text: toolRow.icon
+                iconSize: 21
+                color: TuiStyle.fg
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: toolRow.title
+                    color: TuiStyle.fg
+                    font.pixelSize: Appearance.font.pixelSize.normal + 1
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: toolRow.subtitle
+                    color: TuiStyle.dim
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    elide: Text.ElideRight
+                }
+            }
+
+            NerdIcon {
+                Layout.alignment: Qt.AlignVCenter
+                text: NerdIconMap.chevronRight
+                iconSize: 15
+                color: TuiStyle.dim
+            }
+        }
+
+        MouseArea {
+            id: toolMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: toolRow.clicked()
+        }
     }
 
     // Stacked card chrome — same tokens as BarContextMenu (bg / shellBorder / shellRadius).
@@ -420,6 +486,46 @@ Scope {
     Component {
         id: emptyContent
         Item { implicitHeight: 1 }
+    }
+
+    Component {
+        id: toolsContent
+        PopupColumn {
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.wrench
+                title: "OMD Tools"
+                subtitle: "Advanced desktop tools"
+            }
+
+            ToolLauncherRow {
+                icon: NerdIconMap.settings
+                title: "Themes"
+                subtitle: "Colors, fonts and desktop appearance"
+                onClicked: root.openDialog("appearance")
+            }
+
+            ToolLauncherRow {
+                icon: NerdIconMap.mic
+                title: "Voice Input"
+                subtitle: "Speech engine, model and shortcuts"
+                onClicked: root.openDialog("voice")
+            }
+
+            ToolLauncherRow {
+                icon: NerdIconMap.keyboard
+                title: "Keyboard Remap"
+                subtitle: "Devices, profiles and key mappings"
+                onClicked: root.openDialog("keyremap")
+            }
+
+            ToolLauncherRow {
+                icon: NerdIconMap.desktop
+                title: "Windows VM"
+                subtitle: "Install, run and manage Windows"
+                onClicked: root.openDialog("windows")
+            }
+        }
     }
 
     Component {
