@@ -13,3 +13,10 @@ ButtonRow 1.0 ButtonRow.qml
 SettingsDropdownRow 1.0 SettingsDropdownRow.qml
 SettingsTextFieldRow 1.0 SettingsTextFieldRow.qml
 SettingsOverlayDialog 1.0 SettingsOverlayDialog.qml
+SettingsSummary 1.0 SettingsSummary.qml
+SettingsNavigationRow 1.0 SettingsNavigationRow.qml
+SettingsSection 1.0 SettingsSection.qml
+SettingsDisclosure 1.0 SettingsDisclosure.qml
+SettingsSubpage 1.0 SettingsSubpage.qml
+SettingsDangerZone 1.0 SettingsDangerZone.qml
+SettingsEmptyState 1.0 SettingsEmptyState.qml

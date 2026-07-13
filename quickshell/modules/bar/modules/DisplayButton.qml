@@ -42,6 +42,8 @@ Item {
             }
         }
 
+        altAction: () => screenshotMenu.open()
+
         content: BarNerdIcon {
             text: NerdIconMap.desktop
             color: Appearance.colors.colBarText
@@ -60,6 +62,34 @@ Item {
             }
             wheel.accepted = true;
             GlobalStates.barPopupType = "display";
+        }
+    }
+
+    Loader {
+        id: screenshotMenu
+        function open() {
+            if (screenshotMenu.item) {
+                screenshotMenu.item.open();
+            } else {
+                screenshotMenu.active = true;
+            }
+        }
+        active: false
+        sourceComponent: ScreenshotContextMenu {
+            Component.onCompleted: this.open();
+            anchor {
+                window: displayButton.QsWindow.window
+                item: displayButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            onMenuClosed: {
+                screenshotMenu.active = false;
+            }
         }
     }
 }

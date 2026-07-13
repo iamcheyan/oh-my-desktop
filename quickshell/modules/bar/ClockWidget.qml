@@ -53,11 +53,18 @@ Item {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             GlobalStates.barPopupType = GlobalStates.barPopupType === "notifications" ? "" : "notifications"
         }
+    }
+
+    ClockHoverPopup {
+        id: clockHoverPopup
+        hoverTarget: mouseArea
     }
 }

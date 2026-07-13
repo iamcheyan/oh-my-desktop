@@ -61,6 +61,21 @@ We worked on the `refactor/settings-center` branch and accomplished the followin
     1.  **Pass Size on Startup**: Added `--window-size-pixels=880x620` to the `foot` command to force it to start at the target size.
     2.  **Class/App-ID Matching**: Added `--app-id=nmtui` to the launcher, and matched the rule using `o.window("^nmtui$", ...)` directly, ensuring the window floats, centers, and scales perfectly with 100% blue canvas coverage.
 
+
+### E. Display Button Right-Click Context Menu Restoration
+*   **Paths**: [DisplayButton.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/modules/DisplayButton.qml), [ScreenshotContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/modules/ScreenshotContextMenu.qml)
+*   **Fix**:
+    1.  **Self-Contained Right-Click Menu**: Re-created `ScreenshotContextMenu.qml` as a self-contained component inside the `bar/modules` folder. It declares inline helper components (`MenuItem` and `Separator`) and uses `TuiStyle` visual tokens to match the unified GNOME Shell aesthetics.
+    2.  **Alt-Action Binding**: Added `altAction: () => screenshotMenu.open()` to the `CircleUtilButton` inside `DisplayButton.qml`, enabling independent right-click behavior.
+    3.  **Property Collision Fix**: Named the icon property `menuIcon` inside the inline `MenuItem` component to avoid conflict with Qt Quick Control's final `Button.icon` property.
+
+
+### F. Clock Hover Timezone Popup Restoration
+*   **Paths**: [ClockWidget.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/ClockWidget.qml), [ClockHoverPopup.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/ClockHoverPopup.qml)
+*   **Fix**:
+    1.  **Timezone Popup Restoration**: Re-created `ClockHoverPopup.qml` inside `quickshell/modules/bar/` to dynamically calculate and render local times for Japan (JST), China (CST), and US Eastern (EST/EDT).
+    2.  **Hover Binding**: Restored `hoverEnabled: true` and `mouseArea` ID in `ClockWidget.qml`'s `MouseArea`, and targeted `ClockHoverPopup` to open on hover.
+
 ---
 
 ## 3. Important Design Details & Development Gotchas
