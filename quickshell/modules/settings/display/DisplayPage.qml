@@ -7,6 +7,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings
+import qs.modules.settings.widgets
 
 ColumnLayout {
     id: root
@@ -65,7 +66,7 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: 18
 
-        PanelCard {
+        SettingsCard {
             Layout.fillWidth: true
             title: "Display layout"
             subtitle: configState.refreshing ? "Reading Hyprland outputs..." : `${configState.outputs.length} output(s)`
@@ -109,7 +110,7 @@ ColumnLayout {
             }
         }
 
-        PanelCard {
+        SettingsCard {
             Layout.fillWidth: true
             title: "Outputs"
             subtitle: configState.hasPendingChanges ? "Pending changes" : "Current configuration"
@@ -125,7 +126,7 @@ ColumnLayout {
             }
         }
 
-        PanelCard {
+        SettingsCard {
             Layout.fillWidth: true
             title: "Display Tools"
 
@@ -141,58 +142,6 @@ ColumnLayout {
             }
         }
 
-    }
-
-    component PanelCard: Rectangle {
-        id: card
-        property string title: ""
-        property string subtitle: ""
-        default property alias content: body.data
-
-        Layout.fillWidth: true
-        implicitHeight: column.implicitHeight + 34
-        radius: TuiStyle.radius
-        color: SettingsTokens.card
-        border.width: 1
-        border.color: SettingsTokens.line
-
-        ColumnLayout {
-            id: column
-            anchors.fill: parent
-            anchors.margins: 17
-            spacing: 14
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                StyledText {
-                    Layout.fillWidth: true
-                    text: card.title
-                    color: SettingsTokens.fg
-                    font.pixelSize: 17
-                    font.weight: Font.DemiBold
-                }
-                StyledText {
-                    text: card.subtitle
-                    color: SettingsTokens.dim
-                    font.pixelSize: 13
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: SettingsTokens.line
-                opacity: TuiStyle.dividerOpacity
-                visible: body.children.length > 0
-            }
-
-            ColumnLayout {
-                id: body
-                Layout.fillWidth: true
-                spacing: 14
-            }
-        }
     }
 
     component SmallButton: Rectangle {
