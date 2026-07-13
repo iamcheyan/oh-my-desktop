@@ -1290,15 +1290,6 @@ Scope {
                 }
             }
 
-            SectionLabel { text: "BRIGHTNESS" }
-
-            TuiMeterBar {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 10
-                value: batteryStack.brightnessValue * 100
-                accent: TuiStyle.warning
-            }
-
             SectionLabel { text: "SESSION" }
 
             TileTrack {
