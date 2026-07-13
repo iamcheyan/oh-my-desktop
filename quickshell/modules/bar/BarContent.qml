@@ -132,10 +132,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            KeyboardRemapButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
             WifiButton {
                 Layout.alignment: Qt.AlignVCenter
             }
