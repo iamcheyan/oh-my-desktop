@@ -93,6 +93,40 @@ Item {
                     visible: !Battery.available
                 }
             }
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                z: 10
+                onPressed: event => {
+                    if (event.button === Qt.RightButton)
+                        powerContextMenuLoader.open();
+                }
+            }
+        }
+    }
+
+    Loader {
+        id: powerContextMenuLoader
+        function open() {
+            if (powerContextMenuLoader.item)
+                powerContextMenuLoader.item.open();
+            else
+                powerContextMenuLoader.active = true;
+        }
+        active: false
+        sourceComponent: PowerContextMenu {
+            Component.onCompleted: this.open()
+            anchor {
+                window: powerButton.QsWindow.window
+                item: powerButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            onMenuClosed: powerContextMenuLoader.active = false
         }
     }
 }
