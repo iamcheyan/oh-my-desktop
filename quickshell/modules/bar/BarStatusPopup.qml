@@ -1464,6 +1464,23 @@ Scope {
                         ? "All clear"
                         : `${Notifications.list.length} notification${Notifications.list.length === 1 ? "" : "s"}`)
                 tone: Notifications.silent ? TuiStyle.warning : TuiStyle.success
+
+                // Clear all button
+                NerdIcon {
+                    Layout.alignment: Qt.AlignVCenter
+                    iconSize: 16
+                    text: "\uDB80\uDD5A"  // mdi-delete U+F015A
+                    color: clearAllMouse.containsMouse ? TuiStyle.danger : TuiStyle.dim
+                    visible: Notifications.list.length > 0
+
+                    MouseArea {
+                        id: clearAllMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Notifications.clear()
+                    }
+                }
             }
 
             PopupToggleRow {
@@ -1476,7 +1493,7 @@ Scope {
             TuiNotificationList {
                 Layout.fillWidth: true
                 showHeader: false
-                showFooter: true
+                showFooter: false
                 showFooterDnd: false
                 compactRows: true
                 markReadOnVisible: true
