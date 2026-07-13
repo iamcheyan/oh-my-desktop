@@ -183,69 +183,15 @@ Scope {
         width: parent?.width ?? implicitWidth
     }
 
-    component ToolLauncherRow: Rectangle {
+    component ToolLauncherRow: SettingsNavigationRow {
         id: toolRow
 
         property string icon: ""
         property string title: ""
         property string subtitle: ""
-        signal clicked()
-
-        Layout.fillWidth: true
-        implicitHeight: 62
-        color: toolMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 20
-            anchors.rightMargin: 20
-            spacing: 14
-
-            NerdIcon {
-                Layout.alignment: Qt.AlignVCenter
-                text: toolRow.icon
-                iconSize: 21
-                color: TuiStyle.fg
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 2
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: toolRow.title
-                    color: TuiStyle.fg
-                    font.pixelSize: Appearance.font.pixelSize.normal + 1
-                    font.weight: Font.Medium
-                    elide: Text.ElideRight
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: toolRow.subtitle
-                    color: TuiStyle.dim
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    elide: Text.ElideRight
-                }
-            }
-
-            NerdIcon {
-                Layout.alignment: Qt.AlignVCenter
-                text: NerdIconMap.chevronRight
-                iconSize: 15
-                color: TuiStyle.dim
-            }
-        }
-
-        MouseArea {
-            id: toolMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: toolRow.clicked()
-        }
+        iconName: icon
+        label: title
+        description: subtitle
     }
 
     // Stacked card chrome — same tokens as BarContextMenu (bg / shellBorder / shellRadius).
@@ -330,6 +276,11 @@ Scope {
         Item { Layout.fillWidth: true }
     }
 
+    component PopupActionButton: SettingsButton {
+        Layout.fillWidth: false
+        Layout.preferredWidth: 120
+    }
+
     // Icon action row — full-width evenly-spaced icon buttons.
     // Each child should be a PopupIconButton.
     component IconActionRow: Item {
@@ -354,7 +305,7 @@ Scope {
         id: iconBtn
         property string icon: ""
         property string label: ""
-        property color accent: TuiStyle.fg
+        property color accent: SettingsTokens.fg
         property bool enabledState: true
         signal clicked()
 
@@ -365,9 +316,11 @@ Scope {
         Rectangle {
             id: iconBtnBg
             anchors.fill: parent
-            radius: TuiStyle.radius
+            radius: SettingsTokens.radius
             color: iconBtnMouse.containsMouse && iconBtn.enabledState
-                ? TuiStyle.controlHover : TuiStyle.control
+                ? SettingsTokens.buttonHover : SettingsTokens.button
+            border.width: 1
+            border.color: SettingsTokens.buttonBorder
 
             Behavior on color { ColorAnimation { duration: 100 } }
 
@@ -388,7 +341,7 @@ Scope {
                     font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small - 1
                     font.weight: Font.Medium
-                    color: TuiStyle.dim
+                    color: SettingsTokens.muted
                     horizontalAlignment: Text.AlignHCenter
                 }
             }
@@ -401,74 +354,6 @@ Scope {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: iconBtn.clicked()
-        }
-    }
-
-    // Audio slider row — GNOME style: icon left, slider middle, number right. Height 56px.
-    component AudioSliderRow: Item {
-        id: audioSliderRow
-        property string icon: ""
-        property real level: 0
-        property bool muted: false
-        signal moved(real value)
-        signal iconClicked()
-
-        Layout.fillWidth: true
-        implicitHeight: 56
-
-        RowLayout {
-            anchors {
-                fill: parent
-                leftMargin: 20
-                rightMargin: 20
-            }
-            spacing: 12
-
-            // Tappable icon
-            Item {
-                Layout.preferredWidth: 28
-                Layout.preferredHeight: 28
-                Layout.alignment: Qt.AlignVCenter
-
-                NerdIcon {
-                    anchors.centerIn: parent
-                    iconSize: 22
-                    text: audioSliderRow.icon
-                    color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: audioSliderRow.iconClicked()
-                }
-            }
-
-            SettingsSlider {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                trackColor: TuiStyle.meterTrack
-                highlightColor: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.accent
-                handleColor: TuiStyle.accent
-                value: audioSliderRow.muted ? 0 : audioSliderRow.level
-                onValueChanged: {
-                    if (pressed)
-                        audioSliderRow.moved(value)
-                }
-            }
-
-            // Right-aligned number — white, 18px
-            StyledText {
-                Layout.preferredWidth: 36
-                Layout.alignment: Qt.AlignVCenter
-                horizontalAlignment: Text.AlignRight
-                text: `${Math.round((audioSliderRow.muted ? 0 : audioSliderRow.level) * 100)}`
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.normal + 3   // ~18px
-                font.weight: Font.Medium
-                color: audioSliderRow.muted ? TuiStyle.danger : TuiStyle.fg
-            }
         }
     }
 
@@ -501,28 +386,28 @@ Scope {
             }
 
             ToolLauncherRow {
-                icon: NerdIconMap.settings
+                icon: "palette"
                 title: "Themes"
                 subtitle: "Colors, fonts and desktop appearance"
                 onClicked: root.openDialog("appearance")
             }
 
             ToolLauncherRow {
-                icon: NerdIconMap.mic
+                icon: "keyboard_voice"
                 title: "Voice Input"
                 subtitle: "Speech engine, model and shortcuts"
                 onClicked: root.openDialog("voice")
             }
 
             ToolLauncherRow {
-                icon: NerdIconMap.keyboard
+                icon: "keyboard"
                 title: "Keyboard Remap"
                 subtitle: "Devices, profiles and key mappings"
                 onClicked: root.openDialog("keyremap")
             }
 
             ToolLauncherRow {
-                icon: NerdIconMap.desktop
+                icon: "desktop_windows"
                 title: "Windows VM"
                 subtitle: "Install, run and manage Windows"
                 onClicked: root.openDialog("windows")
@@ -996,17 +881,17 @@ Scope {
                 spacing: 0
 
                 // ── Sliders (no header above them) ────────────────────────
-                AudioSliderRow {
+                PopupSliderRow {
                     icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
-                    level: audioPanel.sinkVolume
+                    value: audioPanel.sinkVolume
                     muted: audioPanel.sinkMuted
                     onMoved: value => audioPanel.setSinkVolume(value)
                     onIconClicked: Audio.toggleMute()
                 }
 
-                AudioSliderRow {
+                PopupSliderRow {
                     icon: audioPanel.sourceMuted ? NerdIconMap.micOff : NerdIconMap.mic
-                    level: audioPanel.sourceVolume
+                    value: audioPanel.sourceVolume
                     muted: audioPanel.sourceMuted
                     onMoved: value => audioPanel.setSourceVolume(value)
                     onIconClicked: Audio.toggleMicMute()
@@ -1119,9 +1004,9 @@ Scope {
             }
 
             // Brightness slider
-            AudioSliderRow {
+            PopupSliderRow {
                 icon: NerdIconMap.brightness6
-                level: brightnessValue
+                value: brightnessValue
                 muted: false
                 onMoved: value => {
                     brightnessMonitor.setBrightness(value);
@@ -1136,10 +1021,10 @@ Scope {
             }
 
             // Night mode intensity slider (only visible when night mode is on)
-            AudioSliderRow {
+            PopupSliderRow {
                 visible: Hyprsunset.temperatureActive
                 icon: NerdIconMap.brightness6
-                level: (6500 - (Config.options.light.night.colorTemperature ?? 6000)) / (6500 - 2500)
+                value: (6500 - (Config.options.light.night.colorTemperature ?? 6000)) / (6500 - 2500)
                 muted: false
                 onMoved: value => {
                     const temp = Math.round(6500 - value * (6500 - 2500));
@@ -1398,30 +1283,6 @@ Scope {
                 }
             }
 
-            SectionLabel {
-                visible: Battery.available
-                text: "CHARGE LIMIT"
-            }
-
-            TileTrack {
-                Layout.preferredHeight: 40
-                visible: Battery.available
-
-                PanelTile {
-                    active: batteryStack.chargeLimit <= 80
-                    icon: NerdIconMap.battery80
-                    label: "80%"
-                    onClicked: Config.setNestedValue("battery.full", 80)
-                }
-                PanelTile {
-                    active: batteryStack.chargeLimit > 80
-                    icon: NerdIconMap.batteryFull
-                    label: "100%"
-                    showDivider: false
-                    onClicked: Config.setNestedValue("battery.full", 100)
-                }
-            }
-
             SectionLabel { text: "BRIGHTNESS" }
 
             TuiMeterBar {
@@ -1501,10 +1362,10 @@ Scope {
         Layout.fillWidth: true
         Layout.preferredHeight: 50
         implicitHeight: 50
-        radius: TuiStyle.miniRadius + 4
-        color: TuiStyle.controlMuted
+        radius: SettingsTokens.radius
+        color: SettingsTokens.button
         border.width: 1
-        border.color: tileTrackBorder
+        border.color: SettingsTokens.buttonBorder
         clip: true
 
         RowLayout {
@@ -1532,10 +1393,10 @@ Scope {
         Rectangle {
             id: tileBg
             anchors.fill: parent
-            radius: TuiStyle.miniRadius + 2
-            color: tileMouse.pressed ? TuiStyle.surfacePressed
-                : tile.active ? TuiStyle.panelAlt
-                : tileMouse.containsMouse ? TuiStyle.surfaceHover
+            radius: SettingsTokens.radius
+            color: tileMouse.pressed ? SettingsTokens.buttonHover
+                : tile.active ? SettingsTokens.buttonActive
+                : tileMouse.containsMouse ? SettingsTokens.buttonHover
                 : "transparent"
 
             Behavior on color {
@@ -1549,7 +1410,7 @@ Scope {
             width: 1
             height: parent.height * 0.55
             radius: 0.5
-            color: TuiStyle.line
+            color: SettingsTokens.line
             opacity: 0.18
             visible: tile.showDivider
         }
@@ -1571,9 +1432,9 @@ Scope {
                 Layout.alignment: Qt.AlignHCenter
                 iconSize: tile.active ? 17 : 19
                 text: tile.icon
-                color: tile.active ? TuiStyle.accent
+                color: tile.active ? SettingsTokens.accent
                     : tile.engaged ? tile.tone
-                    : TuiStyle.dim
+                    : SettingsTokens.dim
             }
 
             StyledText {
@@ -1585,9 +1446,9 @@ Scope {
                 font.family: Appearance.font.family.monospace
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 font.weight: tile.active ? Font.Bold : Font.DemiBold
-                color: tile.active ? TuiStyle.fg
-                    : tile.engaged ? TuiStyle.fg
-                    : TuiStyle.dim
+                color: tile.active ? SettingsTokens.fg
+                    : tile.engaged ? SettingsTokens.fg
+                    : SettingsTokens.dim
             }
         }
     }
@@ -1776,20 +1637,18 @@ Scope {
                     }
 
                     ActionRow {
-                        TuiActionButton {
+                        PopupActionButton {
                             label: "COPY TEXT"
-                            accent: TuiStyle.info
-                            enabled: VoiceInput.lastTranscription.length > 0
+                            enabledState: VoiceInput.lastTranscription.length > 0
                             onClicked: {
                                 Quickshell.execDetached(["bash", "-c",
                                     `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy`]);
                                 VoiceInput.notify("Copied", VoiceInput.lastTranscription, "edit-copy");
                             }
                         }
-                        TuiActionButton {
+                        PopupActionButton {
                             label: "PASTE"
-                            accent: TuiStyle.accent
-                            enabled: VoiceInput.lastTranscription.length > 0
+                            enabledState: VoiceInput.lastTranscription.length > 0
                             onClicked: {
                                 Quickshell.execDetached(["bash", "-c",
                                     `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
@@ -1874,9 +1733,8 @@ Scope {
             }
 
             ActionRow {
-                TuiActionButton {
+                PopupActionButton {
                     label: VoiceInput.state === "setup" ? "Setup" : "Test"
-                    accent: TuiStyle.info
                     onClicked: {
                         if (VoiceInput.state === "setup") {
                             VoiceInput.setup();
@@ -1886,18 +1744,16 @@ Scope {
                         root.close();
                     }
                 }
-                TuiActionButton {
+                PopupActionButton {
                     label: "Check State"
-                    accent: TuiStyle.accent
                     onClicked: {
                         VoiceInput.checkState();
                         VoiceInput.refreshModelInfo();
                         VoiceInput.refreshDaemonStatus();
                     }
                 }
-                TuiActionButton {
+                PopupActionButton {
                     label: "Clear History"
-                    accent: TuiStyle.danger
                     visible: VoiceInput.history.length > 0
                     onClicked: VoiceInput.clearHistory()
                 }
