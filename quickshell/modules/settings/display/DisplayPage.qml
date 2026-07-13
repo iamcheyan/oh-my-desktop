@@ -7,7 +7,6 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings
-import qs.modules.settings.widgets
 
 ColumnLayout {
     id: root
@@ -24,6 +23,42 @@ ColumnLayout {
     }
 
     property string optimizationMode: ""
+
+    component SettingsSlider: Slider {
+        id: sliderRoot
+        Layout.fillWidth: true
+        Layout.preferredHeight: 28
+        leftPadding: 0
+        rightPadding: 0
+
+        background: Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            x: 0
+            width: sliderRoot.width
+            height: 6
+            radius: 3
+            color: SettingsTokens.line
+
+            Rectangle {
+                width: sliderRoot.visualPosition * parent.width
+                height: parent.height
+                radius: parent.radius
+                color: SettingsTokens.accent
+            }
+        }
+
+        handle: Rectangle {
+            x: sliderRoot.visualPosition * (sliderRoot.width - width)
+            anchors.verticalCenter: parent.verticalCenter
+            width: 16
+            height: 16
+            radius: 8
+            color: SettingsTokens.fg
+            border.width: 2
+            border.color: sliderRoot.pressed ? SettingsTokens.accent : SettingsTokens.buttonBorder
+            Behavior on border.color { ColorAnimation { duration: 100 } }
+        }
+    }
 
     ColumnLayout {
         id: content
@@ -116,7 +151,7 @@ ColumnLayout {
 
         Layout.fillWidth: true
         implicitHeight: column.implicitHeight + 34
-        radius: 0
+        radius: TuiStyle.radius
         color: SettingsTokens.card
         border.width: 1
         border.color: SettingsTokens.line
@@ -126,6 +161,31 @@ ColumnLayout {
             anchors.fill: parent
             anchors.margins: 17
             spacing: 14
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                StyledText {
+                    Layout.fillWidth: true
+                    text: card.title
+                    color: SettingsTokens.fg
+                    font.pixelSize: 17
+                    font.weight: Font.DemiBold
+                }
+                StyledText {
+                    text: card.subtitle
+                    color: SettingsTokens.dim
+                    font.pixelSize: 13
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: SettingsTokens.line
+                opacity: TuiStyle.dividerOpacity
+                visible: body.children.length > 0
+            }
 
             ColumnLayout {
                 id: body

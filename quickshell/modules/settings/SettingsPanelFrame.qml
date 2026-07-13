@@ -17,7 +17,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: TuiStyle.bg
-        radius: TuiStyle.shellRadius
+        radius: 0
         border.width: TuiStyle.borderWidth
         border.color: TuiStyle.shellBorder
         clip: true
@@ -27,58 +27,18 @@ Item {
             anchors.margins: frame.settingsRoot.shellInset
             spacing: 0
 
+            // Close button only
             Rectangle {
-                id: titleBar
                 Layout.fillWidth: true
-                Layout.preferredHeight: 66
-                radius: TuiStyle.shellRadius - frame.settingsRoot.shellInset
-                color: SettingsTokens.bg
+                Layout.preferredHeight: 36
+                color: "transparent"
 
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.LeftButton
-                    property real pressX: 0
-                    property real pressY: 0
-
-                    onPressed: mouse => {
-                        pressX = mouse.x;
-                        pressY = mouse.y;
-                        frame.settingsRoot.dragging = true;
-                    }
-                    onPositionChanged: mouse => {
-                        if (pressed) {
-                            frame.settingsRoot.dragOffsetX += mouse.x - pressX;
-                            frame.settingsRoot.dragOffsetY += mouse.y - pressY;
-                        }
-                    }
-                    onReleased: frame.settingsRoot.dragging = false
-                    onCanceled: frame.settingsRoot.dragging = false
-                }
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 24
-                    anchors.rightMargin: 14
-                    spacing: 12
-
-                    MaterialSymbol {
-                        text: frame.iconName
-                        iconSize: 21
-                        color: SettingsTokens.accent
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: frame.title
-                        color: SettingsTokens.fg
-                        font.pixelSize: Appearance.font.pixelSize.huge
-                        font.weight: Font.DemiBold
-                    }
-
-                    SettingsIconButton {
-                        iconName: "close"
-                        onClicked: frame.settingsRoot.dismiss()
-                    }
+                SettingsIconButton {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "close"
+                    onClicked: frame.settingsRoot.dismiss()
                 }
             }
 
