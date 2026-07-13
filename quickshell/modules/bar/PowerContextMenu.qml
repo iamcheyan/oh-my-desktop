@@ -6,6 +6,7 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 
 PopupWindow {
     id: root
@@ -25,6 +26,16 @@ PopupWindow {
 
     implicitWidth:  popupBackground.implicitWidth  + root.outerPadding * 2
     implicitHeight: popupBackground.implicitHeight + root.outerPadding * 2
+
+    property bool hibernateAvailable: false
+
+    Process {
+        command: ["bash", "-c", "grep -q disk /sys/power/state 2>/dev/null && echo YES || echo NO"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: root.hibernateAvailable = text.trim() === "YES"
+        }
+    }
 
     function open()  {
         root.visible = true;
@@ -170,75 +181,65 @@ PopupWindow {
                 }
 
                 MenuItem {
-                    menuIcon: NerdIconMap.crop
-                    label: "Capture Area"
+                    visible:  root.hibernateAvailable
+                    menuIcon: NerdIconMap.download
+                    label:    "Hibernate"
                     onClicked: {
-                        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]);
                         root.close();
+                        Session.hibernate();
+                    }
+                }
+
+                Separator {
+                    visible: root.hibernateAvailable
+                }
+
+                MenuItem {
+                    menuIcon: NerdIconMap.logout
+                    label:    "Logout"
+                    onClicked: {
+                        root.close();
+                        Session.logout();
                     }
                 }
 
                 MenuItem {
-                    menuIcon: NerdIconMap.edit
-                    label: "Capture & Edit"
+                    menuIcon: NerdIconMap.restart
+                    label:    "Reboot"
                     onClicked: {
-                        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "edit"]);
                         root.close();
+                        Session.reboot();
                     }
                 }
 
                 MenuItem {
-                    menuIcon: NerdIconMap.camera
-                    label: "Capture Fullscreen"
+                    menuIcon: NerdIconMap.powerSettingsNew
+                    label:    "Shutdown"
                     onClicked: {
-                        Quickshell.execDetached(["bash", "-c",
-                            "grim -o $(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name') - | wl-copy && notify-send -i camera-photo Screenshot \"Full screen copied to clipboard\""
-                        ]);
                         root.close();
-                    }
-                }
-
-                MenuItem {
-                    menuIcon: NerdIconMap.desktop
-                    label: "Capture Monitor (3s delay)"
-                    onClicked: {
-                        Quickshell.execDetached(["bash", "-c",
-                            "monitor=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name'); notify-send -i camera-photo Screenshot \"Capturing current monitor in 3 seconds\"; sleep 3; grim -o \"$monitor\" - | wl-copy && notify-send -i camera-photo Screenshot \"Current monitor copied to clipboard\""
-                        ]);
-                        root.close();
-                    }
-                }
-
-                Separator {}
-
-                MenuItem {
-                    menuIcon: NerdIconMap.eyeDropper
-                    label: "Color Picker"
-                    onClicked: {
-                        Quickshell.execDetached(["hyprpicker", "-a"]);
-                        root.close();
-                    }
-                }
-
-                MenuItem {
-                    menuIcon: NerdIconMap.video
-                    label: "Record Screen"
-                    onClicked: {
-                        Quickshell.execDetached([Directories.recordScriptPath]);
-                        root.close();
+                        Session.poweroff();
                     }
                 }
 
                 Separator {}
 
                 MenuItem {
-                    menuIcon: NerdIconMap.desktop
-                    label: "Display Settings"
+                    menuIcon: NerdIconMap.settings
+                    label:    "Settings"
                     onClicked: {
                         root.close();
                         Quickshell.execDetached([
-                            `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "display"
+                            `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "overview"
                         ]);
+                    }
+                }
+
+                MenuItem {
+                    menuIcon: NerdIconMap.refresh
+                    label:    "Reload Shell"
+                    onClicked: {
+                        root.close();
+                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/scripts/reload-quickshell`]);
                     }
                 }
             }

@@ -76,6 +76,14 @@ We worked on the `refactor/settings-center` branch and accomplished the followin
     1.  **Timezone Popup Restoration**: Re-created `ClockHoverPopup.qml` inside `quickshell/modules/bar/` to dynamically calculate and render local times for Japan (JST), China (CST), and US Eastern (EST/EDT).
     2.  **Hover Binding**: Restored `hoverEnabled: true` and `mouseArea` ID in `ClockWidget.qml`'s `MouseArea`, and targeted `ClockHoverPopup` to open on hover.
 
+
+### G. Power Button Right-Click Context Menu Restoration
+*   **Paths**: [SidebarIndicators.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/SidebarIndicators.qml), [PowerContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/PowerContextMenu.qml)
+*   **Fix**:
+    1.  **Right-Click Menu**: Re-created `PowerContextMenu.qml` as a self-contained component in `quickshell/modules/bar/` aligned with the design styling rules of `TuiStyle`.
+    2.  **Power Button Hook**: Added a nested `MouseArea` to `powerButton` accepting only `Qt.RightButton`, loading and opening `PowerContextMenu` on right-click without affecting the default left-click behavior.
+    3.  **English UI**: Configured all menu labels in both `PowerContextMenu.qml` and `ScreenshotContextMenu.qml` as plain English literals to enforce standard English titles.
+
 ---
 
 ## 3. Important Design Details & Development Gotchas
