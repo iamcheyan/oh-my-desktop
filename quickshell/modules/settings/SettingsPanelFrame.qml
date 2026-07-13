@@ -34,28 +34,6 @@ Item {
             anchors.margins: frame.settingsRoot.shellInset
             spacing: 0
 
-            // Close button only
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 36
-                color: "transparent"
-
-                SettingsIconButton {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    iconName: "close"
-                    onClicked: frame.settingsRoot.dismiss()
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: SettingsTokens.line
-                opacity: 0.55
-            }
-
             StyledFlickable {
                 id: pageScroll
                 Layout.fillWidth: true
