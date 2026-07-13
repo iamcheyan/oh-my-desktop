@@ -1218,9 +1218,9 @@ Scope {
 
                     Repeater {
                         model: [
-                            { id: "power-saver",   title: "Power Saver",   desc: "Reduced power usage and performance." },
-                            { id: "balanced",      title: "Balanced",      desc: "Standard performance and battery usage." },
-                            { id: "performance",   title: "High Performance", desc: "High performance and power usage." }
+                            { id: "power-saver",   title: "Power Saver",   desc: "Reduced power usage and performance.", icon: NerdIconMap.eco },
+                            { id: "balanced",      title: "Balanced",      desc: "Standard performance and battery usage.", icon: NerdIconMap.bolt },
+                            { id: "performance",   title: "High Performance", desc: "High performance and power usage.", icon: NerdIconMap.speed }
                         ]
 
                         delegate: Item {
@@ -1239,7 +1239,14 @@ Scope {
                                     leftMargin: 20
                                     rightMargin: 20
                                 }
-                                spacing: 8
+                                spacing: 12
+
+                                NerdIcon {
+                                    iconSize: 18
+                                    text: modelData.icon
+                                    color: isActive ? TuiStyle.accent : TuiStyle.dim
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
