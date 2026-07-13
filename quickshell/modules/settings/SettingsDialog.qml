@@ -29,21 +29,14 @@ WindowDialog {
     property bool keyremapDetailOpen: false
     property string keyremapEditingPreset: ""
 
-    readonly property int shellInset: 10
-    readonly property int pageInset: 24
+    readonly property int shellInset: 6
+    readonly property int pageInset: 12
     readonly property int minDialogWidth: 860
     readonly property int minDialogHeight: 560
     readonly property int maxDialogWidth: Math.max(minDialogWidth, width - 32)
     readonly property int maxDialogHeight: Math.max(minDialogHeight, height - 48)
     readonly property int defaultDialogWidth: Math.min(1080, Math.max(920, width - 52))
     readonly property int defaultDialogHeight: Math.min(720, Math.max(600, height - 96))
-    property bool resizing: false
-    property real resizePressX: 0
-    property real resizePressY: 0
-    property real resizeStartWidth: 0
-    property real resizeStartHeight: 0
-    property real resizeStartOffsetX: 0
-    property real resizeStartOffsetY: 0
 
     readonly property var primaryPages: [
         { key: "overview", icon: "build", title: "OMD Tools", keywords: "tools advanced theme voice keyboard vm" },
@@ -122,29 +115,6 @@ WindowDialog {
         return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
     }
 
-    function beginResize(handle, mouse) {
-        const pos = root.mapFromItem(handle, mouse.x, mouse.y);
-        resizePressX = pos.x;
-        resizePressY = pos.y;
-        resizeStartWidth = backgroundWidth;
-        resizeStartHeight = backgroundHeight;
-        resizeStartOffsetX = dragOffsetX;
-        resizeStartOffsetY = dragOffsetY;
-        resizing = true;
-    }
-
-    function updateResize(handle, mouse) {
-        if (!resizing)
-            return;
-        const pos = root.mapFromItem(handle, mouse.x, mouse.y);
-        const targetWidth = Math.round(clamp(resizeStartWidth + pos.x - resizePressX, minDialogWidth, maxDialogWidth));
-        const targetHeight = Math.round(clamp(resizeStartHeight + pos.y - resizePressY, minDialogHeight, maxDialogHeight));
-        Persistent.states.settingsCenter.width = targetWidth;
-        Persistent.states.settingsCenter.height = targetHeight;
-        dragOffsetX = clamp(resizeStartOffsetX + (targetWidth - resizeStartWidth) / 2, -(width - targetWidth) / 2, (width - targetWidth) / 2);
-        dragOffsetY = clamp(resizeStartOffsetY + (targetHeight - resizeStartHeight) / 2, -(height - targetHeight) / 2, (height - targetHeight) / 2);
-    }
-
     function openWallpaperPicker(mode) {
         wallpaperPicker.open(mode);
     }
@@ -184,69 +154,6 @@ WindowDialog {
             settingsRoot: root
             visible: root.currentPage === "keyremap" && root.keyremapEditingPreset !== ""
             z: 55
-        }
-
-        Item {
-            id: resizeOverlay
-            anchors.fill: parent
-            visible: root.resizing
-            z: 70
-
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.SizeFDiagCursor
-            }
-        }
-
-        Item {
-            id: resizeHandle
-            width: 34
-            height: 34
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            z: 65
-
-            Canvas {
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                anchors.rightMargin: 8
-                anchors.bottomMargin: 8
-                width: 16
-                height: 16
-                opacity: resizeMouse.containsMouse || root.resizing ? 0.9 : 0.5
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-                    ctx.strokeStyle = SettingsTokens.muted;
-                    ctx.lineWidth = 1.4;
-                    ctx.lineCap = "round";
-                    for (let i = 0; i < 3; i++) {
-                        const offset = i * 5;
-                        ctx.beginPath();
-                        ctx.moveTo(width - offset, height);
-                        ctx.lineTo(width, height - offset);
-                        ctx.stroke();
-                    }
-                }
-            }
-
-            MouseArea {
-                id: resizeMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.SizeFDiagCursor
-                acceptedButtons: Qt.LeftButton
-                onPressed: (mouse) => {
-                    root.beginResize(resizeMouse, mouse);
-                }
-                onPositionChanged: (mouse) => {
-                    if (pressed)
-                        root.updateResize(resizeMouse, mouse);
-                }
-                onReleased: root.resizing = false
-                onCanceled: root.resizing = false
-            }
         }
 
         WallpaperSettings.WallpaperPickerDialog {
