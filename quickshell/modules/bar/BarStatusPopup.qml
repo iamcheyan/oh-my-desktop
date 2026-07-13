@@ -1113,8 +1113,7 @@ Scope {
                 level: brightnessValue
                 muted: false
                 onMoved: value => {
-                    const screen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0];
-                    Brightness.setBrightnessForScreen(screen, value);
+                    brightnessMonitor.setBrightness(value);
                 }
             }
 
@@ -1125,30 +1124,15 @@ Scope {
                 showDivider: false
             }
 
-            IconActionRow {
-                PopupIconButton {
-                    icon: NerdIconMap.screenshot
-                    label: "Capture"
-                    accent: TuiStyle.fg
-                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "screenshot"]); }
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.edit
-                    label: "& Edit"
-                    accent: TuiStyle.info
-                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-screenshot`, "edit"]); }
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.eyeDropper
-                    label: "Picker"
-                    accent: TuiStyle.accent
-                    onClicked: { root.close(); Quickshell.execDetached(["hyprpicker", "-a"]); }
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.video
-                    label: "Record"
-                    accent: TuiStyle.danger
-                    onClicked: { root.close(); Quickshell.execDetached([Directories.recordScriptPath]); }
+            // Night mode intensity slider (only visible when night mode is on)
+            AudioSliderRow {
+                visible: Hyprsunset.temperatureActive
+                icon: NerdIconMap.brightness6
+                level: (Config.options.light.night.colorTemperature - 2500) / (6500 - 2500)
+                muted: false
+                onMoved: value => {
+                    const temp = Math.round(2500 + value * (6500 - 2500));
+                    Config.setNestedValue("light.night.colorTemperature", temp);
                 }
             }
 
