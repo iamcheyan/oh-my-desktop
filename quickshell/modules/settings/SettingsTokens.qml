@@ -31,8 +31,8 @@ QtObject {
     readonly property color warningPanel: TuiStyle.dangerPanel
     readonly property color warningBorder: TuiStyle.line
 
-    readonly property int radius: 8
-    readonly property int roundRadius: 12
+    readonly property int radius: 4
+    readonly property int roundRadius: 6
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));

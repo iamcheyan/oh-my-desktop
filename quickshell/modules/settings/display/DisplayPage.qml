@@ -16,7 +16,7 @@ ColumnLayout {
     property var settingsRoot: null
 
     width: parent ? parent.width : 760
-    spacing: 18
+    spacing: 12
     implicitHeight: content.implicitHeight
 
     DisplayConfigState {
@@ -64,7 +64,7 @@ ColumnLayout {
     ColumnLayout {
         id: content
         Layout.fillWidth: true
-        spacing: 18
+        spacing: 12
 
         SettingsCard {
             Layout.fillWidth: true
@@ -151,9 +151,9 @@ ColumnLayout {
         property bool primary: false
         signal clicked
 
-        Layout.preferredHeight: 42
-        implicitWidth: label.implicitWidth + 64
-        radius: 13
+        Layout.preferredHeight: 30
+        implicitWidth: label.implicitWidth + 36
+        radius: SettingsTokens.radius
         color: !enabled ? SettingsTokens.bg : primary ? TuiStyle.accentWash(TuiStyle.accent) : (mouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button)
         border.width: 1
         border.color: primary ? SettingsTokens.accent : SettingsTokens.buttonBorder
@@ -161,17 +161,17 @@ ColumnLayout {
 
         Row {
             anchors.centerIn: parent
-            spacing: 9
+            spacing: 6
             MaterialSymbol {
                 text: button.iconName
-                iconSize: 19
+                iconSize: 15
                 color: primary ? SettingsTokens.accent : SettingsTokens.fg
             }
             StyledText {
                 id: label
                 text: button.text
                 color: SettingsTokens.fg
-                font.pixelSize: 14
+                font.pixelSize: 12
                 font.weight: Font.DemiBold
             }
         }

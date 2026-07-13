@@ -1,6 +1,7 @@
 import QtQuick
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 
 Rectangle {
     id: root
@@ -10,26 +11,26 @@ Rectangle {
     readonly property var displayBounds: (displayState.revision, displayState.bounds())
 
     width: parent ? parent.width : 720
-    height: 260
-    radius: 16
-    color: "#101010"
+    height: 160
+    radius: SettingsTokens.radius
+    color: SettingsTokens.bg
     border.width: 1
-    border.color: "#3c3c3c"
+    border.color: SettingsTokens.buttonBorder
     clip: true
 
     Rectangle {
         anchors.fill: parent
-        anchors.margins: 14
-        radius: 12
-        color: "#070707"
+        anchors.margins: 8
+        radius: SettingsTokens.radius
+        color: SettingsTokens.bg
         border.width: 1
-        border.color: "#2c2c2c"
+        border.color: SettingsTokens.buttonBorder
     }
 
     Item {
         id: canvas
         anchors.fill: parent
-        anchors.margins: 28
+        anchors.margins: 14
 
         property real scaleFactor: {
             const b = root.displayBounds;
@@ -58,20 +59,20 @@ Rectangle {
     Rectangle {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: 14
+        anchors.margins: 8
         width: hintText.implicitWidth + 20
-        height: 28
-        radius: 14
-        color: "#181818"
+        height: 24
+        radius: SettingsTokens.radius
+        color: SettingsTokens.button
         border.width: 1
-        border.color: "#363636"
+        border.color: SettingsTokens.buttonBorder
 
         StyledText {
             id: hintText
             anchors.centerIn: parent
             text: "Drag displays to rearrange"
-            color: "#a8a8a8"
-            font.pixelSize: 12
+            color: SettingsTokens.muted
+            font.pixelSize: 11
         }
     }
 }

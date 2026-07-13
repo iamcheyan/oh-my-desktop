@@ -84,6 +84,15 @@ We worked on the `refactor/settings-center` branch and accomplished the followin
     2.  **Power Button Hook**: Added a nested `MouseArea` to `powerButton` accepting only `Qt.RightButton`, loading and opening `PowerContextMenu` on right-click without affecting the default left-click behavior.
     3.  **English UI**: Configured all menu labels in both `PowerContextMenu.qml` and `ScreenshotContextMenu.qml` as plain English literals to enforce standard English titles.
 
+
+### H. Global Settings TUI Compact Styling Redesign
+*   **Paths**: [SettingsTokens.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/SettingsTokens.qml), [DisplayPage.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/display/DisplayPage.qml), [OutputCard.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/display/OutputCard.qml), [MonitorCanvas.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/display/MonitorCanvas.qml)
+*   **Fix**:
+    1.  **Global Corner Rounding Reduction**: Decreased global `radius` to `4` and `roundRadius` to `6` in `SettingsTokens.qml`, transforming all cards, buttons, dropdowns, and rows to a blocky, retro TUI aesthetic.
+    2.  **Monitor Canvas Optimization**: Reduced preview canvas height to `160px` (from `260px`) and aligned all color backgrounds, internal padding, and border outlines to `SettingsTokens`.
+    3.  **Display Settings Layout Spacing**: Shrank layout spaces and paddings from `18` to `12` on `DisplayPage.qml`.
+    4.  **Control Scaling**: Downscaled custom `SmallButton` and `ComboBox` heights from `42`/`38` to `30`/`28` across the display pages, replacing hardcoded color hex values with global semantic tokens.
+
 ---
 
 ## 3. Important Design Details & Development Gotchas
