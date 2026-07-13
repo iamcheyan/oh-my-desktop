@@ -654,30 +654,28 @@ Scope {
                 subtitle: `${clipboardPanel.entries.length} item${clipboardPanel.entries.length === 1 ? "" : "s"} in history`
             }
 
-            Rectangle {
+            // Clipboard entries list
+            Item {
                 Layout.fillWidth: true
-                Layout.leftMargin: 20
-                Layout.rightMargin: 20
-                Layout.preferredHeight: Math.min(clipboardPanel.entries.length * 38 + 8, 300)
-                color: TuiStyle.panel
-                radius: TuiStyle.radius
-                clip: true
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
+                Layout.preferredHeight: Math.min(clipboardPanel.entries.length * 44 + 8, 320)
                 visible: clipboardPanel.entries.length > 0
 
                 ListView {
                     id: clipboardListView
                     anchors.fill: parent
-                    anchors.margins: 4
                     spacing: 2
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     model: clipboardPanel.entries.slice(0, 10)
                     ScrollBar.vertical: StyledScrollBar {}
+
                     delegate: Rectangle {
                         required property var modelData
-                        width: clipboardListView.width - 8
-                        height: 38
-                        radius: 8
+                        width: clipboardListView.width
+                        height: 44
+                        radius: TuiStyle.radius
                         color: itemMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
 
                         Behavior on color { ColorAnimation { duration: 80 } }
@@ -695,24 +693,35 @@ Scope {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 8
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 12
 
                             NerdIcon {
-                                iconSize: 14
+                                Layout.alignment: Qt.AlignVCenter
+                                iconSize: 16
                                 text: NerdIconMap.contentPaste
                                 color: itemMouse.containsMouse ? TuiStyle.accent : TuiStyle.dim
                             }
 
                             StyledText {
                                 Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
                                 verticalAlignment: Text.AlignVCenter
-                                text: modelData.replace(/^\s*\S+\s+/, "")
+                                text: modelData.replace(/^\s*\S+\s+/, "").slice(0, 60)
                                 elide: Text.ElideRight
                                 font.family: Appearance.font.family.main
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 color: itemMouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                            }
+
+                            NerdIcon {
+                                Layout.alignment: Qt.AlignVCenter
+                                iconSize: 12
+                                text: NerdIconMap.chevronRight
+                                color: TuiStyle.dim
+                                opacity: itemMouse.containsMouse ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: 80 } }
                             }
                         }
                     }
