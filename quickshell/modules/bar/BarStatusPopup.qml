@@ -1480,7 +1480,7 @@ Scope {
                 showFooterDnd: false
                 compactRows: true
                 markReadOnVisible: true
-                maxListHeight: Math.min(400, (popupWindow.screen?.height ?? 900) - Appearance.sizes.barHeight - 200)
+                maxListHeight: (popupWindow.screen?.height ?? 900) * 0.8 - Appearance.sizes.barHeight
             }
         }
     }
