@@ -20,7 +20,6 @@ PageBody {
     // ── Bluetooth ──────────────────────────────────────────────
     SettingsCard {
         title: "Bluetooth"
-        visible: page.mode === "bluetooth"
         subtitle: {
             if (!BluetoothStatus.available) return "Not available"
             if (!BluetoothStatus.enabled) return "Disabled"
