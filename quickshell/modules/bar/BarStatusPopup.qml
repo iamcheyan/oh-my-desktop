@@ -1139,10 +1139,10 @@ Scope {
             AudioSliderRow {
                 visible: Hyprsunset.temperatureActive
                 icon: NerdIconMap.brightness6
-                level: (Config.options.light.night.colorTemperature - 2500) / (6500 - 2500)
+                level: (6500 - (Config.options.light.night.colorTemperature ?? 6000)) / (6500 - 2500)
                 muted: false
                 onMoved: value => {
-                    const temp = Math.round(2500 + value * (6500 - 2500));
+                    const temp = Math.round(6500 - value * (6500 - 2500));
                     Config.setNestedValue("light.night.colorTemperature", temp);
                 }
             }
