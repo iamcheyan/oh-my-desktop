@@ -39,7 +39,7 @@ PanelWindow {
 
     function launchApp(desktopEntry) {
         if (!desktopEntry) return;
-        if (desktopEntry.id === "omd-settings-center.desktop") {
+        if (desktopEntry.id === "omd-tools.desktop") {
             launcher.open = false;
             Quickshell.execDetached([
                 FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-settings`),
@@ -98,7 +98,7 @@ PanelWindow {
 
     function isAppRunning(app) {
         if (!app) return false;
-        if (app.id === "omd-settings-center.desktop") return false;
+        if (app.id === "omd-tools.desktop") return false;
 
         const set = launcher.runningSet;
         if (!set) return false;
@@ -159,13 +159,13 @@ PanelWindow {
                 workingDirectory: app.workingDirectory || ""
             }));
             apps.push({
-                id: "omd-settings-center.desktop",
-                desktopId: "omd-settings-center.desktop",
-                name: "OMD settings center",
-                icon: "preferences-system",
-                genericName: "System Settings",
-                comment: "Configure OMD desktop options",
-                keywords: ["settings", "control", "theme", "config", "overview", "omd"]
+                id: "omd-tools.desktop",
+                desktopId: "omd-tools.desktop",
+                name: "OMD Tools",
+                icon: "applications-utilities",
+                genericName: "Desktop Tools",
+                comment: "Open OMD themes and advanced tools",
+                keywords: ["tools", "theme", "voice", "keyboard", "windows", "vm", "omd"]
             });
             if (!sameAppList(allApps, apps)) {
                 allApps = apps;

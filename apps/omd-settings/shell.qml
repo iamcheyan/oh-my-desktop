@@ -72,30 +72,30 @@ ShellRoot {
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "quickshell:settings"
         WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: settingsCenter.show ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: settingsDialog.show ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         color: "transparent"
         visible: true
 
-        property bool isOpen: settingsCenter.show
+        property bool isOpen: settingsDialog.show
 
         function close() {
             root.closeSettings();
         }
 
         function openPage(page: string) {
-            settingsCenter.requestedPage = page || "overview";
-            settingsCenter.show = true;
+            settingsDialog.requestedPage = page || "overview";
+            settingsDialog.show = true;
         }
 
         function hidePage() {
-            settingsCenter.show = false;
+            settingsDialog.show = false;
         }
 
-        SettingsCenter {
-            id: settingsCenter
+        SettingsDialog {
+            id: settingsDialog
             anchors.fill: parent
             requestedPage: root.initialPage
-            visible: settingsCenter.show
+            visible: settingsDialog.show
             show: false
             onDismiss: settingsWindow.close()
         }

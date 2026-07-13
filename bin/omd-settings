@@ -1,15 +1,15 @@
 #!/bin/sh
 set -eu
 
-# On-demand Settings Center process.
+# On-demand single-panel settings process.
 # Usage:
-#   omd-settings              # open overview page
+#   omd-settings              # open the OMD tools launcher
 #   omd-settings open <page>  # open specific page
 #   omd-settings close         # close running instance
 #   omd-settings toggle <page> # toggle specific page
 #
 # When started fresh, exports OMD_SETTINGS_ON_DEMAND=1 so shell.qml
-# auto-opens the settings dialog and quits when dismissed.
+# auto-opens one settings panel and quits when dismissed.
 
 app_dir="$HOME/.config/omd/apps/omd-settings"
 
@@ -105,7 +105,7 @@ case "$action" in
         ;;
     *)
         echo "usage: omd-settings [open|close|toggle] [page]" >&2
-        echo "  page: overview|network|bluetooth|sound|display|appearance|power|notifications|system|voice|keyremap|windows" >&2
+        echo "  panel: overview|network|bluetooth|sound|display|appearance|power|system|voice|keyremap|windows" >&2
         exit 2
         ;;
 esac
