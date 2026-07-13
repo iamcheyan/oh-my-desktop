@@ -39,19 +39,6 @@ Item {
         text: root.formatDateTime(clock.date)
     }
 
-    Rectangle {
-        visible: !Notifications.silent && Notifications.unread > 0
-        anchors.right: clockText.right
-        anchors.top: clockText.top
-        anchors.rightMargin: -2
-        anchors.topMargin: -2
-        width: 6
-        height: 6
-        radius: 3
-        color: Appearance.colors.colBarText
-        z: 1
-    }
-
     MouseArea {
         id: mouseArea
         anchors.fill: parent
