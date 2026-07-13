@@ -1078,7 +1078,7 @@ Scope {
                 PopupFooterLink {
                     Layout.fillWidth: true
                     label: "Sound Settings…"
-                    onClicked: { root.close(); Quickshell.execDetached(["pavucontrol"]); }
+                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "sound"]); }
                 }
             }
 
