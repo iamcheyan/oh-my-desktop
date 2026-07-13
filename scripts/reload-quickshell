@@ -32,9 +32,27 @@ start_quickshell() {
     fi
 }
 
+reload_hyprland() {
+    if ! command -v hyprctl >/dev/null 2>&1 || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        return
+    fi
+
+    # A git pull/reset replaces files one at a time. Hyprland may hot-reload
+    # while that operation is in progress and retain an error from the
+    # temporary, incomplete tree. Reload once more after the tree is stable.
+    hyprctl reload >/dev/null
+
+    errors=$(hyprctl configerrors 2>/dev/null || true)
+    if [ -n "$errors" ]; then
+        printf 'Hyprland configuration still has errors:\n%s\n' "$errors" >&2
+        return 1
+    fi
+}
+
 stop_quickshell
 stop_waybar
 start_quickshell
+reload_hyprland
 
 sleep 1
 pgrep -af '(quickshell|qs|wl-paste)' || true
