@@ -127,66 +127,6 @@ ColumnLayout {
 
         PanelCard {
             Layout.fillWidth: true
-            title: "Brightness"
-            subtitle: `${Math.round(root.brightnessMonitor.brightness * 100)}%`
-
-            SettingsSlider {
-                Layout.fillWidth: true
-                from: 0
-                to: 1
-                stepSize: 0.01
-                value: root.brightnessMonitor.brightness
-                onMoved: root.brightnessMonitor.setBrightness(value)
-            }
-
-            ToggleLine {
-                title: "Brightness OSD"
-                description: "Show on-screen display when brightness changes"
-                checked: Config.options.osd.brightnessEnabled ?? true
-                onToggled: Config.setNestedValue("osd.brightnessEnabled", !Config.options.osd.brightnessEnabled)
-            }
-        }
-
-        PanelCard {
-            Layout.fillWidth: true
-            title: "Night light"
-            subtitle: Hyprsunset.temperatureActive ? "Active" : "Inactive"
-
-            ToggleLine {
-                title: "Night light"
-                description: "Reduce blue light for warmer colors"
-                checked: Hyprsunset.temperatureActive
-                onToggled: Hyprsunset.toggleTemperature(!Hyprsunset.temperatureActive)
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                StyledText {
-                    text: "Color temperature"
-                    color: SettingsTokens.fg
-                    font.pixelSize: 14
-                }
-                SettingsSlider {
-                    Layout.fillWidth: true
-                    from: 2500
-                    to: 6500
-                    stepSize: 100
-                    value: Config.options.light.night.colorTemperature ?? 6000
-                    onMoved: Config.setNestedValue("light.night.colorTemperature", Math.round(value))
-                }
-                StyledText {
-                    text: `${Config.options.light.night.colorTemperature ?? 6000}K`
-                    color: SettingsTokens.dim
-                    font.pixelSize: 13
-                    Layout.preferredWidth: 64
-                    horizontalAlignment: Text.AlignRight
-                }
-            }
-        }
-
-        PanelCard {
-            Layout.fillWidth: true
             title: "Display Tools"
 
             RowLayout {
