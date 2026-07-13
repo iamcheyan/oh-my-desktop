@@ -1,109 +1,94 @@
-# Settings Center
+# Settings Panels
 
-OMD settings are being consolidated into a single Quickshell settings center
-instead of many unrelated per-feature dialogs.
+OMD settings use focused, independent panels rather than one control center
+with a permanent category sidebar. Opening display settings shows only display
+controls; opening power settings shows only power controls.
 
-## Goal
+The panels still share one visual and runtime foundation, so changing a token
+or widget updates every panel.
 
-The visual reference is COSMIC Settings:
+## Runtime model
 
-- left category sidebar
-- right content page
-- rounded grouped cards
-- quiet dark surfaces
-- compact rows with trailing values or toggles
-- accent only for selected navigation and enabled controls
+`bin/omd-settings` cold-starts the `apps/omd-settings` Quickshell process.
+Only one panel is loaded at a time:
 
-The implementation remains QML/Quickshell. We do not import COSMIC's real
-Rust/libcosmic widgets, because `cosmic-settings` is a Rust application built
-on `libcosmic`/`iced`, not a QML component library.
-
-## Runtime Entry
-
-The settings center lives at:
-
-```text
-quickshell/modules/settings/SettingsCenter.qml
+```sh
+omd-settings open network
+omd-settings open bluetooth
+omd-settings open sound
+omd-settings open display
+omd-settings open appearance
+omd-settings open power
+omd-settings open system
+omd-settings open voice
+omd-settings open keyremap
+omd-settings open windows
 ```
 
-Top bar detailed dialogs are routed through:
+The process exits when its dialog is dismissed. If it is already running, IPC
+switches the loaded panel without creating a second process. Historical aliases
+such as `wifi`, `audio`, `battery`, `theme`, and `windows-vm` remain
+supported by `SettingsDialog.normalizePage()`.
+
+## Entry points
+
+Status-related settings are opened directly from their corresponding bar
+popup. Advanced tools are exposed through the wrench icon in the top bar:
 
 ```text
-quickshell/modules/bar/BarDialogOverlay.qml
+OMD Tools
+├── Themes
+├── Voice Input
+├── Keyboard Remap
+└── Windows VM
 ```
 
-`GlobalStates.barDialogType` selects the initial settings page:
+The application launcher also exposes a lightweight `OMD Tools` entry. It is
+an entry directory, not a settings center and does not own feature state.
+
+The top-bar implementation is:
 
 ```text
-wifi        -> Network & Wireless
-bluetooth   -> Bluetooth
-audio       -> Sound & Feedback
-nightlight  -> Displays
-battery     -> Power & Battery
-theme       -> Appearance
-themes      -> Appearance (alias)
-wallpaper   -> Appearance
-sounds      -> Sound & Feedback (alias)
-osd         -> Notifications (alias)
-session     -> Notifications (alias)
-notifications -> Notifications
-autostart   -> System (alias)
-windowrules -> System (alias)
-apps        -> System (alias)
-virtualization / vm / windows-vm -> Windows VM
-settings    -> Overview
-control     -> Overview
+quickshell/modules/bar/modules/ToolsButton.qml
+quickshell/modules/bar/BarStatusPopup.qml  # toolsContent
 ```
 
-## Navigation (primary + Advanced)
+Do not create a separate popup window for each tool. Bar popup content remains
+owned by `BarStatusPopup.qml`.
 
-```text
-Overview
-Network & Wireless
-Bluetooth
-Sound & Feedback
-Displays
-Appearance
-Power & Battery
-Notifications
-System
-— Advanced —
-  Voice Input
-  Keyboard Remap
-  Windows VM
-```
-
-## File layout
+## Ownership
 
 ```text
 quickshell/modules/settings/
-├── SettingsCenter.qml          # shell: nav, search, overlays, loader routing
-├── SettingsTokens.qml          # singleton palette (TuiStyle / OmarchyTheme)
-├── widgets/                    # shared shell rows/cards/buttons
+├── SettingsDialog.qml          # lifecycle, panel routing, shared overlays
+├── SettingsPanelFrame.qml      # border, title bar, drag, close, scroll area
+├── SettingsTokens.qml          # palette mapped from TuiStyle/OmarchyTheme
+├── widgets/                    # shared controls
 ├── pages/
-│   ├── OverviewPage.qml
-│   ├── AppearancePage.qml      # themes + wallpaper + font
-│   ├── SoundPage.qml           # audio devices + system sounds + audio OSD
-│   ├── NotificationsPage.qml   # popups, history, clipboard, OSD position
+│   ├── OverviewPage.qml        # lightweight OMD Tools launcher
+│   ├── NetworkPage.qml         # network and Bluetooth modes
+│   ├── AppearancePage.qml
+│   ├── SoundPage.qml
 │   ├── PowerPage.qml
-│   └── SystemPage.qml          # autostart, window rules, default apps
-└── display/                    # Displays page (separate module)
+│   ├── SystemPage.qml
+│   ├── VoicePage.qml
+│   ├── KeyboardRemapPage.qml
+│   ├── KeyboardEditorOverlay.qml
+│   └── WindowsVmPage.qml
+├── display/                    # display-specific state and controls
+└── wallpaper/                  # wallpaper picker
 ```
 
-Network, Bluetooth, Voice, Keyboard Remap, and Windows VM remain inline
-`Component` blocks in `SettingsCenter.qml` for now.
+Feature logic belongs to its page or dedicated service. `SettingsDialog.qml`
+must not accumulate new feature cards.
 
-## Style Ownership
+## Shared style contract
 
-`SettingsTokens.qml` maps the settings palette from `TuiStyle` and
-`OmarchyTheme`. Shell widgets under `settings/widgets/` consume `SettingsTokens`.
-
-Do not hand-style settings rows in each page. Import shared widgets:
+All settings panels use `SettingsPanelFrame.qml`, `SettingsTokens.qml`, and
+the components in `settings/widgets/`:
 
 ```text
-qs.modules.settings.widgets.*
 PageBody
-SettingsNavItem
 SettingsCard
 SettingsRow
 SettingsToggleRow
@@ -117,73 +102,27 @@ SettingsTextFieldRow
 ButtonRow
 ```
 
-## Window Behavior
+Do not hard-code panel backgrounds, borders, accent colors, row heights, or
+button chrome in a feature page when a shared token/widget can express it.
 
-`WindowDialog` now exposes `dragOffsetX` and `dragOffsetY`. Settings Center uses
-those offsets from its title bar so the whole control center can be dragged
-without changing how existing non-draggable dialogs are positioned.
+## Adding a panel
 
-## Layer-Shell & External Program Launch
+1. Add `pages/FooPage.qml` with a `settingsRoot` property.
+2. Register it in `pages/qmldir`.
+3. Add its metadata and loader mapping to `SettingsDialog.qml`.
+4. Route the owning bar popup or tool entry to
+   `omd-settings open <panel-key>`.
+5. Keep visible external-program launches behind
+   `settingsRoot.dismiss()`, because the settings surface is layer-shell and
+   otherwise remains above normal application windows.
+6. Cold-start the panel and check `/tmp/omd-settings.log`.
 
-The Settings Center runs as a Wayland **layer-shell** surface (`WlrLayer.Overlay`),
-which is always rendered above normal toplevel windows. This means:
+## Window behavior
 
-- Screenshot tools (`grim`, Hyprland thumbnails) do not capture it
-- External programs launched from within the Settings Center appear **behind** it
-  and are invisible to the user
-
-To work around this, any `onClicked` handler that launches an external GUI/TUI
-program must **dismiss the Settings Center first**:
-
-```qml
-onClicked: {
-    root.dismiss();
-    Quickshell.execDetached(["some-external-program"]);
-}
-```
-
-For sub-pages that access the settings root via `settingsRoot`:
-
-```qml
-onClicked: {
-    pageRoot.settingsRoot.dismiss();
-    Quickshell.execDetached(["some-external-program"]);
-}
-```
-
-### Current dismiss-on-launch locations
-
-| File | Program | Trigger |
-|---|---|---|
-| `SettingsCenter.qml` | `blueman-manager` | Bluetooth Manager button |
-| `SettingsCenter.qml` | `nm-connection-editor` | Connection Editor button |
-| `SettingsCenter.qml` | `nmtui` (foot) | Network TUI button |
-| `SettingsCenter.qml` | `omd-launch-tui voice-bind-tui` | Configure button |
-| `SettingsCenter.qml` | `key-test-launcher --hotkey` | Capture Key button |
-| `SettingsCenter.qml` | `omd-launch-tui voice-test-tui` | TUI Test button |
-| `SettingsCenter.qml` | `omd-launch-tui voice-diagnose` | Diagnose button |
-| `SettingsCenter.qml` | `omd-settings-windows-vm launch` | Connect button |
-| `SettingsCenter.qml` | `omd-settings-windows-vm launch-keepalive` | Keep Alive button |
-| `SoundPage.qml` | `pavucontrol` | Volume Control button |
-| `DisplayPage.qml` | `wlr-randr` (foot) | wlr-randr button |
-| `SystemPage.qml` | `xdg-open autostartDir` | Open Autostart Folder button |
-| `SystemPage.qml` | `zenity` file picker | Set Default Browser button |
-
-Do not add new external program launches without `dismiss()`. If the program
-is a background command with no visible window (e.g. `hyprctl reload`,
-`omd-wallpaper`, `notify-send`), `dismiss()` is unnecessary.
-
-## Migration Rule
-
-New settings work should prefer this hierarchy:
-
-1. Add or reuse a page in `SettingsCenter.qml`.
-2. Add rows/cards using the shared settings components above.
-3. Route top-bar "manage/settings" actions to the matching page via
-   `GlobalStates.barDialogType`.
-4. Keep small hover bubbles and lightweight status popups in
-   `BarStatusPopup.qml`; keep actual configuration in Settings Center.
-
+`SettingsPanelFrame.qml` owns the common shell appearance and content
+viewport. `SettingsDialog.qml` owns dialog size persistence and resize
+handling. Losing focus does not close the panel; the close button, Escape, or Q
+dismisses it.
 ## Displays Page
 
 The Displays page has been split out of the monolithic settings file:
@@ -219,7 +158,7 @@ hyprctl keyword monitor <name>,<mode>,<x>x<y>,<scale>,transform,<n>
 
 Keep display-specific parsing and command generation in
 `DisplayConfigState.qml`. Do not add new monitor layout logic directly to
-`SettingsCenter.qml`.
+`SettingsDialog.qml`.
 
 Current scope:
 
@@ -268,7 +207,7 @@ but intentionally empty; the UI does not load preview images.
 slug<TAB>display-name<TAB>preview-path<TAB>current|available<TAB>accent<TAB>background<TAB>foreground
 ```
 
-Settings Center renders theme previews from the theme name plus the theme
+The Appearance panel renders theme previews from the theme name plus the theme
 `accent`, `background`, and `foreground` color swatches. Do not add screenshot
 or wallpaper preview dependencies to the Themes page.
 
@@ -290,7 +229,7 @@ The Windows VM page is backed by:
 bin/omd-settings-windows-vm
 ```
 
-This helper is the Settings Center backend for the full Windows VM lifecycle:
+This helper is the Windows VM panel backend for the full VM lifecycle:
 status, resource checks, one-click default install, start, connect, stop,
 logs, web console, and confirmed removal. The old interactive
 `share/bin/omarchy-windows-vm` script is no longer the Settings page contract.
