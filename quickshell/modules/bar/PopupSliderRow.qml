@@ -12,6 +12,7 @@
 //   }
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 import qs.modules.settings.widgets
 import QtQuick
 import QtQuick.Layouts
@@ -28,15 +29,16 @@ Item {
     signal moved(real value)
     signal iconClicked()
 
-    implicitHeight: 52
-    implicitWidth: row.implicitWidth
+    Layout.fillWidth: true
+    implicitHeight: 56
+    implicitWidth: parent?.width ?? row.implicitWidth
 
     RowLayout {
         id: row
         anchors {
             fill: parent
-            leftMargin: 2
-            rightMargin: 2
+            leftMargin: 20
+            rightMargin: 20
         }
         spacing: 10
 
@@ -65,9 +67,9 @@ Item {
         SettingsSlider {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
-            trackColor: TuiStyle.meterTrack
-            highlightColor: root.muted ? TuiStyle.danger : root.accentColor
-            handleColor: TuiStyle.fg
+            trackColor: SettingsTokens.line
+            highlightColor: root.muted ? SettingsTokens.danger : root.accentColor
+            handleColor: SettingsTokens.fg
             value: root.muted ? 0 : root.value
             onValueChanged: {
                 if (pressed)
@@ -84,7 +86,7 @@ Item {
             font.family: Appearance.font.family.main
             font.pixelSize: Appearance.font.pixelSize.normal
             font.weight: Font.Medium
-            color: root.muted ? TuiStyle.danger : TuiStyle.dim
+            color: root.muted ? SettingsTokens.danger : SettingsTokens.muted
         }
     }
 
@@ -94,7 +96,7 @@ Item {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: TuiStyle.line
+        color: SettingsTokens.line
         opacity: TuiStyle.dividerOpacity
         visible: root.showDivider
     }

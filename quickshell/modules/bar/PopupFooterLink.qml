@@ -1,7 +1,6 @@
-// PopupFooterLink — GNOME Quick Settings footer link.
-// Plain dim text, no underline, 48px height, with top divider.
-import qs.modules.common
-import qs.modules.common.widgets
+// Popup adapter for the shared settings navigation row.
+import qs.modules.settings
+import qs.modules.settings.widgets
 import QtQuick
 import QtQuick.Layouts
 
@@ -11,7 +10,7 @@ Item {
     property string label: ""
     signal clicked()
 
-    implicitHeight: 48
+    implicitHeight: navigationRow.implicitHeight + 1
     implicitWidth: parent?.width ?? 0
     Layout.fillWidth: true
 
@@ -21,30 +20,19 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         height: 1
-        color: TuiStyle.line
-        opacity: 0.10
+        color: SettingsTokens.line
+        opacity: TuiStyle.dividerOpacity
     }
 
-    StyledText {
+    SettingsNavigationRow {
+        id: navigationRow
         anchors {
             left: parent.left
-            leftMargin: 20
-            verticalCenter: parent.verticalCenter
+            right: parent.right
+            top: parent.top
+            topMargin: 1
         }
-        text: root.label
-        font.family: Appearance.font.family.main
-        font.pixelSize: Appearance.font.pixelSize.normal + 1   // ~16px
-        font.weight: Font.Normal
-        // No underline — GNOME style
-        color: mouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
-        Behavior on color { ColorAnimation { duration: 100 } }
-    }
-
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        label: root.label
         onClicked: root.clicked()
     }
 }
