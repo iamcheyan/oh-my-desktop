@@ -52,6 +52,7 @@ Rectangle {
     }
 
     Row {
+        visible: root.displayState.visibleOutputs.length > 1
         anchors.left: parent.left
         anchors.bottom: parent.bottom
         anchors.margins: 10

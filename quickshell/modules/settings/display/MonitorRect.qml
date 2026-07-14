@@ -78,16 +78,18 @@ Rectangle {
         id: mouse
         anchors.fill: parent
         hoverEnabled: true
-        cursorShape: dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        drag.target: root
+        cursorShape: (displayState.visibleOutputs.length > 1) ? (dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
+        drag.target: (displayState.visibleOutputs.length > 1) ? root : null
         drag.axis: Drag.XAndYAxis
         drag.threshold: 0
 
         onPressed: {
             root.outputSelected(root.output.name);
-            root.dragging = true;
-            root.snappedLogical = Qt.point(root.draft.x, root.draft.y);
-            root.validPosition = true;
+            if (displayState.visibleOutputs.length > 1) {
+                root.dragging = true;
+                root.snappedLogical = Qt.point(root.draft.x, root.draft.y);
+                root.validPosition = true;
+            }
         }
 
         onPositionChanged: {

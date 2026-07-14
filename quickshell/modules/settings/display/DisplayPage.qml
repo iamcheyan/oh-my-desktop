@@ -82,7 +82,7 @@ ColumnLayout {
 
                 MonitorCanvas {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: configState.visibleOutputs.length > 1 ? 260 : 180
+                    Layout.preferredHeight: configState.visibleOutputs.length > 1 ? 300 : 220
                     displayState: configState
                     selectedOutputName: root.selectedOutputName
                     onOutputSelected: name => root.selectedOutputName = name
