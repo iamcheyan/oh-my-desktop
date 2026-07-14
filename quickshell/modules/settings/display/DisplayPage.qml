@@ -62,43 +62,21 @@ ColumnLayout {
                 anchors.margins: 16
                 spacing: 14
 
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: 3
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-
-                        StyledText {
-                            text: "Display layout"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.weight: Font.DemiBold
-                        }
-
-                        StyledText {
-                            text: configState.refreshing ? "Reading connected displays..." : `${configState.visibleOutputs.length} connected`
-                            color: SettingsTokens.muted
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
+                    StyledText {
+                        text: "Display layout"
+                        color: SettingsTokens.fg
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
                     }
 
-                    SettingsButton {
-                        Layout.fillWidth: false
-                        Layout.preferredWidth: 42
-                        label: ""
-                        iconName: "badge"
-                        onClicked: configState.identify()
-                    }
-
-                    SettingsButton {
-                        Layout.fillWidth: false
-                        Layout.preferredWidth: 42
-                        label: ""
-                        iconName: "refresh"
-                        enabledState: !configState.refreshing
-                        onClicked: configState.refresh()
+                    StyledText {
+                        text: configState.refreshing ? "Detecting displays..." : "Drag screens to match your physical arrangement."
+                        color: SettingsTokens.muted
+                        font.pixelSize: Appearance.font.pixelSize.small
                     }
                 }
 
@@ -108,6 +86,27 @@ ColumnLayout {
                     displayState: configState
                     selectedOutputName: root.selectedOutputName
                     onOutputSelected: name => root.selectedOutputName = name
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    Layout.bottomMargin: 4
+
+                    SettingsButton {
+                        Layout.fillWidth: true
+                        label: "Identify Displays"
+                        iconName: "badge"
+                        onClicked: configState.identify()
+                    }
+
+                    SettingsButton {
+                        Layout.fillWidth: true
+                        label: "Detect Displays"
+                        iconName: "refresh"
+                        enabledState: !configState.refreshing
+                        onClicked: configState.refresh()
+                    }
                 }
 
                 StyledText {
