@@ -63,7 +63,7 @@ Item {
             Rectangle {
                 visible: frame.showConfirmFooter
                 Layout.fillWidth: true
-                Layout.preferredHeight: visible ? 50 : 0
+                Layout.preferredHeight: visible ? 56 : 0
                 color: "transparent"
 
                 Rectangle {
@@ -76,7 +76,8 @@ Item {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.topMargin: 8
+                    anchors.topMargin: 6
+                    anchors.bottomMargin: 8
                     anchors.leftMargin: frame.settingsRoot.pageInset + 4
                     anchors.rightMargin: frame.settingsRoot.pageInset + 4
                     spacing: 12
