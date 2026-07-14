@@ -28,7 +28,7 @@ ListView {
     }
 
     maximumFlickVelocity: 3500
-    boundsBehavior: Flickable.DragOverBounds
+    boundsBehavior: Flickable.StopAtBounds
     ScrollBar.vertical: StyledScrollBar {}
 
     MouseArea {

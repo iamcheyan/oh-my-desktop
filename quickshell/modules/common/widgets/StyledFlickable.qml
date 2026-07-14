@@ -5,7 +5,7 @@ import qs.modules.common
 Flickable {
     id: root
     maximumFlickVelocity: 3500
-    boundsBehavior: Flickable.DragOverBounds
+    boundsBehavior: Flickable.StopAtBounds
 
     property real touchpadScrollFactor: Config?.options.interactions.scrolling.touchpadScrollFactor ?? 100
     property real mouseScrollFactor: Config?.options.interactions.scrolling.mouseScrollFactor ?? 50
