@@ -20,6 +20,7 @@ Rectangle {
     readonly property var resolutionOptions: (displayState.revision, buildResolutionOptions())
     readonly property var refreshOptions: (displayState.revision, buildRefreshOptions())
     readonly property var scaleOptions: (displayState.revision, buildScaleOptions())
+    readonly property var scaleDropdownOptions: (displayState.revision, buildScaleDropdownOptions())
 
     implicitHeight: detailColumn.implicitHeight + 32
     radius: SettingsTokens.roundRadius
@@ -63,6 +64,26 @@ Rectangle {
         if (!options.includes(current))
             options.push(current);
         return options.sort((left, right) => left - right);
+    }
+
+    function buildScaleDropdownOptions() {
+        if (!output)
+            return [];
+        return scaleOptions.map(val => {
+            const strVal = String(Number(val).toFixed(2));
+            return {
+                value: strVal,
+                label: displayState.scaleLabel(val)
+            };
+        });
+    }
+
+    function buildPositionOptions(currentVal) {
+        const val = Number(currentVal || 0);
+        const base = [-3840, -2560, -1920, -1440, -1080, 0, 1080, 1440, 1920, 2560, 3840];
+        if (!base.includes(val))
+            base.push(val);
+        return base.sort((a, b) => a - b).map(x => ({ value: String(x), label: String(x) }));
     }
 
     function chooseResolution(value) {
@@ -224,302 +245,85 @@ Rectangle {
         SettingsSection {
             title: "Scale"
 
-            StyledText {
-                Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                text: "Choose how large text, windows, and controls appear"
-                color: SettingsTokens.muted
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
-
-            GridLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                columns: width >= 520 ? 5 : 3
-                columnSpacing: 6
-                rowSpacing: 6
-
-                Repeater {
-                    model: root.output ? root.scaleOptions : []
-
-                    Rectangle {
-                        required property var modelData
-                        readonly property bool active: Math.abs(Number(modelData) - Number(root.draft.scale || 1)) < 0.001
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 38
-                        radius: SettingsTokens.radius
-                        color: active ? SettingsTokens.accentSoft : (scaleMouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button)
-                        border.width: 1
-                        border.color: active ? SettingsTokens.accent : SettingsTokens.buttonBorder
-
-                        StyledText {
-                            anchors.centerIn: parent
-                            text: root.displayState.scaleLabel(modelData)
-                            color: parent.active ? SettingsTokens.accent : SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: parent.active ? Font.DemiBold : Font.Normal
-                        }
-
-                        MouseArea {
-                            id: scaleMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.displayState.setDraftValue(root.output.name, "scale", Number(parent.modelData))
-                        }
-                    }
+            SettingsDropdownRow {
+                label: "Scale"
+                description: "Choose how large text, windows, and controls appear"
+                currentValue: String(Number(root.draft.scale || 1).toFixed(2))
+                options: root.scaleDropdownOptions
+                dropdownWidth: 190
+                controlled: true
+                onValueChanged: value => {
+                    if (root.output)
+                        root.displayState.setDraftValue(root.output.name, "scale", Number(value));
                 }
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: advancedColumn.implicitHeight + 24
-            radius: SettingsTokens.radius
-            color: SettingsTokens.bg
-            border.width: 1
-            border.color: SettingsTokens.line
+        SettingsSection {
+            title: "Advanced"
 
-            ColumnLayout {
-                id: advancedColumn
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 10
+            SettingsDropdownRow {
+                label: "Horizontal position"
+                description: "Horizontal coordinate of the display in the layout space"
+                currentValue: String(root.draft.x || 0)
+                options: root.buildPositionOptions(root.draft.x)
+                dropdownWidth: 190
+                controlled: true
+                onValueChanged: value => {
+                    if (root.output)
+                        root.displayState.setDraftValue(root.output.name, "x", Number(value));
+                }
+            }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 38
-                    color: "transparent"
+            SettingsDropdownRow {
+                label: "Vertical position"
+                description: "Vertical coordinate of the display in the layout space"
+                currentValue: String(root.draft.y || 0)
+                options: root.buildPositionOptions(root.draft.y)
+                dropdownWidth: 190
+                controlled: true
+                onValueChanged: value => {
+                    if (root.output)
+                        root.displayState.setDraftValue(root.output.name, "y", Number(value));
+                }
+            }
 
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: 10
+            // Hardware details row
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 56
+                color: "transparent"
 
-                        MaterialSymbol {
-                            text: "tune"
-                            iconSize: 18
-                            color: SettingsTokens.muted
-                        }
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 14
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
 
                         StyledText {
-                            Layout.fillWidth: true
-                            text: "Advanced"
+                            text: "Hardware details"
                             color: SettingsTokens.fg
                             font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.DemiBold
                         }
 
                         StyledText {
-                            visible: !root.advancedOpen && root.output
-                            text: `Position ${root.draft.x}, ${root.draft.y}`
+                            text: root.output ? `${root.output.make || "Unknown vendor"} ${root.output.model || ""}`.trim() : ""
                             color: SettingsTokens.dim
                             font.pixelSize: Appearance.font.pixelSize.smaller
-                        }
-
-                        MaterialSymbol {
-                            text: root.advancedOpen ? "expand_less" : "expand_more"
-                            iconSize: 18
-                            color: SettingsTokens.muted
+                            elide: Text.ElideRight
                         }
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.advancedOpen = !root.advancedOpen
-                    }
-                }
-
-                ColumnLayout {
-                    visible: root.advancedOpen
-                    Layout.fillWidth: true
-                    spacing: 0
-
-                    Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: SettingsTokens.line; Layout.bottomMargin: 8 }
-
-                    // Horizontal position row
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 56
-                        color: "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 14
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 3
-
-                                StyledText {
-                                    text: "Horizontal position"
-                                    color: SettingsTokens.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                }
-
-                                StyledText {
-                                    text: "Horizontal offset of this display in pixels"
-                                    color: SettingsTokens.dim
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 190
-                                Layout.preferredHeight: 36
-                                radius: SettingsTokens.radius
-                                color: SettingsTokens.button
-                                border.width: 1
-                                border.color: SettingsTokens.buttonBorder
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    spacing: 0
-
-                                    PositionButton {
-                                        symbol: "remove"
-                                        onClicked: {
-                                            const next = Number(root.draft.x || 0) - 10;
-                                            root.displayState.setDraftValue(root.output.name, "x", next);
-                                        }
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: String(root.draft.x || 0)
-                                        color: SettingsTokens.fg
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignHCenter
-                                    }
-
-                                    PositionButton {
-                                        symbol: "add"
-                                        onClicked: {
-                                            const next = Number(root.draft.x || 0) + 10;
-                                            root.displayState.setDraftValue(root.output.name, "x", next);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Vertical position row
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 56
-                        color: "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 14
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 3
-
-                                StyledText {
-                                    text: "Vertical position"
-                                    color: SettingsTokens.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                }
-
-                                StyledText {
-                                    text: "Vertical offset of this display in pixels"
-                                    color: SettingsTokens.dim
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 190
-                                Layout.preferredHeight: 36
-                                radius: SettingsTokens.radius
-                                color: SettingsTokens.button
-                                border.width: 1
-                                border.color: SettingsTokens.buttonBorder
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    spacing: 0
-
-                                    PositionButton {
-                                        symbol: "remove"
-                                        onClicked: {
-                                            const next = Number(root.draft.y || 0) - 10;
-                                            root.displayState.setDraftValue(root.output.name, "y", next);
-                                        }
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: String(root.draft.y || 0)
-                                        color: SettingsTokens.fg
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignHCenter
-                                    }
-
-                                    PositionButton {
-                                        symbol: "add"
-                                        onClicked: {
-                                            const next = Number(root.draft.y || 0) + 10;
-                                            root.displayState.setDraftValue(root.output.name, "y", next);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Hardware details row
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 56
-                        color: "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 14
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 3
-
-                                StyledText {
-                                    text: "Hardware details"
-                                    color: SettingsTokens.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                }
-
-                                StyledText {
-                                    text: root.output ? `${root.output.make || "Unknown vendor"} ${root.output.model || ""}`.trim() : ""
-                                    color: SettingsTokens.dim
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            SettingsButton {
-                                Layout.preferredWidth: 120
-                                Layout.preferredHeight: 32
-                                label: "wlr-randr"
-                                iconName: "open_in_new"
-                                onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
-                            }
-                        }
+                    SettingsButton {
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 32
+                        label: "wlr-randr"
+                        iconName: "open_in_new"
+                        onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
                     }
                 }
             }
@@ -527,30 +331,6 @@ Rectangle {
 
         Item {
             Layout.fillHeight: true
-        }
-    }
-
-    component PositionButton: Rectangle {
-        id: positionButton
-        property string symbol: ""
-        signal clicked()
-        Layout.preferredWidth: 38
-        Layout.fillHeight: true
-        color: positionMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
-
-        MaterialSymbol {
-            anchors.centerIn: parent
-            text: positionButton.symbol
-            iconSize: 17
-            color: SettingsTokens.fg
-        }
-
-        MouseArea {
-            id: positionMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: positionButton.clicked()
         }
     }
 }

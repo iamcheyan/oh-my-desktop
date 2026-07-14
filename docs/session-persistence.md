@@ -195,11 +195,31 @@ programs, editor buffers, and application-internal state are not preserved
 unless they already live inside tmux/zellij or the application has its own
 session restore.
 
+### Firefox Sessions
+
+Firefox owns its tab and window session. A snapshot can contain several
+Hyprland Firefox windows, but OMD must not start Firefox once for every saved
+window. The first launch restores Firefox's complete native session; additional
+launch requests create extra homepage windows and duplicate the restored
+browser state.
+
+During restore, OMD therefore:
+
+1. starts Firefox exactly once, or reuses it if it is already running;
+2. waits for Firefox to recreate its windows;
+3. matches recreated windows to saved records by title;
+4. moves each matched window back to its saved Hyprland workspace.
+
+Firefox should keep `browser.startup.page` set to `3` (restore previous windows
+and tabs). The homepage preference is only a fallback when Firefox has no
+restorable native session; it is not used by OMD to reconstruct tabs.
+
 ## Restore Behavior
 
 Restore launches each saved command, waits for a matching Hyprland client by
-class, then moves it back to the saved workspace. Floating windows also receive
-their saved size and position.
+class, then moves it back to the saved workspace. Firefox is handled as the
+single-launch application-owned session described above. Floating windows also
+receive their saved size and position.
 
 After all windows are launched, OMD restores focus in a second pass:
 

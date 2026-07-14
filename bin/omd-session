@@ -20,6 +20,7 @@ TERMINAL_HELPER_NAMES = (
     "foot", "footclient", "kitty", "kitten", "alacritty", "ghostty", "wezterm",
     "tmux", "zellij",
 )
+FIREFOX_CLASSES = ("firefox", "org.mozilla.firefox")
 
 
 def run_json(*args):
@@ -347,6 +348,15 @@ def is_terminal(client):
     ]
     blob = " ".join(values).lower()
     return any(token in blob for token in TERMINAL_CLASSES)
+
+
+def window_class(record):
+    return (record.get("initialClass") or record.get("class") or "").lower()
+
+
+def is_firefox(record):
+    cls = window_class(record)
+    return cls in FIREFOX_CLASSES or cls.endswith(".firefox")
 
 
 def terminal_attach_command(session):
@@ -740,6 +750,116 @@ def client_matches(client, record):
     return rec_title.lower() in cli_title.lower() or cli_title.lower() in rec_title.lower()
 
 
+def title_match_score(client, record):
+    """Rank a restored Firefox window against one saved window record."""
+    record_title = (record.get("title") or record.get("initialTitle") or "").strip().lower()
+    client_title = (client.get("title") or client.get("initialTitle") or "").strip().lower()
+    if not record_title or not client_title:
+        return 1
+    if record_title == client_title:
+        return 1000
+    if record_title in client_title or client_title in record_title:
+        return 500 + min(len(record_title), len(client_title))
+
+    record_parts = {part for part in record_title.replace("—", " ").split() if len(part) > 2}
+    client_parts = {part for part in client_title.replace("—", " ").split() if len(part) > 2}
+    return len(record_parts & client_parts)
+
+
+def collect_firefox_clients(known_addresses, existing, expected, timeout=12.0):
+    """Wait for Firefox's own session restore to recreate its windows.
+
+    Firefox restores all windows from one process launch. Starting it once per
+    saved Hyprland window duplicates the entire browser session.
+    """
+    candidates = {client.get("address"): client for client in existing if client.get("address")}
+    deadline = time.time() + timeout
+    last_growth = time.time()
+    last_count = len(candidates)
+
+    while time.time() < deadline:
+        try:
+            clients = run_json("hyprctl", "-j", "clients")
+        except Exception:
+            time.sleep(0.15)
+            continue
+        for client in clients:
+            address = client.get("address")
+            if not address or not is_firefox(client):
+                continue
+            if address in known_addresses and address not in candidates:
+                continue
+            candidates[address] = client
+
+        if len(candidates) != last_count:
+            last_count = len(candidates)
+            last_growth = time.time()
+        if len(candidates) >= expected:
+            break
+        if candidates and time.time() - last_growth >= 3.0:
+            break
+        time.sleep(0.15)
+
+    return list(candidates.values())
+
+
+def restore_firefox_records(records, known_addresses, ws_to_monitor, restored_addresses):
+    if not records:
+        return 0
+
+    current_clients = run_json("hyprctl", "-j", "clients")
+    existing = [client for client in current_clients if is_firefox(client)]
+    if not existing:
+        leader = sorted(records, key=lambda item: item.get("focusHistoryID", 999999))[0]
+        workspace = leader.get("workspace") or {}
+        wsid = workspace.get("id", 0)
+        monitor_name = leader.get("monitorName") or ws_to_monitor.get(wsid, "")
+        if monitor_name:
+            hypr_lua(f'hl.dsp.focus({{ monitor = "{monitor_name}" }})')
+            time.sleep(0.06)
+        if isinstance(wsid, int) and wsid > 0:
+            hypr_focus_workspace(wsid)
+            time.sleep(0.12)
+
+        saved_argv = leader.get("command", {}).get("argv") or []
+        executable = shutil.which("firefox") or (saved_argv[0] if saved_argv else "")
+        if not executable:
+            print("Firefox executable is unavailable", file=sys.stderr)
+            return 0
+        try:
+            # One launch lets Firefox restore its complete native session.
+            subprocess.Popen([executable], start_new_session=True)
+        except Exception as err:
+            print(f"Failed to launch Firefox: {err}", file=sys.stderr)
+            return 0
+
+    candidates = collect_firefox_clients(known_addresses, existing, len(records))
+    for client in candidates:
+        address = client.get("address")
+        if address:
+            known_addresses.add(address)
+
+    unmatched = list(candidates)
+    restored = 0
+    for record in sorted(records, key=lambda item: item.get("focusHistoryID", 999999)):
+        if not unmatched:
+            break
+        client = max(unmatched, key=lambda item: title_match_score(item, record))
+        unmatched.remove(client)
+        address = client.get("address", "")
+        restored_addresses[record.get("address", "")] = address
+        place_client(client, record)
+        restored += 1
+
+    if restored < len(records):
+        print(
+            f"Firefox restored {restored} of {len(records)} saved windows; "
+            "the remaining windows were not duplicated with extra launches",
+            file=sys.stderr,
+        )
+    return restored
+
+
 def wait_for_client(record, known_addresses, timeout=5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -981,9 +1101,15 @@ def _restore_impl():
             if mon_name:
                 ws_to_monitor[wsid] = mon_name
 
-    # Group clients by workspace, preserving sort order.
+    # Firefox owns its tab/window session. Restore it once, then map the
+    # windows it recreates back to their saved Hyprland workspaces.
+    firefox_records = [record for record in data.get("clients", []) if is_firefox(record)]
+
+    # Group the remaining clients by workspace, preserving sort order.
     groups = {}
     for record in data.get("clients", []):
+        if is_firefox(record):
+            continue
         wsid = (record.get("workspace") or {}).get("id", 0)
         groups.setdefault(wsid, []).append(record)
 
@@ -1024,6 +1150,7 @@ def _restore_impl():
                 restored_addresses[record.get("address", "")] = client.get("address", "")
                 place_client(client, record)
                 restored += 1
+    restored += restore_firefox_records(firefox_records, known, ws_to_monitor, restored_addresses)
     restore_focus(data, restored_addresses)
     print(json.dumps({"restored": restored, "count": len(data.get("clients", []))}))
     return 0

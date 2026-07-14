@@ -17,7 +17,7 @@ ColumnLayout {
     width: parent ? parent.width : 900
     spacing: 12
     implicitHeight: {
-        const viewportHeight = (parent && parent.parent) ? parent.parent.height - 24 : 500;
+        const viewportHeight = root.settingsRoot ? root.settingsRoot.height - 120 : 500;
         const contentHeight = contentGrid.implicitHeight + footerRow.implicitHeight + spacing + 12;
         return Math.max(viewportHeight, contentHeight);
     }
@@ -50,7 +50,7 @@ ColumnLayout {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: root.wideLayout ? Math.max(350, contentGrid.width * 0.38) : contentGrid.width
+            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
             radius: SettingsTokens.roundRadius
             color: SettingsTokens.panel
             border.width: 1
@@ -104,7 +104,7 @@ ColumnLayout {
 
                 MonitorCanvas {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: configState.visibleOutputs.length > 1 ? 240 : 140
+                    Layout.preferredHeight: configState.visibleOutputs.length > 1 ? 260 : 180
                     displayState: configState
                     selectedOutputName: root.selectedOutputName
                     onOutputSelected: name => root.selectedOutputName = name
@@ -152,7 +152,7 @@ ColumnLayout {
         OutputDetailPane {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: root.wideLayout ? Math.max(500, contentGrid.width * 0.62 - 16) : contentGrid.width
+            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
             displayState: configState
             output: root.selectedOutput
             settingsRoot: root.settingsRoot
