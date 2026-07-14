@@ -15,6 +15,22 @@ PageBody {
     id: pageRoot
     property var settingsRoot: null
 
+    readonly property bool wideLayout: width >= 980
+
+    GridLayout {
+        id: contentGrid
+        Layout.fillWidth: true
+        columns: pageRoot.wideLayout ? 2 : 1
+        columnSpacing: 16
+        rowSpacing: 16
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop
+            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
+            spacing: 16
+
     // ── Output Devices card ──────────────────────────────────────
             SettingsCard {
                 title: "Output Devices"
@@ -335,6 +351,14 @@ PageBody {
                     }
                 }
             }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop
+            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
+            spacing: 16
 
             // ── Master volume card ───────────────────────────────────────
             SettingsCard {
@@ -398,4 +422,6 @@ PageBody {
                     onToggled: Audio.toggleMicMute()
                 }
             }
+        }
+    }
 }
