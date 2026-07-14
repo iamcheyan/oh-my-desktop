@@ -14,11 +14,16 @@ ColumnLayout {
     readonly property bool wideLayout: width >= 980
     readonly property var selectedOutput: configState.outputByName(selectedOutputName)
 
+    readonly property bool hasPendingChanges: configState.hasPendingChanges
+    readonly property bool applying: configState.applying
+    function resetDrafts() { configState.resetDrafts() }
+    function applyAll() { configState.applyAll() }
+
     width: parent ? parent.width : 900
     spacing: 12
     implicitHeight: {
         const viewportHeight = root.settingsRoot ? root.settingsRoot.height - 120 : 500;
-        const contentHeight = contentGrid.implicitHeight + footerRow.implicitHeight + spacing + 12;
+        const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12;
         return Math.max(viewportHeight, contentHeight);
     }
 
@@ -158,42 +163,4 @@ ColumnLayout {
         }
     }
 
-    RowLayout {
-        id: footerRow
-        Layout.fillWidth: true
-        Layout.topMargin: 4
-        spacing: 12
-
-        SettingsButton {
-            Layout.fillWidth: false
-            Layout.preferredWidth: 110
-            label: "Close"
-            iconName: "close"
-            onClicked: {
-                if (root.settingsRoot)
-                    root.settingsRoot.dismiss();
-            }
-        }
-
-        Item { Layout.fillWidth: true }
-
-        SettingsButton {
-            Layout.fillWidth: false
-            Layout.preferredWidth: 120
-            label: "Discard"
-            iconName: "undo"
-            enabledState: configState.hasPendingChanges && !configState.applying
-            onClicked: configState.resetDrafts()
-        }
-
-        SettingsButton {
-            Layout.fillWidth: false
-            Layout.preferredWidth: 120
-            label: configState.applying ? "Applying..." : "Apply"
-            iconName: "check"
-            active: configState.hasPendingChanges
-            enabledState: configState.hasPendingChanges && !configState.applying
-            onClicked: configState.applyAll()
-        }
-    }
 }

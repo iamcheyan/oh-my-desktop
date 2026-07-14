@@ -59,7 +59,7 @@ Item {
                 }
             }
 
-            // Confirm button
+            // Footer
             Rectangle {
                 visible: frame.showConfirmFooter
                 Layout.fillWidth: true
@@ -74,29 +74,51 @@ Item {
                     opacity: 0.55
                 }
 
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 120
-                    height: 32
-                    radius: TuiStyle.radius
-                    color: confirmMouse.containsMouse ? SettingsTokens.accent : SettingsTokens.card
-                    border.width: 1
-                    border.color: SettingsTokens.accent
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.topMargin: 8
+                    spacing: 12
 
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "Confirm"
-                        color: confirmMouse.containsMouse ? SettingsTokens.bg : SettingsTokens.accent
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Medium
+                    SettingsButton {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 110
+                        label: "Close"
+                        iconName: "close"
+                        onClicked: frame.settingsRoot.dismiss()
                     }
 
-                    MouseArea {
-                        id: confirmMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: frame.settingsRoot.dismiss()
+                    Item { Layout.fillWidth: true }
+
+                    SettingsButton {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 120
+                        label: "Discard"
+                        iconName: "undo"
+                        visible: pageLoader.item && (pageLoader.item.hasPendingChanges !== undefined || pageLoader.item.hasChanges !== undefined)
+                        enabledState: pageLoader.item ? (!!pageLoader.item.hasPendingChanges || !!pageLoader.item.hasChanges) : false
+                        onClicked: {
+                            if (pageLoader.item) {
+                                if (typeof pageLoader.item.resetDrafts === "function") pageLoader.item.resetDrafts();
+                                else if (typeof pageLoader.item.reset === "function") pageLoader.item.reset();
+                                else if (typeof pageLoader.item.discard === "function") pageLoader.item.discard();
+                            }
+                        }
+                    }
+
+                    SettingsButton {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 120
+                        label: pageLoader.item && !!pageLoader.item.applying ? "Applying..." : "Apply"
+                        iconName: "check"
+                        visible: pageLoader.item && (pageLoader.item.hasPendingChanges !== undefined || pageLoader.item.hasChanges !== undefined)
+                        active: pageLoader.item ? (!!pageLoader.item.hasPendingChanges || !!pageLoader.item.hasChanges) : false
+                        enabledState: pageLoader.item ? ((!!pageLoader.item.hasPendingChanges || !!pageLoader.item.hasChanges) && !pageLoader.item.applying) : false
+                        onClicked: {
+                            if (pageLoader.item) {
+                                if (typeof pageLoader.item.applyAll === "function") pageLoader.item.applyAll();
+                                else if (typeof pageLoader.item.apply === "function") pageLoader.item.apply();
+                            }
+                        }
                     }
                 }
             }

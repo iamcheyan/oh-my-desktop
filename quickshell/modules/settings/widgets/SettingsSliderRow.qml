@@ -47,6 +47,7 @@ Rectangle {
         }
 
         RowLayout {
+            Layout.fillWidth: false
             Layout.preferredWidth: 190
             Layout.preferredHeight: 36
             spacing: 10

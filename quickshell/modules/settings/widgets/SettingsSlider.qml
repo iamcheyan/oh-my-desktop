@@ -9,7 +9,6 @@ Slider {
     property color highlightColor: SettingsTokens.accent
     property color handleColor: SettingsTokens.fg
 
-    Layout.fillWidth: true
     Layout.preferredHeight: 28
     from: 0
     to: 1
