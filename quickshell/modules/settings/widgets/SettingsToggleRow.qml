@@ -6,11 +6,12 @@ SettingsRow {
     property bool checked: false
     signal toggled()
 
+    clickable: false
     value: ""
     rightInset: 70
-    onClicked: toggled()
 
     Rectangle {
+        id: switchBorder
         anchors.right: parent.right
         anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
@@ -27,6 +28,12 @@ SettingsRow {
             x: toggleRow.checked ? parent.width - width - 3 : 3
             color: toggleRow.checked ? SettingsTokens.bg : SettingsTokens.fg
             Behavior on x { NumberAnimation { duration: 110 } }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: toggleRow.toggled()
         }
     }
 }

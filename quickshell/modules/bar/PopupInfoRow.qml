@@ -1,4 +1,5 @@
 // Popup adapter for the shared settings value row.
+import qs.modules.common
 import qs.modules.settings
 import qs.modules.settings.widgets
 import QtQuick

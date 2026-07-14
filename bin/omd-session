@@ -759,6 +759,49 @@ def wait_for_client(record, known_addresses, timeout=5.0):
     return None
 
 
+def workspace_target(workspace):
+    """Return the Hyprland dispatcher target for a saved workspace."""
+    workspace = workspace or {}
+    wsid = workspace.get("id")
+    name = workspace.get("name", "")
+    if isinstance(wsid, int) and wsid < 0:
+        return name if name.startswith("special:") else "special"
+    return str(wsid) if wsid else ""
+
+
+def move_client_to_workspace(address, workspace):
+    """Move a restored client and verify that Hyprland applied the move."""
+    target = workspace_target(workspace)
+    target_id = (workspace or {}).get("id")
+    if not address or not target:
+        return False
+
+    # Omarchy's Lua dispatcher selects a client through `window`. Using an
+    # `address` field silently leaves the client on its launch workspace.
+    hypr_lua(
+        f'hl.dsp.window.move({{ workspace = {json.dumps(target)}, '
+        f'follow = false, window = "address:{address}" }})'
+    )
+
+    deadline = time.time() + 0.8
+    while time.time() < deadline:
+        client = hypr_clients_by_address().get(address) or {}
+        if (client.get("workspace") or {}).get("id") == target_id:
+            return True
+        time.sleep(0.08)
+
+    # Keep a native dispatcher fallback because session restore runs while
+    # monitors and workspaces are still settling during login.
+    hypr("dispatch", "movetoworkspacesilent", f"{target},address:{address}")
+    deadline = time.time() + 0.8
+    while time.time() < deadline:
+        client = hypr_clients_by_address().get(address) or {}
+        if (client.get("workspace") or {}).get("id") == target_id:
+            return True
+        time.sleep(0.08)
+    return False
+
+
 def place_client(client, record):
     address = client.get("address")
     if not address:
@@ -770,11 +813,12 @@ def place_client(client, record):
     # should already be there — the move is a safety net for race conditions.
     client_wsid = (client.get("workspace") or {}).get("id")
     if wsid and client_wsid != wsid:
-        if isinstance(wsid, int) and wsid < 0:
-            hypr_lua(f'hl.dsp.window.move({{ workspace = "special", address = "{address}" }})')
-        else:
-            hypr_lua(f'hl.dsp.window.move({{ workspace = "{wsid}", address = "{address}" }})')
-        time.sleep(0.08)
+        if not move_client_to_workspace(address, workspace):
+            print(
+                f"Failed to move restored client {address} to workspace "
+                f"{workspace_target(workspace)}",
+                file=sys.stderr,
+            )
     if record.get("floating"):
         hypr_lua(f'hl.dsp.setfloating({{ address = "{address}" }})')
         size = record.get("size") or []

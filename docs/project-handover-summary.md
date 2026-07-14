@@ -93,6 +93,38 @@ We worked on the `refactor/settings-center` branch and accomplished the followin
     3.  **Display Settings Layout Spacing**: Shrank layout spaces and paddings from `18` to `12` on `DisplayPage.qml`.
     4.  **Control Scaling**: Downscaled custom `SmallButton` and `ComboBox` heights from `42`/`38` to `30`/`28` across the display pages, replacing hardcoded color hex values with global semantic tokens.
 
+
+### I. Topbar Popup Headers Divider Line Restoration
+*   **Paths**: [PopupHeader.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/PopupHeader.qml), [PopupDeviceRow.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/PopupDeviceRow.qml), [BarStatusPopup.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/BarStatusPopup.qml)
+*   **Fix**:
+    1.  **Divider Opacity Enhancement**: Changed the default bottom divider line opacity from `0.10` to `TuiStyle.dividerOpacity` (which is `0.28`) in both `PopupHeader.qml` and `PopupDeviceRow.qml`. This makes the divider below the headers clearly visible against the dark background for all status bar popup windows.
+    2.  **Volume Popup Header Addition**: Added a matching `PopupHeader` component to the top of `audioContent` (the volume/mic sliders panel) in `BarStatusPopup.qml`, displaying active muting and volume percentages along with the divider line.
+
+
+### J. Divider Unification & Hover Background Rounded Corner Masking
+*   **Paths**: [TuiShell.qml](file:///home/tetsuya/development/OMD/quickshell/modules/common/widgets/TuiShell.qml), [BarStatusPopup.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/BarStatusPopup.qml), [ScreenshotContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/modules/ScreenshotContextMenu.qml), [PowerContextMenu.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/PowerContextMenu.qml)
+*   **Fix**:
+    1.  **Rounded Corner Masking**: Enabled QML layers and applied an `OpacityMask` on `TuiShell.qml`, `ScreenshotContextMenu.qml`, and `PowerContextMenu.qml` backgrounds. This forces all inner elements (such as list item highlights and bottom footer links) to clip perfectly to the window's rounded corners, resolving the issue where hover background shapes covered up the container's rounded borders.
+    2.  **Divider Line Unification**: Standardized all horizontal section/footer dividers in `BarStatusPopup.qml` to use a consistent height of `1px` and opacity of `TuiStyle.dividerOpacity`, matching the visual brightness of header/device separators.
+
+
+### K. Restricted Toggle Clicks to Switch Controls
+*   **Paths**: [SettingsRow.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/widgets/SettingsRow.qml), [SettingsToggleRow.qml](file:///home/tetsuya/development/OMD/quickshell/modules/settings/widgets/SettingsToggleRow.qml)
+*   **Fix**:
+    1.  **Row Clickability Property**: Added a `clickable` property (defaulting to `true`) on the base `SettingsRow.qml` to disable row-level mouse clicks and hover highlights when set to `false`.
+    2.  **Switch-Only Event Handling**: Applied `clickable: false` on `SettingsToggleRow.qml` (meaning the row itself does not highlight or trigger clicks) and added a dedicated `MouseArea` directly inside the switch's `Rectangle` control to trigger the toggle, preventing clicking on blank row areas or labels from activating the switch.
+
+
+### L. Notifications Popup Header & List Height Optimization
+*   **Paths**: [PopupHeader.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/PopupHeader.qml), [BarStatusPopup.qml](file:///home/tetsuya/development/OMD/quickshell/modules/bar/BarStatusPopup.qml), [TuiNotificationList.qml](file:///home/tetsuya/development/OMD/quickshell/modules/schedulePopup/notifications/TuiNotificationList.qml)
+*   **Fix**:
+    1.  **Switch & Broom Relocation**: Moved the DND switch and the notification clear broom (`delete_sweep` icon) directly into the right side of the `PopupHeader`. Removed the redundant "Do not disturb" list row.
+    2.  **Row Height Sizing Fix**: Added `height: implicitHeight` on `NotificationRow` in `TuiNotificationList.qml` to prevent inner text content from overlapping or breaking card borders due to lack of explicit height bindings.
+    3.  **Scroll & Height Expansion**: Expanded the maximum list height constraint to `Math.round((popupWindow.screen?.height ?? 900) * 0.72)` (occupying ~72% of the screen height, allowing space for more notification cards) and integrated `ScrollBar.vertical: StyledScrollBar {}` for smooth scrolling.
+    4.  **Layout Padding / Margin Fix**: Resolved a circular QML layout dependency on `implicitWidth` inside `TuiNotificationList.qml` by declaring explicit left/right margins (16px) on the list's `ColumnLayout` and removing parent-anchoring width loops. Added `Layout.topMargin: 12` and `Layout.bottomMargin: 16` on `TuiNotificationList` in `BarStatusPopup.qml` to prevent notification cards from touching the top divider or bottom window shell borders.
+    5.  **Toggle Switch Size Unification**: Standardized the inline DND switch inside `BarStatusPopup.qml` and `TuiToggle` in `TuiNotificationList.qml` to use the exact same dimensions (`46px` width, `26px` height, and `20px` knob size) as defined in `SettingsToggleRow.qml`, enforcing visual consistency across all toggle switches in the system.
+    6.  **Divider Resolution Import Fix**: Resolved a QML `ReferenceError` where `TuiStyle` was undefined inside `PopupToggleRow.qml`, `PopupFooterLink.qml`, and `PopupInfoRow.qml` due to missing module imports. By adding `import qs.modules.common` to these files, `TuiStyle` now resolves correctly, allowing all divider line opacities to properly bind to `0.28` (making them uniform, subtle dark grey lines instead of falling back to default solid white).
+
 ---
 
 ## 3. Important Design Details & Development Gotchas

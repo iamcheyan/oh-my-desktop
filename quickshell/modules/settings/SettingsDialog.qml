@@ -146,6 +146,7 @@ WindowDialog {
             title: root.pageTitle(root.currentPage)
             iconName: root.pageIcon(root.currentPage)
             pageComponent: root.pageComponent(root.currentPage)
+            showConfirmFooter: root.currentPage !== "display"
         }
         // ── Key editor overlay (floating layer for remap-type presets) ──
 

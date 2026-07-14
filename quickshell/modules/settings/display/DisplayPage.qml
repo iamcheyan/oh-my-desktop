@@ -1,9 +1,5 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import Quickshell
-import qs
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings
@@ -14,216 +10,191 @@ ColumnLayout {
 
     property var brightnessMonitor: ({ brightness: 0, setBrightness: function(){} })
     property var settingsRoot: null
+    property string selectedOutputName: ""
+    readonly property bool wideLayout: width >= 980
+    readonly property var selectedOutput: configState.outputByName(selectedOutputName)
 
-    width: parent ? parent.width : 760
+    width: parent ? parent.width : 900
     spacing: 12
-    implicitHeight: content.implicitHeight
+    implicitHeight: {
+        const viewportHeight = (parent && parent.parent) ? parent.parent.height - 24 : 500;
+        const contentHeight = contentGrid.implicitHeight + footerRow.implicitHeight + spacing + 12;
+        return Math.max(viewportHeight, contentHeight);
+    }
+
+    function ensureSelection() {
+        if (configState.outputByName(selectedOutputName))
+            return;
+        const focused = configState.outputs.find(output => output.focused);
+        const fallback = focused || configState.outputs[0];
+        selectedOutputName = fallback ? fallback.name : "";
+    }
 
     DisplayConfigState {
         id: configState
     }
 
-    property string optimizationMode: ""
-
-    component SettingsSlider: Slider {
-        id: sliderRoot
-        Layout.fillWidth: true
-        Layout.preferredHeight: 28
-        leftPadding: 0
-        rightPadding: 0
-
-        background: Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            x: 0
-            width: sliderRoot.width
-            height: 6
-            radius: 3
-            color: SettingsTokens.line
-
-            Rectangle {
-                width: sliderRoot.visualPosition * parent.width
-                height: parent.height
-                radius: parent.radius
-                color: SettingsTokens.accent
-            }
-        }
-
-        handle: Rectangle {
-            x: sliderRoot.visualPosition * (sliderRoot.width - width)
-            anchors.verticalCenter: parent.verticalCenter
-            width: 16
-            height: 16
-            radius: 8
-            color: SettingsTokens.fg
-            border.width: 2
-            border.color: sliderRoot.pressed ? SettingsTokens.accent : SettingsTokens.buttonBorder
-            Behavior on border.color { ColorAnimation { duration: 100 } }
-        }
+    Connections {
+        target: configState
+        function onOutputsChanged() { root.ensureSelection(); }
     }
 
-    ColumnLayout {
-        id: content
+    GridLayout {
+        id: contentGrid
         Layout.fillWidth: true
-        spacing: 12
+        Layout.fillHeight: true
+        columns: root.wideLayout ? 2 : 1
+        columnSpacing: 16
+        rowSpacing: 16
 
-        SettingsCard {
+        Rectangle {
             Layout.fillWidth: true
-            title: "Display layout"
-            subtitle: configState.refreshing ? "Reading Hyprland outputs..." : `${configState.outputs.length} output(s)`
+            Layout.fillHeight: true
+            Layout.preferredWidth: root.wideLayout ? Math.max(350, contentGrid.width * 0.38) : contentGrid.width
+            radius: SettingsTokens.roundRadius
+            color: SettingsTokens.panel
+            border.width: 1
+            border.color: SettingsTokens.line
 
-            MonitorCanvas {
-                Layout.fillWidth: true
-                displayState: configState
-            }
+            ColumnLayout {
+                id: leftColumn
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 14
 
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
 
-                SmallButton {
-                    text: "Identify"
-                    iconName: "badge"
-                    onClicked: configState.identify()
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        StyledText {
+                            text: "Display layout"
+                            color: SettingsTokens.fg
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.weight: Font.DemiBold
+                        }
+
+                        StyledText {
+                            text: configState.refreshing ? "Reading connected displays..." : `${configState.visibleOutputs.length} connected`
+                            color: SettingsTokens.muted
+                            font.pixelSize: Appearance.font.pixelSize.small
+                        }
+                    }
+
+                    SettingsButton {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 42
+                        label: ""
+                        iconName: "badge"
+                        onClicked: configState.identify()
+                    }
+
+                    SettingsButton {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 42
+                        label: ""
+                        iconName: "refresh"
+                        enabledState: !configState.refreshing
+                        onClicked: configState.refresh()
+                    }
                 }
-                SmallButton {
-                    text: "Refresh"
-                    iconName: "refresh"
-                    onClicked: configState.refresh()
-                }
-                Item { Layout.fillWidth: true }
-                SmallButton {
-                    text: "Apply all"
-                    iconName: "check"
-                    primary: true
-                    enabled: configState.hasPendingChanges && !configState.applying
-                    onClicked: configState.applyAll()
-                }
-            }
 
-            StyledText {
-                Layout.fillWidth: true
-                visible: configState.errorText.length > 0
-                text: configState.errorText
-                color: SettingsTokens.fg
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        SettingsCard {
-            Layout.fillWidth: true
-            title: "Outputs"
-            subtitle: configState.hasPendingChanges ? "Pending changes" : "Current configuration"
-
-            Repeater {
-                model: configState.outputs
-
-                OutputCard {
-                    required property var modelData
+                MonitorCanvas {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: configState.visibleOutputs.length > 1 ? 240 : 140
                     displayState: configState
-                    output: modelData
+                    selectedOutputName: root.selectedOutputName
+                    onOutputSelected: name => root.selectedOutputName = name
+                }
+
+                StyledText {
+                    text: "Displays"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    Repeater {
+                        model: configState.visibleOutputs
+
+                        OutputSummaryCard {
+                            required property var modelData
+                            displayState: configState
+                            output: modelData
+                            selected: modelData.name === root.selectedOutputName
+                            onClicked: root.selectedOutputName = modelData.name
+                        }
+                    }
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: configState.errorText.length > 0
+                    text: configState.errorText
+                    color: SettingsTokens.danger
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    wrapMode: Text.WordWrap
+                }
+
+                Item {
+                    Layout.fillHeight: true
                 }
             }
         }
 
-        SettingsCard {
+        OutputDetailPane {
             Layout.fillWidth: true
-            title: "Display Tools"
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                SmallButton {
-                    text: "wlr-randr"
-                    iconName: "open_in_new"
-                    onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"]) }
-                }
-            }
-        }
-
-    }
-
-    component SmallButton: Rectangle {
-        id: button
-        property string text: ""
-        property string iconName: ""
-        property bool primary: false
-        signal clicked
-
-        Layout.preferredHeight: 30
-        implicitWidth: label.implicitWidth + 36
-        radius: SettingsTokens.radius
-        color: !enabled ? SettingsTokens.bg : primary ? TuiStyle.accentWash(TuiStyle.accent) : (mouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button)
-        border.width: 1
-        border.color: primary ? SettingsTokens.accent : SettingsTokens.buttonBorder
-        opacity: enabled ? 1 : 0.45
-
-        Row {
-            anchors.centerIn: parent
-            spacing: 6
-            MaterialSymbol {
-                text: button.iconName
-                iconSize: 15
-                color: primary ? SettingsTokens.accent : SettingsTokens.fg
-            }
-            StyledText {
-                id: label
-                text: button.text
-                color: SettingsTokens.fg
-                font.pixelSize: 12
-                font.weight: Font.DemiBold
-            }
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            enabled: button.enabled
-            onClicked: button.clicked()
+            Layout.fillHeight: true
+            Layout.preferredWidth: root.wideLayout ? Math.max(500, contentGrid.width * 0.62 - 16) : contentGrid.width
+            displayState: configState
+            output: root.selectedOutput
+            settingsRoot: root.settingsRoot
         }
     }
 
-    component ToggleLine: RowLayout {
-        id: toggleLine
-        property string title: ""
-        property string description: ""
-        property bool checked: false
-        signal toggled
-
+    RowLayout {
+        id: footerRow
         Layout.fillWidth: true
+        Layout.topMargin: 4
         spacing: 12
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 2
-            StyledText { text: toggleLine.title; color: SettingsTokens.fg; font.pixelSize: 14; font.weight: Font.DemiBold }
-            StyledText { text: toggleLine.description; color: SettingsTokens.dim; font.pixelSize: 13 }
-        }
-        Switch {
-            id: control
-            checked: toggleLine.checked
-            onToggled: toggleLine.toggled()
 
-            indicator: Rectangle {
-                implicitWidth: 46
-                implicitHeight: 26
-                x: control.leftPadding
-                y: parent.height / 2 - height / 2
-                radius: height / 2
-                color: control.checked ? SettingsTokens.accent : SettingsTokens.line
-
-                Rectangle {
-                    x: control.checked ? parent.width - width - 3 : 3
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 20
-                    height: 20
-                    radius: 10
-                    color: control.checked ? "#111111" : "#dedede"
-                    Behavior on x { NumberAnimation { duration: 110 } }
-                }
+        SettingsButton {
+            Layout.fillWidth: false
+            Layout.preferredWidth: 110
+            label: "Close"
+            iconName: "close"
+            onClicked: {
+                if (root.settingsRoot)
+                    root.settingsRoot.dismiss();
             }
+        }
+
+        Item { Layout.fillWidth: true }
+
+        SettingsButton {
+            Layout.fillWidth: false
+            Layout.preferredWidth: 120
+            label: "Discard"
+            iconName: "undo"
+            enabledState: configState.hasPendingChanges && !configState.applying
+            onClicked: configState.resetDrafts()
+        }
+
+        SettingsButton {
+            Layout.fillWidth: false
+            Layout.preferredWidth: 120
+            label: configState.applying ? "Applying..." : "Apply"
+            iconName: "check"
+            active: configState.hasPendingChanges
+            enabledState: configState.hasPendingChanges && !configState.applying
+            onClicked: configState.applyAll()
         }
     }
 }

@@ -5,6 +5,7 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 
@@ -106,13 +107,22 @@ PopupWindow {
             border.color: TuiStyle.menuBorder
             clip:         true
 
+            layer.enabled: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: popupBackground.width
+                    height: popupBackground.height
+                    radius: popupBackground.radius
+                }
+            }
+
             opacity: 0
             Component.onCompleted: opacity = 1
             implicitWidth:  columnLayout.implicitWidth  + root.menuPadding * 2
             implicitHeight: columnLayout.implicitHeight + root.menuPadding * 2
 
             Behavior on opacity        { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(popupBackground) }
-            Behavior on implicitHeight { animation: Appearance.animation.elementResize.numberAnimation.createObject(popupBackground) }
+            Behavior on implicitHeight { NumberAnimation { duration: 120 } }
             Behavior on implicitWidth  { animation: Appearance.animation.elementResize.numberAnimation.createObject(popupBackground) }
 
             ColumnLayout {

@@ -251,7 +251,7 @@ Scope {
         Layout.fillWidth: true
         Layout.preferredHeight: 1
         color: TuiStyle.line
-        opacity: 0.22
+        opacity: TuiStyle.dividerOpacity
     }
 
     // Section label (small dim caps) — kept for compact sub-headings.
@@ -621,7 +621,7 @@ Scope {
                 Layout.topMargin: 8
                 height: 1
                 color: TuiStyle.line
-                opacity: 0.22
+                opacity: TuiStyle.dividerOpacity
             }
 
             RowLayout {
@@ -880,7 +880,17 @@ Scope {
                 anchors.right: parent.right
                 spacing: 0
 
-                // ── Sliders (no header above them) ────────────────────────
+                PopupHeader {
+                    Layout.fillWidth: true
+                    icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
+                    title: "Volume"
+                    subtitle: `Volume ${Math.round(audioPanel.sinkVolume * 100)}%` +
+                        (audioPanel.sinkMuted ? " (Muted)" : "") +
+                        (audioPanel.sourceMuted ? "  ·  Mic muted" : "")
+                    tone: audioPanel.sinkMuted ? TuiStyle.warning : TuiStyle.accent
+                }
+
+                // ── Sliders ───────────────────────────────────────────────
                 PopupSliderRow {
                     icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
                     value: audioPanel.sinkVolume
@@ -1465,39 +1475,70 @@ Scope {
                         : `${Notifications.list.length} notification${Notifications.list.length === 1 ? "" : "s"}`)
                 tone: Notifications.silent ? TuiStyle.warning : TuiStyle.success
 
-                // Clear all button
-                NerdIcon {
+                RowLayout {
                     Layout.alignment: Qt.AlignVCenter
-                    iconSize: 16
-                    text: "\uDB80\uDD5A"  // mdi-delete U+F015A
-                    color: clearAllMouse.containsMouse ? TuiStyle.danger : TuiStyle.dim
-                    visible: Notifications.list.length > 0
+                    spacing: 12
 
-                    MouseArea {
-                        id: clearAllMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Notifications.clear()
+                    // Broom button to clear notifications
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignVCenter
+                        text: "delete_sweep"
+                        iconSize: 20
+                        color: clearMouse.containsMouse ? TuiStyle.danger : TuiStyle.dim
+                        visible: Notifications.list.length > 0
+
+                        MouseArea {
+                            id: clearMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Notifications.discardAllNotifications()
+                        }
+                    }
+
+                    // DND Toggle Switch - unified size
+                    Rectangle {
+                        id: dndToggle
+                        Layout.alignment: Qt.AlignVCenter
+                        width: 46
+                        height: 26
+                        radius: height / 2
+                        color: Notifications.silent ? TuiStyle.accent : TuiStyle.controlMuted
+                        border.width: TuiStyle.borderWidth
+                        border.color: Notifications.silent ? TuiStyle.shellBorder : TuiStyle.line
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Rectangle {
+                            width: 20
+                            height: 20
+                            radius: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: Notifications.silent ? parent.width - width - 3 : 3
+                            color: Notifications.silent ? TuiStyle.bg : TuiStyle.fg
+                            Behavior on x { NumberAnimation { duration: 110 } }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Notifications.toggleSilent()
+                        }
                     }
                 }
             }
 
-            PopupToggleRow {
-                label: "Do not disturb"
-                checked: Notifications.silent
-                onToggled: checked => Notifications.toggleSilent()
-                showDivider: false
-            }
-
             TuiNotificationList {
                 Layout.fillWidth: true
+                Layout.topMargin: 12
+                Layout.bottomMargin: 16
                 showHeader: false
                 showFooter: false
                 showFooterDnd: false
                 compactRows: true
                 markReadOnVisible: true
-                maxListHeight: (popupWindow.screen?.height ?? 900) * 0.8 - Appearance.sizes.barHeight
+                maxListHeight: Math.round((popupWindow.screen?.height ?? 900) * 0.72)
             }
         }
     }

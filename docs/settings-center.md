@@ -133,7 +133,8 @@ quickshell/modules/settings/display/
 ├── DisplayConfigState.qml
 ├── MonitorCanvas.qml
 ├── MonitorRect.qml
-└── OutputCard.qml
+├── OutputSummaryCard.qml
+└── OutputDetailPane.qml
 ```
 
 This is an OMD adaptation of DankMaterialShell's display configuration design.
@@ -142,9 +143,32 @@ The parts we intentionally ported are:
 - monitor preview canvas
 - draggable monitor rectangles
 - edge snapping and overlap checks
-- per-output cards
+- selectable output summaries
 - pending edits before applying
 - resolution/refresh, scale, rotation, and position controls
+
+The page uses a responsive master-detail layout:
+
+```text
+wide window
+├── left: physical arrangement canvas and display selection
+└── right: controls for the selected display
+
+narrow window
+├── physical arrangement canvas and display selection
+└── controls for the selected display
+```
+
+The canvas and output list share `DisplayPage.selectedOutputName`; they must
+never maintain independent selections. Resolution and refresh rate are shown
+as separate controls even though Hyprland applies them as one mode string.
+Position coordinates and diagnostic tools are kept in the collapsed Advanced
+section.
+
+Display changes are one transaction. The page has exactly one Discard action
+and one Apply action, both operating on `DisplayConfigState` drafts. Do not add
+per-output Apply buttons or restore the generic `SettingsPanelFrame` Confirm
+footer on this page.
 
 The original DMS implementation depends on `WlrOutputService`,
 `CompositorService`, `SettingsData`, DMS display profiles, and both Hyprland and
@@ -166,8 +190,8 @@ Current scope:
 - output arrangement by dragging preview rectangles
 - mode, scale, transform, and position changes
 - refresh and identify actions
-- brightness, night light, and wallpaper entry points remain on the Displays
-  page
+- direct display configuration remains isolated from brightness, night light,
+  and wallpaper popup controls
 
 Not yet ported from DMS:
 
@@ -178,8 +202,8 @@ Not yet ported from DMS:
 - rollback confirmation timer after applying monitor changes
 
 If those are added later, prefer extending `DisplayConfigState.qml` and
-`OutputCard.qml` instead of embedding feature-specific code in the settings
-root.
+`OutputDetailPane.qml` instead of embedding feature-specific code in the
+settings root.
 
 ## Appearance / Themes
 

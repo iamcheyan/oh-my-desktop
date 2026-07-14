@@ -7,30 +7,23 @@ Rectangle {
     id: root
 
     required property var displayState
+    property string selectedOutputName: ""
+    signal outputSelected(string name)
 
     readonly property var displayBounds: (displayState.revision, displayState.bounds())
 
-    width: parent ? parent.width : 720
-    height: 160
+    implicitHeight: 220
     radius: SettingsTokens.radius
     color: SettingsTokens.bg
     border.width: 1
-    border.color: SettingsTokens.buttonBorder
+    border.color: SettingsTokens.line
     clip: true
-
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: 8
-        radius: SettingsTokens.radius
-        color: SettingsTokens.bg
-        border.width: 1
-        border.color: SettingsTokens.buttonBorder
-    }
 
     Item {
         id: canvas
         anchors.fill: parent
-        anchors.margins: 14
+        anchors.margins: 22
+        anchors.bottomMargin: 36
 
         property real scaleFactor: {
             const b = root.displayBounds;
@@ -50,29 +43,30 @@ Rectangle {
                 required property var modelData
                 displayState: root.displayState
                 output: modelData
+                selected: modelData.name === root.selectedOutputName
                 canvasScaleFactor: canvas.scaleFactor
                 canvasOffset: canvas.offset
+                onOutputSelected: name => root.outputSelected(name)
             }
         }
     }
 
-    Rectangle {
+    Row {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
-        anchors.margins: 8
-        width: hintText.implicitWidth + 20
-        height: 24
-        radius: SettingsTokens.radius
-        color: SettingsTokens.button
-        border.width: 1
-        border.color: SettingsTokens.buttonBorder
+        anchors.margins: 10
+        spacing: 6
+
+        MaterialSymbol {
+            text: "drag_pan"
+            iconSize: 14
+            color: SettingsTokens.dim
+        }
 
         StyledText {
-            id: hintText
-            anchors.centerIn: parent
-            text: "Drag displays to rearrange"
-            color: SettingsTokens.muted
-            font.pixelSize: 11
+            text: "Drag to match your physical layout"
+            color: SettingsTokens.dim
+            font.pixelSize: Appearance.font.pixelSize.smaller
         }
     }
 }

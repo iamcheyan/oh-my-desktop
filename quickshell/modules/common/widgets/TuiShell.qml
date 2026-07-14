@@ -1,5 +1,6 @@
 import qs.modules.common
 import QtQuick
+import Qt5Compat.GraphicalEffects
 
 Rectangle {
     id: root
@@ -13,6 +14,15 @@ Rectangle {
     border.color: TuiStyle.menuBorder
     radius: TuiStyle.shellRadius
     clip: true
+
+    layer.enabled: true
+    layer.effect: OpacityMask {
+        maskSource: Rectangle {
+            width: root.width
+            height: root.height
+            radius: root.radius
+        }
+    }
 
     Item {
         id: contentContainer

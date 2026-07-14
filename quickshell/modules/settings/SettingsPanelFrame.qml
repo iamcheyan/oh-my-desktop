@@ -13,6 +13,7 @@ Item {
     property string title: "Settings"
     property string iconName: "settings"
     property Component pageComponent
+    property bool showConfirmFooter: true
 
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Escape) {
@@ -60,8 +61,9 @@ Item {
 
             // Confirm button
             Rectangle {
+                visible: frame.showConfirmFooter
                 Layout.fillWidth: true
-                Layout.preferredHeight: 50
+                Layout.preferredHeight: visible ? 50 : 0
                 color: "transparent"
 
                 Rectangle {

@@ -13,12 +13,13 @@ Rectangle {
     property color valueColor: SettingsTokens.muted
     property bool showChevron: false
     property int rightInset: 12
+    property bool clickable: true
     signal clicked()
 
     Layout.fillWidth: true
     implicitHeight: 56
     radius: SettingsTokens.radius
-    color: rowMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
+    color: (clickable && rowMouse.containsMouse) ? SettingsTokens.cardHover : "transparent"
 
     RowLayout {
         anchors.fill: parent
@@ -85,6 +86,7 @@ Rectangle {
         id: rowMouse
         anchors.fill: parent
         hoverEnabled: true
+        enabled: row.clickable
         cursorShape: row.showChevron ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: row.clicked()
     }

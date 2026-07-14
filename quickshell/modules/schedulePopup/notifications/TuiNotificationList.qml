@@ -4,6 +4,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Notifications
@@ -25,8 +26,8 @@ Item {
     readonly property int footerGap: showFooter ? 10 : 0
     readonly property int listHeight: Math.max(112, Math.min(maxListHeight, listView.contentHeight))
 
-    implicitHeight: column.implicitHeight
-    implicitWidth: column.implicitWidth
+    implicitHeight: listHeight + headerGap + footerGap
+    implicitWidth: 360
 
     onVisibleChanged: {
         if (visible && markReadOnVisible)
@@ -53,9 +54,14 @@ Item {
 
     ColumnLayout {
         id: column
-        anchors.fill: parent
-        anchors.leftMargin: 20
-        anchors.rightMargin: 20
+        anchors {
+            left: parent ? parent.left : undefined
+            right: parent ? parent.right : undefined
+            top: parent ? parent.top : undefined
+            bottom: parent ? parent.bottom : undefined
+            leftMargin: 16
+            rightMargin: 16
+        }
         spacing: 0
 
     Rectangle {
@@ -131,6 +137,7 @@ Item {
             clip: true
             spacing: root.hubStyle ? 0 : 6
             boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: StyledScrollBar {}
             model: ScriptModel {
                 values: root.sortedNotifications()
             }
@@ -274,9 +281,9 @@ Item {
         property bool checked: false
         signal toggled()
 
-        implicitWidth: 38
-        implicitHeight: 20
-        radius: 10
+        implicitWidth: 46
+        implicitHeight: 26
+        radius: height / 2
         color: checked ? TuiStyle.accent : TuiStyle.controlMuted
         border.width: TuiStyle.borderWidth
         border.color: checked ? TuiStyle.shellBorder : TuiStyle.line
@@ -286,16 +293,15 @@ Item {
         }
 
         Rectangle {
-            width: 12
-            height: 12
-            radius: 6
+            width: 20
+            height: 20
+            radius: 10
             anchors.verticalCenter: parent.verticalCenter
-            anchors.left: parent.left
-            anchors.leftMargin: toggle.checked ? parent.width - width - 4 : 4
+            x: toggle.checked ? parent.width - width - 3 : 3
             color: toggle.checked ? TuiStyle.bg : TuiStyle.fg
 
-            Behavior on anchors.leftMargin {
-                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            Behavior on x {
+                NumberAnimation { duration: 110 }
             }
         }
 
@@ -341,6 +347,7 @@ Item {
         implicitHeight: row.hubStyle
             ? hubRow.implicitHeight + 16
             : rowContent.implicitHeight + 20
+        height: implicitHeight
         radius: row.hubStyle ? 0 : 6
         color: rowTap.pressed ? TuiStyle.surfacePressed
             : rowHover.hovered || expanded ? TuiStyle.surfaceSubtle

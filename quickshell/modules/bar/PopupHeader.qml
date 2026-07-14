@@ -8,6 +8,8 @@ import QtQuick.Layouts
 Item {
     id: root
 
+    default property alias content: row.data
+
     property string icon: ""
     property string title: ""
     property string subtitle: ""
@@ -76,7 +78,7 @@ Item {
         anchors.bottom: parent.bottom
         height: 1
         color: TuiStyle.line
-        opacity: 0.10
+        opacity: TuiStyle.dividerOpacity
         visible: root.showDivider
     }
 }

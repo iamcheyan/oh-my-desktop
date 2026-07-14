@@ -5,6 +5,7 @@ import qs.modules.common.widgets
 import qs.services
 import QtQuick
 import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
 import Quickshell
 
 PopupWindow {
@@ -94,6 +95,15 @@ PopupWindow {
             border.width: TuiStyle.borderWidth
             border.color: TuiStyle.menuBorder
             clip:         true
+
+            layer.enabled: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: popupBackground.width
+                    height: popupBackground.height
+                    radius: popupBackground.radius
+                }
+            }
 
             opacity: 0
             Component.onCompleted: opacity = 1

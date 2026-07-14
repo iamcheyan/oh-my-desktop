@@ -12,6 +12,7 @@ Rectangle {
     property string currentValue: ""
     property var options: []
     property int dropdownWidth: 180
+    property bool controlled: false
     signal valueChanged(string value)
 
     Layout.fillWidth: true
@@ -142,7 +143,8 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             onClicked: {
-                                root.currentValue = modelData.value
+                                if (!root.controlled)
+                                    root.currentValue = modelData.value
                                 root.valueChanged(modelData.value)
                                 ddPopup.close()
                             }

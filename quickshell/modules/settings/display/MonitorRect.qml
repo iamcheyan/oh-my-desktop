@@ -1,6 +1,7 @@
 import QtQuick
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 
 Rectangle {
     id: root
@@ -9,6 +10,8 @@ Rectangle {
     required property var output
     required property real canvasScaleFactor
     required property point canvasOffset
+    property bool selected: false
+    signal outputSelected(string name)
 
     property bool dragging: false
     property point snappedLogical: Qt.point(displayState.draftFor(output.name).x, displayState.draftFor(output.name).y)
@@ -20,10 +23,10 @@ Rectangle {
     y: dragging ? y : draft.y * canvasScaleFactor + canvasOffset.y
     width: Math.max(64, logicalSize.w * canvasScaleFactor)
     height: Math.max(42, logicalSize.h * canvasScaleFactor)
-    radius: 10
-    color: !validPosition ? "#3a2020" : dragging ? TuiStyle.accentWash(TuiStyle.accent) : (mouse.containsMouse ? "#303030" : "#242424")
-    border.width: output.focused || dragging ? 2 : 1
-    border.color: !validPosition ? "#d0d0d0" : (output.focused || dragging ? TuiStyle.accent : "#777777")
+    radius: SettingsTokens.radius
+    color: !validPosition ? SettingsTokens.warningPanel : dragging ? SettingsTokens.accentSoft : (mouse.containsMouse ? SettingsTokens.cardHover : SettingsTokens.button)
+    border.width: selected || dragging ? 2 : 1
+    border.color: !validPosition ? SettingsTokens.danger : (selected || dragging ? SettingsTokens.accent : SettingsTokens.buttonBorder)
     z: dragging ? 10 : 1
 
     Rectangle {
@@ -48,13 +51,13 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "desktop_windows"
             iconSize: Math.min(26, Math.max(16, parent.width * 0.14))
-            color: output.focused ? TuiStyle.accent : "#d8d8d8"
+            color: root.selected ? SettingsTokens.accent : SettingsTokens.fg
         }
 
         StyledText {
             width: parent.width
             text: root.displayState.displayName(root.output)
-            color: "#f4f4f4"
+            color: SettingsTokens.fg
             font.pixelSize: Math.max(10, Math.min(13, root.width * 0.09))
             font.weight: Font.DemiBold
             horizontalAlignment: Text.AlignHCenter
@@ -65,7 +68,7 @@ Rectangle {
         StyledText {
             width: parent.width
             text: `${root.logicalSize.w} x ${root.logicalSize.h}`
-            color: "#a8a8a8"
+            color: SettingsTokens.muted
             font.pixelSize: 10
             horizontalAlignment: Text.AlignHCenter
         }
@@ -81,6 +84,7 @@ Rectangle {
         drag.threshold: 0
 
         onPressed: {
+            root.outputSelected(root.output.name);
             root.dragging = true;
             root.snappedLogical = Qt.point(root.draft.x, root.draft.y);
             root.validPosition = true;
