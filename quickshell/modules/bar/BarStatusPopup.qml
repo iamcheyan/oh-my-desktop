@@ -1466,7 +1466,7 @@ Scope {
         PopupColumn {
             PopupHeader {
                 Layout.fillWidth: true
-                icon: NerdIconMap.notifications
+                icon: "\uDB81\uDC17"  // mdi-bell U+F0417 (notification icon)
                 title: "Notifications"
                 subtitle: Notifications.silent
                     ? "Do not disturb"
