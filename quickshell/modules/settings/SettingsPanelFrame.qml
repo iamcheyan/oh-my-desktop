@@ -77,6 +77,8 @@ Item {
                 RowLayout {
                     anchors.fill: parent
                     anchors.topMargin: 8
+                    anchors.leftMargin: frame.settingsRoot.pageInset + 4
+                    anchors.rightMargin: frame.settingsRoot.pageInset + 4
                     spacing: 12
 
                     SettingsButton {
