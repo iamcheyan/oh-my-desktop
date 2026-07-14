@@ -24,6 +24,7 @@ PageBody {
         columnSpacing: 16
         rowSpacing: 16
 
+        // ── Left Column: Audio Devices ──
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -31,11 +32,20 @@ PageBody {
             Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
             spacing: 16
 
-    // ── Output Devices card ──────────────────────────────────────
             SettingsCard {
-                title: "Output Devices"
-                subtitle: `${Audio.typedSinks.length} device${Audio.typedSinks.length === 1 ? "" : "s"}`
-                visible: Audio.typedSinks.length > 0
+                title: "Audio Devices"
+                subtitle: `${Audio.typedSinks.length} output${Audio.typedSinks.length === 1 ? "" : "s"}, ${Audio.typedSources.length} input${Audio.typedSources.length === 1 ? "" : "s"}`
+
+                // ── Output Devices Section ──
+                StyledText {
+                    text: "Output Devices"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 2
+                }
 
                 // Loading overlay for WirePlumber reload
                 Rectangle {
@@ -268,13 +278,28 @@ PageBody {
                         }
                     }
                 }
-            }
 
-            // ── Input Devices card ───────────────────────────────────────
-            SettingsCard {
-                title: "Input Devices"
-                subtitle: `${Audio.typedSources.length} device${Audio.typedSources.length === 1 ? "" : "s"}`
-                visible: Audio.typedSources.length > 0
+                // Divider between Output and Input Devices
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
+                    opacity: 0.4
+                    Layout.topMargin: 12
+                    Layout.bottomMargin: 12
+                    visible: Audio.typedSinks.length > 0 && Audio.typedSources.length > 0
+                }
+
+                // ── Input Devices Section ──
+                StyledText {
+                    text: "Input Devices"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 2
+                    visible: Audio.typedSources.length > 0
+                }
 
                 Repeater {
                     model: Audio.typedSources
@@ -353,6 +378,7 @@ PageBody {
             }
         }
 
+        // ── Right Column: Volume & Controls ──
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -360,9 +386,20 @@ PageBody {
             Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
             spacing: 16
 
-            // ── Master volume card ───────────────────────────────────────
             SettingsCard {
-                title: "Master Volume"
+                title: "Volume & Controls"
+                subtitle: "Adjust volume levels and input capture"
+
+                // ── Master Volume Section ──
+                StyledText {
+                    text: "Master Volume"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 2
+                }
 
                 SettingsSliderRow {
                     label: "Volume level"
@@ -396,11 +433,26 @@ PageBody {
                         onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["pavucontrol"]) }
                     }
                 }
-            }
 
-            // ── Microphone card ──────────────────────────────────────────
-            SettingsCard {
-                title: "Microphone"
+                // Divider between Master Volume and Microphone
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
+                    opacity: 0.4
+                    Layout.topMargin: 12
+                    Layout.bottomMargin: 12
+                }
+
+                // ── Microphone Section ──
+                StyledText {
+                    text: "Microphone"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 2
+                }
 
                 SettingsSliderRow {
                     label: "Input volume"
