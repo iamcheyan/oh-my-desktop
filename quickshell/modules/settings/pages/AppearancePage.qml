@@ -204,33 +204,15 @@ PageBody {
                     Layout.fillWidth: true
                     spacing: 6
                     visible: wpState.isFolder && wpState.imageCount > 0
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        StyledText {
-                            text: "Rotation interval"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        StyledText {
-                            text: wpState.intervalLabel
-                            color: SettingsTokens.muted
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-                    }
-
-                    SettingsSlider {
-                        Layout.fillWidth: true
+                    SettingsSliderRow {
+                        label: "Rotation interval"
+                        description: "How often to rotate the wallpaper"
                         from: 300
                         to: 7200
                         stepSize: 300
                         value: parseInt(wpState.interval) || 1800
-                        onValueChanged: {
+                        formatValue: val => wpState.intervalLabel
+                        onMoved: {
                             Quickshell.execDetached(["bash", "-c",
                                 'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
                                 '$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ' +
@@ -300,41 +282,15 @@ PageBody {
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 6
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        StyledText {
-                            text: "Font size"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        StyledText {
-                            text: `${appearanceState.terminalFontSize}pt`
-                            color: SettingsTokens.muted
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-                    }
-
-                    SettingsSlider {
+                    SettingsSliderRow {
+                        label: "Terminal font size"
+                        description: "Applies to foot, kitty, alacritty, and ghostty. New windows will use the new size."
                         from: 6
                         to: 24
                         stepSize: 1
-                        snapMode: Slider.SnapAlways
                         value: appearanceState.terminalFontSize
+                        valueSuffix: "pt"
                         onMoved: appearanceState.terminalFontSize = Math.round(value)
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: "Applies to foot, kitty, alacritty, and ghostty. New terminal windows will use the new size."
-                        color: SettingsTokens.dim
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.Wrap
                     }
                 }
 

@@ -37,21 +37,15 @@ PageBody {
                 subtitle: "Charge limit and low battery alerts"
                 visible: Battery.available
 
-                SettingsSlider {
-                    Layout.fillWidth: true
+                SettingsSliderRow {
+                    label: "Charge limit"
+                    description: "Stop charging at this percentage to preserve battery health"
                     from: 50
                     to: 100
                     stepSize: 5
                     value: Config.options.battery.full ?? 100
-                    onValueChanged: Config.setNestedValue("battery.full", Math.round(value))
-
-                    readonly property string _label: "Charge limit"
-                }
-
-                SettingsRow {
-                    label: "Charge limit"
-                    description: "Stop charging at this percentage to preserve battery health"
-                    value: `${Config.options.battery.full ?? 100}%`
+                    valueSuffix: "%"
+                    onMoved: Config.setNestedValue("battery.full", Math.round(value))
                 }
 
                 SettingsToggleRow {
@@ -68,18 +62,15 @@ PageBody {
                     opacity: 0.4
                 }
 
-                SettingsSlider {
-                    Layout.fillWidth: true
+                SettingsSliderRow {
+                    label: "Low battery threshold"
+                    description: "Notify when battery drops below this percentage"
                     from: 5
                     to: 40
                     stepSize: 5
                     value: Config.options.battery.low ?? 20
-                    onValueChanged: Config.setNestedValue("battery.low", Math.round(value))
-                }
-
-                SettingsRow {
-                    label: "Low battery threshold"
-                    value: `${Config.options.battery.low ?? 20}%`
+                    valueSuffix: "%"
+                    onMoved: Config.setNestedValue("battery.low", Math.round(value))
                 }
 
                 SettingsToggleRow {
@@ -103,18 +94,15 @@ PageBody {
                     opacity: 0.4
                 }
 
-                SettingsSlider {
-                    Layout.fillWidth: true
+                SettingsSliderRow {
+                    label: "Critical battery threshold"
+                    description: "Alert when battery drops critically low"
                     from: 1
                     to: 30
                     stepSize: 1
                     value: Config.options.battery.critical ?? 5
-                    onValueChanged: Config.setNestedValue("battery.critical", Math.round(value))
-                }
-
-                SettingsRow {
-                    label: "Critical battery threshold"
-                    value: `${Config.options.battery.critical ?? 5}%`
+                    valueSuffix: "%"
+                    onMoved: Config.setNestedValue("battery.critical", Math.round(value))
                 }
 
                 SettingsToggleRow {

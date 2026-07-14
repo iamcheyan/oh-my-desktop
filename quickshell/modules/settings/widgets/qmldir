@@ -20,3 +20,4 @@ SettingsDisclosure 1.0 SettingsDisclosure.qml
 SettingsSubpage 1.0 SettingsSubpage.qml
 SettingsDangerZone 1.0 SettingsDangerZone.qml
 SettingsEmptyState 1.0 SettingsEmptyState.qml
+SettingsSliderRow 1.0 SettingsSliderRow.qml

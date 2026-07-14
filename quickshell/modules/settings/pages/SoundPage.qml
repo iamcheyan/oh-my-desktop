@@ -339,10 +339,14 @@ PageBody {
             // ── Master volume card ───────────────────────────────────────
             SettingsCard {
                 title: "Master Volume"
-                subtitle: Audio.sink?.audio.muted ? "Muted" : `${Math.round((Audio.sink?.audio.volume ?? 0) * 100)}%`
 
-                SettingsSlider {
+                SettingsSliderRow {
+                    label: "Volume level"
+                    description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
                     value: Audio.sink?.audio.muted ? 0 : (Audio.sink?.audio.volume ?? 0)
+                    from: 0
+                    to: 1
+                    formatValue: val => `${Math.round(val * 100)}%`
                     onMoved: {
                         if (Audio.sink && !Audio.sink.audio.muted)
                             Audio.sink.audio.volume = value
@@ -351,7 +355,7 @@ PageBody {
 
                 SettingsToggleRow {
                     label: "Mute output"
-                    description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
+                    description: "Mute all audio output"
                     checked: Audio.sink?.audio.muted ?? false
                     onToggled: Audio.toggleMute()
                 }
@@ -373,10 +377,14 @@ PageBody {
             // ── Microphone card ──────────────────────────────────────────
             SettingsCard {
                 title: "Microphone"
-                subtitle: Audio.source?.audio.muted ? "Muted" : `${Math.round((Audio.source?.audio.volume ?? 0) * 100)}%`
 
-                SettingsSlider {
+                SettingsSliderRow {
+                    label: "Input volume"
+                    description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
                     value: Audio.source?.audio.muted ? 0 : (Audio.source?.audio.volume ?? 0)
+                    from: 0
+                    to: 1
+                    formatValue: val => `${Math.round(val * 100)}%`
                     onMoved: {
                         if (Audio.source && !Audio.source.audio.muted)
                             Audio.source.audio.volume = value
@@ -385,7 +393,7 @@ PageBody {
 
                 SettingsToggleRow {
                     label: "Mute microphone"
-                    description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
+                    description: "Mute microphone input"
                     checked: Audio.source?.audio.muted ?? false
                     onToggled: Audio.toggleMicMute()
                 }
