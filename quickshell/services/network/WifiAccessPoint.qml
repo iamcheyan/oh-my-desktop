@@ -8,7 +8,11 @@ QtObject {
     readonly property int frequency: lastIpcObject.frequency
     readonly property bool active: lastIpcObject.active
     readonly property string security: lastIpcObject.security
-    readonly property bool isSecure: security.length > 0
+    // Open networks often report "" or "--"; treat those as open.
+    readonly property bool isSecure: {
+        const s = (security || "").trim().toLowerCase()
+        return s.length > 0 && s !== "--" && s !== "none" && s !== "open" && s !== "owe"
+    }
 
     property bool askingPassword: false
 }
