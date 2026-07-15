@@ -54,13 +54,15 @@ Encapsulates individual row items based on a custom `RippleButton`, supporting g
 | `labelColor` | `color` | `iconColor` | Font color. Falls back to `iconColor` if unspecified. |
 | `label` | `string` | `""` | User-facing localized text (wrapped in `Translation.tr()`). |
 
-### Removed Wi-Fi/Bluetooth Context Menus
-Wi-Fi and Bluetooth bar icons now open their full dialogs directly on click. Their previous right-click actions moved into:
+### Wi-Fi / Bluetooth bar popups
+Wi-Fi and Bluetooth bar icons open `BarStatusPopup` content (not context menus).
 
-- Wi-Fi dialog: `IMPALA`, `EDITOR`, and `ENABLE` / `DISABLE`.
-- Bluetooth dialog: `BLUETUI`, `BLUEMAN`, and `ENABLE` / `DISABLE`.
+- **Wi-Fi popup** (`wifiContent`): status, Wi-Fi/Bluetooth toggles, nearby
+  network list with inline password, scan, and “Network settings…”.
+- **Bluetooth popup**: status + toggle + “Bluetooth settings…”.
 
-Do not reintroduce `WifiContextMenu.qml` or `BluetoothContextMenu.qml` unless the bar interaction model changes again.
+Connect logic lives in `quickshell/services/Network.qml`. See
+`docs/wifi-connect-flow.md`.
 
 ---
 

@@ -2,6 +2,15 @@
 
 Date: 2026-07-12
 
+## Layout Update
+
+Layout and information hierarchy (2026-07-15) are documented in:
+
+- `docs/windows-vm-settings-layout.md`
+
+That pass reorganized `WindowsVmPage.qml` into a Display/Voice-style two-column
+panel without changing the helper contract below.
+
 ## Goal
 
 The Windows VM settings page should own the complete user workflow:

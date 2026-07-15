@@ -167,10 +167,10 @@ Design rationale for separate recording vs transcribing icons:
 Additional bindings are read from:
 
 ```sh
-~/.config/omarchy/voice_bindings.txt
+~/.config/omd/config/voice_bindings.txt
 ```
 
-Edit them through `scripts/voice-bind-tui` when possible. The TUI uses `scripts/key-test --hotkey`, so it captures the final key after keyd remaps rather than the physical source key.
+Edit them in Settings Center (Voice page) or through `scripts/voice-bind-tui`. The capture tool uses `scripts/key-test --hotkey`, so it captures the final key after keyd remaps rather than the physical source key.
 
 ### Recording-only ESC Key Hook
 
@@ -225,7 +225,7 @@ Correct workflow:
 Do not manually save `TOOLS`; Hyprland reports `Unknown keysym: "TOOLS"`. If this happens, replace it with `XF86Tools` and reload:
 
 ```sh
-sed -i 's/^TOOLS$/XF86Tools/' ~/.config/omarchy/voice_bindings.txt
+sed -i 's/^TOOLS$/XF86Tools/' ~/.config/omd/config/voice_bindings.txt
 hyprctl reload
 ```
 
@@ -292,19 +292,35 @@ The IPC is triggered by global keybinds or the dynamic `escape` hook to control 
 
 ---
 
+## Settings UI
+
+The Settings Center Voice panel is being redesigned as a master–detail page
+(status + trial record on the left; keybindings and advanced tools on the
+right). Full product/layout plan:
+
+- `docs/voice-settings-redesign.md`
+
+Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
+
 ## Related Files
 
-- `omarchy/hypr/bindings.lua` — key bindings definitions
-- `omarchy/hypr/looknfeel.lua` — window floating rules
+- `hypr/bindings.lua` — key bindings definitions (reads `config/voice_bindings.txt`)
+- `hypr/looknfeel.lua` — window floating rules
 - `quickshell/services/VoiceInput.qml` — voice service state machine
 - `quickshell/modules/bar/modules/AudioButton.qml` — combined bar audio/voice button
+- `quickshell/modules/settings/pages/VoicePage.qml` — Settings Center voice page
 - `scripts/key-test --hotkey` — GTK4 hotkey capture after keyd remaps
 - `scripts/voice-diagnose` — TUI diagnostic tool
-gs.lua`: `ALT + A` → `qs -p ... ipc call voice toggle`
+- `docs/voice-settings-redesign.md` — settings UX redesign plan
+
+### Bar entry points
+
+- `bindings.lua`: voice toggles → `qs -p ... ipc call voice toggle`
 - `AudioButton.qml`: left click while voice is active toggles recording; otherwise opens audio status popup
 - `VoiceContextMenu.qml`: test action
 
 The bar also exposes `barPopup` IPC for opening the settings panel:
+
 ```bash
 qs -p $HOME/.config/omd/apps/omd-bar ipc call barPopup open voice
 ```

@@ -103,6 +103,110 @@ footer
 At narrow widths, the two panels become one column while preserving
 `columnGap`, `panelPadding`, and footer alignment.
 
+## Voice Reference Layout
+
+The Voice page reuses the same wide master–detail contract without a canvas:
+
+```text
+pagePadding
+├── left panel (panelPadding)
+│   ├── health hero
+│   ├── trial record + last result
+│   └── recent history
+├── columnGap
+└── right panel (panelPadding)
+    ├── keybindings
+    ├── model / engine actions
+    └── advanced disclosure (paths, TUI tools)
+
+footer
+└── Close
+```
+
+Product plan and phased delivery: `docs/voice-settings-redesign.md`.
+
+## Windows VM Reference Layout
+
+```text
+pagePadding
+├── left panel (panelPadding)
+│   ├── health hero
+│   ├── primary CTA (install / fix / connect)
+│   └── install progress (when active)
+├── columnGap
+└── right panel (panelPadding)
+    ├── connection (web / RDP / start-stop)
+    ├── specs
+    └── advanced (requirements, paths, logs, remove)
+
+footer
+└── Close
+```
+
+Layout plan: `docs/windows-vm-settings-layout.md`. Backend contract:
+`docs/windows-vm-settings-redesign.md`.
+
+## Appearance Reference Layout
+
+```text
+pagePadding
+├── left panel · Themes
+│   ├── current theme hero + swatches
+│   └── available theme grid
+├── columnGap
+└── right panel · Desktop & terminal
+    ├── wallpaper
+    ├── terminal font
+    └── window effects
+
+footer
+└── Close
+```
+
+Plan: `docs/appearance-settings-layout.md`.
+
+## Keyboard Remap Reference Layout
+
+```text
+pagePadding
+├── left panel · Status & keyboards
+│   ├── health hero
+│   ├── service actions
+│   └── device list
+├── columnGap
+└── right panel · Selected keyboard
+    ├── enable toggle
+    ├── presets
+    └── apply confirm (when armed)
+
+footer
+├── Close
+└── Discard / Apply  (when drafts pending)
+```
+
+Plan: `docs/keyboard-remap-settings-layout.md`.
+
+## Network Reference Layout
+
+```text
+pagePadding
+├── left panel · Connect
+│   ├── hero + Wi-Fi radio
+│   ├── available networks
+│   └── saved profiles
+├── columnGap
+└── right panel · Link & tools
+    ├── current link (IP/DNS/band/rates)
+    ├── diagnostics
+    ├── suggested Wi-Fi
+    └── advanced (firewall, nm tools)
+
+footer
+└── Close
+```
+
+Plan: `docs/network-settings-layout.md`. Connect protocol: `docs/wifi-connect-flow.md`.
+
 ## Slider Rows
 
 `SettingsSliderRow` uses a stacked layout: the label and optional description

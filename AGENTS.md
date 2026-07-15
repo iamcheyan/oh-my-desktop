@@ -196,6 +196,12 @@ Additional manual symlinks (not created by Init.sh):
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
 - Settings panel layout: `docs/settings-layout-system.md`
+- Voice settings redesign: `docs/voice-settings-redesign.md`
+- Windows VM settings layout: `docs/windows-vm-settings-layout.md`
+- Appearance settings layout: `docs/appearance-settings-layout.md`
+- Keyboard remap settings layout: `docs/keyboard-remap-settings-layout.md`
+- Wi-Fi connect flow: `docs/wifi-connect-flow.md`
+- Network settings layout: `docs/network-settings-layout.md`
 - Omarchy theme system: `docs/omarchy-theme-system.md`
 - Session persistence: `docs/session-persistence.md`
 - Deployment/portability: `docs/deployment-portability.md`
