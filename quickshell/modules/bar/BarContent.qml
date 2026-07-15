@@ -136,6 +136,10 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
+            InputMethodButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
             ClipboardButton {
                 Layout.alignment: Qt.AlignVCenter
             }
