@@ -85,9 +85,13 @@ page="${2:-overview}"
 
 if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
     if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
-        exec env GDK_SCALE=1 GDK_DPI_SCALE=0.5 pavucontrol
+        # Keep GTK4's Wayland output scaling automatic, but compensate for
+        # the high gtk-xft-dpi written by the KDE/Asahi desktop settings.
+        # GDK_SCALE=1 breaks output scaling; GDK_DPI_SCALE only adjusts text.
+        exec env -u GDK_SCALE GDK_DPI_SCALE=0.5 pavucontrol
     elif [ "$page" = "bluetooth" ]; then
-        exec env GDK_SCALE=1 GDK_DPI_SCALE=0.5 blueman-manager
+        # GTK3 Blueman scales correctly when both manual overrides are absent.
+        exec env -u GDK_SCALE -u GDK_DPI_SCALE blueman-manager
     fi
 fi
 
