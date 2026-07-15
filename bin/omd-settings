@@ -83,6 +83,12 @@ launch_direct() {
 action="${1:-open}"
 page="${2:-overview}"
 
+if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
+    if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
+        exec env GDK_SCALE=1 GDK_DPI_SCALE=0.5 pavucontrol
+    fi
+fi
+
 case "$action" in
     open)
         if is_running; then

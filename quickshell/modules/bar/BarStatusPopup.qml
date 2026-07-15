@@ -831,8 +831,8 @@ Scope {
 
                 PopupFooterLink {
                     Layout.fillWidth: true
-                    label: "Sound Settings…"
-                    onClicked: { root.close(); Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "sound"]); }
+                    label: "Volume Control…"
+                    onClicked: { root.close(); Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"]); }
                 }
             }
 

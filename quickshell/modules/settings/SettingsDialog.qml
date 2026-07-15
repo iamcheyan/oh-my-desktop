@@ -42,7 +42,6 @@ WindowDialog {
         { key: "overview", icon: "build", title: "OMD Tools", keywords: "tools advanced theme voice keyboard vm" },
         { key: "network", icon: "wifi", title: "Devices & Connection", keywords: "wifi wireless bluetooth internet lan device connection" },
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth device pairing wireless" },
-        { key: "sound", icon: "volume_up", title: "Sound & Feedback", keywords: "audio volume mute speaker microphone input output sounds feedback osd" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
@@ -101,7 +100,6 @@ WindowDialog {
         if (page === "keyremap") return keyremapPage;
         if (page === "windows") return windowsPage;
         if (page === "appearance") return appearancePageComponent;
-        if (page === "sound") return soundPageComponent;
         if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
         return overviewPageComponent;
@@ -171,7 +169,6 @@ WindowDialog {
 
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
-    Component { id: soundPageComponent; SoundPage { settingsRoot: root } }
 
     Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
