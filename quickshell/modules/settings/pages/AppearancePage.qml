@@ -11,398 +11,221 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
-PageBody {
+ColumnLayout {
     id: pageRoot
-    property var settingsRoot: null
 
-    property string optimizationMode: Persistent.ready ? (Persistent.states.display?.optimization ?? "balanced") : "balanced"
+    property var settingsRoot: null
+    readonly property bool wideLayout: width >= 980
+    readonly property string omdRoot: `${FileUtils.trimFileProtocol(Directories.config)}/omd`
+
+    property string optimizationMode: Persistent.ready
+        ? (Persistent.states.display?.optimization ?? "balanced")
+        : "balanced"
+
+    width: parent ? parent.width : 900
+    spacing: SettingsTokens.controlGap
+    implicitHeight: {
+        const viewportHeight = pageRoot.settingsRoot ? pageRoot.settingsRoot.height - 120 : 500
+        const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12
+        return Math.max(viewportHeight, contentHeight)
+    }
+
+    function parseKeyValue(text) {
+        const result = {}
+        const lines = String(text || "").split("\n")
+        for (const line of lines) {
+            const idx = line.indexOf("=")
+            if (idx > 0)
+                result[line.slice(0, idx)] = line.slice(idx + 1)
+        }
+        return result
+    }
+
+    function fileUrl(path) {
+        const p = String(path || "").trim()
+        if (p.length === 0)
+            return ""
+        if (p.startsWith("file://"))
+            return p
+        return "file://" + p
+    }
 
     function applyOptimization(mode) {
-        if (!Persistent.ready) return;
-        Persistent.states.display.optimization = mode;
+        if (!Persistent.ready)
+            return
+        Persistent.states.display.optimization = mode
+        pageRoot.optimizationMode = mode
 
-        let evalStr = "";
-        if (mode === "performance") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })";
-        } else if (mode === "balanced") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })";
-        } else if (mode === "visuals") {
-            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })";
+        let evalStr = ""
+        if (mode === "performance")
+            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })"
+        else if (mode === "balanced")
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })"
+        else if (mode === "visuals")
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })"
+
+        if (evalStr !== "")
+            Quickshell.execDetached(["hyprctl", "eval", evalStr])
+    }
+
+    QtObject {
+        id: wpState
+        property string mode: "file"
+        property string source: ""
+        property string current: ""
+        property string interval: "1800"
+        property int imageCount: 0
+
+        readonly property bool isFolder: mode === "folder"
+        readonly property string intervalLabel: {
+            const sec = parseInt(interval) || 1800
+            if (sec >= 3600)
+                return `${Math.round(sec / 3600)}h`
+            if (sec >= 60)
+                return `${Math.round(sec / 60)}m`
+            return `${sec}s`
         }
 
-        if (evalStr !== "") {
-            Quickshell.execDetached(["hyprctl", "eval", evalStr]);
+        function refresh() {
+            wallpaperStatusProc.running = true
         }
     }
 
     QtObject {
-                id: wpState
-                property string mode: "file"
-                property string source: ""
-                property string current: ""
-                property string interval: "1800"
-                property int imageCount: 0
+        id: appearanceState
+        property string currentFont: ""
+        property int terminalFontSize: 9
+    }
 
-                readonly property bool isFolder: mode === "folder"
-                readonly property string intervalLabel: {
-                    const sec = parseInt(interval) || 1800
-                    if (sec >= 3600) return `${Math.round(sec / 3600)}h`
-                    if (sec >= 60) return `${Math.round(sec / 60)}m`
-                    return `${sec}s`
-                }
+    QtObject {
+        id: themeState
+        property var themes: []
+        property string currentSlug: ""
+        property string currentName: "Loading…"
+        property string currentAccent: SettingsTokens.accent
+        property string currentBackground: SettingsTokens.button
+        property string currentForeground: SettingsTokens.fg
+        property string applyingSlug: ""
+        property string message: ""
 
-                function refresh() {
-                    wallpaperStatusProc.running = true
-                }
-            }
+        function refresh() {
+            themeListProc.running = true
+            themeCurrentProc.running = true
+        }
 
-            Connections {
-                target: root
-                function onWallpaperRefreshNonceChanged() {
-                    wpRefreshTimer.restart()
-                }
-            }
+        function apply(slug) {
+            if (!slug || slug.length === 0 || applyingSlug.length > 0)
+                return
+            applyingSlug = slug
+            message = `Applying ${slug}…`
+            themeApplyProc.command = [
+                "bash", "-c",
+                `$HOME/.config/omd/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}'`
+            ]
+            themeApplyProc.running = true
+        }
+    }
 
-            SettingsCard {
-                title: "Wallpaper"
-                subtitle: wpState.isFolder ? "Folder rotation" : "Single image"
+    Connections {
+        target: pageRoot.settingsRoot
+        function onWallpaperRefreshNonceChanged() {
+            wpRefreshTimer.restart()
+        }
+    }
 
-                RowLayout {
+    GridLayout {
+        id: contentGrid
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        columns: pageRoot.wideLayout ? 2 : 1
+        columnSpacing: SettingsTokens.columnGap
+        rowSpacing: SettingsTokens.columnGap
+
+        // ════════════════════════════════════════
+        // LEFT · Themes
+        // ════════════════════════════════════════
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.preferredWidth: pageRoot.wideLayout
+                ? (contentGrid.width - SettingsTokens.columnGap) / 2
+                : contentGrid.width
+            implicitHeight: leftColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            radius: SettingsTokens.roundRadius
+            color: SettingsTokens.panel
+            border.width: 1
+            border.color: SettingsTokens.line
+
+            ColumnLayout {
+                id: leftColumn
+                anchors.fill: parent
+                anchors.margins: SettingsTokens.panelPadding
+                spacing: SettingsTokens.sectionGap
+
+                // Hero
+                Item {
                     Layout.fillWidth: true
-                    spacing: 14
+                    implicitHeight: 68
 
-                    Rectangle {
-                        Layout.preferredWidth: 210
-                        Layout.preferredHeight: 118
-                        radius: SettingsTokens.radius
-                        color: SettingsTokens.button
-                        clip: true
-
-                        Image {
-                            id: wallpaperPreview
-                            anchors.fill: parent
-                            source: settingsRoot.fileUrl(wpState.current)
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            visible: source.toString().length > 0 && wpState.current.length > 0
-                        }
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 14
 
                         Rectangle {
-                            anchors.fill: parent
-                            color: SettingsTokens.button
-                            visible: !wallpaperPreview.visible
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 48
+                            radius: SettingsTokens.radius
+                            color: themeState.currentAccent || SettingsTokens.accentSoft
+                            border.width: 1
+                            border.color: SettingsTokens.line
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
-                                text: wpState.isFolder ? "folder" : "image"
-                                iconSize: 36
-                                color: SettingsTokens.dim
+                                text: "palette"
+                                iconSize: 25
+                                color: themeState.currentBackground || SettingsTokens.fg
                             }
                         }
 
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.bottom: parent.bottom
-                            anchors.margins: 6
-                            width: modeBadge.implicitWidth + 16
-                            height: 22
-                            radius: 11
-                            color: wpState.isFolder ? SettingsTokens.accentSoft : "#3a3a3a"
-                            border.width: 1
-                            border.color: wpState.isFolder ? SettingsTokens.accent : "#555"
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
 
-                            Row {
-                                id: modeBadge
-                                anchors.centerIn: parent
-                                spacing: 4
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: "Themes"
+                                color: SettingsTokens.fg
+                                font.pixelSize: Appearance.font.pixelSize.large
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
 
-                                MaterialSymbol {
-                                    text: wpState.isFolder ? "folder" : "image"
-                                    iconSize: 14
-                                    color: wpState.isFolder ? SettingsTokens.accent : SettingsTokens.muted
-                                }
-
-                                StyledText {
-                                    text: wpState.isFolder ? "Folder" : "Image"
-                                    color: wpState.isFolder ? SettingsTokens.accent : SettingsTokens.muted
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    font.weight: Font.Medium
-                                }
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: themeState.applyingSlug.length > 0
+                                    ? `Applying ${themeState.applyingSlug}…`
+                                    : `${themeState.currentName}  ·  ${themeState.themes.length} available`
+                                color: SettingsTokens.muted
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                elide: Text.ElideRight
                             }
                         }
                     }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: wpState.source.length > 0 ? FileUtils.fileNameForPath(wpState.source) : "No wallpaper set"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.Medium
-                            elide: Text.ElideRight
-                        }
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            visible: wpState.source.length > 0
-                            text: wpState.source
-                            color: SettingsTokens.dim
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            elide: Text.ElideRight
-                        }
-
-                        StyledText {
-                            Layout.fillWidth: true
-                            visible: wpState.isFolder && wpState.imageCount > 0
-                            text: `${wpState.imageCount} images · rotates every ${wpState.intervalLabel}`
-                            color: SettingsTokens.muted
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                        }
-                    }
                 }
 
-                ButtonRow {
-                    SettingsButton {
-                        label: "Choose Image"
-                        iconName: "image"
-                        active: !wpState.isFolder
-                        onClicked: settingsRoot.openWallpaperPicker("file")
-                    }
-                    SettingsButton {
-                        label: "Choose Folder"
-                        iconName: "folder"
-                        active: wpState.isFolder
-                        onClicked: settingsRoot.openWallpaperPicker("folder")
-                    }
-                }
-
-                ButtonRow {
-                    visible: wpState.isFolder
-                    SettingsButton {
-                        label: "Next Image"
-                        iconName: "skip_next"
-                        onClicked: {
-                            Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper random"])
-                            wpRefreshTimer.restart()
-                        }
-                    }
-                    SettingsButton {
-                        label: "Stop Rotation"
-                        iconName: "stop"
-                        onClicked: {
-                            Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper stop"])
-                            wpRefreshTimer.restart()
-                        }
-                    }
-                }
-
-                // Rotation interval slider (folder mode only)
-                ColumnLayout {
+                Rectangle {
                     Layout.fillWidth: true
-                    spacing: 6
-                    visible: wpState.isFolder && wpState.imageCount > 0
-                    SettingsSliderRow {
-                        label: "Rotation interval"
-                        description: "How often to rotate the wallpaper"
-                        from: 300
-                        to: 7200
-                        stepSize: 300
-                        value: parseInt(wpState.interval) || 1800
-                        formatValue: val => wpState.intervalLabel
-                        onMoved: {
-                            Quickshell.execDetached(["bash", "-c",
-                                'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
-                                '$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ' +
-                                '$HOME/.config/omd/bin/omd-wallpaper random'])
-                            wpRefreshTimer.restart()
-                        }
-                    }
-                }
-            }
-
-            Timer {
-                id: wpRefreshTimer
-                interval: 1500
-                repeat: false
-                onTriggered: wpState.refresh()
-            }
-
-            Timer {
-                interval: 5000
-                repeat: true
-                running: true
-                onTriggered: wpState.refresh()
-            }
-
-            Process {
-                id: wallpaperStatusProc
-                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper status 2>/dev/null || true"]
-                running: true
-                stdout: StdioCollector {
-                    id: wallpaperStatusCollector
-                    onStreamFinished: {
-                        const data = settingsRoot.parseKeyValue(wallpaperStatusCollector.text)
-                        wpState.mode = data.mode || "file"
-                        wpState.source = data.source || ""
-                        wpState.current = data.current || ""
-                        wpState.interval = data.interval || "1800"
-                        if (wpState.isFolder && wpState.source.length > 0) {
-                            wallpaperCountProc.running = true
-                        } else {
-                            wpState.imageCount = 0
-                        }
-                    }
-                }
-            }
-
-            Process {
-                id: wallpaperCountProc
-                command: ["bash", "-c", `find -L '${wpState.source}' -maxdepth 1 -type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' \\) 2>/dev/null | wc -l`]
-                stdout: StdioCollector {
-                    id: wallpaperCountCollector
-                    onStreamFinished: {
-                        wpState.imageCount = parseInt(wallpaperCountCollector.text.trim()) || 0
-                    }
-                }
-            }
-
-            SettingsCard {
-                title: "Terminal Font"
-                subtitle: "Font family and size for all terminals"
-
-                SettingsRow {
-                    label: "Current font"
-                    value: appearanceState.currentFont.length > 0 ? appearanceState.currentFont : "--"
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
                 }
 
-                // Terminal font size slider
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    SettingsSliderRow {
-                        label: "Terminal font size"
-                        description: "Applies to foot, kitty, alacritty, and ghostty. New windows will use the new size."
-                        from: 6
-                        to: 24
-                        stepSize: 1
-                        value: appearanceState.terminalFontSize
-                        valueSuffix: "pt"
-                        onMoved: appearanceState.terminalFontSize = Math.round(value)
-                    }
-                }
-
-                ButtonRow {
-                    SettingsButton {
-                        label: "Apply Now"
-                        iconName: "check"
-                        onClicked: applyTerminalFontProc.running = true
-                    }
-                }
-            }
-
-            QtObject {
-                id: appearanceState
-                property string currentTheme: ""
-                property string currentFont: ""
-                property int terminalFontSize: 9
-            }
-
-            Process {
-                id: fontSizeReadProc
-                command: ["bash", "-c", 'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9']
-                running: true
-                stdout: StdioCollector {
-                    id: fontSizeCollector
-                    onStreamFinished: {
-                        const val = parseFloat(fontSizeCollector.text.trim())
-                        if (!isNaN(val) && val > 0)
-                            appearanceState.terminalFontSize = Math.round(val)
-                    }
-                }
-            }
-
-            Process {
-                id: applyTerminalFontProc
-                running: false
-                command: ["bash", "-c",
-                    'SIZE=' + appearanceState.terminalFontSize + '\n' +
-                    '# foot\n' +
-                    'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omd/config/foot/foot.ini" 2>/dev/null\n' +
-                    '# kitty\n' +
-                    'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null\n' +
-                    '# alacritty\n' +
-                    'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null\n' +
-                    '# ghostty\n' +
-                    'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omd/config/ghostty/config" 2>/dev/null\n' +
-                    'true']
-                onExited: {
-                    fontSizeReadProc.running = true
-                }
-            }
-
-            Process {
-                id: themeCurrentProc
-                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme current"]
-                running: true
-                stdout: StdioCollector {
-                    id: themeCurrentCollector
-                    onStreamFinished: {
-                        const data = settingsRoot.parseKeyValue(themeCurrentCollector.text);
-                        appearanceState.currentTheme = data.name || "Unknown";
-                    }
-                }
-            }
-
-            Process {
-                id: fontCurrentProc
-                command: ["bash", "-c", "omd-font-current 2>/dev/null || echo 'JetBrains Mono'"]
-                running: true
-                stdout: StdioCollector {
-                    id: fontCurrentCollector
-                    onStreamFinished: {
-                        appearanceState.currentFont = fontCurrentCollector.text.trim();
-                    }
-                }
-            }
-
-            QtObject {
-                id: themeState
-                property var themes: []
-                property string currentSlug: ""
-                property string currentName: "Loading..."
-                property string currentAccent: SettingsTokens.accent
-                property string currentBackground: SettingsTokens.button
-                property string currentForeground: SettingsTokens.fg
-                property string applyingSlug: ""
-
-                function refresh() {
-                    themeListProc.running = true;
-                    themeCurrentProc2.running = true;
-                }
-
-                function apply(slug) {
-                    if (!slug || slug.length === 0 || applyingSlug.length > 0)
-                        return;
-                    applyingSlug = slug;
-                    themeApplyProc.command = ["bash", "-c", `$HOME/.config/omd/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}'`];
-                    themeApplyProc.running = true;
-                }
-            }
-
-            SettingsCard {
-                title: "Current Theme"
-                subtitle: themeState.currentName
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 18
+                // Current theme card
+                SettingsSection {
+                    title: "Current"
 
                     Rectangle {
-                        Layout.preferredWidth: 260
-                        Layout.preferredHeight: 132
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 110
                         radius: SettingsTokens.radius
                         color: themeState.currentBackground || SettingsTokens.button
                         border.width: 1
@@ -419,11 +242,11 @@ PageBody {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 22
-                            anchors.rightMargin: 16
-                            anchors.topMargin: 16
-                            anchors.bottomMargin: 16
-                            spacing: 12
+                            anchors.leftMargin: 18
+                            anchors.rightMargin: 14
+                            anchors.topMargin: 14
+                            anchors.bottomMargin: 12
+                            spacing: 10
 
                             StyledText {
                                 Layout.fillWidth: true
@@ -437,14 +260,17 @@ PageBody {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 8
-
                                 Repeater {
-                                    model: [themeState.currentAccent || SettingsTokens.accent, themeState.currentForeground || SettingsTokens.fg, themeState.currentBackground || "#000000"]
+                                    model: [
+                                        themeState.currentAccent || SettingsTokens.accent,
+                                        themeState.currentForeground || SettingsTokens.fg,
+                                        themeState.currentBackground || "#000000"
+                                    ]
                                     delegate: Rectangle {
                                         required property string modelData
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 24
-                                        radius: 12
+                                        Layout.preferredHeight: 22
+                                        radius: 11
                                         color: modelData
                                         border.width: 1
                                         border.color: SettingsTokens.buttonBorder
@@ -454,243 +280,619 @@ PageBody {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignBottom
                                 text: themeState.currentSlug
                                 color: themeState.currentForeground || SettingsTokens.dim
                                 opacity: 0.72
-                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 elide: Text.ElideRight
                             }
                         }
                     }
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
+                    ButtonRow {
+                        SettingsButton {
+                            label: "Refresh"
+                            iconName: "refresh"
+                            onClicked: themeState.refresh()
+                        }
+                        SettingsButton {
+                            label: "Open folder"
+                            iconName: "open_in_new"
+                            onClicked: Quickshell.execDetached([
+                                "xdg-open",
+                                `${pageRoot.omdRoot}/current/theme`
+                            ])
+                        }
+                    }
 
-                        ButtonRow {
-                            SettingsButton {
-                                label: "Refresh"
-                                iconName: "refresh"
-                                onClicked: themeState.refresh()
+                    StyledText {
+                        visible: themeState.message.length > 0
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        text: themeState.message
+                        color: SettingsTokens.accent
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                    }
+                }
+
+                // Theme grid
+                SettingsSection {
+                    title: "Available"
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        text: "Click a theme to apply. Previews come from colors.toml."
+                        color: SettingsTokens.dim
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Flow {
+                        id: themeFlow
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Repeater {
+                            model: themeState.themes
+                            delegate: Rectangle {
+                                required property var modelData
+
+                                width: {
+                                    const cols = pageRoot.wideLayout ? 2 : 2
+                                    return Math.max(160, Math.floor((themeFlow.width - themeFlow.spacing * (cols - 1)) / cols))
+                                }
+                                height: 118
+                                radius: SettingsTokens.roundRadius
+                                color: modelData.background || SettingsTokens.button
+                                border.width: modelData.current ? 2 : 1
+                                border.color: modelData.current ? SettingsTokens.accent : SettingsTokens.buttonBorder
+                                clip: true
+                                opacity: themeState.applyingSlug.length > 0
+                                    && themeState.applyingSlug !== modelData.slug ? 0.55 : 1
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: themeMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
+                                    opacity: themeMouse.containsMouse ? 0.18 : 0
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    width: 5
+                                    color: modelData.accent || SettingsTokens.accent
+                                }
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 16
+                                    anchors.rightMargin: 12
+                                    anchors.topMargin: 12
+                                    anchors.bottomMargin: 10
+                                    spacing: 8
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: modelData.name
+                                            color: modelData.foreground || SettingsTokens.fg
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            font.weight: Font.DemiBold
+                                            elide: Text.ElideRight
+                                        }
+
+                                        SettingsStatusPill {
+                                            visible: modelData.current || themeState.applyingSlug === modelData.slug
+                                            label: themeState.applyingSlug === modelData.slug ? "Applying" : "Current"
+                                            active: true
+                                        }
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: modelData.slug
+                                        color: modelData.foreground || SettingsTokens.dim
+                                        opacity: 0.62
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Item { Layout.fillHeight: true }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+                                        Repeater {
+                                            model: [
+                                                modelData.accent || SettingsTokens.accent,
+                                                modelData.foreground || SettingsTokens.fg,
+                                                modelData.background || "#000000"
+                                            ]
+                                            delegate: Rectangle {
+                                                required property string modelData
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: 16
+                                                radius: 8
+                                                color: modelData
+                                                border.width: 1
+                                                border.color: SettingsTokens.buttonBorder
+                                            }
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: themeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    enabled: themeState.applyingSlug.length === 0
+                                    onClicked: themeState.apply(modelData.slug)
+                                }
                             }
-                            SettingsButton {
-                                label: "Open Theme Folder"
-                                iconName: "open_in_new"
-                                onClicked: Quickshell.execDetached(["xdg-open", `${FileUtils.trimFileProtocol(Directories.config)}/omd/current/theme`])
-                            }
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
+            }
+        }
+
+        // ════════════════════════════════════════
+        // RIGHT · Wallpaper, font, effects
+        // ════════════════════════════════════════
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.preferredWidth: pageRoot.wideLayout
+                ? (contentGrid.width - SettingsTokens.columnGap) / 2
+                : contentGrid.width
+            implicitHeight: rightColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            radius: SettingsTokens.roundRadius
+            color: SettingsTokens.panel
+            border.width: 1
+            border.color: SettingsTokens.line
+
+            ColumnLayout {
+                id: rightColumn
+                anchors.fill: parent
+                anchors.margins: SettingsTokens.panelPadding
+                spacing: SettingsTokens.sectionGap
+
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: 40
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 3
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Desktop & terminal"
+                            color: SettingsTokens.fg
+                            font.pixelSize: Appearance.font.pixelSize.large
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
                         }
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: "Theme previews are generated from colors.toml, so themes do not need screenshots."
-                            color: SettingsTokens.dim
-                            wrapMode: Text.WordWrap
+                            text: wpState.isFolder
+                                ? `Folder rotation · every ${wpState.intervalLabel}`
+                                : "Wallpaper, font size, and window effects"
+                            color: SettingsTokens.muted
                             font.pixelSize: Appearance.font.pixelSize.small
+                            elide: Text.ElideRight
                         }
                     }
                 }
-            }
 
-            SettingsCard {
-                title: "Available Themes"
-                subtitle: `${themeState.themes.length} entries`
-
-                Flow {
-                    id: themeFlow
+                Rectangle {
                     Layout.fillWidth: true
-                    spacing: 12
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
+                }
 
-                    Repeater {
-                        model: themeState.themes
-                        delegate: Rectangle {
-                            required property var modelData
+                // Wallpaper
+                SettingsSection {
+                    title: "Wallpaper"
 
-                            width: Math.max(220, Math.floor((themeFlow.width - themeFlow.spacing) / 2))
-                            height: 134
-                            radius: SettingsTokens.roundRadius
-                            color: modelData.background || SettingsTokens.button
-                            border.width: modelData.current ? 2 : 1
-                            border.color: modelData.current ? SettingsTokens.accent : SettingsTokens.buttonBorder
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        Rectangle {
+                            Layout.preferredWidth: 160
+                            Layout.preferredHeight: 90
+                            radius: SettingsTokens.radius
+                            color: SettingsTokens.button
                             clip: true
+                            border.width: 1
+                            border.color: SettingsTokens.line
+
+                            Image {
+                                id: wallpaperPreview
+                                anchors.fill: parent
+                                source: pageRoot.fileUrl(wpState.current)
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                visible: source.toString().length > 0 && wpState.current.length > 0
+                            }
 
                             Rectangle {
                                 anchors.fill: parent
-                                color: themeMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
-                                opacity: themeMouse.containsMouse ? 0.18 : 0
+                                color: SettingsTokens.button
+                                visible: !wallpaperPreview.visible
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: wpState.isFolder ? "folder" : "image"
+                                    iconSize: 32
+                                    color: SettingsTokens.dim
+                                }
                             }
 
                             Rectangle {
                                 anchors.left: parent.left
-                                anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                width: 5
-                                color: modelData.accent || SettingsTokens.accent
-                            }
+                                anchors.margins: 6
+                                width: modeBadge.implicitWidth + 14
+                                height: 20
+                                radius: 10
+                                color: wpState.isFolder ? SettingsTokens.accentSoft : SettingsTokens.panelAlt
+                                border.width: 1
+                                border.color: wpState.isFolder ? SettingsTokens.accent : SettingsTokens.line
 
-                            ColumnLayout {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 14
-                                anchors.topMargin: 14
-                                anchors.bottomMargin: 12
-                                spacing: 10
+                                Row {
+                                    id: modeBadge
+                                    anchors.centerIn: parent
+                                    spacing: 4
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
+                                    MaterialSymbol {
+                                        text: wpState.isFolder ? "folder" : "image"
+                                        iconSize: 12
+                                        color: wpState.isFolder ? SettingsTokens.accent : SettingsTokens.muted
+                                    }
                                     StyledText {
-                                        Layout.fillWidth: true
-                                        text: modelData.name
-                                        color: modelData.foreground || SettingsTokens.fg
-                                        font.pixelSize: Appearance.font.pixelSize.normal
-                                        font.weight: Font.DemiBold
-                                        elide: Text.ElideRight
-                                    }
-
-                                    SettingsStatusPill {
-                                        visible: modelData.current || themeState.applyingSlug === modelData.slug
-                                        label: themeState.applyingSlug === modelData.slug ? "Applying" : "Current"
-                                        active: true
-                                    }
-                                }
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: modelData.slug
-                                    color: modelData.foreground || SettingsTokens.dim
-                                    opacity: 0.62
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-
-                                Item {
-                                    Layout.fillHeight: true
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    Repeater {
-                                        model: [modelData.accent || SettingsTokens.accent, modelData.foreground || SettingsTokens.fg, modelData.background || "#000000"]
-                                        delegate: Rectangle {
-                                            required property string modelData
-                                            Layout.fillWidth: true
-                                            Layout.preferredHeight: 20
-                                            radius: 10
-                                            color: modelData
-                                            border.width: 1
-                                            border.color: SettingsTokens.buttonBorder
-                                        }
+                                        text: wpState.isFolder ? "Folder" : "Image"
+                                        color: wpState.isFolder ? SettingsTokens.accent : SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        font.weight: Font.Medium
                                     }
                                 }
                             }
+                        }
 
-                            MouseArea {
-                                id: themeMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: themeState.apply(modelData.slug)
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: wpState.source.length > 0
+                                    ? FileUtils.fileNameForPath(wpState.source)
+                                    : "No wallpaper set"
+                                color: SettingsTokens.fg
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                visible: wpState.source.length > 0
+                                text: wpState.source
+                                color: SettingsTokens.dim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                elide: Text.ElideRight
+                                wrapMode: Text.WrapAnywhere
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                visible: wpState.isFolder && wpState.imageCount > 0
+                                text: `${wpState.imageCount} images · every ${wpState.intervalLabel}`
+                                color: SettingsTokens.muted
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                             }
                         }
                     }
-                }
-            }
 
-            Process {
-                id: themeListProc
-                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme list"]
-                running: true
-                stdout: StdioCollector {
-                    id: themeListCollector2
-                    onStreamFinished: {
-                        const entries = [];
-                        for (const line of themeListCollector2.text.trim().split("\n")) {
-                            if (line.length === 0) continue;
-                            const parts = line.split("\t");
-                            entries.push({
-                                slug: parts[0] || "",
-                                name: parts[1] || parts[0] || "",
-                                preview: parts[2] || "",
-                                current: (parts[3] || "") === "current",
-                                accent: parts[4] || "",
-                                background: parts[5] || "",
-                                foreground: parts[6] || ""
-                            });
+                    ButtonRow {
+                        SettingsButton {
+                            label: "Choose image"
+                            iconName: "image"
+                            active: !wpState.isFolder
+                            onClicked: {
+                                if (pageRoot.settingsRoot)
+                                    pageRoot.settingsRoot.openWallpaperPicker("file")
+                            }
                         }
-                        themeState.themes = entries;
+                        SettingsButton {
+                            label: "Choose folder"
+                            iconName: "folder"
+                            active: wpState.isFolder
+                            onClicked: {
+                                if (pageRoot.settingsRoot)
+                                    pageRoot.settingsRoot.openWallpaperPicker("folder")
+                            }
+                        }
+                    }
+
+                    ButtonRow {
+                        visible: wpState.isFolder
+                        SettingsButton {
+                            label: "Next image"
+                            iconName: "skip_next"
+                            onClicked: {
+                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper random"])
+                                wpRefreshTimer.restart()
+                            }
+                        }
+                        SettingsButton {
+                            label: "Stop rotation"
+                            iconName: "stop"
+                            onClicked: {
+                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper stop"])
+                                wpRefreshTimer.restart()
+                            }
+                        }
+                    }
+
+                    SettingsSliderRow {
+                        visible: wpState.isFolder && wpState.imageCount > 0
+                        label: "Rotation interval"
+                        description: "How often to change the wallpaper"
+                        from: 300
+                        to: 7200
+                        stepSize: 300
+                        value: parseInt(wpState.interval) || 1800
+                        formatValue: val => wpState.intervalLabel
+                        onMoved: {
+                            Quickshell.execDetached([
+                                "bash", "-c",
+                                'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
+                                '$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ' +
+                                '$HOME/.config/omd/bin/omd-wallpaper random'
+                            ])
+                            wpRefreshTimer.restart()
+                        }
                     }
                 }
-            }
 
-            Process {
-                id: themeCurrentProc2
-                command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme current"]
-                running: true
-                stdout: StdioCollector {
-                    id: themeCurrentCollector2
-                    onStreamFinished: {
-                        const data = settingsRoot.parseKeyValue(themeCurrentCollector2.text);
-                        themeState.currentSlug = data.slug || "";
-                        themeState.currentName = data.name || "Unknown";
-                        themeState.currentAccent = data.accent || SettingsTokens.accent;
-                        themeState.currentBackground = data.background || SettingsTokens.button;
-                        themeState.currentForeground = data.foreground || SettingsTokens.fg;
+                // Terminal font
+                SettingsSection {
+                    title: "Terminal font"
+
+                    SettingsRow {
+                        label: "Family"
+                        value: appearanceState.currentFont.length > 0 ? appearanceState.currentFont : "--"
+                        clickable: false
                     }
-                }
-            }
 
-            Process {
-                id: themeApplyProc
-                running: false
-                onExited: (exitCode, exitStatus) => {
-                    OmarchyTheme.reload();
-                    themeState.applyingSlug = "";
-                    themeState.refresh();
-                }
-            }
+                    SettingsSliderRow {
+                        label: "Size"
+                        description: "foot, kitty, alacritty, ghostty · new windows"
+                        from: 6
+                        to: 24
+                        stepSize: 1
+                        value: appearanceState.terminalFontSize
+                        valueSuffix: "pt"
+                        onMoved: appearanceState.terminalFontSize = Math.round(value)
+                    }
 
-            SettingsCard {
-                title: "Performance & Effects"
-                subtitle: pageRoot.optimizationMode === "performance" ? "High Performance" : pageRoot.optimizationMode === "balanced" ? "Balanced" : "Best Visuals"
-
-                ButtonRow {
                     SettingsButton {
-                        label: "High Perf"
-                        iconName: "speed"
-                        active: pageRoot.optimizationMode === "performance"
-                        onClicked: pageRoot.applyOptimization("performance")
-                    }
-                    SettingsButton {
-                        label: "Balanced"
-                        iconName: "balance"
-                        active: pageRoot.optimizationMode === "balanced"
-                        onClicked: pageRoot.applyOptimization("balanced")
-                    }
-                    SettingsButton {
-                        label: "Best Visuals"
-                        iconName: "palette"
-                        active: pageRoot.optimizationMode === "visuals"
-                        onClicked: pageRoot.applyOptimization("visuals")
+                        Layout.fillWidth: true
+                        label: "Apply font size"
+                        iconName: "check"
+                        onClicked: applyTerminalFontProc.running = true
                     }
                 }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: pageRoot.optimizationMode === "performance"
-                        ? "Frosted glass blur effect is disabled for maximum UI smoothness and battery life."
-                        : pageRoot.optimizationMode === "balanced"
-                            ? "1 blur pass enabled. High-quality frosted glass look with 50% GPU load reduction (best for integrated GPUs)."
-                            : "2 blur passes enabled. Full-resolution premium glass aesthetics (best for dedicated GPUs)."
-                    color: SettingsTokens.dim
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    wrapMode: Text.WordWrap
+                // Performance
+                SettingsSection {
+                    title: "Window effects"
+
+                    ButtonRow {
+                        SettingsButton {
+                            label: "High perf"
+                            iconName: "speed"
+                            active: pageRoot.optimizationMode === "performance"
+                            onClicked: pageRoot.applyOptimization("performance")
+                        }
+                        SettingsButton {
+                            label: "Balanced"
+                            iconName: "balance"
+                            active: pageRoot.optimizationMode === "balanced"
+                            onClicked: pageRoot.applyOptimization("balanced")
+                        }
+                        SettingsButton {
+                            label: "Visuals"
+                            iconName: "palette"
+                            active: pageRoot.optimizationMode === "visuals"
+                            onClicked: pageRoot.applyOptimization("visuals")
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        text: pageRoot.optimizationMode === "performance"
+                            ? "Blur and animations off — smoother UI, less GPU."
+                            : pageRoot.optimizationMode === "balanced"
+                                ? "One blur pass — good for integrated GPUs."
+                                : "Two blur passes — fullest glass look."
+                        color: SettingsTokens.dim
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.WordWrap
+                    }
                 }
+
+                Item { Layout.fillHeight: true }
             }
+        }
+    }
+
+    // ── Processes / timers ──
+
+    Timer {
+        id: wpRefreshTimer
+        interval: 1500
+        repeat: false
+        onTriggered: wpState.refresh()
+    }
+
+    Timer {
+        interval: 5000
+        repeat: true
+        running: true
+        onTriggered: wpState.refresh()
+    }
+
+    Timer {
+        id: themeMessageTimer
+        interval: 3000
+        repeat: false
+        onTriggered: themeState.message = ""
+    }
+
+    Process {
+        id: wallpaperStatusProc
+        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper status 2>/dev/null || true"]
+        running: true
+        stdout: StdioCollector {
+            id: wallpaperStatusCollector
+            onStreamFinished: {
+                const data = pageRoot.parseKeyValue(wallpaperStatusCollector.text)
+                wpState.mode = data.mode || "file"
+                wpState.source = data.source || ""
+                wpState.current = data.current || ""
+                wpState.interval = data.interval || "1800"
+                if (wpState.isFolder && wpState.source.length > 0)
+                    wallpaperCountProc.running = true
+                else
+                    wpState.imageCount = 0
+            }
+        }
+    }
+
+    Process {
+        id: wallpaperCountProc
+        command: [
+            "bash", "-c",
+            `find -L '${wpState.source}' -maxdepth 1 -type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' \\) 2>/dev/null | wc -l`
+        ]
+        stdout: StdioCollector {
+            id: wallpaperCountCollector
+            onStreamFinished: {
+                wpState.imageCount = parseInt(wallpaperCountCollector.text.trim()) || 0
+            }
+        }
+    }
+
+    Process {
+        id: fontSizeReadProc
+        command: [
+            "bash", "-c",
+            'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9'
+        ]
+        running: true
+        stdout: StdioCollector {
+            id: fontSizeCollector
+            onStreamFinished: {
+                const val = parseFloat(fontSizeCollector.text.trim())
+                if (!isNaN(val) && val > 0)
+                    appearanceState.terminalFontSize = Math.round(val)
+            }
+        }
+    }
+
+    Process {
+        id: applyTerminalFontProc
+        running: false
+        command: [
+            "bash", "-c",
+            'SIZE=' + appearanceState.terminalFontSize + '\n' +
+            'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omd/config/foot/foot.ini" 2>/dev/null\n' +
+            'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null\n' +
+            'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null\n' +
+            'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omd/config/ghostty/config" 2>/dev/null\n' +
+            'true'
+        ]
+        onExited: fontSizeReadProc.running = true
+    }
+
+    Process {
+        id: fontCurrentProc
+        command: ["bash", "-c", "omd-font-current 2>/dev/null || echo 'JetBrains Mono'"]
+        running: true
+        stdout: StdioCollector {
+            id: fontCurrentCollector
+            onStreamFinished: {
+                appearanceState.currentFont = fontCurrentCollector.text.trim()
+            }
+        }
+    }
+
+    Process {
+        id: themeListProc
+        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme list"]
+        running: true
+        stdout: StdioCollector {
+            id: themeListCollector
+            onStreamFinished: {
+                const entries = []
+                for (const line of themeListCollector.text.trim().split("\n")) {
+                    if (line.length === 0)
+                        continue
+                    const parts = line.split("\t")
+                    entries.push({
+                        slug: parts[0] || "",
+                        name: parts[1] || parts[0] || "",
+                        preview: parts[2] || "",
+                        current: (parts[3] || "") === "current",
+                        accent: parts[4] || "",
+                        background: parts[5] || "",
+                        foreground: parts[6] || ""
+                    })
+                }
+                themeState.themes = entries
+            }
+        }
+    }
+
+    Process {
+        id: themeCurrentProc
+        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme current"]
+        running: true
+        stdout: StdioCollector {
+            id: themeCurrentCollector
+            onStreamFinished: {
+                const data = pageRoot.parseKeyValue(themeCurrentCollector.text)
+                themeState.currentSlug = data.slug || ""
+                themeState.currentName = data.name || "Unknown"
+                themeState.currentAccent = data.accent || SettingsTokens.accent
+                themeState.currentBackground = data.background || SettingsTokens.button
+                themeState.currentForeground = data.foreground || SettingsTokens.fg
+            }
+        }
+    }
+
+    Process {
+        id: themeApplyProc
+        running: false
+        onExited: (exitCode) => {
+            OmarchyTheme.reload()
+            themeState.applyingSlug = ""
+            themeState.message = exitCode === 0 ? "Theme applied" : "Theme apply failed"
+            themeMessageTimer.restart()
+            themeState.refresh()
+        }
+    }
 }

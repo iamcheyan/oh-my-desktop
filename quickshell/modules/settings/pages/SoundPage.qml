@@ -550,7 +550,10 @@ ColumnLayout {
                     SettingsButton {
                         label: "Volume Control"
                         iconName: "open_in_new"
-                        onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"]) }
+                        onClicked: {
+                            pageRoot.settingsRoot.dismiss()
+                            Quickshell.execDetached([Quickshell.env("HOME") + "/.config/omd/bin/omd-settings", "open", "sound"])
+                        }
                     }
                 }
                 }
