@@ -128,15 +128,15 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
+            InputMethodButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
             AudioButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
             WifiButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            InputMethodButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
