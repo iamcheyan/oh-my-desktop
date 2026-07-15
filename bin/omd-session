@@ -21,6 +21,13 @@ TERMINAL_HELPER_NAMES = (
     "tmux", "zellij",
 )
 FIREFOX_CLASSES = ("firefox", "org.mozilla.firefox")
+FIREFOX_ENV_KEYS = (
+    "MOZ_ENABLE_WAYLAND",
+    "GDK_BACKEND",
+    "GDK_SCALE",
+    "GDK_DPI_SCALE",
+    "XCURSOR_SIZE",
+)
 
 
 def run_json(*args):
@@ -142,6 +149,24 @@ def proc_cmdline(pid):
     except OSError:
         return []
     return [part.decode(errors="ignore") for part in raw.split(b"\0") if part]
+
+
+def proc_environment(pid, allowed_keys):
+    """Read only explicitly allowed, non-sensitive environment keys."""
+    try:
+        raw = Path(f"/proc/{pid}/environ").read_bytes()
+    except OSError:
+        return {}
+    allowed = set(allowed_keys)
+    result = {}
+    for entry in raw.split(b"\0"):
+        if b"=" not in entry:
+            continue
+        key_raw, value_raw = entry.split(b"=", 1)
+        key = key_raw.decode(errors="ignore")
+        if key in allowed:
+            result[key] = value_raw.decode(errors="ignore")
+    return result
 
 
 def proc_cwd(pid):
@@ -455,12 +480,15 @@ def launch_command(client):
         else:
             argv = terminal_launch_argv(argv[0], terminal, cwd, session, program)
 
+    environment = proc_environment(pid, FIREFOX_ENV_KEYS) if is_firefox(client) else {}
+
     return {
         "argv": argv,
         "cwd": cwd,
         "terminal": is_terminal(client),
         "session": session,
         "program": program,
+        "environment": environment,
     }
 
 
@@ -766,7 +794,7 @@ def title_match_score(client, record):
     return len(record_parts & client_parts)
 
 
-def collect_firefox_clients(known_addresses, existing, expected, timeout=12.0):
+def collect_firefox_clients(known_addresses, existing, expected, timeout=24.0):
     """Wait for Firefox's own session restore to recreate its windows.
 
     Firefox restores all windows from one process launch. Starting it once per
@@ -774,8 +802,6 @@ def collect_firefox_clients(known_addresses, existing, expected, timeout=12.0):
     """
     candidates = {client.get("address"): client for client in existing if client.get("address")}
     deadline = time.time() + timeout
-    last_growth = time.time()
-    last_count = len(candidates)
 
     while time.time() < deadline:
         try:
@@ -791,16 +817,66 @@ def collect_firefox_clients(known_addresses, existing, expected, timeout=12.0):
                 continue
             candidates[address] = client
 
-        if len(candidates) != last_count:
-            last_count = len(candidates)
-            last_growth = time.time()
         if len(candidates) >= expected:
-            break
-        if candidates and time.time() - last_growth >= 3.0:
             break
         time.sleep(0.15)
 
     return list(candidates.values())
+
+
+def firefox_launcher():
+    """Return a normal launcher, never Firefox's internal executable."""
+    candidates = [Path("/usr/bin/firefox"), Path.home() / ".local/bin/firefox"]
+    resolved = shutil.which("firefox")
+    if resolved:
+        candidates.append(Path(resolved))
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return ""
+
+
+def firefox_monitor_scale(record):
+    monitor_name = record.get("monitorName", "")
+    try:
+        monitors = run_json("hyprctl", "-j", "monitors")
+    except Exception:
+        monitors = []
+    monitor = next((item for item in monitors if item.get("name") == monitor_name), None)
+    if monitor is None:
+        monitor = next(
+            (item for item in monitors if str(item.get("name", "")).startswith("eDP")),
+            monitors[0] if monitors else None,
+        )
+    try:
+        return max(1, int(float((monitor or {}).get("scale", 1)) + 0.5))
+    except (TypeError, ValueError):
+        return 1
+
+
+def firefox_launch_environment(record):
+    """Restore Firefox's graphics environment without copying secrets.
+
+    Old snapshots do not contain this metadata. For those, derive a Wayland
+    GDK scale from the target/current monitor instead of inheriting the
+    restore service's potentially stale startup environment.
+    """
+    env = os.environ.copy()
+    saved = record.get("command", {}).get("environment") or {}
+    scale = str(saved.get("GDK_SCALE") or firefox_monitor_scale(record))
+    try:
+        inverse_scale = f"{1 / max(1.0, float(scale)):g}"
+    except (TypeError, ValueError):
+        scale = "1"
+        inverse_scale = "1"
+
+    env["MOZ_ENABLE_WAYLAND"] = str(saved.get("MOZ_ENABLE_WAYLAND") or "1")
+    env["GDK_BACKEND"] = str(saved.get("GDK_BACKEND") or "wayland,x11,*")
+    env["GDK_SCALE"] = scale
+    env["GDK_DPI_SCALE"] = str(saved.get("GDK_DPI_SCALE") or inverse_scale)
+    if saved.get("XCURSOR_SIZE"):
+        env["XCURSOR_SIZE"] = str(saved["XCURSOR_SIZE"])
+    return env
 
 
 def restore_firefox_records(records, known_addresses, ws_to_monitor, restored_addresses):
@@ -821,14 +897,19 @@ def restore_firefox_records(records, known_addresses, ws_to_monitor, restored_ad
             hypr_focus_workspace(wsid)
             time.sleep(0.12)
 
-        saved_argv = leader.get("command", {}).get("argv") or []
-        executable = shutil.which("firefox") or (saved_argv[0] if saved_argv else "")
+        executable = firefox_launcher()
         if not executable:
             print("Firefox executable is unavailable", file=sys.stderr)
             return 0
         try:
-            # One launch lets Firefox restore its complete native session.
-            subprocess.Popen([executable], start_new_session=True)
+            # Hyprland records Firefox's final /usr/lib*/firefox/firefox
+            # process. Starting that path directly bypasses the distribution
+            # wrapper's remoting setup and the normal desktop scale environment.
+            subprocess.Popen(
+                [executable],
+                env=firefox_launch_environment(leader),
+                start_new_session=True,
+            )
         except Exception as err:
             print(f"Failed to launch Firefox: {err}", file=sys.stderr)
             return 0

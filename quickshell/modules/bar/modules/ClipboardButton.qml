@@ -13,33 +13,16 @@ Item {
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
-    property bool isFirstClick: true
-
-    Timer {
-        id: doubleClickTimer
-        interval: 250
-        repeat: false
-        onTriggered: {
-            root.isFirstClick = true;
-            GlobalStates.barPopupType = "clipboard";
-        }
-    }
 
     CircleUtilButton {
         id: clipboardButton
         anchors.centerIn: parent
 
         onClicked: {
-            if (root.isFirstClick) {
-                root.isFirstClick = false;
-                doubleClickTimer.start();
-            } else {
-                doubleClickTimer.stop();
-                root.isFirstClick = true;
-                Quickshell.execDetached([
-                    `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard-paste-latest`
-                ]);
-            }
+            Quickshell.execDetached([
+                `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`,
+                "toggle"
+            ]);
         }
 
         content: BarNerdIcon {
