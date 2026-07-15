@@ -88,15 +88,20 @@ Rectangle {
                 id: ddBtnMouse
                 anchors.fill: parent
                 hoverEnabled: true
-                onClicked: ddButton.dropdownOpen = !ddButton.dropdownOpen
+                onClicked: {
+                    if (root.options && root.options.length > 0) {
+                        ddButton.dropdownOpen = !ddButton.dropdownOpen
+                    }
+                }
             }
 
             Popup {
                 id: ddPopup
                 y: ddButton.height + 4
                 width: root.dropdownWidth
-                height: Math.min(300, ddOptList.contentHeight + 8)
-                visible: ddButton.dropdownOpen
+                height: Math.min(300, (root.options ? root.options.length : 0) * 34 + 8)
+                visible: ddButton.dropdownOpen && root.options && root.options.length > 0
+                padding: 0
 
                 background: Rectangle {
                     radius: SettingsTokens.radius
@@ -114,9 +119,7 @@ Rectangle {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     model: root.options
-                    ScrollBar.vertical: ScrollBar {
-                        policy: ddOptList.contentHeight > ddOptList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-                    }
+                    ScrollBar.vertical: StyledScrollBar {}
 
                     delegate: Rectangle {
                         required property var modelData
