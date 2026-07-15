@@ -204,6 +204,7 @@ Additional manual symlinks (not created by Init.sh):
 - Network settings layout: `docs/network-settings-layout.md`
 - Omarchy theme system: `docs/omarchy-theme-system.md`
 - Session persistence: `docs/session-persistence.md`
+- Input method integration: `docs/input-method-integration.md`
 - Deployment/portability: `docs/deployment-portability.md`
 - Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
 
