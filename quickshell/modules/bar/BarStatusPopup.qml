@@ -1509,9 +1509,9 @@ Scope {
                         width: 46
                         height: 26
                         radius: height / 2
-                        color: Notifications.silent ? TuiStyle.accent : TuiStyle.controlMuted
+                        color: !Notifications.silent ? TuiStyle.accent : TuiStyle.controlMuted
                         border.width: TuiStyle.borderWidth
-                        border.color: Notifications.silent ? TuiStyle.shellBorder : TuiStyle.line
+                        border.color: !Notifications.silent ? TuiStyle.shellBorder : TuiStyle.line
 
                         Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -1520,8 +1520,8 @@ Scope {
                             height: 20
                             radius: 10
                             anchors.verticalCenter: parent.verticalCenter
-                            x: Notifications.silent ? parent.width - width - 3 : 3
-                            color: Notifications.silent ? TuiStyle.bg : TuiStyle.fg
+                            x: !Notifications.silent ? parent.width - width - 3 : 3
+                            color: !Notifications.silent ? TuiStyle.bg : TuiStyle.fg
                             Behavior on x { NumberAnimation { duration: 110 } }
                         }
 
