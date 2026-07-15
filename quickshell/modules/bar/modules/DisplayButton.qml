@@ -61,7 +61,6 @@ Item {
                 Brightness.adjustBrightnessForScreen(currentScreen, r.steps > 0)
             }
             wheel.accepted = true;
-            GlobalStates.barPopupType = "display";
         }
     }
 

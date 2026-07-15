@@ -79,10 +79,6 @@ Item {
                     Audio.decrementVolume()
             }
             wheel.accepted = true
-            if (!root.usingVoiceUi) {
-                GlobalStates.barPopupEphemeral = false
-                GlobalStates.barPopupType = "audio"
-            }
         }
     }
 }
