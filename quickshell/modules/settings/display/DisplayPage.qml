@@ -20,7 +20,7 @@ ColumnLayout {
     function applyAll() { configState.applyAll() }
 
     width: parent ? parent.width : 900
-    spacing: 12
+    spacing: SettingsTokens.controlGap
     implicitHeight: {
         const viewportHeight = root.settingsRoot ? root.settingsRoot.height - 120 : 500;
         const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12;
@@ -49,13 +49,13 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         columns: root.wideLayout ? 2 : 1
-        columnSpacing: 16
-        rowSpacing: 16
+        columnSpacing: SettingsTokens.columnGap
+        rowSpacing: SettingsTokens.columnGap
 
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
+            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - SettingsTokens.columnGap) / 2 : contentGrid.width
             radius: SettingsTokens.roundRadius
             color: SettingsTokens.panel
             border.width: 1
@@ -64,8 +64,8 @@ ColumnLayout {
             ColumnLayout {
                 id: leftColumn
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 14
+                anchors.margins: SettingsTokens.panelPadding
+                spacing: SettingsTokens.sectionGap
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -93,10 +93,7 @@ ColumnLayout {
                     onOutputSelected: name => root.selectedOutputName = name
                 }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    Layout.bottomMargin: 4
+                ButtonRow {
 
                     SettingsButton {
                         Layout.fillWidth: true
@@ -156,7 +153,7 @@ ColumnLayout {
         OutputDetailPane {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
+            Layout.preferredWidth: root.wideLayout ? (contentGrid.width - SettingsTokens.columnGap) / 2 : contentGrid.width
             displayState: configState
             output: root.selectedOutput
             settingsRoot: root.settingsRoot

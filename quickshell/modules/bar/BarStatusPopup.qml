@@ -789,14 +789,18 @@ Scope {
             PopupToggleRow {
                 label: "Wi-Fi"
                 checked: Network.wifiEnabled
+                showSettingsButton: true
                 onToggled: checked => Network.enableWifi(checked)
+                onSettingsClicked: root.openDialog("wifi")
             }
 
             PopupToggleRow {
                 label: "Bluetooth"
                 checked: BluetoothStatus.enabled
                 enabled: BluetoothStatus.available
+                showSettingsButton: true
                 onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
+                onSettingsClicked: root.openDialog("bluetooth")
                 showDivider: false
             }
 
@@ -836,7 +840,9 @@ Scope {
                 label: "Bluetooth"
                 checked: BluetoothStatus.enabled
                 enabled: BluetoothStatus.available
+                showSettingsButton: true
                 onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
+                onSettingsClicked: root.openDialog("bluetooth")
                 showDivider: false
             }
 

@@ -7,7 +7,7 @@ import QtQuick.Layouts
 Rectangle {
     id: root
     Layout.fillWidth: true
-    implicitHeight: 56
+    implicitHeight: 78
     color: "transparent"
 
     property string label: ""
@@ -21,36 +21,44 @@ Rectangle {
 
     signal moved()
 
-    RowLayout {
+    ColumnLayout {
         anchors.fill: parent
         anchors.leftMargin: 12
         anchors.rightMargin: 12
-        spacing: 14
+        anchors.topMargin: 4
+        anchors.bottomMargin: 4
+        spacing: 8
 
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
-            spacing: 3
+            spacing: 12
 
-            StyledText {
-                text: root.label
-                color: SettingsTokens.fg
-                font.pixelSize: Appearance.font.pixelSize.small
-            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
 
-            StyledText {
-                text: root.description
-                color: SettingsTokens.dim
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                visible: root.description.length > 0
-                elide: Text.ElideRight
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.label
+                    color: SettingsTokens.fg
+                    font.pixelSize: Appearance.font.pixelSize.small
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: root.description
+                    color: SettingsTokens.dim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    visible: root.description.length > 0
+                    elide: Text.ElideRight
+                }
             }
         }
 
         RowLayout {
-            Layout.fillWidth: false
-            Layout.preferredWidth: 190
-            Layout.preferredHeight: 36
-            spacing: 10
+            Layout.fillWidth: true
+            Layout.preferredHeight: 28
+            spacing: 12
 
             SettingsSlider {
                 id: slider
@@ -59,7 +67,7 @@ Rectangle {
             }
 
             StyledText {
-                Layout.preferredWidth: 42
+                Layout.preferredWidth: 48
                 text: root.formatValue ? root.formatValue(slider.value) : `${Math.round(slider.value)}${root.valueSuffix}`
                 color: SettingsTokens.fg
                 font.pixelSize: Appearance.font.pixelSize.small

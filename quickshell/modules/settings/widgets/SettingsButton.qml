@@ -13,8 +13,9 @@ Rectangle {
     signal clicked()
 
     Layout.fillWidth: true
-    Layout.preferredHeight: 42
-    Layout.minimumHeight: 42
+    Layout.preferredHeight: SettingsTokens.controlHeight
+    Layout.minimumHeight: SettingsTokens.controlHeight
+    Layout.maximumHeight: SettingsTokens.controlHeight
     radius: SettingsTokens.radius
     color: active ? SettingsTokens.buttonActive : buttonMouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button
     border.width: 1

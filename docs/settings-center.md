@@ -84,6 +84,10 @@ must not accumulate new feature cards.
 
 ## Shared style contract
 
+The detailed geometry and spacing rules are documented in
+[`settings-layout-system.md`](settings-layout-system.md). The Displays panel is
+the reference implementation for a wide two-column page.
+
 All settings panels use `SettingsPanelFrame.qml`, `SettingsTokens.qml`, and
 the components in `settings/widgets/`:
 

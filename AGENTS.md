@@ -195,6 +195,7 @@ Additional manual symlinks (not created by Init.sh):
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
+- Settings panel layout: `docs/settings-layout-system.md`
 - Omarchy theme system: `docs/omarchy-theme-system.md`
 - Session persistence: `docs/session-persistence.md`
 - Deployment/portability: `docs/deployment-portability.md`

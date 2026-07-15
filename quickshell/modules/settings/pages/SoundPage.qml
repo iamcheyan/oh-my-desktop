@@ -11,41 +11,104 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 
-PageBody {
+ColumnLayout {
     id: pageRoot
     property var settingsRoot: null
 
     readonly property bool wideLayout: width >= 980
+    width: parent ? parent.width : 900
+    spacing: SettingsTokens.controlGap
+    implicitHeight: {
+        const viewportHeight = pageRoot.settingsRoot ? pageRoot.settingsRoot.height - 120 : 500;
+        const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12;
+        return Math.max(viewportHeight, contentHeight);
+    }
+
+    function safeVolume(node) {
+        const level = Number(node?.audio?.volume ?? 0);
+        return Number.isFinite(level) ? level : 0;
+    }
 
     GridLayout {
         id: contentGrid
         Layout.fillWidth: true
+        Layout.fillHeight: true
         columns: pageRoot.wideLayout ? 2 : 1
-        columnSpacing: 16
-        rowSpacing: 16
+        columnSpacing: SettingsTokens.columnGap
+        rowSpacing: SettingsTokens.columnGap
 
         // ── Left Column: Audio Devices ──
-        ColumnLayout {
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.alignment: Qt.AlignTop
-            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
-            spacing: 16
+            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - SettingsTokens.columnGap) / 2 : contentGrid.width
+            implicitHeight: leftColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            radius: SettingsTokens.roundRadius
+            color: SettingsTokens.panel
+            border.width: 1
+            border.color: SettingsTokens.line
 
-            SettingsCard {
-                title: "Audio Devices"
-                subtitle: `${Audio.typedSinks.length} output${Audio.typedSinks.length === 1 ? "" : "s"}, ${Audio.typedSources.length} input${Audio.typedSources.length === 1 ? "" : "s"}`
+            ColumnLayout {
+                id: leftColumn
+                anchors.fill: parent
+                anchors.margins: SettingsTokens.panelPadding
+                spacing: SettingsTokens.sectionGap
+
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: 68
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 14
+
+                        Rectangle {
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 48
+                            radius: SettingsTokens.radius
+                            color: SettingsTokens.accentSoft
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "speaker"
+                                iconSize: 25
+                                color: SettingsTokens.accent
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: "Audio devices"
+                                color: SettingsTokens.fg
+                                font.pixelSize: Appearance.font.pixelSize.large
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: `${Audio.typedSinks.length} output${Audio.typedSinks.length === 1 ? "" : "s"}  ·  ${Audio.typedSources.length} input${Audio.typedSources.length === 1 ? "" : "s"}`
+                                color: SettingsTokens.muted
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
+                }
 
                 // ── Output Devices Section ──
-                StyledText {
-                    text: "Output Devices"
-                    color: SettingsTokens.muted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 2
-                }
+                SettingsSection {
+                    title: "Output devices"
 
                 // Loading overlay for WirePlumber reload
                 Rectangle {
@@ -99,7 +162,7 @@ PageBody {
                         // Device row
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 50
+                            Layout.preferredHeight: sinkDelegate.hasAlias ? 94 : 78
                             radius: SettingsTokens.radius
                             color: sinkDelegate.isActive ? SettingsTokens.accentSoft : (sinkRowMouse.containsMouse ? SettingsTokens.buttonHover : "transparent")
                             border.width: sinkDelegate.isActive ? 1 : 0
@@ -113,83 +176,95 @@ PageBody {
                                 onClicked: Audio.setDefaultSink(sinkDelegate.node)
                             }
 
-                            RowLayout {
+                            ColumnLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
                                 anchors.rightMargin: 10
-                                spacing: 10
+                                anchors.topMargin: 8
+                                anchors.bottomMargin: 8
+                                spacing: 6
 
-                                MaterialSymbol {
-                                    text: sinkDelegate.isActive ? "check_circle" : "radio_button_unchecked"
-                                    iconSize: 18
-                                    color: sinkDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
-                                    Layout.preferredWidth: 22
-                                }
-
-                                ColumnLayout {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 1
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: Audio.displayName(sinkDelegate.node)
-                                        color: SettingsTokens.fg
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: sinkDelegate.isActive ? Font.Medium : Font.Normal
-                                        elide: Text.ElideRight
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: sinkDelegate.hasAlias ? Audio.originalName(sinkDelegate.node) : ""
-                                        visible: sinkDelegate.hasAlias
-                                        color: SettingsTokens.dim
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                // Per-device volume slider
-                                SettingsSlider {
-                                    Layout.preferredWidth: 100
-                                    value: sinkDelegate.node?.audio?.volume ?? 0
-                                    onMoved: {
-                                        if (sinkDelegate.node?.audio)
-                                            sinkDelegate.node.audio.volume = value
-                                    }
-                                }
-
-                                StyledText {
-                                    Layout.preferredWidth: 38
-                                    text: `${Math.round((sinkDelegate.node?.audio?.volume ?? 0) * 100)}%`
-                                    color: SettingsTokens.muted
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    horizontalAlignment: Text.AlignRight
-                                }
-
-                                // Rename button
-                                Rectangle {
-                                    Layout.preferredWidth: 28
-                                    Layout.preferredHeight: 28
-                                    radius: SettingsTokens.radius
-                                    color: renameMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
-                                    visible: !sinkDelegate.editing
+                                    spacing: 10
 
                                     MaterialSymbol {
-                                        anchors.centerIn: parent
-                                        text: "edit"
-                                        iconSize: 16
-                                        color: SettingsTokens.muted
+                                        text: sinkDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                        iconSize: 18
+                                        color: sinkDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
+                                        Layout.preferredWidth: 22
                                     }
 
-                                    MouseArea {
-                                        id: renameMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        onClicked: {
-                                            sinkDelegate.aliasText = Audio.getDeviceAlias(sinkDelegate.node.name) || ""
-                                            sinkDelegate.editing = true
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: Audio.displayName(sinkDelegate.node)
+                                            color: SettingsTokens.fg
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            font.weight: sinkDelegate.isActive ? Font.Medium : Font.Normal
+                                            elide: Text.ElideRight
                                         }
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: sinkDelegate.hasAlias ? Audio.originalName(sinkDelegate.node) : ""
+                                            visible: sinkDelegate.hasAlias
+                                            color: SettingsTokens.dim
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    // Rename button
+                                    Rectangle {
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 28
+                                        radius: SettingsTokens.radius
+                                        color: renameMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+                                        visible: !sinkDelegate.editing
+
+                                        MaterialSymbol {
+                                            anchors.centerIn: parent
+                                            text: "edit"
+                                            iconSize: 16
+                                            color: SettingsTokens.muted
+                                        }
+
+                                        MouseArea {
+                                            id: renameMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                sinkDelegate.aliasText = Audio.getDeviceAlias(sinkDelegate.node.name) || ""
+                                                sinkDelegate.editing = true
+                                            }
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: 32
+                                    spacing: 12
+
+                                    SettingsSlider {
+                                        Layout.fillWidth: true
+                                        value: pageRoot.safeVolume(sinkDelegate.node)
+                                        onMoved: {
+                                            if (sinkDelegate.node?.audio)
+                                                sinkDelegate.node.audio.volume = value
+                                        }
+                                    }
+
+                                    StyledText {
+                                        Layout.preferredWidth: 48
+                                        text: `${Math.round(pageRoot.safeVolume(sinkDelegate.node) * 100)}%`
+                                        color: SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        horizontalAlignment: Text.AlignRight
                                     }
                                 }
                             }
@@ -278,32 +353,16 @@ PageBody {
                         }
                     }
                 }
-
-                // Divider between Output and Input Devices
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: SettingsTokens.line
-                    opacity: 0.4
-                    Layout.topMargin: 12
-                    Layout.bottomMargin: 12
-                    visible: Audio.typedSinks.length > 0 && Audio.typedSources.length > 0
                 }
 
                 // ── Input Devices Section ──
-                StyledText {
-                    text: "Input Devices"
-                    color: SettingsTokens.muted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: 2
+                SettingsSection {
+                    title: "Input devices"
                     visible: Audio.typedSources.length > 0
-                }
 
-                Repeater {
-                    model: Audio.typedSources
-                    delegate: ColumnLayout {
+                    Repeater {
+                        model: Audio.typedSources
+                        delegate: ColumnLayout {
                         id: sourceDelegate
                         required property var modelData
                         readonly property var node: modelData
@@ -314,7 +373,7 @@ PageBody {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 50
+                            Layout.preferredHeight: 78
                             radius: SettingsTokens.radius
                             color: sourceDelegate.isActive ? SettingsTokens.accentSoft : (sourceRowMouse.containsMouse ? SettingsTokens.buttonHover : "transparent")
                             border.width: sourceDelegate.isActive ? 1 : 0
@@ -328,22 +387,24 @@ PageBody {
                                 onClicked: Audio.setDefaultSource(sourceDelegate.node)
                             }
 
-                            RowLayout {
+                            ColumnLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
                                 anchors.rightMargin: 10
-                                spacing: 10
+                                anchors.topMargin: 8
+                                anchors.bottomMargin: 8
+                                spacing: 6
 
-                                MaterialSymbol {
-                                    text: sourceDelegate.isActive ? "check_circle" : "radio_button_unchecked"
-                                    iconSize: 18
-                                    color: sourceDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
-                                    Layout.preferredWidth: 22
-                                }
-
-                                ColumnLayout {
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 1
+                                    spacing: 10
+
+                                    MaterialSymbol {
+                                        text: sourceDelegate.isActive ? "check_circle" : "radio_button_unchecked"
+                                        iconSize: 18
+                                        color: sourceDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
+                                        Layout.preferredWidth: 22
+                                    }
 
                                     StyledText {
                                         Layout.fillWidth: true
@@ -355,56 +416,115 @@ PageBody {
                                     }
                                 }
 
-                                SettingsSlider {
-                                    Layout.preferredWidth: 100
-                                    value: sourceDelegate.node?.audio?.volume ?? 0
-                                    onMoved: {
-                                        if (sourceDelegate.node?.audio)
-                                            sourceDelegate.node.audio.volume = value
-                                    }
-                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Layout.leftMargin: 32
+                                    spacing: 12
 
-                                StyledText {
-                                    Layout.preferredWidth: 38
-                                    text: `${Math.round((sourceDelegate.node?.audio?.volume ?? 0) * 100)}%`
-                                    color: SettingsTokens.muted
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    horizontalAlignment: Text.AlignRight
+                                    SettingsSlider {
+                                        Layout.fillWidth: true
+                                        value: pageRoot.safeVolume(sourceDelegate.node)
+                                        onMoved: {
+                                            if (sourceDelegate.node?.audio)
+                                                sourceDelegate.node.audio.volume = value
+                                        }
+                                    }
+
+                                    StyledText {
+                                        Layout.preferredWidth: 48
+                                        text: `${Math.round(pageRoot.safeVolume(sourceDelegate.node) * 100)}%`
+                                        color: SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        horizontalAlignment: Text.AlignRight
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                }
+
+                Item { Layout.fillHeight: true }
             }
         }
 
         // ── Right Column: Volume & Controls ──
-        ColumnLayout {
+        Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.alignment: Qt.AlignTop
-            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - 16) / 2 : contentGrid.width
-            spacing: 16
+            Layout.preferredWidth: pageRoot.wideLayout ? (contentGrid.width - SettingsTokens.columnGap) / 2 : contentGrid.width
+            implicitHeight: rightColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            radius: SettingsTokens.roundRadius
+            color: SettingsTokens.panel
+            border.width: 1
+            border.color: SettingsTokens.line
 
-            SettingsCard {
-                title: "Volume & Controls"
-                subtitle: "Adjust volume levels and input capture"
+            ColumnLayout {
+                id: rightColumn
+                anchors.fill: parent
+                anchors.margins: SettingsTokens.panelPadding
+                spacing: SettingsTokens.sectionGap
+
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: 68
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 14
+
+                        Rectangle {
+                            Layout.preferredWidth: 48
+                            Layout.preferredHeight: 48
+                            radius: SettingsTokens.radius
+                            color: SettingsTokens.accentSoft
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: Audio.sink?.audio.muted ? "volume_off" : "volume_up"
+                                iconSize: 25
+                                color: SettingsTokens.accent
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: "Volume & controls"
+                                color: SettingsTokens.fg
+                                font.pixelSize: Appearance.font.pixelSize.large
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
+                                color: SettingsTokens.muted
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: SettingsTokens.line
+                }
 
                 // ── Master Volume Section ──
-                StyledText {
-                    text: "Master Volume"
-                    color: SettingsTokens.muted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 2
-                }
+                SettingsSection {
+                    title: "Master volume"
 
                 SettingsSliderRow {
                     label: "Volume level"
                     description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
-                    value: Audio.sink?.audio.muted ? 0 : (Audio.sink?.audio.volume ?? 0)
+                    value: Audio.sink?.audio.muted ? 0 : pageRoot.safeVolume(Audio.sink)
                     from: 0
                     to: 1
                     formatValue: val => `${Math.round(val * 100)}%`
@@ -433,31 +553,16 @@ PageBody {
                         onClicked: { pageRoot.settingsRoot.dismiss(); Quickshell.execDetached(["pavucontrol"]) }
                     }
                 }
-
-                // Divider between Master Volume and Microphone
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 1
-                    color: SettingsTokens.line
-                    opacity: 0.4
-                    Layout.topMargin: 12
-                    Layout.bottomMargin: 12
                 }
 
                 // ── Microphone Section ──
-                StyledText {
-                    text: "Microphone"
-                    color: SettingsTokens.muted
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                    Layout.bottomMargin: 2
-                }
+                SettingsSection {
+                    title: "Microphone"
 
                 SettingsSliderRow {
                     label: "Input volume"
                     description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
-                    value: Audio.source?.audio.muted ? 0 : (Audio.source?.audio.volume ?? 0)
+                    value: Audio.source?.audio.muted ? 0 : pageRoot.safeVolume(Audio.source)
                     from: 0
                     to: 1
                     formatValue: val => `${Math.round(val * 100)}%`
@@ -473,6 +578,9 @@ PageBody {
                     checked: Audio.source?.audio.muted ?? false
                     onToggled: Audio.toggleMicMute()
                 }
+                }
+
+                Item { Layout.fillHeight: true }
             }
         }
     }

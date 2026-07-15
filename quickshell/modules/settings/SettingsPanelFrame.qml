@@ -41,15 +41,18 @@ Item {
                 Layout.fillHeight: true
                 clip: true
                 contentWidth: width
-                contentHeight: pageLoader.item
-                    ? pageLoader.item.implicitHeight + frame.settingsRoot.pageInset * 2
-                    : 0
+                contentHeight: pageLoader.y + pageLoader.height + frame.settingsRoot.pageInset
 
                 Loader {
                     id: pageLoader
                     x: frame.settingsRoot.pageInset
                     y: frame.settingsRoot.pageInset
                     width: Math.max(0, pageScroll.width - frame.settingsRoot.pageInset * 2)
+                    height: Math.max(
+                        0,
+                        pageScroll.height - frame.settingsRoot.pageInset * 2,
+                        item ? item.implicitHeight : 0
+                    )
                     sourceComponent: frame.pageComponent
 
                     onLoaded: {
@@ -63,7 +66,9 @@ Item {
             Rectangle {
                 visible: frame.showConfirmFooter
                 Layout.fillWidth: true
-                Layout.preferredHeight: visible ? 56 : 0
+                Layout.preferredHeight: visible ? SettingsTokens.footerHeight : 0
+                Layout.minimumHeight: Layout.preferredHeight
+                Layout.maximumHeight: Layout.preferredHeight
                 color: "transparent"
 
                 Rectangle {
@@ -75,16 +80,17 @@ Item {
                 }
 
                 RowLayout {
-                    anchors.fill: parent
-                    anchors.topMargin: 6
-                    anchors.bottomMargin: 8
-                    anchors.leftMargin: frame.settingsRoot.pageInset + 4
-                    anchors.rightMargin: frame.settingsRoot.pageInset + 4
-                    spacing: 12
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: frame.settingsRoot.pageInset
+                    anchors.rightMargin: frame.settingsRoot.pageInset
+                    height: SettingsTokens.controlHeight
+                    spacing: SettingsTokens.controlGap
 
                     SettingsButton {
                         Layout.fillWidth: false
-                        Layout.preferredWidth: 110
+                        Layout.preferredWidth: SettingsTokens.footerCloseButtonWidth
                         label: "Close"
                         iconName: "close"
                         onClicked: frame.settingsRoot.dismiss()
@@ -94,7 +100,7 @@ Item {
 
                     SettingsButton {
                         Layout.fillWidth: false
-                        Layout.preferredWidth: 120
+                        Layout.preferredWidth: SettingsTokens.footerButtonWidth
                         label: "Discard"
                         iconName: "undo"
                         visible: pageLoader.item && (pageLoader.item.hasPendingChanges !== undefined || pageLoader.item.hasChanges !== undefined)
@@ -110,7 +116,7 @@ Item {
 
                     SettingsButton {
                         Layout.fillWidth: false
-                        Layout.preferredWidth: 120
+                        Layout.preferredWidth: SettingsTokens.footerButtonWidth
                         label: pageLoader.item && !!pageLoader.item.applying ? "Applying..." : "Apply"
                         iconName: "check"
                         visible: pageLoader.item && (pageLoader.item.hasPendingChanges !== undefined || pageLoader.item.hasChanges !== undefined)

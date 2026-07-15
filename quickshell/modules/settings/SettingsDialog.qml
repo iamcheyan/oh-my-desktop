@@ -29,8 +29,8 @@ WindowDialog {
     property bool keyremapDetailOpen: false
     property string keyremapEditingPreset: ""
 
-    readonly property int shellInset: 6
-    readonly property int pageInset: 12
+    readonly property int shellInset: SettingsTokens.shellInset
+    readonly property int pageInset: SettingsTokens.pagePadding
     readonly property int minDialogWidth: 860
     readonly property int minDialogHeight: 560
     readonly property int maxDialogWidth: Math.max(minDialogWidth, width - 32)

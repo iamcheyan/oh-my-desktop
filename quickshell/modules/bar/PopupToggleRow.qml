@@ -12,7 +12,9 @@ Item {
     property bool checked: false
     property bool showDivider: true
     property bool enabled: true
+    property bool showSettingsButton: false
     signal toggled(bool checked)
+    signal settingsClicked()
 
     implicitHeight: settingsToggle.implicitHeight
     implicitWidth: parent?.width ?? 0
@@ -25,7 +27,9 @@ Item {
         checked: root.checked
         enabled: root.enabled
         opacity: root.enabled ? 1 : 0.45
+        showSettingsButton: root.showSettingsButton
         onToggled: root.toggled(!root.checked)
+        onSettingsClicked: root.settingsClicked()
     }
 
     // Bottom divider — very subtle

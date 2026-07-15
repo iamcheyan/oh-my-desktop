@@ -22,7 +22,7 @@ Rectangle {
     readonly property var scaleOptions: (displayState.revision, buildScaleOptions())
     readonly property var scaleDropdownOptions: (displayState.revision, buildScaleDropdownOptions())
 
-    implicitHeight: detailColumn.implicitHeight + 32
+    implicitHeight: detailColumn.implicitHeight + SettingsTokens.panelPadding * 2
     radius: SettingsTokens.roundRadius
     color: SettingsTokens.panel
     border.width: 1
@@ -110,7 +110,7 @@ Rectangle {
     ColumnLayout {
         id: detailColumn
         anchors.fill: parent
-        anchors.margins: 16
+        anchors.margins: SettingsTokens.panelPadding
         spacing: 10
 
         Item {
