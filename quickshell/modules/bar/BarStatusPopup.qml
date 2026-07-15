@@ -429,7 +429,7 @@ Scope {
 
             property var choices: [
                 { schema: "sbzr", badge: "中", title: "Chinese", subtitle: "Natural input" },
-                { schema: "sbzr_mix", badge: "中", title: "Chinese", subtitle: "Mixed input" },
+                { schema: "sbzr_mix", badge: "混", title: "Chinese", subtitle: "Mixed input" },
                 { schema: "easy_en", badge: "A", title: "English", subtitle: "Easy English" },
                 { schema: "jaroomaji", badge: "あ", title: "Japanese", subtitle: "Romaji" }
             ]

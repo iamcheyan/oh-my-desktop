@@ -22,7 +22,11 @@ Singleton {
     property string pendingSchema: ""
 
     readonly property string badge: {
-        if (root.language === "zh") return "中";
+        if (root.language === "zh") {
+            // Differentiate between natural and mixed Chinese input
+            if (root.schema === "sbzr_mix") return "混";
+            return "中";
+        }
         if (root.language === "ja") return "あ";
         if (root.language === "en") return "A";
         return "?";
