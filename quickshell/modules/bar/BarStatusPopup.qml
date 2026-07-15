@@ -80,6 +80,10 @@ Scope {
                 return Math.min(560, Math.max(500, (screen?.width ?? 1920) - 32));
             if (root.activeType === "xkb")
                 return Math.min(360, Math.max(320, (screen?.width ?? 1920) - 32));
+            if (root.activeType === "wifi")
+                return Math.min(480, Math.max(440, (screen?.width ?? 1920) - 32));
+            if (root.activeType === "audio")
+                return Math.min(480, Math.max(440, (screen?.width ?? 1920) - 32));
             // All other panels: 420px minimum for comfortable layout
             return Math.min(460, Math.max(420, (screen?.width ?? 1920) - 32));
         }
@@ -592,31 +596,57 @@ Scope {
         PopupColumn {
             id: wifiPanel
 
+            Component.onCompleted: {
+                if (Network.wifiEnabled)
+                    Network.rescanWifi();
+            }
+
+            function pinOpen() {
+                GlobalStates.barPopupEphemeral = false;
+            }
+
             function connStatus() {
-                if (Network.ethernet) return "Connected";
-                if (!Network.wifiEnabled || Network.wifiStatus === "disabled") return "Disabled";
+                if (Network.wifiConnectPhase === "connecting" || Network.wifiConnecting)
+                    return "Connecting";
+                if (Network.wifiConnectPhase === "need_password")
+                    return "Password";
+                if (Network.wifiConnectPhase === "failed")
+                    return "Failed";
+                if (Network.ethernet)
+                    return "Connected";
+                if (!Network.wifiEnabled || Network.wifiStatus === "disabled")
+                    return "Disabled";
                 const s = Network.wifiStatus || "disconnected";
                 return s.charAt(0).toUpperCase() + s.slice(1);
             }
             function connTone() {
                 const s = wifiPanel.connStatus();
-                if (s === "Connected") return TuiStyle.success;
-                if (s === "Disabled") return TuiStyle.danger;
-                if (s === "Connecting" || s === "Limited") return TuiStyle.warning;
+                if (s === "Connected" || Network.wifiConnectPhase === "success")
+                    return TuiStyle.success;
+                if (s === "Disabled" || s === "Failed")
+                    return TuiStyle.danger;
+                if (s === "Connecting" || s === "Limited" || s === "Password")
+                    return TuiStyle.warning;
                 return TuiStyle.muted;
             }
             function connIcon() {
-                return Network.ethernet ? NerdIconMap.ethernet : NerdIconMap.wifi
+                return Network.ethernet ? NerdIconMap.ethernet : NerdIconMap.wifi;
             }
             function connName() {
-                if (Network.ethernet) return Network.networkName || "Wired Connection";
+                if (Network.ethernet)
+                    return Network.networkName || "Wired Connection";
                 return Network.active?.ssid || Network.networkName || "Not connected";
             }
             function connDetail() {
-                if (Network.ethernet) return "";
-                if (!Network.ethernet && Network.wifiStatus === "connected")
-                    return `Signal: ${Network.active?.strength ?? Network.networkStrength}%  ·  ${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} visible`;
-                return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} visible`;
+                if (Network.wifiConnectMessage.length > 0
+                        && Network.wifiConnectPhase !== "idle"
+                        && Network.wifiConnectPhase !== "success")
+                    return Network.wifiConnectMessage;
+                if (Network.ethernet)
+                    return "";
+                if (Network.wifiStatus === "connected")
+                    return `Signal ${Network.active?.strength ?? Network.networkStrength}%  ·  ${Network.friendlyWifiNetworks.length} nearby`;
+                return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`;
             }
 
             PopupDeviceRow {
@@ -628,28 +658,338 @@ Scope {
                 statusColor: wifiPanel.connTone()
             }
 
+            // ── Wi-Fi section: toggle + nearby list ──
             PopupToggleRow {
                 label: "Wi-Fi"
                 checked: Network.wifiEnabled
                 showSettingsButton: true
-                onToggled: checked => Network.enableWifi(checked)
+                showDivider: false
+                onToggled: checked => {
+                    wifiPanel.pinOpen();
+                    Network.enableWifi(checked);
+                }
                 onSettingsClicked: root.openDialog("wifi")
             }
 
+            StyledText {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.topMargin: 2
+                Layout.bottomMargin: 4
+                visible: Network.wifiEnabled
+                    && Network.wifiConnectMessage.length > 0
+                    && Network.wifiConnectPhase !== "idle"
+                text: Network.wifiConnectMessage
+                color: Network.wifiConnectPhase === "failed" || Network.wifiConnectPhase === "need_password"
+                    ? TuiStyle.danger
+                    : (Network.wifiConnectPhase === "success" ? TuiStyle.success : TuiStyle.muted)
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 12
+                Layout.topMargin: 2
+                Layout.bottomMargin: 2
+                visible: Network.wifiEnabled
+                spacing: 8
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: Network.wifiScanning ? "Scanning…" : "Networks"
+                    color: TuiStyle.dim
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 28
+                    Layout.preferredHeight: 28
+                    radius: 4
+                    color: wifiScanMouse.containsMouse ? TuiStyle.controlHover : "transparent"
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: "refresh"
+                        iconSize: 16
+                        color: TuiStyle.muted
+                        RotationAnimator on rotation {
+                            running: Network.wifiScanning
+                            loops: Animation.Infinite
+                            from: 0
+                            to: 360
+                            duration: 1200
+                        }
+                    }
+
+                    MouseArea {
+                        id: wifiScanMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            wifiPanel.pinOpen();
+                            Network.rescanWifi();
+                        }
+                    }
+                }
+            }
+
+            Flickable {
+                id: wifiListFlick
+                Layout.fillWidth: true
+                Layout.preferredHeight: Network.wifiEnabled
+                    ? Math.min(wifiListCol.implicitHeight, 280)
+                    : 0
+                visible: Network.wifiEnabled
+                contentHeight: wifiListCol.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: wifiListCol.implicitHeight > height
+
+                ColumnLayout {
+                    id: wifiListCol
+                    width: wifiListFlick.width
+                    spacing: 0
+
+                    Repeater {
+                        model: Network.friendlyWifiNetworks.slice(0, 12)
+                        delegate: ColumnLayout {
+                            id: apRow
+                            required property var modelData
+                            readonly property var ap: modelData
+                            readonly property bool isActive: ap.active ?? false
+                            readonly property bool isKnown: Network.isKnownWifi(ap)
+                            readonly property bool isConnecting: Network.isConnectingTo(ap)
+                            readonly property bool showPassword: ap.askingPassword === true
+
+                            Layout.fillWidth: true
+                            spacing: 0
+                            visible: (ap.ssid || "").length > 0
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                color: apRow.isActive
+                                    ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
+                                    : (apMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 20
+                                    anchors.rightMargin: 16
+                                    spacing: 10
+
+                                    MaterialSymbol {
+                                        text: {
+                                            if (apRow.isConnecting)
+                                                return "progress_activity";
+                                            const s = apRow.ap.strength ?? 0;
+                                            if (s >= 75)
+                                                return "wifi";
+                                            if (s >= 50)
+                                                return "network_wifi_3_bar";
+                                            if (s >= 25)
+                                                return "network_wifi_2_bar";
+                                            if (s > 0)
+                                                return "network_wifi_1_bar";
+                                            return "wifi_off";
+                                        }
+                                        iconSize: 18
+                                        color: apRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                        Layout.preferredWidth: 22
+                                        RotationAnimator on rotation {
+                                            running: apRow.isConnecting
+                                            loops: Animation.Infinite
+                                            from: 0
+                                            to: 360
+                                            duration: 1200
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 0
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: apRow.ap.ssid || "Hidden"
+                                            color: TuiStyle.fg
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            font.weight: apRow.isActive ? Font.DemiBold : Font.Normal
+                                            elide: Text.ElideRight
+                                        }
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: {
+                                                if (apRow.isActive)
+                                                    return "Connected";
+                                                if (apRow.isConnecting)
+                                                    return "Connecting…";
+                                                if (apRow.showPassword)
+                                                    return "Enter password";
+                                                if (apRow.isKnown)
+                                                    return "Saved";
+                                                return apRow.ap.isSecure ? "Secured" : "Open";
+                                            }
+                                            color: TuiStyle.dim
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    MaterialSymbol {
+                                        visible: apRow.ap.isSecure
+                                        text: "lock"
+                                        iconSize: 14
+                                        color: TuiStyle.dim
+                                    }
+
+                                    StyledText {
+                                        text: `${apRow.ap.strength ?? 0}%`
+                                        color: TuiStyle.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        Layout.preferredWidth: 34
+                                        horizontalAlignment: Text.AlignRight
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: apMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: apRow.isActive ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    enabled: !apRow.isActive && !apRow.isConnecting
+                                    onClicked: {
+                                        wifiPanel.pinOpen();
+                                        if (apRow.ap.ssid)
+                                            Network.connectToWifiNetwork(apRow.ap);
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                visible: apRow.showPassword
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 16
+                                Layout.rightMargin: 16
+                                Layout.bottomMargin: 8
+                                implicitHeight: popupPassCol.implicitHeight + 14
+                                radius: 6
+                                color: TuiStyle.panel
+                                border.width: 1
+                                border.color: TuiStyle.line
+
+                                ColumnLayout {
+                                    id: popupPassCol
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: 8
+                                    spacing: 6
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 34
+                                        radius: 4
+                                        color: TuiStyle.control
+                                        border.width: 1
+                                        border.color: popupPassField.activeFocus ? TuiStyle.accent : TuiStyle.line
+
+                                        TextInput {
+                                            id: popupPassField
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 10
+                                            verticalAlignment: Text.AlignVCenter
+                                            color: TuiStyle.fg
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            echoMode: TextInput.Password
+                                            passwordCharacter: "•"
+                                            clip: true
+                                            focus: apRow.showPassword
+                                            enabled: !Network.wifiConnecting
+                                            Keys.onReturnPressed: {
+                                                wifiPanel.pinOpen();
+                                                Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                            }
+                                            Keys.onEnterPressed: {
+                                                wifiPanel.pinOpen();
+                                                Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                            }
+                                            Keys.onEscapePressed: Network.cancelWifiPassword()
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        SettingsButton {
+                                            Layout.fillWidth: true
+                                            label: Network.wifiConnecting ? "…" : "Connect"
+                                            iconName: "link"
+                                            active: true
+                                            enabledState: !Network.wifiConnecting && popupPassField.text.length > 0
+                                            onClicked: {
+                                                wifiPanel.pinOpen();
+                                                Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                            }
+                                        }
+                                        SettingsButton {
+                                            Layout.fillWidth: true
+                                            label: "Cancel"
+                                            iconName: "close"
+                                            enabledState: !Network.wifiConnecting
+                                            onClicked: Network.cancelWifiPassword()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 20
+                        Layout.topMargin: 8
+                        Layout.bottomMargin: 8
+                        visible: Network.friendlyWifiNetworks.length === 0 && !Network.wifiScanning
+                        text: "No networks found. Tap refresh to scan."
+                        color: TuiStyle.dim
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            // Divider between Wi-Fi block and Bluetooth
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                Layout.topMargin: 4
+                color: TuiStyle.line
+                opacity: TuiStyle.dividerOpacity
+            }
+
+            // ── Bluetooth section (standalone) ──
             PopupToggleRow {
                 label: "Bluetooth"
                 checked: BluetoothStatus.enabled
                 enabled: BluetoothStatus.available
                 showSettingsButton: true
-                onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
-                onSettingsClicked: root.openDialog("bluetooth")
                 showDivider: false
-            }
-
-            PopupFooterLink {
-                Layout.fillWidth: true
-                label: "Network settings…"
-                onClicked: root.openDialog("wifi")
+                onToggled: checked => {
+                    wifiPanel.pinOpen();
+                    if (Bluetooth.defaultAdapter)
+                        Bluetooth.defaultAdapter.enabled = checked;
+                }
+                onSettingsClicked: root.openDialog("bluetooth")
             }
         }
     }
@@ -712,14 +1052,42 @@ Scope {
             readonly property bool sinkMuted: sink?.audio.muted ?? false
             readonly property bool sourceMuted: source?.audio.muted ?? false
             readonly property MprisPlayer activePlayer: MprisController.activePlayer
-            readonly property bool hasActivePlayer: activePlayer !== null && activePlayer !== undefined
-            readonly property string trackTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || "--"
-            readonly property string trackArtist: activePlayer?.trackArtist ?? ""
-            readonly property bool isPlaying: activePlayer?.isPlaying ?? false
+            // Only show the media strip while something is actually playing.
+            // Paused/idle browser MPRIS sessions stay hidden so the row does not
+            // look clickable when nothing will happen.
+            readonly property bool showMediaControls: MprisController.displayPlaying
+                && (MprisController.displayTitle.length > 0
+                    || MprisController.displayPlayerName.length > 0)
+            readonly property string trackTitle: {
+                const t = StringUtils.cleanMusicTitle(MprisController.displayTitle)
+                return t.length > 0 ? t : "Untitled"
+            }
+            readonly property string trackArtist: MprisController.displayArtist
+            readonly property bool isPlaying: MprisController.displayPlaying
+            readonly property string playerName: MprisController.displayPlayerName
+            readonly property string mediaSubtitle: {
+                if (audioPanel.trackArtist.length > 0)
+                    return audioPanel.trackArtist
+                if (audioPanel.playerName.length > 0)
+                    return audioPanel.playerName
+                return "Playing"
+            }
 
             function pinOpen() { GlobalStates.barPopupEphemeral = false; }
             function setSinkVolume(value) { audioPanel.pinOpen(); Audio.setSinkVolume(value); }
             function setSourceVolume(value) { audioPanel.pinOpen(); Audio.setSourceVolume(value); }
+            function mediaPrev() {
+                audioPanel.pinOpen()
+                MprisController.previous()
+            }
+            function mediaToggle() {
+                audioPanel.pinOpen()
+                MprisController.togglePlaying()
+            }
+            function mediaNext() {
+                audioPanel.pinOpen()
+                MprisController.next()
+            }
 
             ColumnLayout {
                 id: audioColumn
@@ -738,13 +1106,12 @@ Scope {
                     tone: audioPanel.sinkMuted ? TuiStyle.warning : TuiStyle.accent
                 }
 
-                // ── Sliders ───────────────────────────────────────────────
                 PopupSliderRow {
                     icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
                     value: audioPanel.sinkVolume
                     muted: audioPanel.sinkMuted
                     onMoved: value => audioPanel.setSinkVolume(value)
-                    onIconClicked: Audio.toggleMute()
+                    onIconClicked: { audioPanel.pinOpen(); Audio.toggleMute() }
                 }
 
                 PopupSliderRow {
@@ -752,79 +1119,399 @@ Scope {
                     value: audioPanel.sourceVolume
                     muted: audioPanel.sourceMuted
                     onMoved: value => audioPanel.setSourceVolume(value)
-                    onIconClicked: Audio.toggleMicMute()
+                    onIconClicked: { audioPanel.pinOpen(); Audio.toggleMicMute() }
                 }
 
-                Divider {}
-
-                // ── Output device info ────────────────────────────────────
-                Item {
+                // ── Now playing: compact row (no art, no seek) ───────────
+                // Title + status on the left, transport on the right.
+                Rectangle {
                     Layout.fillWidth: true
-                    implicitHeight: outputColumn.implicitHeight + 16
-                    visible: true
+                    Layout.leftMargin: 12
+                    Layout.rightMargin: 12
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 4
+                    implicitHeight: 64
+                    visible: audioPanel.showMediaControls
+                    radius: 10
+                    color: TuiStyle.panel
+                    border.width: 1
+                    border.color: Qt.rgba(TuiStyle.line.r, TuiStyle.line.g, TuiStyle.line.b, 0.45)
 
-                    ColumnLayout {
-                        id: outputColumn
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                            leftMargin: 20
-                            rightMargin: 20
-                        }
-                        spacing: 2
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 10
+                        spacing: 10
 
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: "Output"
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.normal + 1
-                            font.weight: Font.Medium
-                            color: TuiStyle.fg
+                        // Playing pulse dot
+                        Rectangle {
+                            Layout.preferredWidth: 8
+                            Layout.preferredHeight: 8
+                            Layout.alignment: Qt.AlignVCenter
+                            radius: 4
+                            color: TuiStyle.accent
+
+                            SequentialAnimation on opacity {
+                                running: audioPanel.showMediaControls
+                                loops: Animation.Infinite
+                                NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
+                                NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
+                            }
                         }
-                        StyledText {
+
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            text: audioPanel.sink ? Audio.friendlyDeviceName(audioPanel.sink) : "--"
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            color: TuiStyle.dim
-                            elide: Text.ElideRight
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 2
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: audioPanel.trackTitle
+                                color: TuiStyle.fg
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: audioPanel.mediaSubtitle
+                                color: TuiStyle.dim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        // Transport cluster — only while playing (panel is hidden when paused/stopped)
+                        RowLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 2
+
+                            Item {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                opacity: MprisController.canGoPrevious ? 1 : 0.3
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "skip_previous"
+                                    iconSize: 20
+                                    color: TuiStyle.fg
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: MprisController.canGoPrevious
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: audioPanel.mediaPrev()
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 36
+                                Layout.preferredHeight: 36
+                                radius: 18
+                                color: playMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.accentSoft
+                                border.width: 1
+                                border.color: TuiStyle.accent
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "pause"
+                                    iconSize: 20
+                                    color: TuiStyle.accent
+                                }
+                                MouseArea {
+                                    id: playMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: audioPanel.mediaToggle()
+                                }
+                            }
+
+                            Item {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                opacity: MprisController.canGoNext ? 1 : 0.3
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "skip_next"
+                                    iconSize: 20
+                                    color: TuiStyle.fg
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: MprisController.canGoNext
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: audioPanel.mediaNext()
+                                }
+                            }
                         }
                     }
                 }
 
-                // ── Input device info ─────────────────────────────────────
-                Item {
+                Divider {}
+
+                // ── Output devices (expand to switch when multiple) ───────
+                ColumnLayout {
+                    id: outputPicker
                     Layout.fillWidth: true
-                    implicitHeight: inputColumn.implicitHeight + 16
-                    visible: true
+                    spacing: 0
+                    property bool expanded: false
+                    readonly property int deviceCount: Audio.typedSinks.length
+                    readonly property bool expandable: deviceCount > 1
+                    onDeviceCountChanged: if (deviceCount <= 1) expanded = false
+
+                    // Header row — current device; expands when multiple
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        color: outputHeaderMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 20
+                            anchors.rightMargin: 16
+                            spacing: 10
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: "Output"
+                                    font.pixelSize: Appearance.font.pixelSize.normal + 1
+                                    font.weight: Font.Medium
+                                    color: TuiStyle.fg
+                                }
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: audioPanel.sink
+                                        ? Audio.friendlyDeviceName(audioPanel.sink)
+                                        : (outputPicker.deviceCount === 0 ? "No devices" : "--")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: TuiStyle.dim
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            StyledText {
+                                visible: outputPicker.expandable
+                                text: outputPicker.deviceCount
+                                color: TuiStyle.dim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
+
+                            MaterialSymbol {
+                                visible: outputPicker.expandable
+                                text: outputPicker.expanded ? "expand_less" : "expand_more"
+                                iconSize: 20
+                                color: TuiStyle.muted
+                            }
+                        }
+
+                        MouseArea {
+                            id: outputHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: outputPicker.expandable
+                            cursorShape: outputPicker.expandable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: {
+                                audioPanel.pinOpen()
+                                outputPicker.expanded = !outputPicker.expanded
+                                if (outputPicker.expanded)
+                                    inputPicker.expanded = false
+                            }
+                        }
+                    }
 
                     ColumnLayout {
-                        id: inputColumn
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                            leftMargin: 20
-                            rightMargin: 20
-                        }
-                        spacing: 2
+                        Layout.fillWidth: true
+                        spacing: 0
+                        visible: outputPicker.expanded && outputPicker.expandable
 
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: "Input"
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.normal + 1
-                            font.weight: Font.Medium
-                            color: TuiStyle.fg
+                        Repeater {
+                            model: Audio.typedSinks
+                            delegate: Rectangle {
+                                id: sinkRow
+                                required property var modelData
+                                readonly property var node: modelData
+                                readonly property bool isActive: Audio.sink?.name === node?.name
+
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 40
+                                color: isActive
+                                    ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
+                                    : (sinkMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 28
+                                    anchors.rightMargin: 16
+                                    spacing: 8
+
+                                    MaterialSymbol {
+                                        text: sinkRow.isActive ? "check" : "volume_up"
+                                        iconSize: 16
+                                        color: sinkRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                        Layout.preferredWidth: 20
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.friendlyDeviceName(sinkRow.node)
+                                        color: sinkRow.isActive ? TuiStyle.accent : TuiStyle.fg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sinkRow.isActive ? Font.DemiBold : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: sinkMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        audioPanel.pinOpen()
+                                        Audio.setDefaultSink(sinkRow.node)
+                                        outputPicker.expanded = false
+                                    }
+                                }
+                            }
                         }
-                        StyledText {
-                            Layout.fillWidth: true
-                            text: audioPanel.source ? Audio.friendlyDeviceName(audioPanel.source) : "--"
-                            font.family: Appearance.font.family.main
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            color: TuiStyle.dim
-                            elide: Text.ElideRight
+                    }
+                }
+
+                // ── Input devices (expand to switch when multiple) ────────
+                ColumnLayout {
+                    id: inputPicker
+                    Layout.fillWidth: true
+                    spacing: 0
+                    property bool expanded: false
+                    readonly property int deviceCount: Audio.typedSources.length
+                    readonly property bool expandable: deviceCount > 1
+                    onDeviceCountChanged: if (deviceCount <= 1) expanded = false
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        color: inputHeaderMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 20
+                            anchors.rightMargin: 16
+                            spacing: 10
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: "Input"
+                                    font.pixelSize: Appearance.font.pixelSize.normal + 1
+                                    font.weight: Font.Medium
+                                    color: TuiStyle.fg
+                                }
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: audioPanel.source
+                                        ? Audio.friendlyDeviceName(audioPanel.source)
+                                        : (inputPicker.deviceCount === 0 ? "No devices" : "--")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: TuiStyle.dim
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            StyledText {
+                                visible: inputPicker.expandable
+                                text: inputPicker.deviceCount
+                                color: TuiStyle.dim
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                            }
+
+                            MaterialSymbol {
+                                visible: inputPicker.expandable
+                                text: inputPicker.expanded ? "expand_less" : "expand_more"
+                                iconSize: 20
+                                color: TuiStyle.muted
+                            }
+                        }
+
+                        MouseArea {
+                            id: inputHeaderMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            enabled: inputPicker.expandable
+                            cursorShape: inputPicker.expandable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: {
+                                audioPanel.pinOpen()
+                                inputPicker.expanded = !inputPicker.expanded
+                                if (inputPicker.expanded)
+                                    outputPicker.expanded = false
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+                        visible: inputPicker.expanded && inputPicker.expandable
+
+                        Repeater {
+                            model: Audio.typedSources
+                            delegate: Rectangle {
+                                id: sourceRow
+                                required property var modelData
+                                readonly property var node: modelData
+                                readonly property bool isActive: Audio.source?.name === node?.name
+
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 40
+                                color: isActive
+                                    ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
+                                    : (sourceMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 28
+                                    anchors.rightMargin: 16
+                                    spacing: 8
+
+                                    MaterialSymbol {
+                                        text: sourceRow.isActive ? "check" : "mic"
+                                        iconSize: 16
+                                        color: sourceRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                        Layout.preferredWidth: 20
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: Audio.friendlyDeviceName(sourceRow.node)
+                                        color: sourceRow.isActive ? TuiStyle.accent : TuiStyle.fg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: sourceRow.isActive ? Font.DemiBold : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: sourceMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        audioPanel.pinOpen()
+                                        Audio.setDefaultSource(sourceRow.node)
+                                        inputPicker.expanded = false
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -832,7 +1519,10 @@ Scope {
                 PopupFooterLink {
                     Layout.fillWidth: true
                     label: "Volume Control…"
-                    onClicked: { root.close(); Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"]); }
+                    onClicked: {
+                        root.close()
+                        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/omd/bin/omd-settings", "open", "sound"])
+                    }
                 }
             }
 

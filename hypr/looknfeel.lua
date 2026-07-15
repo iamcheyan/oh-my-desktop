@@ -40,9 +40,11 @@ o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000,
 -- nmtui runs inside foot; float, center, and size it to fit the TUI content
 o.window("^nmtui$", { float = true, center = true, size = { 880, 620 } })
 
--- GUI settings managers: float and center for a consistent transient-app experience
-o.window("nm-connection-editor", { float = true, center = true, size = { 900, 700 } })
-o.window("blueman-manager", { float = true, center = true, size = { 900, 700 } })
+-- GUI settings managers float and center. GTK4 pavucontrol's persisted
+-- 530px-wide default is too narrow for its translated tab and device labels,
+-- while GTK3 Blueman is best left at its own content-aware size.
+o.window("nm-connection-editor", { float = true, center = true })
+o.window("blueman-manager", { float = true, center = true })
 o.window("org.pulseaudio.pavucontrol", { float = true, center = true, size = { 900, 700 } })
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#general
