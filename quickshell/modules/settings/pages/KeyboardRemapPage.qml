@@ -16,6 +16,15 @@ ColumnLayout {
 
     required property var settingsRoot
     readonly property bool wideLayout: width >= 980
+    property bool restoringAfterFunctionRowAuth: false
+
+    function applyFunctionRowMode(value) {
+        if (KeyboardRemap.functionRowBusy || value === KeyboardRemap.functionRowMode)
+            return
+        pageRoot.restoringAfterFunctionRowAuth = true
+        pageRoot.settingsRoot.show = false
+        Qt.callLater(() => KeyboardRemap.setFunctionRowMode(value))
+    }
 
     // Footer contract (Discard / Apply)
     readonly property bool hasPendingChanges: KeyboardRemap.hasPendingChanges
@@ -197,6 +206,37 @@ ColumnLayout {
                             ? "Use Apply in the footer to write /etc/keyd/omd.conf and restart keyd."
                             : "Select a keyboard to enable presets. Changes stay as a draft until Apply."
                         color: SettingsTokens.dim
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                SettingsSection {
+                    visible: KeyboardRemap.functionRowAvailable
+                    title: "MacBook function row"
+
+                    SettingsDropdownRow {
+                        label: "Top-row key behavior"
+                        description: KeyboardRemap.functionRowBusy
+                            ? "Applying system keyboard setting…"
+                            : "Choose whether media controls or F1–F12 work without Fn."
+                        currentValue: KeyboardRemap.functionRowMode
+                        controlled: true
+                        dropdownWidth: 190
+                        options: [
+                            { label: "Media controls first", value: "media" },
+                            { label: "F1–F12 first", value: "function" },
+                            { label: "Automatic", value: "auto" }
+                        ]
+                        onValueChanged: value => pageRoot.applyFunctionRowMode(value)
+                    }
+
+                    StyledText {
+                        visible: KeyboardRemap.functionRowError.length > 0
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 4
+                        text: KeyboardRemap.functionRowError
+                        color: SettingsTokens.danger
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.WordWrap
                     }
@@ -634,5 +674,18 @@ ColumnLayout {
         KeyboardRemap.loadProfiles()
         KeyboardRemap.checkKeyd()
         KeyboardRemap.checkPendingChanges()
+        KeyboardRemap.refreshFunctionRow()
+    }
+
+    Connections {
+        target: KeyboardRemap
+
+        function onFunctionRowBusyChanged() {
+            if (!pageRoot.restoringAfterFunctionRowAuth || KeyboardRemap.functionRowBusy)
+                return
+            pageRoot.restoringAfterFunctionRowAuth = false
+            pageRoot.settingsRoot.requestedPage = "keyremap"
+            pageRoot.settingsRoot.show = true
+        }
     }
 }

@@ -12,8 +12,35 @@ Rectangle {
     property string currentValue: ""
     property var options: []
     property int dropdownWidth: 180
+    property int maximumVisibleOptions: 7
     property bool controlled: false
     signal valueChanged(string value)
+
+    readonly property int optionHeight: 34
+    readonly property int popupPadding: 4
+
+    function optionLabel(value) {
+        const requested = String(value ?? "");
+        for (const opt of root.options || []) {
+            if (String(opt.value ?? "") === requested)
+                return String(opt.label ?? opt.value ?? "");
+        }
+        return requested;
+    }
+
+    function currentOptionIndex() {
+        const requested = String(root.currentValue ?? "");
+        for (let index = 0; index < (root.options || []).length; index++) {
+            if (String(root.options[index].value ?? "") === requested)
+                return index;
+        }
+        return -1;
+    }
+
+    onOptionsChanged: {
+        if (!root.options || root.options.length === 0)
+            ddPopup.close();
+    }
 
     Layout.fillWidth: true
     implicitHeight: 56
@@ -55,8 +82,7 @@ Rectangle {
             radius: SettingsTokens.radius
             color: ddBtnMouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.button
             border.width: 1
-            border.color: dropdownOpen ? SettingsTokens.accent : SettingsTokens.buttonBorder
-            property bool dropdownOpen: false
+            border.color: ddPopup.opened ? SettingsTokens.accent : SettingsTokens.buttonBorder
 
             RowLayout {
                 anchors.fill: parent
@@ -66,19 +92,14 @@ Rectangle {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: {
-                        for (const opt of root.options) {
-                            if (opt.value === root.currentValue) return opt.label
-                        }
-                        return root.currentValue
-                    }
+                    text: root.optionLabel(root.currentValue)
                     color: SettingsTokens.fg
                     font.pixelSize: Appearance.font.pixelSize.small
                     elide: Text.ElideRight
                 }
 
                 MaterialSymbol {
-                    text: ddButton.dropdownOpen ? "expand_less" : "expand_more"
+                    text: ddPopup.opened ? "expand_less" : "expand_more"
                     iconSize: 18
                     color: SettingsTokens.muted
                 }
@@ -89,9 +110,12 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 onClicked: {
-                    if (root.options && root.options.length > 0) {
-                        ddButton.dropdownOpen = !ddButton.dropdownOpen
-                    }
+                    if (!root.options || root.options.length === 0)
+                        return;
+                    if (ddPopup.opened)
+                        ddPopup.close();
+                    else
+                        ddPopup.open();
                 }
             }
 
@@ -99,9 +123,18 @@ Rectangle {
                 id: ddPopup
                 y: ddButton.height + 4
                 width: root.dropdownWidth
-                height: Math.min(300, (root.options ? root.options.length : 0) * 34 + 8)
-                visible: ddButton.dropdownOpen && root.options && root.options.length > 0
+                height: Math.min(
+                    root.maximumVisibleOptions,
+                    root.options ? root.options.length : 0
+                ) * root.optionHeight + root.popupPadding * 2
                 padding: 0
+                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+                onOpened: {
+                    const selectedIndex = root.currentOptionIndex();
+                    if (selectedIndex >= 0)
+                        ddOptList.positionViewAtIndex(selectedIndex, ListView.Contain);
+                }
 
                 background: Rectangle {
                     radius: SettingsTokens.radius
@@ -110,25 +143,30 @@ Rectangle {
                     border.color: SettingsTokens.line
                 }
 
-                onClosed: ddButton.dropdownOpen = false
-
                 ListView {
                     id: ddOptList
                     anchors.fill: parent
                     anchors.margins: 4
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
+                    interactive: contentHeight > height
+                    reuseItems: true
                     model: root.options
-                    ScrollBar.vertical: StyledScrollBar {}
+                    ScrollBar.vertical: StyledScrollBar {
+                        id: ddScrollBar
+                        policy: ddOptList.contentHeight > ddOptList.height
+                            ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                    }
 
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
-                        width: ddOptList.width
-                        height: 34
+                        width: ddOptList.width - (ddScrollBar.policy === ScrollBar.AlwaysOn ? 8 : 0)
+                        height: root.optionHeight
                         radius: SettingsTokens.radius
                         color: ddOptMouse.containsMouse ? SettingsTokens.cardHover
-                            : (modelData.value === root.currentValue ? SettingsTokens.accentSoft : "transparent")
+                            : (String(modelData.value ?? "") === String(root.currentValue ?? "")
+                                ? SettingsTokens.accentSoft : "transparent")
 
                         StyledText {
                             anchors.fill: parent

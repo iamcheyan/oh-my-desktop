@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+parameter=/sys/module/hid_apple/parameters/fnmode
+config=/etc/modprobe.d/99-omd-hid-apple.conf
+
+print_status() {
+  if [[ ! -r "$parameter" ]]; then
+    printf '{"available":false,"mode":"unsupported","value":-1}\n'
+    return
+  fi
+
+  value=$(tr -d '[:space:]' < "$parameter")
+  case "$value" in
+    1) mode=media ;;
+    2) mode=function ;;
+    3) mode=auto ;;
+    *) mode=other ;;
+  esac
+  printf '{"available":true,"mode":"%s","value":%s}\n' "$mode" "$value"
+}
+
+apply_mode() {
+  local value=$1
+  [[ $value == 1 || $value == 2 || $value == 3 ]] || {
+    echo "Unsupported fnmode: $value" >&2
+    exit 2
+  }
+  [[ -e $parameter ]] || {
+    echo "hid_apple is not active on this machine" >&2
+    exit 3
+  }
+
+  printf '%s\n' "$value" > "$parameter"
+  install -d -m 0755 /etc/modprobe.d
+  printf 'options hid_apple fnmode=%s\n' "$value" > "$config"
+}
+
+case "${1:-status}" in
+  status)
+    print_status
+    ;;
+  set)
+    case "${2:-}" in
+      media) value=1 ;;
+      function) value=2 ;;
+      auto) value=3 ;;
+      *) echo "Usage: $0 set <media|function|auto>" >&2; exit 2 ;;
+    esac
+
+    if [[ -w $parameter && -w /etc/modprobe.d ]]; then
+      apply_mode "$value"
+    else
+      applied=false
+      if command -v pkexec >/dev/null 2>&1 && pkexec "$0" apply "$value"; then
+        applied=true
+      elif command -v run0 >/dev/null 2>&1 && run0 --pipe "$0" apply "$value"; then
+        applied=true
+      elif [[ -t 0 ]] && command -v sudo >/dev/null 2>&1 && sudo "$0" apply "$value"; then
+        applied=true
+      fi
+      if [[ $applied != true ]]; then
+        echo "Administrator authorization was cancelled or failed" >&2
+        exit 4
+      fi
+    fi
+    print_status
+    ;;
+  apply)
+    [[ ${EUID:-$(id -u)} -eq 0 ]] || {
+      echo "The apply operation must run as root" >&2
+      exit 5
+    }
+    apply_mode "${2:-}"
+    ;;
+  *)
+    echo "Usage: $0 <status|set <media|function|auto>>" >&2
+    exit 2
+    ;;
+esac

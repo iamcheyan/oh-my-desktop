@@ -14,6 +14,27 @@ We need a **low-level remapper daemon**. OMD uses **[keyd](https://github.com/rv
 - Full key remap including modifiers and arrows
 - Single system daemon; OMD only generates config
 
+## MacBook function row
+
+On Apple laptops, the top-row Fn behavior is controlled by the kernel's
+`hid_apple` driver rather than keyd. The Keyboard Remap page shows a
+machine-level **MacBook function row** section when
+`/sys/module/hid_apple/parameters/fnmode` exists.
+
+The available modes are:
+
+- **Media controls first** (`fnmode=1`): brightness, volume, and other media
+  actions work directly; hold Fn for F1–F12.
+- **F1–F12 first** (`fnmode=2`): F1–F12 work directly; hold Fn for media
+  actions.
+- **Automatic** (`fnmode=3`): leave the choice to the driver and keyboard.
+
+`bin/omd-keyboard-function-row` reads the live state, applies changes
+immediately through the sysfs parameter, and persists the selected value in
+`/etc/modprobe.d/99-omd-hid-apple.conf`. Applying a mode requires system
+authorization because both destinations are root-owned. The section is hidden
+on machines that do not use `hid_apple`.
+
 ## Architecture
 
 ```

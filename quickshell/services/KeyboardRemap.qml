@@ -20,10 +20,42 @@ Singleton {
     property bool applyInProgress: false
     property bool profilesLoaded: false
     property bool hasPendingChanges: false
+    property bool functionRowAvailable: false
+    property string functionRowMode: "unsupported"
+    property int functionRowValue: -1
+    property bool functionRowBusy: false
+    property string functionRowError: ""
 
     readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin`)
     readonly property string dataDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/keyboard-remap`)
     readonly property string profilesPath: `${root.dataDir}/profiles.json`
+    readonly property string functionRowHelper: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-keyboard-function-row`)
+
+    function applyFunctionRowStatus(text) {
+        try {
+            const data = JSON.parse(text.trim());
+            root.functionRowAvailable = data.available === true;
+            root.functionRowMode = data.mode || "unsupported";
+            root.functionRowValue = Number(data.value ?? -1);
+            root.functionRowError = "";
+        } catch (error) {
+            root.functionRowError = `Could not read Apple function-row state: ${error}`;
+        }
+    }
+
+    function refreshFunctionRow() {
+        if (!functionRowStatusProc.running)
+            functionRowStatusProc.running = true;
+    }
+
+    function setFunctionRowMode(mode) {
+        if (!root.functionRowAvailable || root.functionRowBusy || !["media", "function", "auto"].includes(mode))
+            return;
+        root.functionRowBusy = true;
+        root.functionRowError = "";
+        functionRowSetProc.command = [root.functionRowHelper, "set", mode];
+        functionRowSetProc.running = true;
+    }
 
     readonly property var keyChoices: [
         "escape", "tab", "space", "backspace", "enter", "delete", "insert",
@@ -285,6 +317,7 @@ Singleton {
         root.checkKeyd();
         root.refreshDevices();
         root.loadProfiles();
+        root.refreshFunctionRow();
     }
 
     Timer {
@@ -626,6 +659,39 @@ Singleton {
         }
     }
 
+    Process {
+        id: functionRowStatusProc
+        command: [root.functionRowHelper, "status"]
+        stdout: StdioCollector {
+            onStreamFinished: root.applyFunctionRowStatus(text)
+        }
+    }
+
+    Process {
+        id: functionRowSetProc
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const output = text.trim();
+                if (output.length > 0)
+                    root.applyFunctionRowStatus(output);
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const message = text.trim();
+                if (message.length > 0)
+                    root.functionRowError = message;
+            }
+        }
+        onExited: (code, status) => {
+            root.functionRowBusy = false;
+            if (code !== 0 && root.functionRowError.length === 0)
+                root.functionRowError = `Function-row change failed (code ${code})`;
+            root.refreshFunctionRow();
+        }
+    }
+
     IpcHandler {
         target: "keyremap"
 
@@ -637,6 +703,7 @@ Singleton {
             root.loadProfiles();
             root.checkKeyd();
             root.checkPendingChanges();
+            root.refreshFunctionRow();
         }
         function apply(): void {
             root.apply();

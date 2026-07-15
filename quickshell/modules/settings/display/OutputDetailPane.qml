@@ -16,7 +16,10 @@ Rectangle {
 
     readonly property var draft: (displayState.revision, output ? displayState.draftFor(output.name) : ({}))
     readonly property var parsedMode: displayState.parseMode(draft.mode)
-    readonly property string resolutionValue: parsedMode ? `${parsedMode.w}x${parsedMode.h}` : ""
+        || (output ? displayState.parseMode(output.currentMode) : null)
+    readonly property string resolutionValue: parsedMode
+        ? `${parsedMode.w}x${parsedMode.h}`
+        : (output && output.width && output.height ? `${output.width}x${output.height}` : "")
     readonly property var resolutionOptions: (displayState.revision, buildResolutionOptions())
     readonly property var refreshOptions: (displayState.revision, buildRefreshOptions())
     readonly property var scaleOptions: (displayState.revision, buildScaleOptions())
@@ -33,7 +36,14 @@ Rectangle {
             return [];
         const seen = {};
         const options = [];
-        for (const mode of output.modes || []) {
+        const modes = [];
+        if (draft.mode)
+            modes.push(draft.mode);
+        if (output.currentMode)
+            modes.push(output.currentMode);
+        for (const mode of output.modes || [])
+            modes.push(mode);
+        for (const mode of modes) {
             const parsed = displayState.parseMode(mode);
             if (!parsed)
                 continue;
@@ -49,11 +59,22 @@ Rectangle {
     function buildRefreshOptions() {
         if (!output || !parsedMode)
             return [];
+        const seen = {};
         const options = [];
-        for (const mode of output.modes || []) {
+        const modes = [];
+        if (draft.mode)
+            modes.push(draft.mode);
+        if (output.currentMode)
+            modes.push(output.currentMode);
+        for (const mode of output.modes || [])
+            modes.push(mode);
+        for (const mode of modes) {
             const parsed = displayState.parseMode(mode);
-            if (parsed && parsed.w === parsedMode.w && parsed.h === parsedMode.h)
-                options.push({ value: mode, label: `${Math.round(parsed.hz)} Hz` });
+            const normalized = displayState.normalizeMode(mode, output);
+            if (parsed && parsed.w === parsedMode.w && parsed.h === parsedMode.h && !seen[normalized]) {
+                seen[normalized] = true;
+                options.push({ value: normalized, label: `${Math.round(parsed.hz)} Hz` });
+            }
         }
         return options;
     }
@@ -104,7 +125,7 @@ Rectangle {
             const b = displayState.parseMode(right);
             return Math.abs(a.hz - currentHz) - Math.abs(b.hz - currentHz);
         });
-        displayState.setDraftValue(output.name, "mode", candidates[0]);
+        displayState.setDraftValue(output.name, "mode", displayState.normalizeMode(candidates[0], output));
     }
 
     ColumnLayout {

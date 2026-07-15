@@ -31,11 +31,6 @@ for candidate in amdgpu_bl* intel_backlight acpi_video*; do
 done
 
 
-if omarchy-hyprland-monitor-focused-apple; then
-  omarchy-brightness-display-apple "$step"
-  exit
-fi
-
 # Current brightness percentage
 current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
 
@@ -64,5 +59,6 @@ fi
 # Set the actual brightness of the display device.
 brightnessctl -d "$device" set "$step" >/dev/null
 
-# Use SwayOSD to display the new brightness setting.
-omarchy-swayosd-brightness "$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')"
+# Notify the resident OMD bar process so it can display the actual value.
+current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
+qs -p "$HOME/.config/omd/apps/omd-bar" ipc call osdBrightness trigger "$current" >/dev/null 2>&1 || true

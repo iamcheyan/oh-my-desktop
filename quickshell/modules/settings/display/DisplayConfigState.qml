@@ -30,9 +30,12 @@ Item {
     }
 
     function normalizeMode(mode, output) {
-        if (!mode || String(mode).length === 0)
+        if (!mode || String(mode).trim().length === 0)
             return `${output.width}x${output.height}@${Number(output.refreshRate || 60).toFixed(2)}Hz`;
-        return String(mode).replace(" ", "").replace("@", "@");
+        const parsed = parseMode(mode);
+        if (!parsed)
+            return String(mode).trim().replace(/\s+/g, "");
+        return `${parsed.w}x${parsed.h}@${Number(parsed.hz).toFixed(2)}Hz`;
     }
 
     function formatModeLabel(mode) {
@@ -44,7 +47,7 @@ Item {
     }
 
     function parseMode(mode) {
-        const match = String(mode || "").match(/^(\d+)x(\d+)@([\d.]+)Hz?$/i);
+        const match = String(mode || "").match(/(\d+)\s*x\s*(\d+)\s*@\s*([\d.]+)\s*(?:Hz)?/i);
         if (!match)
             return null;
         return {
