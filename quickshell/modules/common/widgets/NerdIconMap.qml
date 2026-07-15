@@ -82,8 +82,8 @@ QtObject {
     readonly property string brightness6: "\uF185"            // fa-sun U+F185
 
     // Notifications
-    readonly property string notifications: "\uDB81\uDC17"    // mdi-bell U+F0417
-    readonly property string notificationsOff: "\uDB81\uDC18" // mdi-bell-off U+F0418
+    readonly property string notifications: "\uDB80\uDC9C"    // mdi-bell U+F009C
+    readonly property string notificationsOff: "\uDB80\uDC9D" // mdi-bell-off U+F009D
 
     // Navigation / Arrows
     readonly property string expandMore: "\uDB80\uDDDB"       // mdi-chevron-down U+F01DB

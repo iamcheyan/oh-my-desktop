@@ -1472,7 +1472,7 @@ Scope {
         PopupColumn {
             PopupHeader {
                 Layout.fillWidth: true
-                icon: "\uDB81\uDC17"  // mdi-bell U+F0417 (notification icon)
+                icon: Notifications.silent ? NerdIconMap.notificationsOff : NerdIconMap.notifications
                 title: "Notifications"
                 subtitle: Notifications.silent
                     ? "Do not disturb"
@@ -1537,7 +1537,8 @@ Scope {
 
             TuiNotificationList {
                 Layout.fillWidth: true
-                Layout.topMargin: 12
+                Layout.topMargin: visible ? 12 : 0
+                visible: !Notifications.silent
                 Layout.bottomMargin: 16
                 showHeader: false
                 showFooter: false
