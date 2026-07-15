@@ -14,6 +14,7 @@ Singleton {
     property bool clipboardOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
+    property real osdBrightnessValue: -1
     property bool overviewOpen: false
     property string overviewAnchorMonitorName: ""
     property bool overviewSearchMode: false

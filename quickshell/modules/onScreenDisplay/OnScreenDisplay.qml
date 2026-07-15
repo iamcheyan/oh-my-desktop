@@ -14,6 +14,8 @@ Scope {
     id: root
     property string protectionMessage: ""
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+        ?? Quickshell.screens[0]
+        ?? null
 
     property string currentIndicator: "volume"
     property string popupIndicatorType: ""
@@ -75,7 +77,9 @@ Scope {
         target: Brightness
         function onBrightnessChanged() {
             root.protectionMessage = "";
-            root.triggerBarPopup("display");
+            GlobalStates.osdBrightnessValue = -1;
+            root.currentIndicator = "brightness";
+            root.triggerOsd();
         }
     }
 
@@ -94,12 +98,14 @@ Scope {
         function onVolumeChanged() {
             if (!Audio.ready)
                 return;
-            root.triggerBarPopup("audio");
+            root.currentIndicator = "volume";
+            root.triggerOsd();
         }
         function onMutedChanged() {
             if (!Audio.ready)
                 return;
-            root.triggerBarPopup("audio");
+            root.currentIndicator = "volume";
+            root.triggerOsd();
         }
     }
 
@@ -108,7 +114,8 @@ Scope {
         target: Audio
         function onSinkProtectionTriggered(reason) {
             root.protectionMessage = reason;
-            root.triggerBarPopup("audio");
+            root.currentIndicator = "volume";
+            root.triggerOsd();
         }
     }
 
@@ -119,6 +126,7 @@ Scope {
         sourceComponent: PanelWindow {
             id: osdRoot
             color: "transparent"
+            screen: root.focusedScreen
 
             Connections {
                 target: root
@@ -227,7 +235,8 @@ Scope {
         target: "osdVolume"
 
         function trigger() {
-            root.triggerBarPopup("audio");
+            root.currentIndicator = "volume";
+            root.triggerOsd();
         }
 
         function hide() {
@@ -245,7 +254,8 @@ Scope {
         description: "Triggers volume OSD on press"
 
         onPressed: {
-            root.triggerBarPopup("audio");
+            root.currentIndicator = "volume";
+            root.triggerOsd();
         }
     }
     GlobalShortcut {
@@ -256,6 +266,16 @@ Scope {
             GlobalStates.osdVolumeOpen = false;
             if (GlobalStates.barPopupType === "audio")
                 GlobalStates.barPopupType = "";
+        }
+    }
+
+    IpcHandler {
+        target: "osdBrightness"
+
+        function trigger(value: real): void {
+            GlobalStates.osdBrightnessValue = Math.max(0, Math.min(100, value));
+            root.currentIndicator = "brightness";
+            root.triggerOsd();
         }
     }
 }

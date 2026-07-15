@@ -59,46 +59,9 @@ Item {
             }
             spacing: 0
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiBlue
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 14
-                    spacing: 8
-
-                    StyledText {
-                        text: "AUDIO"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Bold
-                        color: root.tuiBlue
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: root.tuiLine
-                    }
-
-                    StyledText {
-                        text: root.sinkMuted ? "MUTED" : "ACTIVE"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: root.stateTone(root.sinkMuted)
-                    }
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 14
+                Layout.topMargin: 4
                 spacing: 12
 
                 CosmicIcon {

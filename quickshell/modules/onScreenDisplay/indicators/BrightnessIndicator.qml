@@ -1,3 +1,4 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -20,7 +21,9 @@ Item {
 
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
     property var brightnessMonitor: Brightness.getMonitorForScreen(focusedScreen)
-    readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
+    readonly property real brightnessValue: GlobalStates.osdBrightnessValue >= 0
+        ? GlobalStates.osdBrightnessValue / 100
+        : brightnessMonitor?.brightness ?? 0
 
     implicitWidth: 300 + Appearance.sizes.elevationMargin * 2
     implicitHeight: popupBg.implicitHeight + Appearance.sizes.elevationMargin * 2
@@ -54,46 +57,9 @@ Item {
             }
             spacing: 0
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                color: root.tuiPanel
-                border.width: 1
-                border.color: root.tuiYellow
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 14
-                    anchors.rightMargin: 14
-                    spacing: 8
-
-                    StyledText {
-                        text: "BRIGHTNESS"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.Bold
-                        color: root.tuiYellow
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: root.tuiLine
-                    }
-
-                    StyledText {
-                        text: `${Math.round(root.brightnessValue * 100)}%`
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Bold
-                        color: root.tuiYellow
-                    }
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
-                Layout.topMargin: 14
+                Layout.topMargin: 4
                 spacing: 12
 
                 CosmicIcon {
