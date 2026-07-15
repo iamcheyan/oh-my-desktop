@@ -41,7 +41,6 @@ WindowDialog {
     readonly property var primaryPages: [
         { key: "overview", icon: "build", title: "OMD Tools", keywords: "tools advanced theme voice keyboard vm" },
         { key: "network", icon: "wifi", title: "Devices & Connection", keywords: "wifi wireless bluetooth internet lan device connection" },
-        { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth device pairing wireless" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
@@ -94,7 +93,7 @@ WindowDialog {
     }
 
     function pageComponent(page) {
-        if (page === "network" || page === "bluetooth") return networkPage;
+        if (page === "network") return networkPage;
         if (page === "display") return migratedDisplayPage;
         if (page === "voice") return voicePage;
         if (page === "keyremap") return keyremapPage;

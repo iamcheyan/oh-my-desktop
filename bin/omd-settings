@@ -86,6 +86,8 @@ page="${2:-overview}"
 if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
     if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
         exec env GDK_SCALE=1 GDK_DPI_SCALE=0.5 pavucontrol
+    elif [ "$page" = "bluetooth" ]; then
+        exec env GDK_SCALE=1 GDK_DPI_SCALE=0.5 blueman-manager
     fi
 fi
 
