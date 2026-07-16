@@ -1,5 +1,6 @@
 import qs
 import qs.services
+import qs.services as Services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -31,6 +32,10 @@ Scope {
         {
             id: "gamma",
             sourceUrl: "indicators/GammaIndicator.qml"
+        },
+        {
+            id: "inputMethod",
+            sourceUrl: "indicators/InputMethodIndicator.qml"
         },
     ]
 
@@ -93,6 +98,15 @@ Scope {
     }
 
     Connections {
+        target: Services.InputMethod
+        function onOsdRequested() {
+            root.protectionMessage = "";
+            root.currentIndicator = "inputMethod";
+            root.triggerOsd();
+        }
+    }
+
+    Connections {
         // Listen to volume changes
         target: Audio.sink?.audio ?? null
         function onVolumeChanged() {
@@ -138,8 +152,8 @@ Scope {
             WlrLayershell.namespace: "quickshell:onScreenDisplay"
             WlrLayershell.layer: WlrLayer.Overlay
             anchors {
-                top: !Config.options.bar.bottom
-                bottom: Config.options.bar.bottom
+                top: root.currentIndicator !== "inputMethod" && !Config.options.bar.bottom
+                bottom: root.currentIndicator !== "inputMethod" && Config.options.bar.bottom
             }
             mask: Region {
                 item: osdValuesWrapper

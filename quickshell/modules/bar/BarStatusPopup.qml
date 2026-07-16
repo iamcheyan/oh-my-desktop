@@ -1704,15 +1704,24 @@ Scope {
                 showDivider: false
             }
 
-            // Night mode intensity slider (only visible when night mode is on)
+            // Keep this row in the layout so toggling night mode never resizes
+            // the popup. Its enabled state is communicated with a subtle fade.
             PopupSliderRow {
-                visible: Hyprsunset.temperatureActive
+                enabled: Hyprsunset.temperatureActive
+                opacity: Hyprsunset.temperatureActive ? 1 : 0.35
                 icon: NerdIconMap.brightness6
                 value: (6500 - (Config.options.light.night.colorTemperature ?? 6000)) / (6500 - 2500)
                 muted: false
                 onMoved: value => {
                     const temp = Math.round(6500 - value * (6500 - 2500));
                     Config.setNestedValue("light.night.colorTemperature", temp);
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
                 }
             }
 

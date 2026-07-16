@@ -19,6 +19,18 @@ languages, rather than only toggling Rime's ASCII mode:
 The badge follows external changes too. Switching the schema through an
 existing Fcitx/Rime shortcut updates the top bar on its next poll.
 
+Keyboard switching uses the same schema service:
+
+| Shortcut | Action |
+| --- | --- |
+| `Super+Space` | Select the next Rime schema |
+| `Super+Shift+Space` | Select the previous Rime schema |
+| `Super+Ctrl+Space` | Toggle the Quickshell bar |
+
+The first two shortcuts show a centered OSD containing all supported
+languages. The pending schema is highlighted immediately, then verified by
+the existing Rime D-Bus switching flow.
+
 This is deliberately different from switching between the Fcitx input
 methods `keyboard-us` and `rime`. Chinese, English, and Japanese are complete
 Rime schemas and are selected through Rime itself.
@@ -117,6 +129,11 @@ lastError
 It polls status every two seconds, refreshes when the popup opens, invokes the
 helper for changes, and updates the UI from the helper's JSON output.
 
+It also owns the ordered schema list used by keyboard cycling. Requests made
+while a previous switch is still running are coalesced into the latest queued
+schema, so repeated `Super+Space` presses do not start overlapping D-Bus
+operations.
+
 The service delays a requested schema change briefly after restoring the
 original application window. This is required because Rime applies its D-Bus
 operation to the most recent Fcitx input context.
@@ -131,6 +148,12 @@ bar popup with type `inputMethod`.
 
 Places `InputMethodButton` in the right-side module row after Wi-Fi and before
 the clipboard button.
+
+### `quickshell/modules/onScreenDisplay/indicators/InputMethodIndicator.qml`
+
+Centered language-selection OSD used by `Super+Space`. It reads the same
+schema list and pending/current state from `InputMethod.qml`; it does not
+implement a second switching path.
 
 ### `quickshell/modules/bar/BarStatusPopup.qml`
 

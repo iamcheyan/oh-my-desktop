@@ -20,6 +20,18 @@ Singleton {
     property string variant: ""
     property string lastError: ""
     property string pendingSchema: ""
+    property string activeSwitchSchema: ""
+    property string queuedSchema: ""
+    property string queuedWindowAddress: ""
+
+    readonly property var schemas: [
+        { id: "sbzr", badge: "中", title: "Chinese", variant: "Natural input" },
+        { id: "sbzr_mix", badge: "混", title: "Chinese", variant: "Mixed input" },
+        { id: "easy_en", badge: "A", title: "English", variant: "Easy English" },
+        { id: "jaroomaji", badge: "あ", title: "Japanese", variant: "Romaji" }
+    ]
+
+    signal osdRequested()
 
     readonly property string badge: {
         if (root.language === "zh") {
@@ -42,17 +54,36 @@ Singleton {
     }
 
     function selectSchema(schemaId, windowAddress) {
-        if (root.busy)
+        if (!schemaId || root.schemas.findIndex(item => item.id === schemaId) < 0)
             return;
+        root.pendingSchema = schemaId;
+        if (root.busy) {
+            root.queuedSchema = schemaId;
+            root.queuedWindowAddress = windowAddress || "";
+            return;
+        }
         root.busy = true;
         root.lastError = "";
-        root.pendingSchema = schemaId;
+        root.activeSwitchSchema = schemaId;
 
         // Rime's D-Bus service operates on Fcitx's most recent input context.
         // Return focus to the application before selecting its schema.
         if (windowAddress && windowAddress.length > 0)
             Hyprland.dispatch(`hl.dsp.focus({window = "address:${windowAddress}"})`);
         switchDelay.restart();
+    }
+
+    function cycleSchema(direction) {
+        const count = root.schemas.length;
+        if (count === 0)
+            return;
+        const current = root.pendingSchema || root.schema;
+        let index = root.schemas.findIndex(item => item.id === current);
+        if (index < 0)
+            index = direction < 0 ? 0 : -1;
+        const nextIndex = (index + (direction < 0 ? -1 : 1) + count) % count;
+        root.selectSchema(root.schemas[nextIndex].id, "");
+        root.osdRequested();
     }
 
     function openConfiguration() {
@@ -103,8 +134,17 @@ Singleton {
         onRunningChanged: {
             if (!running) {
                 root.busy = false;
-                root.pendingSchema = "";
+                root.activeSwitchSchema = "";
                 refreshTimer.restart();
+                if (root.queuedSchema.length > 0) {
+                    const nextSchema = root.queuedSchema;
+                    const nextAddress = root.queuedWindowAddress;
+                    root.queuedSchema = "";
+                    root.queuedWindowAddress = "";
+                    Qt.callLater(() => root.selectSchema(nextSchema, nextAddress));
+                } else {
+                    root.pendingSchema = "";
+                }
             }
         }
     }
@@ -114,7 +154,7 @@ Singleton {
         interval: 180
         repeat: false
         onTriggered: {
-            switchProcess.command = [root.helper, "set", root.pendingSchema];
+            switchProcess.command = [root.helper, "set", root.activeSwitchSchema];
             switchProcess.running = true;
         }
     }
