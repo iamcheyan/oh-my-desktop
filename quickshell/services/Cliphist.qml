@@ -39,6 +39,33 @@ Singleton {
         return !!(/^\d+\t\[\[.*binary data.*\d+x\d+.*\]\]$/.test(entry))
     }
 
+    function entryPayload(entry) {
+        return `${entry ?? ""}`.replace(/^\s*\S+\s+/, "")
+    }
+
+    function entryHasVisibleContent(entry) {
+        if (entryIsImage(entry))
+            return true
+        const invisible = /[\s\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3000\u3164\ufe00-\ufe0f\ufeff\uffa0]/g
+        return entryPayload(entry).replace(invisible, "").length > 0
+    }
+
+    function filterEntries(values) {
+        const seen = new Set()
+        const filtered = []
+        for (let i = 0; i < values.length; i++) {
+            const entry = values[i]
+            const payload = entryPayload(entry)
+            if (!entryHasVisibleContent(entry)) continue
+            if (payload.indexOf("/tmp/omd-clip-") !== -1) continue
+            if (seen.has(payload)) continue
+            seen.add(payload)
+            filtered.push(entry)
+            if (filtered.length >= root.maxEntries) break
+        }
+        return filtered
+    }
+
     function refresh() {
         root.loaded = true
         readProc.buffer = []
@@ -163,21 +190,7 @@ Singleton {
 
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
-                var seen = new Set()
-                var deduped = []
-                var buf = readProc.buffer
-                for (var i = 0; i < buf.length; i++) {
-                    var line = buf[i]
-                    var text = line.replace(/^\s*\S+\s+/, "")
-                    var trimmed = text.trim()
-                    if (trimmed.length === 0) continue
-                    if (trimmed.indexOf("/tmp/omd-clip-") !== -1) continue
-                    if (seen.has(text)) continue
-                    seen.add(text)
-                    deduped.push(line)
-                    if (deduped.length >= root.maxEntries) break
-                }
-                root.entries = deduped
+                root.entries = root.filterEntries(readProc.buffer)
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)
             }

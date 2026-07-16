@@ -10,8 +10,8 @@ set -eu
 
 wl-paste --watch bash -c '
     data=$(cat)
-    # Check if empty (whitespace only)
-    if [[ -z "${data//[[:space:]]/}" ]]; then
+    # Reject visually empty text, including Unicode zero-width/format chars.
+    if ! printf %s "$data" | grep -Pq "[^\\s\\p{Cf}\\p{Cc}]"; then
         exit 0
     fi
     # Check if it contains /tmp/omd-clip-
@@ -25,7 +25,12 @@ wl-paste --watch bash -c '
 ' &
 
 wl-paste -t image/png --watch sh -c '
-    cliphist store
+    tmp=$(mktemp)
+    trap '\''rm -f "$tmp"'\'' EXIT
+    cat > "$tmp"
+    [ -s "$tmp" ] || exit 0
+    file -b --mime-type "$tmp" | grep -q "^image/" || exit 0
+    cliphist store < "$tmp"
     qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
     qs -p "$HOME/.config/omd/apps/omd-bar" ipc call cliphistService update 2>/dev/null || true
 '
