@@ -174,23 +174,72 @@ and one Apply action, both operating on `DisplayConfigState` drafts. Do not add
 per-output Apply buttons or restore the generic `SettingsPanelFrame` Confirm
 footer on this page.
 
-The original DMS implementation depends on `WlrOutputService`,
-`CompositorService`, `SettingsData`, DMS display profiles, and both Hyprland and
-Niri backends. OMD does not run that daemon stack, so the state layer is adapted
-for the current Omarchy + Hyprland session:
+The original DMS implementation depends on its Go daemon's
+`WlrOutputService`, `CompositorService`, `SettingsData`, display profiles, and
+multiple compositor backends. OMD does not run that daemon stack. Instead,
+`bin/omd-display-config` uses `wlr-randr`, which is a small client for the same
+`wlr-output-management` protocol used by the DMS Go backend:
 
 ```text
-hyprctl -j monitors all
-hyprctl keyword monitor <name>,<mode>,<x>x<y>,<scale>,transform,<n>
+DisplayConfigState.qml
+  -> omd-display-config get
+       -> wlr-randr --json
+       -> merge Hyprland focused-output metadata
+  -> omd-display-config apply <complete layout>
+       -> validate every output and value
+       -> wlr-randr --dryrun <complete layout>
+       -> wlr-randr <complete layout>
+       -> wlr-randr --json and verify every requested value
+       -> write ~/.local/state/omd/display/layout.lua
+       -> hypr/monitors.lua reads it on startup or config reload
 ```
 
-Keep display-specific parsing and command generation in
-`DisplayConfigState.qml`. Do not add new monitor layout logic directly to
-`SettingsDialog.qml`.
+The helper exposes the current mode as `currentMode` and the complete mode
+catalog as `modes`; the QML adapter also accepts Hyprland's legacy
+`availableModes` field as a fallback. Refresh rates retain millihertz precision
+internally because the protocol requires an exact advertised-mode match (for
+example, `59.951Hz` is not interchangeable with `59.950Hz`). Scale presets run
+from 100% through 400% in consistent 25% increments.
+
+This preserves the useful DMS behavior without importing its entire daemon:
+
+- the compositor receives all output changes as one configuration
+- invalid configurations are tested before changing the screens
+- command success alone is not accepted; reported live state must match
+- startup persistence is written only after live verification succeeds
+- the monitor module is loaded with `dofile`, so a later `hyprctl reload`
+  reads the newest machine-local layout instead of a cached Lua module
+- mode data comes from the output-management protocol instead of reconstructed
+  values from unrelated UI state
+- Identify Displays uses the DMS multi-output overlay pattern: one click-through
+  overlay per screen with connector, display name, and physical resolution
+
+Display geometry has one invariant: every enabled output belongs to one
+edge-connected layout and no two logical rectangles overlap. Dragging always
+chooses the nearest legal shared-edge position; it does not stop snapping after
+an arbitrary distance. Changing resolution, scale, rotation, or advanced
+coordinates reflows the remaining outputs around the changed output so an old
+shared edge cannot become a gap or overlap. The backend validates the same
+invariant before its compositor dry run.
+
+Fractional scales use an outward-rounded logical boundary for attachment. This
+keeps adjacent integer output coordinates visually flush without allowing the
+subpixel overlap that Hyprland reports for scales such as 175%.
+
+After a verified display transaction, the applied values immediately become
+the new comparison baseline and the settings process runs
+`scripts/reload-quickshell --quickshell-only`. Display changes invalidate
+layer-shell geometry, so all persistent OMD Quickshell processes are recreated
+against the new output layout; Hyprland is not reloaded a second time and the
+on-demand settings window is intentionally closed by that reload.
+
+Keep display draft and canvas logic in `DisplayConfigState.qml`, and keep
+protocol/command validation in `bin/omd-display-config`. Do not add monitor
+layout logic directly to `SettingsDialog.qml`.
 
 Current scope:
 
-- connected Hyprland outputs
+- connected outputs exposed through `wlr-output-management`
 - output arrangement by dragging preview rectangles
 - mode, scale, transform, and position changes
 - refresh and identify actions
