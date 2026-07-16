@@ -7,6 +7,7 @@
 import qs
 import "modules/common"
 import "services"
+import "services" as Services
 
 import qs.modules.bar
 import qs.modules.onScreenDisplay
@@ -60,6 +61,15 @@ ShellRoot {
 
         function cancel(): void {
             VoiceInput.cancel()
+        }
+    }
+
+    IpcHandler {
+        target: "inputMethod"
+
+        function cycle(direction: int): void {
+            // Open the input method popup instead of cycling
+            GlobalStates.barPopupType = "inputMethod";
         }
     }
 
