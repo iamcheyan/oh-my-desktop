@@ -1209,6 +1209,7 @@ Scope {
             // The controller exposes only Playing or Paused sessions. Stopped
             // and destroyed sessions resolve to null and remove this strip.
             readonly property bool showMediaControls: activePlayer !== null
+            readonly property bool hasTrackArt: showMediaControls && TrackArt.resolvedArtUrl.length > 0
             readonly property string trackTitle: {
                 const t = StringUtils.cleanMusicTitle(activePlayer?.trackTitle || "")
                 return t.length > 0 ? t : "Untitled"
@@ -1294,16 +1295,16 @@ Scope {
                         }
                         spacing: 12
 
-                        // Left Side: Album Art (if media playing) or Volume Icon (if not)
+                        // Left Side: Album Art (if media playing and has art) or Volume Icon (if not)
                         Item {
-                            Layout.preferredWidth: audioPanel.showMediaControls ? 40 : 26
-                            Layout.preferredHeight: audioPanel.showMediaControls ? 40 : 26
+                            Layout.preferredWidth: audioPanel.hasTrackArt ? 40 : 26
+                            Layout.preferredHeight: audioPanel.hasTrackArt ? 40 : 26
                             Layout.alignment: Qt.AlignVCenter
 
-                            // Case A: Media Artwork (only visible when media playing)
+                            // Case A: Media Artwork (only visible when media playing and has art)
                             Rectangle {
                                 anchors.fill: parent
-                                visible: audioPanel.showMediaControls
+                                visible: audioPanel.hasTrackArt
                                 radius: 8
                                 color: TuiStyle.surfaceSubtle
                                 border.width: 1
@@ -1340,7 +1341,7 @@ Scope {
                                     border.color: TuiStyle.bg
 
                                     SequentialAnimation on opacity {
-                                        running: audioPanel.isPlaying && audioPanel.showMediaControls
+                                        running: audioPanel.isPlaying && audioPanel.hasTrackArt
                                         loops: Animation.Infinite
                                         NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
                                         NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
@@ -1348,10 +1349,10 @@ Scope {
                                 }
                             }
 
-                            // Case B: Simple Volume Icon (only visible when media NOT playing)
+                            // Case B: Simple Volume Icon (visible when no media playing OR has no art)
                             NerdIcon {
                                 anchors.centerIn: parent
-                                visible: !audioPanel.showMediaControls
+                                visible: !audioPanel.hasTrackArt
                                 iconSize: 26
                                 text: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
                                 color: TuiStyle.fg
