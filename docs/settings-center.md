@@ -222,16 +222,55 @@ coordinates reflows the remaining outputs around the changed output so an old
 shared edge cannot become a gap or overlap. The backend validates the same
 invariant before its compositor dry run.
 
-Fractional scales use an outward-rounded logical boundary for attachment. This
-keeps adjacent integer output coordinates visually flush without allowing the
-subpixel overlap that Hyprland reports for scales such as 175%.
+Logical boundaries use the same nearest-integer calculation as Hyprland's
+`CMonitor::m_size`. Scale choices start at 100% and stay on the 25% grid. Each
+choice shows both the familiar UI preset and the clean scale Hyprland can
+actually apply, for example `175% · actual 166.67%`. OMD submits the displayed
+actual value and computes monitor attachment from that value, so Hyprland does
+not silently change the scale after positions have already been calculated.
+If Hyprland's bounded search cannot find a clean scale, the preset remains
+visible as `unavailable` and cannot be selected.
 
-After a verified display transaction, the applied values immediately become
-the new comparison baseline and the settings process runs
+Hyprland searches scale values on a 1/120 grid. It starts from the requested
+value and checks the next higher candidate before the equally distant lower
+candidate. The result depends on the active physical mode; it is not a global
+percentage table. For the two displays used during development, presets from
+100% through 300% resolve as follows:
+
+| UI preset | 3840x2160 actual | 3024x1964 actual |
+| ---: | ---: | ---: |
+| 100% | 100% | 100% |
+| 125% | 125% | 133.33% |
+| 150% | 150% | 133.33% |
+| 175% | 166.67% | 200% |
+| 200% | 200% | 200% |
+| 225% | 240% | 200% |
+| 250% | 250% | 200% |
+| 275% | 266.67% | unavailable |
+| 300% | 300% | unavailable |
+
+Changing resolution rebuilds this mapping because a different physical mode
+has a different set of clean divisors. The draft stores the UI preset and the
+effective compositor scale separately, which also lets the Apply button treat
+two presets mapping to the same actual value as a real user edit.
+The selected preset is persisted in
+`~/.local/state/omd/display/layout.json` alongside the effective scale, while
+`layout.lua` remains the Hyprland startup configuration. This preserves labels
+such as `175% · actual 166.67%` after reopening the settings panel.
+
+The footer uses an edit-session dirty flag: it starts disabled, remains enabled
+after any user edit even when a control is returned to its original value, and
+is cleared only by Apply or Discard. After a verified display transaction, the
+applied values become the new baseline and the settings process runs
 `scripts/reload-quickshell --quickshell-only`. Display changes invalidate
 layer-shell geometry, so all persistent OMD Quickshell processes are recreated
 against the new output layout; Hyprland is not reloaded a second time and the
 on-demand settings window is intentionally closed by that reload.
+
+The wildcard Hyprland monitor rule is registered before saved per-output rules.
+Hyprland resolves monitor rules newest-first, so this order keeps the wildcard
+as a fallback instead of allowing it to override the persisted layout during a
+configuration reload.
 
 Keep display draft and canvas logic in `DisplayConfigState.qml`, and keep
 protocol/command validation in `bin/omd-display-config`. Do not add monitor

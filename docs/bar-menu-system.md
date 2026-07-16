@@ -64,6 +64,12 @@ Wi-Fi and Bluetooth bar icons open `BarStatusPopup` content (not context menus).
 Connect logic lives in `quickshell/services/Network.qml`. See
 `docs/wifi-connect-flow.md`.
 
+### Height-variable status popups (Volume / Display)
+
+Avoid resizing the layer-shell surface while a popup is open (whole-card flash).
+Volume keeps Output/Input lists always visible; settings open from the header
+gear. See [`docs/bar-popup-height-stability.md`](./bar-popup-height-stability.md).
+
 ---
 
 ## 3. Usage Examples

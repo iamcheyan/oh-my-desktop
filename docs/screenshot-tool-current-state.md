@@ -1,155 +1,108 @@
-# Screenshot Tool Current State and Known Problems
+# Screenshot Architecture
 
-Date: 2026-07-12 (updated)
+Updated: 2026-07-16
 
-## 需求
+## Goals
 
-按下截图快捷键的瞬间，整个桌面（包括顶栏右键菜单、popup、通知等所有
-OMD overlay）应该被"冻结"——截取的图像里必须包含这些 overlay，之后
-桌面不再响应任何操作（除非取消截图），截图选择器出现在冻结图像之上。
+OMD has two screenshot paths with deliberately different priorities:
 
-## 当前表现
+- Fast capture must open immediately and keep pointer selection smooth.
+- Capture and edit must freeze the desktop before the selector takes focus, so
+  bar menus, popups, notifications, and other overlays can be included.
+- Multi-monitor work is scoped to the Hyprland focused monitor. The screenshot
+  tool does not create a selector or decode a frozen image on every output.
+- Screenshot UI remains cold-started and consumes no memory while inactive.
 
-只要一截图，顶栏的右键菜单和 popup 就会消失，没有被冻结到截图里。
+## User-facing bindings
 
-## 本轮修改尝试
+| Entry | Mode | Implementation |
+| --- | --- | --- |
+| `Alt+S` | Fast region capture | `slurp -> grim -> wl-copy` |
+| `Print` | Fast region capture | `slurp -> grim -> wl-copy` |
+| `Alt+Shift+S` | Frozen capture and edit | focused-output `grim` snapshot -> QML selector -> ImageMagick crop -> editor |
+| Bar `Capture Area` | Fast region capture | `bin/omd-screenshot screenshot` |
+| Bar `Capture & Edit` | Frozen capture and edit | `bin/omd-screenshot edit` |
 
-尝试用 IPC 替代文件轮询来同步截图状态：
+Pressing the same fast-capture shortcut while `slurp` is open cancels it.
 
-1. `bin/omd-screenshot` 启动截图进程前，先调用
-   `qs ipc -p .../omd-bar call screenshot begin`，让 bar 进程立即设置
-   `GlobalStates.screenshotActive = true`。
-2. bar 端 `GlobalFocusGrab.onCleared` 检查 `screenshotActive`，若为 true
-   则不 dismiss。
-3. `BarStatusPopup`、`BarContextMenu` 的 `onDismissed` 也有同样 guard。
-4. `BarDismissLayer` 在 `screenshotActive` 时不出现。
-5. 截图进程退出时调用 `screenshot end` 恢复。
+## Fast path
 
-### 测试结果（2026-07-12 16:04）
+`bin/omd-screenshot screenshot` does not launch Quickshell and does not capture
+the desktop before selection:
 
-测试环境：单显示器 HDMI-A-1，通过 IPC 手动打开 notifications popup，
-然后调用 `screenshot begin`，再启动 `omd-screenshot`。
+1. Record the currently focused Hyprland output.
+2. Run `slurp` and obtain geometry plus the output containing the selection.
+3. Reject a selection started on a different output and crop geometry at the
+   focused output boundary.
+4. Capture only the selected geometry with `grim`.
+5. Copy the PNG to the clipboard with `wl-copy`.
+6. If `screenSnip.savePath` is configured, save a timestamped copy there.
 
-关键观测：
+This is the default path because `slurp` is a small native layer-shell client.
+It avoids Quickshell startup, full-output PNG compression, image decoding, and
+QML pointer-frame rendering.
 
-1. `screenshot begin` IPC 确实生效——调用后 popup 仍然可见（步骤4:
-   `hyprctl layers | grep -c barstatus` = 1）。
-2. **但截图进程一启动，popup 就消失了**（步骤6:
-   `hyprctl layers | grep -c barstatus` = 0）。
-3. `screenshotActive` guard 没能阻止 popup 消失。
+## Frozen edit path
 
-### 测试方法的局限性
+`bin/omd-screenshot edit` preserves the snapshot-first behavior:
 
-上面的测试通过 IPC `barPopup open` 打开 popup，**没有测试右键菜单**
-（`BarContextMenu`）。右键菜单是 `PopupWindow` 类型，不是
-`PanelWindow`，dismiss 机制不同。测试也没有覆盖用户实际操作流程
-（手动点击顶栏按钮打开 popup/菜单，然后按截图快捷键）。
+1. Resolve the focused monitor with `hyprctl monitors -j`.
+2. Tell `omd-bar` that screenshot capture has begun, keeping visible overlays
+   alive long enough to be captured.
+3. Capture only that monitor to a temporary PNG.
+4. Export `OMD_SCREENSHOT_MONITOR` and its snapshot path.
+5. Cold-start `apps/omd-screenshot`.
+6. `RegionSelector.qml` creates exactly one `RegionSelection`, for that output.
+7. The selected area is cropped from the frozen PNG and passed to the existing
+   post-capture actions.
 
-## 目前怀疑的失败点
+The QML path remains appropriate for frozen overlays, window targeting, square
+or circular selection, recording, and the post-capture action bar. It is not
+used for ordinary clipboard screenshots.
 
-### 1. `screenshot begin` 的时序 vs 截图进程 surface 创建
+## Pointer rendering rules
 
-`bin/omd-screenshot` 的流程是：
-```
-touch /tmp/omd-screenshot-active
-qs ipc call screenshot begin    ← bar 设置 screenshotActive=true
-nohup qs -p omd-screenshot &    ← 截图进程启动，创建 layer-shell surface
-```
+The QML selector must keep its pointer hot path small:
 
-`screenshot begin` 在截图进程启动之前就发了。bar 的
-`GlobalStates.screenshotActive` 应该已经是 true。
+- Window/layer target detection runs only while hovering, not while dragging.
+- Pointer history is collected only for circle selection.
+- The moving crosshair uses plain rectangles, not `MultiEffect` layers.
+- The darkened outside area uses four rectangles rather than a screen-sized
+  synthetic border.
 
-但截图进程的 `RegionSelection` 是 `PanelWindow` with
-`WlrLayer.Overlay` + `WlrKeyboardFocus.Exclusive`。这个 exclusive
-键盘焦点可能触发了一些 bar 端没 guard 住的关闭路径。
+New effects or model updates must not be bound directly to every pointer event
+without measuring their frame cost.
 
-### 2. `BarStatusPopup` 的 visible binding
+## Shared action entry points
 
-```qml
-visible: root.open && root.focusedScreen
-```
-```qml
-readonly property bool open: activeType.length > 0 && !GlobalStates.screenLocked
-```
+The bar menu, keyboard bindings, and Screenshot Toolbox call
+`bin/omd-screenshot`; they must not implement separate region-copy or edit
+pipelines. The toolbox may keep specialized external actions such as OCR,
+measurement, QR decoding, pinning, and annotation, but ordinary capture and
+capture-and-edit use the shared backend.
 
-如果 `screenLocked` 或 `focusedScreen` 在截图时变化，popup 可能
-直接通过 binding 变 invisible，不走 `onDismissed`，所以
-`screenshotActive` guard 没用。
+## Dependencies
 
-### 3. `BarContextMenu` 是 `PopupWindow` 不是 `PanelWindow`
+Required for the primary paths:
 
-`PopupWindow` 的关闭机制可能不完全受 `GlobalFocusGrab` 控制。
-需要确认 `PopupWindow` 在焦点丢失时是否会自动关闭。
+- `grim`
+- `slurp`
+- `wl-copy`
+- `jq`
+- ImageMagick (`magick`) for frozen snapshot cropping
+- the configured annotation editor (`swappy` or `satty`)
 
-### 4. `dismissGuard` timer 的竞争
+Optional toolbox actions may additionally require `tesseract`, `hyprpicker`,
+`mark-shot`, `qt-img-viewer`, or `zbarimg`. Missing optional tools must not
+break fast capture or frozen editing.
 
-`BarStatusPopup` 打开时 `dismissGuard` 300ms 后才
-`addDismissable`。如果截图进程在这个窗口内启动，focus grab 可能
-还没 active，但其他机制可能已经关掉了 popup。
+## Relevant files
 
-### 5. `RegionSelector.qml` 的 `FileUtils is not defined` 错误
-
-截图进程里 `RegionSelector.qml:21` 报
-`ReferenceError: FileUtils is not defined`。这导致 `dismiss()` 里的
-`screenshot end` IPC 调用失败，`screenshotActive` 可能永远不被
-重置。但这是退出时的问题，不影响进入截图时 popup 消失的问题。
-
-### 6. grim 快照文件不存在
-
-截图 log 反复出现：
-```
-Cannot open: file:///tmp/quickshell/media/screenshot/image-HDMI-A-1-XXX.png
-```
-
-这说明 `snapshotProc` 的 grim 命令可能失败了，或者 Image 试图加载
-时文件还没写完。但即使 grim 成功，如果 popup 在 grim 执行前就
-消失了，快照里也不会有 popup。
-
-### 7. 没有验证 `screenshot begin` IPC 是否真的到达 bar
-
-`console.log` 在 `screenshot begin` handler 里没有出现在任何已知
-log 文件中（`/tmp/omd-bar.log`、qslog 文件均无输出）。无法确认
-IPC 调用是否真的被 bar 进程处理。Quickshell 的 `console.log`
-输出目标不确定。
-
-## 当前修改的文件
-
-- `apps/omd-bar/shell.qml` — 新增 `screenshot` IPC handler（begin/end）
-- `bin/omd-screenshot` — 启动前 `screenshot begin`，kill 时 `screenshot end`
-- `quickshell/services/GlobalFocusGrab.qml` — `onCleared` 检查
-  `screenshotActive`，移除了 `delayedDismiss` timer
-- `quickshell/modules/bar/BarRuntime.qml` — 移除文件轮询，直接用
-  `GlobalStates.screenshotActive`
-- `quickshell/modules/bar/BarDismissLayer.qml` — 截图时隐藏 dismiss
-  layer（`visible: ... && !screenshotActive`）
-- `quickshell/modules/bar/BarContextMenu.qml` — `onDismissed` 加
-  `screenshotActive` guard
-- `quickshell/modules/regionSelector/RegionSelector.qml` — `dismiss()`
-  时调用 `screenshot end`（但有 `FileUtils is not defined` 错误）
-- `quickshell/modules/regionSelector/RegionSelection.qml` — 录制模式
-  也先 `menus close`
-
-## 需要调查的方向
-
-1. **确认 `screenshot begin` IPC 是否真的到达 bar 进程**——用一种
-   有可观察副作用的方式验证（比如在 handler 里改一个 IPC 可读的
-   属性，或用一个文件 marker）。
-
-2. **追踪截图进程启动后 popup 消失的确切路径**——在 bar 的
-   `BarStatusPopup.onVisibleChanged`、`GlobalFocusGrab.onCleared`、
-   `BarDismissLayer.dismiss` 等位置加 log，用一种一定能看到的
-   输出方式（比如写文件而不是 `console.log`）。
-
-3. **确认 `PopupWindow`（BarContextMenu）在焦点丢失时的行为**——
-   它是否会自动关闭，不走 `GlobalFocusGrab`。
-
-4. **考虑完全不同的架构**——比如把截图 selector 放到 bar 进程
-   里，而不是独立进程。这样不需要跨进程 IPC 同步状态，bar 可以
-   直接在 grim 之前冻结自己的 overlay。
-
-5. **考虑用 Hyprland 的 `hyprctl dispatch` 来冻结 overlay**——比如
-   截图时把 bar 进程的 layer 设为不可交互，但保持可见。
-
-6. **考虑用 `grim` 的 `--include` 或直接截取整个桌面的方式**——
-   在 grim 之前不做任何会改变桌面状态的操作。
-
+- `bin/omd-screenshot`: shared launcher and capture backend
+- `apps/omd-screenshot/shell.qml`: cold-start QML process
+- `quickshell/modules/regionSelector/RegionSelector.qml`: target-output scope
+- `quickshell/modules/regionSelector/RegionSelection.qml`: selection behavior
+- `quickshell/modules/common/utils/ScreenshotAction.qml`: post-capture actions
+- `apps/omd-shot-toolbox/`: optional action toolbox
+- `hypr/bindings.lua`: `Alt+S` and `Alt+Shift+S`
+- `hypr/default/hypr/bindings/utilities.lua`: Print Screen bindings

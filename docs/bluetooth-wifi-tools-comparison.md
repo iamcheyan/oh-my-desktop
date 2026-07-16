@@ -56,27 +56,52 @@
 
 ---
 
-## OMD 最终方案：omd-bluetooth-tui
+## OMD 最终方案：omd-bluetooth-tui + omd-wifi-tui
 
-### 为什么不用 bluetui
+### 为什么不用 bluetui / impala 原样
 
-bluetui 不支持 **Legacy Pairing**（PIN 码输入），导致 MINILA-R Convertible 等老式蓝牙键盘无法配对。
-bluetoothctl 的 `agent on` 支持所有配对方式（SSP + Legacy），所以我们在 bluetoothctl 之上包了一层 curses TUI。
+| 工具 | 原因 |
+|------|------|
+| **bluetui** | 不支持 **Legacy Pairing**（PIN 显示/输入），MINILA-R 等老键盘无法配对。我们在 `bluetoothctl` agent 上包 TUI。 |
+| **impala** | 只支持 **iwd** 后端。OMD/多数桌面发行版默认是 **NetworkManager**；impala 与 NM 冲突。我们用 `nmcli`（类似 impala-nm / nmtui）。 |
 
 ### 文件
 
 | 文件 | 说明 |
 |------|------|
-| `bin/omd-bluetooth-tui` | Python curses TUI 脚本 |
-| `bin/omd-launch-bluetooth` | 启动器（在终端中打开 TUI） |
-| `hypr/bindings.lua` | `SUPER + CTRL + B` 快捷键 |
-| `quickshell/modules/bar/BarStatusPopup.qml` | bar 蓝牙按钮启动 TUI |
+| `bin/omd-bluetooth-tui` | Python curses 蓝牙 TUI（BlueZ / bluetoothctl） |
+| `bin/omd-wifi-tui` | Python curses WiFi TUI（NetworkManager / nmcli） |
+| `bin/omd-launch-bluetooth` | 启动器（终端 + 浮动窗口 app-id） |
+| `bin/omd-launch-wifi` | 启动器 |
+| `hypr/bindings.lua` | `SUPER+CTRL+B` / `SUPER+CTRL+W` |
 
-### 功能
+### 依赖（分享给别人前请写清楚）
+
+| 组件 | 硬依赖 | 可选 |
+|------|--------|------|
+| 两者 | Python ≥ 3.10、curses、UTF-8 终端 | Nerd Font（图标） |
+| 蓝牙 | **BlueZ**（`bluetoothctl`）、`bluetooth` 服务 | `rfkill` |
+| WiFi | **NetworkManager**（`nmcli`）、NM 管理无线网卡 | `rfkill` |
+
+**不支持 / 不会自动适配：**
+
+- 纯 **iwd + impala**、纯 **wpa_supplicant**（无 NM）→ WiFi TUI 启动即报错退出
+- **WPA-Enterprise / 802.1X**（学校/公司 WiFi）→ 请用 `nmtui` / Settings
+- **Hidden SSID**、热点/AP 模式、VPN、有线
+- 多蓝牙适配器切换（只用 default controller）
+- 无 TTY / 非交互环境
+
+### 蓝牙功能
 
 - 全屏设备列表，`j/k` 导航，`Enter` 配对/连接
-- `[*]` = 已连接，`[~]` = 已配对，`[ ]` = 可配对
-- **Legacy Pairing**：显示 PIN 码提示，用户在键盘上输入
-- **Secure Simple Pairing**：自动确认 passkey
-- `d` 断开，`f` 忘记设备，`r` 扫描，`q` 退出
+- **Legacy Pairing**：显示 PIN，用户在外设键盘上输入
+- **SSP**：自动确认 passkey
+- `d` 断开，`f` 忘记，`s` 扫描，`t` 信任，`q` 退出
 - 配对成功后自动 `trust` + `connect`
+
+### WiFi 功能
+
+- Saved / Available / Status 三区（布局对齐 bluetui 风格）
+- `Enter` 连接/断开，`s` rescan，`t` 射频开关，`f` 忘记配置
+- 安全网络弹出密码框（WPA-PSK）；已保存配置走 `connection up uuid`
+- SSID 去重（同名保留最强信号）
