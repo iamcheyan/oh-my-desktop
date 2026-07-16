@@ -522,40 +522,6 @@ Item {
         visible: true
         z: root.workspaceZ - 1
 
-        // Subtle "Type to search" hint above the focused group
-        Item {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: root.monitorGroups.length > 0 ? root.groupY(root.monitorGroups[0]) - 36 : 30
-            z: 1000
-            visible: !OverviewSwitchingController.grabbed
-            opacity: visible ? 1 : 0
-
-            Behavior on opacity {
-                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-            }
-
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 7
-
-                MaterialSymbol {
-                    text: "search"
-                    iconSize: 14
-                    color: "#8f98a8"
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                StyledText {
-                    text: GlobalStates.overviewSearchMode
-                        ? `${Translation.tr("Search")}: ${root.searchQuery}`
-                        : Translation.tr("Type to search")
-                    color: "#8f98a8"
-                    font.pixelSize: 13
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-        }
-
         Repeater {
             model: root.monitorGroups
             delegate: Rectangle {

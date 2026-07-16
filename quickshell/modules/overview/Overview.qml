@@ -216,6 +216,11 @@ Scope {
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
+                        if (overviewSearch.menuOpen) {
+                            overviewSearch.menuOpen = false;
+                            event.accepted = true;
+                            return;
+                        }
                         if (GlobalStates.overviewSearchMode) {
                             GlobalStates.overviewSearchMode = false;
                             overviewScope.overviewFilterQuery = "";
@@ -237,10 +242,25 @@ Scope {
                         return;
                     }
                     if (GlobalStates.overviewSearchMode) {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            overviewSearch.activateSelection();
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_Down || event.key === Qt.Key_Tab) {
+                            const backward = event.key === Qt.Key_Tab
+                                && (event.modifiers & Qt.ShiftModifier) !== 0;
+                            overviewSearch.moveSelection(backward ? -1 : 1);
+                            event.accepted = true;
+                            return;
+                        }
+                        if (event.key === Qt.Key_Up) {
+                            overviewSearch.moveSelection(-1);
+                            event.accepted = true;
+                            return;
+                        }
                         if (event.key === Qt.Key_Backspace) {
                             overviewScope.overviewFilterQuery = overviewScope.overviewFilterQuery.slice(0, -1);
-                            if (overviewScope.overviewFilterQuery.length === 0)
-                                GlobalStates.overviewSearchMode = false;
                             event.accepted = true;
                             return;
                         }
@@ -254,8 +274,7 @@ Scope {
                             && !(event.modifiers & Qt.ControlModifier)
                             && !(event.modifiers & Qt.AltModifier)
                             && !(event.modifiers & Qt.MetaModifier)
-                            && event.key !== Qt.Key_Tab
-                            && event.key !== Qt.Key_Space) {
+                            && event.key !== Qt.Key_Tab) {
                             overviewScope.overviewFilterQuery += event.text;
                             event.accepted = true;
                             return;
@@ -357,11 +376,29 @@ Scope {
                         && GlobalStates.overviewOpen
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
-                        searchQuery: overviewScope.overviewFilterQuery
+                        searchQuery: ""
                         visible: GlobalStates.overviewOpen
                     }
                 }
 
+                OverviewSearch {
+                    id: overviewSearch
+                    anchors.fill: parent
+                    z: 1200
+                    visible: panelWindow.isFocusedOverviewWindow
+                        && !OverviewSwitchingController.grabbed
+                    searchMode: GlobalStates.overviewSearchMode
+                    query: overviewScope.overviewFilterQuery
+
+                    onSearchRequested: {
+                        GlobalStates.overviewSearchMode = true;
+                        overviewKeyHandler.forceActiveFocus();
+                    }
+                    onCloseRequested: {
+                        GlobalStates.overviewSearchMode = false;
+                        overviewScope.overviewFilterQuery = "";
+                    }
+                }
 
             }
 
