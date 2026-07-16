@@ -39,6 +39,7 @@ All external programs used by oh-my-desktop, grouped by feature.
 |---|---|---|
 | `brightnessctl` | Backlight brightness control | Yes |
 | `ddcutil` | External monitor brightness (DDC/CI) | Optional |
+| `wlr-randr` | Transactional output mode, scale, rotation, and layout control | Yes |
 
 ## Screenshot / Screen Record
 
@@ -138,6 +139,7 @@ All external programs used by oh-my-desktop, grouped by feature.
 | pavucontrol | pavucontrol |
 | brightnessctl | brightnessctl |
 | ddcutil | ddcutil |
+| wlr-randr | wlr-randr |
 | swaybg | swaybg |
 | grim | grim |
 | slurp | slurp |
@@ -195,6 +197,7 @@ All external programs used by oh-my-desktop, grouped by feature.
 | pavucontrol | pavucontrol |
 | brightnessctl | brightnessctl |
 | ddcutil | ddcutil |
+| wlr-randr | wlr-randr |
 | swaybg | swaybg |
 | grim | grim |
 | slurp | slurp |
@@ -252,6 +255,7 @@ All external programs used by oh-my-desktop, grouped by feature.
 | pavucontrol | pavucontrol |
 | brightnessctl | brightnessctl |
 | ddcutil | ddcutil |
+| wlr-randr | wlr-randr |
 | swaybg | swaybg |
 | grim | grim |
 | slurp | slurp |

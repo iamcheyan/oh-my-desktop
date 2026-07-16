@@ -103,6 +103,7 @@ PACKAGES_NETWORK=(
 PACKAGES_DISPLAY=(
     brightnessctl
     ddcutil
+    wlr-randr
     swaybg
     grim
     slurp
@@ -228,6 +229,7 @@ get_debian_pkg() {
         blueman)                echo "blueman" ;;
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
+        wlr-randr)              echo "wlr-randr" ;;
         swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
         slurp)                  echo "slurp" ;;
@@ -304,6 +306,7 @@ get_fedora_pkg() {
         blueman)                echo "blueman" ;;
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
+        wlr-randr)              echo "wlr-randr" ;;
         swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
         slurp)                  echo "slurp" ;;
@@ -506,6 +509,7 @@ install_nixos_system_config() {
     networkmanager-tui
     brightnessctl
     ddcutil
+    wlr-randr
     swaybg
     grim
     slurp
@@ -1205,7 +1209,7 @@ main() {
     echo "  - Quickshell dependencies"
     echo "  - Audio (PipeWire, WirePlumber)"
     echo "  - Network (NetworkManager, nmtui, nm-connection-editor, iwd, blueman)"
-    echo "  - Display tools (brightnessctl, ddcutil, swaybg, grim, slurp, swappy, satty)"
+    echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, swaybg, grim, slurp, swappy, satty)"
     echo "  - Clipboard (cliphist, wl-clipboard)"
     echo "  - Notifications (mako)"
     echo "  - Quickshell"

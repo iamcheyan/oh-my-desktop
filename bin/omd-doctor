@@ -97,6 +97,7 @@ for cmd in pavucontrol bluetoothctl nm-connection-editor nmtui kitty fish; do
 done
 
 section "display extras"
+check_cmd wlr-randr "wlr-output display management"
 for cmd in ddcutil ffplay hyprsunset satty; do
   check_optional_cmd "$cmd"
 done

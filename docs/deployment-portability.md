@@ -59,6 +59,8 @@ The doctor checks the expected runtime commands and reports missing pieces.
 Core dependencies include:
 
 - `hyprctl`, `qs`/`quickshell`, `swaybg`
+- `wlr-randr` for transactional display mode, scale, rotation, and layout
+  changes through `wlr-output-management`
 - `jq`, `curl`, `systemd-run`
 - `wl-copy`, `wl-paste`, `cliphist`, `walker`
 - `parecord` for voice recording
