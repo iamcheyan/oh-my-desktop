@@ -796,14 +796,7 @@ Scope {
                 return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`;
             }
 
-            PopupDeviceRow {
-                Layout.fillWidth: true
-                icon: wifiPanel.connIcon()
-                name: wifiPanel.connName()
-                detail: wifiPanel.connDetail()
-                status: wifiPanel.connStatus()
-                statusColor: wifiPanel.connTone()
-            }
+
 
             // ── Wi-Fi section: toggle + nearby list ──
             PopupToggleRow {
@@ -1118,8 +1111,11 @@ Scope {
             // ── Wi-Fi advanced footer ──
             PopupFooterLink {
                 Layout.fillWidth: true
-                label: "WiFi manager TUI…"
-                onClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-wifi`])
+                label: "Add new Wi-Fi…"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-wifi`]);
+                }
             }
 
             // Divider between Wi-Fi block and Bluetooth
@@ -1143,7 +1139,7 @@ Scope {
                     if (Bluetooth.defaultAdapter)
                         Bluetooth.defaultAdapter.enabled = checked;
                 }
-                onSettingsClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`])
+                onSettingsClicked: root.openDialog("bluetooth")
             }
 
             // ── Bluetooth saved devices list ──
@@ -1237,6 +1233,17 @@ Scope {
                             }
                         }
                     }
+                }
+            }
+
+            // ── Bluetooth TUI link ──
+            PopupFooterLink {
+                Layout.fillWidth: true
+                visible: BluetoothStatus.enabled
+                label: "Add new Bluetooth…"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`]);
                 }
             }
         }
