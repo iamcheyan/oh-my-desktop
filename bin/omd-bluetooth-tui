@@ -10,10 +10,14 @@ and Secure Simple Pairing (passkey confirmation) by spawning
 Controls
   j / ↓      Move selection down
   k / ↑      Move selection up
-  Enter      Pair + trust + connect selected device
-  d          Disconnect selected device
-  f          Forget (remove) selected device
-  r          Refresh scan
+  Tab / l    Next section
+  S-Tab / h  Previous section
+  Enter      Pair + trust + connect / disconnect
+  d          Disconnect
+  f          Forget (remove)
+  s          Scan on/off
+  u          Unpair
+  t          Trust/Untrust
   q / Esc    Quit
 """
 
@@ -154,33 +158,29 @@ _COD_MAJOR = {
     0x08: "toy",
 }
 
-# Audio/Video minor class (bits 2-7) → ICON_MAP key
 _COD_AV_MINOR = {
-    0x01: "audio-headset",      # Wearable Headset
-    0x02: "audio-headset",      # Hands-free
+    0x01: "audio-headset",
+    0x02: "audio-headset",
     0x04: "audio-input-microphone",
-    0x05: "audio-speaker",      # Loudspeaker
-    0x06: "audio-headset",      # Headphones
-    0x07: "audio-speaker",      # Portable Audio
+    0x05: "audio-speaker",
+    0x06: "audio-headset",
+    0x07: "audio-speaker",
 }
 
-# Peripheral minor class (bits 6-7)
 _COD_PERIPH_MINOR = {
     0x01: "input-keyboard",
     0x02: "input-mouse",
-    0x03: "input-keyboard",     # Combo keyboard+mouse → keyboard icon
+    0x03: "input-keyboard",
 }
 
-# Wearable minor class (bits 2-7)
 _COD_WEARABLE_MINOR = {
-    0x00: "wearable",           # Watch
+    0x00: "wearable",
 }
 
 
 def _icon_from_class(cod: int) -> str | None:
-    """Map a Bluetooth Class of Device (24-bit) to an ICON_MAP key."""
     major = (cod >> 8) & 0x1F
-    minor_raw = cod & 0xFF       # bits 0-7
+    minor_raw = cod & 0xFF
     mc = _COD_MAJOR.get(major)
     if mc is None:
         return None
@@ -193,7 +193,7 @@ def _icon_from_class(cod: int) -> str | None:
     if mc == "wearable":
         sub = (minor_raw >> 2) & 0x3F
         return _COD_WEARABLE_MINOR.get(sub, "wearable")
-    return mc  # computer, phone, toy → direct map key
+    return mc
 
 
 def device_icon(info_text: str, name: str = "") -> str:
@@ -205,23 +205,19 @@ def device_icon(info_text: str, name: str = "") -> str:
       3. BlueZ Icon property
       4. Device-name keyword heuristic
     """
-    # 1. Appearance
     m = re.search(r"^\s*Appearance:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
     if m:
         key = _icon_from_appearance(int(m.group(1), 16))
         if key:
             return ICON_MAP.get(key, ICON_UNKNOWN)
-    # 2. Class of Device
     m = re.search(r"^\s*Class:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
     if m:
         key = _icon_from_class(int(m.group(1), 16))
         if key:
             return ICON_MAP.get(key, ICON_UNKNOWN)
-    # 3. BlueZ Icon
     m = re.search(r"^\s*Icon:\s*(\S+)", info_text, re.MULTILINE)
     if m:
         return ICON_MAP.get(m.group(1), ICON_UNKNOWN)
-    # 4. Name heuristic
     if name:
         n = name.lower()
         for keyword, icon_key in NAME_GUESS_MAP.items():
@@ -231,7 +227,6 @@ def device_icon(info_text: str, name: str = "") -> str:
 
 
 def pty_spawn(argv):
-    """Fork a child attached to a pseudo-terminal; return (pid, fd)."""
     pid, fd = os.forkpty()
     if pid == 0:
         try:
@@ -250,9 +245,6 @@ def send(fd, command: str):
 
 
 def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
-    """Run bluetoothctl non-interactively.
-    Uses subprocess timeout (NOT bluetoothctl --timeout, which blocks
-    until the timeout expires even for instant commands)."""
     cmd = ["bluetoothctl", *args]
     try:
         proc = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
@@ -267,12 +259,21 @@ def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
         return 1, out
 
 
-def get_devices() -> list[tuple[str, str, str, str]]:
-    """Return [(addr, name, status, icon), ...] from ``bluetoothctl devices``.
-    status ∈ {"connected", "paired", "available"}.
-    icon is a short type indicator (K, M, H, S, ...)."""
+def parse_battery(info: str) -> str:
+    """Extract battery percentage string (e.g. \"25%\") or \"\"."""
+    m = re.search(r"Battery Percentage:\s*\((\d+)\)", info)
+    if m:
+        return m.group(1) + "%"
+    m = re.search(r"Battery Percentage:\s*0x[0-9a-fA-F]+\s*\((\d+)\)", info)
+    if m:
+        return m.group(1) + "%"
+    return ""
+
+
+def get_devices_info() -> list[dict]:
+    """Return list of device dicts: addr, name, status, icon, trusted, battery."""
     _, out = btctl_simple("devices")
-    devices = []
+    result = []
     for line in out.splitlines():
         m = re.match(r"Device\s+([0-9A-Fa-f:]{17})\s+(.*)", line)
         if not m:
@@ -282,52 +283,89 @@ def get_devices() -> list[tuple[str, str, str, str]]:
         icon = device_icon(info, name)
         paired = "Paired: yes" in info
         connected = "Connected: yes" in info
+        trusted = "Trusted: yes" in info
+        battery = parse_battery(info)
         if connected:
             status = "connected"
         elif paired:
             status = "paired"
         else:
             status = "available"
-        devices.append((addr, name, status, icon))
-    # Sort: connected first, then paired, then available
+        result.append({
+            "addr": addr,
+            "name": name,
+            "status": status,
+            "icon": icon,
+            "trusted": trusted,
+            "battery": battery,
+        })
     order = {"connected": 0, "paired": 1, "available": 2}
-    devices.sort(key=lambda d: order.get(d[2], 3))
-    return devices
+    result.sort(key=lambda d: order.get(d["status"], 3))
+    return result
+
+
+def get_adapter_info() -> dict | None:
+    """Return adapter info dict from ``bluetoothctl show``."""
+    _, out = btctl_simple("show")
+    m = re.search(r"Controller\s+([0-9A-Fa-f:]+)", out)
+    if not m:
+        return None
+    def g(key: str) -> str:
+        mm = re.search(rf"^\s*{key}:\s*(.+)", out, re.MULTILINE)
+        return mm.group(1).strip() if mm else "?"
+    return {
+        "name": g("Name"),
+        "alias": g("Alias"),
+        "powered": g("Powered"),
+        "pairable": g("Pairable"),
+        "discoverable": g("Discoverable"),
+    }
 
 
 # ── curses app ────────────────────────────────────────────────────────
 
+# Focus section indices
+F_PAIRED = 0
+F_DISCOVERED = 1
+F_ADAPTER = 2
+
+
 class BluetoothTUI:
     def __init__(self, stdscr: curses.window):
         self.stdscr = stdscr
-        self.devices: list[tuple[str, str, str]] = []
-        self.selected = 0
+        self.devices: list[dict] = []
+        self.adapter_info: dict | None = None
+        self.focus = F_PAIRED
+        self.selected = 0          # index into self.devices
         self.scanning = False
         self.busy = False
-        self.status_msg = "Press r to scan, Enter to pair"
+        self.status_msg = "Press s to scan, Enter to pair"
         self.log_lines: list[str] = []
-        self.pin_prompt = None      # str | None  — PIN to display
-        self.confirm_prompt = None  # str | None  — passkey to confirm
-        self._scan_proc = None      # (pid, fd) for background scan
-        self._pair_proc = None      # (pid, fd) for pairing session
+        self.pin_prompt = None
+        self.confirm_prompt = None
+        self._scan_proc = None
+        self._pair_proc = None
         self._pair_addr = None
         self._pair_state = ""
         self._recent = ""
         self._line_buf = ""
         self._sent_yes = False
         self._quit = False
-        self._pair_started_at = 0   # time.monotonic() when pairing started
-        self._connect_started_at = 0  # time.monotonic() when trust+connect started
+        self._pair_started_at = 0
+        self._connect_started_at = 0
+        self._tick = 0             # frame counter for spinner
 
     # ── lifecycle ──
 
     def run(self):
         self._init_curses()
         self.refresh_devices()
+        self.refresh_adapter()
         while not self._quit:
             self._draw()
             self._poll()
             self._handle_input()
+            self._tick += 1
         self._cleanup()
 
     def _init_curses(self):
@@ -341,15 +379,45 @@ class BluetoothTUI:
             curses.init_pair(1, curses.COLOR_GREEN, -1)   # connected
             curses.init_pair(2, curses.COLOR_YELLOW, -1)  # paired
             curses.init_pair(3, curses.COLOR_CYAN, -1)    # available
-            curses.init_pair(4, curses.COLOR_RED, -1)     # error/busy
-            curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_WHITE)  # selected
+            curses.init_pair(4, curses.COLOR_RED, -1)     # error
+            curses.init_pair(5, -1, curses.COLOR_WHITE)   # selected row bg
+            curses.init_pair(6, curses.COLOR_GREEN, -1)   # focused border
+            curses.init_pair(7, curses.COLOR_YELLOW, -1)  # header row
+            curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_WHITE)  # selected in list
         except curses.error:
             pass
-        self.stdscr.timeout(200)  # 200ms poll interval
+        self.stdscr.timeout(200)
 
     def _cleanup(self):
         self._stop_scan()
         self._stop_pair()
+
+    # ── data ──
+
+    def refresh_devices(self):
+        self.devices = get_devices_info()
+        if self.selected >= len(self.devices):
+            self.selected = max(0, len(self.devices) - 1)
+        # Clamp focus to valid section
+        if self.focus == F_DISCOVERED and not self._has_discovered():
+            self.focus = F_PAIRED
+
+    def refresh_adapter(self):
+        self.adapter_info = get_adapter_info()
+
+    def _has_discovered(self) -> bool:
+        return any(d["status"] == "available" for d in self.devices)
+
+    def _paired_devices(self) -> list[dict]:
+        return [d for d in self.devices if d["status"] != "available"]
+
+    def _discovered_devices(self) -> list[dict]:
+        return [d for d in self.devices if d["status"] == "available"]
+
+    def _focused_devices(self) -> list[dict]:
+        if self.focus == F_DISCOVERED:
+            return self._discovered_devices()
+        return self._paired_devices()
 
     # ── scanning ──
 
@@ -372,7 +440,7 @@ class BluetoothTUI:
         pid, fd = pty_spawn(["bluetoothctl"])
         self._scan_proc = (pid, fd)
         self.scanning = True
-        self.status_msg = "Scanning... (press r to stop)"
+        self.status_msg = "Scanning... (press s to stop)"
         self.log_lines.append("[scan] started")
         send(fd, "scan on")
 
@@ -393,7 +461,6 @@ class BluetoothTUI:
         self.scanning = False
 
     def _poll_scan(self):
-        """Read scan output, update device list."""
         if not self._scan_proc:
             return
         _, fd = self._scan_proc
@@ -409,36 +476,35 @@ class BluetoothTUI:
             return
         c = clean(chunk)
         for line in c.splitlines():
-            # Only [NEW] lines add new devices with a name
             m = NEW_DEVICE_RE.search(line)
             if m:
                 addr = m.group(1)
                 name = m.group(2).strip()
-                # Try to resolve icon immediately for known types
                 _, info = btctl_simple("info", addr, timeout=1)
                 icon = device_icon(info, name) if info else ICON_UNKNOWN
                 self._merge_device(addr, name, icon)
             else:
-                # [CHG] Device lines may update known devices
                 m = DEVICE_RE.search(line)
                 if m:
                     addr = m.group(1)
-                    self._merge_device(addr, "")  # just ensure it exists
+                    self._merge_device(addr, "")
 
     def _merge_device(self, addr, name, icon=ICON_UNKNOWN):
-        """Quick in-memory merge without calling bluetoothctl info every time."""
-        for i, (a, n, s, ic) in enumerate(self.devices):
-            if a.upper() == addr.upper():
-                if name and name != n:
-                    self.devices[i] = (a, name, s, icon if icon != ICON_UNKNOWN else ic)
-                elif icon != ICON_UNKNOWN and ic == ICON_UNKNOWN:
-                    self.devices[i] = (a, n, s, icon)
+        for i, d in enumerate(self.devices):
+            if d["addr"].upper() == addr.upper():
+                if name and name != d["name"]:
+                    d["name"] = name
+                if icon != ICON_UNKNOWN and d["icon"] == ICON_UNKNOWN:
+                    d["icon"] = icon
                 return
-        self.devices.append((addr, name, "available", icon))
-
-    def refresh_devices(self):
-        """Full refresh from bluetoothctl."""
-        self.devices = get_devices()
+        self.devices.append({
+            "addr": addr,
+            "name": name,
+            "status": "available",
+            "icon": icon,
+            "trusted": False,
+            "battery": "",
+        })
 
     # ── pairing ──
 
@@ -456,18 +522,14 @@ class BluetoothTUI:
         self._line_buf = ""
         self.status_msg = f"Pairing with {name}..."
         self.log_lines.append(f"[pair] starting pair+connect for {addr}")
-        import time as _time
-        self._pair_started_at = _time.monotonic()
-
+        self._pair_started_at = time.monotonic()
         pid, fd = pty_spawn(["bluetoothctl"])
         self._pair_proc = (pid, fd)
         send(fd, "power on")
         send(fd, "agent on")
         send(fd, "default-agent")
         send(fd, "pairable on")
-        # Small delay before pair to let agent register
-        import time as _time
-        _time.sleep(0.3)
+        time.sleep(0.3)
         send(fd, f"pair {addr}")
 
     def _poll_pair(self):
@@ -486,29 +548,21 @@ class BluetoothTUI:
         c = clean(chunk)
         self._recent = (self._recent + c)[-4000:]
         self._line_buf += c
-
-        # Log
         while "\n" in self._line_buf:
             line, self._line_buf = self._line_buf.split("\n", 1)
             line = line.strip()
             if line:
                 self.log_lines.append(line)
-
-        # Detect PIN prompt (Legacy Pairing)
         m = PIN_RE.search(self._recent)
         if m and not self.pin_prompt:
             self.pin_prompt = m.group(1)
             self._pair_state = "pin"
             self.log_lines.append(f"[pair] PIN code: {self.pin_prompt}")
-            # We don't send anything — user must enter PIN on the keyboard
-
-        # Detect passkey display (SSP)
         m = PASSKEY_RE.search(self._recent)
         if m and not self.confirm_prompt:
             self.confirm_prompt = m.group(1)
             self._pair_state = "confirm"
             self.log_lines.append(f"[pair] Passkey: {self.confirm_prompt}")
-
         m = CONFIRM_RE.search(self._recent)
         if m and not self._sent_yes:
             self.confirm_prompt = m.group(1)
@@ -516,43 +570,31 @@ class BluetoothTUI:
             send(fd, "yes")
             self._sent_yes = True
             self.log_lines.append(f"[pair] Auto-confirmed passkey {m.group(1)}")
-
-        # Detect success
         if PAIRED_RE.search(self._recent) and self._pair_state != "paired":
             self._pair_state = "paired"
             self.log_lines.append("[pair] Paired! Trusting + connecting...")
             self._do_trust_connect()
-
-        # Detect connection success after trust+connect
         if self._pair_state == "connecting" and \
                 (CONNECTED_RE.search(self._recent) or CONNECTED_CHG_RE.search(self._recent)):
             self.log_lines.append("[pair] Connected!")
             self.status_msg = f"OK Paired + connected to {self._pair_addr}"
             self._stop_pair()
-
-        # Detect connection failure after trust+connect
         if self._pair_state == "connecting" and \
                 re.search(r"Failed to connect|br-connection", self._recent, re.IGNORECASE):
-            self.log_lines.append("[pair] Connected but connect failed (OK if paired)")
-            # Check if at least paired
+            self.log_lines.append("[pair] Connect failed (OK if paired)")
             _, info = btctl_simple("info", self._pair_addr or "")
             if "Paired: yes" in info:
                 self.status_msg = "OK Paired. Press Enter to connect."
             else:
                 self.status_msg = "Pairing may have failed."
             self._stop_pair()
-
-        # Detect failure
         if re.search(r"Failed to pair|authentication\s*failed|authentication\s*timeout",
                       self._recent, re.IGNORECASE):
             self._pair_state = "error"
             self.status_msg = "Pairing failed. Try again."
             self.log_lines.append("[pair] FAILED")
             self._stop_pair()
-
-        # Overall timeout for the whole pairing process
-        import time as _time
-        if self._pair_started_at and _time.monotonic() - self._pair_started_at > 60:
+        if self._pair_started_at and time.monotonic() - self._pair_started_at > 60:
             self.log_lines.append("[pair] Timeout")
             _, info = btctl_simple("info", self._pair_addr or "")
             if "Paired: yes" in info:
@@ -560,10 +602,8 @@ class BluetoothTUI:
             else:
                 self.status_msg = "Pairing timed out. Try again."
             self._stop_pair()
-
-        # Connect timeout after trust+connect
         if self._pair_state == "connecting" and self._connect_started_at and \
-                _time.monotonic() - self._connect_started_at > 20:
+                time.monotonic() - self._connect_started_at > 20:
             self.log_lines.append("[pair] Connect timeout")
             _, info = btctl_simple("info", self._pair_addr or "")
             if "Paired: yes" in info:
@@ -576,11 +616,8 @@ class BluetoothTUI:
         addr = self._pair_addr
         if not addr:
             return
-        # Clear PIN/confirm prompts so TUI returns to device list
         self.pin_prompt = None
         self.confirm_prompt = None
-        # Clear recent buffer so we only detect NEW connection events
-        # (not the transient Connected:yes from the pairing phase)
         self._recent = ""
         self._line_buf = ""
         _, fd = self._pair_proc or (0, None)
@@ -588,10 +625,8 @@ class BluetoothTUI:
             send(fd, f"trust {addr}")
             send(fd, f"connect {addr}")
         self._pair_state = "connecting"
-        import time as _time
-        self._connect_started_at = _time.monotonic()
-        self.status_msg = f"Trusting + connecting..."
-        # We'll detect connection success in _poll_pair's recent buffer
+        self._connect_started_at = time.monotonic()
+        self.status_msg = "Trusting + connecting..."
 
     def _stop_pair(self):
         if self._pair_proc:
@@ -607,13 +642,12 @@ class BluetoothTUI:
                 pass
             self._pair_proc = None
         if self.busy:
-            # Final status check
             if self._pair_addr:
                 _, info = btctl_simple("info", self._pair_addr)
                 if "Connected: yes" in info:
                     self.status_msg = f"OK Connected to {self._pair_addr}"
                 elif "Paired: yes" in info:
-                    self.status_msg = f"Paired but not connected. Press Enter to connect."
+                    self.status_msg = "Paired but not connected. Press Enter to connect."
                 else:
                     self.status_msg = "Not paired."
             self.busy = False
@@ -621,31 +655,44 @@ class BluetoothTUI:
         self.pin_prompt = None
         self.confirm_prompt = None
         self.refresh_devices()
+        self.refresh_adapter()
 
-    # ── disconnect / forget ──
+    # ── disconnect / forget / untrust ──
 
     def do_disconnect(self, addr: str):
         self.status_msg = "Disconnecting..."
         btctl_simple("disconnect", addr, timeout=15)
         self.refresh_devices()
+        self.refresh_adapter()
         self.status_msg = "Disconnected."
 
     def do_forget(self, addr: str):
         self.status_msg = "Removing..."
         btctl_simple("remove", addr, timeout=10)
         self.refresh_devices()
+        self.refresh_adapter()
         self.status_msg = "Device removed."
 
     def do_connect_only(self, addr: str):
-        """Connect an already-paired device."""
         self.status_msg = "Connecting..."
         code, _ = btctl_simple("connect", addr, timeout=20)
         self.refresh_devices()
+        self.refresh_adapter()
         _, info = btctl_simple("info", addr)
         if "Connected: yes" in info:
             self.status_msg = "OK Connected."
         else:
             self.status_msg = "Connection failed."
+
+    def do_toggle_trust(self, addr: str):
+        _, info = btctl_simple("info", addr)
+        if "Trusted: yes" in info:
+            btctl_simple("untrust", addr, timeout=5)
+            self.status_msg = "Untrusted."
+        else:
+            btctl_simple("trust", addr, timeout=5)
+            self.status_msg = "Trusted."
+        self.refresh_devices()
 
     # ── input ──
 
@@ -653,39 +700,138 @@ class BluetoothTUI:
         key = self.stdscr.getch()
         if key == -1:
             return
-        if key in (ord("q"), 27):  # q, Esc
+        if key in (ord("q"), 27):
             self._quit = True
-        elif key == ord("r"):
+        elif key == ord("s"):
             if self.scanning:
                 self._stop_scan()
                 self.refresh_devices()
+                self.refresh_adapter()
                 self.status_msg = "Scan stopped."
             else:
                 self.start_scan()
         elif key in (ord("j"), curses.KEY_DOWN):
-            if self.devices and self.selected < len(self.devices) - 1:
-                self.selected += 1
+            self._move_sel(1)
         elif key in (ord("k"), curses.KEY_UP):
-            if self.devices and self.selected > 0:
-                self.selected -= 1
+            self._move_sel(-1)
+        elif key == ord("\t"):           # Tab
+            self._focus_next()
+        elif key == curses.KEY_BTAB:     # Shift+Tab
+            self._focus_prev()
+        elif key == ord("l"):
+            self._focus_next()
+        elif key == ord("h"):
+            self._focus_prev()
         elif key == ord("\n") or key == curses.KEY_ENTER:
-            if self.devices and not self.busy:
-                addr, name, status, _icon = self.devices[self.selected]
-                if status == "connected":
-                    self.do_disconnect(addr)
-                elif status == "paired":
-                    self.do_connect_only(addr)
-                else:
-                    self.start_pair(addr, name)
+            self._action_enter()
         elif key == ord("d"):
-            if self.devices and not self.busy:
-                addr, _name, status, _icon = self.devices[self.selected]
-                if status == "connected":
-                    self.do_disconnect(addr)
+            self._action_disconnect()
         elif key == ord("f"):
-            if self.devices and not self.busy:
-                addr, _name, _status, _icon = self.devices[self.selected]
-                self.do_forget(addr)
+            self._action_forget()
+        elif key == ord("u"):
+            self._action_unpair()
+        elif key == ord("t"):
+            self._action_toggle_trust()
+
+    def _move_sel(self, delta: int):
+        devs = self._focused_devices()
+        if not devs:
+            return
+        paired = self._paired_devices()
+        if self.focus == F_PAIRED:
+            total = len(paired)
+        elif self.focus == F_DISCOVERED:
+            total = len(self._discovered_devices())
+        else:
+            return
+        ns = max(0, min(self.selected + delta, total - 1))
+        # Map local index to global index
+        if self.focus == F_DISCOVERED:
+            self.selected = len(paired) + ns
+        else:
+            self.selected = ns
+
+    def _focus_next(self):
+        sections = [F_PAIRED]
+        if self._has_discovered():
+            sections.append(F_DISCOVERED)
+        sections.append(F_ADAPTER)
+        i = sections.index(self.focus)
+        self.focus = sections[(i + 1) % len(sections)]
+        self.selected = min(self.selected, len(self.devices) - 1)
+
+    def _focus_prev(self):
+        sections = [F_PAIRED]
+        if self._has_discovered():
+            sections.append(F_DISCOVERED)
+        sections.append(F_ADAPTER)
+        i = sections.index(self.focus)
+        self.focus = sections[(i - 1) % len(sections)]
+        self.selected = min(self.selected, len(self.devices) - 1)
+
+    def _focused_global_selected(self) -> int:
+        """Return the global devices index for the currently selected item."""
+        if self.focus == F_PAIRED:
+            return self.selected
+        elif self.focus == F_DISCOVERED:
+            paired_count = len(self._paired_devices())
+            return paired_count + self.selected
+        return 0
+
+    def _action_enter(self):
+        if self.focus == F_ADAPTER:
+            return
+        devs = self._focused_devices()
+        if not devs or self.busy:
+            return
+        idx = self._focused_global_selected()
+        d = self.devices[idx]
+        if d["status"] == "connected":
+            self.do_disconnect(d["addr"])
+        elif d["status"] == "paired":
+            self.do_connect_only(d["addr"])
+        else:
+            self.start_pair(d["addr"], d["name"])
+
+    def _action_disconnect(self):
+        if self.focus == F_ADAPTER:
+            return
+        idx = self._focused_global_selected()
+        if idx >= len(self.devices) or self.busy:
+            return
+        d = self.devices[idx]
+        if d["status"] == "connected":
+            self.do_disconnect(d["addr"])
+
+    def _action_forget(self):
+        if self.focus == F_ADAPTER:
+            return
+        idx = self._focused_global_selected()
+        if idx >= len(self.devices) or self.busy:
+            return
+        self.do_forget(self.devices[idx]["addr"])
+
+    def _action_unpair(self):
+        if self.focus == F_ADAPTER:
+            return
+        idx = self._focused_global_selected()
+        if idx >= len(self.devices) or self.busy:
+            return
+        d = self.devices[idx]
+        if d["status"] != "available":
+            self.do_forget(d["addr"])
+
+    def _action_toggle_trust(self):
+        if self.focus == F_ADAPTER:
+            return
+        if self.focus != F_PAIRED:
+            return
+        idx = self._focused_global_selected()
+        if idx >= len(self.devices) or self.busy:
+            return
+        d = self.devices[idx]
+        if d["status"] != "available":
+            self.do_toggle_trust(d["addr"])
 
     # ── poll ──
 
@@ -698,102 +844,210 @@ class BluetoothTUI:
     def _draw(self):
         h, w = self.stdscr.getmaxyx()
         self.stdscr.erase()
+        m = 1  # margin
 
-        # Title
-        title = " Bluetooth Manager "
-        try:
-            self.stdscr.addnstr(0, 0, title.center(w)[:w], w, curses.A_BOLD)
-        except curses.error:
-            pass
+        paired = self._paired_devices()
+        discovered = self._discovered_devices()
+        has_disc = bool(discovered) or self.scanning
 
-        # Status bar
-        status = self.status_msg
-        try:
-            self.stdscr.addnstr(h - 2, 0, status[:w], w, curses.A_DIM)
-        except curses.error:
-            pass
+        # Section heights (inside borders, 0 = column header + rows)
+        paired_inner_h = max(len(paired), 1) + 1  # header row + devices
+        disc_inner_h = (max(len(discovered), 1) + 1) if has_disc else 0
+        # Bordered box adds 2 (top+bottom border lines)
+        paired_h = paired_inner_h + 2
+        disc_h = disc_inner_h + 2 if has_disc else 0
+        adapter_h = 4  # 2 borders + header + 1 row
 
-        # Help bar
-        help_text = "j/k navigate  Enter pair/connect  d disconnect  f forget  r scan  q quit"
-        try:
-            self.stdscr.addnstr(h - 1, 0, help_text[:w], w, curses.A_DIM)
-        except curses.error:
-            pass
-
-        # PIN / confirm prompt (centered popup area)
-        if self.pin_prompt or self.confirm_prompt:
-            self._draw_prompt(h, w)
-            return
-
-        # Device list
-        list_top = 2
-        list_bottom = h - 3
-        list_height = list_bottom - list_top
-        if list_height < 1:
-            return
-
-        # Scroll offset
-        scroll = 0
-        if len(self.devices) > list_height:
-            scroll = max(0, min(self.selected - list_height // 2, len(self.devices) - list_height))
-
-        if not self.devices:
-            msg = "No devices found. Press r to scan."
-            try:
-                self.stdscr.addnstr(list_top, 0, msg[:w], w, curses.A_DIM)
-            except curses.error:
-                pass
+        # Cap paired and discovered to not overrun screen
+        available = h - m * 2 - adapter_h - 2  # 2 for help bar
+        if has_disc:
+            max_paired = max(3, available - disc_h - 2)
         else:
-            visible = self.devices[scroll:scroll + list_height]
-            for i, (addr, name, status, icon) in enumerate(visible):
-                row = list_top + i
-                is_selected = (scroll + i) == self.selected
-                if is_selected:
-                    attr = curses.color_pair(5) if curses.has_colors() else curses.A_REVERSE
+            max_paired = available - 2
+        paired_h = min(paired_h, max_paired)
+        # Recompute inner after capping
+        paired_inner_h = paired_h - 2
+        if has_disc:
+            disc_h = min(disc_h, available - paired_h - 1)
+            disc_inner_h = disc_h - 2 if disc_h > 2 else 0
+
+        y = m
+
+        # ── Paired Devices ──
+        if paired_h > 2:
+            self._draw_box(y, m, paired_h, w - m * 2,
+                          title="Paired Devices",
+                          focused=self.focus == F_PAIRED)
+            bx = m + 1
+            by = y + 1
+            iw = w - m * 2 - 2  # interior width
+            # Column headers
+            ch_focus = self.focus == F_PAIRED
+            self._draw_col_headers(by, bx, iw, ch_focus,
+                                  ["Name", "Trusted", "Connected", "Battery"],
+                                  [24, 8, 10, 8])
+            # Device rows
+            for i, d in enumerate(paired[:paired_inner_h - 1]):
+                row_y = by + 1 + i
+                glb = i  # global index for paired starts at 0
+                is_sel = self.focus == F_PAIRED and glb == self.selected
+                self._draw_device_row(row_y, bx, iw, d, is_sel)
+
+        y += paired_h
+
+        # ── Discovered devices ──
+        if has_disc and disc_h > 2:
+            title = f" Scanning {'⦾' if self._tick % 2 else '⦿'} " if self.scanning else " Discovered "
+            self._draw_box(y, m, disc_h, w - m * 2,
+                          title=title,
+                          focused=self.focus == F_DISCOVERED)
+            bx = m + 1
+            by = y + 1
+            iw = w - m * 2 - 2
+            ch_focus = self.focus == F_DISCOVERED
+            self._draw_col_headers(by, bx, iw, ch_focus,
+                                  ["Address", "Name"],
+                                  [19, 36])
+            for i, d in enumerate(discovered[:disc_inner_h - 1]):
+                row_y = by + 1 + i
+                glb = len(paired) + i
+                is_sel = self.focus == F_DISCOVERED and glb == self.selected
+                if is_sel:
+                    attr_s = curses.color_pair(8) if curses.has_colors() else curses.A_REVERSE
                 else:
-                    colors = {
-                        "connected": curses.color_pair(1),
-                        "paired": curses.color_pair(2),
-                        "available": curses.color_pair(3),
-                    }
-                    attr = colors.get(status, curses.A_NORMAL)
-                # Truncate safely
-                name_str = name[:w - 30] if w > 30 else ""
-                line = f" {icon} {name_str:<20} {addr}"
+                    attr_s = curses.color_pair(3) if curses.has_colors() else curses.A_NORMAL
+                line_s = f" {d['addr']}  {d.get('icon', ICON_UNKNOWN)} {d['name']}"
                 try:
-                    self.stdscr.addnstr(row, 0, line[:w], w, attr)
+                    self.stdscr.addnstr(row_y, bx, line_s[:iw], iw, attr_s)
                 except curses.error:
                     pass
+            y += disc_h
 
-        # Log (last 5 lines below device list)
-        if self.log_lines:
-            log_top = list_top + min(len(self.devices), list_height) + 1
-            for i, line in enumerate(self.log_lines[-5:]):
-                if log_top + i < list_bottom:
-                    try:
-                        self.stdscr.addnstr(log_top + i, 0, line[:w], w, curses.A_DIM)
-                    except curses.error:
-                        pass
+        # ── Adapter ──
+        self._draw_box(y, m, adapter_h, w - m * 2,
+                      title="Adapter",
+                      focused=self.focus == F_ADAPTER)
+        bx = m + 1
+        by = y + 1
+        iw = w - m * 2 - 2
+        ch_focus = self.focus == F_ADAPTER
+        self._draw_col_headers(by, bx, iw, ch_focus,
+                              ["Name", "Alias", "Power", "Pairable", "Discoverable"],
+                              [10, 10, 7, 9, 13])
+        if self.adapter_info:
+            a = self.adapter_info
+            cols = [a.get("name", ""), a.get("alias", ""), a.get("powered", ""),
+                    a.get("pairable", ""), a.get("discoverable", "")]
+            line = self._format_cols(cols, [10, 10, 7, 9, 13])
+            try:
+                self.stdscr.addnstr(by + 1, bx, line[:iw], iw)
+            except curses.error:
+                pass
+        y += adapter_h
+
+        # ── Help bar ──
+        help_y = h - 2
+        help_text = self.status_msg
+        try:
+            self.stdscr.addnstr(help_y, m, help_text[:w - m * 2], w - m * 2, curses.A_DIM)
+        except curses.error:
+            pass
+        help2 = "Tab/l Next  S-Tab/h Prev  Enter Connect/Pair  d Disconnect  s Scan  u Unpair  t Trust  f Forget  q Quit"
+        try:
+            self.stdscr.addnstr(h - 1, m, help2[:w - m * 2], w - m * 2, curses.A_DIM)
+        except curses.error:
+            pass
+
+        # ── PIN / confirm overlay ──
+        if self.pin_prompt or self.confirm_prompt:
+            self._draw_prompt(h, w)
 
         self.stdscr.refresh()
 
+    def _draw_box(self, y, x, h, w, title="", focused=False):
+        """Draw a bordered box with thick (focused) or thin (unfocused) borders."""
+        if focused:
+            tl, tr, bl, br, hz, vt = "┏", "┓", "┗", "┛", "━", "┃"
+            attr = curses.color_pair(6) if curses.has_colors() else curses.A_BOLD
+        else:
+            tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
+            attr = curses.A_NORMAL
+        try:
+            self.stdscr.addstr(y, x, tl, attr)
+            self.stdscr.addstr(y, x + 1, hz * (w - 2), attr)
+            self.stdscr.addstr(y, x + w - 1, tr, attr)
+            if title:
+                self.stdscr.addstr(y, x + 2, f" {title} ", attr)
+            for i in range(1, h - 1):
+                self.stdscr.addstr(y + i, x, vt, attr)
+                self.stdscr.addstr(y + i, x + w - 1, vt, attr)
+            self.stdscr.addstr(y + h - 1, x, bl, attr)
+            self.stdscr.addstr(y + h - 1, x + 1, hz * (w - 2), attr)
+            self.stdscr.addstr(y + h - 1, x + w - 1, br, attr)
+        except curses.error:
+            pass
+
+    def _draw_col_headers(self, y, x, w, focused, headers, widths):
+        """Draw table column headers."""
+        attr = curses.color_pair(7) if (focused and curses.has_colors()) else curses.A_BOLD
+        pads = []
+        for i, hdr in enumerate(headers):
+            wdt = widths[i] if widths[i] else max(10, len(hdr) + 2)
+            pads.append(hdr.ljust(wdt))
+        line = "".join(pads)
+        try:
+            self.stdscr.addnstr(y, x, line[:w], w, attr)
+        except curses.error:
+            pass
+
+    def _format_cols(self, values, widths) -> str:
+        parts = []
+        for v, wdt in zip(values, widths):
+            if wdt:
+                parts.append(str(v).ljust(wdt))
+            else:
+                parts.append(str(v))
+        return "".join(parts)
+
+    def _draw_device_row(self, y, x, w, dev, selected):
+        """Draw a single device row with icon, name, trust, connect, battery."""
+        if selected:
+            attr = curses.color_pair(8) if curses.has_colors() else curses.A_REVERSE
+        else:
+            colors = {
+                "connected": curses.color_pair(1),
+                "paired": curses.color_pair(2),
+                "available": curses.color_pair(3),
+            }
+            attr = colors.get(dev["status"], curses.A_NORMAL)
+        name_str = dev["name"]
+        icon = dev.get("icon", ICON_UNKNOWN)
+        trusted = "✓" if dev.get("trusted") else "✗"
+        connected = "✓" if dev["status"] == "connected" else "✗"
+        battery = dev.get("battery", "")
+        # Format like bluetui: Name col ~24, Trusted 8, Connected 10, Battery 8
+        line = f" {icon} {name_str:<20} {trusted:<8} {connected:<10} {battery:<8}"
+        try:
+            self.stdscr.addnstr(y, x, line[:w], w, attr)
+        except curses.error:
+            pass
+
     def _draw_prompt(self, h: int, w: int):
-        """Draw PIN/confirm prompt in the center."""
         if self.pin_prompt:
             lines = [
-                "+-----------------------------------+",
-                "|        PIN Code from device:      |",
-                f"|          {self.pin_prompt:>10}          |",
-                "|  Type this on your keyboard +Enter|",
-                "+-----------------------------------+",
+                "┌──────────────────────────────────┐",
+                "│       PIN Code from device       │",
+                f"│         {self.pin_prompt:>10}          │",
+                "│ Type this on your keyboard + Enter│",
+                "└──────────────────────────────────┘",
             ]
         else:
             lines = [
-                "+-----------------------------------+",
-                "|        Confirm Passkey:           |",
-                f"|          {self.confirm_prompt:>10}          |",
-                "|  Auto-confirming...               |",
-                "+-----------------------------------+",
+                "┌──────────────────────────────────┐",
+                "│        Confirm Passkey           │",
+                f"│         {self.confirm_prompt:>10}          │",
+                "│     Auto-confirming...           │",
+                "└──────────────────────────────────┘",
             ]
         box_h = len(lines)
         box_w = max(len(l) for l in lines) + 2
@@ -804,7 +1058,6 @@ class BluetoothTUI:
                 self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), curses.A_BOLD)
             except curses.error:
                 pass
-        self.stdscr.refresh()
 
 
 # ── main ──────────────────────────────────────────────────────────────
