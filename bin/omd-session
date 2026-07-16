@@ -857,25 +857,37 @@ def firefox_monitor_scale(record):
 def firefox_launch_environment(record):
     """Restore Firefox's graphics environment without copying secrets.
 
-    Old snapshots do not contain this metadata. For those, derive a Wayland
-    GDK scale from the target/current monitor instead of inheriting the
-    restore service's potentially stale startup environment.
+    The current desktop environment is authoritative because monitor scaling
+    may have changed since the snapshot was saved. Snapshot values are only a
+    fallback for cold-start environments that are missing those variables.
     """
     env = os.environ.copy()
     saved = record.get("command", {}).get("environment") or {}
-    scale = str(saved.get("GDK_SCALE") or firefox_monitor_scale(record))
-    try:
-        inverse_scale = f"{1 / max(1.0, float(scale)):g}"
-    except (TypeError, ValueError):
-        scale = "1"
-        inverse_scale = "1"
+    env["MOZ_ENABLE_WAYLAND"] = str(
+        env.get("MOZ_ENABLE_WAYLAND") or saved.get("MOZ_ENABLE_WAYLAND") or "1"
+    )
+    env["GDK_BACKEND"] = str(
+        env.get("GDK_BACKEND") or saved.get("GDK_BACKEND") or "wayland,x11,*"
+    )
+    env["GDK_SCALE"] = str(
+        env.get("GDK_SCALE") or saved.get("GDK_SCALE") or firefox_monitor_scale(record)
+    )
 
-    env["MOZ_ENABLE_WAYLAND"] = str(saved.get("MOZ_ENABLE_WAYLAND") or "1")
-    env["GDK_BACKEND"] = str(saved.get("GDK_BACKEND") or "wayland,x11,*")
-    env["GDK_SCALE"] = scale
-    env["GDK_DPI_SCALE"] = str(saved.get("GDK_DPI_SCALE") or inverse_scale)
-    if saved.get("XCURSOR_SIZE"):
-        env["XCURSOR_SIZE"] = str(saved["XCURSOR_SIZE"])
+    # Firefox already consumes the output scale. Forcing 0.5 on a 2x display
+    # makes a restored browser smaller than one launched from the desktop.
+    # Ignore a saved value here: snapshots produced by the previous restore
+    # implementation may contain its synthetic 0.5 and would otherwise keep
+    # poisoning later sessions. An explicit value in the current desktop
+    # environment is still respected.
+    dpi_scale = env.get("GDK_DPI_SCALE")
+    if dpi_scale:
+        env["GDK_DPI_SCALE"] = str(dpi_scale)
+    else:
+        env.pop("GDK_DPI_SCALE", None)
+
+    cursor_size = env.get("XCURSOR_SIZE") or saved.get("XCURSOR_SIZE")
+    if cursor_size:
+        env["XCURSOR_SIZE"] = str(cursor_size)
     return env
 
 

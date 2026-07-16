@@ -207,7 +207,8 @@ During restore, OMD therefore:
 
 1. starts Firefox exactly once through its normal distribution/user launcher,
    or reuses it if it is already running;
-2. restores the saved Wayland/GDK scaling environment and waits for Firefox to
+2. uses the current Wayland/GDK scaling environment, falling back to saved
+   values only when cold-start variables are missing, and waits for Firefox to
    recreate all expected windows (without an early three-second cutoff);
 3. matches recreated windows to saved records by title;
 4. moves each matched window back to its saved Hyprland workspace.
@@ -216,8 +217,12 @@ Hyprland reports Firefox's final internal executable (for example
 `/usr/lib64/firefox/firefox`). OMD deliberately does not relaunch that path:
 it bypasses the distribution wrapper's remoting setup and can start with a
 different scale from a normal desktop launch. New snapshots store only a
-small, non-sensitive graphics-environment allowlist. Older snapshots derive a
-compatible Wayland/GDK scale from the saved target monitor.
+small, non-sensitive graphics-environment allowlist. OMD does not synthesize
+an inverse `GDK_DPI_SCALE`: Firefox already consumes `GDK_SCALE`, and applying
+the inverse makes restored windows abnormally small. A saved
+`GDK_DPI_SCALE` is also ignored so snapshots created by the older behavior do
+not carry the bad scale into later sessions; only an explicit value from the
+current desktop environment is respected.
 
 Firefox should keep `browser.startup.page` set to `3` (restore previous windows
 and tabs). The homepage preference is only a fallback when Firefox has no
