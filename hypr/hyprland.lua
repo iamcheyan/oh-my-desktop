@@ -13,7 +13,10 @@ package.path = omd_root
 require("default.hypr.base")
 
 -- Change your own setup in these files and override defaults.
-require("monitors")
+-- Monitor layouts are machine-local state and may change while Hyprland is
+-- running. Load this file on every config reload instead of caching it through
+-- require().
+dofile(omd_root .. "/hypr/monitors.lua")
 require("input")
 require("bindings")
 require("looknfeel")

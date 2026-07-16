@@ -2,6 +2,16 @@
 set -eu
 
 omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+quickshell_only=0
+
+case "${1:-}" in
+    "") ;;
+    --quickshell-only) quickshell_only=1 ;;
+    *)
+        printf 'Usage: %s [--quickshell-only]\n' "$0" >&2
+        exit 2
+        ;;
+esac
 
 # shellcheck source=omd-quickshell-stop.sh
 . "$omd_root/scripts/omd-quickshell-stop.sh"
@@ -33,6 +43,9 @@ start_quickshell() {
 }
 
 reload_hyprland() {
+    if [ "$quickshell_only" -eq 1 ]; then
+        return
+    fi
     if ! command -v hyprctl >/dev/null 2>&1 || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
         return
     fi

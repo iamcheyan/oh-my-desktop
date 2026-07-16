@@ -69,7 +69,6 @@ ShellRoot {
 
         function cycle(direction: int): void {
             Services.InputMethod.cycleSchema(direction)
-            GlobalStates.barPopupType = "inputMethod";
         }
     }
 
