@@ -49,6 +49,23 @@
       "enabled": true,
       "enabledPresets": [],
       "presetOverrides": {}
+    },
+    "minila-r-convertible-keyboard": {
+      "displayName": "minila r convertible keyboard",
+      "hyprName": "minila-r-convertible-keyboard",
+      "keydId": "0a5c:8502",
+      "enabled": true,
+      "enabledPresets": [
+        "grave-esc-swap",
+        "muhenkan-meta",
+        "meta-f13",
+        "kana-left",
+        "rightalt-down",
+        "rightmeta-down",
+        "delete-right",
+        "rightctrl-up"
+      ],
+      "presetOverrides": {}
     }
   }
 }
