@@ -15,6 +15,7 @@ Singleton {
     property real recordingDuration: 0
     property string lastTranscription: ""
     property string lastError: ""
+    readonly property real maxRecordingDuration: 30.0
 
     // ── 历史记录 ──
     property list<var> history: []
@@ -101,13 +102,19 @@ Singleton {
         }
     }
 
-    // ── 录音计时 ──
+    // ── 录音超时和计时 ──
     Timer {
         id: recordingTimer
         interval: 100
         repeat: true
         running: root.state === "recording"
-        onTriggered: root.recordingDuration += 0.1
+        onTriggered: {
+            root.recordingDuration += 0.1
+            if (root.recordingDuration >= root.maxRecordingDuration) {
+                root.stopRecording()
+                root.notify("⚠️ 语音输入超时", `已达到最大录音时间 ${root.maxRecordingDuration} 秒，开始自动转写…`, "dialog-warning")
+            }
+        }
     }
 
     // ── 模型信息刷新 ──
