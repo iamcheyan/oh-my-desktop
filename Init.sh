@@ -89,14 +89,18 @@ PACKAGES_AUDIO=(
     pavucontrol
 )
 
-# Network
+# Network + Bluetooth
+# WiFi TUI (omd-wifi-tui) needs NetworkManager + nmcli.
+# Bluetooth TUI (omd-bluetooth-tui) needs BlueZ + bluetoothctl.
+# nmtui stays as a fallback; blueman is intentionally omitted (agent conflicts).
 PACKAGES_NETWORK=(
     network-manager
     network-manager-wifi
     network-manager-tui
     network-manager-editor
-    iwd
-    blueman
+    bluez
+    bluez-utils
+    rfkill
 )
 
 # Display/brightness
@@ -225,8 +229,9 @@ get_debian_pkg() {
         network-manager-wifi)   echo "network-manager" ;;
         network-manager-tui)    echo "network-manager-tui" ;;
         network-manager-editor) echo "network-manager-gnome" ;;
-        iwd)                    echo "iwd" ;;
-        blueman)                echo "blueman" ;;
+        bluez)                  echo "bluez" ;;
+        bluez-utils)            echo "bluez" ;;  # bluetoothctl ships in bluez on Debian
+        rfkill)                 echo "rfkill" ;;
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
@@ -302,8 +307,9 @@ get_fedora_pkg() {
         network-manager-wifi)   echo "NetworkManager-wifi" ;;
         network-manager-tui)    echo "NetworkManager-tui" ;;
         network-manager-editor) echo "nm-connection-editor" ;;
-        iwd)                    echo "iwd" ;;
-        blueman)                echo "blueman" ;;
+        bluez)                  echo "bluez" ;;
+        bluez-utils)            echo "bluez" ;;  # bluetoothctl in bluez on Fedora
+        rfkill)                 echo "util-linux" ;;  # rfkill binary; usually already installed
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
@@ -367,6 +373,9 @@ get_arch_pkg() {
         network-manager-wifi)   echo "networkmanager" ;;
         network-manager-tui)    echo "networkmanager" ;;
         network-manager-editor) echo "nm-connection-editor" ;;
+        bluez)                  echo "bluez" ;;
+        bluez-utils)            echo "bluez-utils" ;;  # bluetoothctl on Arch
+        rfkill)                 echo "util-linux" ;;
         ffmpeg)                 echo "ffmpeg" ;;
         cantarell-fonts)        echo "cantarell-fonts" ;;
         noto-fonts)             echo "noto-fonts" ;;
@@ -505,8 +514,10 @@ install_nixos_system_config() {
     playerctl
     pavucontrol
     pulseaudio
+    networkmanager
     networkmanagerapplet
     networkmanager-tui
+    bluez
     brightnessctl
     ddcutil
     wlr-randr
@@ -581,6 +592,14 @@ EOF
   services.gnome.gnome-keyring.enable = true;
   services.power-profiles-daemon.enable = true;
   programs.dconf.enable = true;
+
+  # OMD WiFi / Bluetooth TUIs (nmcli + bluetoothctl)
+  networking.networkmanager.enable = true;
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
+
+  # External monitor brightness via ddcutil
+  hardware.i2c.enable = true;
 
   fonts.packages = with pkgs; [
     cantarell-fonts
@@ -812,6 +831,142 @@ install_user_fonts() {
     done
 }
 
+# ── DDC/CI for external monitor brightness (ddcutil / i2c) ───────────────────
+# Without this, omd-brightness-display and the bar Display slider cannot talk to
+# external panels — /dev/i2c-* stays root:root 600 on many distros (incl. Fedora/Asahi).
+setup_ddcutil_permissions() {
+    info "Configuring DDC/CI access for external monitor brightness..."
+
+    # Kernel module for userspace i2c
+    if command -v modprobe >/dev/null 2>&1; then
+        sudo modprobe i2c-dev 2>/dev/null || true
+        if [[ -d /etc/modules-load.d ]]; then
+            echo "i2c-dev" | sudo tee /etc/modules-load.d/omd-i2c-dev.conf >/dev/null
+            ok "  i2c-dev module load-on-boot"
+        fi
+    fi
+
+    # System group for i2c devices
+    if ! getent group i2c >/dev/null 2>&1; then
+        if sudo groupadd --system i2c 2>/dev/null; then
+            ok "  created system group: i2c"
+        else
+            warn "  could not create i2c group"
+        fi
+    else
+        ok "  i2c group exists"
+    fi
+
+    local target_user="${SUDO_USER:-$USER}"
+    if [[ -n "$target_user" && "$target_user" != "root" ]] && getent group i2c >/dev/null 2>&1; then
+        if id -nG "$target_user" 2>/dev/null | tr ' ' '\n' | grep -qx i2c; then
+            ok "  user $target_user already in i2c group"
+        else
+            if sudo usermod -aG i2c "$target_user" 2>/dev/null; then
+                ok "  added $target_user to i2c group (log out/in for group to apply)"
+            else
+                warn "  could not add $target_user to i2c group"
+            fi
+        fi
+    fi
+
+    # udev: group+mode so ddcutil works even when uaccess tags do not (common on Asahi).
+    # Also keep ddcutil's class filter as a secondary rule if packaged.
+    local rule_file="/etc/udev/rules.d/60-omd-ddcutil-i2c.rules"
+    sudo tee "$rule_file" >/dev/null <<'EOF'
+# OMD: allow members of group i2c to use ddcutil for monitor brightness (VCP 10).
+# See docs/wifi-bluetooth-tui.md / multi-monitor brightness notes.
+KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0660"
+# ddcutil vendor hint (harmless if ATTRS unsupported on some buses)
+SUBSYSTEM=="i2c-dev", KERNEL=="i2c-[0-9]*", ATTRS{class}=="0x030000", GROUP="i2c", MODE="0660", TAG+="uaccess"
+EOF
+    ok "  wrote $rule_file"
+
+    # Prefer packaged ddcutil udev rules as well when present
+    for vendor_rule in \
+        /usr/lib/udev/rules.d/60-ddcutil-i2c.rules \
+        /usr/share/ddcutil/data/60-ddcutil-i2c.rules; do
+        if [[ -f "$vendor_rule" && ! -e /etc/udev/rules.d/$(basename "$vendor_rule") ]]; then
+            sudo cp "$vendor_rule" /etc/udev/rules.d/ 2>/dev/null || true
+        fi
+    done
+
+    if command -v udevadm >/dev/null 2>&1; then
+        sudo udevadm control --reload-rules 2>/dev/null || true
+        sudo udevadm trigger --subsystem-match=i2c-dev --action=add 2>/dev/null || true
+        ok "  udev rules reloaded"
+    fi
+
+    # Immediate access without re-login (group membership only applies after new session).
+    # setfacl is best-effort; udev group rule covers the next boot / re-login.
+    if [[ -n "${target_user:-}" && "$target_user" != "root" ]] && command -v setfacl >/dev/null 2>&1; then
+        local node
+        for node in /dev/i2c-*; do
+            [[ -e "$node" ]] || continue
+            sudo setfacl -m "u:${target_user}:rw" "$node" 2>/dev/null || true
+        done
+        ok "  ACL: granted $target_user rw on existing /dev/i2c-* (current session)"
+    fi
+
+    # Drop stale DDC cache so Brightness service re-probes buses after permissions fix
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/omd/ddc-detect-brief.txt" \
+          "${XDG_CACHE_HOME:-$HOME/.cache}/omd/ddc-bus-map.txt" 2>/dev/null || true
+
+    # Non-fatal probe
+    if command -v ddcutil >/dev/null 2>&1; then
+        if ddcutil detect --brief >/dev/null 2>&1; then
+            ok "  ddcutil can probe displays"
+        else
+            warn "  ddcutil still cannot open i2c — log out/in (i2c group), re-plug the monitor, then: omd-restart"
+        fi
+    else
+        warn "  ddcutil not installed — external brightness needs the ddcutil package"
+    fi
+}
+
+# ── Enable WiFi/Bluetooth backends for omd-*-tui ─────────────────────────────
+enable_network_bluetooth_services() {
+    info "Enabling NetworkManager + bluetooth services..."
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        warn "systemctl not available; skip service enable"
+        return 0
+    fi
+
+    # Soft-unblock radios when rfkill exists
+    if command -v rfkill >/dev/null 2>&1; then
+        rfkill unblock wifi 2>/dev/null || true
+        rfkill unblock wlan 2>/dev/null || true
+        rfkill unblock bluetooth 2>/dev/null || true
+    fi
+
+    local svc
+    for svc in NetworkManager bluetooth; do
+        if systemctl list-unit-files "${svc}.service" &>/dev/null \
+            || systemctl status "${svc}.service" &>/dev/null; then
+            if sudo systemctl enable --now "${svc}.service" 2>/dev/null; then
+                ok "  ${svc}.service enabled"
+            else
+                warn "  could not enable ${svc}.service (may need manual setup)"
+            fi
+        else
+            warn "  ${svc}.service not found on this system"
+        fi
+    done
+
+    # Quick sanity for TUI backends
+    if command -v nmcli >/dev/null 2>&1; then
+        ok "  nmcli ready (omd-wifi-tui)"
+    else
+        warn "  nmcli missing after install — omd-wifi-tui will not work"
+    fi
+    if command -v bluetoothctl >/dev/null 2>&1; then
+        ok "  bluetoothctl ready (omd-bluetooth-tui)"
+    else
+        warn "  bluetoothctl missing after install — omd-bluetooth-tui will not work"
+    fi
+}
+
 # ── Main installation flow ────────────────────────────────────────────────────
 install_all_dependencies() {
     info "Installing core dependencies..."
@@ -847,14 +1002,16 @@ install_all_dependencies() {
     install_packages "${PACKAGES_AUDIO[@]}"
     echo
 
-    # Network
-    info "═══ Network ═══"
+    # Network + Bluetooth (omd-wifi-tui / omd-bluetooth-tui)
+    info "═══ Network & Bluetooth ═══"
     install_packages "${PACKAGES_NETWORK[@]}"
+    enable_network_bluetooth_services
     echo
 
     # Display
     info "═══ Display & Screenshots ═══"
     install_packages "${PACKAGES_DISPLAY[@]}"
+    setup_ddcutil_permissions
     echo
 
     # Clipboard
@@ -1208,7 +1365,7 @@ main() {
     echo "  - Hyprland ecosystem (compositor, lock, idle, portal)"
     echo "  - Quickshell dependencies"
     echo "  - Audio (PipeWire, WirePlumber)"
-    echo "  - Network (NetworkManager, nmtui, nm-connection-editor, iwd, blueman)"
+    echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — omd-wifi-tui / omd-bluetooth-tui)"
     echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, swaybg, grim, slurp, swappy, satty)"
     echo "  - Clipboard (cliphist, wl-clipboard)"
     echo "  - Notifications (mako)"

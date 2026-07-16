@@ -88,6 +88,16 @@ ShellRoot {
         }
     }
 
+    // Session actions requested by independent Quickshell processes (for
+    // example the Overview command palette) reuse the bar's confirmation UI.
+    IpcHandler {
+        target: "session"
+
+        function confirm(action: string, label: string): void {
+            GlobalStates.requestSessionConfirm(action, label)
+        }
+    }
+
     Component.onCompleted: {
         Hyprsunset.load()
         FirstRunExperience.load()

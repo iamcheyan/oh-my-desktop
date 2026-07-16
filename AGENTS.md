@@ -201,10 +201,12 @@ Additional manual symlinks (not created by Init.sh):
 - Appearance settings layout: `docs/appearance-settings-layout.md`
 - Keyboard remap settings layout: `docs/keyboard-remap-settings-layout.md`
 - Wi-Fi connect flow: `docs/wifi-connect-flow.md`
+- Bar popup height stability: `docs/bar-popup-height-stability.md`
 - Network settings layout: `docs/network-settings-layout.md`
 - Omarchy theme system: `docs/omarchy-theme-system.md`
 - Session persistence: `docs/session-persistence.md`
 - Input method integration: `docs/input-method-integration.md`
+- Overview command palette: `docs/overview-command-palette.md`
 - Deployment/portability: `docs/deployment-portability.md`
 - Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
 
@@ -226,6 +228,9 @@ Additional manual symlinks (not created by Init.sh):
 - Bar status popups are unified through `quickshell/modules/bar/BarStatusPopup.qml`.
   Do not add new per-module `XxxInfoPopup.qml` files; add a content component or
   section to `BarStatusPopup.qml` instead.
+- Height-variable bar popups (device lists, optional rows) must follow
+  `docs/bar-popup-height-stability.md`: do not animate `PanelWindow` /
+  `Layout.preferredHeight`; prefer always-visible structure or constant geometry.
 - Voice input is integrated into `quickshell/modules/bar/modules/AudioButton.qml`
   and `quickshell/modules/bar/BarStatusPopup.qml`. It uses
   `VoiceInput` singleton service for state machine: nomodel → venv → downloading

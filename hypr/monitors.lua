@@ -67,6 +67,10 @@ end
 local saved_layout_path = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/omd/display/layout.lua"
 local ok, saved_layout = pcall(dofile, saved_layout_path)
 if ok and same_monitor_set(saved_layout, connected) then
+  -- Hyprland resolves monitor rules from newest to oldest. Register the
+  -- wildcard first so every saved per-output rule below takes precedence.
+  hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
+
   local primary_gdk_scale = 1
   for i, m in ipairs(saved_layout.outputs) do
     if not m.disabled and (m.output:sub(1, 3) == "eDP" or i == 1) then
@@ -90,9 +94,12 @@ if ok and same_monitor_set(saved_layout, connected) then
   end
 
   hl.env("GDK_SCALE", tostring(primary_gdk_scale))
-  hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
   return
 end
+
+-- The wildcard is only a fallback for newly attached outputs. It must be
+-- registered before the more specific rules generated below.
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
 for _, m in ipairs(connected) do
   local is_internal = m.name:sub(1, 3) == "eDP"
@@ -156,6 +163,3 @@ end
 
 -- Export primary environment scale
 hl.env("GDK_SCALE", tostring(primary_gdk_scale))
-
--- Wildcard adaptive fallback for safety
-hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })

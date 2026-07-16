@@ -35,6 +35,9 @@ o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 -- Bluetooth pairing TUI
 o.bind("SUPER + CTRL + B", "Bluetooth", "$HOME/.config/omd/bin/omd-launch-bluetooth")
 
+-- WiFi manager TUI
+o.bind("SUPER + CTRL + W", "WiFi", "$HOME/.config/omd/bin/omd-launch-wifi")
+
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
 hl.unbind("SUPER + mouse:273")

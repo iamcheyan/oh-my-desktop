@@ -15,6 +15,8 @@ Singleton {
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
     property real osdBrightnessValue: -1
+    // Monitor name the brightness OSD should pin to (empty = focused screen).
+    property string osdBrightnessScreen: ""
     property bool overviewOpen: false
     property string overviewAnchorMonitorName: ""
     property bool overviewSearchMode: false
@@ -35,6 +37,8 @@ Singleton {
     property bool superDown: false
     property bool superReleaseMightTrigger: false
     property string barPopupType: ""
+    // Screen name of the bar that opened the popup (multi-monitor: pin panel + brightness).
+    property string barPopupAnchorScreen: ""
     // Ephemeral popups (e.g. volume OSD) auto-close; pinned ones stay until dismissed.
     property bool barPopupEphemeral: false
     property real barPopupDismissedAt: 0
