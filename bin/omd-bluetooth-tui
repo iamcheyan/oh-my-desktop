@@ -47,6 +47,28 @@ def clean(text: str) -> str:
     return ANSI_RE.sub("", text).replace("\r", "")
 
 
+ICON_MAP = {
+    "input-keyboard":  "K",
+    "input-mouse":     "M",
+    "input-tablet":    "P",
+    "audio-headset":   "H",
+    "audio-card":      "A",
+    "audio-speaker":   "S",
+    "computer":        "C",
+    "phone":           "P",
+    "video-display":   "D",
+    "network-wireless": "N",
+}
+ICON_UNKNOWN = "?"
+
+
+def device_icon(info_text: str) -> str:
+    m = re.search(r"^\s*Icon:\s*(\S+)", info_text, re.MULTILINE)
+    if m:
+        return ICON_MAP.get(m.group(1), ICON_UNKNOWN)
+    return ICON_UNKNOWN
+
+
 def pty_spawn(argv):
     """Fork a child attached to a pseudo-terminal; return (pid, fd)."""
     pid, fd = os.forkpty()
@@ -84,9 +106,10 @@ def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
         return 1, out
 
 
-def get_devices() -> list[tuple[str, str, str]]:
-    """Return [(addr, name, status), ...] from ``bluetoothctl devices``.
-    status ∈ {"paired", "connected", "available"}."""
+def get_devices() -> list[tuple[str, str, str, str]]:
+    """Return [(addr, name, status, icon), ...] from ``bluetoothctl devices``.
+    status ∈ {"connected", "paired", "available"}.
+    icon is a short type indicator (K, M, H, S, ...)."""
     _, out = btctl_simple("devices")
     devices = []
     for line in out.splitlines():
@@ -95,6 +118,7 @@ def get_devices() -> list[tuple[str, str, str]]:
             continue
         addr, name = m.group(1), m.group(2).strip()
         _, info = btctl_simple("info", addr, timeout=5)
+        icon = device_icon(info)
         paired = "Paired: yes" in info
         connected = "Connected: yes" in info
         if connected:
@@ -103,7 +127,7 @@ def get_devices() -> list[tuple[str, str, str]]:
             status = "paired"
         else:
             status = "available"
-        devices.append((addr, name, status))
+        devices.append((addr, name, status, icon))
     # Sort: connected first, then paired, then available
     order = {"connected": 0, "paired": 1, "available": 2}
     devices.sort(key=lambda d: order.get(d[2], 3))
@@ -244,12 +268,12 @@ class BluetoothTUI:
 
     def _merge_device(self, addr, name):
         """Quick in-memory merge without calling bluetoothctl info every time."""
-        for i, (a, n, s) in enumerate(self.devices):
+        for i, (a, n, s, ic) in enumerate(self.devices):
             if a.upper() == addr.upper():
                 if name and name != n:
-                    self.devices[i] = (a, name, s)
+                    self.devices[i] = (a, name, s, ic)
                 return
-        self.devices.append((addr, name, "available"))
+        self.devices.append((addr, name, "available", ICON_UNKNOWN))
 
     def refresh_devices(self):
         """Full refresh from bluetoothctl."""
@@ -485,7 +509,7 @@ class BluetoothTUI:
                 self.selected -= 1
         elif key == ord("\n") or key == curses.KEY_ENTER:
             if self.devices and not self.busy:
-                addr, name, status = self.devices[self.selected]
+                addr, name, status, _icon = self.devices[self.selected]
                 if status == "connected":
                     self.do_disconnect(addr)
                 elif status == "paired":
@@ -494,12 +518,12 @@ class BluetoothTUI:
                     self.start_pair(addr, name)
         elif key == ord("d"):
             if self.devices and not self.busy:
-                addr, name, status = self.devices[self.selected]
+                addr, _name, status, _icon = self.devices[self.selected]
                 if status == "connected":
                     self.do_disconnect(addr)
         elif key == ord("f"):
             if self.devices and not self.busy:
-                addr, name, status = self.devices[self.selected]
+                addr, _name, _status, _icon = self.devices[self.selected]
                 self.do_forget(addr)
 
     # ── poll ──
@@ -560,7 +584,7 @@ class BluetoothTUI:
                 pass
         else:
             visible = self.devices[scroll:scroll + list_height]
-            for i, (addr, name, status) in enumerate(visible):
+            for i, (addr, name, status, icon) in enumerate(visible):
                 row = list_top + i
                 is_selected = (scroll + i) == self.selected
                 if is_selected:
@@ -572,10 +596,9 @@ class BluetoothTUI:
                         "available": curses.color_pair(3),
                     }
                     attr = colors.get(status, curses.A_NORMAL)
-                icon = {"connected": "[*]", "paired": "[~]", "available": "[ ]"}.get(status, "[ ]")
                 # Truncate safely
                 name_str = name[:w - 30] if w > 30 else ""
-                line = f" {icon} {name_str:<20} {addr}"
+                line = f" [{icon}] {name_str:<20} {addr}"
                 try:
                     self.stdscr.addnstr(row, 0, line[:w], w, attr)
                 except curses.error:
