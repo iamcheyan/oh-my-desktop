@@ -17,6 +17,8 @@ Scope {
     property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
         ?? Quickshell.screens[0]
         ?? null
+    // Screen the OSD window is pinned to for this show (does not follow focus jumps).
+    property var osdScreen: focusedScreen
 
     property string currentIndicator: "volume"
     property string popupIndicatorType: ""
@@ -39,7 +41,18 @@ Scope {
         },
     ]
 
-    function triggerOsd() {
+    function screenByName(name) {
+        if (!name)
+            return null;
+        return Quickshell.screens.find(s => s.name === name) ?? null;
+    }
+
+    /**
+     * Show OSD. Optional screen pins the popup to that output (brightness
+     * per-monitor). Volume / default uses the currently focused screen.
+     */
+    function triggerOsd(forScreen) {
+        root.osdScreen = forScreen ?? root.focusedScreen ?? Quickshell.screens[0] ?? null;
         GlobalStates.osdVolumeOpen = true;
         osdTimeout.restart();
     }
@@ -82,9 +95,13 @@ Scope {
         target: Brightness
         function onBrightnessChanged() {
             root.protectionMessage = "";
+            // Prefer the monitor that was just adjusted (set by Brightness service).
+            const monName = Brightness.lastAdjustedScreenName || GlobalStates.osdBrightnessScreen || "";
+            if (monName)
+                GlobalStates.osdBrightnessScreen = monName;
             GlobalStates.osdBrightnessValue = -1;
             root.currentIndicator = "brightness";
-            root.triggerOsd();
+            root.triggerOsd(root.screenByName(monName) ?? root.focusedScreen);
         }
     }
 
@@ -93,7 +110,8 @@ Scope {
         function onGammaChangeAttempt() {
             root.protectionMessage = "";
             root.currentIndicator = "gamma";
-            root.triggerOsd();
+            // Gamma is compositor-global — show on focused screen only.
+            root.triggerOsd(root.focusedScreen);
         }
     }
 
@@ -102,7 +120,7 @@ Scope {
         function onOsdRequested() {
             root.protectionMessage = "";
             root.currentIndicator = "inputMethod";
-            root.triggerOsd();
+            root.triggerOsd(root.focusedScreen);
         }
     }
 
@@ -113,13 +131,13 @@ Scope {
             if (!Audio.ready)
                 return;
             root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerOsd(root.focusedScreen);
         }
         function onMutedChanged() {
             if (!Audio.ready)
                 return;
             root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerOsd(root.focusedScreen);
         }
     }
 
@@ -129,7 +147,7 @@ Scope {
         function onSinkProtectionTriggered(reason) {
             root.protectionMessage = reason;
             root.currentIndicator = "volume";
-            root.triggerOsd();
+            root.triggerOsd(root.focusedScreen);
         }
     }
 
@@ -140,14 +158,8 @@ Scope {
         sourceComponent: PanelWindow {
             id: osdRoot
             color: "transparent"
-            screen: root.focusedScreen
-
-            Connections {
-                target: root
-                function onFocusedScreenChanged() {
-                    osdRoot.screen = root.focusedScreen;
-                }
-            }
+            // Pinned at trigger time — do not hop screens when focus changes.
+            screen: root.osdScreen
 
             WlrLayershell.namespace: "quickshell:onScreenDisplay"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -286,10 +298,22 @@ Scope {
     IpcHandler {
         target: "osdBrightness"
 
-        function trigger(value: real): void {
-            GlobalStates.osdBrightnessValue = Math.max(0, Math.min(100, value));
+        // value: 0–100 (or <0 to read live monitor brightness).
+        // monitorName: Hyprland connector to pin the OSD (e.g. eDP-1, HDMI-A-1).
+        function trigger(value: real, monitorName: string): void {
+            const mon = (monitorName && monitorName.length) ? monitorName : (Hyprland.focusedMonitor?.name ?? "");
+            GlobalStates.osdBrightnessScreen = mon;
+            if (value >= 0)
+                GlobalStates.osdBrightnessValue = Math.max(0, Math.min(100, value));
+            else
+                GlobalStates.osdBrightnessValue = -1;
             root.currentIndicator = "brightness";
-            root.triggerOsd();
+            root.triggerOsd(root.screenByName(mon) ?? root.focusedScreen);
+        }
+
+        // Back-compat: single-arg form pins to focused monitor.
+        function triggerValue(value: real): void {
+            trigger(value, Hyprland.focusedMonitor?.name ?? "");
         }
     }
 }

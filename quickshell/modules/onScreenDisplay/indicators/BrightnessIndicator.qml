@@ -19,8 +19,13 @@ Item {
     readonly property color tuiLine: TuiStyle.line
     readonly property color tuiYellow: TuiStyle.yellow
 
-    property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
-    property var brightnessMonitor: Brightness.getMonitorForScreen(focusedScreen)
+    // Prefer the monitor that was actually adjusted (pinned by OSD trigger).
+    property string targetScreenName: GlobalStates.osdBrightnessScreen
+        || (Hyprland.focusedMonitor?.name ?? "")
+    property var targetScreen: Quickshell.screens.find(s => s.name === root.targetScreenName)
+        ?? Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+        ?? null
+    property var brightnessMonitor: Brightness.getMonitorForScreen(targetScreen)
     readonly property real brightnessValue: GlobalStates.osdBrightnessValue >= 0
         ? GlobalStates.osdBrightnessValue / 100
         : brightnessMonitor?.brightness ?? 0
