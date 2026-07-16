@@ -86,14 +86,58 @@ Rectangle {
         return options;
     }
 
+    function cleanScale(scale, mode) {
+        const selectedMode = mode || parsedMode;
+        if (!selectedMode)
+            return true;
+        const logicalWidth = selectedMode.w / scale;
+        const logicalHeight = selectedMode.h / scale;
+        return Math.abs(logicalWidth - Math.round(logicalWidth)) < 0.0001
+            && Math.abs(logicalHeight - Math.round(logicalHeight)) < 0.0001;
+    }
+
+    // Mirrors Hyprland CMonitor::applyMonitorRule: scale values are searched
+    // on a 1/120 grid, checking upward before downward at each distance.
+    function effectiveScaleForPreset(preset, mode) {
+        const selectedMode = mode || parsedMode;
+        if (!selectedMode)
+            return Number(preset);
+        const requestedTick = Math.round(Number(preset) * 120);
+        const requestedScale = requestedTick / 120;
+        if (cleanScale(requestedScale, selectedMode))
+            return requestedScale;
+        for (let offset = 1; offset < 90; offset++) {
+            const scaleUp = (requestedTick + offset) / 120;
+            if (cleanScale(scaleUp, selectedMode))
+                return scaleUp;
+            const scaleDown = (requestedTick - offset) / 120;
+            if (scaleDown > 0 && cleanScale(scaleDown, selectedMode))
+                return scaleDown;
+        }
+        return NaN;
+    }
+
+    function actualScaleLabel(scale) {
+        const percentage = Number(scale) * 100;
+        const rounded = Math.round(percentage);
+        return Math.abs(percentage - rounded) < 0.005
+            ? `${rounded}%`
+            : `${percentage.toFixed(2)}%`;
+    }
+
     function buildScaleDropdownOptions() {
         if (!output)
             return [];
-        return scaleOptions.map(val => {
-            const strVal = String(Number(val).toFixed(2));
+        return scaleOptions.map(preset => {
+            const effective = effectiveScaleForPreset(preset);
+            const supported = Number.isFinite(effective);
+            const presetLabel = displayState.scaleLabel(preset);
             return {
-                value: strVal,
-                label: displayState.scaleLabel(val)
+                value: String(Number(preset).toFixed(2)),
+                label: supported
+                    ? `${presetLabel} · actual ${actualScaleLabel(effective)}`
+                    : `${presetLabel} · unavailable`,
+                enabled: supported
             };
         });
     }
@@ -124,7 +168,13 @@ Rectangle {
             const b = displayState.parseMode(right);
             return Math.abs(a.hz - currentHz) - Math.abs(b.hz - currentHz);
         });
-        displayState.setDraftValue(output.name, "mode", displayState.normalizeMode(candidates[0], output));
+        const normalizedMode = displayState.normalizeMode(candidates[0], output);
+        const nextMode = displayState.parseMode(normalizedMode);
+        const preset = Number(root.draft.scalePreset || root.draft.scale || 1);
+        const effectiveScale = effectiveScaleForPreset(preset, nextMode);
+        displayState.setDraftValue(output.name, "mode", normalizedMode);
+        if (Number.isFinite(effectiveScale))
+            displayState.setScalePreset(output.name, preset, effectiveScale);
     }
 
     ColumnLayout {
@@ -268,13 +318,17 @@ Rectangle {
             SettingsDropdownRow {
                 label: "Scale"
                 description: "Choose how large text, windows, and controls appear"
-                currentValue: String(Number(root.draft.scale || 1).toFixed(2))
+                currentValue: String(Number(root.draft.scalePreset || root.draft.scale || 1).toFixed(2))
                 options: root.scaleDropdownOptions
-                dropdownWidth: 190
+                dropdownWidth: 250
                 controlled: true
                 onValueChanged: value => {
-                    if (root.output)
-                        root.displayState.setDraftValue(root.output.name, "scale", Number(value));
+                    if (!root.output)
+                        return;
+                    const preset = Number(value);
+                    const effectiveScale = root.effectiveScaleForPreset(preset);
+                    if (Number.isFinite(effectiveScale))
+                        root.displayState.setScalePreset(root.output.name, preset, effectiveScale);
                 }
             }
         }

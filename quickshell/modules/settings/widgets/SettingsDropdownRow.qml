@@ -161,10 +161,11 @@ Rectangle {
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
+                        readonly property bool optionEnabled: modelData.enabled !== false
                         width: ddOptList.width - (ddScrollBar.policy === ScrollBar.AlwaysOn ? 8 : 0)
                         height: root.optionHeight
                         radius: SettingsTokens.radius
-                        color: ddOptMouse.containsMouse ? SettingsTokens.cardHover
+                        color: optionEnabled && ddOptMouse.containsMouse ? SettingsTokens.cardHover
                             : (String(modelData.value ?? "") === String(root.currentValue ?? "")
                                 ? SettingsTokens.accentSoft : "transparent")
 
@@ -174,7 +175,7 @@ Rectangle {
                             anchors.rightMargin: 10
                             verticalAlignment: Text.AlignVCenter
                             text: modelData.label
-                            color: SettingsTokens.fg
+                            color: optionEnabled ? SettingsTokens.fg : SettingsTokens.dim
                             font.pixelSize: Appearance.font.pixelSize.small
                             elide: Text.ElideRight
                         }
@@ -182,6 +183,7 @@ Rectangle {
                         MouseArea {
                             id: ddOptMouse
                             anchors.fill: parent
+                            enabled: parent.optionEnabled
                             hoverEnabled: true
                             onClicked: {
                                 if (!root.controlled)

@@ -15,10 +15,11 @@ Item {
     property bool refreshing: false
     property bool applying: false
     property bool identifying: false
+    property bool userEdited: false
     property int revision: 0
 
     readonly property var visibleOutputs: (revision, outputs.filter(output => output.connected !== false && !draftFor(output.name).disabled))
-    readonly property bool hasPendingChanges: (revision, pendingOutputNames().length > 0)
+    readonly property bool hasPendingChanges: userEdited
 
     signal applied(string message)
 
@@ -138,15 +139,34 @@ Item {
     }
 
     function makeDraft(output) {
+        const actualScale = Number(output.scale || 1);
+        const savedPreset = Number(output.scalePreset);
         return {
             name: output.name,
             mode: normalizeMode(output.currentMode, output),
             x: Number(output.x || 0),
             y: Number(output.y || 0),
-            scale: Number(output.scale || 1),
+            scale: actualScale,
+            // Keep the user-facing 25% preset separate from the clean scale
+            // that Hyprland can actually apply for this output mode.
+            scalePreset: Number.isFinite(savedPreset)
+                ? savedPreset
+                : Math.max(1, Math.min(4, Math.round(actualScale * 4) / 4)),
             transform: Number(output.transform || 0),
             disabled: output.disabled === true
         };
+    }
+
+    function setScalePreset(name, preset, effectiveScale) {
+        const next = Object.assign({}, drafts);
+        const draft = Object.assign({}, draftFor(name));
+        draft.scalePreset = Number(preset);
+        draft.scale = Number(effectiveScale);
+        next[name] = draft;
+        drafts = next;
+        userEdited = true;
+        revision++;
+        normalizeLayout(name);
     }
 
     function setDraftValue(name, key, value) {
@@ -155,6 +175,7 @@ Item {
         draft[key] = value;
         next[name] = draft;
         drafts = next;
+        userEdited = true;
         revision++;
         if (["mode", "scale", "transform", "disabled", "x", "y"].includes(key))
             normalizeLayout(name);
@@ -167,6 +188,7 @@ Item {
         draft.y = Math.round(y);
         next[name] = draft;
         drafts = next;
+        userEdited = true;
         revision++;
     }
 
@@ -206,10 +228,9 @@ Item {
         const w = rotated ? size.h : size.w;
         const h = rotated ? size.w : size.h;
         return {
-            // Output positions are integral logical pixels. Round the outer
-            // edge outward so fractional scales cannot overlap a neighbor.
-            w: Math.ceil(w / scale),
-            h: Math.ceil(h / scale)
+            // Match Hyprland's CMonitor::m_size calculation exactly.
+            w: Math.round(w / scale),
+            h: Math.round(h / scale)
         };
     }
 
@@ -438,6 +459,7 @@ Item {
         for (const output of outputs)
             next[output.name] = makeDraft(output);
         drafts = next;
+        userEdited = false;
         revision++;
         const focused = outputs.find(output => output.focused);
         normalizeLayout(focused ? focused.name : (outputs[0] ? outputs[0].name : ""));
@@ -451,6 +473,7 @@ Item {
             x: Math.round(Number(draft.x || 0)),
             y: Math.round(Number(draft.y || 0)),
             scale: Number(draft.scale || 1),
+            scalePreset: Number(draft.scalePreset || draft.scale || 1),
             transform: Number(draft.transform || 0),
             disabled: Boolean(draft.disabled)
         };
@@ -475,6 +498,7 @@ Item {
                 x: Math.round(Number(draft.x || 0)),
                 y: Math.round(Number(draft.y || 0)),
                 scale: Number(draft.scale || 1),
+                scalePreset: Number(draft.scalePreset || draft.scale || 1),
                 transform: Number(draft.transform || 0),
                 disabled: Boolean(draft.disabled),
                 connected: !Boolean(draft.disabled)
@@ -502,10 +526,11 @@ Item {
     }
 
     function applyAll() {
-        const changed = pendingOutputNames();
-        if (changed.length === 0)
+        if (!userEdited)
             return;
-        normalizeLayout(changed[0]);
+        const changed = pendingOutputNames();
+        const focused = outputs.find(output => output.focused);
+        normalizeLayout(changed.length > 0 ? changed[0] : (focused ? focused.name : ""));
         applying = true;
         errorText = "";
         applyProc.command = applyCommand();
@@ -555,6 +580,7 @@ Item {
                     x: Number(item.x || 0),
                     y: Number(item.y || 0),
                     scale: Number(item.scale || 1),
+                    scalePreset: Number(item.scalePreset || item.scale || 1),
                     transform: Number(item.transform || 0),
                     focused: item.focused === true,
                     disabled: item.disabled === true,
@@ -616,6 +642,7 @@ Item {
                 // The backend verifies every requested value before exiting,
                 // so the applied drafts are now the comparison baseline.
                 root.acceptAppliedDrafts();
+                root.userEdited = false;
                 root.applied("Display configuration applied");
                 refreshDelay.restart();
                 reloadShellDelay.restart();
