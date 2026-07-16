@@ -95,6 +95,22 @@ focused_monitor() {
         | head -n 1
 }
 
+hide_cursor() {
+    if command -v hyprctl >/dev/null 2>&1; then
+        hyprctl cursor move -999 -999 2>/dev/null || true
+    fi
+}
+
+restore_cursor() {
+    if command -v hyprctl >/dev/null 2>&1; then
+        eval "$(hyprctl monitors -j 2>/dev/null | jq -r '
+            .[] | select(.focused) |
+            "cx=\(.x + .width / 2 | floor); cy=\(.y + .height / 2 | floor)"
+        ' 2>/dev/null || true)"
+        hyprctl cursor move "${cx:-960}" "${cy:-540}" 2>/dev/null || true
+    fi
+}
+
 cancel_fast_capture() {
     [ -f "$fast_pid_file" ] || return 1
     fast_pid="$(cat "$fast_pid_file" 2>/dev/null || true)"
@@ -144,7 +160,9 @@ fast_capture() {
 
     tmp_file="$(mktemp /tmp/omd-screenshot.XXXXXX.png)"
     trap 'rm -f "$fast_pid_file" "$tmp_file"' EXIT INT TERM
+    hide_cursor
     grim -g "$geometry" "$tmp_file"
+    restore_cursor
 
     save_dir=""
     if command -v jq >/dev/null 2>&1 && [ -r "$HOME/.config/quickshell/config.json" ]; then
@@ -277,10 +295,12 @@ launch_direct() {
         snapshot_ts="$(date +%s%3N)"
         if [ -n "$target_monitor" ]; then
             snap_path="${snapshot_dir}/snapshot-${target_monitor}-${snapshot_ts}.png"
+            hide_cursor
             if grim -o "$target_monitor" "$snap_path" > /dev/null 2>&1; then
                 mon_env="$(printf '%s' "$target_monitor" | sed 's/[-.]/_/g')"
                 export "OMD_SNAPSHOT_PATH_${mon_env}=${snap_path}"
             fi
+            restore_cursor
         fi
 
         # If pre-capture fails, RegionSelection falls back to capturing its
