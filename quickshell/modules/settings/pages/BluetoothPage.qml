@@ -378,7 +378,7 @@ ColumnLayout {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         enabled: !isBusy
-                        onClicked: BluetoothStatus.connectDevice(availDelegate.device)
+                        onClicked: BluetoothStatus.pairDevice(availDelegate.device) // unpaired → pair-connect
                     }
                 }
             }
