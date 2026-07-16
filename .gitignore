@@ -16,3 +16,4 @@ quickshell/*.conf
 __pycache__/
 *.pyc
 
+.mimocode/
