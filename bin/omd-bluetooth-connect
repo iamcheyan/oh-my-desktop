@@ -211,15 +211,22 @@ def main():
     emit("status", "trusting")
     run_plain(["bluetoothctl", "trust", ADDR])
 
-    emit("status", "connecting")
-    code, output = run_plain(["bluetoothctl", "--timeout", "25", "connect", ADDR])
-    if code == 0 and re.search(r"successful|Connection successful", output, re.IGNORECASE):
-        emit("status", "connected")
-        return 0
-
-    if info_contains("Connected: yes"):
-        emit("status", "connected")
-        return 0
+    # On asahi Linux, the Bluetooth controller rejects wake-flags during
+    # pairing, causing the device to disconnect immediately after bonding.
+    # Wait a moment for the link to settle, then retry the connection.
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        emit("status", f"connecting{f' (attempt {attempt}/{max_attempts})' if attempt > 1 else ''}")
+        code, output = run_plain(["bluetoothctl", "--timeout", "25", "connect", ADDR])
+        if code == 0 and re.search(r"successful|Connection successful", output, re.IGNORECASE):
+            emit("status", "connected")
+            return 0
+        if info_contains("Connected: yes"):
+            emit("status", "connected")
+            return 0
+        if attempt < max_attempts:
+            emit("log", f"Connection attempt {attempt} failed, retrying in 2s...")
+            time.sleep(2)
 
     emit("error", output.strip() or "Connection failed")
     return 1
