@@ -41,6 +41,7 @@ WindowDialog {
     readonly property var primaryPages: [
         { key: "overview", icon: "build", title: "OMD Tools", keywords: "tools advanced theme voice keyboard vm" },
         { key: "network", icon: "wifi", title: "Network", keywords: "wifi wireless internet lan ethernet dns firewall connection" },
+        { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
@@ -61,7 +62,6 @@ WindowDialog {
 
     function normalizePage(page) {
         if (page === "wifi") return "network";
-        if (page === "bluetooth") return "network";
         if (page === "nightlight") return "display";
         if (page === "audio") return "sound";
         if (page === "battery") return "power";
@@ -95,6 +95,7 @@ WindowDialog {
 
     function pageComponent(page) {
         if (page === "network") return networkPage;
+        if (page === "bluetooth") return bluetoothPage;
         if (page === "display") return migratedDisplayPage;
         if (page === "voice") return voicePage;
         if (page === "keyremap") return keyremapPage;
@@ -190,6 +191,8 @@ WindowDialog {
     }
 
     Component { id: voicePage; VoicePage { settingsRoot: root } }
+
+    Component { id: bluetoothPage; BluetoothPage { settingsRoot: root } }
 
     Component { id: keyremapPage; KeyboardRemapPage { settingsRoot: root } }
 
