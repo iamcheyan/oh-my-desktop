@@ -14,6 +14,7 @@ Item {
     property string errorText: ""
     property bool refreshing: false
     property bool applying: false
+    property bool identifying: false
     property int revision: 0
 
     readonly property var visibleOutputs: (revision, outputs.filter(output => output.connected !== false && !draftFor(output.name).disabled))
@@ -31,11 +32,13 @@ Item {
 
     function normalizeMode(mode, output) {
         if (!mode || String(mode).trim().length === 0)
-            return `${output.width}x${output.height}@${Number(output.refreshRate || 60).toFixed(2)}Hz`;
+            return `${output.width}x${output.height}@${Number(output.refreshRate || 60).toFixed(3)}Hz`;
         const parsed = parseMode(mode);
         if (!parsed)
             return String(mode).trim().replace(/\s+/g, "");
-        return `${parsed.w}x${parsed.h}@${Number(parsed.hz).toFixed(2)}Hz`;
+        // Preserve the compositor's millihertz precision for apply requests.
+        // The visible label remains rounded by formatModeLabel().
+        return `${parsed.w}x${parsed.h}@${Number(parsed.hz).toFixed(3)}Hz`;
     }
 
     function formatModeLabel(mode) {
@@ -103,11 +106,10 @@ Item {
     }
 
     function scaleChoices(currentScale) {
-        const base = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 3];
-        const current = Number(Number(currentScale || 1).toFixed(2));
-        if (!base.includes(current))
-            base.push(current);
-        return base.sort((a, b) => a - b);
+        const choices = [];
+        for (let percentage = 100; percentage <= 400; percentage += 25)
+            choices.push(percentage / 100);
+        return choices;
     }
 
     function transformLabel(transform) {
@@ -154,11 +156,18 @@ Item {
         next[name] = draft;
         drafts = next;
         revision++;
+        if (["mode", "scale", "transform", "disabled", "x", "y"].includes(key))
+            normalizeLayout(name);
     }
 
     function updatePosition(name, x, y) {
-        setDraftValue(name, "x", Math.round(x));
-        setDraftValue(name, "y", Math.round(y));
+        const next = Object.assign({}, drafts);
+        const draft = Object.assign({}, draftFor(name));
+        draft.x = Math.round(x);
+        draft.y = Math.round(y);
+        next[name] = draft;
+        drafts = next;
+        revision++;
     }
 
     function outputByName(name) {
@@ -197,8 +206,10 @@ Item {
         const w = rotated ? size.h : size.w;
         const h = rotated ? size.w : size.h;
         return {
-            w: Math.round(w / scale),
-            h: Math.round(h / scale)
+            // Output positions are integral logical pixels. Round the outer
+            // edge outward so fractional scales cannot overlap a neighbor.
+            w: Math.ceil(w / scale),
+            h: Math.ceil(h / scale)
         };
     }
 
@@ -222,68 +233,184 @@ Item {
         return { minX: minX, minY: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
     }
 
+    function rectanglesOverlap(left, right) {
+        return left.x < right.x + right.w
+            && left.x + left.w > right.x
+            && left.y < right.y + right.h
+            && left.y + left.h > right.y;
+    }
+
     function checkOverlap(testName, testX, testY, testW, testH) {
+        const test = { x: testX, y: testY, w: testW, h: testH };
         for (const output of visibleOutputs) {
             if (output.name === testName)
                 continue;
             const draft = draftFor(output.name);
             const size = logicalSize(output);
-            const x = Number(draft.x || 0);
-            const y = Number(draft.y || 0);
-            if (testX < x + size.w && testX + testW > x && testY < y + size.h && testY + testH > y)
+            const other = { x: Number(draft.x || 0), y: Number(draft.y || 0), w: size.w, h: size.h };
+            if (rectanglesOverlap(test, other))
                 return true;
         }
         return false;
     }
 
-    function snapToEdges(testName, posX, posY, testW, testH) {
-        const threshold = 360;
-        let bestX = posX;
-        let bestY = posY;
-        let bestDistance = threshold + 1;
-
-        function candidate(x, y) {
-            const distance = Math.abs(x - posX) + Math.abs(y - posY);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestX = x;
-                bestY = y;
-            }
+    function attachmentCandidates(testRect, referenceRect) {
+        function clamp(value, minimum, maximum) {
+            return Math.max(minimum, Math.min(maximum, value));
         }
 
+        function alignments(raw, referenceStart, referenceLength, testLength) {
+            const minimum = referenceStart - testLength + 1;
+            const maximum = referenceStart + referenceLength - 1;
+            return [
+                Math.round(clamp(raw, minimum, maximum)),
+                Math.round(referenceStart),
+                Math.round(referenceStart + referenceLength - testLength),
+                Math.round(referenceStart + (referenceLength - testLength) / 2)
+            ];
+        }
+
+        const result = [];
+        const seen = {};
+        function add(x, y) {
+            const key = `${Math.round(x)},${Math.round(y)}`;
+            if (seen[key])
+                return;
+            seen[key] = true;
+            result.push({ x: Math.round(x), y: Math.round(y), w: testRect.w, h: testRect.h });
+        }
+
+        for (const y of alignments(testRect.y, referenceRect.y, referenceRect.h, testRect.h)) {
+            add(referenceRect.x - testRect.w, y);
+            add(referenceRect.x + referenceRect.w, y);
+        }
+        for (const x of alignments(testRect.x, referenceRect.x, referenceRect.w, testRect.w)) {
+            add(x, referenceRect.y - testRect.h);
+            add(x, referenceRect.y + referenceRect.h);
+        }
+        return result;
+    }
+
+    function snapToEdges(testName, posX, posY, testW, testH) {
+        const test = { x: posX, y: posY, w: testW, h: testH };
+        const others = [];
         for (const output of visibleOutputs) {
             if (output.name === testName)
                 continue;
             const draft = draftFor(output.name);
             const size = logicalSize(output);
-            const x = Number(draft.x || 0);
-            const y = Number(draft.y || 0);
-
-            const alignX = [
-                x,
-                x + Math.round((size.w - testW) / 2),
-                x + size.w - testW
-            ];
-            const alignY = [
-                y,
-                y + Math.round((size.h - testH) / 2),
-                y + size.h - testH
-            ];
-
-            for (const targetY of alignY) {
-                candidate(x + size.w, targetY);
-                candidate(x - testW, targetY);
-            }
-            for (const targetX of alignX) {
-                candidate(targetX, y + size.h);
-                candidate(targetX, y - testH);
-            }
-
-            candidate(x + size.w, y + size.h - testH);
-            candidate(x - testW, y + size.h - testH);
+            others.push({
+                name: output.name,
+                x: Number(draft.x || 0),
+                y: Number(draft.y || 0),
+                w: size.w,
+                h: size.h
+            });
         }
 
-        return Qt.point(bestX, bestY);
+        let best = null;
+        let bestDistance = Infinity;
+        for (const reference of others) {
+            for (const candidate of attachmentCandidates(test, reference)) {
+                let overlaps = false;
+                for (const other of others) {
+                    if (rectanglesOverlap(candidate, other)) {
+                        overlaps = true;
+                        break;
+                    }
+                }
+                if (overlaps)
+                    continue;
+                const dx = candidate.x - posX;
+                const dy = candidate.y - posY;
+                const distance = dx * dx + dy * dy;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+        }
+        return best ? Qt.point(best.x, best.y) : Qt.point(posX, posY);
+    }
+
+    function normalizeLayout(anchorName) {
+        const active = visibleOutputs.slice();
+        if (active.length < 2)
+            return;
+
+        let anchor = active.find(output => output.name === anchorName);
+        if (!anchor)
+            anchor = active.find(output => output.focused) || active[0];
+
+        const positions = {};
+        const anchorDraft = draftFor(anchor.name);
+        const anchorSize = logicalSize(anchor);
+        positions[anchor.name] = {
+            name: anchor.name,
+            x: Number(anchorDraft.x || 0),
+            y: Number(anchorDraft.y || 0),
+            w: anchorSize.w,
+            h: anchorSize.h
+        };
+
+        const placed = [anchor.name];
+        const remaining = active.filter(output => output.name !== anchor.name);
+        while (remaining.length > 0) {
+            let best = null;
+            let bestDistance = Infinity;
+
+            for (let outputIndex = 0; outputIndex < remaining.length; outputIndex++) {
+                const output = remaining[outputIndex];
+                const draft = draftFor(output.name);
+                const size = logicalSize(output);
+                const original = {
+                    x: Number(draft.x || 0),
+                    y: Number(draft.y || 0),
+                    w: size.w,
+                    h: size.h
+                };
+
+                for (const referenceName of placed) {
+                    const reference = positions[referenceName];
+                    for (const candidate of attachmentCandidates(original, reference)) {
+                        let overlaps = false;
+                        for (const placedName of placed) {
+                            if (rectanglesOverlap(candidate, positions[placedName])) {
+                                overlaps = true;
+                                break;
+                            }
+                        }
+                        if (overlaps)
+                            continue;
+                        const dx = candidate.x - original.x;
+                        const dy = candidate.y - original.y;
+                        const distance = dx * dx + dy * dy;
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            best = { outputIndex, output, candidate };
+                        }
+                    }
+                }
+            }
+
+            if (!best)
+                break;
+            positions[best.output.name] = Object.assign({ name: best.output.name }, best.candidate);
+            placed.push(best.output.name);
+            remaining.splice(best.outputIndex, 1);
+        }
+
+        if (placed.length !== active.length)
+            return;
+        const next = Object.assign({}, drafts);
+        for (const name of placed) {
+            const draft = Object.assign({}, next[name] || draftFor(name));
+            draft.x = Math.round(positions[name].x);
+            draft.y = Math.round(positions[name].y);
+            next[name] = draft;
+        }
+        drafts = next;
+        revision++;
     }
 
     function outputChanged(output) {
@@ -312,10 +439,8 @@ Item {
             next[output.name] = makeDraft(output);
         drafts = next;
         revision++;
-    }
-
-    function quote(value) {
-        return String(value || "").replace(/'/g, "'\\''");
+        const focused = outputs.find(output => output.focused);
+        normalizeLayout(focused ? focused.name : (outputs[0] ? outputs[0].name : ""));
     }
 
     function monitorSpec(output) {
@@ -331,11 +456,39 @@ Item {
         };
     }
 
-    function monitorCommand() {
+    function monitorSpecs() {
         const specs = [];
         for (const output of outputs)
             specs.push(monitorSpec(output));
-        return `${Quickshell.env("HOME")}/.config/omd/bin/omd-display-config apply '${quote(JSON.stringify(specs))}'`;
+        return specs;
+    }
+
+    function acceptAppliedDrafts() {
+        outputs = outputs.map(output => {
+            const draft = draftFor(output.name);
+            const mode = parseMode(draft.mode);
+            return Object.assign({}, output, {
+                currentMode: normalizeMode(draft.mode, output),
+                width: mode ? mode.w : output.width,
+                height: mode ? mode.h : output.height,
+                refreshRate: mode ? mode.hz : output.refreshRate,
+                x: Math.round(Number(draft.x || 0)),
+                y: Math.round(Number(draft.y || 0)),
+                scale: Number(draft.scale || 1),
+                transform: Number(draft.transform || 0),
+                disabled: Boolean(draft.disabled),
+                connected: !Boolean(draft.disabled)
+            });
+        });
+        revision++;
+    }
+
+    function applyCommand() {
+        return [
+            Quickshell.env("HOME") + "/.config/omd/bin/omd-display-config",
+            "apply",
+            JSON.stringify(monitorSpecs())
+        ];
     }
 
     function applyOutput(name) {
@@ -344,7 +497,7 @@ Item {
             return;
         applying = true;
         errorText = "";
-        applyProc.command = ["bash", "-lc", monitorCommand()];
+        applyProc.command = applyCommand();
         applyProc.running = true;
     }
 
@@ -352,14 +505,16 @@ Item {
         const changed = pendingOutputNames();
         if (changed.length === 0)
             return;
+        normalizeLayout(changed[0]);
         applying = true;
         errorText = "";
-        applyProc.command = ["bash", "-lc", monitorCommand()];
+        applyProc.command = applyCommand();
         applyProc.running = true;
     }
 
     function identify() {
-        Quickshell.execDetached(["bash", "-lc", "notify-send 'OMD Displays' \"$(hyprctl monitors | awk '/Monitor /{print $2; next} / at /{print; next} /description:/{print}')\""]);
+        identifying = true;
+        identifyTimer.restart();
     }
 
     function parseOutputs(text) {
@@ -376,8 +531,15 @@ Item {
             const parsed = JSON.parse(raw);
             const list = Array.isArray(parsed) ? parsed : [];
             return list.map(item => {
-                const currentMode = `${item.width || 1920}x${item.height || 1080}@${Number(item.refreshRate || 60).toFixed(2)}Hz`;
-                const modes = sortedModes(Array.isArray(item.availableModes) ? item.availableModes : [], currentMode);
+                // omd-display-config exposes wlr-output-management data as
+                // `currentMode`/`modes`. Keep the Hyprland field as a fallback
+                // so this adapter also accepts direct hyprctl monitor data.
+                const fallbackMode = `${item.width || 1920}x${item.height || 1080}@${Number(item.refreshRate || 60).toFixed(3)}Hz`;
+                const currentMode = normalizeMode(item.currentMode || fallbackMode, item);
+                const advertisedModes = Array.isArray(item.modes)
+                    ? item.modes
+                    : (Array.isArray(item.availableModes) ? item.availableModes : []);
+                const modes = sortedModes(advertisedModes, currentMode);
                 return {
                     name: item.name || "unknown",
                     id: item.id || 0,
@@ -400,14 +562,14 @@ Item {
                 };
             }).sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
         } catch (e) {
-            errorText = `Failed to parse hyprctl monitors: ${e}`;
+            errorText = `Failed to parse display data: ${e}`;
             return [];
         }
     }
 
     Process {
         id: monitorProc
-        command: ["bash", "-lc", "hyprctl -j monitors all 2>/dev/null || hyprctl -j monitors 2>/dev/null"]
+        command: [Quickshell.env("HOME") + "/.config/omd/bin/omd-display-config", "get"]
         stdout: StdioCollector {
             id: monitorCollector
             onStreamFinished: {
@@ -426,7 +588,7 @@ Item {
         onExited: (exitCode) => {
             root.refreshing = false;
             if (exitCode !== 0 && root.outputs.length === 0)
-                root.errorText = "hyprctl monitors is not available in this session.";
+                root.errorText = "Display management is not available in this session.";
         }
     }
 
@@ -451,8 +613,12 @@ Item {
             if (!stdoutOk)
                 root.errorText = stdoutText;
             if (exitCode === 0 && root.errorText.length === 0) {
+                // The backend verifies every requested value before exiting,
+                // so the applied drafts are now the comparison baseline.
+                root.acceptAppliedDrafts();
                 root.applied("Display configuration applied");
                 refreshDelay.restart();
+                reloadShellDelay.restart();
             } else {
                 if (root.errorText.length === 0)
                     root.errorText = "Failed to apply display configuration.";
@@ -461,10 +627,28 @@ Item {
     }
 
     Timer {
+        id: identifyTimer
+        interval: 3200
+        repeat: false
+        onTriggered: root.identifying = false
+    }
+
+    Timer {
         id: refreshDelay
         interval: 450
         repeat: false
         onTriggered: root.refresh()
+    }
+
+    Timer {
+        id: reloadShellDelay
+        interval: 900
+        repeat: false
+        onTriggered: Quickshell.execDetached([
+            "/bin/sh",
+            Quickshell.env("HOME") + "/.config/omd/scripts/reload-quickshell",
+            "--quickshell-only"
+        ])
     }
 
     Component.onCompleted: refresh()

@@ -39,6 +39,13 @@ ColumnLayout {
         id: configState
     }
 
+    Loader {
+        active: configState.identifying
+        sourceComponent: MonitorIdentifyOverlay {
+            displayState: configState
+        }
+    }
+
     Connections {
         target: configState
         function onOutputsChanged() { root.ensureSelection(); }

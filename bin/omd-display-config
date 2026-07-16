@@ -1,44 +1,306 @@
 #!/usr/bin/env python3
+"""Read and apply display layouts through wlr-output-management.
+
+The transaction model follows DankMaterialShell's display backend: obtain the
+compositor's complete output state, test a complete configuration, apply it,
+then verify the state reported by the compositor before persisting it.
+"""
+
 import json
+import math
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omd/display"
 LAYOUT_FILE = STATE_DIR / "layout.lua"
+TRANSFORM_NAMES = {
+    0: "normal",
+    1: "90",
+    2: "180",
+    3: "270",
+    4: "flipped",
+    5: "flipped-90",
+    6: "flipped-180",
+    7: "flipped-270",
+}
+TRANSFORM_VALUES = {name: value for value, name in TRANSFORM_NAMES.items()}
 
 
-def lua_string(value):
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+def run(command):
+    proc = subprocess.run(command, text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or f"{' '.join(command)} failed")
+    return proc.stdout
 
 
-def lua_number(value, default):
+def number(value, default):
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
 
+def integer(value, default=0):
+    return round(number(value, default))
+
+
+def lua_string(value):
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def parse_mode(value):
+    import re
+
+    match = re.fullmatch(r"\s*(\d+)x(\d+)(?:@([\d.]+)(?:Hz)?)?\s*", str(value or ""), re.I)
+    if not match:
+        return None
+    return {
+        "width": int(match.group(1)),
+        "height": int(match.group(2)),
+        "refresh": float(match.group(3) or 0),
+    }
+
+
+def focused_output_names():
+    try:
+        data = json.loads(run(["hyprctl", "-j", "monitors"]))
+    except (RuntimeError, json.JSONDecodeError):
+        return set()
+    return {item.get("name") for item in data if item.get("focused") is True}
+
+
+def raw_outputs():
+    try:
+        data = json.loads(run(["wlr-randr", "--json"]))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"wlr-randr returned invalid JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise RuntimeError("wlr-randr returned an invalid output list")
+    return data
+
+
+def current_mode(output):
+    for mode in output.get("modes", []):
+        if mode.get("current") is True:
+            return mode
+    return None
+
+
+def mode_string(mode):
+    if not mode:
+        return ""
+    # wlr-output-management matches advertised modes exactly. Keep millihertz
+    # precision here: 59.951Hz must not be rounded to the unknown 59.950Hz.
+    return f'{integer(mode.get("width"))}x{integer(mode.get("height"))}@{number(mode.get("refresh"), 60):.3f}Hz'
+
+
+def normalized_outputs():
+    focused = focused_output_names()
+    result = []
+    for index, output in enumerate(raw_outputs()):
+        mode = current_mode(output)
+        position = output.get("position") or {}
+        physical = output.get("physical_size") or {}
+        modes = [mode_string(item) for item in output.get("modes", [])]
+        enabled = output.get("enabled") is not False
+        transform_name = str(output.get("transform") or "normal").lower()
+        result.append({
+            "name": output.get("name") or f"output-{index}",
+            "id": index,
+            "description": output.get("description") or "",
+            "make": output.get("make") or "",
+            "model": output.get("model") or "",
+            "serial": output.get("serial") or "",
+            "physicalWidth": integer(physical.get("width")),
+            "physicalHeight": integer(physical.get("height")),
+            "width": integer(mode.get("width"), 1920) if mode else 1920,
+            "height": integer(mode.get("height"), 1080) if mode else 1080,
+            "refreshRate": number(mode.get("refresh"), 60) if mode else 60,
+            "currentMode": mode_string(mode),
+            "modes": modes,
+            "x": integer(position.get("x")),
+            "y": integer(position.get("y")),
+            "scale": number(output.get("scale"), 1),
+            "transform": TRANSFORM_VALUES.get(transform_name, 0),
+            "focused": output.get("name") in focused,
+            "disabled": not enabled,
+            "connected": True,
+        })
+    return result
+
+
+def validate_specs(specs, outputs):
+    if not isinstance(specs, list) or not specs:
+        raise ValueError("expected a non-empty display spec list")
+    available = {output.get("name"): output for output in outputs}
+    seen = set()
+    enabled = 0
+    for spec in specs:
+        name = spec.get("output") or spec.get("name")
+        if not name or name not in available:
+            raise ValueError(f"unknown display: {name or '<empty>'}")
+        if name in seen:
+            raise ValueError(f"duplicate display: {name}")
+        seen.add(name)
+        if spec.get("disabled"):
+            continue
+        enabled += 1
+        mode = parse_mode(spec.get("mode"))
+        if not mode:
+            raise ValueError(f"invalid mode for {name}: {spec.get('mode')}")
+        if number(spec.get("scale"), 0) <= 0:
+            raise ValueError(f"invalid scale for {name}: {spec.get('scale')}")
+        transform = integer(spec.get("transform"))
+        if transform not in TRANSFORM_NAMES:
+            raise ValueError(f"invalid transform for {name}: {transform}")
+    if enabled == 0:
+        raise ValueError("refusing to disable every display")
+    validate_layout_geometry(specs)
+
+
+def logical_rect(spec):
+    mode = parse_mode(spec.get("mode"))
+    scale = number(spec.get("scale"), 1)
+    transform = integer(spec.get("transform"))
+    width = mode["width"] / scale
+    height = mode["height"] / scale
+    if transform in (1, 3, 5, 7):
+        width, height = height, width
+    return {
+        "name": spec.get("output") or spec.get("name"),
+        "x": integer(spec.get("x")),
+        "y": integer(spec.get("y")),
+        # Positions are integral logical pixels. Expand fractional outer edges
+        # so an attached neighbor never overlaps the compositor's real bounds.
+        "width": math.ceil(width),
+        "height": math.ceil(height),
+    }
+
+
+def overlapping(left, right):
+    return (
+        left["x"] < right["x"] + right["width"]
+        and left["x"] + left["width"] > right["x"]
+        and left["y"] < right["y"] + right["height"]
+        and left["y"] + left["height"] > right["y"]
+    )
+
+
+def share_edge(left, right):
+    vertical_overlap = min(left["y"] + left["height"], right["y"] + right["height"]) - max(left["y"], right["y"])
+    horizontal_overlap = min(left["x"] + left["width"], right["x"] + right["width"]) - max(left["x"], right["x"])
+    horizontal_touch = left["x"] + left["width"] == right["x"] or right["x"] + right["width"] == left["x"]
+    vertical_touch = left["y"] + left["height"] == right["y"] or right["y"] + right["height"] == left["y"]
+    return (horizontal_touch and vertical_overlap > 0) or (vertical_touch and horizontal_overlap > 0)
+
+
+def validate_layout_geometry(specs):
+    rectangles = [logical_rect(spec) for spec in specs if not spec.get("disabled")]
+    for index, left in enumerate(rectangles):
+        for right in rectangles[index + 1:]:
+            if overlapping(left, right):
+                raise ValueError(f'displays overlap: {left["name"]} and {right["name"]}')
+
+    if len(rectangles) < 2:
+        return
+    connected = {rectangles[0]["name"]}
+    changed = True
+    while changed:
+        changed = False
+        for left in rectangles:
+            for right in rectangles:
+                if left is right or not share_edge(left, right):
+                    continue
+                if left["name"] in connected and right["name"] not in connected:
+                    connected.add(right["name"])
+                    changed = True
+                elif right["name"] in connected and left["name"] not in connected:
+                    connected.add(left["name"])
+                    changed = True
+    if len(connected) != len(rectangles):
+        detached = ", ".join(rect["name"] for rect in rectangles if rect["name"] not in connected)
+        raise ValueError(f"displays must share an edge; detached: {detached}")
+
+
+def command_for_specs(specs, dryrun=False):
+    command = ["wlr-randr"]
+    if dryrun:
+        command.append("--dryrun")
+    for spec in specs:
+        name = spec.get("output") or spec.get("name")
+        command += ["--output", name]
+        if spec.get("disabled"):
+            command.append("--off")
+            continue
+        mode = parse_mode(spec.get("mode"))
+        mode_arg = f'{mode["width"]}x{mode["height"]}'
+        if mode["refresh"] > 0:
+            mode_arg += f'@{mode["refresh"]:.3f}Hz'
+        command += [
+            "--on",
+            "--mode", mode_arg,
+            "--pos", f'{integer(spec.get("x"))},{integer(spec.get("y"))}',
+            "--scale", f'{number(spec.get("scale"), 1):.4f}',
+            "--transform", TRANSFORM_NAMES[integer(spec.get("transform"))],
+        ]
+    return command
+
+
+def close_enough(left, right, tolerance=0.01):
+    return math.isclose(number(left, 0), number(right, 0), abs_tol=tolerance)
+
+
+def verify_specs(specs):
+    live = {output["name"]: output for output in normalized_outputs()}
+    mismatches = []
+    for spec in specs:
+        name = spec.get("output") or spec.get("name")
+        output = live.get(name)
+        if not output:
+            mismatches.append(f"{name} disappeared")
+            continue
+        disabled = bool(spec.get("disabled"))
+        if output["disabled"] != disabled:
+            mismatches.append(f"{name} enabled state")
+            continue
+        if disabled:
+            continue
+        expected_mode = parse_mode(spec.get("mode"))
+        actual_mode = parse_mode(output.get("currentMode"))
+        if not actual_mode or expected_mode["width"] != actual_mode["width"] or expected_mode["height"] != actual_mode["height"]:
+            mismatches.append(f"{name} resolution")
+        if expected_mode["refresh"] and not close_enough(expected_mode["refresh"], actual_mode["refresh"], 0.15):
+            mismatches.append(f"{name} refresh rate")
+        if integer(spec.get("x")) != integer(output.get("x")) or integer(spec.get("y")) != integer(output.get("y")):
+            mismatches.append(f"{name} position")
+        if not close_enough(spec.get("scale"), output.get("scale")):
+            mismatches.append(f"{name} scale")
+        if integer(spec.get("transform")) != integer(output.get("transform")):
+            mismatches.append(f"{name} transform")
+    if mismatches:
+        raise RuntimeError("compositor did not apply: " + ", ".join(mismatches))
+
+
 def write_layout(specs):
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     lines = [
-        "-- Generated by OMD Settings Center.",
-        "-- Used by ~/.config/omd/hypr/monitors.lua when the same outputs are connected.",
+        "-- Generated by OMD display settings.",
+        "-- Applied live through wlr-output-management and loaded at startup.",
         "return {",
         "  outputs = {",
     ]
     for spec in specs:
         output = spec.get("output") or spec.get("name")
-        if not output:
-            continue
         disabled = "true" if bool(spec.get("disabled")) else "false"
         mode = str(spec.get("mode") or "preferred").removesuffix("Hz")
-        x = round(lua_number(spec.get("x"), 0))
-        y = round(lua_number(spec.get("y"), 0))
-        scale = lua_number(spec.get("scale"), 1)
-        transform = round(lua_number(spec.get("transform"), 0))
+        x = integer(spec.get("x"))
+        y = integer(spec.get("y"))
+        scale = number(spec.get("scale"), 1)
+        transform = integer(spec.get("transform"))
         lines.append(
             "    { "
             f"output = {lua_string(output)}, "
@@ -55,62 +317,41 @@ def write_layout(specs):
     tmp.replace(LAYOUT_FILE)
 
 
-def lua_escaped(value):
-    return str(value).replace("\\", "\\\\").replace('"', '\\"')
-
-
 def apply_specs(specs):
-    if not isinstance(specs, list) or not specs:
-        raise ValueError("expected a non-empty display spec list")
-
-    write_layout(specs)
-
-    stmts = []
-    for spec in specs:
-        output = spec.get("output") or spec.get("name")
-        if not output:
-            continue
-        if bool(spec.get("disabled")):
-            stmts.append(f'hl.monitor({{output = "{lua_escaped(output)}", disabled = true}})')
-        else:
-            mode = str(spec.get("mode") or "preferred").removesuffix("Hz")
-            x = round(lua_number(spec.get("x"), 0))
-            y = round(lua_number(spec.get("y"), 0))
-            scale = lua_number(spec.get("scale"), 1)
-            transform = round(lua_number(spec.get("transform"), 0))
-            stmts.append(
-                f'hl.monitor({{'
-                f'output = "{lua_escaped(output)}", '
-                f'mode = "{lua_escaped(mode)}", '
-                f'position = "{x}x{y}", '
-                f'scale = {scale:.2f}, '
-                f'transform = {transform} '
-                f'}})'
-            )
-
-    stmts.append('hl.monitor({output = "", mode = "preferred", position = "auto", scale = 1})')
-
-    lua_code = "; ".join(stmts)
-    proc = subprocess.run(["hyprctl", "eval", lua_code], text=True, capture_output=True)
-    stdout = proc.stdout.strip()
-    stderr = proc.stderr.strip()
-    if proc.returncode != 0:
-        raise RuntimeError(stderr or stdout or "hyprctl eval failed")
-    if stdout and "error" in stdout.lower():
-        raise RuntimeError(stdout)
-    print("ok")
+    outputs = raw_outputs()
+    validate_specs(specs, outputs)
+    run(command_for_specs(specs, dryrun=True))
+    run(command_for_specs(specs))
+    last_error = None
+    for _ in range(6):
+        try:
+            verify_specs(specs)
+            write_layout(specs)
+            print("ok")
+            return
+        except RuntimeError as exc:
+            last_error = exc
+            time.sleep(0.15)
+    raise last_error or RuntimeError("display configuration verification failed")
 
 
 def main():
-    if len(sys.argv) < 3 or sys.argv[1] != "apply":
-        print("Usage: omd-display-config apply '<json-specs>'", file=sys.stderr)
-        return 2
-    try:
-        apply_specs(json.loads(sys.argv[2]))
-        return 0
-    except Exception as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
+    if len(sys.argv) == 2 and sys.argv[1] == "get":
+        try:
+            print(json.dumps(normalized_outputs(), ensure_ascii=False))
+            return 0
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+    if len(sys.argv) == 3 and sys.argv[1] == "apply":
+        try:
+            apply_specs(json.loads(sys.argv[2]))
+            return 0
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+    print("Usage: omd-display-config get | apply '<json-specs>'", file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

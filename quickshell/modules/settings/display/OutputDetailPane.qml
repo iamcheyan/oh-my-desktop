@@ -80,11 +80,10 @@ Rectangle {
     }
 
     function buildScaleOptions() {
-        const options = [1, 1.25, 1.5, 1.75, 2];
-        const current = Number(Number(draft.scale || 1).toFixed(2));
-        if (!options.includes(current))
-            options.push(current);
-        return options.sort((left, right) => left - right);
+        const options = [];
+        for (let percentage = 100; percentage <= 400; percentage += 25)
+            options.push(percentage / 100);
+        return options;
     }
 
     function buildScaleDropdownOptions() {
