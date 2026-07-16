@@ -17,6 +17,7 @@ from pathlib import Path
 
 STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omd/display"
 LAYOUT_FILE = STATE_DIR / "layout.lua"
+LAYOUT_METADATA_FILE = STATE_DIR / "layout.json"
 TRANSFORM_NAMES = {
     0: "normal",
     1: "90",
@@ -100,6 +101,16 @@ def mode_string(mode):
 
 def normalized_outputs():
     focused = focused_output_names()
+    saved_specs = {}
+    try:
+        saved_data = json.loads(LAYOUT_METADATA_FILE.read_text(encoding="utf-8"))
+        saved_specs = {
+            item.get("output") or item.get("name"): item
+            for item in saved_data
+            if isinstance(item, dict) and (item.get("output") or item.get("name"))
+        }
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
     result = []
     for index, output in enumerate(raw_outputs()):
         mode = current_mode(output)
@@ -108,8 +119,20 @@ def normalized_outputs():
         modes = [mode_string(item) for item in output.get("modes", [])]
         enabled = output.get("enabled") is not False
         transform_name = str(output.get("transform") or "normal").lower()
+        name = output.get("name") or f"output-{index}"
+        reported_scale = number(output.get("scale"), 1)
+        saved = saved_specs.get(name, {})
+        saved_scale = number(saved.get("scale"), -1)
+        # wlr-output-management exposes scale through a fixed-point value
+        # (for example 1.667969 for Hyprland's clean 5/3 scale). Reuse the
+        # verified persisted value when it describes the same live scale so a
+        # later unrelated edit does not submit the quantized approximation.
+        actual_scale = saved_scale if math.isclose(saved_scale, reported_scale, abs_tol=0.01) else reported_scale
+        scale_preset = actual_scale
+        if math.isclose(saved_scale, reported_scale, abs_tol=0.01):
+            scale_preset = number(saved.get("scalePreset"), actual_scale)
         result.append({
-            "name": output.get("name") or f"output-{index}",
+            "name": name,
             "id": index,
             "description": output.get("description") or "",
             "make": output.get("make") or "",
@@ -124,7 +147,8 @@ def normalized_outputs():
             "modes": modes,
             "x": integer(position.get("x")),
             "y": integer(position.get("y")),
-            "scale": number(output.get("scale"), 1),
+            "scale": actual_scale,
+            "scalePreset": scale_preset,
             "transform": TRANSFORM_VALUES.get(transform_name, 0),
             "focused": output.get("name") in focused,
             "disabled": not enabled,
@@ -154,6 +178,17 @@ def validate_specs(specs, outputs):
             raise ValueError(f"invalid mode for {name}: {spec.get('mode')}")
         if number(spec.get("scale"), 0) <= 0:
             raise ValueError(f"invalid scale for {name}: {spec.get('scale')}")
+        scale = number(spec.get("scale"), 1)
+        logical_width = mode["width"] / scale
+        logical_height = mode["height"] / scale
+        if not (
+            math.isclose(logical_width, round(logical_width), abs_tol=1e-6)
+            and math.isclose(logical_height, round(logical_height), abs_tol=1e-6)
+        ):
+            raise ValueError(
+                f"unsupported scale for {name}: {scale:.2f} does not produce "
+                "an integer logical size"
+            )
         transform = integer(spec.get("transform"))
         if transform not in TRANSFORM_NAMES:
             raise ValueError(f"invalid transform for {name}: {transform}")
@@ -174,10 +209,9 @@ def logical_rect(spec):
         "name": spec.get("output") or spec.get("name"),
         "x": integer(spec.get("x")),
         "y": integer(spec.get("y")),
-        # Positions are integral logical pixels. Expand fractional outer edges
-        # so an attached neighbor never overlaps the compositor's real bounds.
-        "width": math.ceil(width),
-        "height": math.ceil(height),
+        # Match Hyprland's CMonitor::m_size calculation exactly.
+        "width": round(width),
+        "height": round(height),
     }
 
 
@@ -300,6 +334,7 @@ def write_layout(specs):
         x = integer(spec.get("x"))
         y = integer(spec.get("y"))
         scale = number(spec.get("scale"), 1)
+        scale_preset = number(spec.get("scalePreset"), scale)
         transform = integer(spec.get("transform"))
         lines.append(
             "    { "
@@ -307,6 +342,7 @@ def write_layout(specs):
             f"mode = {lua_string(mode)}, "
             f"position = {lua_string(f'{x}x{y}')}, "
             f"scale = {scale:.2f}, "
+            f"scale_preset = {scale_preset:.2f}, "
             f"transform = {transform}, "
             f"disabled = {disabled} "
             "},"
@@ -316,23 +352,54 @@ def write_layout(specs):
     tmp.write_text("\n".join(lines), encoding="utf-8")
     tmp.replace(LAYOUT_FILE)
 
+    metadata_tmp = LAYOUT_METADATA_FILE.with_suffix(".json.tmp")
+    metadata_tmp.write_text(json.dumps(specs, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    metadata_tmp.replace(LAYOUT_METADATA_FILE)
+
+
+def specs_from_outputs(outputs):
+    specs = []
+    for output in outputs:
+        specs.append({
+            "output": output["name"],
+            "mode": output.get("currentMode") or "preferred",
+            "x": integer(output.get("x")),
+            "y": integer(output.get("y")),
+            "scale": number(output.get("scale"), 1),
+            "scalePreset": number(output.get("scalePreset"), output.get("scale", 1)),
+            "transform": integer(output.get("transform")),
+            "disabled": bool(output.get("disabled")),
+        })
+    return specs
+
 
 def apply_specs(specs):
     outputs = raw_outputs()
     validate_specs(specs, outputs)
     run(command_for_specs(specs, dryrun=True))
-    run(command_for_specs(specs))
-    last_error = None
-    for _ in range(6):
+    rollback_specs = specs_from_outputs(normalized_outputs())
+    try:
+        run(command_for_specs(specs))
+        last_error = None
+        for _ in range(6):
+            try:
+                verify_specs(specs)
+                write_layout(specs)
+                print("ok")
+                return
+            except RuntimeError as exc:
+                last_error = exc
+                time.sleep(0.15)
+        raise last_error or RuntimeError("display configuration verification failed")
+    except Exception as apply_error:
         try:
-            verify_specs(specs)
-            write_layout(specs)
-            print("ok")
-            return
-        except RuntimeError as exc:
-            last_error = exc
-            time.sleep(0.15)
-    raise last_error or RuntimeError("display configuration verification failed")
+            run(command_for_specs(rollback_specs))
+            verify_specs(rollback_specs)
+        except Exception as rollback_error:
+            raise RuntimeError(
+                f"{apply_error}; automatic rollback also failed: {rollback_error}"
+            ) from apply_error
+        raise RuntimeError(f"{apply_error}; previous layout restored") from apply_error
 
 
 def main():

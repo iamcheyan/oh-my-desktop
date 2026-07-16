@@ -3,9 +3,9 @@ set -eu
 
 # On-demand Screenshot / Region Selector process.
 # Usage:
-#   omd-screenshot              # screenshot (copy)
+#   omd-screenshot              # fast region screenshot (slurp + grim)
 #   omd-screenshot screenshot   # same as above
-#   omd-screenshot edit         # screenshot & edit
+#   omd-screenshot edit         # frozen screenshot & edit
 #   omd-screenshot search       # search with Google Lens
 #   omd-screenshot ocr          # OCR text recognition
 #   omd-screenshot record       # record region
@@ -19,6 +19,14 @@ app_dir="$HOME/.config/omd/apps/omd-screenshot"
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"
 lock_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot.lock"
+fast_pid_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot-fast.pid"
+
+# Hyprland binds can run with a minimal environment.
+if [ -n "${PATH:-}" ]; then
+    export PATH="$PATH:/usr/bin:/usr/local/bin:${HOME}/.local/bin"
+else
+    export PATH="/usr/bin:/usr/local/bin:${HOME}/.local/bin"
+fi
 
 # Normalize legacy aliases.
 case "$action" in
@@ -80,6 +88,77 @@ wait_until_running_or_failed() {
     return 1
 }
 
+focused_monitor() {
+    command -v hyprctl >/dev/null 2>&1 || return 0
+    hyprctl monitors -j 2>/dev/null \
+        | jq -r '.[] | select(.focused) | .name' 2>/dev/null \
+        | head -n 1
+}
+
+cancel_fast_capture() {
+    [ -f "$fast_pid_file" ] || return 1
+    fast_pid="$(cat "$fast_pid_file" 2>/dev/null || true)"
+    if [ -n "$fast_pid" ] && kill -0 "$fast_pid" 2>/dev/null; then
+        kill "$fast_pid" 2>/dev/null || true
+        rm -f "$fast_pid_file"
+        return 0
+    fi
+    rm -f "$fast_pid_file"
+    return 1
+}
+
+fast_capture() {
+    # Repeating the shortcut cancels the active slurp selection.
+    if cancel_fast_capture; then
+        exit 0
+    fi
+
+    if ! command -v slurp >/dev/null 2>&1 || ! command -v grim >/dev/null 2>&1 || ! command -v wl-copy >/dev/null 2>&1; then
+        notify-send -u critical "Screenshot" "grim, slurp and wl-copy are required" 2>/dev/null || true
+        exit 127
+    fi
+
+    target_monitor="$(focused_monitor)"
+    selection_file="$(mktemp /tmp/omd-slurp.XXXXXX)"
+    # %W/%H crop the drag geometry to the output containing its top-left
+    # corner, so a selection cannot spill into an adjacent monitor.
+    slurp -d -f '%x,%y %Wx%H|%o' \
+        -b '#00000066' -c '#f4f4f4ff' -s '#ffffff22' -w 2 \
+        > "$selection_file" 2>/dev/null &
+    slurp_pid=$!
+    printf '%s\n' "$slurp_pid" > "$fast_pid_file"
+    trap 'kill "$slurp_pid" 2>/dev/null || true; rm -f "$fast_pid_file" "$selection_file"' EXIT INT TERM
+    wait "$slurp_pid" 2>/dev/null || true
+    rm -f "$fast_pid_file"
+    trap 'rm -f "$fast_pid_file" "$selection_file"' EXIT INT TERM
+    selection="$(cat "$selection_file" 2>/dev/null || true)"
+    rm -f "$selection_file"
+    [ -n "$selection" ] || exit 0
+
+    geometry="${selection%|*}"
+    selected_monitor="${selection##*|}"
+    if [ -n "$target_monitor" ] && [ "$selected_monitor" != "$target_monitor" ]; then
+        notify-send "Screenshot cancelled" "Select a region on the focused display ($target_monitor)" 2>/dev/null || true
+        exit 0
+    fi
+
+    tmp_file="$(mktemp /tmp/omd-screenshot.XXXXXX.png)"
+    trap 'rm -f "$fast_pid_file" "$tmp_file"' EXIT INT TERM
+    grim -g "$geometry" "$tmp_file"
+
+    save_dir=""
+    if command -v jq >/dev/null 2>&1 && [ -r "$HOME/.config/quickshell/config.json" ]; then
+        save_dir="$(jq -r '.screenSnip.savePath // empty' "$HOME/.config/quickshell/config.json" 2>/dev/null || true)"
+    fi
+    if [ -n "$save_dir" ]; then
+        mkdir -p "$save_dir"
+        save_path="$save_dir/screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png"
+        cp "$tmp_file" "$save_path"
+    fi
+    wl-copy --type image/png < "$tmp_file"
+    notify-send -i camera-photo "Screenshot" "Region copied to clipboard" 2>/dev/null || true
+}
+
 # Serialize the critical "kill + relaunch" section so rapid clicks do not
 # race each other. The lock is held ONLY for this section, then released before
 # launching Quickshell, so wl-copy/grim/hyprpicker never inherit it.
@@ -104,6 +183,8 @@ fi
 exec 9>&-
 
 launch_direct() {
+    cancel_fast_capture || true
+
     qs_bin="${OMD_QS_BIN:-}"
     if [ -z "$qs_bin" ]; then
         if [ -x /usr/bin/qs ]; then
@@ -128,9 +209,6 @@ launch_direct() {
     export QS_COMPOSITOR=hyprland
     export OMD_APP_DIR="$app_dir"
     export OMD_SCREENSHOT_ACTION="$action"
-
-    # Hyprland binds often run with a minimal PATH; keep capture tools reachable.
-    export PATH="/usr/bin:/usr/local/bin:${HOME}/.local/bin:${PATH:-}"
 
     runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
@@ -162,6 +240,11 @@ launch_direct() {
         exit 1
     fi
 
+    target_monitor="$(focused_monitor)"
+    if [ -n "$target_monitor" ]; then
+        export OMD_SCREENSHOT_MONITOR="$target_monitor"
+    fi
+
     # Keep the wake request short-lived. Hyprland binds and bar clicks should
     # fire-and-forget instead of inheriting the selector process lifetime.
     # The flock fd was already closed before entering launch_direct(), so
@@ -189,38 +272,20 @@ launch_direct() {
     # For all screenshot/edit/search/ocr actions, capture now while overlays
     # are still visible.
     if [ "$action" != "record" ] && [ "$action" != "recordWithSound" ]; then
-        # Capture each connected output. grim -o <output> captures one monitor.
-        # Use hyprctl to get monitor names; fall back to a single full-screen
-        # capture if hyprctl is unavailable.
+        # Advanced/frozen selection only needs the focused output. Avoid
+        # capturing and decoding a full-resolution PNG for every monitor.
         snapshot_ts="$(date +%s%3N)"
-        snapshot_ok=0
-        if command -v hyprctl > /dev/null 2>&1; then
-            monitor_names="$(hyprctl monitors -j 2>/dev/null \
-                | python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin)]' \
-                2>/dev/null || true)"
-        else
-            monitor_names=""
+        if [ -n "$target_monitor" ]; then
+            snap_path="${snapshot_dir}/snapshot-${target_monitor}-${snapshot_ts}.png"
+            if grim -o "$target_monitor" "$snap_path" > /dev/null 2>&1; then
+                mon_env="$(printf '%s' "$target_monitor" | sed 's/[-.]/_/g')"
+                export "OMD_SNAPSHOT_PATH_${mon_env}=${snap_path}"
+            fi
         fi
 
-        if [ -n "$monitor_names" ]; then
-            for mon in $monitor_names; do
-                snap_path="${snapshot_dir}/snapshot-${mon}-${snapshot_ts}.png"
-                if grim -o "$mon" "$snap_path" > /dev/null 2>&1; then
-                    # Export per-monitor env var: OMD_SNAPSHOT_PATH_HDMI_A_1 etc.
-                    # (dashes/dots in monitor names → underscores for valid env names)
-                    mon_env="$(echo "$mon" | sed 's/[-.]/_/g')"
-                    export "OMD_SNAPSHOT_PATH_${mon_env}=${snap_path}"
-                    snapshot_ok=1
-                fi
-            done
-        fi
-
-        if [ "$snapshot_ok" -eq 0 ]; then
-            # Fallback: single full-screen capture (no -o flag)
-            snap_path="${snapshot_dir}/snapshot-all-${snapshot_ts}.png"
-            grim "$snap_path" > /dev/null 2>&1 || true
-            export OMD_SNAPSHOT_PATH_ALL="$snap_path"
-        fi
+        # If pre-capture fails, RegionSelection falls back to capturing its
+        # single target output after startup. Do not load a combined desktop
+        # image into a monitor-sized selector.
     fi
 
     nohup "$qs_bin" -p "$app_dir" >> "$log_file" 2>&1 &
@@ -228,7 +293,10 @@ launch_direct() {
 }
 
 case "$action" in
-    screenshot|edit|search|ocr|record|recordWithSound)
+    screenshot)
+        fast_capture
+        ;;
+    edit|search|ocr|record|recordWithSound)
         launch_direct
         ;;
     *)

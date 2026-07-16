@@ -2,5 +2,42 @@
 
 # omarchy:summary=Launch the OMD Bluetooth pairing TUI
 
-rfkill unblock bluetooth
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.bluetooth-tui -e python3 "$HOME/.config/omd/bin/omd-bluetooth-tui"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BT_TUI="${SCRIPT_DIR}/omd-bluetooth-tui"
+
+if [[ ! -f "$BT_TUI" ]]; then
+  echo "omd-bluetooth-tui not found at $BT_TUI" >&2
+  exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 not found" >&2
+  exit 1
+fi
+
+if command -v rfkill >/dev/null 2>&1; then
+  rfkill unblock bluetooth 2>/dev/null || true
+fi
+
+# App-id matches hypr/looknfeel.lua → org.omd.bluetui
+if command -v uwsm-app >/dev/null 2>&1 && command -v xdg-terminal-exec >/dev/null 2>&1; then
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.bluetui -e python3 "$BT_TUI"
+fi
+
+if command -v xdg-terminal-exec >/dev/null 2>&1; then
+  exec xdg-terminal-exec --app-id=org.omd.bluetui -e python3 "$BT_TUI"
+fi
+
+for term in foot kitty alacritty gnome-terminal konsole; do
+  if command -v "$term" >/dev/null 2>&1; then
+    case "$term" in
+      gnome-terminal) exec gnome-terminal -- python3 "$BT_TUI" ;;
+      konsole)        exec konsole -e python3 "$BT_TUI" ;;
+      *)              exec "$term" -e python3 "$BT_TUI" ;;
+    esac
+  fi
+done
+
+exec python3 "$BT_TUI"

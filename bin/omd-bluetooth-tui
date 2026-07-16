@@ -22,12 +22,22 @@ Controls
 """
 
 import curses
+import locale
 import os
 import re
 import select
 import subprocess
 import sys
 import time
+from shutil import which
+
+# English output from bluetoothctl across locales
+_SUBPROC_ENV = {
+    **os.environ,
+    "LC_ALL": "C.UTF-8",
+    "LANG": "C.UTF-8",
+    "LANGUAGE": "C",
+}
 
 # ── helpers ───────────────────────────────────────────────────────────
 
@@ -230,6 +240,11 @@ def pty_spawn(argv):
     pid, fd = os.forkpty()
     if pid == 0:
         try:
+            os.environ.update({
+                "LC_ALL": "C.UTF-8",
+                "LANG": "C.UTF-8",
+                "LANGUAGE": "C",
+            })
             os.execvp(argv[0], argv)
         except Exception as exc:
             print(exc, file=sys.stderr)
@@ -244,12 +259,64 @@ def send(fd, command: str):
         pass
 
 
+def require_python() -> tuple[bool, str]:
+    if sys.version_info < (3, 10):
+        return False, f"Python 3.10+ required (found {sys.version.split()[0]})"
+    return True, ""
+
+
+def ensure_bluetoothctl() -> tuple[bool, str]:
+    """Return (ok, error_message). Requires bluez bluetoothctl + a controller."""
+    if which("bluetoothctl") is None:
+        return False, (
+            "bluetoothctl not found. omd-bluetooth-tui needs BlueZ.\n"
+            "  Debian/Ubuntu:  sudo apt install bluez\n"
+            "  Fedora:         sudo dnf install bluez\n"
+            "  Arch:           sudo pacman -S bluez bluez-utils\n"
+            "Then: sudo systemctl enable --now bluetooth"
+        )
+    try:
+        proc = subprocess.run(
+            ["bluetoothctl", "show"],
+            text=True, capture_output=True, timeout=5, env=_SUBPROC_ENV,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+        if "No default controller" in out or "No controller" in out:
+            return False, (
+                "No Bluetooth controller found.\n"
+                "Check the adapter is present and: sudo systemctl start bluetooth"
+            )
+        if proc.returncode != 0 and "Controller" not in out:
+            return False, f"bluetoothctl failed:\n{out.strip()[:200]}"
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"Failed to run bluetoothctl: {e}"
+    return True, ""
+
+
+def prepare_bluetooth() -> None:
+    """Best-effort: unblock rfkill, power on, pairable on."""
+    try:
+        subprocess.run(
+            ["rfkill", "unblock", "bluetooth"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=3, env=_SUBPROC_ENV,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    btctl_simple("power", "on", timeout=5)
+    btctl_simple("pairable", "on", timeout=5)
+
+
 def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
     cmd = ["bluetoothctl", *args]
     try:
-        proc = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
+        proc = subprocess.run(
+            cmd, text=True, capture_output=True, timeout=timeout, env=_SUBPROC_ENV,
+        )
         out = (proc.stdout or "") + (proc.stderr or "")
         return proc.returncode, out
+    except FileNotFoundError:
+        return 127, "bluetoothctl not found"
     except subprocess.TimeoutExpired as e:
         out = ""
         if e.stdout:
@@ -259,32 +326,87 @@ def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
         return 1, out
 
 
-def parse_battery(info: str) -> str:
-    """Extract battery percentage string (e.g. \"25%\") or \"\"."""
-    m = re.search(r"Battery Percentage:\s*\((\d+)\)", info)
+def parse_battery_pct(info: str) -> int | None:
+    """Extract battery percentage as int, or None."""
+    m = re.search(r"Battery Percentage:\s*(?:0x[0-9a-fA-F]+\s*)?\((\d+)\)", info)
     if m:
-        return m.group(1) + "%"
-    m = re.search(r"Battery Percentage:\s*0x[0-9a-fA-F]+\s*\((\d+)\)", info)
-    if m:
-        return m.group(1) + "%"
-    return ""
+        return int(m.group(1))
+    return None
+
+
+def format_battery(pct: int | None) -> str:
+    """Format battery like bluetui: ``25% 󰤿`` with Nerd Font icon."""
+    if pct is None:
+        return ""
+    # Match bluetui's nf-md battery glyphs by percentage band.
+    if pct >= 90:
+        icon = "\U000f0948"  # 󰥈
+    elif pct >= 80:
+        icon = "\U000f0945"  # 󰥅
+    elif pct >= 70:
+        icon = "\U000f0944"  # 󰥄
+    elif pct >= 60:
+        icon = "\U000f0943"  # 󰥃
+    elif pct >= 50:
+        icon = "\U000f0942"  # 󰥂
+    elif pct >= 40:
+        icon = "\U000f0941"  # 󰥁
+    elif pct >= 30:
+        icon = "\U000f0940"  # 󰥀
+    elif pct >= 20:
+        icon = "\U000f093f"  # 󰤿
+    else:
+        icon = "\U000f093e"  # 󰤾
+    return f"{pct}% {icon}"
+
+
+def get_hci_name() -> str:
+    """Return the primary HCI interface name (e.g. hci0), matching bluetui."""
+    try:
+        names = sorted(
+            n for n in os.listdir("/sys/class/bluetooth")
+            if n.startswith("hci") and ":" not in n
+        )
+        if names:
+            return names[0]
+    except OSError:
+        pass
+    return "hci0"
+
+
+def yesno_bool(val: str) -> bool:
+    return val.strip().lower() in ("yes", "true", "on", "1")
 
 
 def get_devices_info() -> list[dict]:
     """Return list of device dicts: addr, name, status, icon, trusted, battery."""
     _, out = btctl_simple("devices")
+    # Also merge explicitly paired list (some bluez builds omit unpaired from `devices`)
+    _, paired_out = btctl_simple("devices", "Paired")
+    lines = list(out.splitlines()) + list(paired_out.splitlines())
+    seen_addrs: set[str] = set()
     result = []
-    for line in out.splitlines():
+    for line in lines:
         m = re.match(r"Device\s+([0-9A-Fa-f:]{17})\s+(.*)", line)
         if not m:
             continue
         addr, name = m.group(1), m.group(2).strip()
-        _, info = btctl_simple("info", addr, timeout=5)
+        key = addr.upper()
+        if key in seen_addrs:
+            continue
+        seen_addrs.add(key)
+        try:
+            _, info = btctl_simple("info", addr, timeout=3)
+        except Exception:
+            info = ""
+        if not info:
+            info = ""
         icon = device_icon(info, name)
-        paired = "Paired: yes" in info
-        connected = "Connected: yes" in info
-        trusted = "Trusted: yes" in info
-        battery = parse_battery(info)
+        # bluez may print yes/no in any case
+        paired = bool(re.search(r"Paired:\s*yes", info, re.I))
+        connected = bool(re.search(r"Connected:\s*yes", info, re.I))
+        trusted = bool(re.search(r"Trusted:\s*yes", info, re.I))
+        battery_pct = parse_battery_pct(info)
         if connected:
             status = "connected"
         elif paired:
@@ -293,11 +415,13 @@ def get_devices_info() -> list[dict]:
             status = "available"
         result.append({
             "addr": addr,
-            "name": name,
+            "name": name or addr,
             "status": status,
             "icon": icon,
             "trusted": trusted,
-            "battery": battery,
+            "battery": format_battery(battery_pct),
+            "battery_pct": battery_pct,
+            "favorite": False,
         })
     order = {"connected": 0, "paired": 1, "available": 2}
     result.sort(key=lambda d: order.get(d["status"], 3))
@@ -305,20 +429,25 @@ def get_devices_info() -> list[dict]:
 
 
 def get_adapter_info() -> dict | None:
-    """Return adapter info dict from ``bluetoothctl show``."""
+    """Return adapter info dict, formatted like bluetui (hci name, On/Off, true/false)."""
     _, out = btctl_simple("show")
     m = re.search(r"Controller\s+([0-9A-Fa-f:]+)", out)
     if not m:
         return None
+
     def g(key: str) -> str:
         mm = re.search(rf"^\s*{key}:\s*(.+)", out, re.MULTILINE)
         return mm.group(1).strip() if mm else "?"
+
+    powered = yesno_bool(g("Powered"))
+    pairable = yesno_bool(g("Pairable"))
+    discoverable = yesno_bool(g("Discoverable"))
     return {
-        "name": g("Name"),
+        "name": get_hci_name(),
         "alias": g("Alias"),
-        "powered": g("Powered"),
-        "pairable": g("Pairable"),
-        "discoverable": g("Discoverable"),
+        "powered": "On" if powered else "Off",
+        "pairable": "true" if pairable else "false",
+        "discoverable": "true" if discoverable else "false",
     }
 
 
@@ -359,6 +488,7 @@ class BluetoothTUI:
 
     def run(self):
         self._init_curses()
+        prepare_bluetooth()
         self.refresh_devices()
         self.refresh_adapter()
         while not self._quit:
@@ -376,14 +506,19 @@ class BluetoothTUI:
         curses.start_color()
         try:
             curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_GREEN, -1)   # connected
-            curses.init_pair(2, curses.COLOR_YELLOW, -1)  # paired
-            curses.init_pair(3, curses.COLOR_CYAN, -1)    # available
-            curses.init_pair(4, curses.COLOR_RED, -1)     # error
-            curses.init_pair(5, -1, curses.COLOR_WHITE)   # selected row bg
-            curses.init_pair(6, curses.COLOR_GREEN, -1)   # focused border
-            curses.init_pair(7, curses.COLOR_YELLOW, -1)  # header row
-            curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_WHITE)  # selected in list
+            # Match bluetui palette (ratatui green/yellow/blue + white-on-dark_gray selection)
+            curses.init_pair(1, curses.COLOR_GREEN, -1)    # focused border
+            curses.init_pair(2, curses.COLOR_YELLOW, -1)   # focused headers
+            curses.init_pair(3, curses.COLOR_CYAN, -1)     # discovered rows
+            curses.init_pair(4, curses.COLOR_RED, -1)      # error / no-adapter
+            curses.init_pair(5, curses.COLOR_BLUE, -1)     # help bar
+            curses.init_pair(6, curses.COLOR_GREEN, -1)    # (alias of 1)
+            curses.init_pair(7, curses.COLOR_YELLOW, -1)   # (alias of 2)
+            if curses.COLORS >= 256:
+                # white on dark_gray ≈ bluetui Style::default().white().on_dark_gray()
+                curses.init_pair(8, 15, 238)
+            else:
+                curses.init_pair(8, curses.COLOR_WHITE, curses.COLOR_BLACK)
         except curses.error:
             pass
         self.stdscr.timeout(200)
@@ -406,7 +541,8 @@ class BluetoothTUI:
         self.adapter_info = get_adapter_info()
 
     def _has_discovered(self) -> bool:
-        return any(d["status"] == "available" for d in self.devices)
+        # bluetui only shows the New Devices panel while scanning
+        return self.scanning
 
     def _paired_devices(self) -> list[dict]:
         return [d for d in self.devices if d["status"] != "available"]
@@ -425,10 +561,13 @@ class BluetoothTUI:
         if self.scanning or self.busy:
             return
         self._stop_scan()
-        subprocess.run(
-            ["rfkill", "unblock", "bluetooth"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
-        )
+        try:
+            subprocess.run(
+                ["rfkill", "unblock", "bluetooth"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
         subprocess.run(
             ["bluetoothctl", "power", "on"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
@@ -504,6 +643,8 @@ class BluetoothTUI:
             "icon": icon,
             "trusted": False,
             "battery": "",
+            "battery_pct": None,
+            "favorite": False,
         })
 
     # ── pairing ──
@@ -734,48 +875,47 @@ class BluetoothTUI:
             self._action_toggle_trust()
 
     def _move_sel(self, delta: int):
-        devs = self._focused_devices()
-        if not devs:
+        if self.focus == F_ADAPTER:
             return
-        paired = self._paired_devices()
         if self.focus == F_PAIRED:
-            total = len(paired)
+            total = len(self._paired_devices())
         elif self.focus == F_DISCOVERED:
             total = len(self._discovered_devices())
         else:
             return
-        ns = max(0, min(self.selected + delta, total - 1))
-        # Map local index to global index
-        if self.focus == F_DISCOVERED:
-            self.selected = len(paired) + ns
-        else:
-            self.selected = ns
+        if total <= 0:
+            return
+        # self.selected is always a local index within the focused section
+        self.selected = max(0, min(self.selected + delta, total - 1))
 
     def _focus_next(self):
         sections = [F_PAIRED]
         if self._has_discovered():
             sections.append(F_DISCOVERED)
         sections.append(F_ADAPTER)
+        if self.focus not in sections:
+            self.focus = F_PAIRED
         i = sections.index(self.focus)
         self.focus = sections[(i + 1) % len(sections)]
-        self.selected = min(self.selected, len(self.devices) - 1)
+        self.selected = 0
 
     def _focus_prev(self):
         sections = [F_PAIRED]
         if self._has_discovered():
             sections.append(F_DISCOVERED)
         sections.append(F_ADAPTER)
+        if self.focus not in sections:
+            self.focus = F_PAIRED
         i = sections.index(self.focus)
         self.focus = sections[(i - 1) % len(sections)]
-        self.selected = min(self.selected, len(self.devices) - 1)
+        self.selected = 0
 
     def _focused_global_selected(self) -> int:
         """Return the global devices index for the currently selected item."""
         if self.focus == F_PAIRED:
             return self.selected
-        elif self.focus == F_DISCOVERED:
-            paired_count = len(self._paired_devices())
-            return paired_count + self.selected
+        if self.focus == F_DISCOVERED:
+            return len(self._paired_devices()) + self.selected
         return 0
 
     def _action_enter(self):
@@ -839,230 +979,414 @@ class BluetoothTUI:
         self._poll_scan()
         self._poll_pair()
 
-    # ── drawing ──
+    # ── drawing (layout mirrors bluetui / ratatui) ──
 
     def _draw(self):
         h, w = self.stdscr.getmaxyx()
         self.stdscr.erase()
-        m = 1  # margin
+        if h < 12 or w < 40:
+            try:
+                self.stdscr.addnstr(0, 0, "Terminal too small (min 40x12)", w)
+            except curses.error:
+                pass
+            self.stdscr.refresh()
+            return
+        margin = 1
 
         paired = self._paired_devices()
         discovered = self._discovered_devices()
-        has_disc = bool(discovered) or self.scanning
+        # bluetui only shows the new-devices panel while scanning
+        has_disc = self.scanning
 
-        # Section heights (inside borders, 0 = column header + rows)
-        paired_inner_h = max(len(paired), 1) + 1  # header row + devices
-        disc_inner_h = (max(len(discovered), 1) + 1) if has_disc else 0
-        # Bordered box adds 2 (top+bottom border lines)
-        paired_h = paired_inner_h + 2
-        disc_h = disc_inner_h + 2 if has_disc else 0
-        adapter_h = 4  # 2 borders + header + 1 row
+        # Heights match bluetui: adapters = len+4, paired = len+4 when scanning else Fill
+        adapter_h = 1 + 4  # one adapter row + header/margin/borders ≈ controllers.len + 4
+        help_h = 2
+        usable = h - margin * 2
 
-        # Cap paired and discovered to not overrun screen
-        available = h - m * 2 - adapter_h - 2  # 2 for help bar
         if has_disc:
-            max_paired = max(3, available - disc_h - 2)
+            paired_h = min(len(paired) + 4, max(4, usable // 3))
+            remaining = usable - paired_h - adapter_h - help_h
+            disc_h = max(4, remaining)
         else:
-            max_paired = available - 2
-        paired_h = min(paired_h, max_paired)
-        # Recompute inner after capping
-        paired_inner_h = paired_h - 2
-        if has_disc:
-            disc_h = min(disc_h, available - paired_h - 1)
-            disc_inner_h = disc_h - 2 if disc_h > 2 else 0
+            disc_h = 0
+            paired_h = max(4, usable - adapter_h - help_h)
 
-        y = m
+        # Clamp so nothing overflows
+        total = paired_h + disc_h + adapter_h + help_h
+        if total > usable:
+            overflow = total - usable
+            if disc_h > 4:
+                cut = min(overflow, disc_h - 4)
+                disc_h -= cut
+                overflow -= cut
+            if overflow > 0 and paired_h > 4:
+                paired_h = max(4, paired_h - overflow)
 
-        # ── Paired Devices ──
-        if paired_h > 2:
-            self._draw_box(y, m, paired_h, w - m * 2,
-                          title="Paired Devices",
-                          focused=self.focus == F_PAIRED)
-            bx = m + 1
-            by = y + 1
-            iw = w - m * 2 - 2  # interior width
-            # Column headers
-            ch_focus = self.focus == F_PAIRED
-            self._draw_col_headers(by, bx, iw, ch_focus,
-                                  ["Name", "Trusted", "Connected", "Battery"],
-                                  [24, 8, 10, 8])
-            # Device rows
-            for i, d in enumerate(paired[:paired_inner_h - 1]):
-                row_y = by + 1 + i
-                glb = i  # global index for paired starts at 0
-                is_sel = self.focus == F_PAIRED and glb == self.selected
-                self._draw_device_row(row_y, bx, iw, d, is_sel)
+        y = margin
+        box_w = w - margin * 2
 
+        # ── Paired Devices (fills most of the screen when not scanning) ──
+        self._draw_box(y, margin, paired_h, box_w,
+                       title="Paired Devices",
+                       focused=self.focus == F_PAIRED)
+        self._draw_paired_table(y + 1, margin + 1, paired_h - 2, box_w - 2, paired)
         y += paired_h
 
-        # ── Discovered devices ──
-        if has_disc and disc_h > 2:
-            title = f" Scanning {'⦾' if self._tick % 2 else '⦿'} " if self.scanning else " Discovered "
-            self._draw_box(y, m, disc_h, w - m * 2,
-                          title=title,
-                          focused=self.focus == F_DISCOVERED)
-            bx = m + 1
-            by = y + 1
-            iw = w - m * 2 - 2
-            ch_focus = self.focus == F_DISCOVERED
-            self._draw_col_headers(by, bx, iw, ch_focus,
-                                  ["Address", "Name"],
-                                  [19, 36])
-            for i, d in enumerate(discovered[:disc_inner_h - 1]):
-                row_y = by + 1 + i
-                glb = len(paired) + i
-                is_sel = self.focus == F_DISCOVERED and glb == self.selected
-                if is_sel:
-                    attr_s = curses.color_pair(8) if curses.has_colors() else curses.A_REVERSE
-                else:
-                    attr_s = curses.color_pair(3) if curses.has_colors() else curses.A_NORMAL
-                line_s = f" {d['addr']}  {d.get('icon', ICON_UNKNOWN)} {d['name']}"
-                try:
-                    self.stdscr.addnstr(row_y, bx, line_s[:iw], iw, attr_s)
-                except curses.error:
-                    pass
+        # ── Discovered / Scanning ──
+        if has_disc and disc_h >= 4:
+            spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[self._tick % 10]
+            title = f"Scanning {spin}" if self.scanning else "Discovered devices"
+            self._draw_box(y, margin, disc_h, box_w,
+                           title=title,
+                           focused=self.focus == F_DISCOVERED)
+            self._draw_discovered_table(y + 1, margin + 1, disc_h - 2, box_w - 2, discovered)
             y += disc_h
 
-        # ── Adapter ──
-        self._draw_box(y, m, adapter_h, w - m * 2,
-                      title="Adapter",
-                      focused=self.focus == F_ADAPTER)
-        bx = m + 1
-        by = y + 1
-        iw = w - m * 2 - 2
-        ch_focus = self.focus == F_ADAPTER
-        self._draw_col_headers(by, bx, iw, ch_focus,
-                              ["Name", "Alias", "Power", "Pairable", "Discoverable"],
-                              [10, 10, 7, 9, 13])
-        if self.adapter_info:
-            a = self.adapter_info
-            cols = [a.get("name", ""), a.get("alias", ""), a.get("powered", ""),
-                    a.get("pairable", ""), a.get("discoverable", "")]
-            line = self._format_cols(cols, [10, 10, 7, 9, 13])
-            try:
-                self.stdscr.addnstr(by + 1, bx, line[:iw], iw)
-            except curses.error:
-                pass
+        # ── Adapter (fixed at bottom, above help) ──
+        self._draw_box(y, margin, adapter_h, box_w,
+                       title="Adapter",
+                       focused=self.focus == F_ADAPTER)
+        self._draw_adapter_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
         y += adapter_h
 
-        # ── Help bar ──
-        help_y = h - 2
-        help_text = self.status_msg
-        try:
-            self.stdscr.addnstr(help_y, m, help_text[:w - m * 2], w - m * 2, curses.A_DIM)
-        except curses.error:
-            pass
-        help2 = "Tab/l Next  S-Tab/h Prev  Enter Connect/Pair  d Disconnect  s Scan  u Unpair  t Trust  f Forget  q Quit"
-        try:
-            self.stdscr.addnstr(h - 1, m, help2[:w - m * 2], w - m * 2, curses.A_DIM)
-        except curses.error:
-            pass
+        # ── Help bar (blue, centered, bold keys — bluetui style) ──
+        self._draw_help(h - help_h, margin, help_h, box_w)
 
         # ── PIN / confirm overlay ──
         if self.pin_prompt or self.confirm_prompt:
             self._draw_prompt(h, w)
 
+        # Status message as a tiny overlay above help when busy/error
+        if self.busy or self.pin_prompt or (self.status_msg and not self.status_msg.startswith("Press")):
+            try:
+                msg = self.status_msg[: box_w]
+                attr = curses.color_pair(2) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
+                self.stdscr.addnstr(h - help_h - 1, margin + max(0, (box_w - len(msg)) // 2),
+                                    msg, box_w, attr)
+            except curses.error:
+                pass
+
         self.stdscr.refresh()
 
+    def _put_ch(self, y, x, ch, attr=curses.A_NORMAL):
+        """Write a single character, ignoring out-of-bounds / last-cell errors."""
+        try:
+            self.stdscr.addstr(y, x, ch, attr)
+        except curses.error:
+            pass
+
     def _draw_box(self, y, x, h, w, title="", focused=False):
-        """Draw a bordered box with thick (focused) or thin (unfocused) borders."""
+        """Draw a bordered box — thick green when focused, thin default when not (bluetui)."""
+        if w < 2 or h < 2:
+            return
         if focused:
             tl, tr, bl, br, hz, vt = "┏", "┓", "┗", "┛", "━", "┃"
-            attr = curses.color_pair(6) if curses.has_colors() else curses.A_BOLD
+            attr = curses.color_pair(1) if curses.has_colors() else curses.A_BOLD
+            title_attr = attr | curses.A_BOLD
         else:
             tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
             attr = curses.A_NORMAL
+            title_attr = attr
+
+        # Draw char-by-char so Unicode box glyphs always span full width
+        # (bulk addnstr often clips multi-byte borders on some ncurses builds).
+        self._put_ch(y, x, tl, attr)
+        for i in range(1, w - 1):
+            self._put_ch(y, x + i, hz, attr)
+        self._put_ch(y, x + w - 1, tr, attr)
+
+        if title:
+            t = f" {title} "
+            tx = x + 1
+            max_t = max(0, w - 2)
+            t = t[:max_t]
+            try:
+                self.stdscr.addstr(y, tx, t, title_attr)
+            except curses.error:
+                pass
+
+        for row in range(1, h - 1):
+            self._put_ch(y + row, x, vt, attr)
+            self._put_ch(y + row, x + w - 1, vt, attr)
+
+        by = y + h - 1
+        self._put_ch(by, x, bl, attr)
+        for i in range(1, w - 1):
+            self._put_ch(by, x + i, hz, attr)
+        self._put_ch(by, x + w - 1, br, attr)
+
+    @staticmethod
+    def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
+        """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
+        n = len(col_widths)
+        if n == 0:
+            return []
+        total = sum(col_widths)
+        free = max(0, inner_w - total)
+        # Each column gets free/n as surrounding space; half on each side.
+        unit = free / n
+        offsets = []
+        x = unit / 2.0
+        for cw in col_widths:
+            offsets.append(int(round(x)))
+            x += cw + unit
+        return offsets
+
+    def _put_row_cells(self, y, x, inner_w, cells: list[str], widths: list[int], attr):
+        """Paint a full-width row: fill bg then place cells with SpaceAround."""
+        # Clear/fill the whole row so selection highlight spans the panel.
         try:
-            self.stdscr.addstr(y, x, tl, attr)
-            self.stdscr.addstr(y, x + 1, hz * (w - 2), attr)
-            self.stdscr.addstr(y, x + w - 1, tr, attr)
-            if title:
-                self.stdscr.addstr(y, x + 2, f" {title} ", attr)
-            for i in range(1, h - 1):
-                self.stdscr.addstr(y + i, x, vt, attr)
-                self.stdscr.addstr(y + i, x + w - 1, vt, attr)
-            self.stdscr.addstr(y + h - 1, x, bl, attr)
-            self.stdscr.addstr(y + h - 1, x + 1, hz * (w - 2), attr)
-            self.stdscr.addstr(y + h - 1, x + w - 1, br, attr)
+            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
         except curses.error:
             pass
+        offsets = self._space_around(inner_w, widths)
+        for cell, off, cw in zip(cells, offsets, widths):
+            text = self._clip(cell, cw)
+            try:
+                self.stdscr.addnstr(y, x + off, text, cw, attr)
+            except curses.error:
+                pass
 
-    def _draw_col_headers(self, y, x, w, focused, headers, widths):
-        """Draw table column headers."""
-        attr = curses.color_pair(7) if (focused and curses.has_colors()) else curses.A_BOLD
-        pads = []
-        for i, hdr in enumerate(headers):
-            wdt = widths[i] if widths[i] else max(10, len(hdr) + 2)
-            pads.append(hdr.ljust(wdt))
-        line = "".join(pads)
-        try:
-            self.stdscr.addnstr(y, x, line[:w], w, attr)
-        except curses.error:
-            pass
+    @staticmethod
+    def _clip(s: str, width: int) -> str:
+        """Pad/truncate string to display width, best-effort for wide glyphs."""
+        if width <= 0:
+            return ""
+        # Approximate: treat each codepoint as width 1 (good enough for our columns).
+        if len(s) > width:
+            return s[: max(0, width - 1)] + "…" if width > 1 else s[:width]
+        return s.ljust(width)
 
-    def _format_cols(self, values, widths) -> str:
-        parts = []
-        for v, wdt in zip(values, widths):
-            if wdt:
-                parts.append(str(v).ljust(wdt))
-            else:
-                parts.append(str(v))
-        return "".join(parts)
+    def _header_attr(self, focused: bool):
+        if focused and curses.has_colors():
+            return curses.color_pair(2) | curses.A_BOLD
+        return curses.A_BOLD
 
-    def _draw_device_row(self, y, x, w, dev, selected):
-        """Draw a single device row with icon, name, trust, connect, battery."""
-        if selected:
-            attr = curses.color_pair(8) if curses.has_colors() else curses.A_REVERSE
+    def _sel_attr(self, selected: bool, focused_section: bool):
+        if selected and focused_section:
+            if curses.has_colors():
+                return curses.color_pair(8)
+            return curses.A_REVERSE
+        return curses.A_NORMAL
+
+    def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
+        """Render Paired Devices table like bluetui (fav | name | trusted | connected | battery)."""
+        if h < 1 or w < 8:
+            return
+        show_battery = any(d.get("battery_pct") is not None for d in paired)
+        # Column widths mirror bluetui Constraints: Length(1), Max(25), Length(7), Length(9), Length(10)
+        if show_battery:
+            headers = ["", "Name", "Trusted", "Connected", "Battery"]
+            widths = [1, min(25, max(10, w // 3)), 7, 9, 10]
         else:
-            colors = {
-                "connected": curses.color_pair(1),
-                "paired": curses.color_pair(2),
-                "available": curses.color_pair(3),
-            }
-            attr = colors.get(dev["status"], curses.A_NORMAL)
-        name_str = dev["name"]
-        icon = dev.get("icon", ICON_UNKNOWN)
-        trusted = "✓" if dev.get("trusted") else "✗"
-        connected = "✓" if dev["status"] == "connected" else "✗"
-        battery = dev.get("battery", "")
-        # Format like bluetui: Name col ~24, Trusted 8, Connected 10, Battery 8
-        line = f" {icon} {name_str:<20} {trusted:<8} {connected:<10} {battery:<8}"
-        try:
-            self.stdscr.addnstr(y, x, line[:w], w, attr)
-        except curses.error:
-            pass
+            headers = ["", "Name", "Trusted", "Connected"]
+            widths = [1, min(25, max(10, w // 3)), 7, 9]
+
+        # Shrink name if total exceeds interior (SpaceAround still works with leftover=0)
+        while sum(widths) > w and widths[1] > 8:
+            widths[1] -= 1
+
+        focused = self.focus == F_PAIRED
+        # Header row
+        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        # bluetui header.bottom_margin(1) — blank line under headers
+        row_start = y + 2 if h >= 3 else y + 1
+        max_rows = max(0, (y + h) - row_start)
+
+        for i, d in enumerate(paired[:max_rows]):
+            is_sel = focused and i == self.selected
+            attr = self._sel_attr(is_sel, focused)
+            fav = "★" if d.get("favorite") else ""
+            name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
+            trusted = "true" if d.get("trusted") else "false"
+            connected = "true" if d["status"] == "connected" else "false"
+            if show_battery:
+                cells = [fav, name, trusted, connected, d.get("battery", "")]
+            else:
+                cells = [fav, name, trusted, connected]
+            self._put_row_cells(row_start + i, x, w, cells, widths, attr)
+
+    def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):
+        if h < 1 or w < 8:
+            return
+        headers = ["Address", "Name"]
+        widths = [20, min(20, max(10, w - 24))]
+        while sum(widths) > w and widths[1] > 8:
+            widths[1] -= 1
+
+        focused = self.focus == F_DISCOVERED
+        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        row_start = y + 2 if h >= 3 else y + 1
+        max_rows = max(0, (y + h) - row_start)
+
+        for i, d in enumerate(discovered[:max_rows]):
+            is_sel = focused and i == self.selected
+            attr = self._sel_attr(is_sel, focused)
+            name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
+            self._put_row_cells(row_start + i, x, w, [d["addr"], name], widths, attr)
+
+    def _draw_adapter_table(self, y, x, h, w):
+        if h < 1 or w < 8:
+            return
+        # bluetui widths: 10, 10, 5, 8, 12
+        headers = ["Name", "Alias", "Power", "Pairable", "Discoverable"]
+        widths = [10, 10, 5, 8, 12]
+        while sum(widths) > w and widths[1] > 4:
+            widths[1] -= 1
+
+        focused = self.focus == F_ADAPTER
+        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        if h < 3:
+            return
+        # blank line under header (bottom_margin 1)
+        if self.adapter_info:
+            a = self.adapter_info
+            cells = [
+                a.get("name", ""),
+                a.get("alias", ""),
+                a.get("powered", ""),
+                a.get("pairable", ""),
+                a.get("discoverable", ""),
+            ]
+            attr = self._sel_attr(True, focused) if focused else curses.A_NORMAL
+            self._put_row_cells(y + 2, x, w, cells, widths, attr)
+
+    def _draw_help(self, y, x, h, w):
+        """Blue centered help with bold keys, context-sensitive like bluetui."""
+        if self.focus == F_PAIRED:
+            if w > 120:
+                segments = [
+                    ("k,↑", " Up"), (" | ", None),
+                    ("j,↓", " Down"), (" | ", None),
+                    ("s", " Scan on/off"), (" | ", None),
+                    ("u", " Unpair"), (" | ", None),
+                    ("↵ ", " Dis/Connect"), (" | ", None),
+                    ("t", " Un/Trust"), (" | ", None),
+                    ("f", " Forget"), (" | ", None),
+                    ("⇄", " Nav"),
+                ]
+                lines = [segments]
+            else:
+                lines = [
+                    [
+                        ("↵ ", " Dis/Connect"), (" | ", None),
+                        ("s", " Scan on/off"), (" | ", None),
+                        ("u", " Unpair"), (" | ", None),
+                        ("f", " Forget"),
+                    ],
+                    [
+                        ("t", " Un/Trust"), (" | ", None),
+                        ("k,↑", " Up"), (" | ", None),
+                        ("j,↓", " Down"), (" | ", None),
+                        ("⇄", " Nav"),
+                    ],
+                ]
+        elif self.focus == F_DISCOVERED:
+            lines = [[
+                ("k,↑", " Up"), (" | ", None),
+                ("j,↓", " Down"), (" | ", None),
+                ("↵ ", " Pair"), (" | ", None),
+                ("s", " Scan on/off"), (" | ", None),
+                ("⇄", " Nav"),
+            ]]
+        else:  # Adapter
+            if w > 80:
+                lines = [[
+                    ("s", " Scan on/off"), (" | ", None),
+                    ("⇄", " Nav"),
+                ]]
+            else:
+                lines = [[
+                    ("s", " Scan on/off"), (" | ", None),
+                    ("⇄", " Nav"),
+                ]]
+
+        base = curses.color_pair(5) if curses.has_colors() else curses.A_NORMAL
+        bold = base | curses.A_BOLD
+
+        for li, segs in enumerate(lines[:h]):
+            # segments: (key_or_sep, label|None) — label None means separator-only text in key
+            plain_parts = []
+            for key, label in segs:
+                plain_parts.append(key)
+                if label is not None:
+                    plain_parts.append(label)
+            plain = "".join(plain_parts)
+            col = x + max(0, (w - len(plain)) // 2)
+            for key, label in segs:
+                try:
+                    if label is None:
+                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), base)
+                        col += len(key)
+                    else:
+                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), bold)
+                        col += len(key)
+                        self.stdscr.addnstr(y + li, col, label, max(0, x + w - col), base)
+                        col += len(label)
+                except curses.error:
+                    pass
 
     def _draw_prompt(self, h: int, w: int):
         if self.pin_prompt:
             lines = [
-                "┌──────────────────────────────────┐",
-                "│       PIN Code from device       │",
-                f"│         {self.pin_prompt:>10}          │",
-                "│ Type this on your keyboard + Enter│",
-                "└──────────────────────────────────┘",
+                "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+                "┃       PIN Code from device       ┃",
+                f"┃         {self.pin_prompt:>10}          ┃",
+                "┃ Type this on your keyboard + Enter┃",
+                "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
             ]
+            attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
         else:
             lines = [
-                "┌──────────────────────────────────┐",
-                "│        Confirm Passkey           │",
-                f"│         {self.confirm_prompt:>10}          │",
-                "│     Auto-confirming...           │",
-                "└──────────────────────────────────┘",
+                "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+                "┃        Confirm Passkey           ┃",
+                f"┃         {self.confirm_prompt:>10}          ┃",
+                "┃     Auto-confirming...           ┃",
+                "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
             ]
+            attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
         box_h = len(lines)
-        box_w = max(len(l) for l in lines) + 2
+        box_w = max(len(l) for l in lines)
         top = (h - box_h) // 2
         left = max(0, (w - box_w) // 2)
         for i, line in enumerate(lines):
             try:
-                self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), curses.A_BOLD)
+                self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), attr)
             except curses.error:
                 pass
 
 
 # ── main ──────────────────────────────────────────────────────────────
 
+def _force_narrow_ambiguous_locale():
+    """Make ncurses treat Ambiguous-width glyphs as single-cell.
+
+    CJK locales (e.g. zh_CN.UTF-8) make libc wcwidth() return 2 for box-drawing
+    and many Nerd Font icons. Ratatui/bluetui treat Ambiguous as width 1; without
+    this, borders collapse and columns drift. Must run before curses.initscr().
+    """
+    for loc in ("C.UTF-8", "en_US.UTF-8", "C"):
+        try:
+            locale.setlocale(locale.LC_CTYPE, loc)
+            return
+        except locale.Error:
+            continue
+
+
 def main():
+    ok, err = require_python()
+    if not ok:
+        print(err, file=sys.stderr)
+        return 1
+    # Stable tool output + single-cell box glyphs on CJK systems
+    os.environ.setdefault("LC_ALL", "C.UTF-8")
+    os.environ.setdefault("LANG", "C.UTF-8")
+    _force_narrow_ambiguous_locale()
+    ok, err = ensure_bluetoothctl()
+    if not ok:
+        print(err, file=sys.stderr)
+        return 1
+    prepare_bluetooth()
     try:
         return curses.wrapper(lambda stdscr: BluetoothTUI(stdscr).run())
     except KeyboardInterrupt:

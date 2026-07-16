@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# omarchy:summary=Adjust brightness on the most likely display device.
+# omarchy:summary=Adjust brightness on the focused Hyprland monitor only.
 # omarchy:args=<+N%|N%-|N%|off|on>
-# omarchy:examples=omarchy brightness display +5% | omarchy brightness display 5%- | omarchy brightness display 50% | omarchy brightness display off | omarchy brightness display on
+# omarchy:examples=omarchy brightness display +5% | omarchy brightness display 5%- | omarchy brightness display 50%
+
+set -euo pipefail
 
 step="${1:-+5%}"
 
@@ -15,50 +17,187 @@ elif [[ $step == "on" ]]; then
 fi
 
 runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
-
-# Drop overlapping brightness key events so concurrent invocations do not race.
-# Hardware key repeat present on some devices can otherwise glitch SwayOSD rendering.
 exec 9>"$runtime_dir/omarchy-brightness-display.lock"
 flock -n 9 || exit 0
 
-# Start with the first possible output, then refine to the most likely given an order heuristic.
-device="$(ls -1 /sys/class/backlight 2>/dev/null | head -n1)"
-for candidate in amdgpu_bl* intel_backlight acpi_video*; do
-  if [[ -e /sys/class/backlight/$candidate ]]; then
-    device="$candidate"
-    break
-  fi
-done
-
-
-# Current brightness percentage
-current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
-
-# Apply non-uniform step size: 1% steps if at or below 5%, otherwise set an
-# absolute target percentage to avoid raw backlight rounding causing uneven OSD steps.
-if [[ $step == "+5%" ]]; then
-  if (( current < 5 )); then
-    (( target = current + 1 ))
-  else
-    (( target = current + 5 ))
-  fi
-
-  (( target > 100 )) && target=100
-  step="$target%"
-elif [[ $step == "5%-" ]]; then
-  if (( current <= 5 )); then
-    (( target = current - 1 ))
-  else
-    (( target = current - 5 ))
-  fi
-
-  (( target < 1 )) && target=1
-  step="$target%"
+# ── focused monitor (Hyprland) ───────────────────────────────────────────────
+focused_monitor="$(
+  hyprctl monitors -j 2>/dev/null | python3 -c '
+import json, sys
+try:
+    ms = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for m in ms:
+    if m.get("focused"):
+        print(m.get("name", ""))
+        break
+' 2>/dev/null || true
+)"
+if [[ -z "${focused_monitor:-}" ]]; then
+  focused_monitor="$(hyprctl -j activeworkspace 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("monitor",""))' 2>/dev/null || true)"
+fi
+if [[ -z "${focused_monitor:-}" ]]; then
+  focused_monitor="$(hyprctl monitors -j 2>/dev/null | python3 -c 'import json,sys; ms=json.load(sys.stdin); print(ms[0]["name"] if ms else "")' 2>/dev/null || true)"
 fi
 
-# Set the actual brightness of the display device.
-brightnessctl -d "$device" set "$step" >/dev/null
+is_internal=0
+case "$focused_monitor" in
+  eDP-*|LVDS-*|DSI-*|DPI-*) is_internal=1 ;;
+esac
 
-# Notify the resident OMD bar process so it can display the actual value.
-current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
-qs -p "$HOME/.config/omd/apps/omd-bar" ipc call osdBrightness trigger "$current" >/dev/null 2>&1 || true
+notify_osd() {
+  local pct="$1"
+  local mon="$2"
+  # Prefer split bar process; fall back to any qs with the handler.
+  qs -p "${HOME}/.config/omd/apps/omd-bar" ipc call osdBrightness trigger "$pct" "$mon" >/dev/null 2>&1 \
+    || qs ipc call osdBrightness trigger "$pct" "$mon" >/dev/null 2>&1 \
+    || true
+}
+
+# ── internal panel: brightnessctl backlight ──────────────────────────────────
+if (( is_internal )); then
+  device=""
+  for candidate in apple-panel-bl amdgpu_bl* intel_backlight acpi_video* asahi* *panel* *backlight*; do
+    # shellcheck disable=SC2086
+    for path in /sys/class/backlight/$candidate; do
+      if [[ -e $path ]]; then
+        device="$(basename "$path")"
+        break 2
+      fi
+    done
+  done
+  if [[ -z $device ]]; then
+    device="$(ls -1 /sys/class/backlight 2>/dev/null | head -n1 || true)"
+  fi
+  if [[ -z $device ]]; then
+    echo "No backlight device for internal panel $focused_monitor" >&2
+    exit 1
+  fi
+
+  current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
+  current=${current:-50}
+
+  if [[ $step == "+5%" ]]; then
+    if (( current < 5 )); then (( target = current + 1 )); else (( target = current + 5 )); fi
+    (( target > 100 )) && target=100
+    step="${target}%"
+  elif [[ $step == "5%-" ]]; then
+    if (( current <= 5 )); then (( target = current - 1 )); else (( target = current - 5 )); fi
+    (( target < 1 )) && target=1
+    step="${target}%"
+  elif [[ $step == "+1%" ]]; then
+    (( target = current + 1 )); (( target > 100 )) && target=100
+    step="${target}%"
+  elif [[ $step == "1%-" ]]; then
+    (( target = current - 1 )); (( target < 1 )) && target=1
+    step="${target}%"
+  fi
+
+  brightnessctl -d "$device" set "$step" >/dev/null
+  current=$(brightnessctl -d "$device" -m | cut -d',' -f4 | tr -d '%')
+  notify_osd "$current" "$focused_monitor"
+  exit 0
+fi
+
+# ── external: ddcutil on the focused connector only ──────────────────────────
+if ! command -v ddcutil >/dev/null 2>&1; then
+  echo "External monitor $focused_monitor needs ddcutil for brightness control" >&2
+  exit 1
+fi
+
+# Map DRM connector → I2C bus via ddcutil detect --brief
+# Cache briefly to avoid serializing i2c on every keypress.
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omd"
+mkdir -p "$cache_dir"
+cache_file="$cache_dir/ddc-bus-map.txt"
+now=$(date +%s)
+use_cache=0
+if [[ -s $cache_file ]]; then
+  mod=$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+  if (( now - mod < 60 )); then
+    use_cache=1
+  fi
+fi
+if (( ! use_cache )); then
+  ddcutil detect --brief 2>/dev/null >"$cache_file" || true
+fi
+
+bus_num="$(
+  python3 - "$focused_monitor" "$cache_file" <<'PY'
+import re, sys
+want = sys.argv[1]
+path = sys.argv[2]
+try:
+    text = open(path, errors="replace").read()
+except OSError:
+    sys.exit(0)
+# Split on blank-line blocks starting with "Display "
+blocks = re.split(r"\n(?=Display )", text)
+for block in blocks:
+    m_conn = re.search(r"DRM connector:\s*(\S+)", block)
+    m_bus = re.search(r"I2C bus:\s*/dev/i2c-(\d+)", block)
+    if not m_conn or not m_bus:
+        continue
+    conn = m_conn.group(1)
+    # card1-HDMI-A-1 → HDMI-A-1
+    short = conn
+    if "-" in conn and conn.split("-", 1)[0].startswith("card"):
+        short = conn.split("-", 1)[1]
+    if conn == want or short == want or conn.endswith(want) or short.endswith(want):
+        print(m_bus.group(1))
+        break
+PY
+)"
+
+if [[ -z "${bus_num:-}" ]]; then
+  # No DDC for this output (or i2c permissions). Do NOT touch other monitors.
+  echo "No DDC/CI bus for $focused_monitor (check i2c group / ddcutil detect)" >&2
+  exit 1
+fi
+
+# Current VCP 10 (brightness)
+read_vcp="$(ddcutil -b "$bus_num" getvcp 10 --brief 2>/dev/null || true)"
+# Format: VCP 10 C <current> <max>
+current=$(echo "$read_vcp" | awk '{print $(NF-1)}')
+maxv=$(echo "$read_vcp" | awk '{print $NF}')
+current=${current:-50}
+maxv=${maxv:-100}
+# percent 0-100
+if (( maxv > 0 )); then
+  pct=$(( current * 100 / maxv ))
+else
+  pct=50
+fi
+
+delta=5
+case "$step" in
+  +5%|+1%) delta=${step//[+%]/} ;;
+  5%-|1%-) delta=-${step//[%\-]/} ;;
+  +*)      delta=${step//[+%]/}; delta=${delta:-5} ;;
+  *- )     n=${step//[%\-]/}; delta=-${n:-5} ;;
+  *%)      # absolute
+    target=${step%%%}
+    target=${target//%/}
+    (( target < 1 )) && target=1
+    (( target > 100 )) && target=100
+    new_raw=$(( target * maxv / 100 ))
+    (( new_raw < 1 )) && new_raw=1
+    ddcutil -b "$bus_num" setvcp 10 "$new_raw" >/dev/null 2>&1 || exit 1
+    notify_osd "$target" "$focused_monitor"
+    exit 0
+    ;;
+esac
+
+new_pct=$(( pct + delta ))
+(( new_pct > 100 )) && new_pct=100
+(( new_pct < 1 )) && new_pct=1
+new_raw=$(( new_pct * maxv / 100 ))
+(( new_raw < 1 )) && new_raw=1
+
+ddcutil -b "$bus_num" setvcp 10 "$new_raw" >/dev/null 2>&1 || {
+  echo "ddcutil setvcp failed on bus $bus_num for $focused_monitor" >&2
+  exit 1
+}
+notify_osd "$new_pct" "$focused_monitor"
+exit 0
