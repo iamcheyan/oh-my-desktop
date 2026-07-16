@@ -120,5 +120,5 @@ o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/om
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + V")
-o.bind("CTRL + SHIFT + V", "Clipboard manager", "$HOME/.config/omd/bin/omd-clipboard")
+o.bind("ALT + V", "Clipboard manager", "$HOME/.config/omd/bin/omd-clipboard")
 hl.unbind("SUPER + CTRL + V")
