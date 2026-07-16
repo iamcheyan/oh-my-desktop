@@ -61,6 +61,7 @@ WindowDialog {
 
     function normalizePage(page) {
         if (page === "wifi") return "network";
+        if (page === "bluetooth") return "network";
         if (page === "nightlight") return "display";
         if (page === "audio") return "sound";
         if (page === "battery") return "power";
