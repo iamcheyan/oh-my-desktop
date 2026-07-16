@@ -73,7 +73,7 @@ Singleton {
         }
     }
 
-    property bool silent: false
+    readonly property bool silent: Config.options?.notifications?.silent ?? false
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
@@ -209,7 +209,9 @@ Singleton {
     }
 
     function toggleSilent() {
-        root.silent = !root.silent;
+        if (Config.options && Config.options.notifications) {
+            Config.options.notifications.silent = !Config.options.notifications.silent;
+        }
     }
 
     function discardLatestNotification() {

@@ -84,20 +84,7 @@ Scope {
         }
 
         readonly property bool barOnBottom: Config.options.bar.bottom
-        readonly property int panelWidth: {
-            if (root.activeType === "battery")
-                return Math.min(460, Math.max(420, (screen?.width ?? 1920) - 32));
-            if (root.activeType === "notifications")
-                return Math.min(560, Math.max(500, (screen?.width ?? 1920) - 32));
-            if (root.activeType === "xkb")
-                return Math.min(360, Math.max(320, (screen?.width ?? 1920) - 32));
-            if (root.activeType === "wifi")
-                return Math.min(480, Math.max(440, (screen?.width ?? 1920) - 32));
-            if (root.activeType === "audio")
-                return Math.min(480, Math.max(440, (screen?.width ?? 1920) - 32));
-            // All other panels: 420px minimum for comfortable layout
-            return Math.min(460, Math.max(420, (screen?.width ?? 1920) - 32));
-        }
+        readonly property int panelWidth: Math.min(440, (screen?.width ?? 1920) - 32)
 
         anchors {
             top: !barOnBottom
