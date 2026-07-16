@@ -130,6 +130,8 @@ class BluetoothTUI:
         self._line_buf = ""
         self._sent_yes = False
         self._quit = False
+        self._pair_started_at = 0   # time.monotonic() when pairing started
+        self._connect_started_at = 0  # time.monotonic() when trust+connect started
 
     # ── lifecycle ──
 
@@ -268,6 +270,8 @@ class BluetoothTUI:
         self._line_buf = ""
         self.status_msg = f"Pairing with {name}..."
         self.log_lines.append(f"[pair] starting pair+connect for {addr}")
+        import time as _time
+        self._pair_started_at = _time.monotonic()
 
         pid, fd = pty_spawn(["bluetoothctl"])
         self._pair_proc = (pid, fd)
@@ -328,10 +332,28 @@ class BluetoothTUI:
             self.log_lines.append(f"[pair] Auto-confirmed passkey {m.group(1)}")
 
         # Detect success
-        if PAIRED_RE.search(self._recent):
+        if PAIRED_RE.search(self._recent) and self._pair_state != "paired":
             self._pair_state = "paired"
             self.log_lines.append("[pair] Paired! Trusting + connecting...")
             self._do_trust_connect()
+
+        # Detect connection success after trust+connect
+        if self._pair_state == "connecting" and CONNECTED_RE.search(self._recent):
+            self.log_lines.append("[pair] Connected!")
+            self.status_msg = f"OK Paired + connected to {self._pair_addr}"
+            self._stop_pair()
+
+        # Detect connection failure after trust+connect
+        if self._pair_state == "connecting" and \
+                re.search(r"Failed to connect|br-connection", self._recent, re.IGNORECASE):
+            self.log_lines.append("[pair] Connected but connect failed (OK if paired)")
+            # Check if at least paired
+            _, info = btctl_simple("info", self._pair_addr or "")
+            if "Paired: yes" in info:
+                self.status_msg = "OK Paired. Press Enter to connect."
+            else:
+                self.status_msg = "Pairing may have failed."
+            self._stop_pair()
 
         # Detect failure
         if re.search(r"Failed to pair|authentication\s*failed|authentication\s*timeout",
@@ -341,15 +363,42 @@ class BluetoothTUI:
             self.log_lines.append("[pair] FAILED")
             self._stop_pair()
 
+        # Overall timeout for the whole pairing process
+        import time as _time
+        if self._pair_started_at and _time.monotonic() - self._pair_started_at > 60:
+            self.log_lines.append("[pair] Timeout")
+            _, info = btctl_simple("info", self._pair_addr or "")
+            if "Paired: yes" in info:
+                self.status_msg = "OK Paired (timeout). Press Enter to connect."
+            else:
+                self.status_msg = "Pairing timed out. Try again."
+            self._stop_pair()
+
+        # Connect timeout after trust+connect
+        if self._pair_state == "connecting" and self._connect_started_at and \
+                _time.monotonic() - self._connect_started_at > 20:
+            self.log_lines.append("[pair] Connect timeout")
+            _, info = btctl_simple("info", self._pair_addr or "")
+            if "Paired: yes" in info:
+                self.status_msg = "OK Paired. Press Enter to connect."
+            else:
+                self.status_msg = "Connect timed out. Try again."
+            self._stop_pair()
+
     def _do_trust_connect(self):
         addr = self._pair_addr
         if not addr:
             return
+        # Clear PIN/confirm prompts so TUI returns to device list
+        self.pin_prompt = None
+        self.confirm_prompt = None
         _, fd = self._pair_proc or (0, None)
         if fd:
             send(fd, f"trust {addr}")
             send(fd, f"connect {addr}")
         self._pair_state = "connecting"
+        import time as _time
+        self._connect_started_at = _time.monotonic()
         self.status_msg = f"Trusting + connecting..."
         # We'll detect connection success in _poll_pair's recent buffer
 
