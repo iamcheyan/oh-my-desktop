@@ -903,7 +903,7 @@ Scope {
                     spacing: 0
 
                     Repeater {
-                        model: Network.friendlyWifiNetworks.slice(0, 12)
+                        model: Network.friendlyWifiNetworks.filter(ap => ap.active || Network.isKnownWifi(ap)).slice(0, 12)
                         delegate: ColumnLayout {
                             id: apRow
                             required property var modelData
@@ -1144,6 +1144,100 @@ Scope {
                         Bluetooth.defaultAdapter.enabled = checked;
                 }
                 onSettingsClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`])
+            }
+
+            // ── Bluetooth saved devices list ──
+            ColumnLayout {
+                id: btListCol
+                Layout.fillWidth: true
+                spacing: 0
+                visible: BluetoothStatus.enabled && btRepeater.count > 0
+
+                Repeater {
+                    id: btRepeater
+                    model: {
+                        const list = [];
+                        if (BluetoothStatus.connectedDevices) {
+                            for (let i = 0; i < BluetoothStatus.connectedDevices.length; i++) {
+                                list.push(BluetoothStatus.connectedDevices[i]);
+                            }
+                        }
+                        if (BluetoothStatus.pairedButNotConnectedDevices) {
+                            for (let i = 0; i < BluetoothStatus.pairedButNotConnectedDevices.length; i++) {
+                                list.push(BluetoothStatus.pairedButNotConnectedDevices[i]);
+                            }
+                        }
+                        return list.slice(0, 5); // limit to 5 saved devices to save space
+                    }
+
+                    delegate: Rectangle {
+                        id: btRow
+                        required property var modelData
+                        readonly property var dev: modelData
+                        readonly property bool isActive: dev.connected ?? false
+                        readonly property bool isConnecting: BluetoothStatus.actionRunning && BluetoothStatus.actionAddress === dev.address
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        color: btMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 20
+                            anchors.rightMargin: 16
+                            spacing: 10
+
+                            MaterialSymbol {
+                                text: btRow.isConnecting ? "progress_activity" : (btRow.isActive ? "bluetooth_connected" : "bluetooth")
+                                iconSize: 18
+                                color: btRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                Layout.preferredWidth: 22
+
+                                RotationAnimator on rotation {
+                                    running: btRow.isConnecting
+                                    loops: Animation.Infinite
+                                    from: 0
+                                    to: 360
+                                    duration: 1200
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: btRow.dev.name || btRow.dev.address || "Unknown Device"
+                                    color: TuiStyle.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: btRow.isActive ? Font.DemiBold : Font.Normal
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: btRow.isConnecting ? "Connecting…" : (btRow.isActive ? "Connected" : "Saved")
+                                    color: TuiStyle.dim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                    visible: btRow.isConnecting || btRow.isActive
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: btMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                wifiPanel.pinOpen();
+                                BluetoothStatus.connectDevice(btRow.dev);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
