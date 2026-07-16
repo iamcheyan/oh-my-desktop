@@ -16,13 +16,6 @@ Item {
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
 
-    readonly property string voiceState: VoiceInput.state
-    readonly property bool isRecording: voiceState === "recording"
-    readonly property bool isTranscribing: voiceState === "transcribing"
-    readonly property bool isSetup: voiceState === "setup"
-    readonly property bool isError: voiceState === "error"
-    readonly property bool usingVoiceUi: isRecording || isTranscribing || isSetup || isError
-
     readonly property string volumeIcon: {
         if (Audio.sink?.audio?.muted) return NerdIconMap.volumeOff
         const vol = Audio.sink?.audio?.volume ?? 0
@@ -44,17 +37,13 @@ Item {
         colBackgroundToggled: "#30ffffff"
         colBackgroundToggledHover: "#40ffffff"
         colRippleToggled: "transparent"
-        toggled: !root.usingVoiceUi && GlobalStates.barPopupType === "audio"
+        toggled: GlobalStates.barPopupType === "audio"
 
         onClicked: {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
-            if (root.usingVoiceUi)
-                VoiceInput.toggle()
-            else {
-                const opening = GlobalStates.barPopupType !== "audio"
-                GlobalStates.barPopupEphemeral = false
-                GlobalStates.barPopupType = opening ? "audio" : ""
-            }
+            const opening = GlobalStates.barPopupType !== "audio"
+            GlobalStates.barPopupEphemeral = false
+            GlobalStates.barPopupType = opening ? "audio" : ""
         }
     }
 

@@ -1279,22 +1279,248 @@ Scope {
                 anchors.right: parent.right
                 spacing: 0
 
-                PopupHeader {
+                // ── Combined Header (Volume & Media Player) ─────────────────
+                Item {
+                    id: audioHeader
                     Layout.fillWidth: true
-                    icon: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
-                    title: "Volume"
-                    subtitle: `Volume ${Math.round(audioPanel.sinkVolume * 100)}%` +
-                        (audioPanel.sinkMuted ? " (Muted)" : "") +
-                        (audioPanel.sourceMuted ? "  ·  Mic muted" : "")
-                    tone: audioPanel.sinkMuted ? TuiStyle.warning : TuiStyle.accent
-                    actionIcon: "settings"
-                    onActionClicked: {
-                        root.close()
-                        Quickshell.execDetached([
-                            Quickshell.env("HOME") + "/.config/omd/bin/omd-settings",
-                            "open",
-                            "sound"
-                        ])
+                    implicitHeight: 72
+
+                    RowLayout {
+                        id: headerRow
+                        anchors {
+                            fill: parent
+                            leftMargin: 20
+                            rightMargin: 16
+                        }
+                        spacing: 12
+
+                        // Left Side: Album Art (if media playing) or Volume Icon (if not)
+                        Item {
+                            Layout.preferredWidth: audioPanel.showMediaControls ? 40 : 26
+                            Layout.preferredHeight: audioPanel.showMediaControls ? 40 : 26
+                            Layout.alignment: Qt.AlignVCenter
+
+                            // Case A: Media Artwork (only visible when media playing)
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: audioPanel.showMediaControls
+                                radius: 8
+                                color: TuiStyle.surfaceSubtle
+                                border.width: 1
+                                border.color: TuiStyle.line
+                                clip: true
+
+                                Image {
+                                    id: headerArtworkImage
+                                    anchors.fill: parent
+                                    source: TrackArt.resolvedArtUrl
+                                    asynchronous: true
+                                    cache: true
+                                    fillMode: Image.PreserveAspectCrop
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    visible: headerArtworkImage.status !== Image.Ready
+                                    text: "album"
+                                    iconSize: 22
+                                    color: TuiStyle.dim
+                                }
+
+                                // Play pulse dot
+                                Rectangle {
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.margins: 2
+                                    width: 8
+                                    height: 8
+                                    radius: 4
+                                    color: audioPanel.isPlaying ? TuiStyle.accent : TuiStyle.dim
+                                    border.width: 1
+                                    border.color: TuiStyle.bg
+
+                                    SequentialAnimation on opacity {
+                                        running: audioPanel.isPlaying && audioPanel.showMediaControls
+                                        loops: Animation.Infinite
+                                        NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
+                                        NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
+                                    }
+                                }
+                            }
+
+                            // Case B: Simple Volume Icon (only visible when media NOT playing)
+                            NerdIcon {
+                                anchors.centerIn: parent
+                                visible: !audioPanel.showMediaControls
+                                iconSize: 26
+                                text: audioPanel.sinkMuted ? NerdIconMap.volumeOff : NerdIconMap.volumeHigh
+                                color: TuiStyle.fg
+                            }
+                        }
+
+                        // Center: Text Column
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 1
+
+                            // Title: Song Title (if media playing) or "Volume" (if not)
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: audioPanel.showMediaControls ? audioPanel.trackTitle : "Volume"
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.normal + (audioPanel.showMediaControls ? 0 : 1)
+                                font.weight: Font.Medium
+                                color: (audioPanel.showMediaControls && headerTitleMouse.containsMouse) ? TuiStyle.accent : TuiStyle.fg
+                                elide: Text.ElideRight
+
+                                MouseArea {
+                                    id: headerTitleMouse
+                                    anchors.fill: parent
+                                    enabled: audioPanel.showMediaControls
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: audioPanel.focusMediaPlayer()
+                                }
+                            }
+
+                            // Subtitle: Artist + Volume (if media playing) or Volume + Mute details (if not)
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: {
+                                    if (audioPanel.showMediaControls) {
+                                        const volStr = `${Math.round(audioPanel.sinkVolume * 100)}%`
+                                        const extra = audioPanel.sinkMuted ? " (Muted)" : ""
+                                        return (audioPanel.mediaSubtitle ? `${audioPanel.mediaSubtitle}  ·  ` : "") + `Vol ${volStr}${extra}`
+                                    } else {
+                                        return `Volume ${Math.round(audioPanel.sinkVolume * 100)}%` +
+                                            (audioPanel.sinkMuted ? " (Muted)" : "") +
+                                            (audioPanel.sourceMuted ? "  ·  Mic muted" : "")
+                                    }
+                                }
+                                font.family: Appearance.font.family.main
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.Normal
+                                color: TuiStyle.dim
+                                elide: Text.ElideRight
+                            }
+                        }
+
+                        // Right Side: Media Controls + Settings Gear
+                        RowLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 1
+
+                            // Media Controls (only shown when media playing)
+                            RowLayout {
+                                visible: audioPanel.showMediaControls
+                                spacing: 0
+
+                                // Prev
+                                Item {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    opacity: audioPanel.activePlayer?.canGoPrevious ? 1 : 0.3
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "skip_previous"
+                                        iconSize: 18
+                                        color: TuiStyle.fg
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        enabled: audioPanel.activePlayer?.canGoPrevious ?? false
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: audioPanel.mediaPrev()
+                                    }
+                                }
+
+                                // Play/Pause (compact circular button)
+                                Rectangle {
+                                    Layout.preferredWidth: 30
+                                    Layout.preferredHeight: 30
+                                    radius: 15
+                                    color: headerPlayMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.selection
+                                    border.width: 1
+                                    border.color: TuiStyle.accent
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: audioPanel.isPlaying ? "pause" : "play_arrow"
+                                        iconSize: 17
+                                        color: TuiStyle.accent
+                                    }
+                                    MouseArea {
+                                        id: headerPlayMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: audioPanel.mediaToggle()
+                                    }
+                                }
+
+                                // Next
+                                Item {
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    opacity: audioPanel.activePlayer?.canGoNext ? 1 : 0.3
+
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "skip_next"
+                                        iconSize: 18
+                                        color: TuiStyle.fg
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        enabled: audioPanel.activePlayer?.canGoNext ?? false
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: audioPanel.mediaNext()
+                                    }
+                                }
+                            }
+
+                            // Settings Gear (always shown)
+                            Item {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 8
+                                    color: headerSettingsMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "settings"
+                                    iconSize: 20
+                                    color: headerSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                                }
+
+                                MouseArea {
+                                    id: headerSettingsMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.close()
+                                        Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"])
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom Divider
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 1
+                        color: TuiStyle.line
+                        opacity: TuiStyle.dividerOpacity
                     }
                 }
 
@@ -1316,201 +1542,7 @@ Scope {
 
                 // ── Now playing: compact row (no art, no seek) ───────────
                 // Title + status on the left, transport on the right.
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 12
-                    Layout.rightMargin: 12
-                    Layout.topMargin: 8
-                    Layout.bottomMargin: 4
-                    implicitHeight: 64
-                    visible: audioPanel.showMediaControls
-                    radius: 10
-                    color: TuiStyle.panel
-                    border.width: 1
-                    border.color: Qt.rgba(TuiStyle.line.r, TuiStyle.line.g, TuiStyle.line.b, 0.45)
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 10
-                        spacing: 10
-
-                        Item {
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 32
-                            Layout.alignment: Qt.AlignVCenter
-
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                text: audioPanel.mediaMuted ? "volume_off" : "volume_up"
-                                iconSize: 19
-                                color: audioPanel.mediaMuted ? TuiStyle.danger : TuiStyle.fg
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: audioPanel.toggleMediaMute()
-                            }
-                        }
-
-                        Rectangle {
-                            id: mediaArtwork
-                            Layout.preferredWidth: 42
-                            Layout.preferredHeight: 42
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: 8
-                            color: TuiStyle.surfaceSubtle
-                            border.width: 1
-                            border.color: TuiStyle.line
-                            clip: true
-
-                            Image {
-                                id: mediaArtworkImage
-                                anchors.fill: parent
-                                source: TrackArt.resolvedArtUrl
-                                asynchronous: true
-                                cache: true
-                                fillMode: Image.PreserveAspectCrop
-                            }
-
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                visible: mediaArtworkImage.status !== Image.Ready
-                                text: "album"
-                                iconSize: 23
-                                color: TuiStyle.dim
-                            }
-
-                            // Playing pulse; paused media keeps a quiet static dot.
-                            Rectangle {
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                anchors.margins: 3
-                                width: 8
-                                height: 8
-                                radius: 4
-                                color: audioPanel.isPlaying ? TuiStyle.accent : TuiStyle.dim
-                                border.width: 1
-                                border.color: TuiStyle.bg
-
-                                SequentialAnimation on opacity {
-                                    running: audioPanel.isPlaying
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
-                                    NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
-                                }
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            Layout.preferredHeight: 42
-
-                            Column {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-
-                                StyledText {
-                                    width: parent.width
-                                    text: audioPanel.trackTitle
-                                    color: mediaTitleMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                }
-
-                                StyledText {
-                                    width: parent.width
-                                    text: audioPanel.mediaSubtitle
-                                    color: TuiStyle.dim
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            MouseArea {
-                                id: mediaTitleMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: audioPanel.focusMediaPlayer()
-                            }
-                        }
-
-                        // Transport controls remain available while paused.
-                        RowLayout {
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 2
-
-                            Item {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                opacity: audioPanel.activePlayer?.canGoPrevious ? 1 : 0.3
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "skip_previous"
-                                    iconSize: 20
-                                    color: TuiStyle.fg
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: audioPanel.activePlayer?.canGoPrevious ?? false
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: audioPanel.mediaPrev()
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 36
-                                Layout.preferredHeight: 36
-                                radius: 18
-                                color: playMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.selection
-                                border.width: 1
-                                border.color: TuiStyle.accent
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: audioPanel.isPlaying ? "pause" : "play_arrow"
-                                    iconSize: 20
-                                    color: TuiStyle.accent
-                                }
-                                MouseArea {
-                                    id: playMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    enabled: audioPanel.showMediaControls
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: audioPanel.mediaToggle()
-                                }
-                            }
-
-                            Item {
-                                Layout.preferredWidth: 32
-                                Layout.preferredHeight: 32
-                                opacity: audioPanel.activePlayer?.canGoNext ? 1 : 0.3
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "skip_next"
-                                    iconSize: 20
-                                    color: TuiStyle.fg
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    enabled: audioPanel.activePlayer?.canGoNext ?? false
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: audioPanel.mediaNext()
-                                }
-                            }
-                        }
-                    }
-                }
 
                 Divider {}
 
