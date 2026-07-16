@@ -67,9 +67,17 @@ ShellRoot {
     IpcHandler {
         target: "inputMethod"
 
+        property Timer hideTimer: Timer {
+            interval: 800
+            repeat: false
+            onTriggered: GlobalStates.barPopupType = ""
+        }
+
         function cycle(direction: int): void {
-            // Open the input method popup instead of cycling
+            Services.InputMethod.cycleSchema(direction)
+            // Show popup and auto-hide after delay
             GlobalStates.barPopupType = "inputMethod";
+            hideTimer.restart();
         }
     }
 
