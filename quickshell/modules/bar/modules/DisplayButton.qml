@@ -98,9 +98,7 @@ Item {
                     : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
             }
             onMenuClosed: {
-                // Keep the loaded PopupWindow alive. Destroying a layer-backed
-                // PopupWindow from inside its click handler can crash QtQuick,
-                // which also kills the detached action in the bar's cgroup.
+                screenshotMenu.active = false;
             }
         }
     }
