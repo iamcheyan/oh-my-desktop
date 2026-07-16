@@ -361,6 +361,7 @@ Item {
                     selectByMouse: true
                     wrapMode: TextEdit.Wrap
                     text: textDecoder.decodedText
+                    textFormat: TextEdit.PlainText
                     color: TuiStyle.fg
                     selectionColor: TuiStyle.accent
                     selectedTextColor: TuiStyle.bg

@@ -81,6 +81,7 @@ Rectangle {
         StyledText {
             Layout.fillWidth: true
             text: root.isImage ? `${root.imgW} × ${root.imgH} image` : root.cleanText.replace(/[\r\n]+/g, " ")
+            textFormat: Text.PlainText
             elide: Text.ElideRight
             maximumLineCount: 1
             color: root.selected ? TuiStyle.bg : TuiStyle.fg
@@ -116,12 +117,5 @@ Rectangle {
             }
         }
 
-        StyledText {
-            visible: root.itemIndex < 9
-            text: `${root.itemIndex + 1}`
-            color: root.selected ? TuiStyle.bg : "#7c7c82"
-            font.family: Appearance.font.family.main
-            font.pixelSize: 11
-        }
     }
 }
