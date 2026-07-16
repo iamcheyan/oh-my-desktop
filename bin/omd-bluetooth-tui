@@ -65,14 +65,168 @@ ICON_MAP = {
     "scanner":             "\uf030",  # fa-camera (scanner)
     "network-wireless":    "\uf1eb",  # fa-wifi
     "multimedia-player":   "\uf025",  # fa-headphones (media playback)
+    "wearable":            "\uf2f1",  # fa-clock (smartwatch)
 }
 ICON_UNKNOWN = "\uf059"  # fa-question-circle
 
+# Name keyword → ICON_MAP key fallback for devices without an Icon field.
+NAME_GUESS_MAP = {
+    "keyboard":     "input-keyboard",
+    "mouse":        "input-mouse",
+    "headphone":    "audio-headset",
+    "headset":      "audio-headset",
+    "earbud":       "audio-headset",
+    "airpods":      "audio-headset",
+    "soundlink":    "audio-speaker",
+    "speaker":      "audio-speaker",
+    "loudspeaker":  "audio-speaker",
+    "soundcore":    "audio-speaker",
+    "controller":   "input-gaming",
+    "gamepad":      "input-gaming",
+    "watch":        "wearable",
+    "smartwatch":   "wearable",
+    "desktop":      "computer",
+    "laptop":       "computer",
+    "printer":      "printer",
+    "scanner":      "scanner",
+    "camera":       "camera",
+    "tablet":       "input-tablet",
+    "iphone":       "phone",
+    "galaxy":       "phone",
+    "pixel":        "phone",
+    "fitbit":       "wearable",
+    "band":         "wearable",
+    "dual":         "input-gaming",
+    "xbox":         "input-gaming",
+    "playstation":  "input-gaming",
+}
 
-def device_icon(info_text: str) -> str:
+
+def _icon_from_appearance(appearance: int) -> str | None:
+    """Map a BLE GAP Appearance value to an ICON_MAP key.
+    category = appearance >> 6, subcategory = appearance & 0x3F."""
+    cat = appearance >> 6
+    sub = appearance & 0x3F
+    if cat == 0x01:
+        return "phone"
+    if cat == 0x02:
+        return "computer"
+    if cat == 0x03:
+        return "wearable"           # Watch
+    if cat == 0x05:
+        return "video-display"      # Display
+    if cat == 0x0A:
+        return "multimedia-player"  # Media Player
+    if cat == 0x0B:
+        return "scanner"            # Barcode Scanner
+    if cat == 0x0F:                 # HID
+        if sub == 0x01:
+            return "input-keyboard"
+        if sub == 0x02:
+            return "input-mouse"
+        if sub in (0x03, 0x04):
+            return "input-gaming"
+        if sub == 0x05:
+            return "input-tablet"
+        if sub == 0x08:
+            return "scanner"
+        return None                 # Generic HID
+    if cat == 0x21:                 # Audio Sink
+        return "audio-speaker"
+    if cat == 0x25:                 # Wearable Audio
+        if sub in (0x01, 0x02, 0x04):
+            return "audio-headset"  # Earbud, Headset, Neck Band
+        if sub == 0x03:
+            return "audio-headset"  # Headphones
+        return "audio-speaker"
+    if cat == 0x29:
+        return "audio-headset"      # Hearing Aid
+    return None
+
+
+# Bluetooth Class of Device — major class (bits 8-12)
+_COD_MAJOR = {
+    0x01: "computer",
+    0x02: "phone",
+    0x04: "audio",       # Audio/Video — resolved via minor below
+    0x05: "peripheral",  # resolved via minor below
+    0x07: "wearable",
+    0x08: "toy",
+}
+
+# Audio/Video minor class (bits 2-7) → ICON_MAP key
+_COD_AV_MINOR = {
+    0x01: "audio-headset",      # Wearable Headset
+    0x02: "audio-headset",      # Hands-free
+    0x04: "audio-input-microphone",
+    0x05: "audio-speaker",      # Loudspeaker
+    0x06: "audio-headset",      # Headphones
+    0x07: "audio-speaker",      # Portable Audio
+}
+
+# Peripheral minor class (bits 6-7)
+_COD_PERIPH_MINOR = {
+    0x01: "input-keyboard",
+    0x02: "input-mouse",
+    0x03: "input-keyboard",     # Combo keyboard+mouse → keyboard icon
+}
+
+# Wearable minor class (bits 2-7)
+_COD_WEARABLE_MINOR = {
+    0x00: "wearable",           # Watch
+}
+
+
+def _icon_from_class(cod: int) -> str | None:
+    """Map a Bluetooth Class of Device (24-bit) to an ICON_MAP key."""
+    major = (cod >> 8) & 0x1F
+    minor_raw = cod & 0xFF       # bits 0-7
+    mc = _COD_MAJOR.get(major)
+    if mc is None:
+        return None
+    if mc == "peripheral":
+        sub = (minor_raw >> 6) & 0x03
+        return _COD_PERIPH_MINOR.get(sub)
+    if mc == "audio":
+        sub = (minor_raw >> 2) & 0x3F
+        return _COD_AV_MINOR.get(sub)
+    if mc == "wearable":
+        sub = (minor_raw >> 2) & 0x3F
+        return _COD_WEARABLE_MINOR.get(sub, "wearable")
+    return mc  # computer, phone, toy → direct map key
+
+
+def device_icon(info_text: str, name: str = "") -> str:
+    """Return Nerd Font glyph for a device from ``bluetoothctl info`` output.
+
+    Precedence (matching gnome-bluetooth):
+      1. BLE Appearance characteristic
+      2. Bluetooth Class of Device
+      3. BlueZ Icon property
+      4. Device-name keyword heuristic
+    """
+    # 1. Appearance
+    m = re.search(r"^\s*Appearance:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
+    if m:
+        key = _icon_from_appearance(int(m.group(1), 16))
+        if key:
+            return ICON_MAP.get(key, ICON_UNKNOWN)
+    # 2. Class of Device
+    m = re.search(r"^\s*Class:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
+    if m:
+        key = _icon_from_class(int(m.group(1), 16))
+        if key:
+            return ICON_MAP.get(key, ICON_UNKNOWN)
+    # 3. BlueZ Icon
     m = re.search(r"^\s*Icon:\s*(\S+)", info_text, re.MULTILINE)
     if m:
         return ICON_MAP.get(m.group(1), ICON_UNKNOWN)
+    # 4. Name heuristic
+    if name:
+        n = name.lower()
+        for keyword, icon_key in NAME_GUESS_MAP.items():
+            if keyword in n:
+                return ICON_MAP.get(icon_key, ICON_UNKNOWN)
     return ICON_UNKNOWN
 
 
@@ -125,7 +279,7 @@ def get_devices() -> list[tuple[str, str, str, str]]:
             continue
         addr, name = m.group(1), m.group(2).strip()
         _, info = btctl_simple("info", addr, timeout=5)
-        icon = device_icon(info)
+        icon = device_icon(info, name)
         paired = "Paired: yes" in info
         connected = "Connected: yes" in info
         if connected:
@@ -267,7 +421,7 @@ class BluetoothTUI:
                 name = m.group(2).strip()
                 # Try to resolve icon immediately for known types
                 _, info = btctl_simple("info", addr, timeout=1)
-                icon = device_icon(info) if info else ICON_UNKNOWN
+                icon = device_icon(info, name) if info else ICON_UNKNOWN
                 self._merge_device(addr, name, icon)
             else:
                 # [CHG] Device lines may update known devices
