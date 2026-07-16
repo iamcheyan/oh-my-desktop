@@ -39,7 +39,8 @@ PIN_RE = re.compile(r"\[agent\]\s*PIN code:\s*([0-9]{4,6})", re.IGNORECASE)
 PASSKEY_RE = re.compile(r"\[agent\]\s*Passkey:\s*([0-9]{4,6})", re.IGNORECASE)
 CONFIRM_RE = re.compile(r"Confirm passkey[^0-9]*([0-9]{4,6})", re.IGNORECASE)
 PAIRED_RE = re.compile(r"Pairing successful|Paired:\s*yes", re.IGNORECASE)
-CONNECTED_RE = re.compile(r"Connection successful|Connected:\s*yes", re.IGNORECASE)
+CONNECTED_RE = re.compile(r"Connection successful", re.IGNORECASE)
+CONNECTED_CHG_RE = re.compile(r"Connected:\s*yes", re.IGNORECASE)
 
 
 def clean(text: str) -> str:
@@ -338,7 +339,8 @@ class BluetoothTUI:
             self._do_trust_connect()
 
         # Detect connection success after trust+connect
-        if self._pair_state == "connecting" and CONNECTED_RE.search(self._recent):
+        if self._pair_state == "connecting" and \
+                (CONNECTED_RE.search(self._recent) or CONNECTED_CHG_RE.search(self._recent)):
             self.log_lines.append("[pair] Connected!")
             self.status_msg = f"OK Paired + connected to {self._pair_addr}"
             self._stop_pair()
@@ -392,6 +394,10 @@ class BluetoothTUI:
         # Clear PIN/confirm prompts so TUI returns to device list
         self.pin_prompt = None
         self.confirm_prompt = None
+        # Clear recent buffer so we only detect NEW connection events
+        # (not the transient Connected:yes from the pairing phase)
+        self._recent = ""
+        self._line_buf = ""
         _, fd = self._pair_proc or (0, None)
         if fd:
             send(fd, f"trust {addr}")
