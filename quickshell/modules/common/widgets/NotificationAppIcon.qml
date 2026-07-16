@@ -30,18 +30,22 @@ Item { // App icon
         id: materialSymbolLoader
         active: root.resolvedAppIcon == "" && root.resolvedImage == ""
         anchors.fill: parent
-        sourceComponent: MaterialSymbol {
-            text: {
-                const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
-                const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
-                return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
-                    "priority_high" : guessedIcon
-            }
+        sourceComponent: Rectangle {
             anchors.fill: parent
-            color: isUrgent ? Appearance.colors.colError : Appearance.colors.colOnLayer1
-            iconSize: root.materialIconSize
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+            radius: width / 2
+            color: isUrgent ? Qt.rgba(1, 0, 0, 0.12) : Qt.rgba(0.5, 0.5, 0.5, 0.12)
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: {
+                    const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
+                    const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
+                    return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
+                        "priority_high" : guessedIcon
+                }
+                iconSize: root.materialIconSize
+                color: isUrgent ? Appearance.colors.colError : Qt.rgba(0.5, 0.5, 0.5, 0.6)
+            }
         }
     }
     Loader {

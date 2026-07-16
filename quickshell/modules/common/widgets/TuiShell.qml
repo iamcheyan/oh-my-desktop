@@ -8,6 +8,11 @@ Rectangle {
     property int contentPadding: 14
     default property alias content: contentContainer.data
 
+    // Offscreen OpacityMask gives cleaner rounded corners, but rebuilding the
+    // layer FBO on every size change flashes the whole shell. Height-variable
+    // bar popups set this false; see docs/bar-popup-height-stability.md.
+    property bool useLayerMask: true
+
     // Match BarContextMenu / WindowDialog shell chrome
     color: TuiStyle.bg
     border.width: TuiStyle.borderWidth
@@ -15,7 +20,7 @@ Rectangle {
     radius: TuiStyle.shellRadius
     clip: true
 
-    layer.enabled: true
+    layer.enabled: useLayerMask
     layer.effect: OpacityMask {
         maskSource: Rectangle {
             width: root.width

@@ -17,13 +17,20 @@ Item {
     property real wheelAccum: 0
     property bool isFirstClick: true
 
+    function openDisplayPopup() {
+        // Pin popup + brightness to the monitor this bar sits on.
+        const scr = displayButton.QsWindow?.window?.screen;
+        GlobalStates.barPopupAnchorScreen = scr?.name ?? "";
+        GlobalStates.barPopupType = "display";
+    }
+
     Timer {
         id: doubleClickTimer
         interval: 250
         repeat: false
         onTriggered: {
             root.isFirstClick = true;
-            GlobalStates.barPopupType = "display";
+            root.openDisplayPopup();
         }
     }
 
@@ -56,9 +63,13 @@ Item {
         onWheel: wheel => {
             const r = WheelUtils.getSteps(wheel.angleDelta.y, root.wheelAccum)
             root.wheelAccum = r.accum
-            const currentScreen = displayButton.QsWindow.window.screen
-            for (let i = 0; i < Math.abs(r.steps); i++) {
-                Brightness.adjustBrightnessForScreen(currentScreen, r.steps > 0)
+            // Scroll on the icon adjusts THIS bar's monitor only (not all outputs).
+            const currentScreen = displayButton.QsWindow?.window?.screen
+            if (currentScreen) {
+                GlobalStates.osdBrightnessScreen = currentScreen.name
+                for (let i = 0; i < Math.abs(r.steps); i++) {
+                    Brightness.adjustBrightnessForScreen(currentScreen, r.steps > 0)
+                }
             }
             wheel.accepted = true;
         }
@@ -87,7 +98,9 @@ Item {
                     : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
             }
             onMenuClosed: {
-                screenshotMenu.active = false;
+                // Keep the loaded PopupWindow alive. Destroying a layer-backed
+                // PopupWindow from inside its click handler can crash QtQuick,
+                // which also kills the detached action in the bar's cgroup.
             }
         }
     }

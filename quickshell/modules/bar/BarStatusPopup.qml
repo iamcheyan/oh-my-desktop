@@ -28,10 +28,18 @@ Scope {
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
         ?? Quickshell.screens[0]
         ?? null
+    // Prefer the bar/screen that opened the popup (multi-monitor), else focused.
+    readonly property var popupScreen: {
+        const name = GlobalStates.barPopupAnchorScreen || "";
+        if (name.length)
+            return Quickshell.screens.find(s => s.name === name) ?? focusedScreen;
+        return focusedScreen;
+    }
 
     function close() {
         GlobalStates.barPopupEphemeral = false;
         GlobalStates.barPopupType = "";
+        GlobalStates.barPopupAnchorScreen = "";
     }
 
     function openDialog(dialogType) {
@@ -57,8 +65,8 @@ Scope {
 
     PanelWindow {
         id: popupWindow
-        screen: root.focusedScreen
-        visible: root.open && root.focusedScreen
+        screen: root.popupScreen
+        visible: root.open && root.popupScreen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
@@ -117,7 +125,7 @@ Scope {
 
         onVisibleChanged: {
             if (visible) {
-                popupWindow.screen = root.focusedScreen;
+                popupWindow.screen = root.popupScreen;
                 dismissGuard.restart();
             } else {
                 dismissGuard.stop();
@@ -156,6 +164,9 @@ Scope {
                 implicitWidth: popupWindow.panelWidth
                 implicitHeight: contentLoader.implicitHeight + contentPadding * 2
                 contentPadding: 0                           // Rows manage their own 20px margins
+                // Height-variable content (audio expand, etc.): skip OpacityMask FBO
+                // rebuild on resize — see docs/bar-popup-height-stability.md.
+                useLayerMask: false
                 color: panel.multiShell ? "transparent" : TuiStyle.bg
                 border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
                 border.color: TuiStyle.menuBorder
@@ -1104,6 +1115,13 @@ Scope {
                 }
             }
 
+            // ── Wi-Fi advanced footer ──
+            PopupFooterLink {
+                Layout.fillWidth: true
+                label: "WiFi manager TUI…"
+                onClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-wifi`])
+            }
+
             // Divider between Wi-Fi block and Bluetooth
             Rectangle {
                 Layout.fillWidth: true
@@ -1269,6 +1287,15 @@ Scope {
                         (audioPanel.sinkMuted ? " (Muted)" : "") +
                         (audioPanel.sourceMuted ? "  ·  Mic muted" : "")
                     tone: audioPanel.sinkMuted ? TuiStyle.warning : TuiStyle.accent
+                    actionIcon: "settings"
+                    onActionClicked: {
+                        root.close()
+                        Quickshell.execDetached([
+                            Quickshell.env("HOME") + "/.config/omd/bin/omd-settings",
+                            "open",
+                            "sound"
+                        ])
+                    }
                 }
 
                 PopupSliderRow {
@@ -1487,111 +1514,63 @@ Scope {
 
                 Divider {}
 
-                // ── Output devices (expand to switch when multiple) ───────
+                // ── Output devices (always visible; no expand/collapse) ────
                 ColumnLayout {
-                    id: outputPicker
                     Layout.fillWidth: true
                     spacing: 0
-                    property bool expanded: false
-                    readonly property int deviceCount: Audio.typedSinks.length
-                    readonly property bool expandable: deviceCount > 1
-                    onDeviceCountChanged: if (deviceCount <= 1) expanded = false
 
-                    // Header row — current device; expands when multiple
-                    Rectangle {
+                    StyledText {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        color: outputHeaderMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 20
-                            anchors.rightMargin: 16
-                            spacing: 10
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: "Output"
-                                    font.pixelSize: Appearance.font.pixelSize.normal + 1
-                                    font.weight: Font.Medium
-                                    color: TuiStyle.fg
-                                }
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: audioPanel.sink
-                                        ? Audio.friendlyDeviceName(audioPanel.sink)
-                                        : (outputPicker.deviceCount === 0 ? "No devices" : "--")
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: TuiStyle.dim
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            StyledText {
-                                visible: outputPicker.expandable
-                                text: outputPicker.deviceCount
-                                color: TuiStyle.dim
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                            }
-
-                            MaterialSymbol {
-                                visible: outputPicker.expandable
-                                text: outputPicker.expanded ? "expand_less" : "expand_more"
-                                iconSize: 20
-                                color: TuiStyle.muted
-                            }
-                        }
-
-                        MouseArea {
-                            id: outputHeaderMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            enabled: outputPicker.expandable
-                            cursorShape: outputPicker.expandable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: {
-                                audioPanel.pinOpen()
-                                outputPicker.expanded = !outputPicker.expanded
-                                if (outputPicker.expanded)
-                                    inputPicker.expanded = false
-                            }
-                        }
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 16
+                        Layout.topMargin: 10
+                        Layout.bottomMargin: 4
+                        text: "Output"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.DemiBold
+                        color: TuiStyle.dim
                     }
 
-                    Item {
-                        id: outputDetails
-                        Layout.fillWidth: true
-                        readonly property real contentHeight: outputPicker.deviceCount * 40
-                        readonly property bool revealed: outputPicker.expanded && outputPicker.expandable
-                        Layout.preferredHeight: revealed ? contentHeight : 0
-                        clip: true
+                    Repeater {
+                        model: Audio.typedSinks
+                        delegate: MouseArea {
+                            id: sinkRow
+                            required property var modelData
+                            readonly property var node: modelData
+                            readonly property bool isActive: {
+                                const cur = Audio.sink;
+                                if (!cur || !node)
+                                    return false;
+                                if (cur.name && node.name && cur.name === node.name)
+                                    return true;
+                                return Audio.nodeObjectId(cur) === Audio.nodeObjectId(node)
+                                    && Audio.nodeObjectId(node).length > 0;
+                            }
 
-                        ColumnLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            spacing: 0
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            implicitHeight: 40
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                audioPanel.pinOpen();
+                                if (node)
+                                    Audio.setDefaultSink(node);
+                                else if (modelData?.name)
+                                    Audio.setDefaultSinkByName(modelData.name);
+                            }
 
-                            Repeater {
-                                model: Audio.typedSinks
-                                delegate: Rectangle {
-                                id: sinkRow
-                                required property var modelData
-                                readonly property var node: modelData
-                                readonly property bool isActive: Audio.sink?.name === node?.name
-
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 40
-                                color: isActive
+                            Rectangle {
+                                anchors.fill: parent
+                                color: sinkRow.isActive
                                     ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
-                                    : (sinkMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
+                                    : (sinkRow.pressed
+                                        ? TuiStyle.selection
+                                        : (sinkRow.containsMouse ? TuiStyle.surfaceHover : "transparent"))
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 28
+                                    anchors.leftMargin: 20
                                     anchors.rightMargin: 16
                                     spacing: 8
 
@@ -1611,128 +1590,80 @@ Scope {
                                         elide: Text.ElideRight
                                     }
                                 }
-
-                                MouseArea {
-                                    id: sinkMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        audioPanel.pinOpen()
-                                        Audio.setDefaultSink(sinkRow.node)
-                                        outputPicker.expanded = false
-                                    }
-                                }
-                                }
                             }
                         }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 16
+                        Layout.preferredHeight: 36
+                        verticalAlignment: Text.AlignVCenter
+                        visible: Audio.typedSinks.length === 0
+                        text: "No output devices"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.dim
                     }
                 }
 
-                // ── Input devices (expand to switch when multiple) ────────
+                // ── Input devices (always visible) ───────────────────────
                 ColumnLayout {
-                    id: inputPicker
                     Layout.fillWidth: true
                     spacing: 0
-                    property bool expanded: false
-                    readonly property int deviceCount: Audio.typedSources.length
-                    readonly property bool expandable: deviceCount > 1
-                    onDeviceCountChanged: if (deviceCount <= 1) expanded = false
 
-                    Rectangle {
+                    StyledText {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 52
-                        color: inputHeaderMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 20
-                            anchors.rightMargin: 16
-                            spacing: 10
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 2
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: "Input"
-                                    font.pixelSize: Appearance.font.pixelSize.normal + 1
-                                    font.weight: Font.Medium
-                                    color: TuiStyle.fg
-                                }
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: audioPanel.source
-                                        ? Audio.friendlyDeviceName(audioPanel.source)
-                                        : (inputPicker.deviceCount === 0 ? "No devices" : "--")
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: TuiStyle.dim
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            StyledText {
-                                visible: inputPicker.expandable
-                                text: inputPicker.deviceCount
-                                color: TuiStyle.dim
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                            }
-
-                            MaterialSymbol {
-                                visible: inputPicker.expandable
-                                text: inputPicker.expanded ? "expand_less" : "expand_more"
-                                iconSize: 20
-                                color: TuiStyle.muted
-                            }
-                        }
-
-                        MouseArea {
-                            id: inputHeaderMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            enabled: inputPicker.expandable
-                            cursorShape: inputPicker.expandable ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: {
-                                audioPanel.pinOpen()
-                                inputPicker.expanded = !inputPicker.expanded
-                                if (inputPicker.expanded)
-                                    outputPicker.expanded = false
-                            }
-                        }
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 16
+                        Layout.topMargin: 8
+                        Layout.bottomMargin: 4
+                        text: "Input"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.weight: Font.DemiBold
+                        color: TuiStyle.dim
                     }
 
-                    Item {
-                        id: inputDetails
-                        Layout.fillWidth: true
-                        readonly property real contentHeight: inputPicker.deviceCount * 40
-                        readonly property bool revealed: inputPicker.expanded && inputPicker.expandable
-                        Layout.preferredHeight: revealed ? contentHeight : 0
-                        clip: true
+                    Repeater {
+                        model: Audio.typedSources
+                        delegate: MouseArea {
+                            id: sourceRow
+                            required property var modelData
+                            readonly property var node: modelData
+                            readonly property bool isActive: {
+                                const cur = Audio.source;
+                                if (!cur || !node)
+                                    return false;
+                                if (cur.name && node.name && cur.name === node.name)
+                                    return true;
+                                return Audio.nodeObjectId(cur) === Audio.nodeObjectId(node)
+                                    && Audio.nodeObjectId(node).length > 0;
+                            }
 
-                        ColumnLayout {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            spacing: 0
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+                            implicitHeight: 40
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                audioPanel.pinOpen();
+                                if (node)
+                                    Audio.setDefaultSource(node);
+                                else if (modelData?.name)
+                                    Audio.setDefaultSourceByName(modelData.name);
+                            }
 
-                            Repeater {
-                                model: Audio.typedSources
-                                delegate: Rectangle {
-                                id: sourceRow
-                                required property var modelData
-                                readonly property var node: modelData
-                                readonly property bool isActive: Audio.source?.name === node?.name
-
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 40
-                                color: isActive
+                            Rectangle {
+                                anchors.fill: parent
+                                color: sourceRow.isActive
                                     ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
-                                    : (sourceMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
+                                    : (sourceRow.pressed
+                                        ? TuiStyle.selection
+                                        : (sourceRow.containsMouse ? TuiStyle.surfaceHover : "transparent"))
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 28
+                                    anchors.leftMargin: 20
                                     anchors.rightMargin: 16
                                     spacing: 8
 
@@ -1752,40 +1683,36 @@ Scope {
                                         elide: Text.ElideRight
                                     }
                                 }
-
-                                MouseArea {
-                                    id: sourceMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        audioPanel.pinOpen()
-                                        Audio.setDefaultSource(sourceRow.node)
-                                        inputPicker.expanded = false
-                                    }
-                                }
-                                }
                             }
                         }
                     }
-                }
 
-                PopupFooterLink {
-                    Layout.fillWidth: true
-                    label: "Volume Control…"
-                    onClicked: {
-                        root.close()
-                        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/omd/bin/omd-settings", "open", "sound"])
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 16
+                        Layout.preferredHeight: 36
+                        Layout.bottomMargin: 8
+                        verticalAlignment: Text.AlignVCenter
+                        visible: Audio.typedSources.length === 0
+                        text: "No input devices"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.dim
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 8
+                        visible: Audio.typedSources.length > 0
                     }
                 }
             }
 
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.NoButton
-                hoverEnabled: false
-                z: -1
-                onWheel: wheel => root.adjustOutputVolumeFromWheel(wheel, audioPanel)
+            // Prefer WheelHandler over a full-panel MouseArea so device rows
+            // never compete with a sibling for pointer events.
+            WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: event => root.adjustOutputVolumeFromWheel(event, audioPanel)
             }
         }
     }
@@ -1793,24 +1720,47 @@ Scope {
     Component {
         id: displayContent
         PopupColumn {
-            readonly property var brightnessMonitor: Brightness.getMonitorForScreen(Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0])
+            // Same monitor the popup/bar is on — matches keyboard brightness + wheel on icon.
+            readonly property var targetScreen: popupWindow.screen
+                ?? root.popupScreen
+                ?? root.focusedScreen
+                ?? Quickshell.screens[0]
+            readonly property var brightnessMonitor: Brightness.getMonitorForScreen(targetScreen)
             readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
+            readonly property bool canControlBrightness: {
+                if (!targetScreen || !brightnessMonitor)
+                    return false;
+                const n = targetScreen.name || "";
+                const internal = n.startsWith("eDP") || n.startsWith("LVDS") || n.startsWith("DSI") || n.startsWith("DPI");
+                return internal || !!brightnessMonitor.isDdc;
+            }
+            readonly property string monitorLabel: targetScreen?.name ?? "?"
 
             PopupHeader {
                 Layout.fillWidth: true
                 icon: NerdIconMap.desktop
                 title: "Display"
-                subtitle: `Brightness ${Math.round(brightnessValue * 100)}%` +
-                    (Hyprsunset.temperatureActive ? "  ·  Night mode on" : "")
-                tone: Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.accent
+                subtitle: canControlBrightness
+                    ? `Brightness ${Math.round(brightnessValue * 100)}%  ·  ${monitorLabel}` +
+                        (Hyprsunset.temperatureActive ? "  ·  Night mode on" : "")
+                    : `${monitorLabel}  ·  no brightness control (need DDC/i2c)` +
+                        (Hyprsunset.temperatureActive ? "  ·  Night mode on" : "")
+                tone: !canControlBrightness
+                    ? TuiStyle.warning
+                    : (Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.accent)
             }
 
-            // Brightness slider
+            // Brightness slider — only this monitor (same rules as omd-brightness-display)
             PopupSliderRow {
                 icon: NerdIconMap.brightness6
                 value: brightnessValue
                 muted: false
+                opacity: canControlBrightness ? 1 : 0.4
                 onMoved: value => {
+                    if (!canControlBrightness || !brightnessMonitor)
+                        return;
+                    Brightness.lastAdjustedScreenName = targetScreen?.name ?? "";
+                    GlobalStates.osdBrightnessScreen = targetScreen?.name ?? "";
                     brightnessMonitor.setBrightness(value);
                 }
             }
