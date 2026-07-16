@@ -1,0 +1,581 @@
+#!/usr/bin/env python3
+"""
+omd-bluetooth-tui — Guided Bluetooth pairing & connection TUI.
+
+A full-screen curses interface for scanning, pairing, trusting, and
+connecting Bluetooth devices. Handles both Legacy Pairing (PIN entry)
+and Secure Simple Pairing (passkey confirmation) by spawning
+``bluetoothctl`` with a full agent underneath.
+
+Controls
+  j / ↓      Move selection down
+  k / ↑      Move selection up
+  Enter      Pair + trust + connect selected device
+  d          Disconnect selected device
+  f          Forget (remove) selected device
+  r          Refresh scan
+  q / Esc    Quit
+"""
+
+import curses
+import os
+import re
+import select
+import subprocess
+import sys
+import time
+
+# ── helpers ───────────────────────────────────────────────────────────
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+ADDR_RE = re.compile(r"([0-9A-Fa-f]{2}[:]){5}[0-9A-Fa-f]{2}")
+DEVICE_RE = re.compile(
+    r"\[(?:NEW|CHG)\]\s+Device\s+([0-9A-Fa-f:]{17})\s+(.*)"
+)
+NEW_DEVICE_RE = re.compile(
+    r"\[NEW\]\s+Device\s+([0-9A-Fa-f:]{17})\s+(.*)"
+)
+PIN_RE = re.compile(r"\[agent\]\s*PIN code:\s*([0-9]{4,6})", re.IGNORECASE)
+PASSKEY_RE = re.compile(r"\[agent\]\s*Passkey:\s*([0-9]{4,6})", re.IGNORECASE)
+CONFIRM_RE = re.compile(r"Confirm passkey[^0-9]*([0-9]{4,6})", re.IGNORECASE)
+PAIRED_RE = re.compile(r"Pairing successful|Paired:\s*yes", re.IGNORECASE)
+CONNECTED_RE = re.compile(r"Connection successful|Connected:\s*yes", re.IGNORECASE)
+
+
+def clean(text: str) -> str:
+    return ANSI_RE.sub("", text).replace("\r", "")
+
+
+def pty_spawn(argv):
+    """Fork a child attached to a pseudo-terminal; return (pid, fd)."""
+    pid, fd = os.forkpty()
+    if pid == 0:
+        try:
+            os.execvp(argv[0], argv)
+        except Exception as exc:
+            print(exc, file=sys.stderr)
+            os._exit(127)
+    return pid, fd
+
+
+def send(fd, command: str):
+    try:
+        os.write(fd, (command + "\n").encode())
+    except OSError:
+        pass
+
+
+def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
+    """Run bluetoothctl non-interactively.
+    Uses subprocess timeout (NOT bluetoothctl --timeout, which blocks
+    until the timeout expires even for instant commands)."""
+    cmd = ["bluetoothctl", *args]
+    try:
+        proc = subprocess.run(cmd, text=True, capture_output=True, timeout=timeout)
+        out = (proc.stdout or "") + (proc.stderr or "")
+        return proc.returncode, out
+    except subprocess.TimeoutExpired as e:
+        out = ""
+        if e.stdout:
+            out += e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
+        if e.stderr:
+            out += e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
+        return 1, out
+
+
+def get_devices() -> list[tuple[str, str, str]]:
+    """Return [(addr, name, status), ...] from ``bluetoothctl devices``.
+    status ∈ {"paired", "connected", "available"}."""
+    _, out = btctl_simple("devices")
+    devices = []
+    for line in out.splitlines():
+        m = re.match(r"Device\s+([0-9A-Fa-f:]{17})\s+(.*)", line)
+        if not m:
+            continue
+        addr, name = m.group(1), m.group(2).strip()
+        _, info = btctl_simple("info", addr, timeout=5)
+        paired = "Paired: yes" in info
+        connected = "Connected: yes" in info
+        if connected:
+            status = "connected"
+        elif paired:
+            status = "paired"
+        else:
+            status = "available"
+        devices.append((addr, name, status))
+    # Sort: connected first, then paired, then available
+    order = {"connected": 0, "paired": 1, "available": 2}
+    devices.sort(key=lambda d: order.get(d[2], 3))
+    return devices
+
+
+# ── curses app ────────────────────────────────────────────────────────
+
+class BluetoothTUI:
+    def __init__(self, stdscr: curses.window):
+        self.stdscr = stdscr
+        self.devices: list[tuple[str, str, str]] = []
+        self.selected = 0
+        self.scanning = False
+        self.busy = False
+        self.status_msg = "Press r to scan, Enter to pair"
+        self.log_lines: list[str] = []
+        self.pin_prompt = None      # str | None  — PIN to display
+        self.confirm_prompt = None  # str | None  — passkey to confirm
+        self._scan_proc = None      # (pid, fd) for background scan
+        self._pair_proc = None      # (pid, fd) for pairing session
+        self._pair_addr = None
+        self._pair_state = ""
+        self._recent = ""
+        self._line_buf = ""
+        self._sent_yes = False
+        self._quit = False
+
+    # ── lifecycle ──
+
+    def run(self):
+        self._init_curses()
+        self.refresh_devices()
+        while not self._quit:
+            self._draw()
+            self._poll()
+            self._handle_input()
+        self._cleanup()
+
+    def _init_curses(self):
+        curses.curs_set(0)
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+        curses.start_color()
+        try:
+            curses.use_default_colors()
+            curses.init_pair(1, curses.COLOR_GREEN, -1)   # connected
+            curses.init_pair(2, curses.COLOR_YELLOW, -1)  # paired
+            curses.init_pair(3, curses.COLOR_CYAN, -1)    # available
+            curses.init_pair(4, curses.COLOR_RED, -1)     # error/busy
+            curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_WHITE)  # selected
+        except curses.error:
+            pass
+        self.stdscr.timeout(200)  # 200ms poll interval
+
+    def _cleanup(self):
+        self._stop_scan()
+        self._stop_pair()
+        curses.curs_set(1)
+        curses.nocbreak()
+        self.stdscr.keypad(False)
+        curses.echo()
+        curses.endwin()
+
+    # ── scanning ──
+
+    def start_scan(self):
+        if self.scanning or self.busy:
+            return
+        self._stop_scan()
+        subprocess.run(
+            ["rfkill", "unblock", "bluetooth"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
+        )
+        subprocess.run(
+            ["bluetoothctl", "power", "on"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+        )
+        subprocess.run(
+            ["bluetoothctl", "pairable", "on"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5,
+        )
+        pid, fd = pty_spawn(["bluetoothctl"])
+        self._scan_proc = (pid, fd)
+        self.scanning = True
+        self.status_msg = "Scanning... (press r to stop)"
+        self.log_lines.append("[scan] started")
+        send(fd, "scan on")
+
+    def _stop_scan(self):
+        if self._scan_proc:
+            pid, fd = self._scan_proc
+            send(fd, "scan off")
+            send(fd, "quit")
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass
+            self._scan_proc = None
+        self.scanning = False
+
+    def _poll_scan(self):
+        """Read scan output, update device list."""
+        if not self._scan_proc:
+            return
+        _, fd = self._scan_proc
+        readable, _, _ = select.select([fd], [], [], 0)
+        if not readable:
+            return
+        try:
+            chunk = os.read(fd, 4096).decode(errors="replace")
+        except OSError:
+            self.scanning = False
+            return
+        if not chunk:
+            return
+        c = clean(chunk)
+        for line in c.splitlines():
+            # Only [NEW] lines add new devices with a name
+            m = NEW_DEVICE_RE.search(line)
+            if m:
+                addr = m.group(1)
+                name = m.group(2).strip()
+                self._merge_device(addr, name)
+            else:
+                # [CHG] Device lines may update known devices
+                m = DEVICE_RE.search(line)
+                if m:
+                    addr = m.group(1)
+                    self._merge_device(addr, "")  # just ensure it exists
+
+    def _merge_device(self, addr, name):
+        """Quick in-memory merge without calling bluetoothctl info every time."""
+        for i, (a, n, s) in enumerate(self.devices):
+            if a.upper() == addr.upper():
+                if name and name != n:
+                    self.devices[i] = (a, name, s)
+                return
+        self.devices.append((addr, name, "available"))
+
+    def refresh_devices(self):
+        """Full refresh from bluetoothctl."""
+        self.devices = get_devices()
+
+    # ── pairing ──
+
+    def start_pair(self, addr: str, name: str):
+        if self.busy:
+            return
+        self._stop_scan()
+        self.busy = True
+        self._pair_addr = addr
+        self._pair_state = "connecting"
+        self.pin_prompt = None
+        self.confirm_prompt = None
+        self._sent_yes = False
+        self._recent = ""
+        self._line_buf = ""
+        self.status_msg = f"Pairing with {name}..."
+        self.log_lines.append(f"[pair] starting pair+connect for {addr}")
+
+        pid, fd = pty_spawn(["bluetoothctl"])
+        self._pair_proc = (pid, fd)
+        send(fd, "power on")
+        send(fd, "agent on")
+        send(fd, "default-agent")
+        send(fd, "pairable on")
+        # Small delay before pair to let agent register
+        import time as _time
+        _time.sleep(0.3)
+        send(fd, f"pair {addr}")
+
+    def _poll_pair(self):
+        if not self._pair_proc:
+            return
+        _, fd = self._pair_proc
+        readable, _, _ = select.select([fd], [], [], 0)
+        if not readable:
+            return
+        try:
+            chunk = os.read(fd, 4096).decode(errors="replace")
+        except OSError:
+            return
+        if not chunk:
+            return
+        c = clean(chunk)
+        self._recent = (self._recent + c)[-4000:]
+        self._line_buf += c
+
+        # Log
+        while "\n" in self._line_buf:
+            line, self._line_buf = self._line_buf.split("\n", 1)
+            line = line.strip()
+            if line:
+                self.log_lines.append(line)
+
+        # Detect PIN prompt (Legacy Pairing)
+        m = PIN_RE.search(self._recent)
+        if m and not self.pin_prompt:
+            self.pin_prompt = m.group(1)
+            self._pair_state = "pin"
+            self.log_lines.append(f"[pair] PIN code: {self.pin_prompt}")
+            # We don't send anything — user must enter PIN on the keyboard
+
+        # Detect passkey display (SSP)
+        m = PASSKEY_RE.search(self._recent)
+        if m and not self.confirm_prompt:
+            self.confirm_prompt = m.group(1)
+            self._pair_state = "confirm"
+            self.log_lines.append(f"[pair] Passkey: {self.confirm_prompt}")
+
+        m = CONFIRM_RE.search(self._recent)
+        if m and not self._sent_yes:
+            self.confirm_prompt = m.group(1)
+            self._pair_state = "confirm"
+            send(fd, "yes")
+            self._sent_yes = True
+            self.log_lines.append(f"[pair] Auto-confirmed passkey {m.group(1)}")
+
+        # Detect success
+        if PAIRED_RE.search(self._recent):
+            self._pair_state = "paired"
+            self.log_lines.append("[pair] Paired! Trusting + connecting...")
+            self._do_trust_connect()
+
+        # Detect failure
+        if re.search(r"Failed to pair|authentication\s*failed|authentication\s*timeout",
+                      self._recent, re.IGNORECASE):
+            self._pair_state = "error"
+            self.status_msg = "Pairing failed. Try again."
+            self.log_lines.append("[pair] FAILED")
+            self._stop_pair()
+
+    def _do_trust_connect(self):
+        addr = self._pair_addr
+        if not addr:
+            return
+        _, fd = self._pair_proc or (0, None)
+        if fd:
+            send(fd, f"trust {addr}")
+            send(fd, f"connect {addr}")
+        self._pair_state = "connecting"
+        self.status_msg = f"Trusting + connecting..."
+        # We'll detect connection success in _poll_pair's recent buffer
+
+    def _stop_pair(self):
+        if self._pair_proc:
+            pid, fd = self._pair_proc
+            send(fd, "quit")
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass
+            self._pair_proc = None
+        if self.busy:
+            # Final status check
+            if self._pair_addr:
+                _, info = btctl_simple("info", self._pair_addr)
+                if "Connected: yes" in info:
+                    self.status_msg = f"OK Connected to {self._pair_addr}"
+                elif "Paired: yes" in info:
+                    self.status_msg = f"Paired but not connected. Press Enter to connect."
+                else:
+                    self.status_msg = "Not paired."
+            self.busy = False
+        self._pair_addr = None
+        self.pin_prompt = None
+        self.confirm_prompt = None
+        self.refresh_devices()
+
+    # ── disconnect / forget ──
+
+    def do_disconnect(self, addr: str):
+        self.status_msg = "Disconnecting..."
+        btctl_simple("disconnect", addr, timeout=15)
+        self.refresh_devices()
+        self.status_msg = "Disconnected."
+
+    def do_forget(self, addr: str):
+        self.status_msg = "Removing..."
+        btctl_simple("remove", addr, timeout=10)
+        self.refresh_devices()
+        self.status_msg = "Device removed."
+
+    def do_connect_only(self, addr: str):
+        """Connect an already-paired device."""
+        self.status_msg = "Connecting..."
+        code, _ = btctl_simple("connect", addr, timeout=20)
+        self.refresh_devices()
+        _, info = btctl_simple("info", addr)
+        if "Connected: yes" in info:
+            self.status_msg = "OK Connected."
+        else:
+            self.status_msg = "Connection failed."
+
+    # ── input ──
+
+    def _handle_input(self):
+        key = self.stdscr.getch()
+        if key == -1:
+            return
+        if key in (ord("q"), 27):  # q, Esc
+            self._quit = True
+        elif key == ord("r"):
+            if self.scanning:
+                self._stop_scan()
+                self.refresh_devices()
+                self.status_msg = "Scan stopped."
+            else:
+                self.start_scan()
+        elif key in (ord("j"), curses.KEY_DOWN):
+            if self.devices and self.selected < len(self.devices) - 1:
+                self.selected += 1
+        elif key in (ord("k"), curses.KEY_UP):
+            if self.devices and self.selected > 0:
+                self.selected -= 1
+        elif key == ord("\n") or key == curses.KEY_ENTER:
+            if self.devices and not self.busy:
+                addr, name, status = self.devices[self.selected]
+                if status == "connected":
+                    self.do_disconnect(addr)
+                elif status == "paired":
+                    self.do_connect_only(addr)
+                else:
+                    self.start_pair(addr, name)
+        elif key == ord("d"):
+            if self.devices and not self.busy:
+                addr, name, status = self.devices[self.selected]
+                if status == "connected":
+                    self.do_disconnect(addr)
+        elif key == ord("f"):
+            if self.devices and not self.busy:
+                addr, name, status = self.devices[self.selected]
+                self.do_forget(addr)
+
+    # ── poll ──
+
+    def _poll(self):
+        self._poll_scan()
+        self._poll_pair()
+
+    # ── drawing ──
+
+    def _draw(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.erase()
+
+        # Title
+        title = " Bluetooth Manager "
+        try:
+            self.stdscr.addnstr(0, 0, title.center(w)[:w], w, curses.A_BOLD)
+        except curses.error:
+            pass
+
+        # Status bar
+        status = self.status_msg
+        try:
+            self.stdscr.addnstr(h - 2, 0, status[:w], w, curses.A_DIM)
+        except curses.error:
+            pass
+
+        # Help bar
+        help_text = "j/k navigate  Enter pair/connect  d disconnect  f forget  r scan  q quit"
+        try:
+            self.stdscr.addnstr(h - 1, 0, help_text[:w], w, curses.A_DIM)
+        except curses.error:
+            pass
+
+        # PIN / confirm prompt (centered popup area)
+        if self.pin_prompt or self.confirm_prompt:
+            self._draw_prompt(h, w)
+            return
+
+        # Device list
+        list_top = 2
+        list_bottom = h - 3
+        list_height = list_bottom - list_top
+        if list_height < 1:
+            return
+
+        # Scroll offset
+        scroll = 0
+        if len(self.devices) > list_height:
+            scroll = max(0, min(self.selected - list_height // 2, len(self.devices) - list_height))
+
+        if not self.devices:
+            msg = "No devices found. Press r to scan."
+            try:
+                self.stdscr.addnstr(list_top, 0, msg[:w], w, curses.A_DIM)
+            except curses.error:
+                pass
+        else:
+            visible = self.devices[scroll:scroll + list_height]
+            for i, (addr, name, status) in enumerate(visible):
+                row = list_top + i
+                is_selected = (scroll + i) == self.selected
+                if is_selected:
+                    attr = curses.color_pair(5) if curses.has_colors() else curses.A_REVERSE
+                else:
+                    colors = {
+                        "connected": curses.color_pair(1),
+                        "paired": curses.color_pair(2),
+                        "available": curses.color_pair(3),
+                    }
+                    attr = colors.get(status, curses.A_NORMAL)
+                icon = {"connected": "[*]", "paired": "[~]", "available": "[ ]"}.get(status, "[ ]")
+                # Truncate safely
+                name_str = name[:w - 30] if w > 30 else ""
+                line = f" {icon} {name_str:<20} {addr}"
+                try:
+                    self.stdscr.addnstr(row, 0, line[:w], w, attr)
+                except curses.error:
+                    pass
+
+        # Log (last 5 lines below device list)
+        if self.log_lines:
+            log_top = list_top + min(len(self.devices), list_height) + 1
+            for i, line in enumerate(self.log_lines[-5:]):
+                if log_top + i < list_bottom:
+                    try:
+                        self.stdscr.addnstr(log_top + i, 0, line[:w], w, curses.A_DIM)
+                    except curses.error:
+                        pass
+
+        self.stdscr.refresh()
+
+    def _draw_prompt(self, h: int, w: int):
+        """Draw PIN/confirm prompt in the center."""
+        if self.pin_prompt:
+            lines = [
+                "+-----------------------------------+",
+                "|        PIN Code from device:      |",
+                f"|          {self.pin_prompt:>10}          |",
+                "|  Type this on your keyboard +Enter|",
+                "+-----------------------------------+",
+            ]
+        else:
+            lines = [
+                "+-----------------------------------+",
+                "|        Confirm Passkey:           |",
+                f"|          {self.confirm_prompt:>10}          |",
+                "|  Auto-confirming...               |",
+                "+-----------------------------------+",
+            ]
+        box_h = len(lines)
+        box_w = max(len(l) for l in lines) + 2
+        top = (h - box_h) // 2
+        left = max(0, (w - box_w) // 2)
+        for i, line in enumerate(lines):
+            try:
+                self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), curses.A_BOLD)
+            except curses.error:
+                pass
+        self.stdscr.refresh()
+
+
+# ── main ──────────────────────────────────────────────────────────────
+
+def main():
+    try:
+        return curses.wrapper(lambda stdscr: BluetoothTUI(stdscr).run())
+    except KeyboardInterrupt:
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

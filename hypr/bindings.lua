@@ -32,6 +32,9 @@ o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
 
 o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 
+-- Bluetooth pairing TUI
+o.bind("SUPER + CTRL + B", "Bluetooth", "$HOME/.config/omd/bin/omd-launch-bluetooth")
+
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
 hl.unbind("SUPER + mouse:273")

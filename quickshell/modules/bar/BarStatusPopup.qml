@@ -1125,7 +1125,7 @@ Scope {
                     if (Bluetooth.defaultAdapter)
                         Bluetooth.defaultAdapter.enabled = checked;
                 }
-                onSettingsClicked: root.openDialog("bluetooth")
+                onSettingsClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`])
             }
         }
     }
@@ -1160,14 +1160,14 @@ Scope {
                 enabled: BluetoothStatus.available
                 showSettingsButton: true
                 onToggled: checked => { if (Bluetooth.defaultAdapter) Bluetooth.defaultAdapter.enabled = checked }
-                onSettingsClicked: root.openDialog("bluetooth")
+                onSettingsClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`])
                 showDivider: false
             }
 
             PopupFooterLink {
                 Layout.fillWidth: true
-                label: "Bluetooth settings…"
-                onClicked: root.openDialog("bluetooth")
+                label: "Bluetooth pairing TUI…"
+                onClicked: Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-bluetooth`])
             }
         }
     }
@@ -1188,25 +1188,36 @@ Scope {
             readonly property bool sinkMuted: sink?.audio.muted ?? false
             readonly property bool sourceMuted: source?.audio.muted ?? false
             readonly property MprisPlayer activePlayer: MprisController.activePlayer
-            // Only show the media strip while something is actually playing.
-            // Paused/idle browser MPRIS sessions stay hidden so the row does not
-            // look clickable when nothing will happen.
-            readonly property bool showMediaControls: MprisController.displayPlaying
-                && (MprisController.displayTitle.length > 0
-                    || MprisController.displayPlayerName.length > 0)
+            // The controller exposes only Playing or Paused sessions. Stopped
+            // and destroyed sessions resolve to null and remove this strip.
+            readonly property bool showMediaControls: activePlayer !== null
             readonly property string trackTitle: {
-                const t = StringUtils.cleanMusicTitle(MprisController.displayTitle)
+                const t = StringUtils.cleanMusicTitle(activePlayer?.trackTitle || "")
                 return t.length > 0 ? t : "Untitled"
             }
-            readonly property string trackArtist: MprisController.displayArtist
-            readonly property bool isPlaying: MprisController.displayPlaying
-            readonly property string playerName: MprisController.displayPlayerName
+            readonly property string trackArtist: {
+                const artist = activePlayer?.trackArtist || ""
+                return artist === "Unknown Artist" ? "" : artist
+            }
+            readonly property bool isPlaying: activePlayer?.playbackState === MprisPlaybackState.Playing
+            readonly property string playerName: MprisController.playerIdentity(activePlayer)
+            readonly property bool chromiumPlayer: {
+                const identity = (activePlayer?.identity || "").toLowerCase()
+                return identity.includes("chrome") || identity.includes("chromium")
+            }
+            readonly property bool usePlayerVolume: !!activePlayer
+                && activePlayer.volumeSupported
+                && !chromiumPlayer
+            readonly property bool mediaMuted: usePlayerVolume
+                ? activePlayer.volume <= 0.001
+                : sinkMuted
+            property real mediaRestoreVolume: 1
             readonly property string mediaSubtitle: {
                 if (audioPanel.trackArtist.length > 0)
                     return audioPanel.trackArtist
                 if (audioPanel.playerName.length > 0)
                     return audioPanel.playerName
-                return "Playing"
+                return audioPanel.isPlaying ? "Playing" : "Paused"
             }
 
             function pinOpen() { GlobalStates.barPopupEphemeral = false; }
@@ -1214,15 +1225,33 @@ Scope {
             function setSourceVolume(value) { audioPanel.pinOpen(); Audio.setSourceVolume(value); }
             function mediaPrev() {
                 audioPanel.pinOpen()
-                MprisController.previous()
+                MprisController.previousOrRewind()
             }
             function mediaToggle() {
                 audioPanel.pinOpen()
-                MprisController.togglePlaying()
+                activePlayer?.togglePlaying()
             }
             function mediaNext() {
                 audioPanel.pinOpen()
-                MprisController.next()
+                activePlayer?.next()
+            }
+            function toggleMediaMute() {
+                audioPanel.pinOpen()
+                if (!audioPanel.usePlayerVolume) {
+                    Audio.toggleMute()
+                    return
+                }
+                const volume = audioPanel.activePlayer.volume
+                if (volume > 0.001) {
+                    audioPanel.mediaRestoreVolume = volume
+                    audioPanel.activePlayer.volume = 0
+                } else {
+                    audioPanel.activePlayer.volume = Math.max(0.01, audioPanel.mediaRestoreVolume)
+                }
+            }
+            function focusMediaPlayer() {
+                root.close()
+                Qt.callLater(() => MprisController.raiseActivePlayer())
             }
 
             ColumnLayout {
@@ -1279,46 +1308,114 @@ Scope {
                         anchors.rightMargin: 10
                         spacing: 10
 
-                        // Playing pulse dot
-                        Rectangle {
-                            Layout.preferredWidth: 8
-                            Layout.preferredHeight: 8
+                        Item {
+                            Layout.preferredWidth: 32
+                            Layout.preferredHeight: 32
                             Layout.alignment: Qt.AlignVCenter
-                            radius: 4
-                            color: TuiStyle.accent
 
-                            SequentialAnimation on opacity {
-                                running: audioPanel.showMediaControls
-                                loops: Animation.Infinite
-                                NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
-                                NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: audioPanel.mediaMuted ? "volume_off" : "volume_up"
+                                iconSize: 19
+                                color: audioPanel.mediaMuted ? TuiStyle.danger : TuiStyle.fg
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: audioPanel.toggleMediaMute()
                             }
                         }
 
-                        ColumnLayout {
+                        Rectangle {
+                            id: mediaArtwork
+                            Layout.preferredWidth: 42
+                            Layout.preferredHeight: 42
+                            Layout.alignment: Qt.AlignVCenter
+                            radius: 8
+                            color: TuiStyle.surfaceSubtle
+                            border.width: 1
+                            border.color: TuiStyle.line
+                            clip: true
+
+                            Image {
+                                id: mediaArtworkImage
+                                anchors.fill: parent
+                                source: TrackArt.resolvedArtUrl
+                                asynchronous: true
+                                cache: true
+                                fillMode: Image.PreserveAspectCrop
+                            }
+
+                            MaterialSymbol {
+                                anchors.centerIn: parent
+                                visible: mediaArtworkImage.status !== Image.Ready
+                                text: "album"
+                                iconSize: 23
+                                color: TuiStyle.dim
+                            }
+
+                            // Playing pulse; paused media keeps a quiet static dot.
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 3
+                                width: 8
+                                height: 8
+                                radius: 4
+                                color: audioPanel.isPlaying ? TuiStyle.accent : TuiStyle.dim
+                                border.width: 1
+                                border.color: TuiStyle.bg
+
+                                SequentialAnimation on opacity {
+                                    running: audioPanel.isPlaying
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 1.0; to: 0.35; duration: 900 }
+                                    NumberAnimation { from: 0.35; to: 1.0; duration: 900 }
+                                }
+                            }
+                        }
+
+                        Item {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            spacing: 2
+                            Layout.preferredHeight: 42
 
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: audioPanel.trackTitle
-                                color: TuiStyle.fg
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
+                            Column {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+
+                                StyledText {
+                                    width: parent.width
+                                    text: audioPanel.trackTitle
+                                    color: mediaTitleMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    width: parent.width
+                                    text: audioPanel.mediaSubtitle
+                                    color: TuiStyle.dim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                }
                             }
 
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: audioPanel.mediaSubtitle
-                                color: TuiStyle.dim
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                elide: Text.ElideRight
+                            MouseArea {
+                                id: mediaTitleMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: audioPanel.focusMediaPlayer()
                             }
                         }
 
-                        // Transport cluster — only while playing (panel is hidden when paused/stopped)
+                        // Transport controls remain available while paused.
                         RowLayout {
                             Layout.alignment: Qt.AlignVCenter
                             spacing: 2
@@ -1326,7 +1423,7 @@ Scope {
                             Item {
                                 Layout.preferredWidth: 32
                                 Layout.preferredHeight: 32
-                                opacity: MprisController.canGoPrevious ? 1 : 0.3
+                                opacity: audioPanel.activePlayer?.canGoPrevious ? 1 : 0.3
 
                                 MaterialSymbol {
                                     anchors.centerIn: parent
@@ -1336,7 +1433,7 @@ Scope {
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    enabled: MprisController.canGoPrevious
+                                    enabled: audioPanel.activePlayer?.canGoPrevious ?? false
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: audioPanel.mediaPrev()
                                 }
@@ -1346,13 +1443,13 @@ Scope {
                                 Layout.preferredWidth: 36
                                 Layout.preferredHeight: 36
                                 radius: 18
-                                color: playMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.accentSoft
+                                color: playMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.selection
                                 border.width: 1
                                 border.color: TuiStyle.accent
 
                                 MaterialSymbol {
                                     anchors.centerIn: parent
-                                    text: "pause"
+                                    text: audioPanel.isPlaying ? "pause" : "play_arrow"
                                     iconSize: 20
                                     color: TuiStyle.accent
                                 }
@@ -1360,6 +1457,7 @@ Scope {
                                     id: playMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
+                                    enabled: audioPanel.showMediaControls
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: audioPanel.mediaToggle()
                                 }
@@ -1368,7 +1466,7 @@ Scope {
                             Item {
                                 Layout.preferredWidth: 32
                                 Layout.preferredHeight: 32
-                                opacity: MprisController.canGoNext ? 1 : 0.3
+                                opacity: audioPanel.activePlayer?.canGoNext ? 1 : 0.3
 
                                 MaterialSymbol {
                                     anchors.centerIn: parent
@@ -1378,7 +1476,7 @@ Scope {
                                 }
                                 MouseArea {
                                     anchors.fill: parent
-                                    enabled: MprisController.canGoNext
+                                    enabled: audioPanel.activePlayer?.canGoNext ?? false
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: audioPanel.mediaNext()
                                 }
@@ -1463,14 +1561,23 @@ Scope {
                         }
                     }
 
-                    ColumnLayout {
+                    Item {
+                        id: outputDetails
                         Layout.fillWidth: true
-                        spacing: 0
-                        visible: outputPicker.expanded && outputPicker.expandable
+                        readonly property real contentHeight: outputPicker.deviceCount * 40
+                        readonly property bool revealed: outputPicker.expanded && outputPicker.expandable
+                        Layout.preferredHeight: revealed ? contentHeight : 0
+                        clip: true
 
-                        Repeater {
-                            model: Audio.typedSinks
-                            delegate: Rectangle {
+                        ColumnLayout {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            spacing: 0
+
+                            Repeater {
+                                model: Audio.typedSinks
+                                delegate: Rectangle {
                                 id: sinkRow
                                 required property var modelData
                                 readonly property var node: modelData
@@ -1515,6 +1622,7 @@ Scope {
                                         Audio.setDefaultSink(sinkRow.node)
                                         outputPicker.expanded = false
                                     }
+                                }
                                 }
                             }
                         }
@@ -1594,14 +1702,23 @@ Scope {
                         }
                     }
 
-                    ColumnLayout {
+                    Item {
+                        id: inputDetails
                         Layout.fillWidth: true
-                        spacing: 0
-                        visible: inputPicker.expanded && inputPicker.expandable
+                        readonly property real contentHeight: inputPicker.deviceCount * 40
+                        readonly property bool revealed: inputPicker.expanded && inputPicker.expandable
+                        Layout.preferredHeight: revealed ? contentHeight : 0
+                        clip: true
 
-                        Repeater {
-                            model: Audio.typedSources
-                            delegate: Rectangle {
+                        ColumnLayout {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            spacing: 0
+
+                            Repeater {
+                                model: Audio.typedSources
+                                delegate: Rectangle {
                                 id: sourceRow
                                 required property var modelData
                                 readonly property var node: modelData
@@ -1646,6 +1763,7 @@ Scope {
                                         Audio.setDefaultSource(sourceRow.node)
                                         inputPicker.expanded = false
                                     }
+                                }
                                 }
                             }
                         }

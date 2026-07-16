@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the OMD Bluetooth pairing TUI
+
+rfkill unblock bluetooth
+exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.bluetooth-tui -e python3 "$HOME/.config/omd/bin/omd-bluetooth-tui"
