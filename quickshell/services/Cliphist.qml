@@ -169,7 +169,9 @@ Singleton {
                 for (var i = 0; i < buf.length; i++) {
                     var line = buf[i]
                     var text = line.replace(/^\s*\S+\s+/, "")
-                    if (text.length === 0) continue
+                    var trimmed = text.trim()
+                    if (trimmed.length === 0) continue
+                    if (trimmed.indexOf("/tmp/omd-clip-") !== -1) continue
                     if (seen.has(text)) continue
                     seen.add(text)
                     deduped.push(line)

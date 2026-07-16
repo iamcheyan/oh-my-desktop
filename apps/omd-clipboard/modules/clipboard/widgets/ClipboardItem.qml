@@ -118,7 +118,7 @@ Rectangle {
 
         StyledText {
             visible: root.itemIndex < 9
-            text: `⌘${root.itemIndex + 1}`
+            text: `${root.itemIndex + 1}`
             color: root.selected ? TuiStyle.bg : "#7c7c82"
             font.family: Appearance.font.family.main
             font.pixelSize: 11
