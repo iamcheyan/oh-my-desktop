@@ -350,11 +350,6 @@ class BluetoothTUI:
     def _cleanup(self):
         self._stop_scan()
         self._stop_pair()
-        curses.curs_set(1)
-        curses.nocbreak()
-        self.stdscr.keypad(False)
-        curses.echo()
-        curses.endwin()
 
     # ── scanning ──
 
