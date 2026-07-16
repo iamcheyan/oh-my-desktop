@@ -553,13 +553,17 @@ PanelWindow {
         }
         onPositionChanged: (mouse) => {
             root.shiftPressed = (mouse.modifiers & Qt.ShiftModifier) !== 0;
-            root.updateTargetedRegion(mouse.x, mouse.y);
-            if (!root.dragging) return;
+            if (!root.dragging) {
+                root.updateTargetedRegion(mouse.x, mouse.y);
+                return;
+            }
             root.draggingX = mouse.x;
             root.draggingY = mouse.y;
             root.dragDiffX = mouse.x - root.dragStartX;
             root.dragDiffY = mouse.y - root.dragStartY;
-            root.points.push({ x: mouse.x, y: mouse.y });
+            if (root.selectionMode === RegionSelection.SelectionMode.Circle) {
+                root.points.push({ x: mouse.x, y: mouse.y });
+            }
         }
         
         Loader {
@@ -595,16 +599,11 @@ PanelWindow {
             }
         }
 
-        // The thing to the bottom-right with an icon
         CursorGuide {
             z: 9999
-            visible: root.phase === RegionSelection.Phase.Select
-            x: root.dragging
-                ? (root.draggingX >= root.dragStartX ? root.regionX + root.regionWidth : root.regionX)
-                : mouseArea.mouseX
-            y: root.dragging
-                ? (root.draggingY >= root.dragStartY ? root.regionY + root.regionHeight : root.regionY)
-                : mouseArea.mouseY
+            visible: root.phase === RegionSelection.Phase.Select && root.dragging
+            x: root.regionX + root.regionWidth - width / 2
+            y: root.regionY + root.regionHeight - height / 2
             action: root.action
             selectionMode: root.selectionMode
         }
@@ -731,6 +730,36 @@ PanelWindow {
                 spacing: 8
                 enabled: root.postCaptureReady
                 opacity: root.postCaptureReady ? 1 : 0.45
+
+                Rectangle {
+                    id: copyButton
+                    width: 40; height: 40; radius: 8
+                    color: copyMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+                    border.width: 1
+                    border.color: copyMouse.containsMouse ? TuiStyle.controlActiveBorder : TuiStyle.menuBorder
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 22
+                        color: copyMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
+                        text: "content_copy"
+                    }
+
+                    MouseArea {
+                        id: copyMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Quickshell.execDetached(ScreenshotAction.getTempFileCommand(
+                                root.tempScreenshotPath,
+                                ScreenshotAction.Action.Copy,
+                                ""
+                            ));
+                            root.dismiss();
+                        }
+                    }
+                }
 
                 Rectangle {
                     id: saveButton

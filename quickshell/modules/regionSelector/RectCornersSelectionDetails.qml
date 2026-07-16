@@ -17,23 +17,49 @@ Item {
 
     property bool breathingBorderOnly: false
 
-    // Overlay to darken screen
-    // Base dark overlay around region
+    readonly property real safeX: Math.max(0, Math.min(root.regionX, root.width))
+    readonly property real safeY: Math.max(0, Math.min(root.regionY, root.height))
+    readonly property real safeRight: Math.max(root.safeX, Math.min(root.regionX + root.regionWidth, root.width))
+    readonly property real safeBottom: Math.max(root.safeY, Math.min(root.regionY + root.regionHeight, root.height))
+    readonly property bool showOverlay: root.captureReady && !root.breathingBorderOnly
+
+    // Four simple rectangles avoid the full-screen-width border previously
+    // rebuilt for every pointer movement.
     Rectangle {
-        id: darkenOverlay
         z: 1
-        visible: root.captureReady && !root.breathingBorderOnly
-        anchors {
-            left: parent.left
-            top: parent.top
-            leftMargin: root.regionX - darkenOverlay.border.width
-            topMargin: root.regionY - darkenOverlay.border.width
-        }
-        width: root.regionWidth + darkenOverlay.border.width * 2
-        height: root.regionHeight + darkenOverlay.border.width * 2
-        color: "transparent"
-        border.color: root.overlayColor
-        border.width: Math.max(root.width, root.height)
+        visible: root.showOverlay
+        x: 0
+        y: 0
+        width: root.width
+        height: root.safeY
+        color: root.overlayColor
+    }
+    Rectangle {
+        z: 1
+        visible: root.showOverlay
+        x: 0
+        y: root.safeBottom
+        width: root.width
+        height: Math.max(0, root.height - root.safeBottom)
+        color: root.overlayColor
+    }
+    Rectangle {
+        z: 1
+        visible: root.showOverlay
+        x: 0
+        y: root.safeY
+        width: root.safeX
+        height: Math.max(0, root.safeBottom - root.safeY)
+        color: root.overlayColor
+    }
+    Rectangle {
+        z: 1
+        visible: root.showOverlay
+        x: root.safeRight
+        y: root.safeY
+        width: Math.max(0, root.width - root.safeRight)
+        height: Math.max(0, root.safeBottom - root.safeY)
+        color: root.overlayColor
     }
 
     DashedBorder {

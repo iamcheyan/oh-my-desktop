@@ -37,6 +37,17 @@ Scope {
         }
     }
     property var selectionMode: RegionSelection.SelectionMode.RectCorners
+    readonly property string targetMonitor: Quickshell.env("OMD_SCREENSHOT_MONITOR") ?? ""
+
+    function targetScreens() {
+        const screens = Quickshell.screens;
+        if (!screens || screens.length === 0) return [];
+        if (root.targetMonitor === "") return [screens[0]];
+        for (let i = 0; i < screens.length; i++) {
+            if (screens[i].name === root.targetMonitor) return [screens[i]];
+        }
+        return [screens[0]];
+    }
 
     onActionChanged: {
         if (action === RegionSelection.SnipAction.Search && Config.options.search.imageSearch.useCircleSelection) {
@@ -47,7 +58,7 @@ Scope {
     }
 
     Variants {
-        model: Quickshell.screens
+        model: root.targetScreens()
         delegate: Loader {
             id: regionSelectorLoader
             required property var modelData
