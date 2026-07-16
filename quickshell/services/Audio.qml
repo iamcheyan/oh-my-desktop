@@ -131,18 +131,42 @@ Singleton {
     }
 
     // ── Device selection ─────────────────────────────────────────────────
+    function nodeObjectId(node) {
+        if (!node)
+            return "";
+        // Quickshell PwNode.id is the PipeWire object id used by wpctl.
+        const id = node.id;
+        if (id !== undefined && id !== null && id !== "")
+            return id.toString();
+        const serial = node.properties?.["object.serial"];
+        if (serial !== undefined && serial !== null && serial !== "")
+            return serial.toString();
+        return "";
+    }
+
     function setDefaultSink(node) {
-        if (!node) return false
-        Pipewire.preferredDefaultAudioSink = node
-        Quickshell.execDetached(["wpctl", "set-default", node.id.toString()])
-        return true
+        if (!node)
+            return false;
+        Pipewire.preferredDefaultAudioSink = node;
+        const id = nodeObjectId(node);
+        if (id.length)
+            Quickshell.execDetached(["wpctl", "set-default", id]);
+        // Fallback: some sessions honor pactl name better than a stale id.
+        if (node.name)
+            Quickshell.execDetached(["pactl", "set-default-sink", node.name]);
+        return true;
     }
 
     function setDefaultSource(node) {
-        if (!node) return false
-        Pipewire.preferredDefaultAudioSource = node
-        Quickshell.execDetached(["wpctl", "set-default", node.id.toString()])
-        return true
+        if (!node)
+            return false;
+        Pipewire.preferredDefaultAudioSource = node;
+        const id = nodeObjectId(node);
+        if (id.length)
+            Quickshell.execDetached(["wpctl", "set-default", id]);
+        if (node.name)
+            Quickshell.execDetached(["pactl", "set-default-source", node.name]);
+        return true;
     }
 
     function setDefaultSinkByName(name) {

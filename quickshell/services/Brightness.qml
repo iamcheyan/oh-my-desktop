@@ -18,6 +18,9 @@ Singleton {
     id: root
     signal brightnessChanged()
 
+    // Last monitor that received a brightness change (for OSD pinning).
+    property string lastAdjustedScreenName: ""
+
     Component.onCompleted: {
         ddcMonitors = [];
         ddcProc.running = true;
@@ -33,45 +36,53 @@ Singleton {
         return monitors.find(m => m.screen.name === screen.name);
     }
 
+    function getFocusedScreen(): var {
+        const name = Hyprland.focusedMonitor?.name ?? "";
+        return Quickshell.screens.find(s => s.name === name) ?? Quickshell.screens[0] ?? null;
+    }
+
+    function isInternalScreen(screen: ShellScreen): bool {
+        if (!screen) return false;
+        const n = screen.name;
+        return n.startsWith("eDP") || n.startsWith("LVDS") || n.startsWith("DSI") || n.startsWith("DPI");
+    }
+
+    /**
+     * Adjust brightness for one screen only.
+     * - Internal panel: brightnessctl (per-device when possible)
+     * - External + DDC: ddcutil on that bus
+     * - External without DDC: no-op (do NOT fall back to global hyprsunset gamma —
+     *   that would dim every monitor)
+     */
     function adjustBrightnessForScreen(screen: ShellScreen, increase: bool): void {
         const monitor = getMonitorForScreen(screen);
-        if (!monitor) return;
+        if (!monitor || !screen) return;
 
-        const isInternal = screen.name.startsWith("eDP") || screen.name.startsWith("LVDS") || screen.name.startsWith("DSI");
+        root.lastAdjustedScreenName = screen.name;
+
+        const isInternal = isInternalScreen(screen);
         const hasHardwareControl = isInternal || monitor.isDdc;
 
         if (!hasHardwareControl) {
-            if (increase) {
-                Hyprsunset.setGamma(Hyprsunset.gamma + 5);
-            } else {
-                Hyprsunset.setGamma(Hyprsunset.gamma - 5);
-            }
+            // Cannot control this output's backlight. Leave other monitors alone.
+            root.brightnessChanged();
             return;
         }
 
+        // Only touch THIS monitor's brightness — never global gamma here.
         if (increase) {
-            if (Hyprsunset.gamma !== 100) {
-                Hyprsunset.setGamma(Hyprsunset.gamma + 5);
-            } else {
-                monitor.setBrightness(monitor.brightness + 0.05);
-            }
+            monitor.setBrightness(Math.min(1, monitor.brightness + 0.05));
         } else {
-            if (monitor.brightness > 0) {
-                monitor.setBrightness(monitor.brightness - 0.05);
-            } else {
-                Hyprsunset.setGamma(Hyprsunset.gamma - 5);
-            }
+            monitor.setBrightness(Math.max(0, monitor.brightness - 0.05));
         }
     }
 
     function increaseBrightness(): void {
-        const focusedScreen = Quickshell.screens.find(s => Hyprland.focusedMonitor.name === s.name) ?? Quickshell.screens[0];
-        adjustBrightnessForScreen(focusedScreen, true);
+        adjustBrightnessForScreen(getFocusedScreen(), true);
     }
 
     function decreaseBrightness(): void {
-        const focusedScreen = Quickshell.screens.find(s => Hyprland.focusedMonitor.name === s.name) ?? Quickshell.screens[0];
-        adjustBrightnessForScreen(focusedScreen, false);
+        adjustBrightnessForScreen(getFocusedScreen(), false);
     }
 
     reloadableId: "brightness"
@@ -129,6 +140,7 @@ Singleton {
 
         onBrightnessChanged: {
             if (!monitor.ready) return;
+            root.lastAdjustedScreenName = monitor.screen?.name ?? root.lastAdjustedScreenName;
             root.brightnessChanged();
         }
 
@@ -145,7 +157,19 @@ Singleton {
             const match = root.ddcMonitors.find(m => m.name === screen.name && !root.monitors.slice(0, root.monitors.indexOf(this)).some(mon => mon.busNum === m.busNum));
             isDdc = !!match;
             busNum = match?.busNum ?? "";
-            initProc.command = isDdc ? ["ddcutil", "-b", busNum, "getvcp", "10", "--brief"] : ["sh", "-c", `echo "a b c $(brightnessctl g) $(brightnessctl m)"`];
+            // Only internal panels share brightnessctl; externals without DDC stay inert.
+            if (isDdc) {
+                initProc.command = ["ddcutil", "-b", busNum, "getvcp", "10", "--brief"];
+            } else if (root.isInternalScreen(screen)) {
+                initProc.command = ["sh", "-c", `echo "a b c $(brightnessctl g) $(brightnessctl m)"`];
+            } else {
+                // External, no DDC: mark ready with a neutral value; setBrightness is a no-op.
+                monitor.rawMaxBrightness = 100;
+                monitor.brightness = 1;
+                monitor.ready = true;
+                initializeMonitor(root.monitors.indexOf(monitor) + 1);
+                return;
+            }
             initProc.running = true;
         }
 
@@ -177,16 +201,23 @@ Singleton {
             if (isDdc) {
                 const rawValueRounded = Math.max(Math.floor(brightnessValue * monitor.rawMaxBrightness), 1);
                 Quickshell.execDetached(["ddcutil", "-b", busNum, "setvcp", "10", String(rawValueRounded)]);
-            } else {
+            } else if (root.isInternalScreen(screen)) {
+                // Only the internal panel uses the laptop backlight class.
                 const valuePercentNumber = Math.floor(brightnessValue * 100);
                 let valuePercent = `${valuePercentNumber}%`;
                 if (valuePercentNumber == 0) valuePercent = "1"; // Prevent fully black
-                Quickshell.execDetached(["brightnessctl", "--class", "backlight", "s", valuePercent, "--quiet"])
+                Quickshell.execDetached(["brightnessctl", "--class", "backlight", "s", valuePercent, "--quiet"]);
             }
+            // External without DDC: ignore (never call brightnessctl — that would
+            // dim the laptop panel while the user is focused on another screen).
         }
 
         function setBrightness(value: real): void {
+            // Skip hardware path for external non-DDC monitors.
+            if (!isDdc && !root.isInternalScreen(screen))
+                return;
             value = Math.max(0, Math.min(1, value));
+            root.lastAdjustedScreenName = screen?.name ?? "";
             monitor.brightness = value;
         }
 
@@ -267,11 +298,11 @@ Singleton {
         target: "brightness"
 
         function increment() {
-            onPressed: root.increaseBrightness()
+            root.increaseBrightness();
         }
 
         function decrement() {
-            onPressed: root.decreaseBrightness()
+            root.decreaseBrightness();
         }
     }
 

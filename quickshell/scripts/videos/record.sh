@@ -26,6 +26,12 @@ getactivemonitor() {
 mkdir -p "$RECORDING_DIR"
 cd "$RECORDING_DIR" || exit
 
+if ! command -v wf-recorder >/dev/null 2>&1; then
+    notify-send -u critical "Screen recording unavailable" \
+        "wf-recorder is not installed" -a 'Recorder' & disown
+    exit 127
+fi
+
 # parse --region <value> without modifying $@ so other flags like --fullscreen still work
 ARGS=("$@")
 MANUAL_REGION=""
