@@ -148,13 +148,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            Item {
-                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                Layout.fillHeight: true
-                implicitWidth: Config.options.bar.rightIconSlotWidth
-                implicitHeight: Config.options.bar.rightIconSlotWidth
-            }
-
             DisplayButton {
                 Layout.alignment: Qt.AlignVCenter
             }
