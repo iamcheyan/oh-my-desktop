@@ -239,8 +239,6 @@ PopupWindow {
                     }
                 }
 
-                Separator {}
-
                 MenuItem {
                     menuIcon: NerdIconMap.desktop
                     label: "Display Settings"
