@@ -22,7 +22,8 @@ Item {
     readonly property int edgeMargin: 14
     readonly property int menuWidth: Math.min(460, Math.max(340, width - edgeMargin * 2))
     readonly property int previewWidth: Math.min(380, Math.max(300, width - edgeMargin * 2))
-    readonly property int visibleRows: Math.min(10, Math.max(1, filteredEntries.length))
+    readonly property int maxVisibleRows: Math.floor(((screen?.height ?? 720) * 0.7 - 80) / 34)
+    readonly property int visibleRows: Math.min(maxVisibleRows, Math.max(1, filteredEntries.length))
     readonly property int menuHeight: 48 + visibleRows * 34 + 32
     readonly property var filteredEntries: searchText.length > 0 ? Cliphist.fuzzyQuery(searchText) : Cliphist.entries
     readonly property string selectedEntry: keyboardIndex >= 0 && keyboardIndex < filteredEntries.length ? filteredEntries[keyboardIndex] : ""
@@ -203,13 +204,6 @@ Item {
                                 color: "#85858a"
                                 font.pixelSize: 13
                             }
-                        }
-
-                        StyledText {
-                            text: `${filteredEntries.length}`
-                            color: TuiStyle.dim
-                            font.pixelSize: 11
-                            font.family: Appearance.font.family.main
                         }
                     }
                 }

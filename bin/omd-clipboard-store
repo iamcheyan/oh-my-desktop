@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -eu
 
 # shellcheck source=../scripts/omd-path.sh
@@ -8,8 +8,18 @@ set -eu
 # Images use image/png etc, so we need a separate watcher for each type.
 # Run text watcher in foreground, image watcher in background.
 
-wl-paste --watch sh -c '
-    cliphist store
+wl-paste --watch bash -c '
+    data=$(cat)
+    # Check if empty (whitespace only)
+    if [[ -z "${data//[[:space:]]/}" ]]; then
+        exit 0
+    fi
+    # Check if it contains /tmp/omd-clip-
+    if [[ "$data" == *"/tmp/omd-clip-"* ]]; then
+        exit 0
+    fi
+    # Store it
+    echo -n "$data" | cliphist store
     qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
     qs -p "$HOME/.config/omd/apps/omd-bar" ipc call cliphistService update 2>/dev/null || true
 ' &
