@@ -17,6 +17,17 @@ ShellRoot {
     id: root
 
     readonly property bool onDemand: (Quickshell.env("OMD_CLIPBOARD_ON_DEMAND") ?? "") === "1"
+    property real cursorX: 0
+    property real cursorY: 0
+    property real monitorX: 0
+    property real monitorY: 0
+    property bool positionReady: false
+
+    function updateCursorPosition() {
+        positionReady = false;
+        cursorPositionProc.running = false;
+        cursorPositionProc.running = true;
+    }
 
     Component.onCompleted: {
         if (onDemand) {
@@ -24,9 +35,68 @@ ShellRoot {
         }
     }
 
+    Process {
+        id: cursorPositionProc
+        command: ["hyprctl", "cursorpos", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const position = JSON.parse(text);
+                    root.cursorX = Number(position.x) || 0;
+                    root.cursorY = Number(position.y) || 0;
+                    monitorProc.running = false;
+                    monitorProc.running = true;
+                } catch (error) {
+                    console.warn("[Clipboard] Could not read cursor position:", error);
+                    root.positionReady = true;
+                }
+            }
+        }
+    }
+
+    Process {
+        id: monitorProc
+        command: ["hyprctl", "monitors", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const monitors = JSON.parse(text);
+                    const monitor = monitors.find(candidate => {
+                        const rotated = candidate.transform === 1 || candidate.transform === 3
+                            || candidate.transform === 5 || candidate.transform === 7;
+                        const scale = Number(candidate.scale) || 1;
+                        const logicalWidth = (rotated ? candidate.height : candidate.width) / scale;
+                        const logicalHeight = (rotated ? candidate.width : candidate.height) / scale;
+                        return root.cursorX >= candidate.x
+                            && root.cursorX < candidate.x + logicalWidth
+                            && root.cursorY >= candidate.y
+                            && root.cursorY < candidate.y + logicalHeight;
+                    });
+                    if (monitor) {
+                        root.monitorX = Number(monitor.x) || 0;
+                        root.monitorY = Number(monitor.y) || 0;
+                        const screens = Quickshell.screens;
+                        for (let index = 0; index < screens.length; index++) {
+                            if (screens[index].name === monitor.name) {
+                                clipboardWindow.screen = screens[index];
+                                break;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn("[Clipboard] Could not resolve cursor monitor:", error);
+                }
+                root.positionReady = true;
+                Qt.callLater(() => dialog.placeAtCursor());
+            }
+        }
+    }
+
     Connections {
         target: GlobalStates
         function onClipboardOpenChanged() {
+            if (GlobalStates.clipboardOpen)
+                root.updateCursorPosition();
             if (onDemand && !GlobalStates.clipboardOpen) {
                 Qt.quit();
             }
@@ -49,7 +119,7 @@ ShellRoot {
 
     PanelWindow {
         id: clipboardWindow
-        visible: GlobalStates.clipboardOpen
+        visible: GlobalStates.clipboardOpen && root.positionReady
 
         anchors {
             top: true
@@ -71,10 +141,8 @@ ShellRoot {
         }
 
         onVisibleChanged: {
-            if (visible) {
-                dialog.cardOffsetX = 0;
-                dialog.cardOffsetY = 0;
-            }
+            if (visible)
+                root.updateCursorPosition();
         }
 
 
@@ -103,10 +171,13 @@ ShellRoot {
 
         ClipboardDialog {
             id: dialog
-            x: (parent.width - width) / 2 + cardOffsetX
-            y: (parent.height - height) / 2 + cardOffsetY
+            anchors.fill: parent
             visible: GlobalStates.clipboardOpen
             show: GlobalStates.clipboardOpen
+            cursorGlobalX: root.cursorX
+            cursorGlobalY: root.cursorY
+            screenGlobalX: root.monitorX
+            screenGlobalY: root.monitorY
             onDismiss: clipboardWindow.close()
         }
     }

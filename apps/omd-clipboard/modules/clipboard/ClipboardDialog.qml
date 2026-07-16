@@ -4,94 +4,99 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import Qt.labs.settings
 
-Rectangle {
+Item {
     id: clipboardDialog
 
-    Settings {
-        id: clipboardSettings
-        fileName: Directories.shellConfig + "/clipboard_settings.conf"
-        property real fontScale: 1.0
-    }
-
-    readonly property real fontScale: clipboardSettings.fontScale
-
     property bool show: false
+    property real cursorGlobalX: 0
+    property real cursorGlobalY: 0
+    property real screenGlobalX: 0
+    property real screenGlobalY: 0
+    property int keyboardIndex: 0
+    property int hoveredIndex: -1
+    property string searchText: ""
+    property bool previewRequested: false
     signal dismiss()
 
-    property real cardOffsetX: 0
-    property real cardOffsetY: 0
-
-    width: Math.min(parent ? parent.width - 40 : 1000, Math.round(1000 * fontScale))
-    height: Math.min(parent ? parent.height - 40 : 640, Math.round(640 * fontScale))
-    color: "#0f0f14"
-    border.color: "#8f8f8f"
-    border.width: TuiStyle.borderWidth
-    radius: 18
-    focus: true
-    clip: true
-
-    property int keyboardIndex: 0
-    property string searchText: ""
-    property string mode: "insert" // "insert" or "normal"
+    readonly property int edgeMargin: 14
+    readonly property int menuWidth: Math.min(460, Math.max(340, width - edgeMargin * 2))
+    readonly property int previewWidth: Math.min(380, Math.max(300, width - edgeMargin * 2))
+    readonly property int visibleRows: Math.min(10, Math.max(1, filteredEntries.length))
+    readonly property int menuHeight: 48 + visibleRows * 34 + 32
     readonly property var filteredEntries: searchText.length > 0 ? Cliphist.fuzzyQuery(searchText) : Cliphist.entries
-    readonly property string currentEntry: (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length) ? filteredEntries[keyboardIndex] : ""
-    readonly property bool currentIsImage: currentEntry !== "" && Cliphist.entryIsImage(currentEntry)
+    readonly property string selectedEntry: keyboardIndex >= 0 && keyboardIndex < filteredEntries.length ? filteredEntries[keyboardIndex] : ""
+    readonly property string hoveredEntry: hoveredIndex >= 0 && hoveredIndex < filteredEntries.length ? filteredEntries[hoveredIndex] : ""
+    readonly property string previewEntry: previewRequested && hoveredEntry !== "" ? hoveredEntry : ""
+    readonly property bool previewIsImage: previewEntry !== "" && Cliphist.entryIsImage(previewEntry)
+    readonly property bool previewOnLeft: menuCard.x + menuWidth + 10 + previewWidth > width - edgeMargin
 
-    onActiveFocusChanged: {
-        if (!activeFocus && visible && show && mode === "normal")
-            clipboardDialog.forceActiveFocus();
+    function clamp(value, minimum, maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 
-    function loadCurrentPreviewActual() {
-        if (currentEntry && !currentIsImage) {
-            textDecoder.running = false;
-            textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(currentEntry)}' | ${Cliphist.cliphistBinary} decode`];
-            textDecoder.running = true;
-        } else {
-            textDecoder.running = false;
-            textDecoder.decodedText = "";
-        }
+    function placeAtCursor() {
+        if (!menuCard)
+            return;
+        const localX = cursorGlobalX - screenGlobalX;
+        const localY = cursorGlobalY - screenGlobalY;
+        menuCard.x = clamp(localX, edgeMargin, Math.max(edgeMargin, width - menuWidth - edgeMargin));
+        menuCard.y = clamp(localY, edgeMargin, Math.max(edgeMargin, height - menuHeight - edgeMargin));
     }
 
-    function loadCurrentPreview() {
-        if (!currentEntry || currentIsImage) {
-            previewDebounceTimer.stop();
-            textDecoder.running = false;
-            textDecoder.decodedText = "";
-        } else {
-            previewDebounceTimer.restart();
-        }
-    }
-
-    function copySelected() {
-        if (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length) {
-            Cliphist.paste(filteredEntries[keyboardIndex]);
-            clipboardDialog.dismiss();
-        }
+    function pasteSelected(asPath) {
+        if (selectedEntry === "")
+            return;
+        const entry = selectedEntry;
+        clipboardDialog.dismiss();
+        if (asPath && Cliphist.entryIsImage(entry))
+            Cliphist.pasteImagePath(entry);
+        else
+            Cliphist.paste(entry);
     }
 
     function deleteSelected() {
-        if (keyboardIndex >= 0 && keyboardIndex < filteredEntries.length)
-            Cliphist.deleteEntry(filteredEntries[keyboardIndex]);
+        if (selectedEntry !== "")
+            Cliphist.deleteEntry(selectedEntry);
     }
 
-    onCurrentEntryChanged: if (visible && show) loadCurrentPreview()
+    function loadPreview() {
+        if (!previewRequested || previewEntry === "" || previewIsImage) {
+            textDecoder.running = false;
+            textDecoder.decodedText = "";
+            return;
+        }
+        textDecoder.running = false;
+        textDecoder.decodedText = "";
+        textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(previewEntry)}' | ${Cliphist.cliphistBinary} decode`];
+        textDecoder.running = true;
+    }
 
-    Component.onCompleted: textDecoder.decodedText = ""
+    onPreviewEntryChanged: loadPreview()
+    onWidthChanged: if (show) placeAtCursor()
+    onHeightChanged: if (show) placeAtCursor()
 
     onVisibleChanged: {
         if (visible) {
             keyboardIndex = 0;
+            hoveredIndex = -1;
+            previewRequested = false;
             searchText = "";
             searchField.text = "";
-            mode = "normal";
-            clipboardDialog.forceActiveFocus();
             Cliphist.setDialogVisible(true);
-            loadCurrentPreview();
+            Qt.callLater(() => {
+                placeAtCursor();
+                searchField.forceActiveFocus();
+            });
         } else {
             Cliphist.setDialogVisible(false);
+        }
+    }
+
+    Connections {
+        target: Cliphist
+        function onEntriesChanged() {
+            clipboardDialog.keyboardIndex = Math.min(clipboardDialog.keyboardIndex, Math.max(0, clipboardDialog.filteredEntries.length - 1));
         }
     }
 
@@ -104,423 +109,270 @@ Rectangle {
     }
 
     Timer {
-        id: previewDebounceTimer
+        id: previewDelay
         interval: 180
         repeat: false
-        onTriggered: loadCurrentPreviewActual()
+        onTriggered: clipboardDialog.previewRequested = clipboardDialog.hoveredIndex >= 0
     }
 
-    Connections {
-        target: Cliphist
-        function onEntriesChanged() {
-            if (keyboardIndex >= filteredEntries.length)
-                keyboardIndex = Math.max(0, filteredEntries.length - 1);
-        }
-    }
+    Rectangle {
+        id: menuCard
+        width: clipboardDialog.menuWidth
+        height: clipboardDialog.menuHeight
+        color: "#1e1e22"
+        border.color: "#3c3c42"
+        border.width: 1
+        radius: 10
+        clip: true
+        focus: true
 
-    function enterInsertMode() {
-        mode = "insert";
-        searchField.forceActiveFocus();
-    }
-
-    function enterNormalMode() {
-        mode = "normal";
-        clipboardDialog.forceActiveFocus();
-    }
-
-    Keys.onPressed: event => {
-        // In insert mode, search field has focus — only handle Escape
-        if (mode === "insert") {
-            if (event.key === Qt.Key_Escape) {
-                if (searchText.length > 0) {
-                    searchText = "";
-                    searchField.text = "";
-                } else {
-                    enterNormalMode();
-                }
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Down) {
                 event.accepted = true;
-            }
-            return;
-        }
-
-        // Normal mode — vim-style keybindings
-        if (event.key === Qt.Key_J || event.key === Qt.Key_Down) {
-            event.accepted = true;
-            if (filteredEntries.length > 0)
                 keyboardIndex = Math.min(keyboardIndex + 1, filteredEntries.length - 1);
-        } else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) {
-            event.accepted = true;
-            keyboardIndex = Math.max(keyboardIndex - 1, 0);
-        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            event.accepted = true;
-            copySelected();
-        } else if (event.key === Qt.Key_D && event.modifiers === Qt.NoModifier) {
-            event.accepted = true;
-            deleteSelected();
-        } else if (event.key === Qt.Key_F || event.key === Qt.Key_Slash) {
-            event.accepted = true;
-            enterInsertMode();
-        } else if (event.key === Qt.Key_G && event.modifiers === Qt.NoModifier) {
-            event.accepted = true;
-            if (filteredEntries.length > 0)
-                keyboardIndex = 0;
-        } else if (event.key === Qt.Key_G && event.modifiers === Qt.ShiftModifier) {
-            event.accepted = true;
-            if (filteredEntries.length > 0)
-                keyboardIndex = filteredEntries.length - 1;
-        } else if (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus) {
-            event.accepted = true;
-            clipboardSettings.fontScale = Math.min(2.0, Math.round((clipboardSettings.fontScale + 0.1) * 10) / 10);
-        } else if (event.key === Qt.Key_Minus) {
-            event.accepted = true;
-            clipboardSettings.fontScale = Math.max(0.6, Math.round((clipboardSettings.fontScale - 0.1) * 10) / 10);
-        } else if (event.key === Qt.Key_0 && event.modifiers === Qt.NoModifier) {
-            event.accepted = true;
-            clipboardSettings.fontScale = 1.0;
-        } else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) {
-            event.accepted = true;
-            clipboardDialog.dismiss();
-        }
-    }
-
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 14
-        spacing: 14
-
-        // Search bar
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: Math.round(32 * fontScale)
-            color: "#181818"
-            radius: TuiStyle.radius
-            border.width: 0
-
-            MouseArea {
-                anchors.fill: parent
-                property real pressX: 0
-                property real pressY: 0
-                onPressed: (mouse) => {
-                    pressX = mouse.x
-                    pressY = mouse.y
-                }
-                onPositionChanged: (mouse) => {
-                    if (pressed) {
-                        clipboardDialog.cardOffsetX += mouse.x - pressX
-                        clipboardDialog.cardOffsetY += mouse.y - pressY
-                    }
-                }
-                cursorShape: Qt.SizeAllCursor
+            } else if (event.key === Qt.Key_Up) {
+                event.accepted = true;
+                keyboardIndex = Math.max(0, keyboardIndex - 1);
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                event.accepted = true;
+                pasteSelected((event.modifiers & Qt.ControlModifier) !== 0);
+            } else if (event.key === Qt.Key_Delete && (event.modifiers & Qt.ShiftModifier)) {
+                event.accepted = true;
+                deleteSelected();
+            } else if (event.key === Qt.Key_Escape) {
+                event.accepted = true;
+                dismiss();
             }
+        }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 8
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
 
-                // Mode indicator
+            // Top Padded胶囊搜索栏 (Maccy Style)
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+
                 Rectangle {
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 18
-                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : "#222222"
-                    border.width: 0
-                    radius: 4
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: clipboardDialog.mode === "insert" ? "INS" : "NRM"
-                        font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: clipboardDialog.mode === "insert" ? TuiStyle.bg : TuiStyle.fg
+                    anchors {
+                        fill: parent
+                        leftMargin: 10
+                        rightMargin: 10
+                        topMargin: 10
+                        bottomMargin: 6
                     }
-                }
+                    radius: 6
+                    color: "#282830"
+                    border.width: 1
+                    border.color: "#3a3a40"
 
-                StyledText {
-                    text: "/"
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.DemiBold
-                    color: clipboardDialog.mode === "insert" ? TuiStyle.accent : TuiStyle.dim
-                }
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 6
 
-                TextInput {
-                    id: searchField
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    color: TuiStyle.fg
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    focus: true
-                    verticalAlignment: TextInput.AlignVCenter
-                    onActiveFocusChanged: {
-                        if (activeFocus)
-                            clipboardDialog.enterInsertMode();
-                    }
-                    onTextChanged: {
-                        clipboardDialog.searchText = text;
-                        clipboardDialog.keyboardIndex = 0;
-                    }
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Escape) {
-                            event.accepted = true;
-                            if (clipboardDialog.searchText.length > 0) {
-                                clipboardDialog.searchText = "";
-                                text = "";
-                            } else {
-                                clipboardDialog.enterNormalMode();
+                        StyledText {
+                            text: "search"
+                            font.family: "Material Symbols Rounded"
+                            font.pixelSize: 16
+                            color: TuiStyle.dim
+                        }
+
+                        TextInput {
+                            id: searchField
+                            Layout.fillWidth: true
+                            color: TuiStyle.fg
+                            selectionColor: TuiStyle.accent
+                            selectedTextColor: TuiStyle.bg
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: 13
+                            verticalAlignment: TextInput.AlignVCenter
+                            clip: true
+                            onTextChanged: {
+                                clipboardDialog.searchText = text;
+                                clipboardDialog.keyboardIndex = 0;
+                            }
+                            Keys.forwardTo: [menuCard]
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: parent.text.length === 0
+                                text: "Type to search..."
+                                color: "#85858a"
+                                font.pixelSize: 13
                             }
                         }
+
+                        StyledText {
+                            text: `${filteredEntries.length}`
+                            color: TuiStyle.dim
+                            font.pixelSize: 11
+                            font.family: Appearance.font.family.main
+                        }
+                    }
+                }
+            }
+
+            ListView {
+                id: clipboardList
+                Layout.fillWidth: true
+                Layout.preferredHeight: clipboardDialog.visibleRows * 34
+                clip: true
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                model: ScriptModel { values: filteredEntries }
+
+                delegate: ClipboardItem {
+                    required property string modelData
+                    required property int index
+                    entry: modelData
+                    itemIndex: index
+                    width: clipboardList.width
+                    selected: clipboardDialog.keyboardIndex === index
+                    onItemClicked: clipboardDialog.dismiss()
+                    onPasteAsPathRequested: entry => {
+                        clipboardDialog.dismiss();
+                        Cliphist.pasteImagePath(entry);
+                    }
+                    onHoveredChanged: hovered => {
+                        if (hovered) {
+                            clipboardDialog.keyboardIndex = index;
+                            clipboardDialog.hoveredIndex = index;
+                            clipboardDialog.previewRequested = false;
+                            previewDelay.restart();
+                        } else if (clipboardDialog.hoveredIndex === index) {
+                            previewDelay.stop();
+                            clipboardDialog.hoveredIndex = -1;
+                            clipboardDialog.previewRequested = false;
+                        }
                     }
                 }
 
                 StyledText {
-                    text: clipboardDialog.searchText.length > 0 ? `${filteredEntries.length}/${Cliphist.entries.length}` : `${Cliphist.entries.length}`
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.weight: Font.DemiBold
+                    anchors.centerIn: parent
+                    visible: clipboardList.count === 0
+                    text: clipboardDialog.searchText.length > 0 ? "No matches" : "Clipboard is empty"
                     color: TuiStyle.dim
+                    font.pixelSize: 14
+                }
+
+                Connections {
+                    target: clipboardDialog
+                    function onKeyboardIndexChanged() {
+                        if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
+                            clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
+                    }
                 }
             }
-        }
 
-        // Content
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 12
-
-            // History list
+            // Bottom Thin Divider
             Rectangle {
-                Layout.preferredWidth: Math.round(520 * fontScale)
-                Layout.fillHeight: true
-                color: "#181818"
-                radius: TuiStyle.radius
-                border.width: 0
-                clip: true
+                Layout.fillWidth: true
+                height: 1
+                color: "#2c2c32"
+            }
 
-                ListView {
-                    id: clipboardList
+            // Footer Link Row
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+
+                RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 4
-                    clip: true
-                    spacing: 6
-                    boundsBehavior: Flickable.StopAtBounds
-                    boundsMovement: Flickable.StopAtBounds
-                    highlightMoveDuration: 80
-                    highlightResizeDuration: 0
-                    interactive: true
-
-                    model: ScriptModel {
-                        values: filteredEntries
-                    }
-
-                    delegate: ClipboardItem {
-                        required property string modelData
-                        required property int index
-                        entry: modelData
-                        itemIndex: index
-                        width: clipboardList.width
-                        selected: clipboardDialog.keyboardIndex === index
-                        onItemClicked: clipboardDialog.dismiss()
-                        onHoveredChanged: {
-                            if (hovered)
-                                clipboardDialog.keyboardIndex = index;
-                        }
-                    }
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
 
                     StyledText {
-                        anchors.centerIn: parent
-                        visible: clipboardList.count === 0
-                        text: clipboardDialog.searchText.length > 0 ? "NO MATCHES" : "NO CLIPBOARD HISTORY"
-                        font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: TuiStyle.dim
-                    }
-
-                    Connections {
-                        target: clipboardDialog
-                        function onKeyboardIndexChanged() {
-                            if (clipboardDialog.keyboardIndex >= 0 && clipboardDialog.keyboardIndex < clipboardList.count)
-                                clipboardList.positionViewAtIndex(clipboardDialog.keyboardIndex, ListView.Contain);
-                        }
-                    }
-                }
-
-                // TUI scrollbar — floats above ListView
-                Rectangle {
-                    id: scrollbarTrack
-                    z: 2
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    width: 8
-                    radius: 0
-                    color: "transparent"
-                    visible: clipboardList.contentHeight > clipboardList.height
-
-                    readonly property real scrollableHeight: Math.max(0, clipboardList.contentHeight - clipboardList.height)
-                    readonly property real thumbHeight: Math.min(height, Math.max(24, height * clipboardList.height / clipboardList.contentHeight))
-                    readonly property real thumbRange: Math.max(0, height - thumbHeight)
-
-                    // Click on track to jump
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: mouse => {
-                            var target = Math.max(0, mouse.y - scrollbarTrack.thumbHeight / 2)
-                            clipboardList.contentY = Math.max(0, Math.min(1, target / Math.max(1, scrollbarTrack.thumbRange))) * scrollbarTrack.scrollableHeight
-                        }
-                    }
-
-                    Rectangle {
-                        id: scrollbarThumb
-                        x: 2
-                        width: parent.width - 4
-                        radius: 0
-                        color: thumbDrag.containsMouse || thumbDrag.pressed ? TuiStyle.accent : TuiStyle.dim
-                        height: scrollbarTrack.thumbHeight
-
-                        property bool dragging: false
-
-                        Binding on y {
-                            when: !scrollbarThumb.dragging
-                            value: scrollbarTrack.scrollableHeight > 0
-                                ? Math.max(0, Math.min(1, clipboardList.contentY / scrollbarTrack.scrollableHeight)) * scrollbarTrack.thumbRange
-                                : 0
-                        }
+                        text: "Clear history"
+                        color: clearMouse.containsMouse ? TuiStyle.accent : TuiStyle.dim
+                        font.pixelSize: 12
 
                         MouseArea {
-                            id: thumbDrag
+                            id: clearMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            drag.target: scrollbarThumb
-                            drag.axis: Drag.YAxis
-                            drag.minimumY: 0
-                            drag.maximumY: scrollbarTrack.thumbRange
-
-                            onPressed: scrollbarThumb.dragging = true
-                            onReleased: scrollbarThumb.dragging = false
-                            onCanceled: scrollbarThumb.dragging = false
-                            onPositionChanged: {
-                                if (!pressed) return
-                                clipboardList.contentY = Math.max(0, Math.min(1, scrollbarThumb.y / Math.max(1, scrollbarTrack.thumbRange))) * scrollbarTrack.scrollableHeight
-                            }
+                            onClicked: Cliphist.wipe()
                         }
                     }
-                }
-            }
 
-            // Preview
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: "#181818"
-                radius: TuiStyle.radius
-                border.width: 0
-                clip: true
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 8
+                    Item { Layout.fillWidth: true }
 
                     StyledText {
-                        text: clipboardDialog.currentIsImage ? "IMAGE" : clipboardDialog.currentEntry !== "" ? "TEXT" : "--"
-                        font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.DemiBold
-                        color: TuiStyle.dim
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        color: "transparent"
-                        clip: true
-
-                            CliphistImage {
-                                anchors.centerIn: parent
-                                visible: clipboardDialog.currentIsImage
-                                entry: visible ? clipboardDialog.currentEntry : ""
-                                active: visible
-                                maxWidth: parent.width - 24
-                                maxHeight: parent.height - 24
-                            }
-
-                        Flickable {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            visible: clipboardDialog.currentEntry !== "" && !clipboardDialog.currentIsImage
-                            clip: true
-                            contentWidth: width
-                            contentHeight: previewText.paintedHeight + 16
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            TextEdit {
-                                id: previewText
-                                x: 8
-                                y: 8
-                                width: parent.width - 16
-                                readOnly: true
-                                selectByMouse: true
-                                wrapMode: TextEdit.Wrap
-                                text: textDecoder.decodedText
-                                font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small * clipboardDialog.fontScale
-                                color: TuiStyle.fg
-                                selectedTextColor: TuiStyle.bg
-                                selectionColor: TuiStyle.accent
-                                activeFocusOnPress: false
-                            }
-                        }
-
-                            StyledText {
-                                anchors.centerIn: parent
-                                visible: clipboardDialog.currentEntry === ""
-                                text: "NO ITEM SELECTED"
-                                font.family: Appearance.font.family.main
-                                font.pixelSize: Appearance.font.pixelSize.small
-                            font.weight: Font.DemiBold
-                            color: TuiStyle.dim
-                        }
+                        text: "Shift+Del delete  ·  Ctrl+Enter path"
+                        color: "#6c6c72"
+                        font.pixelSize: 10
                     }
                 }
-            }
-        }
-
-        // Footer
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 26
-            color: "transparent"
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 4
-                anchors.rightMargin: 4
-                spacing: 16
-
-                FooterText {
-                    text: clipboardDialog.keyboardIndex >= 0 && filteredEntries.length > 0 ? `${clipboardDialog.keyboardIndex + 1}/${filteredEntries.length}` : "-/-"
-                }
-                FooterText { text: "ENTER PASTE" }
-                FooterText { text: "D DELETE" }
-                FooterText { text: clipboardDialog.mode === "insert" ? "ESC NORMAL" : "F SEARCH" }
-                FooterText { text: "+/-/0 ZOOM" }
-                FooterText { text: "Q CLOSE" }
-                Item { Layout.fillWidth: true }
-                FooterText { text: Cliphist.cliphistBinary.toUpperCase() }
             }
         }
     }
 
-    component FooterText: StyledText {
-        font.family: Appearance.font.family.main
-        font.pixelSize: Appearance.font.pixelSize.smaller
-        font.weight: Font.Medium
-        color: TuiStyle.dim
+    Rectangle {
+        id: previewCard
+        visible: clipboardDialog.previewRequested && clipboardDialog.previewEntry !== ""
+        x: clipboardDialog.clamp(
+            clipboardDialog.previewOnLeft ? menuCard.x - width - 10 : menuCard.x + menuCard.width + 10,
+            clipboardDialog.edgeMargin,
+            Math.max(clipboardDialog.edgeMargin, clipboardDialog.width - width - clipboardDialog.edgeMargin))
+        y: clipboardDialog.clamp(menuCard.y, clipboardDialog.edgeMargin, Math.max(clipboardDialog.edgeMargin, clipboardDialog.height - height - clipboardDialog.edgeMargin))
+        width: clipboardDialog.previewWidth
+        height: Math.min(300, Math.max(150, menuCard.height))
+        color: "#1e1e22"
+        border.color: "#3c3c42"
+        border.width: 1
+        radius: 10
+        clip: true
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            StyledText {
+                text: clipboardDialog.previewIsImage ? "Image preview" : "Clipboard details"
+                color: TuiStyle.dim
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+            }
+
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#2d2d34" }
+
+            CliphistImage {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: clipboardDialog.previewIsImage
+                entry: visible ? clipboardDialog.previewEntry : ""
+                active: visible
+                maxWidth: previewCard.width - 24
+                maxHeight: previewCard.height - 56
+            }
+
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: !clipboardDialog.previewIsImage
+                clip: true
+                contentWidth: width
+                contentHeight: previewText.paintedHeight
+                boundsBehavior: Flickable.StopAtBounds
+
+                TextEdit {
+                    id: previewText
+                    width: parent.width
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.Wrap
+                    text: textDecoder.decodedText
+                    color: TuiStyle.fg
+                    selectionColor: TuiStyle.accent
+                    selectedTextColor: TuiStyle.bg
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: 14
+                }
+            }
+        }
     }
 }

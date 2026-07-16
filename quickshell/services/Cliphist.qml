@@ -14,7 +14,7 @@ Singleton {
     property real pasteDelay: 0.05
     property string pressPasteCommand: "YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0"
     property real scoreThreshold: 0.2
-    property int maxEntries: 100
+    property int maxEntries: 40
     property bool loaded: false
     property list<string> entries: []
     readonly property var preparedEntries: entries.map(a => ({
