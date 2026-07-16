@@ -178,6 +178,7 @@ ShellRoot {
             cursorGlobalY: root.cursorY
             screenGlobalX: root.monitorX
             screenGlobalY: root.monitorY
+            screen: clipboardWindow.screen
             onDismiss: clipboardWindow.close()
         }
     }

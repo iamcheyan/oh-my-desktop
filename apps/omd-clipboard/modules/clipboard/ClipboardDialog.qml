@@ -13,6 +13,7 @@ Item {
     property real cursorGlobalY: 0
     property real screenGlobalX: 0
     property real screenGlobalY: 0
+    property var screen: null
     property int keyboardIndex: 0
     property int hoveredIndex: -1
     property string searchText: ""
