@@ -122,7 +122,6 @@ ShellRoot {
                 warmupTimer.stop();
                 root.updateCursorPosition();
             } else if (onDemand) {
-                clipboardWindow.visible = false;
                 warmupTimer.restart();
             }
         }
@@ -173,11 +172,6 @@ ShellRoot {
 
         function close() {
             GlobalStates.clipboardOpen = false;
-        }
-
-        onVisibleChanged: {
-            if (visible)
-                root.updateCursorPosition();
         }
 
         Keys.onEscapePressed: {

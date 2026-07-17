@@ -15,7 +15,7 @@ Singleton {
     property real recordingDuration: 0
     property string lastTranscription: ""
     property string lastError: ""
-    readonly property real maxRecordingDuration: 30.0
+    readonly property real maxRecordingDuration: 90.0
 
     // ── 历史记录 ──
     property list<var> history: []

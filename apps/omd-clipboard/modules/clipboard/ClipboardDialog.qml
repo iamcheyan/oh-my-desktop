@@ -173,6 +173,17 @@ Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
 
+                // Moving the header only affects this invocation. The next
+                // open calls placeAtCursor() and restores pointer placement.
+                DragHandler {
+                    target: menuCard
+                    acceptedButtons: Qt.LeftButton
+                    xAxis.minimum: clipboardDialog.edgeMargin
+                    xAxis.maximum: Math.max(clipboardDialog.edgeMargin, clipboardDialog.width - menuCard.width - clipboardDialog.edgeMargin)
+                    yAxis.minimum: clipboardDialog.edgeMargin
+                    yAxis.maximum: Math.max(clipboardDialog.edgeMargin, clipboardDialog.height - menuCard.height - clipboardDialog.edgeMargin)
+                }
+
                 Rectangle {
                     anchors {
                         fill: parent

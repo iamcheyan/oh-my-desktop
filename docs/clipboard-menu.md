@@ -39,6 +39,9 @@ menu closes.
 - `Shift+Delete`: delete the selected entry.
 - `Escape`: close the menu.
 - Clicking `Clear history` wipes cliphist history.
+- Drag the top search/header area to move the menu temporarily when it covers
+  nearby content. The position is not persisted; the next open starts at the
+  current pointer position again.
 
 Mouse hover updates selection and opens the detail preview after a short delay.
 Clicking a row pastes it. Image rows expose a folder action for path paste.
@@ -62,5 +65,8 @@ the generated file path.
 - Decode only visible image thumbnails and the currently hovered preview.
 - Keep preview decoding delayed so pointer movement across the list does not
   launch a process for every transient row.
-- Preserve the entries cache in `~/.cache/omd/clipboard/entries.json` so the
-  first frame does not wait for a full cliphist read.
+- Refresh is driven solely by `cliphistService update` IPC from
+  `bin/omd-clipboard-store` (the `wl-paste --watch` layer). Do not add a
+  `Quickshell.onClipboardTextChanged` listener — it fires for our own
+  `/tmp/omd-clip-*` path writes and causes redundant refreshes.
+- History is capped at 40 entries (`Cliphist.maxEntries`).

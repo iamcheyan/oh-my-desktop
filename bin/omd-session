@@ -222,7 +222,11 @@ def descendants(pid, children):
 
 
 def parse_tmux_session(argv):
-    command_index = next((i for i, arg in enumerate(argv) if arg in ("attach", "attach-session", "a")), -1)
+    # Accept both attach commands and new-session/new -A (attach-or-create),
+    # since `tmux new-session -A -s NAME` attaches to an existing session and
+    # is the common pattern used inside terminal windows.
+    attach_commands = ("attach", "attach-session", "a", "new-session", "new")
+    command_index = next((i for i, arg in enumerate(argv) if arg in attach_commands), -1)
     if command_index < 0:
         return None
     name = ""
@@ -232,6 +236,12 @@ def parse_tmux_session(argv):
             name = args[index + 1]
             break
         if arg.startswith("-t="):
+            name = arg.split("=", 1)[1]
+            break
+        if arg in ("-s", "--session") and index + 1 < len(args):
+            name = args[index + 1]
+            break
+        if arg.startswith("-s="):
             name = arg.split("=", 1)[1]
             break
         if not arg.startswith("-"):
@@ -308,7 +318,35 @@ def terminal_program_info(pid):
 
 
 def kitty_listen_on(argv):
+    """Resolve the kitty remote-control socket address.
+
+    Kitty accepts --listen-on on the command line, but it is more commonly
+    set in kitty.conf (listen_on). In that case the socket path is not in
+    argv, but kitty exports KITTY_LISTEN_ON into the environment of every
+    child window it spawns. We read that from the first descendant that has
+    it, falling back to argv.
+    """
     return parse_option(argv, "--listen-on")
+
+
+def kitty_resolve_socket(pid, argv):
+    """Find the kitty @ --to socket for a running kitty instance."""
+    explicit = kitty_listen_on(argv)
+    if explicit:
+        return explicit
+    # kitty.conf's listen_on is not in argv. kitty sets KITTY_LISTEN_ON in
+    # every child window's environment with the resolved socket path (which
+    # kitty suffixes with its PID for unix sockets). Scan descendants.
+    children = process_tree()
+    for child, _depth in descendants(pid, children):
+        try:
+            raw = Path(f"/proc/{child}/environ").read_bytes()
+        except OSError:
+            continue
+        for entry in raw.split(b"\0"):
+            if entry.startswith(b"KITTY_LISTEN_ON="):
+                return entry.split(b"=", 1)[1].decode(errors="ignore")
+    return ""
 
 
 def kitty_child_pid(pid):
@@ -324,25 +362,71 @@ def kitty_child_pid(pid):
     return candidates[0][1]
 
 
-def kitty_session_info(pid, argv):
-    listen_on = kitty_listen_on(argv)
-    if not listen_on:
+def kitty_json_multiplexer(session):
+    """Inspect a captured kitty session JSON for a per-window tmux/zellij
+    command. Kitty windows running a multiplexer client report it via
+    last_reported_cmdline (e.g. `tmux new-session -A -s 0`). The session-format
+    export drops that command, so we parse the JSON to recover a multiplexer
+    session descriptor that launch_command can relaunch."""
+    if not session or session.get("type") != "kitty":
         return None
-    child_pid = kitty_child_pid(pid)
-    command = ["kitty", "@", "--to", listen_on, "ls", "--output-format=session"]
-    if child_pid:
-        command.extend(["--match", f"pid:{child_pid}"])
+    raw = session.get("json") or ""
+    if not raw.strip():
+        return None
     try:
-        result = subprocess.run(command, text=True, capture_output=True, timeout=1.5)
+        data = json.loads(raw)
     except Exception:
         return None
-    if result.returncode != 0 or not result.stdout.strip():
+    for os_window in data:
+        for tab in os_window.get("tabs", []):
+            for window in tab.get("windows", []):
+                argv = window.get("cmdline") or []
+                reported = (window.get("last_reported_cmdline") or "").split()
+                candidates = [argv, reported]
+                for candidate in candidates:
+                    if not candidate:
+                        continue
+                    name = Path(candidate[0]).name.lower()
+                    if name == "tmux":
+                        info = parse_tmux_session(candidate)
+                        if info:
+                            info["argvPrefix"] = ["tmux"]
+                            return info
+                    if name == "zellij":
+                        info = parse_zellij_session(candidate)
+                        if info:
+                            info["argvPrefix"] = ["zellij"]
+                            return info
+    return None
+
+
+def kitty_session_info(pid, argv):
+    socket = kitty_resolve_socket(pid, argv)
+    if not socket:
+        return None
+    child_pid = kitty_child_pid(pid)
+    # Capture the full JSON listing (contains per-window cmdline, cwd,
+    # last_reported_cmdline) so restore can relaunch the actual command the
+    # shell was running (e.g. `tmux new-session -A -s 0`) instead of just the
+    # kitty layout. The session-format export drops the child command.
+    match_args = []
+    if child_pid:
+        match_args = ["--match", f"pid:{child_pid}"]
+    json_command = ["kitty", "@", "--to", socket, "ls", *match_args]
+    session_command = ["kitty", "@", "--to", socket, "ls", "--output-format=session", *match_args]
+    try:
+        json_result = subprocess.run(json_command, text=True, capture_output=True, timeout=1.5)
+        session_result = subprocess.run(session_command, text=True, capture_output=True, timeout=1.5)
+    except Exception:
+        return None
+    if json_result.returncode != 0 or not json_result.stdout.strip():
         return None
     return {
         "type": "kitty",
-        "listenOn": listen_on,
+        "listenOn": socket,
         "childPid": child_pid,
-        "content": result.stdout,
+        "json": json_result.stdout,
+        "content": session_result.stdout if session_result.returncode == 0 else "",
     }
 
 
@@ -475,7 +559,16 @@ def launch_command(client):
             program = terminal_program_info(pid)
 
     if is_terminal(client) and argv:
-        if session and session.get("type") == "kitty":
+        # When a kitty session is captured, check the per-window JSON for a
+        # multiplexer command (tmux new-session -A / zellij attach) that keeps
+        # the real session alive outside kitty. If found, prefer relaunching
+        # the multiplexer attach — it restores the actual shell session, not
+        # just the kitty layout. Otherwise fall back to the kitty session file
+        # for layout + cwd restore.
+        kitty_json_session = kitty_json_multiplexer(session) if session and session.get("type") == "kitty" else None
+        if kitty_json_session:
+            argv = terminal_launch_argv(argv[0], terminal, cwd, kitty_json_session, None)
+        elif session and session.get("type") == "kitty":
             argv = [argv[0], "--session", "__OMD_KITTY_SESSION__"]
         else:
             argv = terminal_launch_argv(argv[0], terminal, cwd, session, program)

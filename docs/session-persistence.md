@@ -152,23 +152,42 @@ terminals:
 
 ### Kitty Sessions
 
-Kitty has its own startup session format. OMD supports it when the kitty window
-was launched with a remote-control socket.
+Kitty has its own startup session format. OMD supports it when the kitty
+window has a remote-control socket, which kitty creates either from a
+`--listen-on` command-line flag or from the `listen_on` setting in
+`kitty.conf`. OMD resolves the socket in three ways:
 
-OMD's terminal launcher now starts kitty as:
+1. `--listen-on` in the kitty process argv (OMD-managed launches use this).
+2. `KITTY_LISTEN_ON` in the environment of a kitty child window (set by kitty
+   itself for `listen_on`-from-config instances; the socket path kitty uses
+   is suffixed with the kitty PID, e.g. `unix:/tmp/mykitty-2885`).
+3. Falls back to no kitty-session restore (cwd + program only).
+
+When a socket is found, OMD captures both:
+
+- `kitty @ ls` JSON — contains per-window `cmdline`, `last_reported_cmdline`,
+  and `cwd`. This is what lets OMD detect a tmux/zellij multiplexer client
+  running *inside* kitty (e.g. `tmux new-session -A -s 0`), which the
+  session-format export drops.
+- `kitty @ ls --output-format=session` — the kitty-native session file used
+  for layout restore as a fallback.
+
+#### Restore priority
+
+If the kitty JSON reveals a running tmux/zellij client (via
+`last_reported_cmdline`), OMD relaunches the multiplexer attach command
+inside kitty, for example:
 
 ```text
-kitty --listen-on unix:$XDG_RUNTIME_DIR/omd-kitty-...sock --directory <cwd>
+kitty --directory /home/tetsuya tmux attach-session -t 0
 ```
 
-When `omd-session` sees that socket in `/proc/<kitty-pid>/cmdline`, it runs:
+This is preferred over the session-format file because the multiplexer
+session survives the kitty window closing — attaching restores the real
+shell session (windows, panes, scrollback, running programs), not just the
+kitty layout.
 
-```text
-kitty @ --to <socket> ls --output-format=session
-```
-
-The generated kitty session text is embedded in the OMD snapshot. During
-restore, OMD writes it to:
+If no multiplexer is detected, OMD writes the session-format text to:
 
 ```text
 ~/.local/state/omd/session/kitty/restore-<n>.session
@@ -180,20 +199,9 @@ and launches:
 kitty --session ~/.local/state/omd/session/kitty/restore-<n>.session
 ```
 
-This can restore kitty tabs, windows, layouts, working directories, and the
-commands recorded by kitty's session export. It still does not preserve Linux
-process memory. If the original shell was running `nvim`, kitty can restart
-`nvim` with the exported command, but unsaved editor memory belongs to nvim,
-not kitty. For durable shell/editor state, use tmux/zellij or the application's
-own session restore.
-
-Existing kitty windows that were opened before this change do not have an OMD
-remote-control socket, so OMD can only restore their working directory.
-
-This is best-effort. Plain terminal shell state, scrollback, running foreground
-programs, editor buffers, and application-internal state are not preserved
-unless they already live inside tmux/zellij or the application has its own
-session restore.
+This restores kitty tabs, windows, layouts, and working directories. It does
+not preserve Linux process memory or unsaved editor buffers. For durable
+shell/editor state, use tmux/zellij or the application's own session restore.
 
 ### Firefox Sessions
 

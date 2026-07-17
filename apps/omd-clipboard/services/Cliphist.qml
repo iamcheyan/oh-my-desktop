@@ -81,11 +81,9 @@ Singleton {
             }
         }
         const dir = ClipboardStyle.cliphistDecode
-        const keep = [...referenced].map(n => `-e "^${n}$"`).join(" ")
-        if (keep.length === 0)
-            return
+        const keepPattern = [...referenced].join("|")
         Quickshell.execDetached(["bash", "-c",
-            `mkdir -p '${dir}'; for f in "${dir}"/*; do [ -f "$f" ] || continue; n=$(basename "$f"); if ${keep} | grep -q "$n"; then :; else rm -f "$f"; fi; done`])
+            `mkdir -p '${dir}'; for f in "${dir}"/*; do [ -f "$f" ] || continue; n=$(basename "$f"); if printf '%s\\n' "$n" | grep -Eq '^(${keepPattern})$'; then :; else rm -f "$f"; fi; done`])
     }
 
     function ensureLoaded() {
