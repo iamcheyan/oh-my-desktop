@@ -1,1 +1,1 @@
-o.window("xfreerdp", { float = true, size = { 3024, 1932 } })
+o.window("xfreerdp", { fullscreen = true, idle_inhibit = "fullscreen" })

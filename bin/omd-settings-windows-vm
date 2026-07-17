@@ -189,6 +189,13 @@ rdp_reachable() {
   port_open "$RDP_HOST" "$(compose_rdp_port)"
 }
 
+hypr_focus_new_workspace() {
+  have hyprctl || return 0
+  hyprctl dispatch 'hl.dsp.focus({ workspace = "empty" })' >/dev/null 2>&1 \
+    || hyprctl dispatch workspace empty >/dev/null 2>&1 \
+    || true
+}
+
 log_tail() {
   docker logs "$CONTAINER_NAME" --tail "${1:-80}" 2>&1 || true
 }
@@ -416,6 +423,9 @@ EOF
 ensure_compose_ports_available() {
   [[ -f "$COMPOSE_FILE" ]] || return 0
   local current next
+  if [[ "$(container_status)" == "running" ]]; then
+    return 0
+  fi
   current="$(compose_rdp_port)"
   if ! port_busy "$current"; then
     return 0
@@ -599,6 +609,8 @@ except Exception:
   elif (( scale_percent >= 130 )); then
     rdp_scale=(/scale:140)
   fi
+
+  hypr_focus_new_workspace
 
   "$bin" /u:"$user" /p:"$pass" /v:"$RDP_HOST:$(compose_rdp_port)" \
     -grab-keyboard /sound /microphone /clipboard /cert:ignore \

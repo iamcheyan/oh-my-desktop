@@ -415,5 +415,11 @@ before writing or starting the compose file. If another service such as `xrdp`
 already owns 3389, the VM is moved to the first free fallback port in the
 3390-3400 range and the Settings page shows the actual `rdpEndpoint`.
 
+The connect action is intentionally simple: before launching FreeRDP it focuses
+a new empty Hyprland workspace, then starts FreeRDP normally. Hyprland's
+`xfreerdp` app rule keeps the RDP session fullscreen and inhibits idle while
+Windows is open. The helper does not manually resize or move the RDP window
+after launch, and it does not pass FreeRDP's own `/f` fullscreen flag.
+
 Removal is destructive because it deletes the VM storage directory. The QML page
 requires a two-step remove click before invoking `remove --yes`.
