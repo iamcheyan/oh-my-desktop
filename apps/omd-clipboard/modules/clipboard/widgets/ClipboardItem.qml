@@ -14,6 +14,9 @@ Rectangle {
     signal mouseMoved()
 
     readonly property bool isImage: Cliphist.entryIsImage(entry)
+    // File paths: "file:///..." URIs or absolute POSIX paths ("/...").
+    // The raw entry has a leading id prefix ("5220\t..."); strip it first.
+    readonly property bool isFilePath: /^\s*file:\/\//.test(root.cleanText) || /^\s*\//.test(root.cleanText)
     readonly property string cleanText: ClipboardStyle.cleanCliphistEntry(entry)
 
     implicitHeight: 34
@@ -51,25 +54,26 @@ Rectangle {
         anchors.rightMargin: 14
         spacing: 8
 
-        Rectangle {
+        StyledText {
             visible: root.isImage
-            Layout.preferredWidth: 20
-            Layout.preferredHeight: 20
+            Layout.preferredWidth: 18
             Layout.alignment: Qt.AlignVCenter
-            color: ClipboardStyle.surface
-            radius: 4
-            clip: true
+            horizontalAlignment: Text.AlignHCenter
+            text: "image"
+            font.family: "Material Symbols Rounded"
+            font.pixelSize: 15
+            color: ClipboardStyle.dim
+        }
 
-            // Unified image icon in the list — decode is deferred to the
-            // preview card on hover/select to avoid per-row Process spawn.
-            StyledText {
-                anchors.centerIn: parent
-                visible: root.isImage
-                text: "image"
-                font.family: "Material Symbols Rounded"
-                font.pixelSize: 13
-                color: ClipboardStyle.dim
-            }
+        StyledText {
+            visible: root.isFilePath
+            Layout.preferredWidth: 18
+            Layout.alignment: Qt.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            text: "description"
+            font.family: "Material Symbols Rounded"
+            font.pixelSize: 15
+            color: ClipboardStyle.dim
         }
 
         StyledText {
