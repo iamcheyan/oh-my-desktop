@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Launch KeePassXC via Flatpak (installs from Flathub if missing).
+exec "$(dirname "$0")/flatpak-launch" org.keepassxc.KeePassXC "$@"

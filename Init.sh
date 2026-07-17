@@ -1179,9 +1179,25 @@ repair_runtime_config() {
     fi
 
     mkdir -p "$REPO/current"
-    if [[ ! -e "$REPO/current/background" ]]; then
-        ln -s "../quickshell/assets/images/default_wallpaper.png" "$REPO/current/background"
-        ok "  current/background -> ../quickshell/assets/images/default_wallpaper.png"
+    if [[ ! -f "$REPO/current/wallpaper" ]]; then
+        cp "$REPO/quickshell/assets/images/default_wallpaper.png" "$REPO/current/wallpaper"
+        chmod 0644 "$REPO/current/wallpaper"
+        ok "  seeded current/wallpaper from the default wallpaper"
+    fi
+    ln -sfn "wallpaper" "$REPO/current/background"
+    ok "  current/background -> wallpaper"
+
+    if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
+        local wallpaper_tmp
+        wallpaper_tmp="$(mktemp)"
+        if jq '.background.wallpaperPath = "~/.config/omd/current/background" | .background.thumbnailPath = ""' \
+            "$config_file" >"$wallpaper_tmp"; then
+            mv "$wallpaper_tmp" "$config_file"
+            ok "  configured stable wallpaper path"
+        else
+            rm -f "$wallpaper_tmp"
+            warn "  could not configure the stable wallpaper path"
+        fi
     fi
 }
 
@@ -1292,6 +1308,17 @@ EOF
     ok "  Oh My Desktop session is managed by NixOS services.displayManager.sessionPackages"
 }
 
+# ── Custom OMD launchers ──────────────────────────────────────────────────────
+install_custom_launchers() {
+    echo
+    info "Installing custom OMD launchers..."
+    if [[ -x "$REPO/scripts/install-launchers" ]]; then
+        "$REPO/scripts/install-launchers" || warn "custom launchers install failed"
+    else
+        warn "scripts/install-launchers not found; skipping"
+    fi
+}
+
 # ── Print summary ─────────────────────────────────────────────────────────────
 print_summary() {
     local login_manager="your display manager"
@@ -1356,6 +1383,7 @@ main() {
         info "Runtime-only mode: repairing symlinks and runtime config."
         create_symlinks
         repair_runtime_config
+        install_custom_launchers
         ok "Runtime repair complete."
         exit 0
     fi
@@ -1388,6 +1416,7 @@ main() {
     install_all_dependencies
     create_symlinks
     repair_runtime_config
+    install_custom_launchers
     if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
         install_nixos_session_files
     else

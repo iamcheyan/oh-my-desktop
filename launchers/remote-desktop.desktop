@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Remote Desktop
+Comment=Connect to 192.168.3.65 via RDP
+Exec=$HOME/.config/omd/scripts/remote-desktop
+Icon=$HOME/.config/omd/launchers/icons/remote-desktop.png
+Terminal=false
+Type=Application
+Categories=System;Network;

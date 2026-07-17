@@ -37,6 +37,9 @@ o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1000,
 o.window("org.omarchy.key-test", { float = true, center = true, size = { 1000, 700 } })
 o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000, 700 } })
 
+-- Flatpak install progress terminal (scripts/flatpak-launch) floats and centers
+o.window("org.omd.flatpak-install", { float = true, center = true, size = { 880, 620 } })
+
 -- nmtui runs inside foot; float, center, and size it to fit the TUI content
 o.window("^nmtui$", { float = true, center = true, size = { 880, 620 } })
 

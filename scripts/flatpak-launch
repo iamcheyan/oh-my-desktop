@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Launch a Flatpak app by ID, installing it from Flathub first if missing.
+# Usage: flatpak-launch <app-id> [args...]
+#
+# If stdin/stdout is a TTY the install progress shows inline. When launched
+# without a terminal (e.g. from the App Launcher), the install step is shown in
+# a floating, centered terminal window (org.omd.flatpak-install) and auto-closes
+# once done, then the app launches normally.
+set -euo pipefail
+
+APP_ID="${1:-}"
+if [[ -z "$APP_ID" ]]; then
+  echo "usage: flatpak-launch <app-id> [args...]" >&2
+  exit 2
+fi
+shift
+
+REMOTE="flathub"
+APP_ID_CLASS="org.omd.flatpak-install"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Remove our wrapper .desktop entries now that the real Flatpak app provides
+# its own, to avoid duplicate launcher icons. Matches X-FlatpakAppId=<id>.
+remove_wrapper_entries() {
+  local apps_dir="$HOME/.local/share/applications"
+  [[ -d "$apps_dir" ]] || return 0
+  local f
+  for f in "$apps_dir"/*.desktop; do
+    [[ -f "$f" ]] || continue
+    if grep -qx "X-FlatpakAppId=$APP_ID" "$f" 2>/dev/null; then
+      rm -f "$f" && echo "[flatpak-launch] removed wrapper entry: $(basename "$f")"
+    fi
+  done
+}
+
+# Internal sub-mode: perform only the install (used by the floating terminal).
+if [[ "${1:-}" == "__install_only__" ]]; then
+  shift
+  if ! have flatpak; then
+    echo "[flatpak-launch] flatpak is not installed; cannot launch $APP_ID." >&2
+    exit 1
+  fi
+  if ! flatpak info "$APP_ID" >/dev/null 2>&1; then
+    echo "[flatpak-launch] $APP_ID not found; installing from $REMOTE..."
+    if ! flatpak remote-list --show-remote 2>/dev/null | grep -qx "$REMOTE"; then
+      flatpak remote-add --if-not-exists "$REMOTE" \
+        https://flathub.org/repo/flathub.flatpakrepo || true
+    fi
+    flatpak install -y "$REMOTE" "$APP_ID"
+  fi
+  remove_wrapper_entries
+  echo "[flatpak-launch] $APP_ID ready."
+  exit 0
+fi
+
+if ! have flatpak; then
+  echo "[flatpak-launch] flatpak is not installed; cannot launch $APP_ID." >&2
+  exit 1
+fi
+
+# Already installed: just run it directly (normal window).
+if flatpak info "$APP_ID" >/dev/null 2>&1; then
+  exec flatpak run "$APP_ID" "$@"
+fi
+
+# Not installed. If we have a TTY, show progress inline.
+if [[ -t 1 ]]; then
+  if ! flatpak remote-list --show-remote 2>/dev/null | grep -qx "$REMOTE"; then
+    flatpak remote-add --if-not-exists "$REMOTE" \
+      https://flathub.org/repo/flathub.flatpakrepo || true
+  fi
+  flatpak install -y "$REMOTE" "$APP_ID"
+  remove_wrapper_entries
+  exec flatpak run "$APP_ID" "$@"
+fi
+
+# No TTY (e.g. App Launcher): open a floating centered terminal to show the
+# install, then launch the app normally once the install window closes.
+SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/flatpak-launch"
+if have xdg-terminal-exec; then
+  # Install inside the floating terminal, then launch the app directly (not via
+  # this wrapper, to avoid re-opening a terminal) so it shows as a normal window.
+  xdg-terminal-exec --app-id="$APP_ID_CLASS" --title="Installing $APP_ID" \
+    -e bash -c "\"$SCRIPT\" \"$APP_ID\" __install_only__; rc=\$?; if [ \$rc -eq 0 ]; then nohup flatpak run \"$APP_ID\" $* >/dev/null 2>&1 & disown; sleep 1; else echo; echo \"[flatpak-launch] install failed (exit \$rc). Press Enter to close.\"; read -r; fi"
+else
+  # Fallback: just install and run without a visible terminal.
+  "$SCRIPT" "$APP_ID" __install_only__
+  exec flatpak run "$APP_ID" "$@"
+fi

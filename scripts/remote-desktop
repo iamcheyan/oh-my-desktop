@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+CONFIG_FILE="${REMOTE_DESKTOP_CONFIG:-$SCRIPT_DIR/remote-desktop.conf}"
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+
+RDP_HOST="${RDP_HOST:-192.168.3.65}"
+RDP_PORT="${RDP_PORT:-3389}"
+RDP_USER="${RDP_USER:-tetsuya}"
+RDP_PASS="${RDP_PASS:-cccccc}"
+RDP_TITLE="${RDP_TITLE:-Remote Desktop}"
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+freerdp_bin() {
+  if have xfreerdp3; then
+    printf 'xfreerdp3'
+  elif have xfreerdp; then
+    printf 'xfreerdp'
+  else
+    return 1
+  fi
+}
+
+focus_new_workspace() {
+  have hyprctl || return 0
+  hyprctl dispatch 'hl.dsp.focus({ workspace = "empty" })' >/dev/null 2>&1 \
+    || hyprctl dispatch workspace empty >/dev/null 2>&1 \
+    || true
+}
+
+monitor_json() {
+  have hyprctl || return 1
+  hyprctl monitors -j 2>/dev/null
+}
+
+tiled_edge_inset() {
+  local gaps_out border_size
+  gaps_out="$(
+    hyprctl getoption general:gaps_out 2>/dev/null |
+      awk '/css gap data:/ {print $4; exit} /int:/ {print $2; exit}'
+  )"
+  border_size="$(
+    hyprctl getoption general:border_size 2>/dev/null |
+      awk '/int:/ {print $2; exit}'
+  )"
+  gaps_out="${gaps_out:-0}"
+  border_size="${border_size:-0}"
+  printf '%s\n' "$((gaps_out + border_size))"
+}
+
+rdp_inner_resolution() {
+  local monitors edge_inset
+  monitors="$(monitor_json)" || return 1
+  edge_inset="$(tiled_edge_inset)"
+  python3 -c '
+import json, sys
+try:
+    edge_inset = float(sys.argv[1] or 0)
+    monitors = json.load(sys.stdin)
+    mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
+    if not mon:
+        raise SystemExit(1)
+    scale = float(mon.get("scale") or 1)
+    if scale <= 0:
+        scale = 1
+    reserved = mon.get("reserved") or [0, 0, 0, 0]
+    while len(reserved) < 4:
+        reserved.append(0)
+    left, top, right, bottom = [float(v or 0) for v in reserved[:4]]
+    physical_width = float(mon.get("width") or 0)
+    physical_height = float(mon.get("height") or 0)
+    logical_width = physical_width / scale
+    logical_height = physical_height / scale
+    width = int((logical_width - left - right - edge_inset * 2) * scale)
+    height = int((logical_height - top - bottom - edge_inset * 2) * scale)
+    if width <= 0 or height <= 0:
+        raise SystemExit(1)
+    print(width, height)
+except Exception:
+    raise SystemExit(1)
+' "$edge_inset" <<<"$monitors"
+}
+
+scale_arg() {
+  local monitors percent
+  monitors="$(monitor_json)" || return 1
+  percent="$(python3 -c '
+import json, sys
+try:
+    monitors = json.load(sys.stdin)
+    mon = next((m for m in monitors if m.get("focused")), monitors[0] if monitors else None)
+    scale = float((mon or {}).get("scale") or 1)
+    if scale <= 0:
+        scale = 1
+    print(round(scale * 100))
+except Exception:
+    raise SystemExit(1)
+' <<<"$monitors")" || return 1
+
+  if (( percent >= 170 )); then
+    printf '/scale:180'
+  elif (( percent >= 130 )); then
+    printf '/scale:140'
+  fi
+}
+
+main() {
+  local bin resolution scale
+  bin="$(freerdp_bin)"
+
+  local size=()
+  if resolution="$(rdp_inner_resolution 2>/dev/null)"; then
+    read -r width height <<<"$resolution"
+    size=("/w:$width" "/h:$height")
+  fi
+
+  local rdp_scale=()
+  if scale="$(scale_arg 2>/dev/null)" && [[ -n "$scale" ]]; then
+    rdp_scale=("$scale")
+  fi
+
+  printf 'endpoint=%s:%s\n' "$RDP_HOST" "$RDP_PORT"
+  printf 'user=%s\n' "$RDP_USER"
+  printf 'resolution=%s\n' "${resolution:-auto}"
+  printf 'scale=%s\n' "${scale:-auto}"
+
+  if [[ "${1:-}" == "--print" ]]; then
+    return 0
+  fi
+
+  focus_new_workspace
+  exec "$bin" \
+    /v:"$RDP_HOST:$RDP_PORT" \
+    /u:"$RDP_USER" \
+    /p:"$RDP_PASS" \
+    -grab-keyboard \
+    /sound \
+    /microphone \
+    /clipboard \
+    /cert:ignore \
+    /title:"$RDP_TITLE" \
+    /gfx:AVC444 \
+    /floatbar:sticky:off,default:visible,show:fullscreen \
+    "${size[@]}" \
+    "${rdp_scale[@]}" \
+    "$@"
+}
+
+main "$@"
