@@ -70,6 +70,26 @@ PanelWindow {
         return "";
     }
 
+    // ── Session action menu (copied from OverviewSearch) ──
+    property bool sessionMenuOpen: false
+
+    function requestSessionAction(action, label) {
+        launcher.sessionMenuOpen = false;
+        const barConfig = FileUtils.trimFileProtocol(`${Directories.config}/omd/apps/omd-bar`);
+        Quickshell.execDetached([
+            "qs", "-p", barConfig, "ipc", "call", "session", "confirm", action, label
+        ]);
+        launcher.open = false;
+    }
+
+    function reloadShell() {
+        launcher.sessionMenuOpen = false;
+        Quickshell.execDetached([
+            "bash", FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts/reload-quickshell`)
+        ]);
+        launcher.open = false;
+    }
+
     property var pinnedIds: ({})
     property var allApps: []
     property var filteredApps: []
@@ -394,6 +414,7 @@ PanelWindow {
             runningAppsLoader.active = false;
             runningSet = {};
             searchField.text = "";
+            launcher.sessionMenuOpen = false;
             if (Qt.inputMethod) Qt.inputMethod.hide();
         }
     }
@@ -507,7 +528,12 @@ PanelWindow {
                                     verticalAlignment: TextInput.AlignVCenter
                                     renderType: Text.NativeRendering
                                     onTextChanged: launcher.buildFilteredList()
-                                    Keys.onEscapePressed: launcher.open = false
+                                    Keys.onEscapePressed: {
+                                        if (launcher.sessionMenuOpen)
+                                            launcher.sessionMenuOpen = false;
+                                        else
+                                            launcher.open = false;
+                                    }
                                     Keys.onReturnPressed: {
                                         if (launcher.filteredApps.length > 0) {
                                             launcher.launchApp(launcher.filteredApps[0]);
@@ -516,6 +542,32 @@ PanelWindow {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    Rectangle {
+                        id: sessionMenuButton
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        color: sessionMenuMouse.containsMouse || launcher.sessionMenuOpen ? "#2a2a2a" : "#181818"
+                        radius: TuiStyle.radius
+                        border.width: 0
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: "\uDB80\uDFDB"
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.family: Appearance.font.family.main
+                            color: launcher.sessionMenuOpen ? TuiStyle.accent : TuiStyle.fg
+                        }
+
+                        MouseArea {
+                            id: sessionMenuMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: launcher.sessionMenuOpen = !launcher.sessionMenuOpen
                         }
                     }
                 }
@@ -805,6 +857,76 @@ PanelWindow {
                 }
             }
         }
+
+        // Modal layer is a sibling of the content layout, so opening the menu
+        // never participates in GridView sizing or delegate positioning.
+        MouseArea {
+            anchors.fill: parent
+            z: 50
+            visible: launcher.sessionMenuOpen
+            onClicked: launcher.sessionMenuOpen = false
+        }
+
+        Rectangle {
+            id: sessionMenu
+            z: 51
+            visible: launcher.sessionMenuOpen
+            anchors {
+                top: parent.top
+                topMargin: 42
+                right: parent.right
+                rightMargin: 8
+            }
+            width: 210
+            height: sessionMenuColumn.implicitHeight + 12
+            color: TuiStyle.bg
+            radius: 10
+            border.width: 1
+            border.color: TuiStyle.line
+            clip: true
+
+            ColumnLayout {
+                id: sessionMenuColumn
+                anchors.fill: parent
+                anchors.margins: 6
+                spacing: 2
+
+                SessionMenuItem {
+                    Layout.fillWidth: true
+                    symbol: "\uF08B"
+                    label: "Log out"
+                    onActivated: launcher.requestSessionAction("logout", "Logout")
+                }
+                SessionMenuItem {
+                    Layout.fillWidth: true
+                    symbol: "\uF01E"
+                    label: "Restart"
+                    onActivated: launcher.requestSessionAction("reboot", "Reboot")
+                }
+                SessionMenuItem {
+                    Layout.fillWidth: true
+                    symbol: "\uF011"
+                    label: "Shut down"
+                    onActivated: launcher.requestSessionAction("poweroff", "Shutdown")
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    Layout.bottomMargin: 4
+                    implicitHeight: 1
+                    color: TuiStyle.line
+                    opacity: 0.35
+                }
+
+                SessionMenuItem {
+                    Layout.fillWidth: true
+                    symbol: "\uF021"
+                    label: "Reload Shell"
+                    onActivated: launcher.reloadShell()
+                }
+            }
+        }
     }
 
     IpcHandler {
@@ -820,6 +942,46 @@ PanelWindow {
 
         function open(): void {
             launcher.open = true;
+        }
+    }
+
+    component SessionMenuItem: Rectangle {
+        id: menuItem
+        required property string symbol
+        required property string label
+        signal activated()
+
+        implicitHeight: 38
+        radius: 6
+        color: menuItemArea.containsMouse ? "#2a2a2a" : "transparent"
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 11
+            anchors.rightMargin: 11
+            spacing: 11
+
+            StyledText {
+                text: menuItem.symbol
+                font.pixelSize: Appearance.font.pixelSize.normal
+                font.family: Appearance.font.family.main
+                color: TuiStyle.fg
+            }
+            StyledText {
+                Layout.fillWidth: true
+                text: menuItem.label
+                color: TuiStyle.fg
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.family: Appearance.font.family.main
+            }
+        }
+
+        MouseArea {
+            id: menuItemArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: menuItem.activated()
         }
     }
 }
