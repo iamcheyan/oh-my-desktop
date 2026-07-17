@@ -17,6 +17,7 @@ Item {
     property int keyboardIndex: 0
     property int hoveredIndex: -1
     property string searchText: ""
+    property string debouncedSearch: ""
     property bool previewRequested: false
     signal dismiss()
 
@@ -24,9 +25,12 @@ Item {
     readonly property int menuWidth: Math.min(460, Math.max(340, width - edgeMargin * 2))
     readonly property int previewWidth: Math.min(380, Math.max(300, width - edgeMargin * 2))
     readonly property int maxVisibleRows: Math.floor(((screen?.height ?? 720) * 0.7 - 80) / 34)
-    readonly property int visibleRows: Math.min(maxVisibleRows, Math.max(1, filteredEntries.length))
+    // Keep a stable row count until the first cliphist data arrives so the
+    // menu doesn't jump from empty to full height on show.
+    readonly property int stableRows: 6
+    readonly property int visibleRows: Math.min(maxVisibleRows, Math.max(1, filteredEntries.length > 0 ? filteredEntries.length : stableRows))
     readonly property int menuHeight: 48 + visibleRows * 34 + 32
-    readonly property var filteredEntries: searchText.length > 0 ? Cliphist.fuzzyQuery(searchText) : Cliphist.entries
+    readonly property var filteredEntries: debouncedSearch.length > 0 ? Cliphist.fuzzyQuery(debouncedSearch) : Cliphist.entries
     readonly property string selectedEntry: keyboardIndex >= 0 && keyboardIndex < filteredEntries.length ? filteredEntries[keyboardIndex] : ""
     readonly property string hoveredEntry: hoveredIndex >= 0 && hoveredIndex < filteredEntries.length ? filteredEntries[hoveredIndex] : ""
     readonly property string previewEntry: previewRequested && hoveredEntry !== "" ? hoveredEntry : ""
@@ -70,7 +74,7 @@ Item {
         }
         textDecoder.running = false;
         textDecoder.decodedText = "";
-        textDecoder.command = ["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(previewEntry)}' | ${Cliphist.cliphistBinary} decode`];
+        textDecoder.command = ["bash", "-c", `printf '${ClipboardStyle.shellSingleQuoteEscape(previewEntry)}' | ${Cliphist.cliphistBinary} decode`];
         textDecoder.running = true;
     }
 
@@ -84,6 +88,8 @@ Item {
             hoveredIndex = -1;
             previewRequested = false;
             searchText = "";
+            debouncedSearch = "";
+            searchDebounce.stop();
             searchField.text = "";
             Cliphist.setDialogVisible(true);
             Qt.callLater(() => {
@@ -105,6 +111,7 @@ Item {
     Process {
         id: textDecoder
         property string decodedText: ""
+        command: ["true"]
         stdout: StdioCollector {
             onStreamFinished: textDecoder.decodedText = text
         }
@@ -117,12 +124,22 @@ Item {
         onTriggered: clipboardDialog.previewRequested = clipboardDialog.hoveredIndex >= 0
     }
 
+    Timer {
+        id: searchDebounce
+        interval: 40
+        repeat: false
+        onTriggered: {
+            clipboardDialog.debouncedSearch = clipboardDialog.searchText;
+            clipboardDialog.keyboardIndex = 0;
+        }
+    }
+
     Rectangle {
         id: menuCard
         width: clipboardDialog.menuWidth
         height: clipboardDialog.menuHeight
-        color: "#1e1e22"
-        border.color: "#3c3c42"
+        color: ClipboardStyle.panel
+        border.color: ClipboardStyle.line
         border.width: 1
         radius: 10
         clip: true
@@ -165,9 +182,9 @@ Item {
                         bottomMargin: 6
                     }
                     radius: 6
-                    color: "#282830"
+                    color: ClipboardStyle.surface
                     border.width: 1
-                    border.color: "#3a3a40"
+                    border.color: ClipboardStyle.line
 
                     RowLayout {
                         anchors.fill: parent
@@ -179,22 +196,22 @@ Item {
                             text: "search"
                             font.family: "Material Symbols Rounded"
                             font.pixelSize: 16
-                            color: TuiStyle.dim
+                            color: ClipboardStyle.dim
                         }
 
                         TextInput {
                             id: searchField
                             Layout.fillWidth: true
-                            color: TuiStyle.fg
-                            selectionColor: TuiStyle.accent
-                            selectedTextColor: TuiStyle.bg
-                            font.family: Appearance.font.family.main
+                            color: ClipboardStyle.fg
+                            selectionColor: ClipboardStyle.accent
+                            selectedTextColor: ClipboardStyle.bg
+                            font.family: ClipboardStyle.fontFamily
                             font.pixelSize: 13
                             verticalAlignment: TextInput.AlignVCenter
                             clip: true
                             onTextChanged: {
                                 clipboardDialog.searchText = text;
-                                clipboardDialog.keyboardIndex = 0;
+                                clipboardDialog.searchDebounce.restart();
                             }
                             Keys.forwardTo: [menuCard]
 
@@ -202,7 +219,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: parent.text.length === 0
                                 text: "Type to search..."
-                                color: "#85858a"
+                                color: ClipboardStyle.muted
                                 font.pixelSize: 13
                             }
                         }
@@ -249,7 +266,7 @@ Item {
                     anchors.centerIn: parent
                     visible: clipboardList.count === 0
                     text: clipboardDialog.searchText.length > 0 ? "No matches" : "Clipboard is empty"
-                    color: TuiStyle.dim
+                    color: ClipboardStyle.dim
                     font.pixelSize: 14
                 }
 
@@ -266,7 +283,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 height: 1
-                color: "#2c2c32"
+                color: ClipboardStyle.separator
             }
 
             // Footer Link Row
@@ -281,7 +298,7 @@ Item {
 
                     StyledText {
                         text: "Clear history"
-                        color: clearMouse.containsMouse ? TuiStyle.accent : TuiStyle.dim
+                        color: clearMouse.containsMouse ? ClipboardStyle.accent : ClipboardStyle.dim
                         font.pixelSize: 12
 
                         MouseArea {
@@ -297,7 +314,7 @@ Item {
 
                     StyledText {
                         text: "Shift+Del delete  ·  Ctrl+Enter path"
-                        color: "#6c6c72"
+                        color: ClipboardStyle.muted
                         font.pixelSize: 10
                     }
                 }
@@ -315,8 +332,8 @@ Item {
         y: clipboardDialog.clamp(menuCard.y, clipboardDialog.edgeMargin, Math.max(clipboardDialog.edgeMargin, clipboardDialog.height - height - clipboardDialog.edgeMargin))
         width: clipboardDialog.previewWidth
         height: Math.min(300, Math.max(150, menuCard.height))
-        color: "#1e1e22"
-        border.color: "#3c3c42"
+        color: ClipboardStyle.panel
+        border.color: ClipboardStyle.line
         border.width: 1
         radius: 10
         clip: true
@@ -328,12 +345,12 @@ Item {
 
             StyledText {
                 text: clipboardDialog.previewIsImage ? "Image preview" : "Clipboard details"
-                color: TuiStyle.dim
+                color: ClipboardStyle.dim
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }
 
-            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#2d2d34" }
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: ClipboardStyle.separator }
 
             CliphistImage {
                 Layout.fillWidth: true
@@ -362,10 +379,10 @@ Item {
                     wrapMode: TextEdit.Wrap
                     text: textDecoder.decodedText
                     textFormat: TextEdit.PlainText
-                    color: TuiStyle.fg
-                    selectionColor: TuiStyle.accent
-                    selectedTextColor: TuiStyle.bg
-                    font.family: Appearance.font.family.main
+                    color: ClipboardStyle.fg
+                    selectionColor: ClipboardStyle.accent
+                    selectedTextColor: ClipboardStyle.bg
+                    font.family: ClipboardStyle.fontFamily
                     font.pixelSize: 14
                 }
             }

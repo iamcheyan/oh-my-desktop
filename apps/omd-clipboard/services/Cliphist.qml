@@ -8,18 +8,16 @@ import Quickshell.Io
 
 Singleton {
     id: root
-    // property string cliphistBinary: FileUtils.trimFileProtocol(`${Directories.home}/.cargo/bin/stash`)
     property string cliphistBinary: "cliphist"
-    property real pasteDelay: 0.05
     property string pressPasteCommand: "YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0"
-    property real scoreThreshold: 0.2
-    property int maxEntries: 100
-    property bool loaded: false
+    property int maxEntries: 40
     property list<string> entries: []
-    readonly property string cacheDir: Directories.cache + "/omd/clipboard"
-    readonly property string cacheFile: cacheDir + "/entries.json"
+    readonly property var reEntryPrefix: /^\s*\S+\s+/
+    readonly property var reImageEntry: /^\d+\t\[\[.*binary data.*\d+x\d+.*\]\]$/
+    readonly property var reInvisibleChars: /[\s\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3000\u3164\ufe00-\ufe0f\ufeff\uffa0]/g
+    readonly property var reEntryNumber: /^(\d+)\t/
     readonly property var preparedEntries: entries.map(a => ({
-        name: Fuzzy.prepare(`${a.replace(/^\s*\S+\s+/, "")}`),
+        name: Fuzzy.prepare(`${a.replace(reEntryPrefix, "")}`),
         entry: a
     }))
 
@@ -31,24 +29,21 @@ Singleton {
         return Fuzzy.go(search, preparedEntries, {
             all: true,
             key: "name"
-        }).map(r => {
-            return r.obj.entry
-        });
+        }).map(r => r.obj.entry);
     }
 
     function entryIsImage(entry) {
-        return !!(/^\d+\t\[\[.*binary data.*\d+x\d+.*\]\]$/.test(entry))
+        return root.reImageEntry.test(`${entry ?? ""}`)
     }
 
     function entryPayload(entry) {
-        return `${entry ?? ""}`.replace(/^\s*\S+\s+/, "")
+        return `${entry ?? ""}`.replace(root.reEntryPrefix, "")
     }
 
     function entryHasVisibleContent(entry) {
         if (entryIsImage(entry))
             return true
-        const invisible = /[\s\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3000\u3164\ufe00-\ufe0f\ufeff\uffa0]/g
-        return entryPayload(entry).replace(invisible, "").length > 0
+        return entryPayload(entry).replace(root.reInvisibleChars, "").length > 0
     }
 
     function filterEntries(values) {
@@ -68,9 +63,29 @@ Singleton {
     }
 
     function refresh() {
-        root.loaded = true
         readProc.buffer = []
         readProc.running = true
+    }
+
+    // Remove decoded image cache files that are no longer referenced by
+    // the current entry set (keeps only what cliphist list reports).
+    function pruneImageCache() {
+        if (root.entries.length === 0)
+            return
+        const referenced = new Set()
+        for (let i = 0; i < root.entries.length; ++i) {
+            if (root.entryIsImage(root.entries[i])) {
+                const m = `${root.entries[i]}`.match(/^(\d+)\t/)
+                if (m)
+                    referenced.add(m[1])
+            }
+        }
+        const dir = ClipboardStyle.cliphistDecode
+        const keep = [...referenced].map(n => `-e "^${n}$"`).join(" ")
+        if (keep.length === 0)
+            return
+        Quickshell.execDetached(["bash", "-c",
+            `mkdir -p '${dir}'; for f in "${dir}"/*; do [ -f "$f" ] || continue; n=$(basename "$f"); if ${keep} | grep -q "$n"; then :; else rm -f "$f"; fi; done`])
     }
 
     function ensureLoaded() {
@@ -82,59 +97,26 @@ Singleton {
             root.ensureLoaded()
     }
 
-    function copy(entry) {
-        if (root.cliphistBinary.includes("cliphist")) // Classic cliphist
-            Quickshell.execDetached(["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode | wl-copy`]);
-        else { // Stash
-            const entryNumber = entry.split("\t")[0];
-            Quickshell.execDetached(["bash", "-c", `${root.cliphistBinary} decode ${entryNumber} | wl-copy`]);
-        }
-    }
-
     function paste(entry) {
-        if (root.cliphistBinary.includes("cliphist")) // Classic cliphist
-            Quickshell.execDetached(["bash", "-c", `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode | wl-copy && sleep 0.1 && ${root.pressPasteCommand}`]);
-        else { // Stash
-            const entryNumber = entry.split("\t")[0];
-            Quickshell.execDetached(["bash", "-c", `${root.cliphistBinary} decode ${entryNumber} | wl-copy && sleep 0.1 && ${root.pressPasteCommand}`]);
-        }
+        Quickshell.execDetached(["bash", "-c", `printf '${ClipboardStyle.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode | wl-copy && sleep 0.1 && ${root.pressPasteCommand}`]);
     }
 
-    // Save image entry to a /tmp file, copy its path (+ trailing space) to clipboard, then simulate paste
     function pasteImagePath(entry) {
         const ts = Date.now();
         const tmpPath = `/tmp/omd-clip-${ts}.png`;
-        if (root.cliphistBinary.includes("cliphist"))
-            Quickshell.execDetached(["bash", "-c",
-                `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode > "${tmpPath}" && printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand} && notify-send -t 2000 '📋 已复制路径' "${tmpPath}"`
-            ]);
-        else {
-            const entryNumber = entry.split("\t")[0];
-            Quickshell.execDetached(["bash", "-c",
-                `${root.cliphistBinary} decode ${entryNumber} > "${tmpPath}" && printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand} && notify-send -t 2000 '📋 已复制路径' "${tmpPath}"`
-            ]);
-        }
-    }
-
-    function superpaste(count, isImage = false) {
-        // Find entries
-        const targetEntries = entries.filter(entry => {
-            if (!isImage) return true;
-            return entryIsImage(entry);
-        }).slice(0, count)
-        const pasteCommands = [...targetEntries].reverse().map(entry => `printf '${StringUtils.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode | wl-copy && sleep ${root.pasteDelay} && ${root.pressPasteCommand}`)
-        // Act
-        Quickshell.execDetached(["bash", "-c", pasteCommands.join(` && sleep ${root.pasteDelay} && `)]);
+        Quickshell.execDetached(["bash", "-c",
+            `printf '${ClipboardStyle.shellSingleQuoteEscape(entry)}' | ${root.cliphistBinary} decode > "${tmpPath}" && printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand} && notify-send -t 2000 '📋 已复制路径' "${tmpPath}"`
+        ]);
     }
 
     Process {
         id: deleteProc
         property string pendingEntry: ""
         property string pendingEntryNum: ""
-        command: ["bash", "-c", `echo '${StringUtils.shellSingleQuoteEscape(deleteProc.pendingEntry)}' | ${root.cliphistBinary} delete && rm -f '${Directories.cliphistDecode}/${deleteProc.pendingEntryNum}'`]
+        command: ["bash", "-c", `echo '${ClipboardStyle.shellSingleQuoteEscape(deleteProc.pendingEntry)}' | ${root.cliphistBinary} delete && rm -f '${ClipboardStyle.cliphistDecode}/${deleteProc.pendingEntryNum}'`]
         function deleteEntry(entry) {
             deleteProc.pendingEntry = entry;
-            const match = entry.match(/^(\d+)\t/);
+            const match = root.reEntryNumber.exec(entry);
             deleteProc.pendingEntryNum = match ? match[1] : "";
             deleteProc.running = true;
         }
@@ -151,7 +133,7 @@ Singleton {
 
     Process {
         id: wipeProc
-        command: ["bash", "-c", `${root.cliphistBinary} wipe && rm -rf '${Directories.cliphistDecode}'/*`]
+        command: ["bash", "-c", `${root.cliphistBinary} wipe && rm -rf '${ClipboardStyle.cliphistDecode}'/*`]
         onExited: (exitCode, exitStatus) => {
             root.refresh();
         }
@@ -159,22 +141,6 @@ Singleton {
 
     function wipe() {
         wipeProc.running = true;
-    }
-
-    Connections {
-        target: Quickshell
-        function onClipboardTextChanged() {
-            delayedUpdateTimer.restart()
-        }
-    }
-
-    Timer {
-        id: delayedUpdateTimer
-        interval: 20
-        repeat: false
-        onTriggered: {
-            root.refresh()
-        }
     }
 
     Process {
@@ -192,7 +158,7 @@ Singleton {
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 root.entries = root.filterEntries(readProc.buffer)
-                root.saveToCache()
+                root.pruneImageCache()
             } else {
                 console.error("[Cliphist] Failed to refresh with code", exitCode, "and status", exitStatus)
             }
@@ -204,29 +170,6 @@ Singleton {
 
         function update(): void {
             root.refresh()
-        }
-    }
-
-    function saveToCache() {
-        const payload = JSON.stringify(root.entries);
-        Quickshell.execDetached(["bash", "-c", `mkdir -p '${root.cacheDir}' && printf %s '${StringUtils.shellSingleQuoteEscape(payload)}' > '${root.cacheFile}'`]);
-    }
-
-    FileView {
-        id: cacheFileView
-        path: root.cacheFile
-        onLoaded: {
-            var content = text();
-            if (content.length > 0) {
-                try {
-                    var cached = JSON.parse(content);
-                    if (!root.loaded && root.entries.length === 0 && Array.isArray(cached) && cached.length > 0) {
-                        root.entries = root.filterEntries(cached);
-                    }
-                } catch (e) {
-                    console.error("[Cliphist] Failed to parse entries cache:", e);
-                }
-            }
         }
     }
 }

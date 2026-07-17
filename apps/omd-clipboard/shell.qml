@@ -22,17 +22,19 @@ ShellRoot {
     property real monitorX: 0
     property real monitorY: 0
     property bool positionReady: false
+    property var cachedMonitors: []
+
+    Component.onCompleted: {
+        monitorProc.running = true;
+        if (onDemand) {
+            GlobalStates.clipboardOpen = true;
+        }
+    }
 
     function updateCursorPosition() {
         positionReady = false;
         cursorPositionProc.running = false;
         cursorPositionProc.running = true;
-    }
-
-    Component.onCompleted: {
-        if (onDemand) {
-            GlobalStates.clipboardOpen = true;
-        }
     }
 
     Process {
@@ -44,8 +46,7 @@ ShellRoot {
                     const position = JSON.parse(text);
                     root.cursorX = Number(position.x) || 0;
                     root.cursorY = Number(position.y) || 0;
-                    monitorProc.running = false;
-                    monitorProc.running = true;
+                    root.resolveMonitor();
                 } catch (error) {
                     console.warn("[Clipboard] Could not read cursor position:", error);
                     root.positionReady = true;
@@ -54,52 +55,86 @@ ShellRoot {
         }
     }
 
+    function resolveMonitor() {
+        if (root.cachedMonitors.length === 0) {
+            monitorProc.running = false;
+            monitorProc.running = true;
+            return;
+        }
+        root.applyMonitor(root.cachedMonitors);
+    }
+
+    function applyMonitor(monitors) {
+        try {
+            const monitor = monitors.find(candidate => {
+                const rotated = candidate.transform === 1 || candidate.transform === 3
+                    || candidate.transform === 5 || candidate.transform === 7;
+                const scale = Number(candidate.scale) || 1;
+                const logicalWidth = (rotated ? candidate.height : candidate.width) / scale;
+                const logicalHeight = (rotated ? candidate.width : candidate.height) / scale;
+                return root.cursorX >= candidate.x
+                    && root.cursorX < candidate.x + logicalWidth
+                    && root.cursorY >= candidate.y
+                    && root.cursorY < candidate.y + logicalHeight;
+            });
+            if (monitor) {
+                root.monitorX = Number(monitor.x) || 0;
+                root.monitorY = Number(monitor.y) || 0;
+                const screens = Quickshell.screens;
+                for (let index = 0; index < screens.length; index++) {
+                    if (screens[index].name === monitor.name) {
+                        clipboardWindow.screen = screens[index];
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn("[Clipboard] Could not resolve cursor monitor:", error);
+        }
+        root.positionReady = true;
+        Qt.callLater(() => dialog.placeAtCursor());
+    }
+
     Process {
         id: monitorProc
         command: ["hyprctl", "monitors", "-j"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const monitors = JSON.parse(text);
-                    const monitor = monitors.find(candidate => {
-                        const rotated = candidate.transform === 1 || candidate.transform === 3
-                            || candidate.transform === 5 || candidate.transform === 7;
-                        const scale = Number(candidate.scale) || 1;
-                        const logicalWidth = (rotated ? candidate.height : candidate.width) / scale;
-                        const logicalHeight = (rotated ? candidate.width : candidate.height) / scale;
-                        return root.cursorX >= candidate.x
-                            && root.cursorX < candidate.x + logicalWidth
-                            && root.cursorY >= candidate.y
-                            && root.cursorY < candidate.y + logicalHeight;
-                    });
-                    if (monitor) {
-                        root.monitorX = Number(monitor.x) || 0;
-                        root.monitorY = Number(monitor.y) || 0;
-                        const screens = Quickshell.screens;
-                        for (let index = 0; index < screens.length; index++) {
-                            if (screens[index].name === monitor.name) {
-                                clipboardWindow.screen = screens[index];
-                                break;
-                            }
-                        }
-                    }
+                    root.cachedMonitors = JSON.parse(text);
                 } catch (error) {
-                    console.warn("[Clipboard] Could not resolve cursor monitor:", error);
+                    console.warn("[Clipboard] Could not parse monitors:", error);
                 }
-                root.positionReady = true;
-                Qt.callLater(() => dialog.placeAtCursor());
+                root.applyMonitor(root.cachedMonitors);
             }
         }
     }
 
+    // Close-after-warmup: hide on close, quit only if not reopened
+    // within the warmup window. This avoids the Quickshell cold-start
+    // cost when the clipboard is opened/closed repeatedly.
+    readonly property int warmupMs: 25000
+
     Connections {
         target: GlobalStates
         function onClipboardOpenChanged() {
-            if (GlobalStates.clipboardOpen)
+            if (GlobalStates.clipboardOpen) {
+                warmupTimer.stop();
                 root.updateCursorPosition();
-            if (onDemand && !GlobalStates.clipboardOpen) {
-                Qt.quit();
+            } else if (onDemand) {
+                clipboardWindow.visible = false;
+                warmupTimer.restart();
             }
+        }
+    }
+
+    Timer {
+        id: warmupTimer
+        interval: root.warmupMs
+        repeat: false
+        onTriggered: {
+            if (onDemand && !GlobalStates.clipboardOpen)
+                Qt.quit();
         }
     }
 
@@ -145,23 +180,10 @@ ShellRoot {
                 root.updateCursorPosition();
         }
 
-
-        Timer {
-            id: dismissGuard
-            interval: 150
-            repeat: false
-            onTriggered: {
-                // Since we decoupled from the global GlobalFocusGrab,
-                // we can dismiss directly when clicking outside or losing focus.
-            }
-        }
-
-        // Handle Escape key to close the window
         Keys.onEscapePressed: {
             clipboardWindow.close();
         }
 
-        // Close on clicking the empty outer space
         MouseArea {
             anchors.fill: parent
             onClicked: {
