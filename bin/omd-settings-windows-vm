@@ -11,6 +11,8 @@ WEB_PORT="${WINDOWS_VM_WEB_PORT:-8006}"
 WEB_URL="${WINDOWS_VM_WEB_URL:-http://$WEB_HOST:$WEB_PORT}"
 RDP_HOST="${WINDOWS_VM_RDP_HOST:-127.0.0.1}"
 DEFAULT_RDP_PORT="${WINDOWS_VM_RDP_PORT:-3389}"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+RDP_LAUNCHER="${WINDOWS_VM_RDP_LAUNCHER:-$OMD_ROOT/scripts/windows-rdp}"
 
 kv() {
   local key="$1" value="${2:-}"
@@ -507,14 +509,35 @@ install_docker() {
   kv progress "Installing or starting Docker..."
   pkexec bash -c '
     set -e
-    if ! command -v docker >/dev/null 2>&1; then
-      if command -v dnf >/dev/null 2>&1; then dnf install -y docker docker-compose
+    if ! command -v docker >/dev/null 2>&1 || ! command -v dockerd >/dev/null 2>&1 || ! command -v containerd >/dev/null 2>&1; then
+      if command -v dnf >/dev/null 2>&1; then dnf install -y moby-engine docker-cli docker-compose containerd
       elif command -v apt >/dev/null 2>&1; then apt update && apt install -y docker.io docker-compose
       elif command -v pacman >/dev/null 2>&1; then pacman -S --noconfirm docker docker-compose
       fi
     fi
+
+    if command -v restorecon >/dev/null 2>&1; then
+      restorecon -R /usr/bin/dockerd /usr/bin/containerd /usr/bin/docker-proxy /usr/lib/systemd/system/containerd.service /usr/lib/systemd/system/docker.socket /etc/systemd/system/docker.service 2>/dev/null || true
+    fi
+    if command -v chcon >/dev/null 2>&1; then
+      for file in /usr/bin/dockerd /usr/bin/containerd /usr/bin/docker-proxy; do
+        [ -e "$file" ] && chcon system_u:object_r:bin_t:s0 "$file" 2>/dev/null || true
+      done
+      for file in /usr/lib/systemd/system/containerd.service /usr/lib/systemd/system/docker.socket /etc/systemd/system/docker.service; do
+        [ -e "$file" ] && chcon system_u:object_r:systemd_unit_file_t:s0 "$file" 2>/dev/null || true
+      done
+    fi
+
+    systemctl daemon-reload
+    systemctl reset-failed containerd docker 2>/dev/null || true
+    systemctl enable containerd --now 2>/dev/null || true
     systemctl enable docker --now 2>/dev/null || true
-    usermod -aG docker "$SUDO_USER" 2>/dev/null || true
+
+    login_user="${SUDO_USER:-}"
+    if [ -z "$login_user" ] && [ -n "${PKEXEC_UID:-}" ]; then
+      login_user="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
+    fi
+    [ -n "$login_user" ] && usermod -aG docker "$login_user" 2>/dev/null || true
   '
   kv result "ok"
 }
@@ -552,11 +575,47 @@ fix_kvm() {
   }
 }
 
+auto_fix() {
+  if [[ ! -e /dev/kvm ]]; then
+    fix_kvm || true
+  fi
+  if ! docker_access_available; then
+    install_docker || true
+  fi
+  if ! compose_available || ! freerdp_bin >/dev/null 2>&1; then
+    install_packages || true
+  fi
+
+  if [[ ! -e /dev/kvm ]]; then
+    kv error "KVM is still unavailable. Enable Intel VT-x / AMD-V in BIOS or load kvm-intel/kvm-amd."
+    return 1
+  fi
+  if ! docker_access_available; then
+    local err
+    err="$(docker_error || true)"
+    [[ -n "$err" ]] || err="Docker is not running or current user cannot access Docker."
+    kv error "$err"
+    return 1
+  fi
+  if ! compose_available; then
+    kv error "Docker Compose is not installed."
+    return 1
+  fi
+  kv result "ok"
+}
+
+ensure_start_requirements() {
+  if [[ ! -e /dev/kvm ]] || ! docker_access_available || ! compose_available; then
+    auto_fix
+  fi
+}
+
 start() {
   [[ -f "$COMPOSE_FILE" ]] || {
     kv error "Windows VM is not configured."
     return 1
   }
+  ensure_start_requirements
   require_install_resources "$(compose_value DISK_SIZE || echo 64G)"
   ensure_compose_ports_available
   kv progress "Starting Windows VM..."
@@ -582,51 +641,17 @@ wait_ready() {
 }
 
 connect() {
-  local keep_alive="${1:-false}"
-  local bin user pass scale_percent=100 rdp_scale=()
-  bin="$(freerdp_bin)" || {
-    kv error "FreeRDP is not installed."
+  [[ -x "$RDP_LAUNCHER" ]] || {
+    kv error "Windows VM RDP launcher is missing or not executable: $RDP_LAUNCHER"
     return 1
   }
-  user="$(compose_value USERNAME)"
-  pass="$(compose_value PASSWORD)"
-  [[ -n "$user" ]] || user="win11"
-  [[ -n "$pass" ]] || pass="admin"
-
-  if have hyprctl; then
-    scale_percent="$(hyprctl monitors -j 2>/dev/null | python3 -c '
-import json, sys
-try:
-    monitors = json.load(sys.stdin)
-    focused = next((m for m in monitors if m.get("focused")), None)
-    print(int(float((focused or {}).get("scale", 1)) * 100))
-except Exception:
-    print(100)
-' 2>/dev/null || echo 100)"
-  fi
-  if (( scale_percent >= 170 )); then
-    rdp_scale=(/scale:180)
-  elif (( scale_percent >= 130 )); then
-    rdp_scale=(/scale:140)
-  fi
-
-  hypr_focus_new_workspace
-
-  "$bin" /u:"$user" /p:"$pass" /v:"$RDP_HOST:$(compose_rdp_port)" \
-    -grab-keyboard /sound /microphone /clipboard /cert:ignore \
-    /title:"Windows VM - OMD" /dynamic-resolution /gfx:AVC444 \
-    /floatbar:sticky:off,default:visible,show:fullscreen "${rdp_scale[@]}"
-
-  if [[ "$keep_alive" != "true" ]]; then
-    stop >/dev/null 2>&1 || true
-  fi
+  "$RDP_LAUNCHER"
 }
 
 start_connect() {
-  local keep_alive="${1:-true}"
   start
   wait_ready 300
-  connect "$keep_alive"
+  connect
 }
 
 install_status() {
@@ -699,11 +724,7 @@ case "${1:-status}" in
     ;;
   install-defaults) install_defaults ;;
   install-status) install_status ;;
-  auto-fix)
-    fix_kvm || true
-    install_docker || true
-    install_packages || true
-    ;;
+  auto-fix) auto_fix ;;
   logs)
     shift || true
     logs "${1:-120}"

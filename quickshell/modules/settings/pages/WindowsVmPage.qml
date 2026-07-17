@@ -649,10 +649,10 @@ ColumnLayout {
                             onClicked: s.startConnect(false)
                         }
                         SettingsButton {
-                            label: "Keep alive"
-                            iconName: "desktop_windows"
-                            enabledState: s.configured && s.freerdp && !windowsActionProc.running
-                            onClicked: s.startConnect(true)
+                            label: "Open console"
+                            iconName: "open_in_browser"
+                            enabledState: s.configured && !windowsActionProc.running
+                            onClicked: s.run("web")
                         }
                     }
 

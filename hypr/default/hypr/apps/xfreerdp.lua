@@ -1,1 +1,1 @@
-o.window("xfreerdp", { fullscreen = true, idle_inhibit = "fullscreen" })
+o.window("xfreerdp", { tile = true, idle_inhibit = "fullscreen" })

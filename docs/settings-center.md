@@ -416,10 +416,23 @@ already owns 3389, the VM is moved to the first free fallback port in the
 3390-3400 range and the Settings page shows the actual `rdpEndpoint`.
 
 The connect action is intentionally simple: before launching FreeRDP it focuses
-a new empty Hyprland workspace, then starts FreeRDP normally. Hyprland's
-`xfreerdp` app rule keeps the RDP session fullscreen and inhibits idle while
-Windows is open. The helper does not manually resize or move the RDP window
-after launch, and it does not pass FreeRDP's own `/f` fullscreen flag.
+a new empty Hyprland workspace, then starts FreeRDP normally. The helper does
+not manually resize or move the RDP window after launch, and it does not pass
+FreeRDP's own `/f` fullscreen flag. Hyprland explicitly keeps the FreeRDP
+window tiled, not floating or fullscreen, and only inhibits idle while Windows
+is open.
+
+The RDP desktop resolution is fixed at connection time with `/w` and `/h`: it
+uses the focused monitor's tiled client area in physical pixels. That means the
+monitor size is reduced by Hyprland's reserved top/bottom shell area, outer
+gaps, and border size. On the current 3840x2160 display with a 32 logical pixel
+top bar, 4px outer gaps, 2px borders, and 2x scale, the target RDP desktop is
+`3816x2072`. Those values describe the Windows desktop inside the RDP session,
+not the Hyprland window size.
+
+Closing the FreeRDP window only disconnects the remote desktop session. It does
+not stop the Windows VM container; shutdown is explicit through the Settings
+page's Stop action.
 
 Removal is destructive because it deletes the VM storage directory. The QML page
 requires a two-step remove click before invoking `remove --yes`.
