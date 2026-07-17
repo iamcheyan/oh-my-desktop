@@ -14,6 +14,9 @@ Item {
     property real screenGlobalX: 0
     property real screenGlobalY: 0
     property var screen: null
+    // "cursor" follows the mouse; "bar" anchors to the top-right of the bar.
+    property string positionMode: "cursor"
+    property real barHeight: 32
     property int keyboardIndex: 0
     property int hoveredIndex: -1
     property string searchText: ""
@@ -50,6 +53,13 @@ Item {
         menuCard.y = clamp(localY, edgeMargin, Math.max(edgeMargin, height - menuHeight - edgeMargin));
     }
 
+    function placeAtBar() {
+        if (!menuCard)
+            return;
+        menuCard.x = clamp(width - menuWidth - edgeMargin, edgeMargin, Math.max(edgeMargin, width - menuWidth - edgeMargin));
+        menuCard.y = barHeight + edgeMargin + 4;
+    }
+
     function pasteSelected(asPath) {
         if (selectedEntry === "")
             return;
@@ -79,8 +89,17 @@ Item {
     }
 
     onPreviewEntryChanged: loadPreview()
-    onWidthChanged: if (show) placeAtCursor()
-    onHeightChanged: if (show) placeAtCursor()
+    onWidthChanged: if (show) place()
+    onHeightChanged: if (show) place()
+    onPositionModeChanged: if (show) place()
+    onBarHeightChanged: if (show && positionMode === "bar") place()
+
+    function place() {
+        if (positionMode === "bar")
+            placeAtBar();
+        else
+            placeAtCursor();
+    }
 
     onVisibleChanged: {
         if (visible) {
@@ -93,7 +112,7 @@ Item {
             searchField.text = "";
             Cliphist.setDialogVisible(true);
             Qt.callLater(() => {
-                placeAtCursor();
+                place();
                 searchField.forceActiveFocus();
             });
         } else {
@@ -174,7 +193,7 @@ Item {
                 Layout.preferredHeight: 48
 
                 // Moving the header only affects this invocation. The next
-                // open calls placeAtCursor() and restores pointer placement.
+                // open calls place() and restores the active placement.
                 DragHandler {
                     target: menuCard
                     acceptedButtons: Qt.LeftButton

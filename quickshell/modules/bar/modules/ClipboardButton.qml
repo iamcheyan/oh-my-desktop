@@ -14,6 +14,9 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
 
+    readonly property real barHeight: Config.options.bar.cornerStyle === 1
+        ? (32 + Appearance.sizes.hyprlandGapsOut * 2) : 32
+
     CircleUtilButton {
         id: clipboardButton
         anchors.centerIn: parent
@@ -21,7 +24,8 @@ Item {
         onClicked: {
             Quickshell.execDetached([
                 `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-clipboard`,
-                "toggle"
+                "toggle-at-bar",
+                `${root.barHeight}`
             ]);
         }
 

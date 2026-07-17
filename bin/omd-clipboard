@@ -3,13 +3,17 @@ set -eu
 
 # On-demand Clipboard process.
 # Usage:
-#   omd-clipboard              # toggle: open if not running, close if running
-#   omd-clipboard toggle       # same as above
-#   omd-clipboard open         # open (launch if needed)
-#   omd-clipboard close        # close running instance (no-op if not running)
+#   omd-clipboard                 # toggle: open if not running, close if running
+#   omd-clipboard toggle         # same as above (follows cursor)
+#   omd-clipboard toggle-at-bar  # toggle anchored to the top bar (right side)
+#   omd-clipboard open           # open (launch if needed, follows cursor)
+#   omd-clipboard open-at-bar    # open anchored to the top bar
+#   omd-clipboard close          # close running instance (no-op if not running)
 #
 # When started fresh, exports OMD_CLIPBOARD_ON_DEMAND=1 so shell.qml auto-opens the
 # clipboard dialog and quits the process when the window closes.
+# OMD_CLIPBOARD_POSITION=bar  anchors the dialog to the bar instead of the cursor.
+# OMD_CLIPBOARD_BAR_HEIGHT=n  supplies the bar height for the anchored offset.
 
 app_dir="$HOME/.config/omd/apps/omd-clipboard"
 
@@ -24,6 +28,12 @@ ipc_call() {
 }
 
 launch_direct() {
+    # Forward position hints to the fresh Quickshell instance via env.
+    if [ "${OMD_CLIPBOARD_POSITION:-}" = "bar" ]; then
+        export OMD_CLIPBOARD_POSITION=bar
+        export OMD_CLIPBOARD_BAR_HEIGHT="${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
+    fi
+
     qs_bin="${OMD_QS_BIN:-}"
     if [ -z "$qs_bin" ]; then
         if [ -x /usr/bin/qs ]; then
@@ -72,11 +82,25 @@ case "${1:-toggle}" in
             launch_direct
         fi
         ;;
+    toggle-at-bar)
+        if is_running; then
+            ipc_call "toggleAtBar ${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
+        else
+            OMD_CLIPBOARD_POSITION=bar OMD_CLIPBOARD_BAR_HEIGHT="${OMD_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
+        fi
+        ;;
     open)
         if is_running; then
             ipc_call open
         else
             launch_direct
+        fi
+        ;;
+    open-at-bar)
+        if is_running; then
+            ipc_call "openAtBar ${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
+        else
+            OMD_CLIPBOARD_POSITION=bar OMD_CLIPBOARD_BAR_HEIGHT="${OMD_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
         fi
         ;;
     close)
@@ -85,7 +109,7 @@ case "${1:-toggle}" in
         fi
         ;;
     *)
-        echo "usage: omd-clipboard [toggle|open|close]" >&2
+        echo "usage: omd-clipboard [toggle|toggle-at-bar|open|open-at-bar|close]" >&2
         exit 2
         ;;
 esac

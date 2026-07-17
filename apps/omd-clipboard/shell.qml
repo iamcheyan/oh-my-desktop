@@ -17,6 +17,8 @@ ShellRoot {
     id: root
 
     readonly property bool onDemand: (Quickshell.env("OMD_CLIPBOARD_ON_DEMAND") ?? "") === "1"
+    readonly property string initialPosition: (Quickshell.env("OMD_CLIPBOARD_POSITION") ?? "") === "bar" ? "bar" : "cursor"
+    readonly property real initialBarHeight: Number(Quickshell.env("OMD_CLIPBOARD_BAR_HEIGHT") ?? "") || 32
     property real cursorX: 0
     property real cursorY: 0
     property real monitorX: 0
@@ -28,6 +30,8 @@ ShellRoot {
         monitorProc.running = true;
         if (onDemand) {
             GlobalStates.clipboardOpen = true;
+            dialog.positionMode = root.initialPosition;
+            dialog.barHeight = root.initialBarHeight;
         }
     }
 
@@ -92,7 +96,7 @@ ShellRoot {
             console.warn("[Clipboard] Could not resolve cursor monitor:", error);
         }
         root.positionReady = true;
-        Qt.callLater(() => dialog.placeAtCursor());
+        Qt.callLater(() => dialog.place());
     }
 
     Process {
@@ -142,9 +146,27 @@ ShellRoot {
 
         function toggle() {
             GlobalStates.clipboardOpen = !GlobalStates.clipboardOpen;
+            dialog.positionMode = "cursor";
         }
         function open() {
             GlobalStates.clipboardOpen = true;
+            dialog.positionMode = "cursor";
+        }
+        function toggleAtBar(barHeight: real) {
+            if (GlobalStates.clipboardOpen && dialog.positionMode === "bar") {
+                GlobalStates.clipboardOpen = false;
+            } else {
+                GlobalStates.clipboardOpen = true;
+                dialog.positionMode = "bar";
+                if (barHeight > 0)
+                    dialog.barHeight = barHeight;
+            }
+        }
+        function openAtBar(barHeight: real) {
+            GlobalStates.clipboardOpen = true;
+            dialog.positionMode = "bar";
+            if (barHeight > 0)
+                dialog.barHeight = barHeight;
         }
         function close() {
             GlobalStates.clipboardOpen = false;
