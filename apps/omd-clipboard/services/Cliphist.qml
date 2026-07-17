@@ -18,7 +18,10 @@ Singleton {
     readonly property var reEntryNumber: /^(\d+)\t/
     readonly property var preparedEntries: entries.map(a => {
         const payload = a.replace(reEntryPrefix, "")
-        const name = root.entryIsImage(a) ? payload + " image" : payload
+        // Image entries carry only binary metadata ("[[ binary data 29 KiB
+        // png 1034x288 ]]"); indexing that would let digit queries like
+        // "1234" match via the dimensions. Expose only the "image" keyword.
+        const name = root.entryIsImage(a) ? "image" : payload
         return { name: Fuzzy.prepare(name), entry: a }
     })
 
