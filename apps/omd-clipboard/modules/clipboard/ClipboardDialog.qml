@@ -194,7 +194,9 @@ Item {
 
                 // Moving the header only affects this invocation. The next
                 // open calls place() and restores the active placement.
+                // Dragging is disabled in bar mode (anchored popup).
                 DragHandler {
+                    enabled: clipboardDialog.positionMode !== "bar"
                     target: menuCard
                     acceptedButtons: Qt.LeftButton
                     xAxis.minimum: clipboardDialog.edgeMargin

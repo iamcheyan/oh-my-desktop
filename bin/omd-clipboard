@@ -24,7 +24,7 @@ is_running() {
 }
 
 ipc_call() {
-    qs -p "$app_dir" ipc call clipboard "$1" 2>/dev/null || true
+    qs -p "$app_dir" ipc call clipboard "$@" 2>/dev/null || true
 }
 
 launch_direct() {
@@ -84,7 +84,7 @@ case "${1:-toggle}" in
         ;;
     toggle-at-bar)
         if is_running; then
-            ipc_call "toggleAtBar ${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
+            ipc_call toggleAtBar "${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
         else
             OMD_CLIPBOARD_POSITION=bar OMD_CLIPBOARD_BAR_HEIGHT="${OMD_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
         fi
@@ -98,7 +98,7 @@ case "${1:-toggle}" in
         ;;
     open-at-bar)
         if is_running; then
-            ipc_call "openAtBar ${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
+            ipc_call openAtBar "${OMD_CLIPBOARD_BAR_HEIGHT:-32}"
         else
             OMD_CLIPBOARD_POSITION=bar OMD_CLIPBOARD_BAR_HEIGHT="${OMD_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
         fi
