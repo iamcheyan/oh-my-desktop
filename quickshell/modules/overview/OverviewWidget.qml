@@ -604,12 +604,23 @@ Item {
 
                     // Wallpaper background for all workspaces (including trailing empty)
                     Image {
+                        id: workspaceWallpaper
+                        property bool fallbackActive: false
+                        readonly property string configuredSource: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
+                        readonly property string fallbackSource: `${Directories.assetsPath}/images/default_wallpaper.png`
+
                         anchors.fill: parent
-                        source: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
+                        source: fallbackActive ? fallbackSource : configuredSource
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         cache: true
                         mipmap: true
+
+                        onConfiguredSourceChanged: fallbackActive = false
+                        onStatusChanged: {
+                            if (status === Image.Error && !fallbackActive)
+                                fallbackActive = true;
+                        }
                     }
 
                     StyledText {

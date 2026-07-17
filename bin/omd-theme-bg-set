@@ -7,20 +7,34 @@ if [[ -z "${1:-}" ]]; then
 fi
 
 background="$(realpath "$1")"
-current_background="${OMD_ROOT:-$HOME/.config/omd}/current/background"
+omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+current_dir="$omd_root/current"
+managed_background="$current_dir/wallpaper"
+current_background="$current_dir/background"
 
 if [[ ! -f "$background" ]]; then
   echo "File does not exist: $background" >&2
   exit 1
 fi
 
-mkdir -p "$(dirname "$current_background")"
-ln -nsf "$background" "$current_background"
+mkdir -p "$current_dir"
+
+# Keep the active wallpaper independent from the imported source. A relative
+# link makes the runtime path stable even when the repository is moved.
+if [[ "$(realpath -m "$background")" != "$(realpath -m "$managed_background")" ]]; then
+  tmp_background="$(mktemp "$current_dir/.wallpaper.XXXXXX")"
+  trap 'rm -f "${tmp_background:-}"' EXIT
+  cp -- "$background" "$tmp_background"
+  chmod 0644 "$tmp_background"
+  mv -f -- "$tmp_background" "$managed_background"
+  tmp_background=""
+fi
+ln -nsf "wallpaper" "$current_background"
 
 quickshell_config="$HOME/.config/quickshell/config.json"
 if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
   tmp="$(mktemp)"
-  jq --arg path "$background" '.background.wallpaperPath = $path | .background.thumbnailPath = ""' "$quickshell_config" >"$tmp" &&
+  jq --arg path '~/.config/omd/current/background' '.background.wallpaperPath = $path | .background.thumbnailPath = ""' "$quickshell_config" >"$tmp" &&
     mv "$tmp" "$quickshell_config"
   rm -f "$tmp"
 fi

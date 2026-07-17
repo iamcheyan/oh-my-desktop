@@ -17,3 +17,9 @@ __pycache__/
 *.pyc
 
 .mimocode/
+
+# Remote desktop credentials (contains secrets)
+scripts/remote-desktop.conf
+
+# Imported machine-local wallpaper. current/background is the stable tracked link.
+/current/wallpaper

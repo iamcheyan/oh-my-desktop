@@ -142,10 +142,10 @@ if [[ -n "$wallpaper" ]]; then
 else
   warn "no configured wallpaperPath"
 fi
-if [[ -L "$repo/current/background" || -f "$repo/current/background" ]]; then
-  ok "current OMD background exists"
+if [[ -f "$repo/current/background" ]]; then
+  ok "current OMD background resolves to an image"
 else
-  warn "current OMD background missing; run omd-theme-bg-set or choose a wallpaper"
+  fail "current OMD background is missing or broken; run omd-theme-bg-set or choose a wallpaper"
 fi
 
 section "privacy scan"

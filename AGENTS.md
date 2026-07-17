@@ -209,6 +209,7 @@ Additional manual symlinks (not created by Init.sh):
 - Overview command palette: `docs/overview-command-palette.md`
 - Deployment/portability: `docs/deployment-portability.md`
 - Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
+- Wallpaper runtime contract: `docs/wallpaper-runtime.md`
 
 ## Editing
 
