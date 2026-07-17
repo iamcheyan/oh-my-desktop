@@ -154,6 +154,8 @@ Item {
     onTotalResultsChanged: clampSelection()
     onQueryChanged: selectedIndex = 0
 
+    // ── Search box + quick-action button (disabled per request) ──
+    /*
     MouseArea {
         anchors.fill: parent
         z: 10
@@ -313,6 +315,7 @@ Item {
             }
         }
     }
+    */
 
     Rectangle {
         id: resultsPopup
