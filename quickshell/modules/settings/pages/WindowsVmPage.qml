@@ -224,19 +224,22 @@ ColumnLayout {
             return s.phase
         }
         function blockerText() {
+            const blockers = []
             if (!s.kvm)
-                return "KVM is unavailable. Enable virtualization in BIOS, then try again."
+                blockers.push("KVM is unavailable. Enable virtualization in BIOS, then try again.")
             if (!s.dockerCli)
-                return "Docker is not installed."
-            if (!s.dockerAccess)
-                return s.dockerError.length > 0 ? s.dockerError : "Current user cannot access Docker."
-            if (!s.dockerDaemon)
-                return "Docker is installed but the daemon is not running."
+                blockers.push("Docker is not installed.")
+            else {
+                if (!s.dockerAccess)
+                    blockers.push(s.dockerError.length > 0 ? s.dockerError : "Current user cannot access Docker.")
+                else if (!s.dockerDaemon)
+                    blockers.push("Docker is installed but the daemon is not running.")
+            }
             if (!s.compose)
-                return "Docker Compose is not installed."
+                blockers.push("Docker Compose is not installed.")
             if (s.diskAvailable < 74)
-                return `Only ${s.diskAvailable} GB free. Windows VM needs at least 74 GB.`
-            return ""
+                blockers.push(`Only ${s.diskAvailable} GB free. Windows VM needs at least 74 GB.`)
+            return blockers.join("\n")
         }
         function portText() {
             if (s.rdpPortConflict)

@@ -11,6 +11,7 @@ Rectangle {
     signal itemClicked()
     signal hoveredChanged(bool hovered)
     signal pasteAsPathRequested(string entry)
+    signal mouseMoved()
 
     readonly property bool isImage: Cliphist.entryIsImage(entry)
     readonly property string cleanText: ClipboardStyle.cleanCliphistEntry(entry)
@@ -37,6 +38,7 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onContainsMouseChanged: root.hoveredChanged(containsMouse)
+        onPositionChanged: root.mouseMoved()
         onClicked: {
             Cliphist.paste(root.entry);
             root.itemClicked();

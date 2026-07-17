@@ -19,6 +19,11 @@ Item {
     property real barHeight: 32
     property int keyboardIndex: 0
     property int hoveredIndex: -1
+    // Suppress hover-driven selection right after the menu appears. The menu
+    // often pops up under the cursor (cursor placement mode); without this
+    // guard the item under the cursor steals selection from the first entry.
+    // Cleared once the user actually moves the mouse or presses an arrow key.
+    property bool hoverSuppressed: false
     property string searchText: ""
     property string debouncedSearch: ""
     property bool previewRequested: false
@@ -104,6 +109,7 @@ Item {
         if (visible) {
             keyboardIndex = 0;
             hoveredIndex = -1;
+            hoverSuppressed = true;
             previewRequested = false;
             searchText = "";
             debouncedSearch = "";
@@ -169,14 +175,16 @@ Item {
         clip: true
         focus: true
 
-        Keys.onPressed: event => {
+            Keys.onPressed: event => {
             if (event.key === Qt.Key_Down) {
                 event.accepted = true;
+                hoverSuppressed = false;
                 keyboardIndex = Math.min(keyboardIndex + 1, filteredEntries.length - 1);
                 previewRequested = false;
                 previewDelay.restart();
             } else if (event.key === Qt.Key_Up) {
                 event.accepted = true;
+                hoverSuppressed = false;
                 keyboardIndex = Math.max(0, keyboardIndex - 1);
                 previewRequested = false;
                 previewDelay.restart();
@@ -257,11 +265,13 @@ Item {
                             Keys.onPressed: event => {
                                 if (event.key === Qt.Key_Down) {
                                     event.accepted = true;
+                                    clipboardDialog.hoverSuppressed = false;
                                     clipboardDialog.keyboardIndex = Math.min(clipboardDialog.keyboardIndex + 1, clipboardDialog.filteredEntries.length - 1);
                                     clipboardDialog.previewRequested = false;
                                     previewDelay.restart();
                                 } else if (event.key === Qt.Key_Up) {
                                     event.accepted = true;
+                                    clipboardDialog.hoverSuppressed = false;
                                     clipboardDialog.keyboardIndex = Math.max(0, clipboardDialog.keyboardIndex - 1);
                                     clipboardDialog.previewRequested = false;
                                     previewDelay.restart();
@@ -310,8 +320,11 @@ Item {
                         clipboardDialog.dismiss();
                         Cliphist.pasteImagePath(entry);
                     }
+                    onMouseMoved: clipboardDialog.hoverSuppressed = false
                     onHoveredChanged: hovered => {
                         if (hovered) {
+                            if (clipboardDialog.hoverSuppressed)
+                                return;
                             clipboardDialog.keyboardIndex = index;
                             clipboardDialog.hoveredIndex = index;
                             clipboardDialog.previewRequested = false;
