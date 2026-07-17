@@ -338,6 +338,7 @@ ColumnLayout {
 
     GridLayout {
         id: contentGrid
+        visible: s.configured
         Layout.fillWidth: true
         Layout.fillHeight: true
         columns: pageRoot.wideLayout ? 2 : 1
@@ -862,6 +863,259 @@ ColumnLayout {
                 }
 
                 Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Rectangle {
+        id: onboardingView
+        visible: !s.configured
+        Layout.fillWidth: true
+        implicitHeight: onboardingColumn.implicitHeight + SettingsTokens.panelPadding * 2
+        radius: SettingsTokens.roundRadius
+        color: SettingsTokens.panel
+        border.width: 1
+        border.color: SettingsTokens.line
+
+        ColumnLayout {
+            id: onboardingColumn
+            anchors.fill: parent
+            anchors.margins: SettingsTokens.panelPadding
+            spacing: SettingsTokens.sectionGap
+
+            // 1. Header Section
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 16
+
+                Rectangle {
+                    Layout.preferredWidth: 54
+                    Layout.preferredHeight: 54
+                    radius: SettingsTokens.radius
+                    color: s.hasSystemBlocker ? SettingsTokens.warningPanel : SettingsTokens.accentSoft
+                    border.width: s.hasSystemBlocker ? 1 : 0
+                    border.color: s.hasSystemBlocker ? SettingsTokens.warningBorder : "transparent"
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        text: s.hasSystemBlocker ? "warning" : "desktop_windows"
+                        iconSize: 28
+                        color: s.hasSystemBlocker ? SettingsTokens.danger : SettingsTokens.accent
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    StyledText {
+                        text: "Windows Virtual Machine"
+                        color: SettingsTokens.fg
+                        font.pixelSize: Appearance.font.pixelSize.large
+                        font.weight: Font.DemiBold
+                    }
+
+                    StyledText {
+                        text: "Run a high-performance Windows 11 instance inside a secure container directly on your desktop."
+                        color: SettingsTokens.muted
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: SettingsTokens.line
+            }
+
+            // 2. Main Content Layout (Split into left info/checklist and right progress/logs if installing)
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 24
+
+                // Left Checklist & Action
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 16
+
+                    StyledText {
+                        text: "System Requirements"
+                        color: SettingsTokens.fg
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
+                    }
+
+                    // Checklist
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        SettingsRow {
+                            label: "KVM Virtualization"
+                            value: s.kvm ? "Available" : "Disabled / Missing"
+                            valueColor: s.reqColor(s.kvm)
+                            clickable: false
+                        }
+                        SettingsRow {
+                            label: "Docker Daemon"
+                            value: s.dockerAccess ? "Running" : (s.dockerCli ? "No permission" : "Not installed")
+                            valueColor: s.reqColor(s.dockerAccess)
+                            clickable: false
+                        }
+                        SettingsRow {
+                            label: "Docker Compose"
+                            value: s.compose ? "Available" : "Missing"
+                            valueColor: s.reqColor(s.compose)
+                            clickable: false
+                        }
+                        SettingsRow {
+                            label: "Required Disk Space"
+                            value: `${s.diskAvailable} GB available (needs ≥ 74 GB)`
+                            valueColor: s.diskAvailable >= 74 ? SettingsTokens.accent : SettingsTokens.danger
+                            clickable: false
+                        }
+                    }
+
+                    // Status Message Card
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: statusMsgColumn.implicitHeight + 24
+                        radius: SettingsTokens.radius
+                        color: s.hasSystemBlocker ? SettingsTokens.warningPanel : SettingsTokens.accentSoft
+                        border.width: 1
+                        border.color: s.hasSystemBlocker ? SettingsTokens.warningBorder : SettingsTokens.accent
+
+                        ColumnLayout {
+                            id: statusMsgColumn
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 6
+
+                            StyledText {
+                                text: s.hasSystemBlocker ? "Requirements Blocked" : "System Ready"
+                                color: s.hasSystemBlocker ? SettingsTokens.danger : SettingsTokens.accent
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.weight: Font.DemiBold
+                            }
+
+                            StyledText {
+                                text: s.hasSystemBlocker
+                                    ? s.blockerText()
+                                    : "All host requirements are satisfied. You can now automatically download and install the Windows VM."
+                                color: SettingsTokens.fg
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    // Primary Action Buttons
+                    ButtonRow {
+                        Layout.fillWidth: true
+                        SettingsButton {
+                            label: s.hasSystemBlocker ? "Fix requirements" : "Install Windows 11"
+                            iconName: s.hasSystemBlocker ? "build" : "download"
+                            active: s.showProgress || windowsActionProc.running
+                            enabledState: !windowsActionProc.running
+                            onClicked: s.primaryAction()
+                        }
+                        SettingsButton {
+                            label: "Refresh"
+                            iconName: "refresh"
+                            enabledState: !windowsActionProc.running
+                            onClicked: {
+                                s.refresh()
+                                windowsInstallStatusProc.running = true
+                                windowsLogsProc.running = true
+                            }
+                        }
+                    }
+                }
+
+                // Vertical Divider if showing progress
+                Rectangle {
+                    visible: s.showProgress
+                    Layout.preferredWidth: 1
+                    Layout.fillHeight: true
+                    color: SettingsTokens.line
+                }
+
+                // Right Progress & Real-time Logs (only shown during install/fix progress)
+                ColumnLayout {
+                    visible: s.showProgress
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: parent.width * 0.45
+                    Layout.alignment: Qt.AlignTop
+                    spacing: 12
+
+                    StyledText {
+                        text: s.mode === "fixing" ? "Fixing host environment..." : "Installing VM components..."
+                        color: SettingsTokens.fg
+                        font.pixelSize: Appearance.font.pixelSize.normal
+                        font.weight: Font.DemiBold
+                    }
+
+                    StyledProgressBar {
+                        Layout.fillWidth: true
+                        valueBarHeight: 6
+                        indeterminate: true
+                        wavy: true
+                    }
+
+                    SettingsRow {
+                        label: "Current Phase"
+                        value: s.phaseText()
+                        clickable: false
+                    }
+
+                    // Log output console
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 180
+                        color: SettingsTokens.panelAlt
+                        radius: SettingsTokens.radius
+                        border.width: 1
+                        border.color: SettingsTokens.line
+                        clip: true
+
+                        StyledFlickable {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            contentHeight: installLogsText.height
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: StyledScrollBar {}
+
+                            TextEdit {
+                                id: installLogsText
+                                text: windowsLogsOutput.text || "Preparing log output stream..."
+                                color: SettingsTokens.fg
+                                font.family: Appearance.font.family.monospace
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                selectByMouse: true
+                                readOnly: true
+                                wrapMode: TextEdit.Wrap
+                                width: parent.width
+                            }
+                        }
+                    }
+
+                    ButtonRow {
+                        SettingsButton {
+                            label: "Refresh logs"
+                            iconName: "refresh"
+                            onClicked: windowsLogsProc.running = true
+                        }
+                        SettingsButton {
+                            label: "Open web console"
+                            iconName: "open_in_browser"
+                            enabledState: s.webReachable || s.configured
+                            onClicked: s.run("web")
+                        }
+                    }
+                }
             }
         }
     }

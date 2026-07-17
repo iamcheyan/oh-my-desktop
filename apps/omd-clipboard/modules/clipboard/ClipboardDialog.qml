@@ -110,6 +110,9 @@ Item {
             searchDebounce.stop();
             searchField.text = "";
             Cliphist.setDialogVisible(true);
+            // Select the first entry by default and reveal its preview once
+            // the (async) cliphist list arrives.
+            previewDelay.restart();
             Qt.callLater(() => {
                 place();
                 searchField.forceActiveFocus();
@@ -123,6 +126,9 @@ Item {
         target: Cliphist
         function onEntriesChanged() {
             clipboardDialog.keyboardIndex = Math.min(clipboardDialog.keyboardIndex, Math.max(0, clipboardDialog.filteredEntries.length - 1));
+            // Reveal the preview for the now-loaded first entry on open.
+            if (clipboardDialog.visible && !clipboardDialog.previewRequested && clipboardDialog.keyboardIndex === 0)
+                clipboardDialog.previewDelay.restart();
         }
     }
 
