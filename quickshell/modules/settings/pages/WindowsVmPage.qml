@@ -1022,7 +1022,7 @@ ColumnLayout {
                             label: s.hasSystemBlocker ? "Fix requirements" : "Install Windows 11"
                             iconName: s.hasSystemBlocker ? "build" : "download"
                             active: s.showProgress || windowsActionProc.running
-                            enabledState: !windowsActionProc.running
+                            enabledState: !windowsActionProc.running && s.diskAvailable >= 74
                             onClicked: s.primaryAction()
                         }
                         SettingsButton {
