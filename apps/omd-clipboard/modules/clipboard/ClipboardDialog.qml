@@ -35,8 +35,7 @@ Item {
     readonly property int menuHeight: 48 + visibleRows * 34 + 32
     readonly property var filteredEntries: debouncedSearch.length > 0 ? Cliphist.fuzzyQuery(debouncedSearch) : Cliphist.entries
     readonly property string selectedEntry: keyboardIndex >= 0 && keyboardIndex < filteredEntries.length ? filteredEntries[keyboardIndex] : ""
-    readonly property string hoveredEntry: hoveredIndex >= 0 && hoveredIndex < filteredEntries.length ? filteredEntries[hoveredIndex] : ""
-    readonly property string previewEntry: previewRequested && hoveredEntry !== "" ? hoveredEntry : ""
+    readonly property string previewEntry: previewRequested && selectedEntry !== "" ? selectedEntry : ""
     readonly property bool previewIsImage: previewEntry !== "" && Cliphist.entryIsImage(previewEntry)
     readonly property bool previewOnLeft: menuCard.x + menuWidth + 10 + previewWidth > width - edgeMargin
 
@@ -140,7 +139,7 @@ Item {
         id: previewDelay
         interval: 180
         repeat: false
-        onTriggered: clipboardDialog.previewRequested = clipboardDialog.hoveredIndex >= 0
+        onTriggered: clipboardDialog.previewRequested = clipboardDialog.keyboardIndex >= 0
     }
 
     Timer {
@@ -168,9 +167,13 @@ Item {
             if (event.key === Qt.Key_Down) {
                 event.accepted = true;
                 keyboardIndex = Math.min(keyboardIndex + 1, filteredEntries.length - 1);
+                previewRequested = false;
+                previewDelay.restart();
             } else if (event.key === Qt.Key_Up) {
                 event.accepted = true;
                 keyboardIndex = Math.max(0, keyboardIndex - 1);
+                previewRequested = false;
+                previewDelay.restart();
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 event.accepted = true;
                 pasteSelected((event.modifiers & Qt.ControlModifier) !== 0);
@@ -243,9 +246,30 @@ Item {
                             clip: true
                             onTextChanged: {
                                 clipboardDialog.searchText = text;
-                                clipboardDialog.searchDebounce.restart();
+                                searchDebounce.restart();
                             }
-                            Keys.forwardTo: [menuCard]
+                            Keys.onPressed: event => {
+                                if (event.key === Qt.Key_Down) {
+                                    event.accepted = true;
+                                    clipboardDialog.keyboardIndex = Math.min(clipboardDialog.keyboardIndex + 1, clipboardDialog.filteredEntries.length - 1);
+                                    clipboardDialog.previewRequested = false;
+                                    previewDelay.restart();
+                                } else if (event.key === Qt.Key_Up) {
+                                    event.accepted = true;
+                                    clipboardDialog.keyboardIndex = Math.max(0, clipboardDialog.keyboardIndex - 1);
+                                    clipboardDialog.previewRequested = false;
+                                    previewDelay.restart();
+                                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    event.accepted = true;
+                                    clipboardDialog.pasteSelected((event.modifiers & Qt.ControlModifier) !== 0);
+                                } else if (event.key === Qt.Key_Delete && (event.modifiers & Qt.ShiftModifier)) {
+                                    event.accepted = true;
+                                    clipboardDialog.deleteSelected();
+                                } else if (event.key === Qt.Key_Escape) {
+                                    event.accepted = true;
+                                    clipboardDialog.dismiss();
+                                }
+                            }
 
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter

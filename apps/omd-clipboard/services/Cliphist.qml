@@ -16,10 +16,11 @@ Singleton {
     readonly property var reImageEntry: /^\d+\t\[\[.*binary data.*\d+x\d+.*\]\]$/
     readonly property var reInvisibleChars: /[\s\u0000-\u001f\u007f-\u009f\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180b-\u180f\u200b-\u200f\u202a-\u202e\u2060-\u206f\u2800\u3000\u3164\ufe00-\ufe0f\ufeff\uffa0]/g
     readonly property var reEntryNumber: /^(\d+)\t/
-    readonly property var preparedEntries: entries.map(a => ({
-        name: Fuzzy.prepare(`${a.replace(reEntryPrefix, "")}`),
-        entry: a
-    }))
+    readonly property var preparedEntries: entries.map(a => {
+        const payload = a.replace(reEntryPrefix, "")
+        const name = root.entryIsImage(a) ? payload + " image" : payload
+        return { name: Fuzzy.prepare(name), entry: a }
+    })
 
     function fuzzyQuery(search: string): var {
         if (search.trim() === "") {
