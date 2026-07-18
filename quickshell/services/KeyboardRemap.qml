@@ -71,14 +71,12 @@ Singleton {
     readonly property var globalPresetChoices: [
         {
             "id": "alt-win-swap",
-            "label": "Swap Alt / Win",
-            "description": "Applies left and right Alt <-> Win.",
+            "label": "Swap Left Alt / Win",
+            "description": "Applies left Alt <-> left Win.",
             "type": "swap",
             "remaps": [
                 { "from": "leftalt", "to": "leftmeta" },
-                { "from": "leftmeta", "to": "leftalt" },
-                { "from": "rightalt", "to": "rightmeta" },
-                { "from": "rightmeta", "to": "rightalt" }
+                { "from": "leftmeta", "to": "leftalt" }
             ]
         },
         {
@@ -110,17 +108,10 @@ Singleton {
         },
         {
             "id": "muhenkan-meta",
-            "label": "Muhenkan to Win",
-            "description": "Makes the Muhenkan (無変換) key send Super (Win).",
+            "label": "Muhenkan → Custom",
+            "description": "Makes the Muhenkan (無変換) key send a custom target key.",
             "type": "remap",
             "remaps": [{ "from": "muhenkan", "to": "leftmeta" }]
-        },
-        {
-            "id": "meta-f13",
-            "label": "Left Win to F13",
-            "description": "Makes the Left Super (Win) key send F13.",
-            "type": "remap",
-            "remaps": [{ "from": "leftmeta", "to": "f13" }]
         },
         {
             "id": "kana-left",

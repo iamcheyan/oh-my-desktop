@@ -25,7 +25,6 @@ WindowDialog {
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
     property int wallpaperRefreshNonce: 0
-    property bool keyremapApplyConfirmOpen: false
     property bool keyremapDetailOpen: false
     property string keyremapEditingPreset: ""
 

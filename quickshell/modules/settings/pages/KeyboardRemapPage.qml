@@ -32,12 +32,11 @@ ColumnLayout {
     function resetDrafts() {
         KeyboardRemap.loadProfiles()
         KeyboardRemap.checkPendingChanges()
-        pageRoot.settingsRoot.keyremapApplyConfirmOpen = false
     }
     function applyAll() {
         if (!KeyboardRemap.hasPendingChanges || KeyboardRemap.applyInProgress)
             return
-        pageRoot.settingsRoot.keyremapApplyConfirmOpen = true
+        KeyboardRemap.apply()
     }
 
     readonly property bool showList: pageRoot.wideLayout
@@ -70,6 +69,15 @@ ColumnLayout {
     readonly property bool healthWarning: !KeyboardRemap.keydReady
         || KeyboardRemap.state === "setup"
         || KeyboardRemap.lastError.length > 0
+    readonly property string selectedDisplayName: KeyboardRemap.selectedProfile?.displayName
+        ?? KeyboardRemap.selectedDevice?.displayName
+        ?? KeyboardRemap.selectedDeviceId
+        ?? "Keyboard"
+    readonly property string selectedKeydId: KeyboardRemap.selectedDevice?.keydId
+        || KeyboardRemap.selectedProfile?.keydId
+        || ""
+    readonly property int selectedPresetCount: KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)
+    readonly property bool selectedConnected: KeyboardRemap.selectedDevice?.connected === true
 
     width: parent ? parent.width : 900
     spacing: SettingsTokens.controlGap
@@ -81,7 +89,6 @@ ColumnLayout {
     function openDevice(hyprName) {
         KeyboardRemap.selectDevice(hyprName)
         pageRoot.settingsRoot.keyremapDetailOpen = true
-        pageRoot.settingsRoot.keyremapApplyConfirmOpen = false
     }
 
     function closeDetail() {
@@ -273,19 +280,30 @@ ColumnLayout {
                                 required property var modelData
                                 readonly property int presetCount: KeyboardRemap.devicePresetCount(modelData.hyprName)
                                 readonly property bool selected: modelData.hyprName === KeyboardRemap.selectedDeviceId
+                                readonly property bool currentConnected: deviceRow.selected && modelData.connected
 
                                 Layout.fillWidth: true
-                                implicitHeight: 56
+                                implicitHeight: deviceRow.selected ? 66 : 56
                                 radius: SettingsTokens.radius
                                 color: deviceRow.selected
-                                    ? SettingsTokens.accentSoft
+                                    ? (deviceRow.currentConnected ? SettingsTokens.accentSoft : SettingsTokens.panelAlt)
                                     : (deviceMouse.containsMouse ? SettingsTokens.cardHover : "transparent")
                                 border.width: deviceRow.selected ? 1 : 0
-                                border.color: SettingsTokens.accent
+                                border.color: deviceRow.currentConnected ? SettingsTokens.accent : SettingsTokens.line
+
+                                Rectangle {
+                                    visible: deviceRow.selected
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    width: 4
+                                    radius: 2
+                                    color: deviceRow.currentConnected ? SettingsTokens.accent : SettingsTokens.muted
+                                }
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 12
+                                    anchors.leftMargin: deviceRow.selected ? 16 : 12
                                     anchors.rightMargin: 12
                                     spacing: 12
 
@@ -293,7 +311,7 @@ ColumnLayout {
                                         Layout.preferredWidth: 22
                                         text: "keyboard"
                                         iconSize: 18
-                                        color: SettingsTokens.muted
+                                        color: deviceRow.currentConnected ? SettingsTokens.accent : SettingsTokens.muted
                                     }
 
                                     ColumnLayout {
@@ -321,6 +339,14 @@ ColumnLayout {
                                     }
 
                                     StyledText {
+                                        visible: deviceRow.selected
+                                        text: deviceRow.modelData.connected ? "Current" : "Saved"
+                                        color: deviceRow.currentConnected ? SettingsTokens.accent : SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        font.weight: Font.DemiBold
+                                    }
+
+                                    StyledText {
                                         text: deviceRow.presetCount > 0
                                             ? `${deviceRow.presetCount} preset${deviceRow.presetCount === 1 ? "" : "s"}`
                                             : "none"
@@ -332,7 +358,10 @@ ColumnLayout {
                                         Layout.preferredWidth: 8
                                         Layout.preferredHeight: 8
                                         radius: 4
-                                        color: deviceRow.modelData.connected ? SettingsTokens.accent : SettingsTokens.muted
+                                        color: deviceRow.selected && deviceRow.modelData.connected
+                                            ? SettingsTokens.accent
+                                            : SettingsTokens.muted
+                                        opacity: deviceRow.modelData.connected ? 1 : 0.55
                                     }
 
                                     MaterialSymbol {
@@ -431,36 +460,100 @@ ColumnLayout {
                     Layout.fillHeight: true
                     spacing: SettingsTokens.sectionGap
 
-                    Item {
+                    Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: 40
+                        implicitHeight: 104
+                        radius: SettingsTokens.roundRadius
+                        color: pageRoot.selectedConnected ? SettingsTokens.accentSoft : SettingsTokens.panelAlt
+                        border.width: 1
+                        border.color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.line
 
-                        ColumnLayout {
+                        RowLayout {
                             anchors.fill: parent
-                            spacing: 3
+                            anchors.margins: 14
+                            spacing: 14
 
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: KeyboardRemap.selectedProfile?.displayName
-                                    ?? KeyboardRemap.selectedDeviceId
-                                    ?? "Keyboard"
-                                color: SettingsTokens.fg
-                                font.pixelSize: Appearance.font.pixelSize.large
-                                font.weight: Font.DemiBold
-                                elide: Text.ElideRight
+                            Rectangle {
+                                Layout.preferredWidth: 54
+                                Layout.preferredHeight: 54
+                                radius: SettingsTokens.radius
+                                color: SettingsTokens.panel
+                                border.width: 1
+                                border.color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.line
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "keyboard"
+                                    iconSize: 28
+                                    color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
+                                }
                             }
 
-                            StyledText {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: {
-                                    const n = KeyboardRemap.devicePresetCount(KeyboardRemap.selectedDeviceId)
-                                    return n > 0
-                                        ? `${n} preset${n === 1 ? "" : "s"} active`
-                                        : "No presets active"
+                                spacing: 5
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: "Editing keyboard"
+                                    color: SettingsTokens.accent
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
                                 }
-                                color: SettingsTokens.muted
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                elide: Text.ElideRight
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: pageRoot.selectedDisplayName
+                                    color: SettingsTokens.fg
+                                    font.pixelSize: Appearance.font.pixelSize.large
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: pageRoot.selectedKeydId.length > 0
+                                        ? `keyd ${pageRoot.selectedKeydId}`
+                                        : "Missing keyd id"
+                                    color: pageRoot.selectedKeydId.length > 0 ? SettingsTokens.muted : SettingsTokens.danger
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                spacing: 8
+
+                                RowLayout {
+                                    Layout.alignment: Qt.AlignRight
+                                    spacing: 8
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 9
+                                        Layout.preferredHeight: 9
+                                        radius: 5
+                                        color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
+                                    }
+
+                                    StyledText {
+                                        text: pageRoot.selectedConnected ? "Connected now" : "Saved, disconnected"
+                                        color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+
+                                StyledText {
+                                    Layout.alignment: Qt.AlignRight
+                                    text: pageRoot.selectedPresetCount > 0
+                                        ? `${pageRoot.selectedPresetCount} preset${pageRoot.selectedPresetCount === 1 ? "" : "s"} active`
+                                        : "No presets active"
+                                    color: SettingsTokens.muted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                }
                             }
                         }
                     }
@@ -647,61 +740,6 @@ ColumnLayout {
                                         hoverEnabled: true
                                         acceptedButtons: Qt.NoButton
                                     }
-                                }
-                            }
-                        }
-                    }
-
-                    // Apply confirmation (when footer Apply armed it)
-                    Rectangle {
-                        visible: pageRoot.settingsRoot.keyremapApplyConfirmOpen && KeyboardRemap.hasPendingChanges
-                        Layout.fillWidth: true
-                        implicitHeight: confirmColumn.implicitHeight + 24
-                        radius: SettingsTokens.roundRadius
-                        color: SettingsTokens.accentSoft
-                        border.width: 1
-                        border.color: SettingsTokens.accent
-
-                        ColumnLayout {
-                            id: confirmColumn
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.margins: 14
-                            spacing: 10
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: "Apply keyboard remaps?"
-                                color: SettingsTokens.fg
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.weight: Font.DemiBold
-                            }
-
-                            StyledText {
-                                Layout.fillWidth: true
-                                text: "Writes /etc/keyd/omd.conf and restarts keyd. Authorization may be required."
-                                color: SettingsTokens.muted
-                                font.pixelSize: Appearance.font.pixelSize.smaller
-                                wrapMode: Text.WordWrap
-                            }
-
-                            ButtonRow {
-                                SettingsButton {
-                                    label: KeyboardRemap.applyInProgress ? "Applying…" : "Confirm apply"
-                                    iconName: "check"
-                                    active: true
-                                    enabledState: !KeyboardRemap.applyInProgress
-                                    onClicked: {
-                                        pageRoot.settingsRoot.keyremapApplyConfirmOpen = false
-                                        KeyboardRemap.apply()
-                                    }
-                                }
-                                SettingsButton {
-                                    label: "Cancel"
-                                    iconName: "close"
-                                    enabledState: !KeyboardRemap.applyInProgress
-                                    onClicked: pageRoot.settingsRoot.keyremapApplyConfirmOpen = false
                                 }
                             }
                         }
