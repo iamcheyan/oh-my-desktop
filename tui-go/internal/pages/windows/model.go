@@ -58,6 +58,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			m.scrollOffset++
+			return m, nil
+		} else if msg.Type == tea.MouseWheelDown {
+			m.scrollOffset--
+			if m.scrollOffset < 0 {
+				m.scrollOffset = 0
+			}
+			return m, nil
+		}
+
+		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			x, y := msg.X, msg.Y
+
+			width := m.width
+			const (
+				screenPaddingX = 4
+				panelGap       = 2
+				panelBorderW   = 2
+				panelPadW      = 4
+			)
+			panelInnerW := (width - screenPaddingX - panelGap - panelBorderW*2 - panelPadW*2) / 2
+			panelBoxW := panelInnerW + panelPadW
+
+			leftInnerX := 5
+			leftInnerY := 4
+
+			rightInnerX := 9 + panelBoxW
+			rightInnerY := 4
+
+			// 1. Primary Action Button
+			primaryW := len(m.primaryActionLabel()) + 12
+			if y >= leftInnerY+6 && y <= leftInnerY+8 && x >= leftInnerX && x < leftInnerX+primaryW {
+				if !m.busy {
+					m.busy = true
+					return m, m.runAction(m.primaryActionName())
+				}
+			}
+
+			// 2. Refresh Button
+			refreshStartX := leftInnerX + primaryW + 1
+			if y >= leftInnerY+6 && y <= leftInnerY+8 && x >= refreshStartX && x < refreshStartX+15 {
+				return m, tea.Batch(m.fetchStatus(), m.fetchLogs())
+			}
+
+			// 3. Web Button
+			if y >= rightInnerY+7 && y <= rightInnerY+9 && x >= rightInnerX && x < rightInnerX+20 {
+				if !m.busy {
+					m.busy = true
+					return m, m.runAction("web")
+				}
+			}
+
+			// 4. Start Button
+			if y >= rightInnerY+7 && y <= rightInnerY+9 && x >= rightInnerX+21 && x < rightInnerX+34 {
+				if !m.running() && !m.busy {
+					m.busy = true
+					return m, m.runAction("start")
+				}
+			}
+
+			// 5. Stop Button
+			if y >= rightInnerY+10 && y <= rightInnerY+12 && x >= rightInnerX && x < rightInnerX+12 {
+				if m.running() && !m.busy {
+					m.busy = true
+					return m, m.runAction("stop")
+				}
+			}
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
