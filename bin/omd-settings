@@ -90,6 +90,9 @@ if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
         # GDK_SCALE=1 breaks output scaling; GDK_DPI_SCALE only adjusts text.
         exec env -u GDK_SCALE GDK_DPI_SCALE=0.5 pavucontrol
     fi
+    if [ "$page" = "windows" ] || [ "$page" = "vm" ] || [ "$page" = "windows-vm" ] || [ "$page" = "virtualization" ]; then
+        exec "$HOME/.config/omd/bin/omd-launch-settings-windows-tui"
+    fi
 fi
 
 case "$action" in
