@@ -1196,6 +1196,8 @@ repair_runtime_config() {
     ln -sfn "wallpaper" "$REPO/current/background"
     ok "  current/background -> wallpaper"
 
+    date +%s%N >"$REPO/current/wallpaper.revision"
+
     if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
         local wallpaper_tmp
         wallpaper_tmp="$(mktemp)"

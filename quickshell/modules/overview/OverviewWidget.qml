@@ -610,13 +610,23 @@ Item {
                         readonly property string fallbackSource: `${Directories.assetsPath}/images/default_wallpaper.png`
 
                         anchors.fill: parent
-                        source: fallbackActive ? fallbackSource : configuredSource
+                        source: fallbackActive
+                            ? fallbackSource
+                            : Wallpaper.versionedUrl(configuredSource)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        cache: true
+                        // The managed wallpaper path is stable while its file
+                        // contents change during folder rotation.
+                        cache: false
                         mipmap: true
 
                         onConfiguredSourceChanged: fallbackActive = false
+                        Connections {
+                            target: Wallpaper
+                            function onRevisionChanged() {
+                                workspaceWallpaper.fallbackActive = false;
+                            }
+                        }
                         onStatusChanged: {
                             if (status === Image.Error && !fallbackActive)
                                 fallbackActive = true;

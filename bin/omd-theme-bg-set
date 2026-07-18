@@ -31,10 +31,16 @@ if [[ "$(realpath -m "$background")" != "$(realpath -m "$managed_background")" ]
 fi
 ln -nsf "wallpaper" "$current_background"
 
+# The managed path stays constant across folder rotations. Publish an ignored
+# runtime revision so long-running Quickshell processes invalidate their cache.
+date +%s%N >"$current_dir/wallpaper.revision"
+
 quickshell_config="$HOME/.config/quickshell/config.json"
 if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
   tmp="$(mktemp)"
-  jq --arg path '~/.config/omd/current/background' '.background.wallpaperPath = $path | .background.thumbnailPath = ""' "$quickshell_config" >"$tmp" &&
+  jq --arg path '~/.config/omd/current/background' \
+    '.background.wallpaperPath = $path | .background.thumbnailPath = ""' \
+    "$quickshell_config" >"$tmp" &&
     mv "$tmp" "$quickshell_config"
   rm -f "$tmp"
 fi
