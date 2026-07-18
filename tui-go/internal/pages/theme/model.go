@@ -431,65 +431,31 @@ func (m Model) contentView(width, height int) string {
 
 func (m Model) heroView(width int) string {
 	previewWidth := 22
-	previewHeight := 8
-	mode := m.value("wallpaper.mode", "file")
+	previewHeight := 9
 	preview := m.wallpaperPreview(previewWidth, previewHeight)
 	// Borders and padding make the rendered preview wider than previewWidth.
 	// Measure the final block so the information column never crosses the
 	// terminal boundary at fractional/HiDPI terminal sizes.
 	infoWidth := width - lipgloss.Width(preview) - 3
 	if infoWidth < 44 {
-		return strings.Join([]string{preview, m.wallpaperControls(width, mode)}, "\n")
+		return strings.Join([]string{preview, m.wallpaperControls(width)}, "\n")
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center, preview, "   ", m.wallpaperControls(infoWidth, mode))
+	return lipgloss.JoinHorizontal(lipgloss.Center, preview, "   ", m.wallpaperControls(infoWidth))
 }
 
-func (m Model) statusInfoText(width int) string {
+func (m Model) wallpaperControls(width int) string {
 	pal := m.palette()
 	mode := m.value("wallpaper.mode", "file")
+	effect := m.value("effects.mode", "balanced")
 
-	currentWp := m.value("wallpaper.current", "")
-	wpName := "No wallpaper set"
-	if currentWp != "" {
-		wpName = filepath.Base(currentWp)
-	}
-
-	modeText := "Single Image"
-	if mode == "folder" {
-		modeText = "Folder Rotation"
-	}
-
-	effectsText := effectLabel(m.value("effects.mode", "balanced"))
-
-	styleTitle := lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	styleLabel := lipgloss.NewStyle().Foreground(pal.text)
-	styleValue := lipgloss.NewStyle().Foreground(pal.muted)
-
-	lines := []string{
-		styleTitle.Render("STATUS"),
-		styleLabel.Render("File:   ") + styleValue.Render(ui.TruncatePlain(wpName, width-10)),
-		styleLabel.Render("Mode:   ") + styleValue.Render(modeText),
-		styleLabel.Render("Effect: ") + styleValue.Render(effectsText),
-	}
-
-	if mode == "folder" {
-		interval := intervalLabel(m.value("wallpaper.interval", "1800"))
-		lines = append(lines, styleLabel.Render("Rate:   ") + styleValue.Render(interval))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func (m Model) modeSelector(mode string) string {
-	pal := m.palette()
-	
+	// 1. Mode selector line
 	fileIndicator := "○"
 	fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
 	if mode == "file" {
 		fileIndicator = "◉"
 		fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
 	}
-	fileLabel := fileStyle.Render(fileIndicator + " " + buttonText("f", "File"))
+	fileLabel := fileStyle.Render(fileIndicator + " File (f)")
 
 	folderIndicator := "○"
 	folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
@@ -497,48 +463,74 @@ func (m Model) modeSelector(mode string) string {
 		folderIndicator = "◉"
 		folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
 	}
-	folderLabel := folderStyle.Render(folderIndicator + " " + buttonText("d", "Folder"))
+	folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
+
+	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + fileLabel + "     " + folderLabel
+
+	// 2. Effect selector line
+	perfIndicator := "○"
+	perfStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if effect == "performance" {
+		perfIndicator = "◉"
+		perfStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	perfLabel := perfStyle.Render(perfIndicator + " Perf (1)")
+
+	balIndicator := "○"
+	balStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if effect == "balanced" {
+		balIndicator = "◉"
+		balStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	balLabel := balStyle.Render(balIndicator + " Bal (2)")
+
+	visIndicator := "○"
+	visStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if effect == "visuals" {
+		visIndicator = "◉"
+		visStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	visLabel := visStyle.Render(visIndicator + " Vis (3)")
+
+	effectLine := lipgloss.NewStyle().Foreground(pal.text).Render("Effect: ") + perfLabel + "     " + balLabel + "     " + visLabel
+
+	// 3. Current wallpaper info
+	currentWp := m.value("wallpaper.current", "")
+	wpName := "No wallpaper set"
+	if currentWp != "" {
+		wpName = filepath.Base(currentWp)
+	}
+
+	if mode == "folder" {
+		interval := intervalLabel(m.value("wallpaper.interval", "1800"))
+		wpName = fmt.Sprintf("%s (rotating every %s)", wpName, interval)
+	}
+
+	activeLine := lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
+	valLine := lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncatePlain(wpName, width-6))
+
+	lines := []string{
+		lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
+		"",
+		modeLine,
+		effectLine,
+		"",
+		activeLine,
+		valLine,
+	}
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
+		Border(lipgloss.RoundedBorder()).
 		BorderForeground(pal.line).
-		Background(pal.panel).
-		Padding(0, 1).
-		Render("Mode:  " + fileLabel + "   " + folderLabel)
-}
-
-func (m Model) wallpaperControls(width int, mode string) string {
-	modeSelector := m.modeSelector(mode)
-	
-	btnLines := make([]string, 0, 2)
-	btnLines = append(btnLines, modeSelector)
-	
-	if mode == "folder" {
-		folderButtons := lipgloss.JoinHorizontal(lipgloss.Top,
-			m.button(buttonText("w", "Next"), false),
-			m.button(buttonText("x", "Stop"), false),
-			m.intervalSelect(),
-		)
-		btnLines = append(btnLines, folderButtons)
-	}
-	
-	buttonsBlock := strings.Join(btnLines, "\n\n")
-	
-	statusWidth := 28
-	buttonsWidth := width - statusWidth - 4
-	
-	if buttonsWidth >= 24 {
-		statusPart := lipgloss.NewStyle().Width(statusWidth).Render(m.statusInfoText(statusWidth))
-		buttonsPart := lipgloss.NewStyle().Width(buttonsWidth).Render(buttonsBlock)
-		return lipgloss.JoinHorizontal(lipgloss.Top, statusPart, "    ", buttonsPart)
-	}
-	
-	return strings.Join([]string{m.statusInfoText(width), "", buttonsBlock}, "\n")
+		Padding(0, 2).
+		Width(width).
+		Height(9).
+		Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) wallpaperPreview(width, height int) string {
 	width = max(22, width)
-	height = max(6, height)
+	height = max(9, height)
 	innerW := max(14, width-4)
 	innerH := max(4, height-2)
 	pal := m.palette()

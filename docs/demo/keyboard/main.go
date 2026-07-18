@@ -62,18 +62,20 @@ func k(label string, w int, code string) keyDef {
 }
 
 type model struct {
-	keys       [][]keyDef
-	selRow     int
-	selCol     int
-	pressed    map[string]bool
-	keyCode    string
-	width      int
-	height     int
-	scrollOff  int
+	keys      [][]keyDef
+	selRow    int
+	selCol    int
+	pressed   map[string]bool
+	keyCode   string
+	width     int
+	height    int
+	arrowKeys []keyDef
+	arrowSel  int
+	focusArea int // 0=main, 1=arrows
 }
 
-func buildKeyboard() [][]keyDef {
-	return [][]keyDef{
+func buildKeyboard() ([][]keyDef, []keyDef) {
+	mainKeys := [][]keyDef{
 		// Row 0: Esc + F1-F12 + PrtSc/ScrLk/Pause + Ins/Home/PgUp/Del/End/PgDn
 		{
 			k("Esc", 3, "escape"),
@@ -143,41 +145,26 @@ func buildKeyboard() [][]keyDef {
 			k("", 1, ""),
 			k("0", 6, "Numpad0"), k(".", 3, "NumpadDecimal"),
 		},
-		// Row 6: Arrow keys (under PgUp/PgDn cluster)
-		{
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""),
-			k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""),
-			k("", 2, ""), k("▲", 3, "Up"), k("", 2, ""),
-			k("", 1, ""),
-			k("0", 6, ""), k(".", 3, ""),
-		},
-		// Row 7: Arrow keys continued
-		{
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""), k("", 1, ""),
-			k("", 1, ""),
-			k("", 1, ""), k("", 1, ""), k("", 1, ""),
-			k("", 1, ""),
-			k("◀", 3, "Left"), k("▼", 3, "Down"), k("▶", 3, "Right"),
-			k("", 1, ""),
-			k("", 6, ""), k("", 3, ""),
-		},
 	}
+
+	arrowKeys := []keyDef{
+		k("", 2, ""), k("▲", 3, "Up"), k("", 2, ""),
+		k("◀", 3, "Left"), k("▼", 3, "Down"), k("▶", 3, "Right"),
+	}
+
+	return mainKeys, arrowKeys
 }
 
 func initialModel() model {
+	mainKeys, arrowKeys := buildKeyboard()
 	return model{
-		keys:    buildKeyboard(),
-		selRow:  0,
-		selCol:  2,
-		pressed: make(map[string]bool),
+		keys:      mainKeys,
+		selRow:    0,
+		selCol:    2,
+		pressed:   make(map[string]bool),
+		arrowKeys: arrowKeys,
+		arrowSel:  1,
+		focusArea: 0,
 	}
 }
 
@@ -197,20 +184,51 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 
+		case "tab":
+			if m.focusArea == 0 {
+				m.focusArea = 1
+			} else {
+				m.focusArea = 0
+			}
+
 		case "up", "k":
-			m.moveUp()
+			if m.focusArea == 0 {
+				m.moveUp()
+			} else if m.arrowSel == 3 || m.arrowSel == 4 || m.arrowSel == 5 {
+				m.arrowSel = 1 // up
+			}
 
 		case "down", "j":
-			m.moveDown()
+			if m.focusArea == 0 {
+				m.moveDown()
+			} else if m.arrowSel == 0 || m.arrowSel == 1 || m.arrowSel == 2 {
+				m.arrowSel = 4 // down
+			}
 
 		case "left", "h":
-			m.moveLeft()
+			if m.focusArea == 0 {
+				m.moveLeft()
+			} else if m.arrowSel == 1 || m.arrowSel == 4 {
+				m.arrowSel = 3 // left
+			} else if m.arrowSel == 5 {
+				m.arrowSel = 4 // right -> down
+			}
 
 		case "right", "l":
-			m.moveRight()
+			if m.focusArea == 0 {
+				m.moveRight()
+			} else if m.arrowSel == 1 || m.arrowSel == 4 {
+				m.arrowSel = 5 // right
+			} else if m.arrowSel == 3 {
+				m.arrowSel = 4 // left -> down
+			}
 
 		case "enter", " ":
-			m.toggleKey()
+			if m.focusArea == 0 {
+				m.toggleKey()
+			} else {
+				m.toggleArrow()
+			}
 		}
 	}
 	return m, nil
@@ -275,9 +293,23 @@ func (m *model) toggleKey() {
 	}
 }
 
-func (m model) renderKey(k keyDef, row, col int) string {
+func (m *model) toggleArrow() {
+	key := m.arrowKeys[m.arrowSel]
+	if key.code == "" {
+		return
+	}
+	m.pressed[key.code] = !m.pressed[key.code]
+	if m.pressed[key.code] {
+		m.keyCode = key.code
+	} else {
+		m.keyCode = ""
+	}
+}
+
+func (m model) renderKey(k keyDef, row, col int, isSelected, isPressed bool) string {
 	if k.label == "" {
-		return ""
+		w := k.w*2 + 1
+		return strings.Repeat(" ", w)
 	}
 
 	w := k.w*2 + 1
@@ -286,16 +318,13 @@ func (m model) renderKey(k keyDef, row, col int) string {
 		label = label[:w-2]
 	}
 
-	pressed := m.pressed[k.code]
-	selected := row == m.selRow && col == m.selCol
-
 	var s lipgloss.Style
 	switch {
-	case selected && pressed:
+	case isSelected && isPressed:
 		s = keyPressed.BorderForeground(lipgloss.Color("#FFD166"))
-	case selected:
+	case isSelected:
 		s = keySelected
-	case pressed:
+	case isPressed:
 		s = keyPressed
 	default:
 		s = keyNormal
@@ -304,19 +333,48 @@ func (m model) renderKey(k keyDef, row, col int) string {
 	return s.Width(w).Height(1).Render(label)
 }
 
-func (m model) renderRow(row []keyDef, rowIdx int) string {
+func (m model) renderMainRow(row []keyDef, rowIdx int) string {
 	var parts []string
 	for col, k := range row {
-		rendered := m.renderKey(k, rowIdx, col)
-		if rendered != "" {
-			parts = append(parts, rendered)
-		} else if k.label == "" && k.w <= 1 {
-			parts = append(parts, strings.Repeat(" ", 2))
-		} else if k.w > 1 {
-			parts = append(parts, strings.Repeat(" ", k.w*2+1))
-		}
+		isSelected := m.focusArea == 0 && rowIdx == m.selRow && col == m.selCol
+		isPressed := m.pressed[k.code]
+		parts = append(parts, m.renderKey(k, rowIdx, col, isSelected, isPressed))
 	}
 	return strings.Join(parts, "")
+}
+
+func (m model) renderArrowBlock() string {
+	var lines []string
+
+	// Row 1: space ▲ space
+	k0 := m.arrowKeys[0]
+	k1 := m.arrowKeys[1]
+	k2 := m.arrowKeys[2]
+	s0 := m.focusArea == 1 && m.arrowSel == 0
+	s1 := m.focusArea == 1 && m.arrowSel == 1
+	s2 := m.focusArea == 1 && m.arrowSel == 2
+	p0 := m.pressed[k0.code]
+	p1 := m.pressed[k1.code]
+	p2 := m.pressed[k2.code]
+	lines = append(lines, m.renderKey(k0, 0, 0, s0, p0)+
+		m.renderKey(k1, 0, 1, s1, p1)+
+		m.renderKey(k2, 0, 2, s2, p2))
+
+	// Row 2: ▼ ▼ ▶
+	k3 := m.arrowKeys[3]
+	k4 := m.arrowKeys[4]
+	k5 := m.arrowKeys[5]
+	s3 := m.focusArea == 1 && m.arrowSel == 3
+	s4 := m.focusArea == 1 && m.arrowSel == 4
+	s5 := m.focusArea == 1 && m.arrowSel == 5
+	p3 := m.pressed[k3.code]
+	p4 := m.pressed[k4.code]
+	p5 := m.pressed[k5.code]
+	lines = append(lines, m.renderKey(k3, 1, 0, s3, p3)+
+		m.renderKey(k4, 1, 1, s4, p4)+
+		m.renderKey(k5, 1, 2, s5, p5))
+
+	return strings.Join(lines, "\n")
 }
 
 func (m model) View() string {
@@ -326,28 +384,44 @@ func (m model) View() string {
 	b.WriteString("\n")
 
 	// Key code display
-	keyCodeLine := "  Press: "
+	keyCodeLine := "  "
 	if m.keyCode != "" {
-		keyCodeLine += keyInfoStyle.Render(m.keyCode)
+		keyCodeLine += "Key: " + keyInfoStyle.Render(m.keyCode)
 	} else {
-		selected := m.keys[m.selRow][m.selCol]
-		if selected.code != "" {
-			keyCodeLine += lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render(selected.code)
+		if m.focusArea == 0 {
+			selected := m.keys[m.selRow][m.selCol]
+			if selected.code != "" {
+				keyCodeLine += "Key: " + lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render(selected.code)
+			}
+		} else {
+			selected := m.arrowKeys[m.arrowSel]
+			if selected.code != "" {
+				keyCodeLine += "Key: " + lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render(selected.code)
+			}
 		}
 	}
 	b.WriteString(keyCodeLine)
 	b.WriteString("\n\n")
 
-	// Render keyboard
-	for rowIdx, row := range m.keys {
+	// Render main keyboard rows (only first 6 rows)
+	for rowIdx := 0; rowIdx < 6 && rowIdx < len(m.keys); rowIdx++ {
 		b.WriteString("  ")
-		b.WriteString(m.renderRow(row, rowIdx))
+		b.WriteString(m.renderMainRow(m.keys[rowIdx], rowIdx))
+
+		// Append arrow block on rows 4 and 5 (0-indexed)
+		if rowIdx == 4 || rowIdx == 5 {
+			arrowLines := strings.Split(m.renderArrowBlock(), "\n")
+			if rowIdx-4 < len(arrowLines) {
+				b.WriteString("   ")
+				b.WriteString(arrowLines[rowIdx-4])
+			}
+		}
 		b.WriteString("\n")
 	}
 
-	// Group labels
+	// Legend
 	b.WriteString("\n")
-	b.WriteString(groupLabelStyle.Render("  ← → ↑ ↓ move   Enter/Space toggle   q quit"))
+	b.WriteString(groupLabelStyle.Render("  ← → ↑ ↓ move   Tab switch area   Enter/Space toggle   q quit"))
 	b.WriteString("\n")
 
 	return b.String()
