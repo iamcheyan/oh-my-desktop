@@ -327,7 +327,7 @@ func (m Model) contentView(width, height int) string {
 }
 
 func (m Model) heroView(width int) string {
-	previewWidth := 30
+	previewWidth := 22
 	previewHeight := 8
 	mode := m.value("wallpaper.mode", "file")
 	preview := m.wallpaperPreview(previewWidth, previewHeight)
@@ -341,40 +341,10 @@ func (m Model) heroView(width int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, preview, "   ", m.wallpaperControls(infoWidth, mode))
 }
 
-func (m Model) wallpaperControls(width int, mode string) string {
-	modeButtons := lipgloss.JoinHorizontal(lipgloss.Top,
-		m.button(buttonText("f", "File"), mode == "file"),
-		m.button(buttonText("d", "Folder"), mode == "folder"),
-	)
-	lines := make([]string, 0, 3)
-	if width < 64 {
-		lines = append(lines, modeButtons, m.effectSelect())
-	} else {
-		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top, modeButtons, m.effectSelect()))
-	}
-	if mode == "folder" {
-		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Top,
-			m.button(buttonText("w", "Next"), false),
-			m.button(buttonText("x", "Stop"), false),
-			m.intervalSelect(),
-		))
-	}
-	return strings.Join(lines, "\n\n")
-}
-
-func (m Model) wallpaperPreview(width, height int) string {
-	width = max(30, width)
-	height = max(8, height)
+func (m Model) statusInfoText(width int) string {
 	pal := m.palette()
 	mode := m.value("wallpaper.mode", "file")
 
-	// Icon and Title
-	icon := iconImage
-	if mode == "folder" {
-		icon = iconFolder
-	}
-
-	// Current Wallpaper
 	currentWp := m.value("wallpaper.current", "")
 	wpName := "No wallpaper set"
 	if currentWp != "" {
@@ -393,9 +363,8 @@ func (m Model) wallpaperPreview(width, height int) string {
 	styleValue := lipgloss.NewStyle().Foreground(pal.muted)
 
 	lines := []string{
-		styleTitle.Render(icon + "  Wallpaper"),
-		"",
-		styleLabel.Render("File:   ") + styleValue.Render(ui.TruncatePlain(wpName, width-12)),
+		styleTitle.Render("STATUS"),
+		styleLabel.Render("File:   ") + styleValue.Render(ui.TruncatePlain(wpName, width-10)),
 		styleLabel.Render("Mode:   ") + styleValue.Render(modeText),
 		styleLabel.Render("Effect: ") + styleValue.Render(effectsText),
 	}
@@ -405,18 +374,64 @@ func (m Model) wallpaperPreview(width, height int) string {
 		lines = append(lines, styleLabel.Render("Rate:   ") + styleValue.Render(interval))
 	}
 
-	// Pad lines with empty strings if it's shorter than height-2 to ensure vertical alignment/consistency
-	for len(lines) < height-2 {
-		lines = append(lines, "")
-	}
+	return strings.Join(lines, "\n")
+}
 
+func (m Model) wallpaperControls(width int, mode string) string {
+	modeButtons := lipgloss.JoinHorizontal(lipgloss.Top,
+		m.button(buttonText("f", "File"), mode == "file"),
+		m.button(buttonText("d", "Folder"), mode == "folder"),
+	)
+	
+	btnLines := make([]string, 0, 3)
+	if width < 60 {
+		btnLines = append(btnLines, modeButtons, m.effectSelect())
+	} else {
+		btnLines = append(btnLines, lipgloss.JoinHorizontal(lipgloss.Top, modeButtons, "  ", m.effectSelect()))
+	}
+	
+	if mode == "folder" {
+		folderButtons := lipgloss.JoinHorizontal(lipgloss.Top,
+			m.button(buttonText("w", "Next"), false),
+			m.button(buttonText("x", "Stop"), false),
+		)
+		if width < 60 {
+			btnLines = append(btnLines, folderButtons, m.intervalSelect())
+		} else {
+			btnLines = append(btnLines, lipgloss.JoinHorizontal(lipgloss.Top, folderButtons, "  ", m.intervalSelect()))
+		}
+	}
+	
+	buttonsBlock := strings.Join(btnLines, "\n\n")
+	
+	statusWidth := 28
+	buttonsWidth := width - statusWidth - 4
+	
+	if buttonsWidth >= 24 {
+		statusPart := lipgloss.NewStyle().Width(statusWidth).Render(m.statusInfoText(statusWidth))
+		buttonsPart := lipgloss.NewStyle().Width(buttonsWidth).Render(buttonsBlock)
+		return lipgloss.JoinHorizontal(lipgloss.Top, statusPart, "    ", buttonsPart)
+	}
+	
+	return strings.Join([]string{m.statusInfoText(width), "", buttonsBlock}, "\n")
+}
+
+func (m Model) wallpaperPreview(width, height int) string {
+	width = max(22, width)
+	height = max(6, height)
+	innerW := max(14, width-4)
+	innerH := max(4, height-2)
+	pal := m.palette()
+	imageView := renderImagePreview(expandPath(m.value("wallpaper.current", "")), innerW, innerH)
+	if imageView == "" {
+		imageView = m.previewPlaceholder("Wallpaper", ui.ShortPath(m.value("wallpaper.current", "-")), innerW, innerH)
+	}
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(pal.line).
-		Padding(0, 2).
-		Width(width).
-		Height(height).
-		Render(strings.Join(lines, "\n"))
+		Background(pal.background).
+		Padding(0, 1).
+		Render(imageView)
 }
 
 func (m Model) themeGridView(width, maxRows int) string {
