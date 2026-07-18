@@ -210,6 +210,7 @@ Additional manual symlinks (not created by Init.sh):
 - Deployment/portability: `docs/deployment-portability.md`
 - Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
 - Wallpaper runtime contract: `docs/wallpaper-runtime.md`
+- Smart paste (image as path in terminals): `docs/smart-paste.md`
 
 ## Editing
 
