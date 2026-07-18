@@ -91,7 +91,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// 1. Primary Action Button
 			primaryW := len(m.primaryActionLabel()) + 12
-			if y >= leftInnerY+6 && y <= leftInnerY+8 && x >= leftInnerX && x < leftInnerX+primaryW {
+			if y >= leftInnerY+10 && y <= leftInnerY+12 && x >= leftInnerX && x < leftInnerX+primaryW {
 				if !m.busy {
 					m.busy = true
 					return m, m.runAction(m.primaryActionName())
@@ -100,7 +100,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// 2. Refresh Button
 			refreshStartX := leftInnerX + primaryW + 1
-			if y >= leftInnerY+6 && y <= leftInnerY+8 && x >= refreshStartX && x < refreshStartX+15 {
+			if y >= leftInnerY+10 && y <= leftInnerY+12 && x >= refreshStartX && x < refreshStartX+15 {
 				return m, tea.Batch(m.fetchStatus(), m.fetchLogs())
 			}
 
@@ -257,7 +257,7 @@ func (m Model) View() string {
 	panelBoxW := panelInnerW + panelPadW
 	panelBoxH := panelInnerH + panelPadH
 
-	header := ui.Title.Render("Windows VM") + " " + ui.MutedText.Render("Go settings TUI")
+	header := ui.Title.Render("System") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Windows VM")
 	if m.busy {
 		header += " " + ui.OKText.Render("working...")
 	}
@@ -274,11 +274,20 @@ func (m Model) View() string {
 
 	var helpText string
 	if m.confirmRemove {
-		helpText = "y confirm remove  n/esc cancel"
+		helpText = ui.HelpText(ui.HelpItem("y", "confirm remove"), ui.HelpItem("n/esc", "cancel"))
 	} else {
-		helpText = "r refresh  enter " + m.primaryActionLabel() + "  c connect  s start  x stop  w web  d remove  q quit"
+		helpText = ui.HelpText(
+			ui.HelpItem("enter", m.primaryActionLabel()),
+			ui.HelpItem("c", "connect"),
+			ui.HelpItem("s", "start"),
+			ui.HelpItem("x", "stop"),
+			ui.HelpItem("w", "web"),
+			ui.HelpItem("d", "remove"),
+			ui.HelpItem("r", "refresh"),
+			ui.HelpItem("q", "quit"),
+		)
 	}
-	help := ui.SubtleText.Render(helpText)
+	help := helpText
 
 	return ui.Screen.Padding(1, 2).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
@@ -300,8 +309,20 @@ func (m Model) statusView(width int) string {
 	}
 
 	lines := []string{
-		ui.Title.Render("Windows VM"),
-		ui.TruncateStyled(fmt.Sprintf("%s · RDP %s · web %s", health, m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), width),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.MiniPreview("Windows VM", health, min(30, max(20, width/2-1))),
+			"  ",
+			strings.Join([]string{
+				ui.Title.Render("Windows VM"),
+				ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("RDP %s · Web %s", m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), max(20, width-34))),
+				"",
+				lipgloss.JoinHorizontal(lipgloss.Top,
+					ui.StatusPill("Docker", m.bool("dockerAccess")),
+					ui.StatusPill("KVM", m.bool("kvm")),
+					ui.StatusPill("RDP", m.bool("rdpReachable")),
+				),
+			}, "\n"),
+		),
 		"",
 		ui.Section.Render("Primary action"),
 		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
@@ -468,31 +489,31 @@ func (m Model) actionButtons() string {
 	}
 
 	if enabled {
-		primaryBtn = ui.PrimaryButton.Render("enter " + label)
+		primaryBtn = ui.PrimaryButton.Render(ui.ActionText("enter", label))
 	} else {
-		primaryBtn = ui.DisabledButton.Render("enter " + label)
+		primaryBtn = ui.DisabledButton.Render(ui.ActionText("enter", label))
 	}
 
-	refreshBtn := ui.Button.Render("r Refresh")
+	refreshBtn := ui.Button.Render(ui.ActionText("r", "Refresh"))
 	if m.busy {
-		refreshBtn = ui.DisabledButton.Render("r Refresh")
+		refreshBtn = ui.DisabledButton.Render(ui.ActionText("r", "Refresh"))
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, primaryBtn, refreshBtn)
 }
 
 func (m Model) opsButtons() string {
-	start := ui.Button.Render("s Start")
-	stop := ui.Button.Render("x Stop")
-	web := ui.Button.Render("w Open console")
+	start := ui.Button.Render(ui.ActionText("s", "Start"))
+	stop := ui.Button.Render(ui.ActionText("x", "Stop"))
+	web := ui.Button.Render(ui.ActionText("w", "Open console"))
 	if m.running() || m.busy {
-		start = ui.DisabledButton.Render("s Start")
+		start = ui.DisabledButton.Render(ui.ActionText("s", "Start"))
 	}
 	if !m.running() || m.busy {
-		stop = ui.DisabledButton.Render("x Stop")
+		stop = ui.DisabledButton.Render(ui.ActionText("x", "Stop"))
 	}
 	if m.busy {
-		web = ui.DisabledButton.Render("w Open console")
+		web = ui.DisabledButton.Render(ui.ActionText("w", "Open console"))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Top, web, start),

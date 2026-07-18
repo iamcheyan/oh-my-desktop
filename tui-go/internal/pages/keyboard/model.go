@@ -311,7 +311,7 @@ func (m Model) View() string {
 	panelBoxW := panelInnerW + panelPadW
 	panelBoxH := panelInnerH + panelPadH
 
-	header := ui.Title.Render("Keyboard remap") + " " + ui.MutedText.Render("Go settings TUI")
+	header := ui.Title.Render("Input") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Keyboard remap")
 	if m.busy {
 		header += " " + ui.OKText.Render("working...")
 	}
@@ -329,7 +329,18 @@ func (m Model) View() string {
 		ui.PreserveBackground(ui.FitBlock(m.presetView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
 	)
 
-	help := ui.SubtleText.Render("tab focus · enter toggle · e enable · o set target · O reset · [/ ] target · f fn row · s setup · a apply · r refresh · q quit")
+	help := ui.HelpText(
+		ui.HelpItem("tab", "focus"),
+		ui.HelpItem("enter/p", "toggle preset"),
+		ui.HelpItem("e", "enable device"),
+		ui.HelpItem("o", "set target"),
+		ui.HelpItem("O", "reset target"),
+		ui.HelpItem("[/]", "target"),
+		ui.HelpItem("f", "fn row"),
+		ui.HelpItem("a", "apply"),
+		ui.HelpItem("r", "refresh"),
+		ui.HelpItem("q", "quit"),
+	)
 	if m.busy {
 		help = ui.OKText.Render("working...")
 	}
@@ -351,8 +362,20 @@ func (m Model) deviceView(width int) string {
 	detail := m.healthDetail()
 
 	lines := []string{
-		ui.Title.Render("Keyboard remap"),
-		ui.TruncateStyled(fmt.Sprintf("%s · %s", health, detail), width),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.MiniPreview("Keyboard", health, min(30, max(20, width/3))),
+			"  ",
+			strings.Join([]string{
+				ui.Title.Render("Keyboard remap"),
+				ui.MutedText.Render(ui.TruncateStyled(detail, max(20, width-34))),
+				"",
+				lipgloss.JoinHorizontal(lipgloss.Top,
+					ui.StatusPill("keyd", m.bool("keydReady")),
+					ui.StatusPill("pending", m.hasPending()),
+					ui.StatusPill(focusName(m.focusPanel), true),
+				),
+			}, "\n"),
+		),
 		"",
 		ui.Section.Render("Service"),
 		m.serviceButtons(),
@@ -380,15 +403,15 @@ func (m Model) deviceView(width int) string {
 			cursor = ui.OKText.Render("▶ ")
 			style = style.Bold(true)
 		}
-		statusMark := ui.SubtleText.Render(" · saved")
+		statusMark := ui.SubtleText.Render("saved")
 		if !d.Connected {
-			statusMark = ui.WarnText.Render(" · disconnected")
+			statusMark = ui.WarnText.Render("disconnected")
 		}
 		if d.KeydID == "" {
-			statusMark = ui.WarnText.Render(" · missing keyd id")
+			statusMark = ui.WarnText.Render("missing keyd id")
 		}
-		label := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, d.DisplayName), width-lipgloss.Width(statusMark)))
-		lines = append(lines, label+statusMark)
+		label := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, d.DisplayName), width-lipgloss.Width(statusMark)-4))
+		lines = append(lines, label+"  "+statusMark)
 		if i == m.selectedDev {
 			sub := ui.SubtleText.Render(ui.TruncateStyled("   "+(orEmpty(d.KeydID)+" · "+presetCountText(m, d.HyprName)), width))
 			lines = append(lines, sub)
@@ -406,7 +429,11 @@ func (m Model) presetView(width int) string {
 
 	lines := []string{
 		ui.Title.Render(d.DisplayName),
-		ui.TruncateStyled(fmt.Sprintf("%d presets · %s · %s focus", presetCount(m, d.HyprName), onOff(enabled), focusName(m.focusPanel)), width),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.StatusPill(onOff(enabled), enabled),
+			ui.StatusPill(fmt.Sprintf("%d presets", presetCount(m, d.HyprName)), presetCount(m, d.HyprName) > 0),
+			ui.StatusPill(focusName(m.focusPanel)+" focus", m.focusPanel == 1),
+		),
 		"",
 		ui.Section.Render("Presets"),
 	}
@@ -424,12 +451,12 @@ func (m Model) presetView(width int) string {
 			style = style.Bold(true)
 		}
 		active := m.presetEnabled(d.HyprName, p.ID)
-		mark := ui.SubtleText.Render(" off")
+		mark := ui.SubtleText.Render("off")
 		if active {
-			mark = ui.OKText.Render(" on")
+			mark = ui.OKText.Render("on")
 		}
-		label := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, p.Label), width-lipgloss.Width(mark)))
-		lines = append(lines, label+mark)
+		label := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, p.Label), width-lipgloss.Width(mark)-4))
+		lines = append(lines, label+"  "+mark)
 		if i == m.selectedPre {
 			detail := p.Description
 			if p.Type == "remap" {
@@ -447,18 +474,18 @@ func (m Model) presetView(width int) string {
 		}
 	}
 
-	lines = append(lines, "", ui.SubtleText.Render(ui.TruncateStyled("enter/p toggles · o applies selected target · O resets custom target", width)))
+	lines = append(lines, "", ui.HelpText(ui.HelpItem("enter/p", "toggle"), ui.HelpItem("o", "set target"), ui.HelpItem("O", "reset")))
 	return strings.Join(lines, "\n")
 }
 
 func (m Model) serviceButtons() string {
-	setupBtn := ui.Button.Render("a Apply")
+	setupBtn := ui.Button.Render(ui.ActionText("a", "Apply"))
 	if m.busy {
-		setupBtn = ui.DisabledButton.Render("a Apply")
+		setupBtn = ui.DisabledButton.Render(ui.ActionText("a", "Apply"))
 	}
-	refreshBtn := ui.Button.Render("r Refresh")
+	refreshBtn := ui.Button.Render(ui.ActionText("r", "Refresh"))
 	if m.busy {
-		refreshBtn = ui.DisabledButton.Render("r Refresh")
+		refreshBtn = ui.DisabledButton.Render(ui.ActionText("r", "Refresh"))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, setupBtn, refreshBtn)
 }

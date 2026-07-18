@@ -72,6 +72,70 @@ func ColorStrip(colors []lipgloss.Color, width int) string {
 	return b.String()
 }
 
+func ActionText(key, label string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return label
+	}
+	if len([]rune(key)) == 1 {
+		return underlineFirstMatch(label, key, Accent)
+	}
+	return lipgloss.NewStyle().Foreground(Accent).Underline(true).Render(key) + " " + label
+}
+
+func HelpText(items ...string) string {
+	return SubtleText.Render(strings.Join(items, "  "))
+}
+
+func HelpItem(key, label string) string {
+	return lipgloss.NewStyle().Foreground(Accent).Underline(true).Render(key) + " " + label
+}
+
+func StatusPill(label string, ok bool) string {
+	style := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(LineSoft).
+		Foreground(Subtle).
+		Padding(0, 1)
+	if ok {
+		style = style.BorderForeground(Accent).Foreground(Accent)
+	}
+	return style.Render(label)
+}
+
+func MiniPreview(title, subtitle string, width int) string {
+	width = max(18, width)
+	inner := max(12, width-2)
+	top := lipgloss.NewStyle().Background(LineSoft).Width(inner).Render(" ")
+	body := lipgloss.NewStyle().Background(Background).Foreground(Text).Width(inner).Render(" " + TruncatePlain(title, max(1, inner-2)))
+	body2 := lipgloss.NewStyle().Background(Background).Foreground(Muted).Width(inner).Render(" " + TruncatePlain(subtitle, max(1, inner-2)))
+	fill := lipgloss.NewStyle().Background(Background).Width(inner).Render(" ")
+	return lipgloss.NewStyle().
+		Border(lipgloss.ThickBorder()).
+		BorderForeground(LineSoft).
+		Padding(0, 1).
+		Render(strings.Join([]string{top, body, body2, fill}, "\n"))
+}
+
+func underlineFirstMatch(label, key string, color lipgloss.Color) string {
+	lowerKey := strings.ToLower(key)
+	var out strings.Builder
+	done := false
+	for _, r := range label {
+		ch := string(r)
+		if !done && strings.ToLower(ch) == lowerKey {
+			out.WriteString(lipgloss.NewStyle().Foreground(color).Underline(true).Render(ch))
+			done = true
+			continue
+		}
+		out.WriteString(ch)
+	}
+	if done {
+		return out.String()
+	}
+	return lipgloss.NewStyle().Foreground(color).Underline(true).Render(strings.ToUpper(key)) + " " + label
+}
+
 func padRaw(s string, width int) string {
 	w := lipgloss.Width(s)
 	if w >= width {

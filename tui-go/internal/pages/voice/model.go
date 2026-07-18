@@ -190,7 +190,7 @@ func (m Model) View() string {
 	panelBoxW := panelInnerW + panelPadW
 	panelBoxH := panelInnerH + panelPadH
 
-	header := ui.Title.Render("Voice input") + " " + ui.MutedText.Render("Go settings TUI")
+	header := ui.Title.Render("Input") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Voice input")
 	if m.busy {
 		header += " " + ui.OKText.Render("working...")
 	}
@@ -205,7 +205,16 @@ func (m Model) View() string {
 		ui.PreserveBackground(ui.FitBlock(m.bodyView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
 	)
 
-	help := ui.SubtleText.Render("enter/a test · n add key · e edit bindings · c remove · d diagnose · s setup · r refresh · q quit")
+	help := ui.HelpText(
+		ui.HelpItem("enter/a", labelForPrimary(m)),
+		ui.HelpItem("n", "add key"),
+		ui.HelpItem("e", "edit"),
+		ui.HelpItem("c", "remove"),
+		ui.HelpItem("d", "diagnose"),
+		ui.HelpItem("s", "setup"),
+		ui.HelpItem("r", "refresh"),
+		ui.HelpItem("q", "quit"),
+	)
 	if m.busy {
 		help = ui.OKText.Render("working...")
 	}
@@ -233,8 +242,20 @@ func (m Model) bodyView(width int) string {
 	}
 
 	lines := []string{
-		ui.Title.Render("Voice input"),
-		ui.TruncateStyled(fmt.Sprintf("%s · %s", health, detail), width),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.MiniPreview("Voice", health, min(30, max(20, width/3))),
+			"  ",
+			strings.Join([]string{
+				ui.Title.Render("Voice input"),
+				ui.MutedText.Render(ui.TruncateStyled(detail, max(20, width-34))),
+				"",
+				lipgloss.JoinHorizontal(lipgloss.Top,
+					ui.StatusPill("Model", m.bool("modelReady")),
+					ui.StatusPill("Venv", m.bool("venvReady")),
+					ui.StatusPill("Daemon", m.bool("daemonRunning")),
+				),
+			}, "\n"),
+		),
 		"",
 		ui.Section.Render("Trial record"),
 		ui.MutedText.Render(ui.TruncateStyled(m.trialHint(), width)),
@@ -256,8 +277,8 @@ func (m Model) bodyView(width int) string {
 				cursor = ui.OKText.Render("▶ ")
 				style = style.Bold(true)
 			}
-			line := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, friendly(raw)), width-10))
-			lines = append(lines, line+ui.SubtleText.Render("  c remove"))
+			line := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, friendly(raw)), width-lipgloss.Width(ui.HelpItem("c", "remove"))-2))
+			lines = append(lines, line+"  "+ui.HelpItem("c", "remove"))
 		}
 	}
 
@@ -285,25 +306,32 @@ func (m Model) bodyView(width int) string {
 func (m Model) actionButtons(label string) string {
 	var primary string
 	if m.busy {
-		primary = ui.DisabledButton.Render("enter " + label)
+		primary = ui.DisabledButton.Render(ui.ActionText("enter", label))
 	} else {
-		primary = ui.PrimaryButton.Render("enter " + label)
+		primary = ui.PrimaryButton.Render(ui.ActionText("enter", label))
 	}
-	setupBtn := ui.Button.Render("s Setup")
+	setupBtn := ui.Button.Render(ui.ActionText("s", "Setup"))
 	if m.busy {
-		setupBtn = ui.DisabledButton.Render("s Setup")
+		setupBtn = ui.DisabledButton.Render(ui.ActionText("s", "Setup"))
 	}
-	refreshBtn := ui.Button.Render("r Refresh")
+	refreshBtn := ui.Button.Render(ui.ActionText("r", "Refresh"))
 	if m.busy {
-		refreshBtn = ui.DisabledButton.Render("r Refresh")
+		refreshBtn = ui.DisabledButton.Render(ui.ActionText("r", "Refresh"))
 	}
-	addBtn := ui.Button.Render("n Add key")
-	diagBtn := ui.Button.Render("d Diagnose")
+	addBtn := ui.Button.Render(ui.ActionText("n", "Add key"))
+	diagBtn := ui.Button.Render(ui.ActionText("d", "Diagnose"))
 	if m.busy {
-		addBtn = ui.DisabledButton.Render("n Add key")
-		diagBtn = ui.DisabledButton.Render("d Diagnose")
+		addBtn = ui.DisabledButton.Render(ui.ActionText("n", "Add key"))
+		diagBtn = ui.DisabledButton.Render(ui.ActionText("d", "Diagnose"))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, primary, setupBtn, addBtn, diagBtn, refreshBtn)
+}
+
+func labelForPrimary(m Model) string {
+	if m.needsSetup() {
+		return "setup"
+	}
+	return "record"
 }
 
 func (m Model) needsSetup() bool {

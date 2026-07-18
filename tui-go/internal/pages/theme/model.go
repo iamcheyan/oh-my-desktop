@@ -367,23 +367,20 @@ func (m Model) contentView(width, height int) string {
 		return "Loading..."
 	}
 
-	themeRows := max(1, (height-19)/6)
+	themeRows := max(1, (height-15)/5)
 	lines := []string{m.heroView(width)}
 	lines = append(lines, "")
 	lines = append(lines, m.themeGridView(width, themeRows))
-	lines = append(lines, "")
-	lines = append(lines, m.effectsView(width)...)
 	return strings.Join(lines, "\n")
 }
 
 func (m Model) heroView(width int) string {
-	previewWidth := min(36, max(24, width/4))
-	previewHeight := max(8, previewWidth/2)
+	previewWidth := 22
+	previewHeight := 10
 	infoWidth := width - previewWidth - 3
 	mode := m.value("wallpaper.mode", "file")
 	if infoWidth < 44 {
-		previewWidth = min(width, 36)
-		previewHeight = max(8, previewWidth/2)
+		previewWidth = min(width, 22)
 		return strings.Join([]string{
 			m.wallpaperPreview(previewWidth, previewHeight),
 			m.row("Wallpaper", shortPath(m.value("wallpaper.current", "-")), width),
@@ -396,12 +393,13 @@ func (m Model) heroView(width int) string {
 			lipgloss.JoinHorizontal(lipgloss.Top,
 				m.button(buttonText("w", "Next"), false),
 				m.button(buttonText("x", "Stop"), false),
+				m.effectSelect(),
 			),
 		}, "\n")
 	}
 
 	pal := m.palette()
-	rightLines := []string{
+	infoLines := []string{
 		lipgloss.NewStyle().Foreground(pal.text).Bold(true).Render("Wallpaper"),
 		lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncateStyled("Current desktop background and rotation.", infoWidth)),
 		"",
@@ -415,10 +413,15 @@ func (m Model) heroView(width int) string {
 			m.button(buttonText("d", "Folder"), mode == "folder"),
 			m.button(buttonText("w", "Next"), false),
 			m.button(buttonText("x", "Stop"), false),
+			m.effectSelect(),
 		),
 	}
-	right := strings.Join(rightLines, "\n")
-	return lipgloss.JoinHorizontal(lipgloss.Top, m.wallpaperPreview(previewWidth, previewHeight), "   ", right)
+	info := strings.Join(infoLines, "\n")
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		m.wallpaperPreview(previewWidth, previewHeight),
+		"   ",
+		info,
+	)
 }
 
 func (m Model) wallpaperPreview(width, height int) string {
@@ -504,12 +507,11 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 	}
 	top := lipgloss.NewStyle().Background(accent).Foreground(fg).Width(width).Render(" " + marker)
 	sample := lipgloss.NewStyle().Background(bg).Foreground(fg).Width(width).Render("Ag")
-	fill := lipgloss.NewStyle().Background(bg).Width(width).Render(" ")
 	label := t.name
 	if lipgloss.Width(label) > width {
 		label = ui.TruncatePlain(label, width)
 	}
-	tile := strings.Join([]string{top, sample, fill, label}, "\n")
+	tile := strings.Join([]string{top, sample, label}, "\n")
 	style := lipgloss.NewStyle().Width(width)
 	if idx == m.selected {
 		style = style.Border(lipgloss.NormalBorder()).BorderForeground(m.palette().accent)
@@ -519,30 +521,19 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 	return style.Render(tile)
 }
 
-func (m Model) effectsView(width int) []string {
-	mode := m.value("effects.mode", "balanced")
+func (m Model) effectSelect() string {
 	pal := m.palette()
-	options := lipgloss.JoinHorizontal(lipgloss.Top,
-		m.effectOption("1", "Performance", mode == "performance"),
-		m.effectOption("2", "Balanced", mode == "balanced"),
-		m.effectOption("3", "Visuals", mode == "visuals"),
-	)
-	if width < 46 {
-		options = strings.Join([]string{
-			m.effectOption("1", "Performance", mode == "performance"),
-			m.effectOption("2", "Balanced", mode == "balanced"),
-			m.effectOption("3", "Visuals", mode == "visuals"),
-		}, "\n")
-	}
-	return []string{
-		lipgloss.NewStyle().Foreground(pal.muted).Bold(true).Render("Effects"),
-		options,
-		lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncateStyled("["+"/] changes wallpaper interval · current "+intervalLabel(m.value("wallpaper.interval", "1800")), width)),
-	}
-}
-
-func (m Model) effectOption(key, label string, active bool) string {
-	return m.button(buttonText(key, label), active)
+	label := effectLabel(m.value("effects.mode", "balanced"))
+	text := lipgloss.NewStyle().Foreground(pal.muted).Render("Effects ") +
+		lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render("1/2/3") +
+		" " + label + " ▾"
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(pal.line).
+		Background(pal.panel).
+		Foreground(pal.text).
+		Padding(0, 1).
+		Render(text)
 }
 
 func (m Model) fetchStatus() tea.Cmd {
@@ -847,7 +838,7 @@ func (m Model) button(text string, active bool) string {
 		BorderForeground(pal.line).
 		Background(pal.panel).
 		Foreground(pal.text).
-		Padding(0, 2).
+		Padding(0, 1).
 		MarginRight(1)
 	if active {
 		style = style.BorderForeground(pal.accent).Foreground(pal.accent).Bold(true)
@@ -942,6 +933,17 @@ func intervalLabel(s string) string {
 		return fmt.Sprintf("%dm", sec/60)
 	}
 	return fmt.Sprintf("%ds", sec)
+}
+
+func effectLabel(mode string) string {
+	switch mode {
+	case "performance":
+		return "Performance"
+	case "visuals":
+		return "Visuals"
+	default:
+		return "Balanced"
+	}
 }
 
 func shortPath(s string) string {
