@@ -1,0 +1,79 @@
+#!/bin/sh
+set -eu
+
+# Smart paste for kitty, mapped to Ctrl+V in kitty.conf:
+#   map ctrl+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-paste
+#
+# Terminals can't render image clipboard data. So when the Wayland clipboard
+# holds an image, save it to a temp file and type its PATH into the terminal
+# (most CLI tools accept a path argument). Otherwise paste the clipboard text
+# normally.
+#
+# Text is injected with `kitty @ send-text` (remote control), which writes
+# directly into the active kitty window. We NEVER re-send Ctrl+V, so this
+# keybind cannot retrigger itself — there is no recursion / freeze risk.
+# `--bracketed-paste auto` matches kitty's native paste_from_clipboard
+# behavior (wrap in bracketed-paste only when the running program enabled it).
+#
+# `launch --type=background` does NOT set KITTY_LISTEN_ON, but our parent (or
+# near ancestor) is the kitty process, whose socket is /tmp/mykitty-<pid>.
+
+LOG=/tmp/omd-kitty-smart-paste.log
+log() { echo "$(date '+%H:%M:%S') $*" >> "$LOG" 2>/dev/null || true; }
+
+resolve_socket() {
+  if [ -n "${KITTY_LISTEN_ON:-}" ]; then
+    echo "$KITTY_LISTEN_ON"; return
+  fi
+  p=$$
+  for _ in 1 2 3 4 5 6; do
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+    [ -z "$p" ] || [ "$p" = 0 ] && break
+    name=$(ps -o comm= -p "$p" 2>/dev/null | tr -d ' ')
+    if [ "$name" = "kitty" ] && [ -S "/tmp/mykitty-$p" ]; then
+      echo "unix:/tmp/mykitty-$p"; return
+    fi
+  done
+  set -- /tmp/mykitty-*
+  if [ $# -eq 1 ] && [ -S "$1" ]; then
+    echo "unix:$1"; return
+  fi
+  echo "unix:/tmp/mykitty"
+}
+
+KC=$(resolve_socket)
+log "socket=$KC"
+
+send() { kitty @ --to "$KC" send-text --stdin --bracketed-paste auto; }
+
+# First image MIME type offered by the clipboard, if any.
+mime=$(wl-paste -l 2>/dev/null | grep -m1 '^image/' || true)
+
+if [ -n "$mime" ]; then
+  fmt=${mime#image/}
+  case "$fmt" in
+    png|jpeg|webp|gif|bmp|tiff|svg+xml) ;;
+    *) fmt=png ;;
+  esac
+  ext=$fmt
+  [ "$ext" = jpeg ] && ext=jpg
+
+  ts=$(date +%s%N)
+  tmp="/tmp/omd-clip-${ts}.${ext}"
+
+  if ! wl-paste -t "image/${fmt}" > "$tmp" 2>/dev/null; then
+    wl-paste -t image/png > "$tmp" 2>/dev/null || true
+  fi
+
+  if [ -s "$tmp" ]; then
+    printf '%s ' "$tmp" | send
+    log "image->path $tmp"
+    notify-send -t 2000 '📋 已粘贴图片路径' "$tmp" 2>/dev/null || true
+    exit 0
+  fi
+  rm -f "$tmp"
+fi
+
+# No image (or image decode failed): paste the clipboard text normally.
+log "text paste"
+wl-paste 2>/dev/null | send
