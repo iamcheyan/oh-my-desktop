@@ -5,6 +5,7 @@ Configure global hotkeys for voice-to-text recording.
 """
 
 import curses
+import json
 import os
 import subprocess
 import sys
@@ -17,9 +18,9 @@ BINDINGS_FILE = os.path.join(CONFIG_DIR, "voice_bindings.txt")
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 KEY_TEST_LAUNCHER = os.path.join(SCRIPT_DIR, "key-test-launcher")
 sys.path.insert(0, SCRIPT_DIR)
-from key_capture_clipboard import parse_clipboard_text  # noqa: E402
 
 DEFAULT_BINDINGS = ["ALT + A", "code:472"]
+CAPTURE_STATE = os.path.expanduser("~/.local/state/omd/key-capture.json")
 
 # ── Load/Save ──
 def load_bindings():
@@ -51,17 +52,29 @@ def save_bindings(bindings):
         return False
 
 def run_key_capture():
+    started_at = time.time()
+    try:
+        os.unlink(CAPTURE_STATE)
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
     if os.path.exists(KEY_TEST_LAUNCHER):
         subprocess.run([KEY_TEST_LAUNCHER, "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         subprocess.run(["key-test", "--hotkey"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    # Read the captured key from clipboard (first line / bind string)
+
+    # Read only the fresh state file written by this capture. Do not fall back
+    # to wl-paste; stale clipboard text is not a key capture.
     try:
-        res = subprocess.run(["wl-paste"], capture_output=True, text=True)
-        text = res.stdout or ""
-        parsed = parse_clipboard_text(text)
-        val = (parsed.get("bind") or text.strip()).strip()
+        if os.path.getmtime(CAPTURE_STATE) < started_at:
+            return None
+        with open(CAPTURE_STATE, encoding="utf-8") as f:
+            data = json.load(f)
+        val = (data.get("raw") or "").strip()
+        if val == "TOOLS":
+            val = "XF86Tools"
         if val and not val.startswith("✓") and not val.startswith("✗"):
             return val
     except Exception:

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+bindings_file="$OMD_ROOT/config/voice_bindings.txt"
+editor="${EDITOR:-nvim}"
+
+mkdir -p "$(dirname "$bindings_file")"
+if [[ ! -f "$bindings_file" ]]; then
+  cat >"$bindings_file" <<'EOF'
+# OMD Voice Input Keybindings
+# One key combination per line. Format e.g., 'ALT + A' or 'code:472'
+
+EOF
+fi
+
+exec "$editor" "$bindings_file"

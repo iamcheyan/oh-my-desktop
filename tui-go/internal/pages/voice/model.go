@@ -1,9 +1,10 @@
 package voice
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -12,29 +13,511 @@ import (
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/ui"
 )
 
-type status map[string]string
+type tickMsg time.Time
 
-type statusMsg struct {
-	values status
-	err    error
+type recentItem struct {
+	Text string `json:"text"`
+	Ts   int64  `json:"ts"`
 }
 
-type actionMsg struct {
-	action string
-	lines  []string
-	err    error
-}
+const (
+	iconMic       = "\uf130" // nf-fa-microphone
+	iconStop      = "\uf04d" // nf-fa-stop
+	iconDownload  = "\uf019" // nf-fa-download
+	iconRefresh   = "\uf021" // nf-fa-refresh
+	iconKeyboard  = "\uf11c" // nf-fa-keyboard
+	iconWrench    = "\uf0ad" // nf-fa-wrench
+	iconClipboard = "\uf328" // nf-fa-clipboard
+	iconClear     = "\uf12d" // nf-fa-eraser
+)
 
 type Model struct {
 	backend  backend.Backend
-	status   status
-	width    int
-	height   int
-	busy     bool
-	err      string
-	message  string
-	selected int
+	status   backend.Status
 	bindings []string
+
+	width   int
+	height  int
+	busy    bool
+	err     string
+	message string
+
+	recStart time.Time
+}
+
+func New(b backend.Backend) Model {
+	return Model{backend: b}
+}
+
+func (m Model) Init() tea.Cmd {
+	return tea.Batch(m.fetchStatus(), tick())
+}
+
+func tick() tea.Cmd {
+	return tea.Tick(900*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+	case tickMsg:
+		return m, tea.Batch(m.fetchStatus(), tick())
+	case backend.StatusMsg:
+		if msg.Err != nil {
+			m.err = msg.Err.Error()
+			return m, nil
+		}
+		wasRecording := m.recording()
+		m.status = msg.Values
+		m.err = ""
+		if m.recording() && !wasRecording {
+			m.recStart = time.Now()
+		}
+		m.bindings = parseBindings(msg.Values.Raw())
+	case backend.ActionMsg:
+		m.busy = false
+		if msg.Err != nil {
+			m.err = msg.Err.Error()
+			m.message = "Action failed"
+		} else {
+			m.err = ""
+			m.message = actionMessage(msg.Action)
+		}
+		return m, m.fetchStatus()
+	case tea.KeyMsg:
+		return m.handleKey(msg.String())
+	}
+	return m, nil
+}
+
+func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "q", "ctrl+c", "esc":
+		return m, tea.Quit
+	case "r":
+		return m, m.fetchStatus()
+	}
+	if m.busy {
+		return m, nil
+	}
+
+	switch key {
+	case "enter", " ":
+		switch m.state() {
+		case "nomodel":
+			m.busy = true
+			m.message = "Starting setup..."
+			return m, m.runAction("setup")
+		case "downloading":
+			m.busy = true
+			m.message = "Cancelling..."
+			return m, m.runAction("cancel")
+		case "recording":
+			m.busy = true
+			m.message = "Transcribing..."
+			return m, m.runAction("record-stop")
+		default:
+			m.busy = true
+			m.message = "Recording..."
+			return m, m.runAction("record-start")
+		}
+	case "s":
+		m.busy = true
+		m.message = "Starting setup..."
+		return m, m.runAction("setup")
+	case "t":
+		m.busy = true
+		return m, m.runAction("test")
+	case "d":
+		m.busy = true
+		return m, m.runAction("diagnose")
+	case "e":
+		m.busy = true
+		return m, m.runAction("edit")
+	case "k":
+		m.busy = true
+		return m, m.runAction("key-test")
+	case "c":
+		if len(m.recentItems()) > 0 {
+			m.busy = true
+			return m, m.runAction("recent-clear")
+		}
+	}
+	return m, nil
+}
+
+func (m Model) View() string {
+	if m.width <= 0 || m.height <= 0 {
+		return "Initializing..."
+	}
+
+	contentW := max(16, m.width-2)
+	fixedRows := 2
+	if m.message != "" || m.err != "" || m.busy {
+		fixedRows++
+	}
+	contentH := max(12, m.height-fixedRows-2)
+
+	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), ui.Background)
+	help := ui.HelpText(
+		ui.HelpItem("enter", m.primaryHelp()),
+		ui.HelpItem("s", "setup"),
+		ui.HelpItem("e", "bindings"),
+		ui.HelpItem("k", "key tester"),
+		ui.HelpItem("d", "diagnose"),
+		ui.HelpItem("t", "test tui"),
+		ui.HelpItem("r", "refresh"),
+		ui.HelpItem("q", "quit"),
+	)
+
+	parts := []string{content, help}
+	if status := m.statusLine(); status != "" {
+		parts = append([]string{status}, parts...)
+	}
+	return ui.Screen.Padding(1, 1).Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
+}
+
+func (m Model) contentView(width, height int) string {
+	if m.status == nil {
+		return "Loading..."
+	}
+
+	heroH := 11
+	if width < 82 {
+		heroH = 18
+	}
+	remaining := max(4, height-heroH-1)
+	top := m.heroView(width)
+	body := m.bodyView(width, remaining)
+	return strings.Join([]string{top, "", body}, "\n")
+}
+
+func (m Model) heroView(width int) string {
+	previewW := 22
+	infoW := width - previewW - 3
+	if infoW < 48 {
+		return strings.Join([]string{
+			m.voicePreview(previewW, 8),
+			m.statusInfo(width),
+			m.primaryButtons(width),
+		}, "\n")
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		m.voicePreview(previewW, 8),
+		"   ",
+		strings.Join([]string{
+			m.statusInfo(infoW),
+			"",
+			m.primaryButtons(infoW),
+		}, "\n"),
+	)
+}
+
+func (m Model) voicePreview(width, height int) string {
+	width = max(18, width)
+	height = max(7, height)
+	innerW := max(12, width-4)
+	pal := m.tone()
+	state := m.stateLabel()
+	level := lipgloss.NewStyle().Background(pal).Foreground(ui.Background).Width(innerW).Render(" " + m.stateMarker())
+	icon := lipgloss.NewStyle().Foreground(pal).Bold(true).Width(innerW).Render(" " + iconMic + "  Voice")
+	line := lipgloss.NewStyle().Foreground(ui.Muted).Width(innerW).Render(" " + ui.TruncatePlain(state, max(1, innerW-2)))
+	fillRows := max(1, height-5)
+	fills := make([]string, 0, fillRows)
+	for i := 0; i < fillRows; i++ {
+		fills = append(fills, lipgloss.NewStyle().Background(ui.Background).Width(innerW).Render(" "))
+	}
+	wave := lipgloss.NewStyle().Foreground(pal).Width(innerW).Render(" " + recordingWave(m.recording()))
+	rows := append([]string{level, icon, line}, fills...)
+	rows = append(rows, wave)
+	return lipgloss.NewStyle().
+		Border(lipgloss.ThickBorder()).
+		BorderForeground(ui.LineSoft).
+		Background(ui.Background).
+		Padding(0, 1).
+		Render(strings.Join(rows, "\n"))
+}
+
+func (m Model) statusInfo(width int) string {
+	model := "missing"
+	if m.bool("modelReady") {
+		model = "SenseVoice Small"
+	}
+	venv := "missing"
+	if m.bool("venvReady") {
+		venv = "ready"
+	}
+	daemon := "idle"
+	if m.bool("daemonRunning") {
+		daemon = "running"
+	}
+
+	lines := []string{
+		ui.Title.Render("Voice Input"),
+		ui.MutedText.Render(ui.TruncateStyled("Speech-to-text model, microphone test, and helper tools.", width)),
+		"",
+		m.row("State", m.stateLabel(), width),
+		m.row("Model", model, width),
+		m.row("Size", m.value("modelSizeMB", "0")+" MB", width),
+		m.row("Venv", venv, width),
+		m.row("Daemon", daemon, width),
+	}
+	if m.state() == "downloading" {
+		lines = append(lines, "", m.downloadView(width))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) primaryButtons(width int) string {
+	active := m.recording()
+	label := "Record"
+	key := "enter"
+	icon := iconMic
+	switch m.state() {
+	case "nomodel":
+		label = "Setup"
+		icon = iconDownload
+	case "downloading":
+		label = "Cancel"
+		icon = iconStop
+	case "recording":
+		label = "Stop"
+		icon = iconStop
+	}
+	buttons := []string{
+		ui.ActionButton(icon, key, label, active),
+		ui.ActionButton(iconRefresh, "r", "Refresh", false),
+	}
+	if width < 40 {
+		return lipgloss.JoinVertical(lipgloss.Left,
+			buttons[0],
+			buttons[1],
+		)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
+}
+
+func (m Model) bodyView(width, height int) string {
+	if width < 90 {
+		return lipgloss.JoinVertical(lipgloss.Left,
+			m.bindingsView(width, max(6, height/2)),
+			"",
+			m.recentAndToolsView(width, max(6, height/2)),
+		)
+	}
+	leftW := max(36, width/2-2)
+	rightW := width - leftW - 3
+	left := ui.PreserveBackground(ui.FitBlock(m.bindingsView(leftW, height), leftW, height), ui.Background)
+	right := ui.PreserveBackground(ui.FitBlock(m.recentAndToolsView(rightW, height), rightW, height), ui.Background)
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
+}
+
+func (m Model) bindingsView(width, height int) string {
+	lines := []string{
+		ui.Section.Render("Bindings"),
+		ui.MutedText.Render(ui.TruncateStyled("Runtime uses Hyprland bindings. Edit the file when you need custom triggers.", width)),
+		"",
+	}
+	binds := m.bindings
+	if len(binds) == 0 {
+		binds = []string{m.value("defaultTrigger", "ALT + A")}
+		lines = append(lines, ui.SubtleText.Render("Using defaults"))
+	}
+	for i, raw := range binds {
+		if len(lines) >= height-4 {
+			lines = append(lines, ui.SubtleText.Render(fmt.Sprintf("... %d more", len(binds)-i)))
+			break
+		}
+		lines = append(lines,
+			lipgloss.NewStyle().Foreground(ui.Text).Render(ui.TruncateStyled("  "+friendly(raw), width)),
+			ui.SubtleText.Render(ui.TruncateStyled("  "+raw, width)),
+		)
+	}
+	lines = append(lines, "",
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.ActionButton(iconKeyboard, "k", "Key tester", false),
+			ui.ActionButton(iconKeyboard, "e", "Edit file", false),
+		),
+	)
+	lines = append(lines, ui.SubtleText.Render(ui.TruncateStyled(ui.ShortPath(m.value("bindingsFile", "-")), width)))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) recentAndToolsView(width, height int) string {
+	lines := []string{
+		ui.Section.Render("Recent"),
+	}
+	items := m.recentItems()
+	if len(items) == 0 {
+		lines = append(lines, ui.SubtleText.Render(ui.TruncateStyled("No transcriptions yet. Press enter to test.", width)))
+	} else {
+		for i, item := range items {
+			if len(lines) >= height-7 {
+				lines = append(lines, ui.SubtleText.Render(fmt.Sprintf("... %d more", len(items)-i)))
+				break
+			}
+			lines = append(lines, ui.TruncateStyled("  "+item.Text, width))
+		}
+	}
+	lines = append(lines,
+		"",
+		ui.Section.Render("Tools"),
+		lipgloss.JoinHorizontal(lipgloss.Top,
+			ui.ActionButton(iconWrench, "d", "Diagnose", false),
+			ui.ActionButton(iconClipboard, "t", "Test TUI", false),
+		),
+		ui.ActionButton(iconClear, "c", "Clear recent", false),
+		"",
+		ui.Section.Render("Paths"),
+		m.row("Model", ui.ShortPath(m.value("modelDir", "-")), width),
+		m.row("Socket", m.value("socket", "-"), width),
+		m.row("Cache", ui.ShortPath(m.value("cacheDir", "-")), width),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) downloadView(width int) string {
+	percent := ui.ParseInt(m.value("download.percent", "0"))
+	label := m.value("download.label", "model")
+	speed := speedLabel(m.value("download.speedBps", "0"))
+	eta := etaLabel(m.value("download.etaSec", "0"))
+	barW := max(10, min(34, width-10))
+	return strings.Join([]string{
+		ui.WarnText.Render("Downloading " + label),
+		ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
+		m.row("Speed", speed, width),
+		m.row("Remaining", eta, width),
+	}, "\n")
+}
+
+func (m Model) statusLine() string {
+	parts := []string{}
+	if m.busy {
+		parts = append(parts, ui.OKText.Render("working..."))
+	}
+	if m.err != "" {
+		parts = append(parts, ui.DangerText.Render(m.err))
+	}
+	if m.message != "" && !m.busy {
+		parts = append(parts, ui.OKText.Render(m.message))
+	}
+	return strings.Join(parts, " ")
+}
+
+func (m Model) fetchStatus() tea.Cmd {
+	return func() tea.Msg {
+		result := m.backend.Run("omd-settings-voice", "status")
+		if result.Err != nil {
+			return backend.StatusMsg{Err: result.Err}
+		}
+		return backend.StatusMsg{Values: backend.ParseStatus(result.Lines)}
+	}
+}
+
+func (m Model) runAction(action string) tea.Cmd {
+	return func() tea.Msg {
+		result := m.backend.Run("omd-settings-voice", action)
+		return backend.ActionMsg{Action: action, Err: result.Err}
+	}
+}
+
+func (m Model) value(key, fallback string) string {
+	return m.status.Value(key, fallback)
+}
+
+func (m Model) bool(key string) bool {
+	return m.status.Bool(key)
+}
+
+func (m Model) state() string {
+	return m.status.Value("state", "idle")
+}
+
+func (m Model) recording() bool {
+	return m.state() == "recording"
+}
+
+// stateMeta drives the static per-state presentation. stateLabel stays a
+// method because recording appends a live timer and idle can become "Ready".
+var stateMeta = map[string]struct {
+	label  string
+	marker string
+	help   string
+	tone   lipgloss.Color
+}{
+	"nomodel":     {"Needs setup", "Setup", "setup", ui.Warn},
+	"downloading": {"Installing", "Install", "cancel", ui.Warn},
+	"recording":   {"Recording", "Live", "stop", ui.Danger},
+	"idle":        {"Ready", "Ready", "record", ui.Accent},
+}
+
+func (m Model) stateLabel() string {
+	switch m.state() {
+	case "recording":
+		if !m.recStart.IsZero() {
+			return "Recording " + ui.FormatDuration(int(time.Since(m.recStart).Seconds()))
+		}
+		return "Recording"
+	case "idle":
+		if m.bool("modelReady") && m.bool("venvReady") {
+			return "Ready"
+		}
+		return "Idle"
+	default:
+		if meta, ok := stateMeta[m.state()]; ok {
+			return meta.label
+		}
+		return m.state()
+	}
+}
+
+func (m Model) stateMarker() string {
+	return stateMeta[m.state()].marker
+}
+
+func (m Model) primaryHelp() string {
+	return stateMeta[m.state()].help
+}
+
+func (m Model) tone() lipgloss.Color {
+	return stateMeta[m.state()].tone
+}
+
+func (m Model) row(label, value string, width int) string {
+	labelW := min(12, max(6, width/4))
+	valueW := max(1, width-labelW-1)
+	l := lipgloss.NewStyle().Foreground(ui.Text).Width(labelW).Render(label)
+	v := lipgloss.NewStyle().Foreground(ui.Muted).Width(valueW).Align(lipgloss.Right).Render(ui.TruncatePlain(value, valueW))
+	return l + " " + v
+}
+
+func (m Model) recentItems() []recentItem {
+	raw := strings.TrimSpace(m.value("recent", "[]"))
+	if raw == "" || raw == "[]" {
+		return nil
+	}
+	var items []recentItem
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	return items
+}
+
+func parseBindings(raw string) []string {
+	var binds []string
+	for _, line := range strings.Split(raw, "\n") {
+		if v, ok := strings.CutPrefix(line, "binding="); ok {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				binds = append(binds, v)
+			}
+		}
+	}
+	return binds
 }
 
 var friendlyMap = map[string]string{
@@ -61,399 +544,59 @@ func friendly(raw string) string {
 	return repl.Replace(raw)
 }
 
-func New(b backend.Backend) Model {
-	return Model{backend: b, selected: 0}
+func actionMessage(action string) string {
+	switch action {
+	case "setup":
+		return "Setup started"
+	case "cancel":
+		return "Setup cancelled"
+	case "record-start":
+		return "Recording started"
+	case "record-stop":
+		return "Transcription finished"
+	case "test":
+		return "Test tool opened"
+	case "diagnose":
+		return "Diagnose opened"
+	case "edit":
+		return "Binding file opened"
+	case "bind-tui":
+		return "Binding tool opened"
+	case "key-test":
+		return "Key tester opened"
+	case "capture":
+		return "Captured key added"
+	case "recent-clear":
+		return "Recent history cleared"
+	}
+	return action + " done"
 }
 
-func (m Model) Init() tea.Cmd {
-	return m.fetchStatus()
+func recordingWave(active bool) string {
+	if !active {
+		return "▁▁▁▁▁▁▁"
+	}
+	return "▂▆█▆▂▆█"
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		case "up", "k":
-			if m.selected > 0 {
-				m.selected--
-			}
-		case "down", "j":
-			if m.selected < len(m.bindings)-1 {
-				m.selected++
-			}
-		case "r":
-			return m, m.fetchStatus()
-		case "s":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("setup")
-			}
-		case "n":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("capture")
-			}
-		case "e":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("edit")
-			}
-		case "d":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("diagnose")
-			}
-		case "t":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("test")
-			}
-		case "c":
-			if !m.busy && len(m.bindings) > 0 {
-				raw := m.bindings[m.selected]
-				m.busy = true
-				return m, m.removeBinding(raw)
-			}
-		case "enter", "a":
-			if !m.busy {
-				needs := m.needsSetup()
-				m.busy = true
-				if needs {
-					return m, m.runAction("setup")
-				}
-				return m, m.runAction("record")
-			}
-		}
-	case statusMsg:
-		if msg.err != nil {
-			m.err = msg.err.Error()
-		} else {
-			m.status = msg.values
-			m.err = ""
-			var binds []string
-			for _, l := range strings.Split(msg.values["__raw__"], "\n") {
-				if strings.HasPrefix(l, "binding=") {
-					binds = append(binds, strings.TrimPrefix(l, "binding="))
-				}
-			}
-			m.bindings = binds
-			if m.selected >= len(m.bindings) {
-				m.selected = len(m.bindings) - 1
-			}
-			if m.selected < 0 {
-				m.selected = 0
-			}
-		}
-	case actionMsg:
-		m.busy = false
-		if msg.err != nil {
-			m.err = msg.err.Error()
-			m.message = "Action failed"
-		} else {
-			m.message = actionMessage(msg)
-		}
-		return m, m.fetchStatus()
+func speedLabel(raw string) string {
+	n := ui.ParseInt(raw)
+	if n <= 0 {
+		return "-"
 	}
-	return m, nil
+	if n >= 1024*1024 {
+		return fmt.Sprintf("%.1f MB/s", float64(n)/(1024*1024))
+	}
+	return fmt.Sprintf("%.0f KB/s", float64(n)/1024)
 }
 
-func (m Model) View() string {
-	if m.width <= 0 || m.height <= 0 {
-		return "Initializing..."
+func etaLabel(raw string) string {
+	sec := ui.ParseInt(raw)
+	if sec <= 0 {
+		return "-"
 	}
-	width := m.width
-	height := m.height
-
-	const (
-		screenPaddingX = 2
-		screenPaddingY = 2
-		fixedRows      = 2
-	)
-
-	contentW := width - screenPaddingX
-	if contentW < 20 {
-		contentW = 20
+	if sec >= 3600 {
+		return fmt.Sprintf("%dh%02dm", sec/3600, (sec%3600)/60)
 	}
-	contentH := height - screenPaddingY - fixedRows
-	if contentH < 8 {
-		contentH = 8
-	}
-
-	header := ui.Title.Render("Input") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Voice input")
-	if m.busy {
-		header += " " + ui.OKText.Render("working...")
-	}
-	if m.err != "" {
-		header += " " + ui.DangerText.Render(m.err)
-	}
-	if m.message != "" && !m.busy {
-		header += " " + ui.OKText.Render(m.message)
-	}
-
-	body := ui.PreserveBackground(ui.FitBlock(m.bodyView(contentW), contentW, contentH), ui.Background)
-
-	help := ui.HelpText(
-		ui.HelpItem("enter/a", labelForPrimary(m)),
-		ui.HelpItem("n", "add key"),
-		ui.HelpItem("e", "edit"),
-		ui.HelpItem("c", "remove"),
-		ui.HelpItem("d", "diagnose"),
-		ui.HelpItem("s", "setup"),
-		ui.HelpItem("r", "refresh"),
-		ui.HelpItem("q", "quit"),
-	)
-	if m.busy {
-		help = ui.OKText.Render("working...")
-	}
-
-	return ui.Screen.Padding(1, 1).Render(
-		lipgloss.JoinVertical(lipgloss.Left,
-			header,
-			body,
-			help,
-		),
-	)
-}
-
-func (m Model) bodyView(width int) string {
-	if m.status == nil {
-		return "Loading..."
-	}
-
-	health := m.healthTitle()
-	detail := m.healthDetail()
-
-	label := "Record"
-	if m.needsSetup() {
-		label = "Setup"
-	}
-
-	lines := []string{
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			ui.MiniPreview("Voice", health, min(30, max(20, width/3))),
-			"  ",
-			strings.Join([]string{
-				ui.Title.Render("Voice input"),
-				ui.MutedText.Render(ui.TruncateStyled(detail, max(20, width-34))),
-				"",
-				lipgloss.JoinHorizontal(lipgloss.Top,
-					ui.StatusPill("Model", m.bool("modelReady")),
-					ui.StatusPill("Venv", m.bool("venvReady")),
-					ui.StatusPill("Daemon", m.bool("daemonRunning")),
-				),
-			}, "\n"),
-		),
-		"",
-		ui.Section.Render("Trial record"),
-		ui.MutedText.Render(ui.TruncateStyled(m.trialHint(), width)),
-		"",
-		m.actionButtons(label),
-		"",
-		ui.Section.Render("Keybindings"),
-	}
-
-	if len(m.bindings) == 0 {
-		lines = append(lines,
-			ui.MutedText.Render(ui.TruncateStyled("Using default trigger: Alt + A", width)),
-		)
-	} else {
-		for i, raw := range m.bindings {
-			cursor := "  "
-			style := lipgloss.NewStyle().Foreground(ui.Text)
-			if i == m.selected {
-				cursor = ui.OKText.Render("▶ ")
-				style = style.Bold(true)
-			}
-			line := style.Render(ui.TruncateStyled(fmt.Sprintf("%s%s", cursor, friendly(raw)), width-lipgloss.Width(ui.HelpItem("c", "remove"))-2))
-			lines = append(lines, line+"  "+ui.HelpItem("c", "remove"))
-		}
-	}
-
-	lines = append(lines,
-		"",
-		ui.SubtleText.Render(ui.TruncateStyled("n captures a new global trigger · e opens the full binding editor", width)),
-		"",
-		ui.Section.Render("Model & engine"),
-		ui.Row("Model", m.modelLabel(), width),
-		ui.Row("Venv", readyText(m.bool("venvReady")), width),
-		ui.Row("Daemon", daemonText(m.bool("daemonRunning")), width),
-		"",
-		ui.Section.Render("Advanced"),
-		ui.Row("Cache", shortPath(m.value("cacheDir", "-")), width),
-		ui.Row("Model dir", shortPath(m.value("modelDir", "-")), width),
-		ui.Row("Venv", shortPath(m.value("venvDir", "-")), width),
-		ui.Row("Socket", m.value("socket", "/tmp/omd-voice.sock"), width),
-		ui.Row("Bindings", shortPath(m.value("bindingsFile", "-")), width),
-		ui.MutedText.Render(ui.TruncateStyled("d diagnose · t open test tool", width)),
-	)
-
-	return strings.Join(lines, "\n")
-}
-
-func (m Model) actionButtons(label string) string {
-	var primary string
-	if m.busy {
-		primary = ui.DisabledButton.Render(ui.ActionText("enter", label))
-	} else {
-		primary = ui.PrimaryButton.Render(ui.ActionText("enter", label))
-	}
-	setupBtn := ui.Button.Render(ui.ActionText("s", "Setup"))
-	if m.busy {
-		setupBtn = ui.DisabledButton.Render(ui.ActionText("s", "Setup"))
-	}
-	refreshBtn := ui.Button.Render(ui.ActionText("r", "Refresh"))
-	if m.busy {
-		refreshBtn = ui.DisabledButton.Render(ui.ActionText("r", "Refresh"))
-	}
-	addBtn := ui.Button.Render(ui.ActionText("n", "Add key"))
-	diagBtn := ui.Button.Render(ui.ActionText("d", "Diagnose"))
-	if m.busy {
-		addBtn = ui.DisabledButton.Render(ui.ActionText("n", "Add key"))
-		diagBtn = ui.DisabledButton.Render(ui.ActionText("d", "Diagnose"))
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, primary, setupBtn, addBtn, diagBtn, refreshBtn)
-}
-
-func labelForPrimary(m Model) string {
-	if m.needsSetup() {
-		return "setup"
-	}
-	return "record"
-}
-
-func (m Model) needsSetup() bool {
-	return m.value("state", "") == "setup" || m.value("modelSizeMB", "0") == "0"
-}
-
-func (m Model) healthTitle() string {
-	if m.needsSetup() {
-		return "Needs setup"
-	}
-	return "Ready"
-}
-
-func (m Model) healthDetail() string {
-	modelPart := "Model missing"
-	if mb := m.value("modelSizeMB", "0"); mb != "0" {
-		modelPart = fmt.Sprintf("SenseVoice · %s MB", mb)
-	}
-	daemonPart := "daemon idle"
-	if m.bool("daemonRunning") {
-		daemonPart = "daemon running"
-	}
-	if m.needsSetup() {
-		return modelPart + " · run setup to enable voice input"
-	}
-	return modelPart + " · " + daemonPart
-}
-
-func (m Model) trialHint() string {
-	if m.needsSetup() {
-		return "Install the engine first, then try a short phrase here."
-	}
-	return "Record a short phrase to verify mic, model, and paste."
-}
-
-func (m Model) fetchStatus() tea.Cmd {
-	return func() tea.Msg {
-		result := m.backend.Run("omd-settings-voice", "status")
-		if result.Err != nil {
-			return statusMsg{err: result.Err}
-		}
-		values := backend.ParseKV(result.Lines)
-		values["__raw__"] = strings.Join(result.Lines, "\n")
-		return statusMsg{values: values}
-	}
-}
-
-func (m Model) runAction(action string) tea.Cmd {
-	return func() tea.Msg {
-		result := m.backend.Run("omd-settings-voice", action)
-		return actionMsg{action: action, lines: result.Lines, err: result.Err}
-	}
-}
-
-func (m Model) removeBinding(raw string) tea.Cmd {
-	return func() tea.Msg {
-		result := m.backend.Run("omd-settings-voice", "remove", raw)
-		return actionMsg{action: "remove " + raw, lines: result.Lines, err: result.Err}
-	}
-}
-
-func (m Model) value(key, fallback string) string {
-	if m.status == nil {
-		return fallback
-	}
-	if v := m.status[key]; v != "" {
-		return v
-	}
-	return fallback
-}
-
-func (m Model) bool(key string) bool {
-	return m.value(key, "false") == "true"
-}
-
-func (m Model) modelLabel() string {
-	if !m.bool("modelReady") {
-		return "missing"
-	}
-	if mb := m.value("modelSizeMB", "0"); mb != "0" {
-		return "SenseVoice · " + mb + " MB"
-	}
-	return "ready"
-}
-
-func readyText(ready bool) string {
-	if ready {
-		return "ready"
-	}
-	return "missing"
-}
-
-func daemonText(running bool) string {
-	if running {
-		return "running"
-	}
-	return "idle"
-}
-
-func shortPath(path string) string {
-	path = strings.TrimSpace(path)
-	home, _ := os.UserHomeDir()
-	home = strings.TrimSpace(home)
-	if home != "" && strings.HasPrefix(path, home+"/") {
-		return "~/" + strings.TrimPrefix(path, home+"/")
-	}
-	return path
-}
-
-func actionMessage(msg actionMsg) string {
-	for _, line := range msg.lines {
-		if value, ok := strings.CutPrefix(line, "captured="); ok && strings.TrimSpace(value) != "" {
-			return "Added " + friendly(value)
-		}
-		if value, ok := strings.CutPrefix(line, "result="); ok && strings.TrimSpace(value) != "" {
-			switch strings.TrimSpace(value) {
-			case "editor-opened":
-				return "Binding editor opened"
-			case "diagnose-opened":
-				return "Diagnose opened"
-			case "test-opened":
-				return "Test tool opened"
-			case "setup-done":
-				return "Setup complete"
-			case "removed":
-				return "Binding removed"
-			case "added":
-				return "Binding added"
-			}
-		}
-	}
-	return "Done"
+	return fmt.Sprintf("%dm%02ds", sec/60, sec%60)
 }
