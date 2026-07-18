@@ -61,7 +61,6 @@ const (
 	iconFile    = "\uf15b" // nf-fa-file
 	iconFolder  = "\uf07b" // nf-fa-folder
 	iconNext    = "\uf04e" // nf-fa-forward
-	iconPrev    = "\uf04a" // nf-fa-backward
 	iconStop    = "\uf04d" // nf-fa-stop
 	iconBolt    = "\uf0e7" // nf-fa-bolt
 	iconBalance = "\uf24e" // nf-fa-balance_scale
@@ -79,8 +78,6 @@ func actionIcon(key string) string {
 		return iconFolder
 	case "w":
 		return iconNext
-	case "p":
-		return iconPrev
 	case "x":
 		return iconStop
 	case "1":
@@ -207,15 +204,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 					}
-					// Action selector click (Prev / Next)
+					// Action selector click (Next)
 					if clickY == yOffset + 3 {
-						if clickX >= 37 && clickX <= 50 {
-							// Prev
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-prev")
-							}
-						} else if clickX >= 51 && clickX <= 65 {
+						if clickX >= 37 && clickX <= 51 {
 							// Next
 							if !m.busy {
 								m.busy = true
@@ -317,11 +308,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
 				m.busy = true
 				return m, m.runAction("wallpaper-next")
-			}
-		case "p":
-			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
-				m.busy = true
-				return m, m.runAction("wallpaper-prev")
 			}
 		case "x":
 			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
@@ -586,9 +572,8 @@ func (m Model) wallpaperControls(width int) string {
 			valLine,
 		}
 	} else {
-		prevLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Prev (p)")
 		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
-		actionLine := lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + prevLabel + "     " + nextLabel
+		actionLine := lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + nextLabel
 
 		lines = []string{
 			lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),

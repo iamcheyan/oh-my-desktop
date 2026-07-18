@@ -44,7 +44,6 @@ func k(label string, w int, code string) keyDef {
 }
 
 func pad(s string, w int) string {
-	// strip existing ANSI for width calculation
 	visible := stripAnsi(s)
 	gap := w - len(visible)
 	if gap < 0 {
@@ -114,24 +113,27 @@ type model struct {
 
 func buildKeyboard() ([][]keyDef, [][]keyDef, []keyDef) {
 	mainKeys := [][]keyDef{
-		// Row 0: Esc  F1-F4  F5-F8  F9-F12  PrtSc ScrLk Pause  Ins Hom PgUp Del End PgDn
+		// Row 0: Esc  F1-F4  F5-F8  F9-F12  PrtSc ScrLk Pause
 		{
 			k("Esc", 4, "escape"),
 			k("F1", 3, "F1"), k("F2", 3, "F2"), k("F3", 3, "F3"), k("F4", 3, "F4"),
 			k("F5", 3, "F5"), k("F6", 3, "F6"), k("F7", 3, "F7"), k("F8", 3, "F8"),
 			k("F9", 3, "F9"), k("F10", 3, "F10"), k("F11", 3, "F11"), k("F12", 3, "F12"),
 			k("PrSc", 4, "Print"), k("SL", 3, "ScrollLock"), k("Pau", 3, "Pause"),
+		},
+		// Row 1: Ins Hom PgUp Del End PgDn  (navigation cluster)
+		{
 			k("Ins", 3, "Insert"), k("Hom", 3, "Home"), k("PgU", 3, "PageUp"),
 			k("Del", 3, "Delete"), k("End", 3, "End"), k("PgD", 3, "PageDown"),
 		},
-		// Row 1: ` 1-9 0 - =
+		// Row 2: ` 1-9 0 - =
 		{
 			k("`", 3, "`"), k("1", 3, "1"), k("2", 3, "2"), k("3", 3, "3"),
 			k("4", 3, "4"), k("5", 3, "5"), k("6", 3, "6"), k("7", 3, "7"),
 			k("8", 3, "8"), k("9", 3, "9"), k("0", 3, "0"), k("-", 3, "-"),
 			k("=", 3, "="), k("BkSp", 6, "backspace"),
 		},
-		// Row 2: Tab Q-P [ ] \
+		// Row 3: Tab Q-P [ ] \
 		{
 			k("Tab", 5, "tab"),
 			k("Q", 3, "q"), k("W", 3, "w"), k("E", 3, "e"), k("R", 3, "r"),
@@ -139,7 +141,7 @@ func buildKeyboard() ([][]keyDef, [][]keyDef, []keyDef) {
 			k("O", 3, "o"), k("P", 3, "p"),
 			k("[", 3, "["), k("]", 3, "]"), k("\\", 5, "\\"),
 		},
-		// Row 3: Caps A-L ; '
+		// Row 4: Caps A-L ; '
 		{
 			k("Caps", 6, "capslock"),
 			k("A", 3, "a"), k("S", 3, "s"), k("D", 3, "d"), k("F", 3, "f"),
@@ -147,7 +149,7 @@ func buildKeyboard() ([][]keyDef, [][]keyDef, []keyDef) {
 			k("L", 3, "l"),
 			k(";", 3, ";"), k("'", 3, "'"), k("Enter", 6, "enter"),
 		},
-		// Row 4: Shift Z-M , . / Shift
+		// Row 5: Shift Z-M , . / Shift
 		{
 			k("Shift", 8, "shift"),
 			k("Z", 3, "z"), k("X", 3, "x"), k("C", 3, "c"), k("V", 3, "v"),
@@ -155,7 +157,7 @@ func buildKeyboard() ([][]keyDef, [][]keyDef, []keyDef) {
 			k(",", 3, ","), k(".", 3, "."), k("/", 3, "/"),
 			k("Shift", 8, "shift"),
 		},
-		// Row 5: Ctrl Win Alt SPC Alt Win Fn Ctrl
+		// Row 6: Ctrl Win Alt SPC Alt Win Fn Ctrl
 		{
 			k("Ctrl", 5, "ctrl"),
 			k("Win", 4, "Meta"),
@@ -169,26 +171,26 @@ func buildKeyboard() ([][]keyDef, [][]keyDef, []keyDef) {
 	}
 
 	numpad := [][]keyDef{
-		// Row 0: NumLk / * -
+		// N row 0: NumLk / * -
 		{
 			k("Num", 4, "NumLock"), k("/", 3, "NumpadDivide"),
 			k("*", 3, "NumpadMultiply"), k("-", 3, "NumpadSubtract"),
 		},
-		// Row 1: 7 8 9 +
+		// N row 1: 7 8 9 +
 		{
 			k("7", 3, "Numpad7"), k("8", 3, "Numpad8"), k("9", 3, "Numpad9"),
 			k("+", 3, "NumpadAdd"),
 		},
-		// Row 2: 4 5 6
+		// N row 2: 4 5 6
 		{
 			k("4", 3, "Numpad4"), k("5", 3, "Numpad5"), k("6", 3, "Numpad6"),
 		},
-		// Row 3: 1 2 3 Ent
+		// N row 3: 1 2 3 Ent
 		{
 			k("1", 3, "Numpad1"), k("2", 3, "Numpad2"), k("3", 3, "Numpad3"),
 			k("Ent", 4, "NumpadEnter"),
 		},
-		// Row 4: 0 . Del
+		// N row 4: 0 . Del
 		{
 			k("0", 6, "Numpad0"), k(".", 3, "NumpadDecimal"), k("Del", 4, "Delete"),
 		},
@@ -240,9 +242,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.focusArea == 0 {
 				m.moveUp()
-			} else if m.arrowSel == 0 {
-				m.arrowSel = 0
-			} else if m.arrowSel == 1 || m.arrowSel == 2 || m.arrowSel == 3 {
+			} else if m.arrowSel != 0 {
 				m.arrowSel = 0
 			}
 
@@ -256,18 +256,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left", "h":
 			if m.focusArea == 0 {
 				m.moveLeft()
-			} else if m.arrowSel == 1 {
-				m.arrowSel = 1
-			} else if m.arrowSel == 2 || m.arrowSel == 3 {
+			} else if m.arrowSel == 0 || m.arrowSel == 2 || m.arrowSel == 3 {
 				m.arrowSel = 1
 			}
 
 		case "right", "l":
 			if m.focusArea == 0 {
 				m.moveRight()
-			} else if m.arrowSel == 0 {
-				m.arrowSel = 2
-			} else if m.arrowSel == 1 || m.arrowSel == 2 {
+			} else if m.arrowSel == 0 || m.arrowSel == 1 || m.arrowSel == 2 {
 				m.arrowSel = 3
 			}
 
@@ -368,8 +364,6 @@ func (m model) renderNumpadRow(keys []keyDef) string {
 }
 
 func (m model) renderArrowBlock() string {
-	var lines []string
-
 	k0 := m.arrowKeys[0]
 	k1 := m.arrowKeys[1]
 	k2 := m.arrowKeys[2]
@@ -385,15 +379,14 @@ func (m model) renderArrowBlock() string {
 	p2 := m.pressed[k2.code]
 	p3 := m.pressed[k3.code]
 
-	lines = append(lines,
-		renderKey(keyDef{w: 3}, false, false)+
-			renderKey(k0, s0, p0)+
-			renderKey(keyDef{w: 3}, false, false),
-		renderKey(k1, s1, p1)+
-			renderKey(k2, s2, p2)+
-			renderKey(k3, s3, p3),
-	)
-	return strings.Join(lines, "\n")
+	line1 := renderKey(keyDef{w: 3}, false, false) +
+		renderKey(k0, s0, p0) +
+		renderKey(keyDef{w: 3}, false, false)
+	line2 := renderKey(k1, s1, p1) +
+		renderKey(k2, s2, p2) +
+		renderKey(k3, s3, p3)
+
+	return line1 + "\n" + line2
 }
 
 func (m model) rowWidth(keys []keyDef) int {
@@ -404,7 +397,7 @@ func (m model) rowWidth(keys []keyDef) int {
 	return w
 }
 
-func max(a, b int) int {
+func intMax(a, b int) int {
 	if a > b {
 		return a
 	}
@@ -435,18 +428,17 @@ func (m model) View() string {
 	b.WriteString(keyCodeLine)
 	b.WriteString("\n\n")
 
-	// Find max width of main keyboard rows
+	// Find max width of all main keyboard rows
 	targetW := 0
-	for rowIdx := 0; rowIdx < 6 && rowIdx < len(m.keys); rowIdx++ {
-		targetW = max(targetW, m.rowWidth(m.keys[rowIdx]))
+	for rowIdx := 0; rowIdx < len(m.keys); rowIdx++ {
+		targetW = intMax(targetW, m.rowWidth(m.keys[rowIdx]))
 	}
 
-	// Render main keyboard rows 0-5, with numpad and arrow block
-	for rowIdx := 0; rowIdx < 6 && rowIdx < len(m.keys); rowIdx++ {
-		// Main section
+	// Render main keyboard rows
+	for rowIdx := 0; rowIdx < len(m.keys); rowIdx++ {
 		mainPart := m.renderRow(m.keys[rowIdx], rowIdx)
 
-		// Pad main section to fixed width
+		// Pad to fixed width
 		visibleMain := stripAnsi(mainPart)
 		padNeeded := targetW - len(visibleMain)
 		if padNeeded < 0 {
@@ -454,7 +446,7 @@ func (m model) View() string {
 		}
 		mainPart += strings.Repeat(" ", padNeeded)
 
-		// Numpad section
+		// Numpad
 		numpadPart := ""
 		if rowIdx < len(m.numpad) {
 			numpadPart = "  " + m.renderNumpadRow(m.numpad[rowIdx])
@@ -464,13 +456,12 @@ func (m model) View() string {
 		b.WriteString(mainPart)
 		b.WriteString(numpadPart)
 
-		// Arrow block on row 4 and 5 (under PgUp/PgDn area)
-		if rowIdx == 4 || rowIdx == 5 {
+		// Arrow block on row 5 and 6 (Shift/Spacebar rows)
+		if rowIdx == 5 || rowIdx == 6 {
 			arrowLines := strings.Split(m.renderArrowBlock(), "\n")
-			arrowRow := rowIdx - 4
-			if arrowRow < len(arrowLines) {
-				// Position arrow block after numpad
-				b.WriteString("   " + arrowLines[arrowRow])
+			arrowRow := rowIdx - 5
+			if arrowRow >= 0 && arrowRow < len(arrowLines) {
+				b.WriteString("  " + arrowLines[arrowRow])
 			}
 		}
 
