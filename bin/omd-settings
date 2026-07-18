@@ -93,6 +93,9 @@ if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
     if [ "$page" = "windows" ] || [ "$page" = "vm" ] || [ "$page" = "windows-vm" ] || [ "$page" = "virtualization" ]; then
         exec "$HOME/.config/omd/bin/omd-launch-settings-windows-tui"
     fi
+    if [ "$page" = "voice" ] || [ "$page" = "voice-input" ] || [ "$page" = "speech" ]; then
+        exec "$HOME/.config/omd/bin/omd-launch-settings-voice-tui"
+    fi
 fi
 
 case "$action" in
