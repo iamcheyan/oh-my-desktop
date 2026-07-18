@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+
+APP="$OMD_ROOT/tui-go/omd-settings-tui"
+if [[ -x "$APP" ]]; then
+  exec "$APP" "$@"
+fi
+
+cd "$OMD_ROOT/tui-go"
+exec go run ./cmd/omd-settings-tui "$@"

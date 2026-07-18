@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+
+BINDINGS_FILE="$OMD_ROOT/config/voice_bindings.txt"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omd-voice"
+VENV_DIR="${OMD_VOICE_VENV:-$CACHE_DIR/venv}"
+MODEL_DIR="$CACHE_DIR/sense-voice-small-int8"
+SOCKET="/tmp/omd-voice.sock"
+LAUNCH_TUI="$OMD_ROOT/bin/omd-launch-tui"
+KEY_CAPTURE="$OMD_ROOT/scripts/key-test-launcher"
+VOICE_BIND_TUI="$OMD_ROOT/scripts/voice-bind-tui"
+VOICE_DIAGNOSE="$OMD_ROOT/scripts/voice-diagnose"
+VOICE_TEST_TUI="$OMD_ROOT/scripts/voice-test-tui"
+VOICE_SETUP="$OMD_ROOT/share/bin/omarchy-voice-setup"
+VOICE_DOWNLOAD="$OMD_ROOT/share/bin/omarchy-voice-download"
+
+kv() {
+  local key="$1" value="${2:-}"
+  value="${value//$'\n'/ }"
+  value="${value//$'\n'/ }"
+  printf '%s=%s\n' "$key" "$value"
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+bool() {
+  if "$@" >/dev/null 2>&1; then printf true; else printf false; fi
+}
+
+model_size_mb() {
+  if model_ready; then
+    du -sm "$MODEL_DIR" 2>/dev/null | awk '{print $1}'
+  else
+    printf '0'
+  fi
+}
+
+model_ready() {
+  [[ -f "$MODEL_DIR/model.int8.onnx" && -f "$MODEL_DIR/tokens.txt" ]]
+}
+
+venv_ready() {
+  [[ -x "$VENV_DIR/bin/python3" ]] && "$VENV_DIR/bin/python3" -c 'import sherpa_onnx, numpy' >/dev/null 2>&1
+}
+
+daemon_running() {
+  [[ -S "$SOCKET" ]] && ss -x src "$SOCKET" 2>/dev/null | grep -q LISTEN
+}
+
+health_state() {
+  if ! model_ready || ! venv_ready; then
+    printf 'setup'
+    return
+  fi
+  printf 'idle'
+}
+
+friendly_binding() {
+  local key="$1"
+  case "$key" in
+    "ALT + A") printf 'Alt + A' ;;
+    "code:472") printf 'Globe (Fn)' ;;
+    "XF86Tools"|"TOOLS") printf 'F13 / Tools' ;;
+    "escape"|"ESCAPE") printf 'Esc' ;;
+    *) printf '%s' "$key" ;;
+  esac
+}
+
+list_bindings() {
+  if [[ ! -f "$BINDINGS_FILE" ]]; then
+    return
+  fi
+  while IFS= read -r line; do
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    printf 'binding=%s\n' "$line"
+  done < "$BINDINGS_FILE"
+}
+
+status() {
+  local size state
+  size="$(model_size_mb)"
+  state="$(health_state)"
+  kv state "$state"
+  kv modelSizeMB "$size"
+  kv modelReady "$(bool model_ready)"
+  kv venvReady "$(bool venv_ready)"
+  kv modelDir "$MODEL_DIR"
+  kv venvDir "$VENV_DIR"
+  kv cacheDir "$CACHE_DIR"
+  kv socket "$SOCKET"
+  kv daemonRunning "$(bool daemon_running)"
+  kv bindingsFile "$BINDINGS_FILE"
+  kv defaultTrigger "ALT + A"
+  kv defaultsApply "true"
+  list_bindings
+}
+
+setup() {
+  if [[ -x "$VOICE_SETUP" ]]; then
+    "$VOICE_SETUP" 2>&1 | sed 's/^/log=/'
+  else
+    printf 'ERROR: voice setup backend missing\n' >&2
+    exit 1
+  fi
+  if ! model_ready; then
+    [[ -x "$VOICE_DOWNLOAD" ]] || { printf 'ERROR: voice model downloader missing\n' >&2; exit 1; }
+    "$VOICE_DOWNLOAD" 2>&1 | sed 's/^/log=/'
+  fi
+  kv result "setup-done"
+}
+
+add_binding() {
+  local raw="${1:-}"
+  [[ -n "$raw" ]] || { echo "usage: omd-settings-voice add <key>" >&2; exit 2; }
+  mkdir -p "$(dirname "$BINDINGS_FILE")"
+  if [[ ! -f "$BINDINGS_FILE" ]]; then
+    printf '# OMD Voice Input Keybindings\n# One key combination per line. Format e.g., '"'"'ALT + A'"'"' or '"'"'code:472'"'"'\n\n' >"$BINDINGS_FILE"
+  fi
+  while IFS= read -r line; do
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ "$line" == "$raw" ]] && { echo "already-bound"; kv result "noop"; return; }
+  done < "$BINDINGS_FILE" 2>/dev/null || true
+  printf '%s\n' "$raw" >>"$BINDINGS_FILE"
+  hyprctl reload >/dev/null 2>&1 || true
+  kv result "added"
+}
+
+remove_binding() {
+  local raw="${1:-}"
+  [[ -n "$raw" ]] || { echo "usage: omd-settings-voice remove <key>" >&2; exit 2; }
+  [[ -f "$BINDINGS_FILE" ]] || { echo "no-bindings"; kv result "noop"; return; }
+  local tmp
+  tmp="$(mktemp)"
+  while IFS= read -r line; do
+    orig="$line"
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [[ "$line" == "$raw" ]] && continue
+    printf '%s\n' "$orig" >>"$tmp"
+  done < "$BINDINGS_FILE"
+  mv "$tmp" "$BINDINGS_FILE"
+  hyprctl reload >/dev/null 2>&1 || true
+  kv result "removed"
+}
+
+record() {
+  launch_tui "$VOICE_TEST_TUI"
+  kv result "test-opened"
+}
+
+launch_tui() {
+  local target="$1"
+  [[ -x "$target" ]] || { echo "ERROR: tool missing: $target" >&2; exit 1; }
+  if [[ -x "$LAUNCH_TUI" ]]; then
+    "$LAUNCH_TUI" "$target" >/dev/null 2>&1 &
+  else
+    "$target" >/dev/null 2>&1 &
+  fi
+}
+
+read_capture() {
+  python3 - <<'PY'
+import json, os, subprocess
+raw = ""
+state = os.path.expanduser("~/.local/state/omd/key-capture.json")
+try:
+    with open(state, encoding="utf-8") as f:
+        raw = (json.load(f).get("raw") or "").strip()
+except Exception:
+    pass
+if not raw:
+    try:
+        text = subprocess.run(["wl-paste"], capture_output=True, text=True, timeout=1).stdout or ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("✓") or line.startswith("✗"):
+                continue
+            if line.lower().startswith("bind:") or line.lower().startswith("hypr"):
+                raw = line.split(":", 1)[-1].strip()
+            else:
+                raw = line
+            break
+    except Exception:
+        pass
+if raw == "TOOLS":
+    raw = "XF86Tools"
+print(raw)
+PY
+}
+
+capture_binding() {
+  [[ -x "$KEY_CAPTURE" ]] || { echo "ERROR: key capture tool missing" >&2; exit 1; }
+  "$KEY_CAPTURE" --hotkey >/dev/null 2>&1 || true
+  local raw
+  raw="$(read_capture)"
+  [[ -n "$raw" ]] || { kv result "no-capture"; exit 1; }
+  add_binding "$raw"
+  kv captured "$raw"
+}
+
+edit_bindings() {
+  launch_tui "$VOICE_BIND_TUI"
+  kv result "editor-opened"
+}
+
+diagnose() {
+  launch_tui "$VOICE_DIAGNOSE"
+  kv result "diagnose-opened"
+}
+
+test_tui() {
+  launch_tui "$VOICE_TEST_TUI"
+  kv result "test-opened"
+}
+
+case "${1:-status}" in
+  status) status ;;
+  setup) setup ;;
+  add) shift; add_binding "${1:-}" ;;
+  remove) shift; remove_binding "${1:-}" ;;
+  capture) capture_binding ;;
+  edit) edit_bindings ;;
+  diagnose) diagnose ;;
+  test) test_tui ;;
+  record) record ;;
+  *)
+    echo "usage: omd-settings-voice status|setup|add <key>|remove <key>|capture|edit|diagnose|test|record" >&2
+    exit 2
+    ;;
+esac

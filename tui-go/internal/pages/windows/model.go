@@ -271,7 +271,7 @@ func (m Model) View() string {
 	right := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
 		ui.PreserveBackground(ui.FitBlock(m.opsView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), ui.Panel),
 	)
-	
+
 	var helpText string
 	if m.confirmRemove {
 		helpText = "y confirm remove  n/esc cancel"
@@ -461,7 +461,7 @@ func (m Model) opsView(width, height int) string {
 func (m Model) actionButtons() string {
 	var primaryBtn string
 	label := m.primaryActionLabel()
-	
+
 	enabled := !m.busy
 	if m.primaryActionName() == "connect" {
 		enabled = enabled && m.bool("freerdp")

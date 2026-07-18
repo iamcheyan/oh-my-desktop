@@ -1,0 +1,425 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+
+PROFILES="$OMD_ROOT/keyboard-remap/profiles.json"
+DATA_DIR="$OMD_ROOT/keyboard-remap"
+LIST_HELPER="$OMD_ROOT/share/bin/omarchy-keyboard-list"
+APPLY_HELPER="$OMD_ROOT/share/bin/omarchy-keyboard-apply"
+RENDER_HELPER="$OMD_ROOT/share/bin/omarchy-keyboard-render"
+SETUP_HELPER="$OMD_ROOT/share/bin/omarchy-keyboard-setup"
+FUNCTION_ROW_HELPER="$OMD_ROOT/bin/omd-keyboard-function-row"
+
+kv() {
+  local key="$1" value="${2:-}"
+  value="${value//$'\n'/ }"
+  printf '%s=%s\n' "$key" "$value"
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+bool() {
+  if "$@" >/dev/null 2>&1; then printf true; else printf false; fi
+}
+
+ensure_profiles() {
+  mkdir -p "$DATA_DIR"
+  [[ -f "$PROFILES" ]] || printf '{"version":1,"devices":{}}' >"$PROFILES"
+}
+
+keyd_ready() {
+  have keyd && systemctl is-active keyd >/dev/null 2>&1
+}
+
+global_presets() {
+  printf '%s\n' \
+    "alt-win-swap|Swap Alt / Win|Applies left and right Alt <-> Win.|swap||" \
+    "ctrl-caps-swap|Swap Ctrl / Caps|Applies left Ctrl <-> Caps Lock.|swap||" \
+    "grave-esc-swap|Swap Grave / Esc|Swaps the Grave (\`) and Escape keys.|swap||" \
+    "caps-esc|Caps to Esc|Makes Caps Lock send Escape.|remap|capslock|escape" \
+    "muhenkan-meta|Muhenkan to Win|Makes the Muhenkan key send Super (Win).|remap|muhenkan|leftmeta" \
+    "meta-f13|Left Win to F13|Makes the Left Super key send F13.|remap|leftmeta|f13" \
+    "kana-left|Katakana/Hiragana to Left|Makes the Katakana/Hiragana key send Left arrow.|remap|katakanahiragana|left" \
+    "rightalt-down|Right Alt to Down|Makes Right Alt send Down arrow.|remap|rightalt|down" \
+    "rightmeta-down|Right Win to Down|Makes Right Super send Down arrow.|remap|rightmeta|down" \
+    "delete-right|Delete to Right|Makes the Delete key send Right arrow.|remap|delete|right" \
+    "rightctrl-up|Right Ctrl to Up|Makes Right Ctrl send Up arrow.|remap|rightcontrol|up"
+}
+
+key_choices() {
+  printf '%s\n' \
+    escape tab space backspace enter delete insert \
+    home end pageup pagedown \
+    grave minus equal \
+    leftshift rightshift leftcontrol rightcontrol leftalt rightalt leftmeta rightmeta \
+    capslock muhenkan henkan katakana katakanahiragana zenkakuhankaku \
+    left right up down \
+    f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 \
+    f13 f14 f15 f16 f17 f18 f19 f20
+}
+
+device_field() {
+  local hypr="$1" field="$2"
+  ensure_profiles
+  [[ -f "$PROFILES" ]] || { printf ''; return; }
+  python3 - "$PROFILES" "$hypr" "$field" <<'PY'
+import json, sys
+path, hypr, field = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    dev = data.get("devices", {}).get(hypr, {})
+    val = dev.get(field, "" if field != "enabled" else True)
+    if field == "enabled":
+        print("true" if val is not False else "false")
+    elif field == "enabledPresets":
+        print(" ".join(val) if isinstance(val, list) else "")
+    else:
+        print(val if val is not None else "")
+except Exception:
+    print("")
+PY
+}
+
+preset_sources() {
+  local preset_id="$1"
+  case "$preset_id" in
+    alt-win-swap) printf '%s\n' leftalt leftmeta rightalt rightmeta ;;
+    ctrl-caps-swap) printf '%s\n' leftcontrol capslock ;;
+    grave-esc-swap) printf '%s\n' grave escape ;;
+    caps-esc) printf '%s\n' capslock ;;
+    muhenkan-meta) printf '%s\n' muhenkan ;;
+    meta-f13) printf '%s\n' leftmeta ;;
+    kana-left) printf '%s\n' katakanahiragana ;;
+    rightalt-down) printf '%s\n' rightalt ;;
+    rightmeta-down) printf '%s\n' rightmeta ;;
+    delete-right) printf '%s\n' delete ;;
+    rightctrl-up) printf '%s\n' rightcontrol ;;
+  esac
+}
+
+presets_conflict() {
+  local left="$1" right="$2"
+  [[ "$left" == "$right" ]] && return 1
+  local source other
+  while IFS= read -r source; do
+    [[ -n "$source" ]] || continue
+    while IFS= read -r other; do
+      [[ -n "$other" && "$source" == "$other" ]] && return 0
+    done < <(preset_sources "$right")
+  done < <(preset_sources "$left")
+  return 1
+}
+
+preset_exists() {
+  local id="$1"
+  global_presets | awk -F'|' -v id="$id" '$1 == id { found = 1 } END { exit found ? 0 : 1 }'
+}
+
+normalize_presets() {
+  local result="" id existing next
+  for id in "$@"; do
+    [[ -n "$id" ]] || continue
+    preset_exists "$id" || continue
+    for existing in $result; do
+      [[ "$existing" == "$id" ]] && continue 2
+    done
+    next=""
+    for existing in $result; do
+      if ! presets_conflict "$existing" "$id"; then
+        next="$next $existing"
+      fi
+    done
+    result="${next# }"
+    result="$result $id"
+  done
+  printf '%s\n' "${result# }"
+}
+
+profile_overrides() {
+  local hypr="$1"
+  ensure_profiles
+  python3 - "$PROFILES" "$hypr" <<'PY'
+import json, sys
+path, hypr = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    overrides = data.get("devices", {}).get(hypr, {}).get("presetOverrides", {})
+    if isinstance(overrides, dict):
+        for key, value in overrides.items():
+            if key and value:
+                print(f"{key}={value}")
+except Exception:
+    pass
+PY
+}
+
+preset_enabled() {
+  local hypr="$1" id="$2"
+  local enabled
+  enabled="$(device_field "$hypr" enabledPresets)"
+  for p in $enabled; do
+    [[ "$p" == "$id" ]] && { printf true; return; }
+  done
+  printf false
+}
+
+set_profile_field() {
+  local hypr="$1" field="$2" value="$3"
+  ensure_profiles
+  python3 - "$PROFILES" "$hypr" "$field" "$value" <<'PY'
+import json, sys
+path, hypr, field, value = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except Exception:
+    data = {"version": 1, "devices": {}}
+devices = data.setdefault("devices", {})
+dev = devices.setdefault(hypr, {})
+if field == "enabled":
+    dev["enabled"] = (value == "true")
+elif field == "enabledPresets":
+    dev["enabledPresets"] = value.split() if value else []
+elif field == "presetOverride":
+    overrides = dev.setdefault("presetOverrides", {})
+    k, v = value.split("=", 1)
+    if v == "":
+        overrides.pop(k, None)
+    else:
+        overrides[k] = v
+    dev["presetOverrides"] = overrides
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+PY
+}
+
+delete_profile() {
+  local hypr="$1"
+  ensure_profiles
+  python3 - "$PROFILES" "$hypr" <<'PY'
+import json, sys
+path, hypr = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except Exception:
+    data = {"version": 1, "devices": {}}
+data.setdefault("devices", {}).pop(hypr, None)
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+PY
+}
+
+merge_detected_profiles() {
+  local devices_json="$1"
+  ensure_profiles
+  python3 - "$PROFILES" "$devices_json" <<'PY'
+import json, sys
+profiles_path, devices_json = sys.argv[1], sys.argv[2]
+try:
+    with open(profiles_path) as f:
+        profiles = json.load(f)
+except Exception:
+    profiles = {"version": 1, "devices": {}}
+try:
+    devices = json.loads(devices_json or "[]")
+except Exception:
+    devices = []
+store = profiles.setdefault("devices", {})
+changed = False
+for dev in devices:
+    hypr = dev.get("hyprName") or ""
+    if not hypr:
+        continue
+    current = store.get(hypr)
+    if current is None:
+        store[hypr] = {
+            "displayName": dev.get("displayName") or hypr,
+            "hyprName": hypr,
+            "keydId": dev.get("keydId") or "",
+            "enabled": True,
+            "enabledPresets": [],
+            "presetOverrides": {},
+        }
+        changed = True
+    elif not current.get("keydId") and dev.get("keydId"):
+        current["keydId"] = dev.get("keydId")
+        changed = True
+if changed:
+    with open(profiles_path, "w") as f:
+        json.dump(profiles, f, indent=2)
+PY
+}
+
+pending_state() {
+  if [[ ! -x "$RENDER_HELPER" || ! -f /etc/keyd/omd.conf ]]; then
+    printf 'true'
+    return
+  fi
+  if "$RENDER_HELPER" | cmp -s - /etc/keyd/omd.conf; then
+    printf 'false'
+  else
+    printf 'true'
+  fi
+}
+
+fnrow_status() {
+  [[ -x "$FUNCTION_ROW_HELPER" ]] || return 0
+  "$FUNCTION_ROW_HELPER" status 2>/dev/null | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for k in ("available","mode","value"):
+    v=d.get(k, "")
+    if isinstance(v, bool):
+        v="true" if v else "false"
+    print(f"fnrow.{k}={v}")
+' || true
+}
+
+status() {
+  local ready devices_json
+  ready="$(bool keyd_ready)"
+  kv keydReady "$ready"
+  kv state "$( [[ "$ready" == true ]] && printf ready || printf setup )"
+  kv hasPending "$(pending_state)"
+  kv profilesFile "$PROFILES"
+  # function row
+  fnrow_status
+  # devices from helper
+  devices_json="[]"
+  if [[ -x "$LIST_HELPER" ]]; then
+    devices_json="$("$LIST_HELPER" 2>/dev/null || printf '[]')"
+    merge_detected_profiles "$devices_json"
+    printf '%s\n' "$devices_json" | python3 -c 'import json,sys
+try:
+    devices=json.load(sys.stdin)
+except Exception:
+    devices=[]
+for dev in devices:
+    print("device=" + json.dumps(dev, ensure_ascii=False))
+'
+  else
+    echo "WARN: keyboard list helper missing" >&2
+  fi
+  # per-device profile state
+  for hypr in $(profile_device_list); do
+    kv "profile.$hypr.enabled" "$(device_field "$hypr" enabled)"
+    kv "profile.$hypr.enabledPresets" "$(device_field "$hypr" enabledPresets)"
+    kv "profile.$hypr.keydId" "$(device_field "$hypr" keydId)"
+    kv "profile.$hypr.displayName" "$(device_field "$hypr" displayName)"
+    while IFS='=' read -r preset_id target_key; do
+      [[ -n "$preset_id" ]] || continue
+      kv "profile.$hypr.override.$preset_id" "$target_key"
+    done < <(profile_overrides "$hypr")
+  done
+  # global presets
+  global_presets | while IFS='|' read -r id label desc type source target; do
+    printf 'preset=%s|%s|%s|%s|%s|%s\n' "$id" "$label" "$desc" "$type" "$source" "$target"
+  done
+  key_choices | while IFS= read -r key; do
+    printf 'key=%s\n' "$key"
+  done
+}
+
+profile_device_list() {
+  ensure_profiles
+  [[ -f "$PROFILES" ]] || return 0
+  python3 - "$PROFILES" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    for k in data.get("devices", {}):
+        print(k)
+except Exception:
+    pass
+PY
+}
+
+apply() {
+  [[ -x "$APPLY_HELPER" ]] || { echo "ERROR: keyboard apply helper missing" >&2; exit 1; }
+  "$APPLY_HELPER" 2>&1 | sed 's/^/log=/'
+  kv result "applied"
+}
+
+function_row_set() {
+  local mode="$1"
+  [[ -x "$FUNCTION_ROW_HELPER" ]] || { echo "ERROR: function row helper missing" >&2; exit 1; }
+  case "$mode" in
+    media|function|auto) ;;
+    *) echo "usage: omd-settings-keyboard fnrow <media|function|auto>" >&2; exit 2 ;;
+  esac
+  "$FUNCTION_ROW_HELPER" set "$mode" 2>&1 | sed 's/^/log=/'
+  kv result "fnrow-set"
+}
+
+setup() {
+  [[ -x "$SETUP_HELPER" ]] || { echo "ERROR: keyboard setup helper missing" >&2; exit 1; }
+  "$SETUP_HELPER" 2>&1 | sed 's/^/log=/'
+  kv result "setup"
+}
+
+case "${1:-status}" in
+  status) status ;;
+  setup) setup ;;
+  apply) apply ;;
+  fnrow) shift; function_row_set "${1:-}" ;;
+  enable)
+    shift
+    hypr="${1:-}"; shift || true
+    set_profile_field "$hypr" enabled "${1:-true}"
+    kv result "enabled"
+    ;;
+  disable)
+    shift
+    hypr="${1:-}"; shift || true
+    set_profile_field "$hypr" enabled "false"
+    kv result "disabled"
+    ;;
+  preset-enable)
+    shift
+    hypr="$1"; id="$2"
+    [[ -n "$hypr" && -n "$id" ]] || { echo "usage: preset-enable <hypr> <id>" >&2; exit 2; }
+    cur="$(device_field "$hypr" enabledPresets)"
+    for p in $cur; do [[ "$p" == "$id" ]] && { kv result "noop"; exit 0; }; done
+    set_profile_field "$hypr" enabledPresets "$(normalize_presets $cur "$id")"
+    kv result "preset-enabled"
+    ;;
+  preset-disable)
+    shift
+    hypr="$1"; id="$2"
+    [[ -n "$hypr" && -n "$id" ]] || { echo "usage: preset-disable <hypr> <id>" >&2; exit 2; }
+    cur="$(device_field "$hypr" enabledPresets)"
+    out=""
+    for p in $cur; do [[ "$p" != "$id" ]] && out="$out $p"; done
+    set_profile_field "$hypr" enabledPresets "${out# }"
+    kv result "preset-disabled"
+    ;;
+  preset-override)
+    shift
+    hypr="$1"; id="$2"; target="$3"
+    [[ -n "$hypr" && -n "$id" ]] || { echo "usage: preset-override <hypr> <id> <targetKey>" >&2; exit 2; }
+    set_profile_field "$hypr" presetOverride "$id=$target"
+    kv result "override-set"
+    ;;
+  delete)
+    shift
+    hypr="${1:-}"
+    [[ -n "$hypr" ]] || { echo "usage: delete <hypr>" >&2; exit 2; }
+    delete_profile "$hypr"
+    kv result "deleted"
+    ;;
+  *)
+    echo "usage: omd-settings-keyboard status|setup|apply|fnrow <mode>|enable <hypr>|disable <hypr>|preset-enable <hypr> <id>|preset-disable <hypr> <id>|preset-override <hypr> <id> <target>|delete <hypr>" >&2
+    exit 2
+    ;;
+esac

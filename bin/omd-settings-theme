@@ -8,6 +8,8 @@ SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
 CURRENT_DIR="$OMD_ROOT/current"
 CURRENT_THEME_DIR="$CURRENT_DIR/theme"
 CURRENT_NAME_FILE="$CURRENT_DIR/theme.name"
+QS_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/states.json"
+WALLPAPER_INTERVAL_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper/interval"
 
 slug_to_title() {
   sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$1"
@@ -15,6 +17,12 @@ slug_to_title() {
 
 theme_preview() {
   printf '\n'
+}
+
+kv() {
+  local key="$1" value="${2:-}"
+  value="${value//$'\n'/ }"
+  printf '%s=%s\n' "$key" "$value"
 }
 
 theme_base() {
@@ -353,6 +361,98 @@ current_theme() {
   fi
 }
 
+wallpaper_image_count() {
+  local source="$1"
+  [[ -d "$source" ]] || { printf '0\n'; return; }
+  find -L "$source" -maxdepth 1 -type f \( \
+    -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o \
+    -iname '*.bmp' -o -iname '*.gif' \
+  \) 2>/dev/null | wc -l | awk '{print $1}'
+}
+
+wallpaper_status() {
+  local status mode source current interval count
+  status="$("$OMD_ROOT/bin/omd-wallpaper" status 2>/dev/null || true)"
+  mode="$(printf '%s\n' "$status" | awk -F= '$1=="mode"{print $2; exit}')"
+  source="$(printf '%s\n' "$status" | awk -F= '$1=="source"{print $2; exit}')"
+  current="$(printf '%s\n' "$status" | awk -F= '$1=="current"{print $2; exit}')"
+  interval="$(cat "$WALLPAPER_INTERVAL_FILE" 2>/dev/null || printf '%s' "$(printf '%s\n' "$status" | awk -F= '$1=="interval"{print $2; exit}')")"
+  [[ -n "$mode" ]] || mode=file
+  [[ -n "$interval" ]] || interval=1800
+  count=0
+  if [[ "$mode" == "folder" && -n "$source" ]]; then
+    count="$(wallpaper_image_count "$source")"
+  fi
+  kv wallpaper.mode "$mode"
+  kv wallpaper.source "$source"
+  kv wallpaper.current "$current"
+  kv wallpaper.interval "$interval"
+  kv wallpaper.imageCount "$count"
+}
+
+effect_mode() {
+  python3 - "$QS_STATE_FILE" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    print(data.get("display", {}).get("optimization", "balanced") or "balanced")
+except Exception:
+    print("balanced")
+PY
+}
+
+write_effect_mode() {
+  local mode="$1"
+  mkdir -p "$(dirname "$QS_STATE_FILE")"
+  python3 - "$QS_STATE_FILE" "$mode" <<'PY'
+import json, os, sys
+path, mode = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+display = data.setdefault("display", {})
+display["optimization"] = mode
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+apply_effect_mode() {
+  local mode="$1" eval_str=""
+  case "$mode" in
+    performance)
+      eval_str='hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })'
+      ;;
+    balanced)
+      eval_str='hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })'
+      ;;
+    visuals)
+      eval_str='hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })'
+      ;;
+    *)
+      echo "usage: omd-settings-theme effects <performance|balanced|visuals>" >&2
+      exit 2
+      ;;
+  esac
+  write_effect_mode "$mode"
+  hyprctl eval "$eval_str" >/dev/null 2>&1 || true
+  kv result "effects-set"
+  kv effects.mode "$mode"
+}
+
+appearance_status() {
+  current_theme
+  wallpaper_status
+  kv effects.mode "$(effect_mode)"
+}
+
 copy_theme() {
   local source="$1"
   mkdir -p "$CURRENT_DIR"
@@ -373,45 +473,8 @@ refresh_running_apps() {
   # Hyprland border colors come from current/theme/hyprland.lua
   hyprctl reload >/dev/null 2>&1 || true
 
-  # Reload Alacritty config to trigger live-reload
-  if [[ -f "$HOME/.config/alacritty/alacritty.toml" ]]; then
-    touch "$HOME/.config/alacritty/alacritty.toml" || true
-  fi
-
-  # Reload Kitty config
-  if pgrep -x kitty >/dev/null; then
-    killall -SIGUSR1 kitty >/dev/null 2>&1 || true
-  fi
-
-  # Reload Ghostty config
-  if pgrep -x ghostty >/dev/null; then
-    killall -SIGUSR2 ghostty >/dev/null 2>&1 || true
-  fi
-
-  # Reload Foot terminals dynamically using TTY escape sequences
-  local foot_theme="$CURRENT_THEME_DIR/foot.ini"
-  if [[ -f "$foot_theme" ]] && pgrep -x foot >/dev/null; then
-    local foot_osc
-    foot_osc=$(awk -F= '
-      function color(value) { return "#" value }
-      /^background=/ { printf "\033]11;%s\007", color($2) }
-      /^foreground=/ { printf "\033]10;%s\007", color($2) }
-      /^regular[0-7]=/ { split($1, parts, "regular"); printf "\033]4;%d;%s\007", parts[2], color($2) }
-      /^bright[0-7]=/ { split($1, parts, "bright"); printf "\033]4;%d;%s\007", parts[2] + 8, color($2) }
-    ' "$foot_theme" 2>/dev/null || true)
-
-    if [[ -n "$foot_osc" ]]; then
-      local foot_pid child_pid tty
-      for foot_pid in $(pgrep -x foot || true); do
-        for child_pid in $(pgrep -P "$foot_pid" || true); do
-          tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null || true)
-          if [[ -n "$tty" && "$tty" == /dev/pts/* ]]; then
-            printf '%b' "$foot_osc" >"$tty" 2>/dev/null || true
-          fi
-        done
-      done
-    fi
-  fi
+  # Reload terminal configs and live terminal colors.
+  "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
 
   # Reload Helix instances
   if pgrep -x helix >/dev/null; then
@@ -463,10 +526,25 @@ repair_current_theme() {
 case "${1:-list}" in
   list) list_themes ;;
   current) current_theme ;;
+  appearance-status) appearance_status ;;
+  wallpaper-status) wallpaper_status ;;
+  wallpaper-next) "$OMD_ROOT/bin/omd-wallpaper" random; wallpaper_status ;;
+  wallpaper-stop) "$OMD_ROOT/bin/omd-wallpaper" stop; wallpaper_status ;;
+  wallpaper-pick-file) "$OMD_ROOT/bin/omd-wallpaper" pick-file; wallpaper_status ;;
+  wallpaper-pick-folder) "$OMD_ROOT/bin/omd-wallpaper" pick-folder; wallpaper_status ;;
+  wallpaper-interval)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-settings-theme wallpaper-interval <seconds>" >&2; exit 2; }
+    mkdir -p "$(dirname "$WALLPAPER_INTERVAL_FILE")"
+    printf '%s\n' "$2" >"$WALLPAPER_INTERVAL_FILE"
+    "$OMD_ROOT/bin/omd-wallpaper" stop >/dev/null 2>&1 || true
+    "$OMD_ROOT/bin/omd-wallpaper" random >/dev/null 2>&1 || true
+    wallpaper_status
+    ;;
+  effects) apply_effect_mode "${2:-}" ;;
   apply) apply_theme "${2:-}" ;;
   repair) repair_current_theme ;;
   *)
-    echo "usage: omd-settings-theme list|current|apply <theme-slug>|repair" >&2
+    echo "usage: omd-settings-theme list|current|appearance-status|wallpaper-status|wallpaper-next|wallpaper-stop|wallpaper-pick-file|wallpaper-pick-folder|wallpaper-interval <seconds>|effects <mode>|apply <theme-slug>|repair" >&2
     exit 2
     ;;
 esac

@@ -8,6 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/backend"
+	keyboardpage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/keyboard"
+	themepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/theme"
+	voicepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/voice"
 	windowspage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/windows"
 )
 
@@ -32,6 +35,12 @@ func main() {
 	switch route {
 	case "windows", "windows-vm", "vm":
 		model = windowspage.New(backend.New(root))
+	case "theme", "appearance":
+		model = themepage.New(backend.New(root))
+	case "voice", "voice-input":
+		model = voicepage.New(backend.New(root))
+	case "keyboard", "keyboard-remap":
+		model = keyboardpage.New(backend.New(root))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown settings page: %s\n\n", route)
 		printHelp()
@@ -45,10 +54,13 @@ func main() {
 }
 
 func printHelp() {
-	fmt.Println("Usage: omd-settings-tui [windows]")
+	fmt.Println("Usage: omd-settings-tui [page]")
 	fmt.Println()
 	fmt.Println("Pages:")
 	fmt.Println("  windows    Windows VM settings and connection controls")
+	fmt.Println("  theme      Theme picker and active theme info")
+	fmt.Println("  voice      Voice input setup, model, and keybindings")
+	fmt.Println("  keyboard   Keyboard remap presets and keyd apply")
 }
 
 func detectRoot() (string, error) {
