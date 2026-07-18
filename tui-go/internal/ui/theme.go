@@ -83,6 +83,33 @@ func ActionText(key, label string) string {
 	return lipgloss.NewStyle().Foreground(Accent).Underline(true).Render(key) + " " + label
 }
 
+// IconButton renders an optional Nerd Font glyph followed by an ActionText
+// mnemonic. Pass icon="" to render a plain mnemonic button. This is the
+// single entry point used by all settings pages so button styling stays
+// consistent (background preservation, padding, accent).
+func IconButton(icon, key, label string) string {
+	text := ActionText(key, label)
+	if icon == "" {
+		return text
+	}
+	return icon + "  " + text
+}
+
+// ActionButton renders a normal button with an optional icon + mnemonic.
+func ActionButton(icon, key, label string, active bool) string {
+	return ButtonView(IconButton(icon, key, label), active)
+}
+
+// PrimaryActionButton renders the primary button variant.
+func PrimaryActionButton(icon, key, label string) string {
+	return PrimaryButtonView(IconButton(icon, key, label))
+}
+
+// DisabledActionButton renders the disabled variant.
+func DisabledActionButton(icon, key, label string) string {
+	return DisabledButtonView(IconButton(icon, key, label))
+}
+
 func HelpText(items ...string) string {
 	return SubtleText.Render(strings.Join(items, "  "))
 }
