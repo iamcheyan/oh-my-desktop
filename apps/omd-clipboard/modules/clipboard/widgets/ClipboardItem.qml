@@ -43,7 +43,7 @@ Rectangle {
         onContainsMouseChanged: root.hoveredChanged(containsMouse)
         onPositionChanged: root.mouseMoved()
         onClicked: {
-            Cliphist.paste(root.entry);
+            Cliphist.pasteSmart(root.entry);
             root.itemClicked();
         }
     }

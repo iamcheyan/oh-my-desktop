@@ -72,7 +72,7 @@ Item {
         if (asPath && Cliphist.entryIsImage(entry))
             Cliphist.pasteImagePath(entry);
         else
-            Cliphist.paste(entry);
+            Cliphist.pasteSmart(entry);
     }
 
     function deleteSelected() {

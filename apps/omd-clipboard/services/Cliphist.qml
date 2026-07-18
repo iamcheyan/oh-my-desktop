@@ -111,6 +111,25 @@ Singleton {
         ]);
     }
 
+    // Smart paste: like paste(), but when the entry is an image AND the
+    // focused window is a terminal (kitty / alacritty / foot / wezterm / ...),
+    // paste the image as a /tmp file PATH instead — terminals can't render
+    // image data, but most CLI tools accept a path argument. So clicking an
+    // image in the clipboard manager pastes it as a path in a terminal
+    // without needing the dedicated "paste as path" (⇲) button.
+    function pasteSmart(entry) {
+        if (!root.entryIsImage(entry)) {
+            root.paste(entry);
+            return;
+        }
+        const ts = Date.now();
+        const tmpPath = `/tmp/omd-clip-${ts}.png`;
+        const esc = ClipboardStyle.shellSingleQuoteEscape(entry);
+        Quickshell.execDetached(["bash", "-c",
+            `class=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // ""' 2>/dev/null)\nis_term=0\ncase "$class" in *kitty*|*alacritty*|*Alacritty*|*foot*|*wezterm*|*xterm*|*XTerm*|*tmux*|*urxvt*|*Rxvt*|*st-terminal*) is_term=1 ;; esac\nif [ "$is_term" = 1 ]; then\n  printf '${esc}' | ${root.cliphistBinary} decode > "${tmpPath}" 2>/dev/null\n  if [ -s "${tmpPath}" ]; then\n    printf '%s ' "${tmpPath}" | wl-copy && sleep 0.1 && ${root.pressPasteCommand}\n    notify-send -t 2000 '📋 已粘贴图片路径' "${tmpPath}" 2>/dev/null || true\n  else\n    rm -f "${tmpPath}"\n    printf '${esc}' | ${root.cliphistBinary} decode | wl-copy && sleep 0.1 && ${root.pressPasteCommand}\n  fi\nelse\n  printf '${esc}' | ${root.cliphistBinary} decode | wl-copy && sleep 0.1 && ${root.pressPasteCommand}\nfi`
+        ]);
+    }
+
     Process {
         id: deleteProc
         property string pendingEntry: ""
