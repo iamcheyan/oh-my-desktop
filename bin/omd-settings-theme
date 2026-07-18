@@ -529,6 +529,7 @@ case "${1:-list}" in
   appearance-status) appearance_status ;;
   wallpaper-status) wallpaper_status ;;
   wallpaper-next) "$OMD_ROOT/bin/omd-wallpaper" random; wallpaper_status ;;
+  wallpaper-prev) "$OMD_ROOT/bin/omd-wallpaper" prev; wallpaper_status ;;
   wallpaper-stop) "$OMD_ROOT/bin/omd-wallpaper" stop; wallpaper_status ;;
   wallpaper-pick-file) "$OMD_ROOT/bin/omd-wallpaper" pick-file; wallpaper_status ;;
   wallpaper-pick-folder) "$OMD_ROOT/bin/omd-wallpaper" pick-folder; wallpaper_status ;;
@@ -544,7 +545,7 @@ case "${1:-list}" in
   apply) apply_theme "${2:-}" ;;
   repair) repair_current_theme ;;
   *)
-    echo "usage: omd-settings-theme list|current|appearance-status|wallpaper-status|wallpaper-next|wallpaper-stop|wallpaper-pick-file|wallpaper-pick-folder|wallpaper-interval <seconds>|effects <mode>|apply <theme-slug>|repair" >&2
+    echo "usage: omd-settings-theme list|current|appearance-status|wallpaper-status|wallpaper-next|wallpaper-prev|wallpaper-stop|wallpaper-pick-file|wallpaper-pick-folder|wallpaper-interval <seconds>|effects <mode>|apply <theme-slug>|repair" >&2
     exit 2
     ;;
 esac

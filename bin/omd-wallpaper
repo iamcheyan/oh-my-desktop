@@ -119,6 +119,12 @@ random_from_folder() {
     exit 1
   fi
 
+  # Save the current wallpaper as the previous before changing
+  current="$(readlink -f "$HOME/.config/omd/current/background" 2>/dev/null || true)"
+  if [[ -n "$current" ]]; then
+    echo "$current" > "$STATE_DIR/prev_wallpaper"
+  fi
+
   omd-theme-bg-set "$selected"
 }
 
@@ -181,6 +187,19 @@ case "${1:-}" in
   random)
     random_saved
     ;;
+  prev)
+    prev_path="$(cat "$STATE_DIR/prev_wallpaper" 2>/dev/null || true)"
+    if [[ -n "$prev_path" && -f "$prev_path" ]]; then
+      current="$(readlink -f "$HOME/.config/omd/current/background" 2>/dev/null || true)"
+      if [[ -n "$current" ]]; then
+        echo "$current" > "$STATE_DIR/prev_wallpaper"
+      fi
+      omd-theme-bg-set "$prev_path"
+      notify "Restored previous wallpaper" "$(basename "$prev_path")"
+    else
+      notify "No previous wallpaper history"
+    fi
+    ;;
   restore)
     restore
     ;;
@@ -194,7 +213,7 @@ case "${1:-}" in
     status
     ;;
   *)
-    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|random|restore|stop|status" >&2
+    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|random|prev|restore|stop|status" >&2
     exit 2
     ;;
 esac

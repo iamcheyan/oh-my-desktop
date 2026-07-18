@@ -435,8 +435,6 @@ func (m model) View() string {
 	b.WriteString(keyCodeLine)
 	b.WriteString("\n\n")
 
-	targetW := mainKeyRowWidth()
-
 	// Find max width of main keyboard rows
 	targetW := 0
 	for rowIdx := 0; rowIdx < 6 && rowIdx < len(m.keys); rowIdx++ {
@@ -466,15 +464,13 @@ func (m model) View() string {
 		b.WriteString(mainPart)
 		b.WriteString(numpadPart)
 
-		// Arrow block on row 4 and 5
-		if rowIdx == 4 {
+		// Arrow block on row 4 and 5 (under PgUp/PgDn area)
+		if rowIdx == 4 || rowIdx == 5 {
 			arrowLines := strings.Split(m.renderArrowBlock(), "\n")
-			b.WriteString("   " + arrowLines[0])
-		}
-		if rowIdx == 5 {
-			arrowLines := strings.Split(m.renderArrowBlock(), "\n")
-			if len(arrowLines) > 1 {
-				b.WriteString(strings.Repeat(" ", 3) + arrowLines[1])
+			arrowRow := rowIdx - 4
+			if arrowRow < len(arrowLines) {
+				// Position arrow block after numpad
+				b.WriteString("   " + arrowLines[arrowRow])
 			}
 		}
 

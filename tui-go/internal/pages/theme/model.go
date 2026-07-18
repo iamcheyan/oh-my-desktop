@@ -61,6 +61,7 @@ const (
 	iconFile    = "\uf15b" // nf-fa-file
 	iconFolder  = "\uf07b" // nf-fa-folder
 	iconNext    = "\uf04e" // nf-fa-forward
+	iconPrev    = "\uf04a" // nf-fa-backward
 	iconStop    = "\uf04d" // nf-fa-stop
 	iconBolt    = "\uf0e7" // nf-fa-bolt
 	iconBalance = "\uf24e" // nf-fa-balance_scale
@@ -78,6 +79,8 @@ func actionIcon(key string) string {
 		return iconFolder
 	case "w":
 		return iconNext
+	case "p":
+		return iconPrev
 	case "x":
 		return iconStop
 	case "1":
@@ -147,41 +150,99 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// 1. Check wallpaper controls click
 			if clickY >= yOffset && clickY < yOffset + 8 {
-				// Mode selector click
-				if clickY == yOffset + 3 {
-					if clickX >= 38 && clickX <= 49 {
-						// File
-						if !m.busy {
-							m.busy = true
-							return m, m.runAction("wallpaper-pick-file")
-						}
-					} else if clickX >= 50 && clickX <= 67 {
-						// Folder
-						if !m.busy {
-							m.busy = true
-							return m, m.runAction("wallpaper-pick-folder")
+				mode := m.value("wallpaper.mode", "file")
+				if mode == "file" {
+					// Mode selector click
+					if clickY == yOffset + 3 {
+						if clickX >= 37 && clickX <= 51 {
+							// File
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-pick-file")
+							}
+						} else if clickX >= 52 && clickX <= 69 {
+							// Folder
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-pick-folder")
+							}
 						}
 					}
-				}
-				// Effect selector click
-				if clickY == yOffset + 4 {
-					if clickX >= 38 && clickX <= 48 {
-						// Perf
-						if !m.busy {
-							m.busy = true
-							return m, m.effects("performance")
+					// Effect selector click
+					if clickY == yOffset + 4 {
+						if clickX >= 37 && clickX <= 50 {
+							// Perf
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("performance")
+							}
+						} else if clickX >= 51 && clickX <= 64 {
+							// Bal
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("balanced")
+							}
+						} else if clickX >= 65 && clickX <= 79 {
+							// Vis
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("visuals")
+							}
 						}
-					} else if clickX >= 49 && clickX <= 58 {
-						// Bal
-						if !m.busy {
-							m.busy = true
-							return m, m.effects("balanced")
+					}
+				} else {
+					// Mode selector click
+					if clickY == yOffset + 2 {
+						if clickX >= 37 && clickX <= 51 {
+							// File
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-pick-file")
+							}
+						} else if clickX >= 52 && clickX <= 69 {
+							// Folder
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-pick-folder")
+							}
 						}
-					} else if clickX >= 59 && clickX <= 70 {
-						// Vis
-						if !m.busy {
-							m.busy = true
-							return m, m.effects("visuals")
+					}
+					// Action selector click (Prev / Next)
+					if clickY == yOffset + 3 {
+						if clickX >= 37 && clickX <= 50 {
+							// Prev
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-prev")
+							}
+						} else if clickX >= 51 && clickX <= 65 {
+							// Next
+							if !m.busy {
+								m.busy = true
+								return m, m.runAction("wallpaper-next")
+							}
+						}
+					}
+					// Effect selector click
+					if clickY == yOffset + 4 {
+						if clickX >= 37 && clickX <= 50 {
+							// Perf
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("performance")
+							}
+						} else if clickX >= 51 && clickX <= 64 {
+							// Bal
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("balanced")
+							}
+						} else if clickX >= 65 && clickX <= 79 {
+							// Vis
+							if !m.busy {
+								m.busy = true
+								return m, m.effects("visuals")
+							}
 						}
 					}
 				}
@@ -256,6 +317,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
 				m.busy = true
 				return m, m.runAction("wallpaper-next")
+			}
+		case "p":
+			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
+				m.busy = true
+				return m, m.runAction("wallpaper-prev")
 			}
 		case "x":
 			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
@@ -508,14 +574,31 @@ func (m Model) wallpaperControls(width int) string {
 	activeLine := lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
 	valLine := lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncatePlain(wpName, width-6))
 
-	lines := []string{
-		lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
-		"",
-		modeLine,
-		effectLine,
-		"",
-		activeLine,
-		valLine,
+	var lines []string
+	if mode == "file" {
+		lines = []string{
+			lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
+			"",
+			modeLine,
+			effectLine,
+			"",
+			activeLine,
+			valLine,
+		}
+	} else {
+		prevLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Prev (p)")
+		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
+		actionLine := lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + prevLabel + "     " + nextLabel
+
+		lines = []string{
+			lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
+			modeLine,
+			actionLine,
+			effectLine,
+			"",
+			activeLine,
+			valLine,
+		}
 	}
 
 	return lipgloss.NewStyle().
