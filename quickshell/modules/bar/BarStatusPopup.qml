@@ -394,7 +394,10 @@ Scope {
                 icon: "palette"
                 title: "Themes"
                 subtitle: "Colors, fonts and desktop appearance"
-                onClicked: root.openDialog("appearance")
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
+                }
             }
 
             ToolLauncherRow {
@@ -415,7 +418,10 @@ Scope {
                 icon: "desktop_windows"
                 title: "Windows VM"
                 subtitle: "Install, run and manage Windows"
-                onClicked: root.openDialog("windows")
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
+                }
             }
         }
     }

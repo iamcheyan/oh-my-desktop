@@ -1,10 +1,12 @@
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.modules.settings
 import qs.modules.settings.widgets
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
 PageBody {
     id: pageRoot
@@ -15,10 +17,24 @@ PageBody {
         subtitle: "Each tool opens as a focused settings panel"
 
         ButtonRow {
-            SettingsButton { label: "Themes"; iconName: "palette"; onClicked: settingsRoot.currentPage = "appearance" }
+            SettingsButton {
+                label: "Themes"
+                iconName: "palette"
+                onClicked: {
+                    if (settingsRoot) settingsRoot.dismiss();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
+                }
+            }
             SettingsButton { label: "Voice Input"; iconName: "keyboard_voice"; onClicked: settingsRoot.currentPage = "voice" }
             SettingsButton { label: "Keyboard Remap"; iconName: "keyboard"; onClicked: settingsRoot.currentPage = "keyremap" }
-            SettingsButton { label: "Windows VM"; iconName: "desktop_windows"; onClicked: settingsRoot.currentPage = "windows" }
+            SettingsButton {
+                label: "Windows VM"
+                iconName: "desktop_windows"
+                onClicked: {
+                    if (settingsRoot) settingsRoot.dismiss();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
+                }
+            }
         }
     }
 }

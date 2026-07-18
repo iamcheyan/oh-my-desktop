@@ -75,8 +75,7 @@ ColumnLayout {
     spacing: SettingsTokens.controlGap
     implicitHeight: {
         const viewportHeight = pageRoot.settingsRoot ? pageRoot.settingsRoot.height - 120 : 500
-        const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12
-        return Math.max(viewportHeight, contentHeight)
+        return Math.max(420, viewportHeight)
     }
 
     function openDevice(hyprName) {
@@ -108,7 +107,7 @@ ColumnLayout {
             Layout.preferredWidth: pageRoot.wideLayout
                 ? (contentGrid.width - SettingsTokens.columnGap) / 2
                 : contentGrid.width
-            implicitHeight: leftColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            Layout.minimumHeight: 320
             radius: SettingsTokens.roundRadius
             color: SettingsTokens.panel
             border.width: 1
@@ -242,106 +241,127 @@ ColumnLayout {
                     }
                 }
 
-                SettingsSection {
-                    title: "Keyboards"
-
-                    Repeater {
-                        model: KeyboardRemap.availableDevices
-                        delegate: Rectangle {
-                            id: deviceRow
-                            required property var modelData
-                            readonly property int presetCount: KeyboardRemap.devicePresetCount(modelData.hyprName)
-                            readonly property bool selected: modelData.hyprName === KeyboardRemap.selectedDeviceId
-
-                            Layout.fillWidth: true
-                            implicitHeight: 56
-                            radius: SettingsTokens.radius
-                            color: deviceRow.selected
-                                ? SettingsTokens.accentSoft
-                                : (deviceMouse.containsMouse ? SettingsTokens.cardHover : "transparent")
-                            border.width: deviceRow.selected ? 1 : 0
-                            border.color: SettingsTokens.accent
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 12
-
-                                MaterialSymbol {
-                                    Layout.preferredWidth: 22
-                                    text: "keyboard"
-                                    iconSize: 18
-                                    color: SettingsTokens.muted
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 2
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: deviceRow.modelData.displayName
-                                        color: SettingsTokens.fg
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                        font.weight: deviceRow.selected ? Font.DemiBold : Font.Normal
-                                        elide: Text.ElideRight
-                                    }
-
-                                    StyledText {
-                                        Layout.fillWidth: true
-                                        text: deviceRow.modelData.connected
-                                            ? (deviceRow.modelData.keydId || "missing keyd id")
-                                            : `${deviceRow.modelData.keydId || "missing keyd id"} · saved, disconnected`
-                                        color: SettingsTokens.dim
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        elide: Text.ElideRight
-                                    }
-                                }
-
-                                StyledText {
-                                    text: deviceRow.presetCount > 0
-                                        ? `${deviceRow.presetCount} preset${deviceRow.presetCount === 1 ? "" : "s"}`
-                                        : "none"
-                                    color: deviceRow.presetCount > 0 ? SettingsTokens.accent : SettingsTokens.muted
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                }
-
-                                Rectangle {
-                                    Layout.preferredWidth: 8
-                                    Layout.preferredHeight: 8
-                                    radius: 4
-                                    color: deviceRow.modelData.connected ? SettingsTokens.accent : SettingsTokens.muted
-                                }
-
-                                MaterialSymbol {
-                                    visible: !pageRoot.wideLayout
-                                    text: "chevron_right"
-                                    iconSize: 18
-                                    color: SettingsTokens.muted
-                                }
-                            }
-
-                            MouseArea {
-                                id: deviceMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: pageRoot.openDevice(deviceRow.modelData.hyprName)
-                            }
-                        }
-                    }
-
-                    SettingsRow {
-                        visible: KeyboardRemap.availableDevices.length === 0
-                        iconName: "info"
-                        label: "No keyboards found"
-                        description: "Refresh after connecting a keyboard."
-                        clickable: false
-                    }
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+                    Layout.bottomMargin: 4
+                    Layout.leftMargin: 4
+                    text: "Keyboards"
+                    color: SettingsTokens.muted
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                 }
 
-                Item { Layout.fillHeight: true }
+                StyledFlickable {
+                    id: keyboardListFlickable
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: keyboardListColumn.implicitHeight
+
+                    ColumnLayout {
+                        id: keyboardListColumn
+                        width: keyboardListFlickable.width
+                        spacing: 2
+
+                        Repeater {
+                            model: KeyboardRemap.availableDevices
+                            delegate: Rectangle {
+                                id: deviceRow
+                                required property var modelData
+                                readonly property int presetCount: KeyboardRemap.devicePresetCount(modelData.hyprName)
+                                readonly property bool selected: modelData.hyprName === KeyboardRemap.selectedDeviceId
+
+                                Layout.fillWidth: true
+                                implicitHeight: 56
+                                radius: SettingsTokens.radius
+                                color: deviceRow.selected
+                                    ? SettingsTokens.accentSoft
+                                    : (deviceMouse.containsMouse ? SettingsTokens.cardHover : "transparent")
+                                border.width: deviceRow.selected ? 1 : 0
+                                border.color: SettingsTokens.accent
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 12
+
+                                    MaterialSymbol {
+                                        Layout.preferredWidth: 22
+                                        text: "keyboard"
+                                        iconSize: 18
+                                        color: SettingsTokens.muted
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 2
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: deviceRow.modelData.displayName
+                                            color: SettingsTokens.fg
+                                            font.pixelSize: Appearance.font.pixelSize.small
+                                            font.weight: deviceRow.selected ? Font.DemiBold : Font.Normal
+                                            elide: Text.ElideRight
+                                        }
+
+                                        StyledText {
+                                            Layout.fillWidth: true
+                                            text: deviceRow.modelData.connected
+                                                ? (deviceRow.modelData.keydId || "missing keyd id")
+                                                : `${deviceRow.modelData.keydId || "missing keyd id"} · saved, disconnected`
+                                            color: SettingsTokens.dim
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    StyledText {
+                                        text: deviceRow.presetCount > 0
+                                            ? `${deviceRow.presetCount} preset${deviceRow.presetCount === 1 ? "" : "s"}`
+                                            : "none"
+                                        color: deviceRow.presetCount > 0 ? SettingsTokens.accent : SettingsTokens.muted
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
+                                    }
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 8
+                                        Layout.preferredHeight: 8
+                                        radius: 4
+                                        color: deviceRow.modelData.connected ? SettingsTokens.accent : SettingsTokens.muted
+                                    }
+
+                                    MaterialSymbol {
+                                        visible: !pageRoot.wideLayout
+                                        text: "chevron_right"
+                                        iconSize: 18
+                                        color: SettingsTokens.muted
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: deviceMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: pageRoot.openDevice(deviceRow.modelData.hyprName)
+                                }
+                            }
+                        }
+
+                        SettingsRow {
+                            visible: KeyboardRemap.availableDevices.length === 0
+                            iconName: "info"
+                            label: "No keyboards found"
+                            description: "Refresh after connecting a keyboard."
+                            clickable: false
+                        }
+                    }
+                }
             }
         }
 
@@ -355,7 +375,7 @@ ColumnLayout {
             Layout.preferredWidth: pageRoot.wideLayout
                 ? (contentGrid.width - SettingsTokens.columnGap) / 2
                 : contentGrid.width
-            implicitHeight: rightColumn.implicitHeight + SettingsTokens.panelPadding * 2
+            Layout.minimumHeight: 320
             radius: SettingsTokens.roundRadius
             color: SettingsTokens.panel
             border.width: 1
@@ -408,6 +428,7 @@ ColumnLayout {
                 ColumnLayout {
                     visible: pageRoot.showDetail
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
                     spacing: SettingsTokens.sectionGap
 
                     Item {
@@ -488,121 +509,144 @@ ColumnLayout {
                         onToggled: KeyboardRemap.setProfileEnabled(!KeyboardRemap.selectedEnabled)
                     }
 
-                    SettingsSection {
-                        title: "Presets"
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 8
+                        Layout.bottomMargin: 4
+                        Layout.leftMargin: 4
+                        text: "Presets"
+                        color: SettingsTokens.muted
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
 
-                        Repeater {
-                            model: KeyboardRemap.globalPresetChoices
-                            delegate: Rectangle {
-                                id: presetRow
-                                required property var modelData
-                                readonly property bool isRemap: modelData.type === "remap"
-                                readonly property string overrideKey: KeyboardRemap.presetOverride(
-                                    KeyboardRemap.selectedDeviceId, modelData.id)
-                                readonly property bool enabled: KeyboardRemap.devicePresetEnabled(
-                                    KeyboardRemap.selectedDeviceId, modelData.id)
+                    StyledFlickable {
+                        id: presetListFlickable
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        clip: true
+                        contentWidth: width
+                        contentHeight: presetListColumn.implicitHeight
 
-                                Layout.fillWidth: true
-                                implicitHeight: 56
-                                radius: SettingsTokens.radius
-                                color: presetMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
+                        ColumnLayout {
+                            id: presetListColumn
+                            width: presetListFlickable.width
+                            spacing: 2
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    spacing: 10
+                            Repeater {
+                                model: KeyboardRemap.globalPresetChoices
+                                delegate: Rectangle {
+                                    id: presetRow
+                                    required property var modelData
+                                    readonly property bool isRemap: modelData.type === "remap"
+                                    readonly property string overrideKey: KeyboardRemap.presetOverride(
+                                        KeyboardRemap.selectedDeviceId, modelData.id)
+                                    readonly property bool enabled: KeyboardRemap.devicePresetEnabled(
+                                        KeyboardRemap.selectedDeviceId, modelData.id)
 
-                                    MaterialSymbol {
-                                        Layout.preferredWidth: 22
-                                        text: "tune"
-                                        iconSize: 18
-                                        color: SettingsTokens.muted
-                                    }
+                                    Layout.fillWidth: true
+                                    implicitHeight: 56
+                                    radius: SettingsTokens.radius
+                                    color: presetMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        StyledText {
-                                            Layout.fillWidth: true
-                                            text: presetRow.modelData.label
-                                            color: SettingsTokens.fg
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            elide: Text.ElideRight
-                                        }
-
-                                        StyledText {
-                                            Layout.fillWidth: true
-                                            text: presetRow.overrideKey.length > 0
-                                                ? `${presetRow.modelData.remaps[0].from} → ${presetRow.overrideKey} (custom)`
-                                                : presetRow.modelData.description
-                                            color: SettingsTokens.dim
-                                            font.pixelSize: Appearance.font.pixelSize.smaller
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    // Edit remap target
-                                    Rectangle {
-                                        visible: presetRow.isRemap
-                                        Layout.preferredWidth: 32
-                                        Layout.preferredHeight: 32
-                                        radius: SettingsTokens.radius
-                                        color: editMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 10
 
                                         MaterialSymbol {
-                                            anchors.centerIn: parent
-                                            text: "edit"
-                                            iconSize: 16
-                                            color: presetRow.overrideKey.length > 0
-                                                ? SettingsTokens.accent
-                                                : SettingsTokens.muted
+                                            Layout.preferredWidth: 22
+                                            text: "tune"
+                                            iconSize: 18
+                                            color: SettingsTokens.muted
                                         }
 
-                                        MouseArea {
-                                            id: editMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: pageRoot.settingsRoot.keyremapEditingPreset = presetRow.modelData.id
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+
+                                            StyledText {
+                                                Layout.fillWidth: true
+                                                text: presetRow.modelData.label
+                                                color: SettingsTokens.fg
+                                                font.pixelSize: Appearance.font.pixelSize.small
+                                                elide: Text.ElideRight
+                                            }
+
+                                            StyledText {
+                                                Layout.fillWidth: true
+                                                text: presetRow.overrideKey.length > 0
+                                                    ? `${presetRow.modelData.remaps[0].from} → ${presetRow.overrideKey} (custom)`
+                                                    : presetRow.modelData.description
+                                                color: SettingsTokens.dim
+                                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                                elide: Text.ElideRight
+                                            }
                                         }
-                                    }
 
-                                    // Toggle
-                                    Rectangle {
-                                        Layout.preferredWidth: 46
-                                        Layout.preferredHeight: 26
-                                        radius: height / 2
-                                        color: presetRow.enabled ? SettingsTokens.accent : SettingsTokens.line
-
+                                        // Edit remap target
                                         Rectangle {
-                                            width: 20
-                                            height: 20
-                                            radius: 10
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            x: presetRow.enabled ? parent.width - width - 3 : 3
-                                            color: presetRow.enabled ? "#111111" : "#dedede"
-                                            Behavior on x { NumberAnimation { duration: 110 } }
+                                            visible: presetRow.isRemap
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            radius: SettingsTokens.radius
+                                            color: editMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
+
+                                            MaterialSymbol {
+                                                anchors.centerIn: parent
+                                                text: "edit"
+                                                iconSize: 16
+                                                color: presetRow.overrideKey.length > 0
+                                                    ? SettingsTokens.accent
+                                                    : SettingsTokens.muted
+                                            }
+
+                                            MouseArea {
+                                                id: editMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: pageRoot.settingsRoot.keyremapEditingPreset = presetRow.modelData.id
+                                            }
                                         }
 
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: KeyboardRemap.setDevicePresetEnabled(
-                                                KeyboardRemap.selectedDeviceId,
-                                                presetRow.modelData.id,
-                                                !presetRow.enabled)
+                                        // Toggle
+                                        Rectangle {
+                                            Layout.preferredWidth: 46
+                                            Layout.preferredHeight: 26
+                                            radius: height / 2
+                                            color: presetRow.enabled ? SettingsTokens.accent : SettingsTokens.line
+
+                                            Rectangle {
+                                                width: 20
+                                                height: 20
+                                                radius: 10
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                x: presetRow.enabled ? parent.width - width - 3 : 3
+                                                color: presetRow.enabled ? "#111111" : "#dedede"
+                                                Behavior on x { NumberAnimation { duration: 110 } }
+                                            }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: KeyboardRemap.setDevicePresetEnabled(
+                                                    KeyboardRemap.selectedDeviceId,
+                                                    presetRow.modelData.id,
+                                                    !presetRow.enabled)
+                                            }
                                         }
                                     }
-                                }
 
-                                MouseArea {
-                                    id: presetMouse
-                                    anchors.fill: parent
-                                    anchors.rightMargin: 90
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
+                                    MouseArea {
+                                        id: presetMouse
+                                        anchors.fill: parent
+                                        anchors.rightMargin: 90
+                                        hoverEnabled: true
+                                        acceptedButtons: Qt.NoButton
+                                    }
                                 }
                             }
                         }
@@ -664,7 +708,6 @@ ColumnLayout {
                     }
                 }
 
-                Item { Layout.fillHeight: true }
             }
         }
     }
