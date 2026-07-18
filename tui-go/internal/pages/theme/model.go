@@ -146,17 +146,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// 1. Check wallpaper controls click
-			if clickY >= yOffset && clickY < yOffset + 7 {
-				mode := m.value("wallpaper.mode", "file")
+			if clickY >= yOffset && clickY < yOffset + 8 {
 				// Mode selector click
-				if clickY >= yOffset + 1 && clickY <= yOffset + 2 {
-					if clickX >= 30 && clickX <= 46 {
+				if clickY == yOffset + 3 {
+					if clickX >= 38 && clickX <= 49 {
 						// File
 						if !m.busy {
 							m.busy = true
 							return m, m.runAction("wallpaper-pick-file")
 						}
-					} else if clickX >= 47 && clickX <= 65 {
+					} else if clickX >= 50 && clickX <= 67 {
 						// Folder
 						if !m.busy {
 							m.busy = true
@@ -164,25 +163,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 				}
-				// Folder controls click
-				if mode == "folder" && clickY >= yOffset + 4 && clickY <= yOffset + 5 {
-					if clickX >= 28 && clickX <= 40 {
-						// Next
+				// Effect selector click
+				if clickY == yOffset + 4 {
+					if clickX >= 38 && clickX <= 48 {
+						// Perf
 						if !m.busy {
 							m.busy = true
-							return m, m.runAction("wallpaper-next")
+							return m, m.effects("performance")
 						}
-					} else if clickX >= 41 && clickX <= 53 {
-						// Stop
+					} else if clickX >= 49 && clickX <= 58 {
+						// Bal
 						if !m.busy {
 							m.busy = true
-							return m, m.runAction("wallpaper-stop")
+							return m, m.effects("balanced")
 						}
-					} else if clickX >= 54 && clickX <= 74 {
-						// Interval (increment by 300s)
+					} else if clickX >= 59 && clickX <= 70 {
+						// Vis
 						if !m.busy {
 							m.busy = true
-							return m, m.interval(300)
+							return m, m.effects("visuals")
 						}
 					}
 				}
@@ -520,11 +519,8 @@ func (m Model) wallpaperControls(width int) string {
 	}
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(pal.line).
-		Padding(0, 2).
+		Padding(1, 0).
 		Width(width).
-		Height(9).
 		Render(strings.Join(lines, "\n"))
 }
 
