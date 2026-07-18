@@ -20,20 +20,8 @@ import (
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/ui"
 )
 
-type status map[string]string
-
-type statusMsg struct {
-	values status
-	err    error
-}
-
 type themesMsg struct {
 	themes []themeEntry
-	err    error
-}
-
-type actionMsg struct {
-	action string
 	err    error
 }
 
@@ -56,6 +44,9 @@ type palette struct {
 	accent     lipgloss.Color
 }
 
+// imagePreviewCache memoizes the decoded wallpaper preview so repeated View
+// frames do not re-stat or re-decode the same file. bubbletea runs Update and
+// View single-threaded, so the unsynchronized global is safe here.
 var imagePreviewCache struct {
 	path    string
 	width   int
@@ -103,56 +94,16 @@ func actionIcon(key string) string {
 	return ""
 }
 
+// buttonText renders the theme button label: a Nerd Font glyph (looked up by
+// the action key) plus the mnemonic. Delegates the mnemonic rendering to
+// ui.ActionText so all pages share one styling path.
 func buttonText(key, label string) string {
-	icon := actionIcon(key)
-	if icon == "" {
-		return mnemonicLabel(key, label)
-	}
-	return icon + "  " + mnemonicLabel(key, label)
-}
-
-func mnemonicLabel(key, label string) string {
-	pal := defaultMnemonicPalette()
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return label
-	}
-	if len([]rune(key)) == 1 {
-		return underlineFirstMatch(label, key, pal.accent)
-	}
-	return lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render(key) + " " + label
-}
-
-func underlineFirstMatch(label, key string, color lipgloss.Color) string {
-	lowerKey := strings.ToLower(key)
-	var out strings.Builder
-	done := false
-	for _, r := range label {
-		ch := string(r)
-		if !done && strings.ToLower(ch) == lowerKey {
-			out.WriteString(lipgloss.NewStyle().Foreground(color).Underline(true).Render(ch))
-			done = true
-			continue
-		}
-		out.WriteString(ch)
-	}
-	if done {
-		return out.String()
-	}
-	return lipgloss.NewStyle().Foreground(color).Underline(true).Render(strings.ToUpper(key)) + " " + label
-}
-
-func defaultMnemonicPalette() palette {
-	return palette{accent: ui.Accent}
-}
-
-func helpKey(key, label string) string {
-	return lipgloss.NewStyle().Foreground(ui.Accent).Underline(true).Render(key) + " " + label
+	return ui.IconButton(actionIcon(key), key, label)
 }
 
 type Model struct {
 	backend  backend.Backend
-	status   status
+	status   backend.Status
 	themes   []themeEntry
 	width    int
 	height   int
@@ -245,11 +196,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.effects("visuals")
 			}
 		}
-	case statusMsg:
-		if msg.err != nil {
-			m.err = msg.err.Error()
+	case backend.StatusMsg:
+		if msg.Err != nil {
+			m.err = msg.Err.Error()
 		} else {
-			m.status = msg.values
+			m.status = msg.Values
 			m.err = ""
 		}
 	case themesMsg:
@@ -272,14 +223,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected = 0
 			}
 		}
-	case actionMsg:
+	case backend.ActionMsg:
 		m.busy = false
 		m.applying = ""
-		if msg.err != nil {
-			m.err = msg.err.Error()
+		if msg.Err != nil {
+			m.err = msg.Err.Error()
 			m.message = "Theme apply failed"
 		} else {
-			m.message = themeActionMessage(msg.action)
+			m.message = themeActionMessage(msg.Action)
 		}
 		return m, tea.Batch(m.fetchStatus(), m.fetchThemes())
 	}
@@ -332,16 +283,16 @@ func (m Model) View() string {
 	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), pal.background)
 
 	help := lipgloss.NewStyle().Foreground(pal.muted).Render(strings.Join([]string{
-		helpKey("arrows", "theme"),
-		helpKey("enter", "apply"),
-		helpKey("f", "file"),
-		helpKey("d", "folder"),
-		helpKey("w", "next"),
-		helpKey("x", "stop"),
-		helpKey("[/]", "interval"),
-		helpKey("1/2/3", "effects"),
-		helpKey("r", "refresh"),
-		helpKey("q", "quit"),
+		ui.HelpItem("arrows", "theme"),
+		ui.HelpItem("enter", "apply"),
+		ui.HelpItem("f", "file"),
+		ui.HelpItem("d", "folder"),
+		ui.HelpItem("w", "next"),
+		ui.HelpItem("x", "stop"),
+		ui.HelpItem("[/]", "interval"),
+		ui.HelpItem("1/2/3", "effects"),
+		ui.HelpItem("r", "refresh"),
+		ui.HelpItem("q", "quit"),
 	}, "  "))
 	if m.applying != "" {
 		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
@@ -377,7 +328,7 @@ func (m Model) heroView(width int) string {
 		previewWidth = min(width, 22)
 		return strings.Join([]string{
 			m.wallpaperPreview(previewWidth, previewHeight),
-			m.row("Wallpaper", shortPath(m.value("wallpaper.current", "-")), width),
+			m.row("Wallpaper", ui.ShortPath(m.value("wallpaper.current", "-")), width),
 			m.row("Mode", m.value("wallpaper.mode", "file"), width),
 			m.row("Interval", intervalLabel(m.value("wallpaper.interval", "1800")), width),
 			lipgloss.JoinHorizontal(lipgloss.Top,
@@ -387,7 +338,7 @@ func (m Model) heroView(width int) string {
 			lipgloss.JoinHorizontal(lipgloss.Top,
 				m.button(buttonText("w", "Next"), false),
 				m.button(buttonText("x", "Stop"), false),
-				m.effectSelect(),
+				m.effectPills(),
 			),
 		}, "\n")
 	}
@@ -398,7 +349,7 @@ func (m Model) heroView(width int) string {
 		lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncateStyled("Current desktop background and rotation.", infoWidth)),
 		"",
 		m.row("Mode", m.value("wallpaper.mode", "file"), infoWidth),
-		m.row("Current", shortPath(m.value("wallpaper.current", "-")), infoWidth),
+		m.row("Current", ui.ShortPath(m.value("wallpaper.current", "-")), infoWidth),
 		m.row("Images", m.value("wallpaper.imageCount", "0"), infoWidth),
 		m.row("Interval", intervalLabel(m.value("wallpaper.interval", "1800")), infoWidth),
 		"",
@@ -407,7 +358,7 @@ func (m Model) heroView(width int) string {
 			m.button(buttonText("d", "Folder"), mode == "folder"),
 			m.button(buttonText("w", "Next"), false),
 			m.button(buttonText("x", "Stop"), false),
-			m.effectSelect(),
+			m.effectPills(),
 		),
 	}
 	info := strings.Join(infoLines, "\n")
@@ -426,7 +377,7 @@ func (m Model) wallpaperPreview(width, height int) string {
 	pal := m.palette()
 	imageView := renderImagePreview(expandPath(m.value("wallpaper.current", "")), innerW, innerH)
 	if imageView == "" {
-		imageView = m.previewPlaceholder("Wallpaper", shortPath(m.value("wallpaper.current", "-")), innerW, innerH)
+		imageView = m.previewPlaceholder("Wallpaper", ui.ShortPath(m.value("wallpaper.current", "-")), innerW, innerH)
 	}
 	return lipgloss.NewStyle().
 		Border(lipgloss.ThickBorder()).
@@ -515,28 +466,30 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 	return style.Render(tile)
 }
 
-func (m Model) effectSelect() string {
-	pal := m.palette()
-	label := effectLabel(m.value("effects.mode", "balanced"))
-	text := lipgloss.NewStyle().Foreground(pal.muted).Render("Effects ") +
-		lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render("1/2/3") +
-		" " + label + " ▾"
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(pal.line).
-		Background(pal.panel).
-		Foreground(pal.text).
-		Padding(0, 1).
-		Render(text)
+// effectPills renders the three window-effect options as inline pills. The
+// active one is highlighted; pressing 1/2/3 switches. Replaces the old fake
+// dropdown (▾) which looked expandable but was not.
+func (m Model) effectPills() string {
+	mode := m.value("effects.mode", "balanced")
+	pill := func(key, label, val string) string {
+		active := mode == val
+		text := ui.IconButton(actionIcon(key), key, label)
+		return ui.ButtonView(text, active)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		pill("1", "Perf", "performance"),
+		pill("2", "Balanced", "balanced"),
+		pill("3", "Visuals", "visuals"),
+	)
 }
 
 func (m Model) fetchStatus() tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-theme", "appearance-status")
 		if result.Err != nil {
-			return statusMsg{err: result.Err}
+			return backend.StatusMsg{Err: result.Err}
 		}
-		return statusMsg{values: backend.ParseKV(result.Lines)}
+		return backend.StatusMsg{Values: backend.ParseStatus(result.Lines)}
 	}
 }
 
@@ -569,21 +522,21 @@ func (m Model) fetchThemes() tea.Cmd {
 func (m Model) apply(slug string) tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-theme", "apply", slug)
-		return actionMsg{action: "apply " + slug, err: result.Err}
+		return backend.ActionMsg{Action: "apply " + slug, Err: result.Err}
 	}
 }
 
 func (m Model) runAction(action string) tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-theme", action)
-		return actionMsg{action: action, err: result.Err}
+		return backend.ActionMsg{Action: action, Err: result.Err}
 	}
 }
 
 func (m Model) effects(mode string) tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-theme", "effects", mode)
-		return actionMsg{action: "effects " + mode, err: result.Err}
+		return backend.ActionMsg{Action: "effects " + mode, Err: result.Err}
 	}
 }
 
@@ -598,7 +551,7 @@ func (m Model) interval(delta int) tea.Cmd {
 	}
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-theme", "wallpaper-interval", fmt.Sprintf("%d", next))
-		return actionMsg{action: "wallpaper-interval", err: result.Err}
+		return backend.ActionMsg{Action: "wallpaper-interval", Err: result.Err}
 	}
 }
 
@@ -785,28 +738,47 @@ func expandPath(path string) string {
 	return path
 }
 
+// paletteCache memoizes the derived palette keyed by the raw color triple so
+// repeated palette() calls within one View frame (and across frames when the
+// theme has not changed) do not re-run blend/rgb math. Cleared on status msg.
+var paletteCache struct {
+	bg, fg, accent string
+	pal            palette
+}
+
 func (m Model) palette() palette {
-	bg := ui.HexColor(m.value("background", ""))
-	fg := ui.HexColor(m.value("foreground", ""))
-	accent := ui.HexColor(m.value("accent", ""))
-	if bg == "" {
-		bg = ui.Background
+	bg := m.value("background", "")
+	fg := m.value("foreground", "")
+	accent := m.value("accent", "")
+	if paletteCache.bg == bg && paletteCache.fg == fg && paletteCache.accent == accent {
+		return paletteCache.pal
 	}
-	if fg == "" {
-		fg = ui.Text
+	bgC := ui.HexColor(bg)
+	fgC := ui.HexColor(fg)
+	accentC := ui.HexColor(accent)
+	if bgC == "" {
+		bgC = ui.Background
 	}
-	if accent == "" {
-		accent = ui.Accent
+	if fgC == "" {
+		fgC = ui.Text
 	}
-	return palette{
-		background: bg,
-		panel:      blend(bg, fg, 0.08),
-		panelSoft:  blend(bg, fg, 0.14),
-		line:       blend(bg, fg, 0.28),
-		text:       fg,
-		muted:      blend(bg, fg, 0.68),
-		accent:     accent,
+	if accentC == "" {
+		accentC = ui.Accent
 	}
+	pal := palette{
+		background: bgC,
+		panel:      blend(bgC, fgC, 0.08),
+		panelSoft:  blend(bgC, fgC, 0.14),
+		line:       blend(bgC, fgC, 0.28),
+		text:       fgC,
+		muted:      blend(bgC, fgC, 0.68),
+		accent:     accentC,
+	}
+	paletteCache = struct {
+		bg, fg, accent string
+		pal            palette
+	}{bg, fg, accent, pal}
+	return pal
 }
 
 func (m Model) row(label, value string, width int) string {
@@ -837,7 +809,9 @@ func (m Model) button(text string, active bool) string {
 	if active {
 		style = style.BorderForeground(pal.accent).Foreground(pal.accent).Bold(true)
 	}
-	return style.Render(text)
+	// PreserveBackground stops ANSI resets inside the mnemonic/icon from
+	// leaking and turning the panel background default (see commit 1a7e819).
+	return style.Render(ui.PreserveBackground(text, pal.panel))
 }
 
 func blend(a, b lipgloss.Color, amount float64) lipgloss.Color {
@@ -873,13 +847,11 @@ func rgb(c lipgloss.Color) (int, int, int, bool) {
 }
 
 func (m Model) value(key, fallback string) string {
-	if m.status == nil {
-		return fallback
-	}
-	if v := m.status[key]; v != "" {
-		return v
-	}
-	return fallback
+	return m.status.Value(key, fallback)
+}
+
+func (m Model) bool(key string) bool {
+	return m.status.Bool(key)
 }
 
 func valAt(parts []string, idx int) string {
@@ -927,27 +899,4 @@ func intervalLabel(s string) string {
 		return fmt.Sprintf("%dm", sec/60)
 	}
 	return fmt.Sprintf("%ds", sec)
-}
-
-func effectLabel(mode string) string {
-	switch mode {
-	case "performance":
-		return "Performance"
-	case "visuals":
-		return "Visuals"
-	default:
-		return "Balanced"
-	}
-}
-
-func shortPath(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "-"
-	}
-	parts := strings.Split(s, "/")
-	if len(parts) <= 3 {
-		return s
-	}
-	return "…/" + strings.Join(parts[len(parts)-2:], "/")
 }
