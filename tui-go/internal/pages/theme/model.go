@@ -103,14 +103,51 @@ func actionIcon(key string) string {
 	return ""
 }
 
-// buttonText joins a Nerd Font icon with the key+label, collapsing the
-// redundant key prefix when the label already starts with it.
 func buttonText(key, label string) string {
 	icon := actionIcon(key)
 	if icon == "" {
+		return mnemonicLabel(key, label)
+	}
+	return icon + "  " + mnemonicLabel(key, label)
+}
+
+func mnemonicLabel(key, label string) string {
+	pal := defaultMnemonicPalette()
+	key = strings.TrimSpace(key)
+	if key == "" {
 		return label
 	}
-	return icon + "  " + label
+	if len([]rune(key)) == 1 {
+		return underlineFirstMatch(label, key, pal.accent)
+	}
+	return lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render(key) + " " + label
+}
+
+func underlineFirstMatch(label, key string, color lipgloss.Color) string {
+	lowerKey := strings.ToLower(key)
+	var out strings.Builder
+	done := false
+	for _, r := range label {
+		ch := string(r)
+		if !done && strings.ToLower(ch) == lowerKey {
+			out.WriteString(lipgloss.NewStyle().Foreground(color).Underline(true).Render(ch))
+			done = true
+			continue
+		}
+		out.WriteString(ch)
+	}
+	if done {
+		return out.String()
+	}
+	return lipgloss.NewStyle().Foreground(color).Underline(true).Render(strings.ToUpper(key)) + " " + label
+}
+
+func defaultMnemonicPalette() palette {
+	return palette{accent: ui.Accent}
+}
+
+func helpKey(key, label string) string {
+	return lipgloss.NewStyle().Foreground(ui.Accent).Underline(true).Render(key) + " " + label
 }
 
 type Model struct {
@@ -300,7 +337,18 @@ func (m Model) View() string {
 		ui.PreserveBackground(ui.FitBlock(m.contentView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), pal.panel),
 	)
 
-	help := lipgloss.NewStyle().Foreground(pal.muted).Render("arrow keys theme  enter apply  f file  d folder  w next  x stop  [/ ] interval  1/2/3 effects  r refresh  q quit")
+	help := lipgloss.NewStyle().Foreground(pal.muted).Render(strings.Join([]string{
+		helpKey("arrows", "theme"),
+		helpKey("enter", "apply"),
+		helpKey("f", "file"),
+		helpKey("d", "folder"),
+		helpKey("w", "next"),
+		helpKey("x", "stop"),
+		helpKey("[/]", "interval"),
+		helpKey("1/2/3", "effects"),
+		helpKey("r", "refresh"),
+		helpKey("q", "quit"),
+	}, "  "))
 	if m.applying != "" {
 		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
 	}
@@ -332,6 +380,7 @@ func (m Model) heroView(width int) string {
 	previewWidth := min(36, max(24, width/4))
 	previewHeight := max(8, previewWidth/2)
 	infoWidth := width - previewWidth - 3
+	mode := m.value("wallpaper.mode", "file")
 	if infoWidth < 44 {
 		previewWidth = min(width, 36)
 		previewHeight = max(8, previewWidth/2)
@@ -341,8 +390,8 @@ func (m Model) heroView(width int) string {
 			m.row("Mode", m.value("wallpaper.mode", "file"), width),
 			m.row("Interval", intervalLabel(m.value("wallpaper.interval", "1800")), width),
 			lipgloss.JoinHorizontal(lipgloss.Top,
-				m.button(buttonText("f", "File"), false),
-				m.button(buttonText("d", "Folder"), false),
+				m.button(buttonText("f", "File"), mode == "file"),
+				m.button(buttonText("d", "Folder"), mode == "folder"),
 			),
 			lipgloss.JoinHorizontal(lipgloss.Top,
 				m.button(buttonText("w", "Next"), false),
@@ -362,8 +411,8 @@ func (m Model) heroView(width int) string {
 		m.row("Interval", intervalLabel(m.value("wallpaper.interval", "1800")), infoWidth),
 		"",
 		lipgloss.JoinHorizontal(lipgloss.Top,
-			m.button(buttonText("f", "File"), false),
-			m.button(buttonText("d", "Folder"), false),
+			m.button(buttonText("f", "File"), mode == "file"),
+			m.button(buttonText("d", "Folder"), mode == "folder"),
 			m.button(buttonText("w", "Next"), false),
 			m.button(buttonText("x", "Stop"), false),
 		),
