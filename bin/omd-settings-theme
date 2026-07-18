@@ -378,7 +378,7 @@ wallpaper_status() {
   current="$(printf '%s\n' "$status" | awk -F= '$1=="current"{print $2; exit}')"
   interval="$(cat "$WALLPAPER_INTERVAL_FILE" 2>/dev/null || printf '%s' "$(printf '%s\n' "$status" | awk -F= '$1=="interval"{print $2; exit}')")"
   [[ -n "$mode" ]] || mode=file
-  [[ -n "$interval" ]] || interval=1800
+  [[ -n "$interval" ]] || interval=3600
   count=0
   if [[ "$mode" == "folder" && -n "$source" ]]; then
     count="$(wallpaper_image_count "$source")"

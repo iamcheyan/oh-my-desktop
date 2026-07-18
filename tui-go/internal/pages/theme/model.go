@@ -501,7 +501,7 @@ func (m Model) wallpaperControls(width int) string {
 	}
 
 	if mode == "folder" {
-		interval := intervalLabel(m.value("wallpaper.interval", "1800"))
+		interval := intervalLabel(m.value("wallpaper.interval", "3600"))
 		wpName = fmt.Sprintf("%s (rotating every %s)", wpName, interval)
 	}
 
@@ -627,7 +627,7 @@ func (m Model) intervalSelect() string {
 	pal := m.palette()
 	text := lipgloss.NewStyle().Foreground(pal.muted).Render("Interval ") +
 		lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render("[/]") +
-		"  " + intervalLabel(m.value("wallpaper.interval", "1800"))
+		"  " + intervalLabel(m.value("wallpaper.interval", "3600"))
 	return m.button(text, false)
 }
 
@@ -689,7 +689,7 @@ func (m Model) effects(mode string) tea.Cmd {
 }
 
 func (m Model) interval(delta int) tea.Cmd {
-	current := atoi(m.value("wallpaper.interval", "1800"), 1800)
+	current := atoi(m.value("wallpaper.interval", "3600"), 3600)
 	next := current + delta
 	if next < 300 {
 		next = 300
@@ -1041,7 +1041,7 @@ func atoi(s string, fallback int) int {
 }
 
 func intervalLabel(s string) string {
-	sec := atoi(s, 1800)
+	sec := atoi(s, 3600)
 	if sec >= 3600 {
 		return fmt.Sprintf("%dh", sec/3600)
 	}

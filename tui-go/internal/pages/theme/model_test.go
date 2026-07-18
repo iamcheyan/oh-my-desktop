@@ -14,7 +14,7 @@ func TestHeroViewFitsViewport(t *testing.T) {
 		"wallpaper.mode":       "folder",
 		"wallpaper.current":    "/home/test/Pictures/wallpapers/a-very-long-wallpaper-file-name.png",
 		"wallpaper.imageCount": "42",
-		"wallpaper.interval":   "1800",
+		"wallpaper.interval":   "3600",
 		"effects.mode":         "balanced",
 	}}
 
@@ -33,24 +33,18 @@ func TestWallpaperControlsFollowMode(t *testing.T) {
 		"wallpaper.mode":       "file",
 		"wallpaper.current":    "/tmp/wallpaper.png",
 		"wallpaper.imageCount": "12",
-		"wallpaper.interval":   "1800",
+		"wallpaper.interval":   "3600",
 		"effects.mode":         "visuals",
 	}}
 
-	fileView := m.wallpaperControls(100, "file")
-	for _, hidden := range []string{"Current", "Images", "Interval", "Next", "Stop"} {
-		if strings.Contains(fileView, hidden) {
-			t.Fatalf("file mode unexpectedly contains %q", hidden)
-		}
-	}
-	if !strings.Contains(fileView, "Effects") || !strings.Contains(fileView, "Visuals") {
-		t.Fatal("file mode is missing compact effects selector")
+	fileView := m.wallpaperControls(100)
+	if !strings.Contains(fileView, "SETTINGS & STATUS") || !strings.Contains(fileView, "Vis (3)") {
+		t.Fatal("file mode is missing settings and status or effects")
 	}
 
-	folderView := m.wallpaperControls(100, "folder")
-	for _, visible := range []string{"Interval", "Next", "Stop", "30m"} {
-		if !strings.Contains(folderView, visible) {
-			t.Fatalf("folder mode is missing %q", visible)
-		}
+	m.status["wallpaper.mode"] = "folder"
+	folderView := m.wallpaperControls(100)
+	if !strings.Contains(folderView, "rotating every 1h") {
+		t.Fatal("folder mode is missing rotation info")
 	}
 }

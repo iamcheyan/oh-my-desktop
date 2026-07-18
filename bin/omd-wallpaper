@@ -4,7 +4,7 @@ set -euo pipefail
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper"
 SOURCE_FILE="$STATE_DIR/source"
 MODE_FILE="$STATE_DIR/mode"
-INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-1800}"
+INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-3600}"
 UNIT_NAME="omd-wallpaper-random"
 
 image_find_expr=(

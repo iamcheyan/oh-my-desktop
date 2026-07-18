@@ -73,12 +73,12 @@ ColumnLayout {
         property string mode: "file"
         property string source: ""
         property string current: ""
-        property string interval: "1800"
+        property string interval: "3600"
         property int imageCount: 0
 
         readonly property bool isFolder: mode === "folder"
         readonly property string intervalLabel: {
-            const sec = parseInt(interval) || 1800
+            const sec = parseInt(interval) || 3600
             if (sec >= 3600)
                 return `${Math.round(sec / 3600)}h`
             if (sec >= 60)
@@ -621,7 +621,7 @@ ColumnLayout {
                         from: 300
                         to: 7200
                         stepSize: 300
-                        value: parseInt(wpState.interval) || 1800
+                        value: parseInt(wpState.interval) || 3600
                         formatValue: val => wpState.intervalLabel
                         onMoved: {
                             Quickshell.execDetached([
@@ -715,7 +715,7 @@ ColumnLayout {
                 wpState.mode = data.mode || "file"
                 wpState.source = data.source || ""
                 wpState.current = data.current || ""
-                wpState.interval = data.interval || "1800"
+                wpState.interval = data.interval || "3600"
                 if (wpState.isFolder && wpState.source.length > 0)
                     wallpaperCountProc.running = true
                 else
