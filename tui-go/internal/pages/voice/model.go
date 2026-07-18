@@ -3,6 +3,7 @@ package voice
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -64,6 +65,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
+			viewStr := m.View()
+			lines := strings.Split(viewStr, "\n")
+			if msg.Y >= 0 && msg.Y < len(lines) {
+				var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+				plain := ansiRegex.ReplaceAllString(lines[msg.Y], "")
+				if msg.X >= 0 && msg.X < len(plain) {
+					type btn struct {
+						text string
+						key  string
+					}
+					buttons := []btn{
+						{"Refresh", "r"},
+						{"Key tester", "k"},
+						{"Edit file", "e"},
+						{"Diagnose", "d"},
+						{"Test TUI", "t"},
+						{"Clear recent", "c"},
+						{"Record", "enter"},
+						{"Setup", "enter"},
+						{"Cancel", "enter"},
+						{"Stop", "enter"},
+					}
+					for _, b := range buttons {
+						idx := strings.Index(plain, b.text)
+						if idx >= 0 {
+							if msg.X >= idx-2 && msg.X <= idx+len(b.text)+2 {
+								return m.handleKey(b.key)
+							}
+						}
+					}
+				}
+			}
+		}
 	case tickMsg:
 		return m, tea.Batch(m.fetchStatus(), tick())
 	case backend.StatusMsg:

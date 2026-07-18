@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -65,9 +66,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		// Button clicks are keyboard-only; mouse click hit detection was
-		// removed because it relied on hardcoded row offsets that broke
-		// whenever controlView layout changed.
+		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
+			viewStr := m.View()
+			lines := strings.Split(viewStr, "\n")
+			if msg.Y >= 0 && msg.Y < len(lines) {
+				var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+				plain := ansiRegex.ReplaceAllString(lines[msg.Y], "")
+				if msg.X >= 0 && msg.X < len(plain) {
+					type btn struct {
+						text string
+						key  string
+					}
+					buttons := []btn{
+						{"Refresh", "r"},
+						{"Start only", "s"},
+						{"Open console", "w"},
+						{"Stop VM", "x"},
+						{"Remove VM", "d"},
+						{"confirm remove", "y"},
+						{"cancel", "n"},
+						{"Install", "enter"},
+						{"Fix", "enter"},
+						{"Connect", "enter"},
+						{"Start & Connect", "enter"},
+					}
+					for _, b := range buttons {
+						idx := strings.Index(plain, b.text)
+						if idx >= 0 {
+							if msg.X >= idx-2 && msg.X <= idx+len(b.text)+2 {
+								var keyMsg tea.KeyMsg
+								if b.key == "enter" {
+									keyMsg = tea.KeyMsg{Type: tea.KeyEnter}
+								} else {
+									keyMsg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(b.key)}
+								}
+								return m.Update(keyMsg)
+							}
+						}
+					}
+				}
+			}
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":

@@ -128,6 +128,109 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			m.moveSelection(-m.gridColumnsFor(m.contentWidth()))
+			return m, nil
+		} else if msg.Type == tea.MouseWheelDown {
+			m.moveSelection(m.gridColumnsFor(m.contentWidth()))
+			return m, nil
+		}
+		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
+			clickX := msg.X
+			clickY := msg.Y
+
+			yOffset := 1
+			if m.busy || m.err != "" || m.message != "" {
+				yOffset += 1
+			}
+
+			// 1. Check wallpaper controls click
+			if clickY >= yOffset && clickY < yOffset + 7 {
+				mode := m.value("wallpaper.mode", "file")
+				// Mode selector click
+				if clickY >= yOffset + 1 && clickY <= yOffset + 2 {
+					if clickX >= 30 && clickX <= 46 {
+						// File
+						if !m.busy {
+							m.busy = true
+							return m, m.runAction("wallpaper-pick-file")
+						}
+					} else if clickX >= 47 && clickX <= 65 {
+						// Folder
+						if !m.busy {
+							m.busy = true
+							return m, m.runAction("wallpaper-pick-folder")
+						}
+					}
+				}
+				// Folder controls click
+				if mode == "folder" && clickY >= yOffset + 4 && clickY <= yOffset + 5 {
+					if clickX >= 28 && clickX <= 40 {
+						// Next
+						if !m.busy {
+							m.busy = true
+							return m, m.runAction("wallpaper-next")
+						}
+					} else if clickX >= 41 && clickX <= 53 {
+						// Stop
+						if !m.busy {
+							m.busy = true
+							return m, m.runAction("wallpaper-stop")
+						}
+					} else if clickX >= 54 && clickX <= 74 {
+						// Interval (increment by 300s)
+						if !m.busy {
+							m.busy = true
+							return m, m.interval(300)
+						}
+					}
+				}
+			}
+
+			// 2. Check theme grid click
+			heroHeight := 10
+			themeGridY := yOffset + heroHeight + 1
+			cols := m.gridColumnsFor(m.contentWidth())
+			tileW := m.themeTileWidth(m.contentWidth(), cols)
+			gridStartY := themeGridY + 3
+
+			selectedRow := m.selected / cols
+			themeRows := max(1, (m.height-15)/5)
+			startRow := 0
+			if selectedRow >= themeRows {
+				startRow = selectedRow - themeRows + 1
+			}
+			if startRow > 0 {
+				gridStartY += 1
+			}
+
+			if clickY >= gridStartY && clickY < gridStartY + themeRows * 5 {
+				clickRow := (clickY - gridStartY) / 5
+				clickCol := -1
+				for c := 0; c < cols; c++ {
+					x1 := 1 + c * (tileW + 4)
+					x2 := x1 + tileW + 2
+					if clickX >= x1 && clickX < x2 {
+						clickCol = c
+						break
+					}
+				}
+				if clickCol >= 0 {
+					themeIdx := (startRow + clickRow) * cols + clickCol
+					if themeIdx >= 0 && themeIdx < len(m.themes) {
+						m.selected = themeIdx
+						if !m.busy {
+							slug := m.themes[m.selected].slug
+							m.busy = true
+							m.applying = slug
+							m.message = fmt.Sprintf("Applying %s…", slug)
+							return m, m.apply(slug)
+						}
+					}
+				}
+			}
+		}
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
