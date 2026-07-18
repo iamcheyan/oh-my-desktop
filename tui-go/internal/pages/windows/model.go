@@ -150,10 +150,10 @@ func (m Model) View() string {
 	}
 
 	left := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.FitBlock(m.statusView(panelInnerW), panelInnerW, panelInnerH),
+		ui.PreserveBackground(ui.FitBlock(m.statusView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
 	)
 	right := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.FitBlock(m.opsView(panelInnerW, panelInnerH), panelInnerW, panelInnerH),
+		ui.PreserveBackground(ui.FitBlock(m.opsView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), ui.Panel),
 	)
 	help := ui.SubtleText.Render("r refresh  c connect  s start  x stop  w web console  q quit")
 
