@@ -642,10 +642,17 @@ Scope {
             IconActionRow {
                 PopupIconButton {
                     icon: NerdIconMap.workspaceSnapshot
-                    label: sessionPanel.canvasEmpty ? "Snapshot" : "Snapshot"
+                    label: "Save"
                     accent: TuiStyle.info
                     enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
                     onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "save"]); }
+                }
+                PopupIconButton {
+                    icon: NerdIconMap.close
+                    label: "Save & Close"
+                    accent: TuiStyle.warning
+                    enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
+                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "save-close"]); }
                 }
                 PopupIconButton {
                     icon: NerdIconMap.refresh
@@ -653,13 +660,6 @@ Scope {
                     accent: TuiStyle.accent
                     enabledState: sessionPanel.hasSnapshot
                     onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "restore"]); }
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.close
-                    label: "Clear"
-                    accent: TuiStyle.danger
-                    enabledState: sessionPanel.hasSnapshot
-                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "clear"]); }
                 }
             }
         }
