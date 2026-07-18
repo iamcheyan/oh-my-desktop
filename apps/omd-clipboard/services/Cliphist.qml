@@ -9,7 +9,7 @@ import Quickshell.Io
 Singleton {
     id: root
     property string cliphistBinary: "cliphist"
-    property string pressPasteCommand: "YDOTOOL_SOCKET=/tmp/.ydotool_socket ydotool key -d 1 29:1 47:1 47:0 29:0"
+    property string pressPasteCommand: "OMD_PASTE_DELAY=0.05 \"$HOME/.config/omd/bin/omd-paste-at-cursor\" auto"
     property int maxEntries: 40
     property list<string> entries: []
     readonly property var reEntryPrefix: /^\s*\S+\s+/

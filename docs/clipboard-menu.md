@@ -53,7 +53,14 @@ The existing image-to-path behavior is intentionally preserved. Calling
 
 1. decodes the image to `/tmp/omd-clip-<timestamp>.png`;
 2. writes that path plus a trailing space to the clipboard;
-3. simulates paste into the previously focused application.
+3. calls `omd-paste-at-cursor auto` to paste into the previously focused
+   application.
+
+Do not call `ydotool Ctrl+V` directly from the clipboard UI. Some machines do
+not run `ydotoold`, and on Japanese keyboard layouts ydotool's kernel scancode
+for `V` may not resolve to the `V` keysym. The shared paste helper uses
+Hyprland / wtype / ydotool fallbacks and picks terminal-specific paste actions
+where needed.
 
 Do not replace this with ordinary image paste. Both actions are useful:
 clicking the row pastes image data, while the row action or `Ctrl+Enter` pastes

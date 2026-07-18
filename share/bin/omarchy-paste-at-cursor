@@ -76,6 +76,25 @@ resolve_mode() {
     fi
 }
 
+resolve_window_class() {
+    command -v hyprctl >/dev/null 2>&1 || return
+    command -v jq >/dev/null 2>&1 || return
+
+    case "$WIN_TARGET" in
+        address:*)
+            addr="${WIN_TARGET#address:}"
+            if [ -z "$WIN_CLASS" ]; then
+                WIN_CLASS="$(hyprctl -j clients 2>/dev/null | jq -r --arg a "$addr" '.[] | select(.address == $a) | .class // empty' 2>/dev/null || true)"
+            fi
+            ;;
+        *)
+            if [ -z "$WIN_CLASS" ]; then
+                WIN_CLASS="$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)"
+            fi
+            ;;
+    esac
+}
+
 window_exists() {
     target="$1"
     case "$target" in
@@ -146,25 +165,51 @@ paste_ctrl_v() {
         || send_ydotool "29:1 47:1 47:0 29:0"
 }
 
-# kitty 远程控制：直接触发 paste_from_clipboard，不依赖快捷键映射
+# kitty remote control: inject clipboard text directly into the active kitty
+# window. This is more reliable than triggering paste_from_clipboard from a
+# separate process, and it does not depend on keybindings or ydotoold.
 paste_kitty_remote() {
     command -v kitty >/dev/null 2>&1 || return 1
+    command -v wl-paste >/dev/null 2>&1 || return 1
 
-    if kitty @ action paste_from_clipboard >/dev/null 2>&1; then
-        return 0
-    fi
-
-    for sock in /tmp/mykitty /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
-        [ -e "$sock" ] || continue
-        case "$sock" in
-            */kitty-*)
-                kitty @ --to "unix:$sock" action paste_from_clipboard >/dev/null 2>&1 && return 0
+    kitty_pid=""
+    if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        case "$WIN_TARGET" in
+            address:*)
+                addr="${WIN_TARGET#address:}"
+                kitty_pid="$(hyprctl -j clients 2>/dev/null | jq -r --arg a "$addr" '.[] | select(.address == $a and (.class? | test("kitty"; "i"))) | .pid // empty' 2>/dev/null || true)"
+                if [ -z "$kitty_pid" ]; then
+                    return 1
+                fi
                 ;;
             *)
-                kitty @ --to "unix:$sock" action paste_from_clipboard >/dev/null 2>&1 && return 0
+                kitty_pid="$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)"
+                ;;
+        esac
+    fi
+
+    send_to_kitty() {
+        to_arg="$1"
+        wl-paste 2>/dev/null | kitty @ --to "$to_arg" send-text --stdin --bracketed-paste auto >/dev/null 2>&1
+    }
+
+    if [ -n "$kitty_pid" ] && [ -S "/tmp/mykitty-$kitty_pid" ]; then
+        send_to_kitty "unix:/tmp/mykitty-$kitty_pid" && return 0
+    fi
+
+    for sock in /tmp/mykitty /tmp/mykitty-* /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+        [ -e "$sock" ] || continue
+        case "$sock" in
+            */kitty-*|*/mykitty-*)
+                send_to_kitty "unix:$sock" && return 0
+                ;;
+            *)
+                send_to_kitty "unix:$sock" && return 0
                 ;;
         esac
     done
+
+    wl-paste 2>/dev/null | kitty @ send-text --stdin --bracketed-paste auto >/dev/null 2>&1 && return 0
 
     return 1
 }
@@ -177,9 +222,9 @@ paste_for_terminal() {
     case "$(normalize_class "$class")" in
         kitty*)
             paste_kitty_remote \
-                || paste_ctrl_v "$target" \
                 || paste_shift_insert "$target" \
-                || paste_ctrl_shift_v "$target"
+                || paste_ctrl_shift_v "$target" \
+                || paste_ctrl_v "$target"
             ;;
         foot*)
             paste_shift_insert "$target" \
@@ -199,6 +244,7 @@ paste_for_terminal() {
     esac
 }
 
+resolve_window_class
 RESOLVED_MODE="$(resolve_mode)"
 TARGET="$(resolve_target)"
 

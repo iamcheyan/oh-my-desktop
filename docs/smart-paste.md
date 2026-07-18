@@ -33,14 +33,15 @@ targets keep normal paste (GUI apps render the image).
 `Cliphist.pasteSmart(entry)` decides at paste time:
 
 - If the entry is **not** an image → delegate to the existing `Cliphist.paste`
-  (decode entry → `wl-copy` → `ydotool Ctrl+V`).
+  (decode entry → `wl-copy` → `omd-paste-at-cursor auto`).
 - If the entry **is** an image → run a single bash command that:
   1. Reads the focused window class: `hyprctl activewindow -j | jq -r '.class'`.
   2. Matches it against the terminal list (`kitty`, `alacritty`, `foot`,
      `wezterm`, `xterm`, `XTerm`, `tmux`, `urxvt`, `Rxvt`, `st-terminal`).
   3. If it's a terminal → image-to-path: `cliphist decode > /tmp/omd-clip-<ts>.png`,
-     `wl-copy` the path, `ydotool Ctrl+V`, `notify-send`.
-  4. Otherwise → normal image paste: `cliphist decode | wl-copy`, `ydotool Ctrl+V`.
+     `wl-copy` the path, `omd-paste-at-cursor auto`, `notify-send`.
+  4. Otherwise → normal image paste: `cliphist decode | wl-copy`,
+     `omd-paste-at-cursor auto`.
 
 The terminal detection runs **inside the bash command** (not in QML) because
 the OMD clipboard app is a separate Quickshell process without access to the
@@ -56,15 +57,16 @@ even while the dialog is open. Verified empirically: with the dialog open,
 `hyprctl activewindow -j` returns `kitty`, not the dialog. So the terminal
 detection at click time is correct.
 
-The existing `paste`/`pasteImagePath` functions already rely on a `sleep 0.1`
-before `ydotool Ctrl+V` so the dialog can dismiss and keyboard focus returns to
-the target window; `pasteSmart` reuses the same `pressPasteCommand` and timing.
+The existing `paste`/`pasteImagePath` functions already rely on a short delay
+before `omd-paste-at-cursor auto` so the dialog can dismiss and keyboard focus
+returns to the target window; `pasteSmart` reuses the same `pressPasteCommand`
+and timing.
 
 ### Files changed (commit `11c4fa4`)
 
 | File | Change |
 |---|---|
-| `apps/omd-clipboard/services/Cliphist.qml` | Added `pasteSmart(entry)` function (terminal-detection bash + image→path / normal-paste branching). |
+| `apps/omd-clipboard/services/Cliphist.qml` | Added `pasteSmart(entry)` function (terminal-detection bash + image→path / normal-paste branching). Clipboard menu paste uses `omd-paste-at-cursor auto`, not hard-coded `ydotool Ctrl+V`. |
 | `apps/omd-clipboard/modules/clipboard/widgets/ClipboardItem.qml` | Main `onClicked` now calls `Cliphist.pasteSmart(root.entry)` instead of `Cliphist.paste(root.entry)`. |
 | `apps/omd-clipboard/modules/clipboard/ClipboardDialog.qml` | `pasteSelected(asPath)` else-branch (keyboard Enter) calls `Cliphist.pasteSmart(entry)` for consistency. |
 
@@ -74,8 +76,8 @@ unchanged and still forces paste-as-path regardless of target.
 ### Verification
 
 - Mock-tested the bash logic for both branches (terminal → creates
-  `/tmp/omd-clip-*.png` + `wl-copy` path + `ydotool` + notify; non-terminal →
-  `wl-copy` raw image bytes + `ydotool`).
+  `/tmp/omd-clip-*.png` + `wl-copy` path + `omd-paste-at-cursor` + notify;
+  non-terminal → `wl-copy` raw image bytes + `omd-paste-at-cursor`).
 - Loaded the `omd-clipboard` app to confirm no QML syntax errors.
 - Confirmed `hyprctl activewindow` returns the terminal while the dialog is open.
 
@@ -113,14 +115,25 @@ paste mode, matching kitty's native paste behavior.
 ### Socket resolution
 
 `launch --type=background` does **not** set the `KITTY_LISTEN_ON` environment
-variable for the child process. The script finds the socket by walking up the
-process tree to the `kitty` parent and using `/tmp/mykitty-<pid>` (kitty
-appends the PID to the `listen_on` path to avoid multi-instance collisions).
-Fallbacks: a single existing `/tmp/mykitty-*` socket, then `unix:/tmp/mykitty`.
+variable for the child process. The script now resolves the socket in this
+order:
+
+1. `KITTY_LISTEN_ON`, when present.
+2. The focused Hyprland kitty window PID: `/tmp/mykitty-<pid>`.
+3. A kitty parent in the process tree: `/tmp/mykitty-<pid>`.
+4. A single existing `/tmp/mykitty-*` socket.
+5. `/tmp/mykitty`, then the first available `/tmp/mykitty-*` as a last resort.
+
+This matters on machines with multiple kitty windows, because `listen_on
+unix:/tmp/mykitty` creates per-process sockets such as `/tmp/mykitty-78386`.
 
 ```sh
 resolve_socket() {
   if [ -n "${KITTY_LISTEN_ON:-}" ]; then echo "$KITTY_LISTEN_ON"; return; fi
+  active_pid=$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)
+  if [ -n "$active_pid" ] && [ -S "/tmp/mykitty-$active_pid" ]; then
+    echo "unix:/tmp/mykitty-$active_pid"; return
+  fi
   p=$$
   for _ in 1 2 3 4 5 6; do
     p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
@@ -132,6 +145,10 @@ resolve_socket() {
   done
   set -- /tmp/mykitty-*
   if [ $# -eq 1 ] && [ -S "$1" ]; then echo "unix:$1"; return; fi
+  if [ -S /tmp/mykitty ]; then echo "unix:/tmp/mykitty"; return; fi
+  for sock in /tmp/mykitty-*; do
+    if [ -S "$sock" ]; then echo "unix:$sock"; return; fi
+  done
   echo "unix:/tmp/mykitty"
 }
 ```
@@ -139,10 +156,9 @@ resolve_socket() {
 ### Interaction with the clipboard manager
 
 The clipboard manager's `paste`/`pasteSmart` paste by putting content on the
-clipboard and sending `ydotool Ctrl+V`. With this kitty bind, that `Ctrl+V` is
-intercepted by kitty and runs the smart-paste script. The script re-reads the
-clipboard (which now holds the path text) → no image → pastes the text. So both
-flows route through the script consistently and work end-to-end.
+clipboard and calling `omd-paste-at-cursor auto`. In kitty, that helper prefers
+kitty remote control and pastes the current clipboard payload directly; this
+avoids depending on `ydotoold` and avoids keyboard-layout scancode issues.
 
 ### Files changed
 
@@ -182,11 +198,25 @@ file** was being edited. This is documented here so it doesn't recur.
 
 ### The problem
 
-`~/.config/kitty` was a symlink to `~/dotfiles/TWM/kitty` (a separate git
-repo, `iamcheyan/TWM`). OMD's own `config/kitty/kitty.conf` symlinked to a
-**different** file (`~/dotfiles/config/kitty/kitty.conf`, different font/content)
-that kitty did **not** load. Early edits went to the unused file, so binds never
-took effect.
+`~/.config/kitty` and `config/kitty/kitty.conf` have moved through several
+layouts during migration. On one machine, `config/kitty/kitty.conf` was still a
+symlink to `~/dotfiles/config/kitty/kitty.conf`; that external file contained
+`map ctrl+v paste_from_clipboard`, so the smart-paste script existed but was
+never called.
+
+OMD now keeps `config/kitty/kitty.conf` as a real tracked file with:
+
+```conf
+map ctrl+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-paste
+```
+
+If this feature works on one machine but not another, check the actual loaded
+file and mapping:
+
+```sh
+readlink -f ~/.config/kitty/kitty.conf
+grep -n 'ctrl+v\\|omd-kitty-smart-paste\\|paste_from_clipboard' ~/.config/kitty/kitty.conf
+```
 
 ### What was done
 

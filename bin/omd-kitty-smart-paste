@@ -25,6 +25,12 @@ resolve_socket() {
   if [ -n "${KITTY_LISTEN_ON:-}" ]; then
     echo "$KITTY_LISTEN_ON"; return
   fi
+
+  active_pid=$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)
+  if [ -n "$active_pid" ] && [ -S "/tmp/mykitty-$active_pid" ]; then
+    echo "unix:/tmp/mykitty-$active_pid"; return
+  fi
+
   p=$$
   for _ in 1 2 3 4 5 6; do
     p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
@@ -38,11 +44,24 @@ resolve_socket() {
   if [ $# -eq 1 ] && [ -S "$1" ]; then
     echo "unix:$1"; return
   fi
+  if [ -S /tmp/mykitty ]; then
+    echo "unix:/tmp/mykitty"; return
+  fi
+  for sock in /tmp/mykitty-*; do
+    if [ -S "$sock" ]; then
+      echo "unix:$sock"; return
+    fi
+  done
   echo "unix:/tmp/mykitty"
 }
 
 KC=$(resolve_socket)
 log "socket=$KC"
+
+if [ "${1:-}" = "--print-socket" ]; then
+  echo "$KC"
+  exit 0
+fi
 
 send() { kitty @ --to "$KC" send-text --stdin --bracketed-paste auto; }
 
