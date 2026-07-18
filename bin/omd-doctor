@@ -109,6 +109,25 @@ else
   warn "file/folder picker missing: install kdialog or zenity"
 fi
 
+section "login keyring"
+check_cmd gnome-keyring-daemon "GNOME Keyring daemon"
+pam_keyring_module="$(find /usr/lib /lib -path '*/security/pam_gnome_keyring.so' -print -quit 2>/dev/null || true)"
+if [[ -n "$pam_keyring_module" ]]; then
+  ok "GNOME Keyring PAM module: $pam_keyring_module"
+else
+  fail "GNOME Keyring PAM module missing; install gnome-keyring-pam (Fedora), libpam-gnome-keyring (Debian), or gnome-keyring (Arch)"
+fi
+if [[ -f /etc/pam.d/sddm ]]; then
+  if grep -Eq '^[[:space:]]*-?auth.*pam_gnome_keyring\.so' /etc/pam.d/sddm \
+      && grep -Eq '^[[:space:]]*-?session.*pam_gnome_keyring\.so.*auto_start' /etc/pam.d/sddm; then
+    ok "SDDM passes the login password to GNOME Keyring"
+  else
+    warn "SDDM PAM does not enable GNOME Keyring auth and auto_start; login cannot unlock the keyring automatically"
+  fi
+else
+  warn "SDDM PAM configuration not found; verify keyring auto-unlock for the active display manager"
+fi
+
 section "fonts"
 check_font "Cantarell" "main UI font"
 check_font "Noto Color Emoji" "emoji font"

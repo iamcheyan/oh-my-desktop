@@ -143,6 +143,7 @@ PACKAGES_POWER=(
     power-profiles-daemon
     polkit-gnome
     gnome-keyring
+    gnome-keyring-pam
 )
 
 # Terminal
@@ -250,6 +251,7 @@ get_debian_pkg() {
         power-profiles-daemon)  echo "power-profiles-daemon" ;;
         polkit-gnome)           echo "polkit-gnome" ;;
         gnome-keyring)          echo "gnome-keyring" ;;
+        gnome-keyring-pam)      echo "libpam-gnome-keyring" ;;
         foot)                   echo "foot" ;;
         kitty)                  echo "kitty" ;;
         jq)                     echo "jq" ;;
@@ -328,6 +330,7 @@ get_fedora_pkg() {
         power-profiles-daemon)  echo "power-profiles-daemon" ;;
         polkit-gnome)           echo "polkit-gnome" ;;
         gnome-keyring)          echo "gnome-keyring" ;;
+        gnome-keyring-pam)      echo "gnome-keyring-pam" ;;
         foot)                   echo "foot" ;;
         kitty)                  echo "kitty" ;;
         jq)                     echo "jq" ;;
@@ -375,6 +378,7 @@ get_arch_pkg() {
         network-manager-editor) echo "nm-connection-editor" ;;
         bluez)                  echo "bluez" ;;
         bluez-utils)            echo "bluez-utils" ;;  # bluetoothctl on Arch
+        gnome-keyring-pam)      echo "gnome-keyring" ;; # PAM module ships in the main package
         rfkill)                 echo "util-linux" ;;
         ffmpeg)                 echo "ffmpeg" ;;
         cantarell-fonts)        echo "cantarell-fonts" ;;

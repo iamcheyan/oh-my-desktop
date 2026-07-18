@@ -91,11 +91,6 @@ ColumnLayout {
         }
     }
 
-    QtObject {
-        id: appearanceState
-        property string currentFont: ""
-        property int terminalFontSize: 9
-    }
 
     QtObject {
         id: themeState
@@ -225,7 +220,7 @@ ColumnLayout {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 110
+                        Layout.preferredHeight: 88
                         radius: SettingsTokens.radius
                         color: themeState.currentBackground || SettingsTokens.button
                         border.width: 1
@@ -244,9 +239,9 @@ ColumnLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 18
                             anchors.rightMargin: 14
-                            anchors.topMargin: 14
-                            anchors.bottomMargin: 12
-                            spacing: 10
+                            anchors.topMargin: 12
+                            anchors.bottomMargin: 10
+                            spacing: 8
 
                             StyledText {
                                 Layout.fillWidth: true
@@ -257,25 +252,13 @@ ColumnLayout {
                                 elide: Text.ElideRight
                             }
 
-                            RowLayout {
+                            Rectangle {
                                 Layout.fillWidth: true
-                                spacing: 8
-                                Repeater {
-                                    model: [
-                                        themeState.currentAccent || SettingsTokens.accent,
-                                        themeState.currentForeground || SettingsTokens.fg,
-                                        themeState.currentBackground || "#000000"
-                                    ]
-                                    delegate: Rectangle {
-                                        required property string modelData
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 22
-                                        radius: 11
-                                        color: modelData
-                                        border.width: 1
-                                        border.color: SettingsTokens.buttonBorder
-                                    }
-                                }
+                                Layout.preferredHeight: 12
+                                radius: 6
+                                color: themeState.currentAccent || SettingsTokens.accent
+                                border.width: 1
+                                border.color: SettingsTokens.buttonBorder
                             }
 
                             StyledText {
@@ -342,7 +325,7 @@ ColumnLayout {
                                     const cols = pageRoot.wideLayout ? 2 : 2
                                     return Math.max(160, Math.floor((themeFlow.width - themeFlow.spacing * (cols - 1)) / cols))
                                 }
-                                height: 118
+                                height: 96
                                 radius: SettingsTokens.roundRadius
                                 color: modelData.background || SettingsTokens.button
                                 border.width: modelData.current ? 2 : 1
@@ -369,9 +352,9 @@ ColumnLayout {
                                     anchors.fill: parent
                                     anchors.leftMargin: 16
                                     anchors.rightMargin: 12
-                                    anchors.topMargin: 12
-                                    anchors.bottomMargin: 10
-                                    spacing: 8
+                                    anchors.topMargin: 10
+                                    anchors.bottomMargin: 8
+                                    spacing: 6
 
                                     RowLayout {
                                         Layout.fillWidth: true
@@ -402,27 +385,13 @@ ColumnLayout {
                                         elide: Text.ElideRight
                                     }
 
-                                    Item { Layout.fillHeight: true }
-
-                                    RowLayout {
+                                    Rectangle {
                                         Layout.fillWidth: true
-                                        spacing: 6
-                                        Repeater {
-                                            model: [
-                                                modelData.accent || SettingsTokens.accent,
-                                                modelData.foreground || SettingsTokens.fg,
-                                                modelData.background || "#000000"
-                                            ]
-                                            delegate: Rectangle {
-                                                required property string modelData
-                                                Layout.fillWidth: true
-                                                Layout.preferredHeight: 16
-                                                radius: 8
-                                                color: modelData
-                                                border.width: 1
-                                                border.color: SettingsTokens.buttonBorder
-                                            }
-                                        }
+                                        Layout.preferredHeight: 10
+                                        radius: 5
+                                        color: modelData.accent || SettingsTokens.accent
+                                        border.width: 1
+                                        border.color: SettingsTokens.buttonBorder
                                     }
                                 }
 
@@ -666,34 +635,7 @@ ColumnLayout {
                     }
                 }
 
-                // Terminal font
-                SettingsSection {
-                    title: "Terminal font"
 
-                    SettingsRow {
-                        label: "Family"
-                        value: appearanceState.currentFont.length > 0 ? appearanceState.currentFont : "--"
-                        clickable: false
-                    }
-
-                    SettingsSliderRow {
-                        label: "Size"
-                        description: "foot, kitty, alacritty, ghostty · new windows"
-                        from: 6
-                        to: 24
-                        stepSize: 1
-                        value: appearanceState.terminalFontSize
-                        valueSuffix: "pt"
-                        onMoved: appearanceState.terminalFontSize = Math.round(value)
-                    }
-
-                    SettingsButton {
-                        Layout.fillWidth: true
-                        label: "Apply font size"
-                        iconName: "check"
-                        onClicked: applyTerminalFontProc.running = true
-                    }
-                }
 
                 // Performance
                 SettingsSection {
@@ -797,48 +739,7 @@ ColumnLayout {
     }
 
     Process {
-        id: fontSizeReadProc
-        command: [
-            "bash", "-c",
-            'grep -oP "(?<=font_size\\s)\\S+" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null | head -1 || grep -oP "(?<=size\\s=\\s)\\S+" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null | head -1 || echo 9'
-        ]
-        running: true
-        stdout: StdioCollector {
-            id: fontSizeCollector
-            onStreamFinished: {
-                const val = parseFloat(fontSizeCollector.text.trim())
-                if (!isNaN(val) && val > 0)
-                    appearanceState.terminalFontSize = Math.round(val)
-            }
-        }
-    }
 
-    Process {
-        id: applyTerminalFontProc
-        running: false
-        command: [
-            "bash", "-c",
-            'SIZE=' + appearanceState.terminalFontSize + '\n' +
-            'sed -i "s/font=\\(.*\\):size=[0-9]*/font=\\1:size=$SIZE/" "$HOME/.config/omd/config/foot/foot.ini" 2>/dev/null\n' +
-            'sed -i "s/font_size\\s.*/font_size $SIZE.0/" "$HOME/.config/omd/config/kitty/kitty.conf" 2>/dev/null\n' +
-            'sed -i "s/size\\s=\\s[0-9]*/size = $SIZE/" "$HOME/.config/omd/config/alacritty/alacritty.toml" 2>/dev/null\n' +
-            'sed -i "s/font-size\\s=\\s[0-9]*/font-size = $SIZE/" "$HOME/.config/omd/config/ghostty/config" 2>/dev/null\n' +
-            'true'
-        ]
-        onExited: fontSizeReadProc.running = true
-    }
-
-    Process {
-        id: fontCurrentProc
-        command: ["bash", "-c", "omd-font-current 2>/dev/null || echo 'JetBrains Mono'"]
-        running: true
-        stdout: StdioCollector {
-            id: fontCurrentCollector
-            onStreamFinished: {
-                appearanceState.currentFont = fontCurrentCollector.text.trim()
-            }
-        }
-    }
 
     Process {
         id: themeListProc

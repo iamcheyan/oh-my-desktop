@@ -69,6 +69,35 @@ Core dependencies include:
 - `kdialog` or `zenity` for wallpaper image/folder selection
 - `nvim` and Lazy.nvim/LazyVim for the optional Neovim theme integration
 
+## Login Keyring Auto-Unlock
+
+OMD uses GNOME Keyring through `secret-tool` for small sensitive values. The
+keyring should be unlocked by the password already entered in SDDM; a second
+prompt after login is not expected.
+
+This requires both parts of GNOME Keyring:
+
+- the `gnome-keyring-daemon` runtime;
+- the PAM module that receives the SDDM login password.
+
+The PAM module is packaged separately on some distributions:
+
+| Distribution | Package |
+| --- | --- |
+| Fedora / Fedora Asahi Remix | `gnome-keyring-pam` |
+| Debian / Ubuntu | `libpam-gnome-keyring` |
+| Arch Linux | `gnome-keyring` |
+
+`Init.sh` installs the appropriate package. `bin/omd-doctor` also checks that
+`pam_gnome_keyring.so` exists and that `/etc/pam.d/sddm` contains both the
+`auth` hook and the `session ... auto_start` hook.
+
+The keyring password must match the SDDM login password. If the PAM module is
+installed but the prompt still appears, use Seahorse (Passwords and Keys) to
+change the `Default Keyring` password to the current login password. This keeps
+the stored secrets. Deleting `~/.local/share/keyrings` is a destructive reset
+and must not be used as an automatic repair.
+
 ## Terminal Theme Behavior
 
 Omarchy themes generate terminal-specific files in:
