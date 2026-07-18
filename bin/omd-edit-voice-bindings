@@ -3,7 +3,7 @@ set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 bindings_file="$OMD_ROOT/config/voice_bindings.txt"
-editor="${EDITOR:-nvim}"
+editor="vi"
 
 mkdir -p "$(dirname "$bindings_file")"
 if [[ ! -f "$bindings_file" ]]; then

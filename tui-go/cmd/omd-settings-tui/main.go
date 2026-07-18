@@ -11,6 +11,7 @@ import (
 	themepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/theme"
 	voicepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/voice"
 	windowspage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/windows"
+	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/ui"
 )
 
 func main() {
@@ -29,6 +30,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
+	ui.InitTheme(root)
 
 	var model tea.Model
 	switch route {

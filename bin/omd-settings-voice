@@ -187,6 +187,7 @@ status() {
   kv socket "$SOCKET"
   kv daemonRunning "$(bool daemon_running)"
   kv recording "$(bool recording_active)"
+  kv micLevel "$(mic_level)"
   kv bindingsFile "$BINDINGS_FILE"
   kv defaultTrigger "ALT + A"
   kv defaultsApply "true"
@@ -590,6 +591,54 @@ test_tui() {
   kv result "test-done"
 }
 
+# mic_level samples the active recording WAV and returns a 0–100 peak-ish
+# level so the TUI can show live feedback while the user speaks. Returns 0
+# when not recording or when the file is still too short to analyze.
+mic_level() {
+  if ! recording_active; then
+    printf '0'
+    return
+  fi
+  local wav="/tmp/omd-voice-rec.wav"
+  if [[ ! -f "$wav" ]]; then
+    printf '0'
+    return
+  fi
+  python3 - "$wav" <<'PY' 2>/dev/null || printf '0'
+import struct, sys, os
+path = sys.argv[1]
+try:
+    size = os.path.getsize(path)
+    if size < 44 + 3200:  # need ~0.1s of 16kHz s16le mono
+        print(0)
+        raise SystemExit
+    # Read last ~0.2s of PCM samples (6400 bytes) after the 44-byte header.
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        end = f.tell()
+        nbytes = min(6400, max(0, end - 44))
+        nbytes -= nbytes % 2
+        f.seek(end - nbytes)
+        raw = f.read(nbytes)
+    if len(raw) < 2:
+        print(0)
+        raise SystemExit
+    n = len(raw) // 2
+    peak = 0
+    # Subsample for speed
+    step = max(1, n // 400)
+    for i in range(0, n, step):
+        v = abs(struct.unpack_from("<h", raw, i * 2)[0])
+        if v > peak:
+            peak = v
+    # Map 16-bit peak to 0–100 with a soft speech threshold.
+    level = int(min(100, peak * 100 / 12000))
+    print(level)
+except Exception:
+    print(0)
+PY
+}
+
 # record-start / record-stop let the TUI drive a recording session directly
 # (rather than launching the external test TUI). The omarchy-voice-record
 # script manages the parecord PID at REC_PID_PATH, which recording_active()
@@ -601,16 +650,22 @@ record_start() {
 
 record_stop() {
   "$OMD_ROOT/share/bin/omarchy-voice-record" stop >/dev/null 2>&1 || true
-  # Transcribe the captured wav and push the result into recent.json.
+  # Transcribe the captured wav and always push a recent entry (empty text
+  # means no speech detected) so the TUI can leave the "transcribing" phase.
   local wav="/tmp/omd-voice-rec.wav"
+  local text=""
   if [[ -f "$wav" ]]; then
-    local text
     text="$("$OMD_ROOT/share/bin/omarchy-voice-transcribe" "$wav" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("text",""))' 2>/dev/null || true)"
-    if [[ -n "$text" ]]; then
-      push_recent "$text"
-    fi
   fi
+  push_recent "$text"
+  kv text "$text"
   kv result "record-stopped"
+}
+
+# record-cancel stops the recorder without transcription (Esc/Q on the trial).
+record_cancel() {
+  "$OMD_ROOT/share/bin/omarchy-voice-record" stop >/dev/null 2>&1 || true
+  kv result "record-cancelled"
 }
 
 case "${1:-status}" in
@@ -641,12 +696,13 @@ case "${1:-status}" in
   record) record ;;                       # legacy: launches test TUI
   record-start) record_start ;;
   record-stop) record_stop ;;
+  record-cancel) record_cancel ;;
   recent)
     if [[ -f "$RECENT_FILE" ]]; then cat "$RECENT_FILE"; else printf '[]\n'; fi
     ;;
   recent-clear) rm -f "$RECENT_FILE"; kv result "recent-cleared" ;;
   *)
-    echo "usage: omd-settings-voice status|setup|cancel|add <key>|remove <key>|capture|key-test|edit|bind-tui|diagnose|test|delete-model|logs|record|record-start|record-stop|recent|recent-clear" >&2
+    echo "usage: omd-settings-voice status|setup|cancel|add <key>|remove <key>|capture|key-test|edit|bind-tui|diagnose|test|delete-model|logs|record|record-start|record-stop|record-cancel|recent|recent-clear" >&2
     exit 2
     ;;
 esac

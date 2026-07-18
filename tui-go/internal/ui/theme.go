@@ -1,6 +1,10 @@
 package ui
 
 import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -252,3 +256,99 @@ var (
 			BorderForeground(LineSoft).
 			Foreground(Subtle)
 )
+
+func InitTheme(root string) {
+	colorsPath := filepath.Join(root, "current", "theme", "colors.toml")
+	file, err := os.Open(colorsPath)
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		colorsPath = filepath.Join(home, ".config", "omd", "current", "theme", "colors.toml")
+		file, err = os.Open(colorsPath)
+	}
+
+	bgStr := "#050505"
+	fgStr := "#eeeeee"
+	accentStr := "#20d6c7"
+
+	if err == nil {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			val = strings.Trim(val, `"'`)
+			if !strings.HasPrefix(val, "#") {
+				val = "#" + val
+			}
+			switch key {
+			case "background":
+				bgStr = val
+			case "foreground":
+				fgStr = val
+			case "accent":
+				accentStr = val
+			}
+		}
+	}
+
+	bgC := lipgloss.Color(bgStr)
+	fgC := lipgloss.Color(fgStr)
+	accentC := lipgloss.Color(accentStr)
+
+	Background = bgC
+	Text = fgC
+	Accent = accentC
+	Panel = blend(bgC, fgC, 0.08)
+	PanelSoft = blend(bgC, fgC, 0.14)
+	Line = blend(bgC, fgC, 0.28)
+	LineSoft = blend(bgC, fgC, 0.18)
+	Muted = blend(bgC, fgC, 0.68)
+	Subtle = blend(bgC, fgC, 0.45)
+
+	// Rebuild styles
+	Screen = lipgloss.NewStyle().Background(Background).Foreground(Text)
+	Title = lipgloss.NewStyle().Foreground(Text).Bold(true)
+	Section = lipgloss.NewStyle().Foreground(Muted).Bold(true)
+	MutedText = lipgloss.NewStyle().Foreground(Muted)
+	SubtleText = lipgloss.NewStyle().Foreground(Subtle)
+	OKText = lipgloss.NewStyle().Foreground(Accent)
+	DangerText = lipgloss.NewStyle().Foreground(Danger)
+	WarnText = lipgloss.NewStyle().Foreground(Warn)
+	PanelBox = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(Line).Background(Panel).Padding(1, 2)
+	Button = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(Line).Background(Panel).Foreground(Text).Padding(0, 2).MarginRight(1)
+	PrimaryButton = Button.Copy().BorderForeground(Accent).Foreground(Accent).Bold(true)
+	DisabledButton = Button.Copy().BorderForeground(LineSoft).Foreground(Subtle)
+}
+
+func blend(c1, c2 lipgloss.Color, ratio float64) lipgloss.Color {
+	r1, g1, b1, ok1 := hexToRGB(string(c1))
+	r2, g2, b2, ok2 := hexToRGB(string(c2))
+	if !ok1 || !ok2 {
+		return c1
+	}
+	r := int(float64(r1)*(1-ratio) + float64(r2)*ratio)
+	g := int(float64(g1)*(1-ratio) + float64(g2)*ratio)
+	b := int(float64(b1)*(1-ratio) + float64(b2)*ratio)
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", r, g, b))
+}
+
+func hexToRGB(hex string) (int, int, int, bool) {
+	hex = strings.TrimPrefix(hex, "#")
+	if len(hex) != 6 {
+		return 0, 0, 0, false
+	}
+	var r, g, b int
+	_, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return r, g, b, true
+}

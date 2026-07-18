@@ -453,116 +453,12 @@ ColumnLayout {
                     Item { Layout.fillHeight: true }
                 }
 
-                // Detail
-                ColumnLayout {
-                    visible: pageRoot.showDetail
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    spacing: SettingsTokens.sectionGap
-
-                    Rectangle {
+                    // Detail
+                    ColumnLayout {
+                        visible: pageRoot.showDetail
                         Layout.fillWidth: true
-                        implicitHeight: 104
-                        radius: SettingsTokens.roundRadius
-                        color: pageRoot.selectedConnected ? SettingsTokens.accentSoft : SettingsTokens.panelAlt
-                        border.width: 1
-                        border.color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.line
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 14
-
-                            Rectangle {
-                                Layout.preferredWidth: 54
-                                Layout.preferredHeight: 54
-                                radius: SettingsTokens.radius
-                                color: SettingsTokens.panel
-                                border.width: 1
-                                border.color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.line
-
-                                MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    text: "keyboard"
-                                    iconSize: 28
-                                    color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 5
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: "Editing keyboard"
-                                    color: SettingsTokens.accent
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                }
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: pageRoot.selectedDisplayName
-                                    color: SettingsTokens.fg
-                                    font.pixelSize: Appearance.font.pixelSize.large
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                }
-
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    text: pageRoot.selectedKeydId.length > 0
-                                        ? `keyd ${pageRoot.selectedKeydId}`
-                                        : "Missing keyd id"
-                                    color: pageRoot.selectedKeydId.length > 0 ? SettingsTokens.muted : SettingsTokens.danger
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                spacing: 8
-
-                                RowLayout {
-                                    Layout.alignment: Qt.AlignRight
-                                    spacing: 8
-
-                                    Rectangle {
-                                        Layout.preferredWidth: 9
-                                        Layout.preferredHeight: 9
-                                        radius: 5
-                                        color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
-                                    }
-
-                                    StyledText {
-                                        text: pageRoot.selectedConnected ? "Connected now" : "Saved, disconnected"
-                                        color: pageRoot.selectedConnected ? SettingsTokens.accent : SettingsTokens.muted
-                                        font.pixelSize: Appearance.font.pixelSize.smaller
-                                        font.weight: Font.DemiBold
-                                    }
-                                }
-
-                                StyledText {
-                                    Layout.alignment: Qt.AlignRight
-                                    text: pageRoot.selectedPresetCount > 0
-                                        ? `${pageRoot.selectedPresetCount} preset${pageRoot.selectedPresetCount === 1 ? "" : "s"} active`
-                                        : "No presets active"
-                                    color: SettingsTokens.muted
-                                    font.pixelSize: Appearance.font.pixelSize.smaller
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: SettingsTokens.line
-                    }
+                        Layout.fillHeight: true
+                        spacing: SettingsTokens.sectionGap
 
                     ButtonRow {
                         visible: !pageRoot.wideLayout || KeyboardRemap.selectedDevice?.connected === false
@@ -581,17 +477,6 @@ ColumnLayout {
                                 pageRoot.closeDetail()
                             }
                         }
-                    }
-
-                    SettingsRow {
-                        iconName: "badge"
-                        label: KeyboardRemap.selectedDevice?.keydId || "Missing keyd id"
-                        description: KeyboardRemap.selectedKeydIdMissing
-                            ? "Remaps cannot apply until this ID is resolved."
-                            : "keyd vendor:product id"
-                        value: KeyboardRemap.selectedEnabled ? "Enabled" : "Disabled"
-                        valueColor: KeyboardRemap.selectedEnabled ? SettingsTokens.accent : SettingsTokens.muted
-                        clickable: false
                     }
 
                     SettingsToggleRow {

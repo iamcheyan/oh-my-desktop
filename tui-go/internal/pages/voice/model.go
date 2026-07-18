@@ -49,6 +49,17 @@ type Model struct {
 	logs          []string
 	scrollOffset  int
 	confirmRemove bool
+
+	// Space-driven voice trial — all feedback goes to DETAILED LOGS
+	trialListening    bool // true from Space-start until stop/cancel
+	trialTranscribing bool // true between stop and transcript result
+	trialSpeechSeen   bool // true once mic level crosses speech threshold
+	trialPeakLevel    int  // peak mic level during the current trial
+	trialLastLogAt    time.Time
+	trialLastLevel    int
+	animTick          int
+	lastResultText    string
+	lastResultTs      int64
 }
 
 func New(b backend.Backend) Model {
@@ -56,11 +67,23 @@ func New(b backend.Backend) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.fetchStatus(), tick())
+	return tea.Batch(
+		m.fetchStatus(),
+		tick(),
+		m.runAction("diagnose"),
+	)
 }
 
 func tick() tea.Cmd {
 	return tea.Tick(900*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// Faster poll while a trial is listening so mic-level feedback lands in the
+// log panel promptly.
+func trialTick() tea.Cmd {
+	return tea.Tick(400*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -102,7 +125,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						{"Record", "enter"},
 						{"Setup voice input", "enter"},
 						{"Cancel setup", "enter"},
-						{"Stop & transcribe", "enter"},
 						{"Delete model", "x"},
 						{"Confirm delete? y", "y"},
 						{"n (no)", "n"},
@@ -119,7 +141,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tickMsg:
-		cmds := []tea.Cmd{m.fetchStatus(), tick()}
+		m.animTick++
+		nextTick := tick()
+		if m.trialListening {
+			nextTick = trialTick()
+		}
+		cmds := []tea.Cmd{m.fetchStatus(), nextTick}
 		if m.state() == "downloading" {
 			cmds = append(cmds, m.fetchLogs())
 		}
@@ -139,6 +166,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = ""
 		if m.recording() && !wasRecording {
 			m.recStart = time.Now()
+			if m.trialListening {
+				m.appendLog("[trial] Recorder is live (parecord writing /tmp/omd-voice-rec.wav)")
+				m.appendLog("[trial] Speak now — audio level will update below")
+			}
+		}
+		if m.trialListening {
+			m.logTrialProgress()
+		}
+		if items := m.recentItems(); len(items) > 0 {
+			if items[0].Ts != m.lastResultTs || items[0].Text != m.lastResultText {
+				m.lastResultText = items[0].Text
+				m.lastResultTs = items[0].Ts
+			}
 		}
 		m.bindings = parseBindings(msg.Values.Raw())
 	case actionLogMsg:
@@ -146,14 +186,62 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.err = msg.err.Error()
 			m.message = "Action failed"
+			m.trialTranscribing = false
+			m.appendLog("[trial] ERROR: " + msg.err.Error())
 		} else {
 			m.err = ""
 			m.message = actionMessage(msg.action)
 		}
-		// Append action execution with stdout lines directly to console logs
+		// Keep raw backend stdout, then enrich with human trial narrative.
 		m.logs = append(m.logs, "$ "+msg.action)
 		m.logs = append(m.logs, msg.lines...)
-		m.logs = ui.ClipLines(m.logs, 140)
+		m.logs = ui.ClipLines(m.logs, 200)
+
+		switch msg.action {
+		case "record-start":
+			if msg.err == nil {
+				m.trialListening = true
+				m.appendLog("[trial] record-start acknowledged by backend")
+				m.appendLog("[trial] Waiting for microphone stream…")
+			} else {
+				m.trialListening = false
+			}
+		case "record-stop":
+			m.trialListening = false
+			text := ""
+			for _, line := range msg.lines {
+				if t, ok := strings.CutPrefix(line, "text="); ok {
+					text = t
+					m.lastResultText = t
+					m.lastResultTs = time.Now().Unix()
+					break
+				}
+			}
+			elapsed := 0
+			if !m.recStart.IsZero() {
+				elapsed = int(time.Since(m.recStart).Seconds())
+			}
+			m.appendLog("[trial] Transcription finished")
+			m.appendLog(fmt.Sprintf("[trial] Session duration: %s", ui.FormatDuration(elapsed)))
+			m.appendLog(fmt.Sprintf("[trial] Peak mic level: %d/100", m.trialPeakLevel))
+			if text == "" {
+				m.appendLog("[trial] Result: (no speech detected)")
+				m.appendLog("[trial] Tip: speak closer to the mic, or check input device mute")
+			} else {
+				m.appendLog("[trial] Result: \"" + text + "\"")
+				m.appendLog("[trial] Transcript saved to recent history")
+			}
+			m.appendLog("[trial] Press Space to try again")
+			m.trialTranscribing = false
+			m.trialSpeechSeen = false
+			m.trialPeakLevel = 0
+		case "record-cancel":
+			m.trialListening = false
+			m.trialTranscribing = false
+			m.trialSpeechSeen = false
+			m.trialPeakLevel = 0
+			m.appendLog("[trial] Recording cancelled — audio discarded (not transcribed)")
+		}
 		return m, m.fetchStatus()
 	case tea.KeyMsg:
 		return m.handleKey(msg.String())
@@ -176,8 +264,36 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Space / Esc trial controls take priority while a session is active,
+	// even if busy is still clearing from the previous action.
 	switch key {
-	case "q", "ctrl+c", "esc":
+	case " ", "space":
+		if m.trialTranscribing {
+			return m, nil
+		}
+		if m.trialListening || m.recording() {
+			return m.stopTrial()
+		}
+		if m.busy {
+			return m, nil
+		}
+		return m.startTrial()
+	case "esc":
+		if m.trialListening || m.recording() {
+			return m.cancelTrial()
+		}
+		return m, nil
+	}
+
+	switch key {
+	case "q", "ctrl+c":
+		if m.trialListening || m.recording() {
+			// Quit still cancels an open recording first.
+			m2, cmd := m.cancelTrial()
+			if cmd != nil {
+				return m2, tea.Batch(cmd, tea.Quit)
+			}
+		}
 		return m, tea.Quit
 	case "r":
 		return m, m.fetchStatus()
@@ -206,12 +322,12 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 		m.scrollOffset = 0
 		return m, nil
 	}
-	if m.busy {
+	if m.busy || m.trialTranscribing {
 		return m, nil
 	}
 
 	switch key {
-	case "enter", " ":
+	case "enter":
 		switch m.state() {
 		case "nomodel":
 			m.busy = true
@@ -222,10 +338,12 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 			m.message = "Cancelling..."
 			return m, m.runAction("cancel")
 		case "recording":
-			m.busy = true
-			m.message = "Transcribing..."
-			return m, m.runAction("record-stop")
+			return m.stopTrial()
 		default:
+			// Enter mirrors Space for the trial when the model is ready.
+			if m.bool("modelReady") {
+				return m.startTrial()
+			}
 			m.busy = true
 			m.message = "Recording..."
 			return m, m.runAction("record-start")
@@ -260,6 +378,136 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// startTrial begins a Space-driven listening session and logs the prompt.
+func (m Model) startTrial() (tea.Model, tea.Cmd) {
+	if !m.bool("modelReady") {
+		m.appendLog("[trial] Cannot start — model is not installed. Run Setup first.")
+		return m, nil
+	}
+	m.trialListening = true
+	m.trialTranscribing = false
+	m.trialSpeechSeen = false
+	m.trialPeakLevel = 0
+	m.trialLastLevel = -1
+	m.trialLastLogAt = time.Time{}
+	m.busy = true
+	m.message = "Listening..."
+	m.recStart = time.Now()
+	m.appendLog("")
+	m.appendLog("========== VOICE TRIAL ==========")
+	m.appendLog("[trial] Session started at " + time.Now().Format("15:04:05"))
+	m.appendLog("[trial] Please speak into your microphone")
+	m.appendLog("[trial] Space = stop & transcribe")
+	m.appendLog("[trial] Esc   = cancel without transcribing")
+	m.appendLog("[trial] Starting recorder…")
+	return m, tea.Batch(m.runAction("record-start"), trialTick())
+}
+
+// stopTrial ends listening and runs transcription, logging each step.
+func (m Model) stopTrial() (tea.Model, tea.Cmd) {
+	elapsed := 0
+	if !m.recStart.IsZero() {
+		elapsed = int(time.Since(m.recStart).Seconds())
+	}
+	m.trialListening = false
+	m.trialTranscribing = true
+	m.busy = true
+	m.message = "Transcribing..."
+	m.appendLog(fmt.Sprintf("[trial] Stop requested after %s", ui.FormatDuration(elapsed)))
+	m.appendLog(fmt.Sprintf("[trial] Speech detected during session: %v", m.trialSpeechSeen))
+	m.appendLog(fmt.Sprintf("[trial] Peak mic level: %d/100", m.trialPeakLevel))
+	m.appendLog("[trial] Stopping recorder and sending audio to SenseVoice…")
+	m.appendLog("[trial] Transcribing — this may take a few seconds…")
+	return m, m.runAction("record-stop")
+}
+
+// cancelTrial aborts without transcription.
+func (m Model) cancelTrial() (tea.Model, tea.Cmd) {
+	elapsed := 0
+	if !m.recStart.IsZero() {
+		elapsed = int(time.Since(m.recStart).Seconds())
+	}
+	m.trialListening = false
+	m.trialTranscribing = false
+	m.busy = true
+	m.message = "Cancelled"
+	m.appendLog(fmt.Sprintf("[trial] Cancel requested after %s — discarding audio", ui.FormatDuration(elapsed)))
+	return m, m.runAction("record-cancel")
+}
+
+// appendLog adds a line to the DETAILED LOGS panel (newest at bottom).
+func (m *Model) appendLog(line string) {
+	m.logs = append(m.logs, line)
+	m.logs = ui.ClipLines(m.logs, 200)
+	// Keep the viewport pinned to the latest output during a trial.
+	m.scrollOffset = 0
+}
+
+// logTrialProgress writes live listening feedback into the log panel.
+// Rate-limited so the list stays readable, but always logs speech edges.
+func (m *Model) logTrialProgress() {
+	level := ui.ParseInt(m.value("micLevel", "0"))
+	if level > m.trialPeakLevel {
+		m.trialPeakLevel = level
+	}
+
+	elapsed := 0
+	if !m.recStart.IsZero() {
+		elapsed = int(time.Since(m.recStart).Seconds())
+	}
+
+	const speechThreshold = 12
+	hearing := level >= speechThreshold
+	now := time.Now()
+
+	// Always log the first moment speech is heard.
+	if hearing && !m.trialSpeechSeen {
+		m.trialSpeechSeen = true
+		m.appendLog(fmt.Sprintf(
+			"[trial] Speech detected at %s  level=%d/100  %s",
+			ui.FormatDuration(elapsed), level, listeningWave(m.animTick, level),
+		))
+		m.appendLog("[trial] Keep speaking — press Space when finished")
+		m.trialLastLogAt = now
+		m.trialLastLevel = level
+		return
+	}
+
+	// Log when speech drops after we had been hearing the user.
+	if !hearing && m.trialSpeechSeen && m.trialLastLevel >= speechThreshold {
+		m.appendLog(fmt.Sprintf(
+			"[trial] Quiet again at %s  level=%d/100  (press Space to transcribe)",
+			ui.FormatDuration(elapsed), level,
+		))
+		m.trialLastLogAt = now
+		m.trialLastLevel = level
+		return
+	}
+
+	// Periodic heartbeat: every ~0.9s, or when level jumps by 15+.
+	levelJump := level - m.trialLastLevel
+	if levelJump < 0 {
+		levelJump = -levelJump
+	}
+	due := m.trialLastLogAt.IsZero() || now.Sub(m.trialLastLogAt) >= 900*time.Millisecond || levelJump >= 15
+	if !due {
+		return
+	}
+
+	phase := "Listening (waiting for speech)"
+	if hearing {
+		phase = "Hearing you"
+	} else if m.trialSpeechSeen {
+		phase = "Listening (paused / quiet)"
+	}
+	m.appendLog(fmt.Sprintf(
+		"[trial] %s  t=%s  level=%d/100  peak=%d  %s",
+		phase, ui.FormatDuration(elapsed), level, m.trialPeakLevel, listeningWave(m.animTick, level),
+	))
+	m.trialLastLogAt = now
+	m.trialLastLevel = level
+}
+
 func (m Model) View() string {
 	if m.width <= 0 || m.height <= 0 {
 		return "Initializing..."
@@ -285,6 +533,7 @@ func (m Model) View() string {
 	if status := m.statusLine(); status != "" {
 		parts = append([]string{status}, parts...)
 	}
+
 	return ui.Screen.Padding(1, 1).Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
@@ -301,7 +550,7 @@ func (m Model) mainPanel(width, height int) string {
 			leftW = max(28, width-2-rightW)
 		}
 		left := ui.PreserveBackground(ui.FitBlock(m.controlView(leftW), leftW, height), ui.Background)
-		right := ui.PreserveBackground(ui.FitBlock(m.rightPaneView(rightW, height), rightW, height), ui.Background)
+		right := ui.PreserveBackground(ui.FitBlock(m.rightPaneView(rightW, height), rightW, height), ui.Panel)
 		return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 	}
 
@@ -336,53 +585,21 @@ func (m Model) controlView(width int) string {
 	}
 
 	if m.bool("modelReady") {
-		recordLabel := "Record"
-		if m.recording() {
-			recordLabel = "Stop & transcribe"
-		}
 		lines = append(lines,
-			m.sectionTitle("TRIAL RECORD"),
-			ui.MutedText.Render("Test the mic and paste pipeline from this panel."),
-			m.actionPrimary(recordLabel, true, width),
+			m.sectionTitle("VOICE TRIGGERS"),
+			ui.MutedText.Render(ui.TruncateStyled("Press any of these keys to start voice input:", width)),
 			"",
-		)
-
-		lines = append(lines,
-			m.sectionTitle("BINDINGS"),
-			ui.MutedText.Render(ui.TruncateStyled("Primary trigger first. Esc cancels while recording.", width)),
 		)
 		binds := m.bindings
 		if len(binds) == 0 {
 			binds = []string{m.value("defaultTrigger", "ALT + A")}
-			lines = append(lines, ui.SubtleText.Render("  Using defaults"))
 		}
-		for i, raw := range binds {
-			prefix := "  · "
-			if i == 0 {
-				prefix = "  ★ "
-				lines = append(lines, lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(ui.TruncatePlain(prefix+friendly(raw), width)))
-			} else {
-				lines = append(lines, lipgloss.NewStyle().Foreground(ui.Text).Render(ui.TruncatePlain(prefix+friendly(raw), width)))
-			}
-		}
+		// Render keycaps in a flowing row
+		keycapLine := m.keycapRow(binds)
+		lines = append(lines, keycapLine)
 		lines = append(lines,
-			m.actionSecondary("e", "Edit bindings file", true),
-			m.actionSecondary("k", "Key tester", true),
-			ui.SubtleText.Render("  "+ui.ShortPath(m.value("bindingsFile", "-"))),
 			"",
-		)
-
-		lines = append(lines,
-			m.sectionTitle("ADVANCED"),
-			m.actionSecondary("d", "Diagnose", true),
-			m.actionSecondary("t", "Test TUI", true),
-			m.actionSecondary("s", "Re-run setup", true),
-			"",
-		)
-	} else {
-		lines = append(lines,
-			m.sectionTitle("ADVANCED"),
-			m.actionSecondary("d", "Diagnose", true),
+			ui.SubtleText.Render(ui.TruncateStyled("Space: trial record (logs)  ·  Space again: transcribe  ·  Esc: cancel  ·  Edit: (e)", width)),
 			"",
 		)
 	}
@@ -404,9 +621,9 @@ func (m Model) palette() palette {
 
 func (m Model) modelBox(width int) string {
 	pal := m.palette()
-	boxW := width
-	if boxW < 20 {
-		boxW = 20
+	boxW := width - 2
+	if boxW < 18 {
+		boxW = 18
 	}
 	innerW := boxW - 4
 
@@ -500,35 +717,9 @@ func (m Model) rightPaneView(width, height int) string {
 		return welcomeBlock + "\n\n" + logHeader + "\n" + logBody
 	}
 
-	logHeader := m.sectionTitle("LIVE DIAGNOSTICS & LOGS")
-
-	recentLines := []string{}
-	items := m.recentItems()
-	if len(items) > 0 {
-		recentLines = append(recentLines, "", m.sectionTitle("RECENT TRANSCRIPTIONS"))
-		for i, item := range items {
-			if i >= 3 {
-				recentLines = append(recentLines, ui.SubtleText.Render(fmt.Sprintf("  … %d more", len(items)-i)))
-				break
-			}
-			recentLines = append(recentLines, ui.MutedText.Render(ui.TruncatePlain("  "+item.Text, width)))
-		}
-		recentLines = append(recentLines, m.actionSecondary("c", "Clear recent", true))
-	}
-
-	recentH := len(recentLines)
-	logH := height - recentH - 2
-	if logH < 3 {
-		logH = 3
-	}
-
-	logBody := m.logBody(width, logH)
-
-	rightBlock := logHeader + "\n" + logBody
-	if len(recentLines) > 0 {
-		rightBlock += "\n" + strings.Join(recentLines, "\n")
-	}
-	return rightBlock
+	logHeader := m.sectionTitle("DETAILED LOGS")
+	logBody := m.logBody(width, height-2)
+	return logHeader + "\n" + logBody
 }
 
 func (m Model) logBody(width, logCount int) string {
@@ -635,21 +826,50 @@ func (m Model) actionSecondary(key, label string, enabled bool) string {
 
 func (m Model) statusLine() string {
 	parts := []string{}
-	if m.busy {
+	if m.trialTranscribing {
+		parts = append(parts, ui.OKText.Render("transcribing…"))
+	} else if m.trialListening || m.recording() {
+		elapsed := 0
+		if !m.recStart.IsZero() {
+			elapsed = int(time.Since(m.recStart).Seconds())
+		}
+		level := ui.ParseInt(m.value("micLevel", "0"))
+		label := "listening"
+		if level >= 12 {
+			label = "hearing you"
+		}
+		parts = append(parts, ui.DangerText.Render(fmt.Sprintf("%s %s · level %d", label, ui.FormatDuration(elapsed), level)))
+	} else if m.busy {
 		parts = append(parts, ui.OKText.Render("working..."))
 	}
 	if m.err != "" {
 		parts = append(parts, ui.DangerText.Render(m.err))
 	}
-	if m.message != "" && !m.busy {
+	if m.message != "" && !m.busy && !m.trialListening && !m.trialTranscribing {
 		parts = append(parts, ui.OKText.Render(m.message))
 	}
 	return strings.Join(parts, " ")
 }
 
 func (m Model) helpItems() []string {
+	if m.trialTranscribing {
+		return []string{
+			ui.HelpItem("…", "transcribing"),
+			ui.HelpItem("q", "quit"),
+		}
+	}
+	if m.trialListening || m.recording() {
+		return []string{
+			ui.HelpItem("space", "stop & transcribe"),
+			ui.HelpItem("esc", "cancel"),
+			ui.HelpItem("q", "quit"),
+		}
+	}
 	items := []string{
 		ui.HelpItem("enter", m.primaryHelp()),
+	}
+	if m.bool("modelReady") {
+		items = append(items, ui.HelpItem("space", "trial record"))
 	}
 	switch m.state() {
 	case "nomodel":
@@ -657,7 +877,7 @@ func (m Model) helpItems() []string {
 	case "downloading":
 		// cancel is enter
 	case "recording":
-		// stop is enter
+		// stop is space/enter
 	default:
 		items = append(items,
 			ui.HelpItem("e", "bindings"),
@@ -685,6 +905,28 @@ func (m Model) kvLine(label, value string, width int) string {
 		remain = 8
 	}
 	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
+}
+
+// keycapRow renders trigger bindings as a vertical list of highlighted key labels.
+// No individual borders — uses background color only, so nothing can misalign.
+func (m Model) keycapRow(binds []string) string {
+	if len(binds) == 0 {
+		return ""
+	}
+	keyStyle := lipgloss.NewStyle().
+		Background(ui.PanelSoft).
+		Foreground(ui.Text).
+		Bold(true).
+		Padding(0, 1)
+
+	var lines []string
+	for _, raw := range binds {
+		label := friendly(raw)
+		// Render each key as a background-highlighted chip, indented
+		chip := keyStyle.Render(" " + label + " ")
+		lines = append(lines, "  "+chip)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func boolReady(ok bool) string {
@@ -849,9 +1091,11 @@ func actionMessage(action string) string {
 	case "cancel":
 		return "Setup cancelled"
 	case "record-start":
-		return "Recording started"
+		return "Listening..."
 	case "record-stop":
 		return "Transcription finished"
+	case "record-cancel":
+		return "Recording cancelled"
 	case "test":
 		return "Test completed"
 	case "diagnose":
@@ -872,11 +1116,50 @@ func actionMessage(action string) string {
 	return action + " done"
 }
 
-func recordingWave(active bool) string {
-	if !active {
-		return "▁▁▁▁▁▁▁"
+// listeningWave draws an animated level meter. When micLevel is low the bars
+// idle-pulse gently; when speech is present they track the level so the user
+// gets immediate feedback that the mic is hearing them.
+func listeningWave(tick, level int) string {
+	const n = 14
+	bars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	var b strings.Builder
+	// Normalize level 0–100 into 0–7 bar height, with a floor when idle.
+	base := level * (len(bars) - 1) / 100
+	if base < 1 {
+		base = 1
 	}
-	return "▂▆█▆▂▆█"
+	for i := 0; i < n; i++ {
+		// Traveling pulse so idle still feels alive.
+		phase := (tick + i*2) % (n * 2)
+		pulse := 0
+		if phase < n {
+			pulse = phase * 2 / n
+		} else {
+			pulse = (2*n - phase) * 2 / n
+		}
+		h := base
+		if level < 12 {
+			h = pulse
+			if h < 1 {
+				h = 1
+			}
+		} else {
+			// Speech: center bars taller, edges softer, with slight shimmer.
+			dist := i - n/2
+			if dist < 0 {
+				dist = -dist
+			}
+			h = base - dist/2 + (tick+i)%2
+			if h < 1 {
+				h = 1
+			}
+			if h >= len(bars) {
+				h = len(bars) - 1
+			}
+		}
+		b.WriteRune(bars[h])
+	}
+	return b.String()
 }
 
 func speedLabel(raw string) string {
