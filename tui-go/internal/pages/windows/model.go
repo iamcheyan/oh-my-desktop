@@ -2,6 +2,7 @@ package windows
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -33,14 +34,15 @@ type actionMsg struct {
 type tickMsg time.Time
 
 type Model struct {
-	backend      backend.Backend
-	status       status
-	logs         []string
-	width        int
-	height       int
-	busy         bool
-	err          string
-	scrollOffset int
+	backend       backend.Backend
+	status        status
+	logs          []string
+	width         int
+	height        int
+	busy          bool
+	err           string
+	scrollOffset  int
+	confirmRemove bool
 }
 
 func New(b backend.Backend) Model {
@@ -58,8 +60,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
-			return m, tea.Quit
 		case "up", "k":
 			m.scrollOffset++
 		case "down", "j":
@@ -78,6 +78,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scrollOffset = 999999
 		case "end":
 			m.scrollOffset = 0
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		case "esc":
+			if m.confirmRemove {
+				m.confirmRemove = false
+				return m, nil
+			}
+			return m, tea.Quit
+		case "enter":
+			if !m.busy {
+				m.busy = true
+				return m, m.runAction(m.primaryActionName())
+			}
+		case "d":
+			if m.configured() && !m.busy {
+				m.confirmRemove = true
+			}
+		case "y":
+			if m.confirmRemove && !m.busy {
+				m.confirmRemove = false
+				m.busy = true
+				return m, m.runAction("remove --yes")
+			}
+		case "n":
+			if m.confirmRemove {
+				m.confirmRemove = false
+			}
 		case "r":
 			return m, tea.Batch(m.fetchStatus(), m.fetchLogs())
 		case "c":
@@ -174,7 +201,14 @@ func (m Model) View() string {
 	right := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
 		ui.PreserveBackground(ui.FitBlock(m.opsView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), ui.Panel),
 	)
-	help := ui.SubtleText.Render("r refresh  c connect  s start  x stop  w web console  q quit")
+	
+	var helpText string
+	if m.confirmRemove {
+		helpText = "y confirm remove  n/esc cancel"
+	} else {
+		helpText = "r refresh  enter " + m.primaryActionLabel() + "  c connect  s start  x stop  w web  d remove  q quit"
+	}
+	help := ui.SubtleText.Render(helpText)
 
 	return ui.Screen.Padding(1, 2).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
@@ -195,20 +229,37 @@ func (m Model) statusView(width int) string {
 		health = "Ready"
 	}
 
-	return strings.Join([]string{
+	lines := []string{
 		ui.Title.Render("Windows VM"),
 		ui.TruncateStyled(fmt.Sprintf("%s · RDP %s · web %s", health, m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), width),
 		"",
 		ui.Section.Render("Primary action"),
-		ui.MutedText.Render(ui.TruncateStyled(primaryText(m.status), width)),
+		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
 		"",
 		m.actionButtons(),
 		"",
+	}
+
+	if m.hasSystemBlocker() {
+		lines = append(lines,
+			ui.Section.Render("Requirements Blocked"),
+			ui.Row("KVM Virtualization", ui.BoolStatus(m.bool("kvm")), width),
+			ui.Row("Docker Daemon", ui.BoolStatus(m.bool("dockerAccess")), width),
+			ui.Row("Docker Compose", ui.BoolStatus(m.bool("compose")), width),
+			ui.Row("Free RDP Client", ui.BoolStatus(m.bool("freerdp")), width),
+			ui.Row("Free disk space", ui.BoolStatus(m.diskAvailable() >= 74), width),
+			"",
+		)
+	}
+
+	lines = append(lines,
 		ui.Section.Render("Runtime"),
 		ui.Row("Container", m.value("container", "-"), width),
 		ui.Row("Docker", ui.BoolStatus(m.bool("dockerAccess")), width),
 		ui.Row("KVM", ui.BoolStatus(m.bool("kvm")), width),
-	}, "\n")
+	)
+
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) opsView(width, height int) string {
@@ -233,8 +284,24 @@ func (m Model) opsView(width, height int) string {
 		ui.Row("User", m.value("user", "-"), width),
 		ui.Row("Shared", m.value("sharedDir", "-"), width),
 		"",
-		ui.Section.Render("Logs"),
 	}
+
+	if m.confirmRemove {
+		lines = append(lines,
+			ui.Section.Render("Danger Zone"),
+			ui.DangerText.Render("Press y to CONFIRM REMOVE | n to cancel"),
+			ui.DangerText.Render("Deletes container & local VM storage."),
+		)
+	} else {
+		if m.configured() {
+			lines = append(lines,
+				ui.Section.Render("Danger Zone"),
+				ui.SubtleText.Render("d Remove VM (deletes container & storage)"),
+			)
+		}
+	}
+
+	lines = append(lines, "", ui.Section.Render("Logs"))
 
 	// Expand elements with internal newlines to count actual rendered lines
 	var staticLines []string
@@ -322,15 +389,26 @@ func (m Model) opsView(width, height int) string {
 }
 
 func (m Model) actionButtons() string {
-	connect := ui.PrimaryButton.Render("c Connect")
-	if !m.ready() || m.busy {
-		connect = ui.DisabledButton.Render("c Connect")
+	var primaryBtn string
+	label := m.primaryActionLabel()
+	
+	enabled := !m.busy
+	if m.primaryActionName() == "connect" {
+		enabled = enabled && m.bool("freerdp")
 	}
-	refresh := ui.Button.Render("r Refresh")
+
+	if enabled {
+		primaryBtn = ui.PrimaryButton.Render("enter " + label)
+	} else {
+		primaryBtn = ui.DisabledButton.Render("enter " + label)
+	}
+
+	refreshBtn := ui.Button.Render("r Refresh")
 	if m.busy {
-		refresh = ui.DisabledButton.Render("r Refresh")
+		refreshBtn = ui.DisabledButton.Render("r Refresh")
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, connect, refresh)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, primaryBtn, refreshBtn)
 }
 
 func (m Model) opsButtons() string {
@@ -371,6 +449,18 @@ func (m Model) fetchLogs() tea.Cmd {
 
 func (m Model) runAction(action string) tea.Cmd {
 	return func() tea.Msg {
+		if action == "connect" || action == "launch" {
+			// Run GUI app detached
+			cmd := exec.Command(m.backend.Bin("omd-settings-windows-vm"), action)
+			cmd.Dir = m.backend.Root
+			err := cmd.Start()
+			var lines []string
+			if err != nil {
+				return actionMsg{action: action, err: err}
+			}
+			return actionMsg{action: action, lines: lines}
+		}
+
 		result := m.backend.Run("omd-settings-windows-vm", action)
 		return actionMsg{action: action, lines: result.Lines, err: result.Err}
 	}
@@ -380,6 +470,94 @@ func tick() tea.Cmd {
 	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m Model) diskAvailable() int {
+	var val int
+	fmt.Sscanf(m.value("diskAvailable", "0"), "%d", &val)
+	return val
+}
+
+func (m Model) storageUsedBytes() int {
+	var val int
+	fmt.Sscanf(m.value("storageUsedBytes", "0"), "%d", &val)
+	return val
+}
+
+func (m Model) hasSystemBlocker() bool {
+	return !m.bool("kvm") || !m.bool("dockerCli") || !m.bool("dockerAccess") || !m.bool("compose") || m.diskAvailable() < 74
+}
+
+func (m Model) configured() bool {
+	return m.bool("configured")
+}
+
+func (m Model) partial() bool {
+	return m.configured() && m.value("container", "missing") == "missing" && m.storageUsedBytes() <= 1048576
+}
+
+func (m Model) stopped() bool {
+	return m.configured() && m.value("container", "missing") != "missing" && !m.running()
+}
+
+func (m Model) primaryActionLabel() string {
+	if m.busy {
+		return "Working..."
+	}
+	if m.hasSystemBlocker() {
+		return "Fix requirements"
+	}
+	if !m.configured() || m.partial() {
+		return "Install Windows"
+	}
+	if m.ready() {
+		return "Connect"
+	}
+	if m.running() && !m.ready() {
+		return "Open console"
+	}
+	if m.stopped() {
+		return "Start & connect"
+	}
+	return "Repair / start"
+}
+
+func (m Model) primaryActionName() string {
+	if m.hasSystemBlocker() {
+		return "auto-fix"
+	}
+	if !m.configured() || m.partial() {
+		return "install-defaults"
+	}
+	if m.ready() {
+		return "connect"
+	}
+	if m.running() && !m.ready() {
+		return "web"
+	}
+	if m.stopped() {
+		return "launch"
+	}
+	return "install-defaults"
+}
+
+func (m Model) primaryText() string {
+	if m.hasSystemBlocker() {
+		return "Resolve host requirements before install or start."
+	}
+	if !m.configured() || m.partial() {
+		return "Installs Dockurr Windows 11 with sensible defaults (can take a while)."
+	}
+	if m.ready() {
+		return "Open a FreeRDP session to the running VM."
+	}
+	if m.running() && !m.ready() {
+		return "Windows is still setting up — use the web console to watch progress."
+	}
+	if m.stopped() {
+		return "Start the container and connect over RDP."
+	}
+	return "Repair or start the VM stack."
 }
 
 func (m Model) value(key, fallback string) string {
@@ -409,14 +587,4 @@ func (m Model) ready() bool {
 
 func (m Model) running() bool {
 	return m.value("container", "") == "running"
-}
-
-func primaryText(values status) string {
-	if values["ready"] == "true" {
-		return "Open a FreeRDP session to the running VM."
-	}
-	if values["container"] == "running" {
-		return "Windows is still booting or installing. Refresh for progress."
-	}
-	return "Start the Windows VM container."
 }
