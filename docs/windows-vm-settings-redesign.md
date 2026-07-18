@@ -177,6 +177,132 @@ The current existing config uses:
 - User: `win11`
 - Password: present in compose file.
 
+## Disk & Image Size Research (2026-07-18)
+
+This section records how install space is calculated and what dockurr/Windows
+actually download. Use it before changing the 74 GB host gate or default
+`DISK_SIZE`.
+
+### Install pipeline
+
+```text
+Install
+  → bin/omd-settings-windows-vm install-defaults
+  → write ~/.config/windows/docker-compose.yml
+       image: dockurr/windows
+       VERSION: "11"            # Windows 11 Pro
+       DISK_SIZE: "64G"|"128G"  # from default_disk()
+       volumes:
+         ~/.windows  → /storage
+         ~/Windows   → /shared
+  → docker compose up -d
+  → container auto-flow:
+       1. pull dockurr/windows
+       2. download Windows ISO into /storage
+       3. create virtual disk (capacity = DISK_SIZE)
+       4. unattended Windows setup
+       5. expose Web :8006 and RDP :3389
+```
+
+Storage ownership:
+
+| Artifact | Location | Notes |
+| --- | --- | --- |
+| Docker image layers | Docker data root (often `/var/lib/docker`) | May **not** be on `$HOME` |
+| ISO + virtual disk | `~/.windows` (bind `/storage`) | Counts against home free space |
+| Shared folder | `~/Windows` | Usually small |
+
+OMD status `diskAvailable` is `df "$HOME"` in GB — it only measures the home
+filesystem.
+
+### Component sizes (upstream + Hub)
+
+| Component | Size | Source |
+| --- | --- | --- |
+| `dockurr/windows` image (compressed) | ~**155–163 MB** | Docker Hub `latest` / tags API |
+| Unpacked container image | ~**0.3–0.5 GB** (order of magnitude) | Typical layer expansion |
+| Windows 11 Pro ISO (`VERSION=11`) | **7.9 GB** | [dockur/windows README](https://github.com/dockur/windows) size table |
+| Windows 11 LTSC (`11l`) | 4.7 GB | same |
+| Windows 11 Enterprise (`11e`) | 6.6 GB | same |
+| Windows 10 Pro (`10`) | 5.7 GB | same |
+| Default virtual disk (`DISK_SIZE`) | **64G** logical | dockurr default; OMD may pick 128G when host has ≥160 GB free |
+| dockurr host free-space requirement | **≥ 64 GB free** | dockurr Requirements section |
+| Microsoft Windows 11 min storage | **64 GB** | Official system requirements |
+
+The ISO is **not** 74 GB. The large number is the **virtual disk policy**, not
+the download size.
+
+### Why OMD uses 74 GB
+
+In `bin/omd-settings-windows-vm`:
+
+```bash
+default_disk() {
+  # ≥160 GB free → 128G disk
+  # ≥74 GB free  → 64G disk
+  # else         → 0G (refuse one-click install)
+}
+
+require_install_resources() {
+  # required host free = DISK_SIZE_GB + 10
+}
+```
+
+| Policy piece | Value | Rationale |
+| --- | --- | --- |
+| Default min disk | 64G | Matches dockurr default + Win11 min storage |
+| Overhead buffer | +10 GB | ISO (~8G) + temp + avoid filling the partition |
+| One-click gate | **74 GB** free | 64 + 10 when defaulting to a 64G disk |
+| Larger host | ≥160 GB free → 128G disk | Comfortable default for daily use |
+
+Legacy `share/bin/omarchy-windows-vm` uses the same formula:
+`REQUIRED_SPACE = DISK_SIZE_GB + 10`.
+
+UI copies of “need ≥ 74 GB” in QML/TUI are **policy mirrors** of that default,
+not independent physics limits. The real backend check is always:
+
+```text
+host_free_GB >= DISK_SIZE_GB + 10
+```
+
+### Peak vs steady host usage under `~/.windows`
+
+During first install, storage can hold **ISO + growing disk + temps** at once:
+
+| Phase | Rough home usage |
+| --- | --- |
+| Pull Docker image | ~0.2–0.5 GB (if image lands on home; often not) |
+| Download ISO | ~8 GB |
+| Windows setup writing virtual disk | ~20–30 GB growing |
+| Install **peak** (ISO + disk + temp) | **~35–50 GB** typical |
+| Steady after install (ISO retained + sparse disk) | **~33–50 GB** common, grows with updates/apps |
+| Sparse qcow2 note | Host `du` ≈ used data; guest still sees full `DISK_SIZE` |
+
+After install the guest usually occupies **~20–30 GB** clean, then **~30–45 GB**
+with updates — still bounded by `DISK_SIZE`.
+
+### Can the disk be smaller (e.g. 60G / test install)?
+
+| Change | Feasible? | Caveat |
+| --- | --- | --- |
+| Lower UI “74 GB” gate only | Yes | Install still fails if `DISK+10` exceeds free space |
+| Set `DISK_SIZE=60G` | Technically yes | Host still needs **~70 GB** free; 60G is **below Win11’s 64 GB min** |
+| Set `DISK_SIZE=32G` for a smoke test | Possible as a **debug** path | Win11 setup may fail or be unsupported; not a product default |
+| Keep 64G default | Recommended | Aligns with dockurr + Microsoft |
+
+**Recommendation:** keep product default at **64G disk / 74G host free**. If a
+test tier is added later, label it clearly as unsupported and still require
+`host_free >= DISK + 10`. Do not advertise 60G as a supported Windows 11 size.
+
+### Example: ~50 GB free on `/home`
+
+- Default 64G disk → needs ~74G free → **blocked**
+- Desired 60G disk → needs ~70G free → **still blocked**
+- Even a 40G test disk → needs ~50G free → **barely/not enough** at 49–50G free
+
+Space must be freed (or install relocated off a fuller home) before a normal
+Win11 install is realistic.
+
 ## Implementation Plan
 
 Commit 1: document current state and target design. Completed as

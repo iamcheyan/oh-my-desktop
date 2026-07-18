@@ -21,16 +21,16 @@ type recentItem struct {
 	Ts   int64  `json:"ts"`
 }
 
-const (
-	iconMic       = "\uf130" // nf-fa-microphone
-	iconStop      = "\uf04d" // nf-fa-stop
-	iconDownload  = "\uf019" // nf-fa-download
-	iconRefresh   = "\uf021" // nf-fa-refresh
-	iconKeyboard  = "\uf11c" // nf-fa-keyboard
-	iconWrench    = "\uf0ad" // nf-fa-wrench
-	iconClipboard = "\uf328" // nf-fa-clipboard
-	iconClear     = "\uf12d" // nf-fa-eraser
-)
+type logsMsg struct {
+	lines []string
+	err   error
+}
+
+type actionLogMsg struct {
+	action string
+	lines  []string
+	err    error
+}
 
 type Model struct {
 	backend  backend.Backend
@@ -44,6 +44,11 @@ type Model struct {
 	message string
 
 	recStart time.Time
+
+	// Logs and scroll view matching Windows VM settings page
+	logs          []string
+	scrollOffset  int
+	confirmRemove bool
 }
 
 func New(b backend.Backend) Model {
@@ -66,6 +71,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.MouseMsg:
+		if msg.Type == tea.MouseWheelUp {
+			m.scrollOffset++
+			return m, nil
+		}
+		if msg.Type == tea.MouseWheelDown {
+			if m.scrollOffset > 0 {
+				m.scrollOffset--
+			}
+			return m, nil
+		}
 		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
 			viewStr := m.View()
 			lines := strings.Split(viewStr, "\n")
@@ -78,16 +93,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						key  string
 					}
 					buttons := []btn{
-						{"Refresh", "r"},
+						{"Refresh status", "r"},
 						{"Key tester", "k"},
-						{"Edit file", "e"},
+						{"Edit bindings file", "e"},
 						{"Diagnose", "d"},
-						{"Test TUI", "t"},
 						{"Clear recent", "c"},
+						{"Re-run setup", "s"},
 						{"Record", "enter"},
-						{"Setup", "enter"},
-						{"Cancel", "enter"},
-						{"Stop", "enter"},
+						{"Setup voice input", "enter"},
+						{"Cancel setup", "enter"},
+						{"Stop & transcribe", "enter"},
+						{"Delete model", "x"},
+						{"Confirm delete? y", "y"},
+						{"n (no)", "n"},
 					}
 					for _, b := range buttons {
 						idx := strings.Index(plain, b.text)
@@ -101,7 +119,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tickMsg:
-		return m, tea.Batch(m.fetchStatus(), tick())
+		cmds := []tea.Cmd{m.fetchStatus(), tick()}
+		if m.state() == "downloading" {
+			cmds = append(cmds, m.fetchLogs())
+		}
+		return m, tea.Batch(cmds...)
+	case logsMsg:
+		if msg.err == nil {
+			m.logs = msg.lines
+		}
+		return m, nil
 	case backend.StatusMsg:
 		if msg.Err != nil {
 			m.err = msg.Err.Error()
@@ -114,15 +141,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.recStart = time.Now()
 		}
 		m.bindings = parseBindings(msg.Values.Raw())
-	case backend.ActionMsg:
+	case actionLogMsg:
 		m.busy = false
-		if msg.Err != nil {
-			m.err = msg.Err.Error()
+		if msg.err != nil {
+			m.err = msg.err.Error()
 			m.message = "Action failed"
 		} else {
 			m.err = ""
-			m.message = actionMessage(msg.Action)
+			m.message = actionMessage(msg.action)
 		}
+		// Append action execution with stdout lines directly to console logs
+		m.logs = append(m.logs, "$ "+msg.action)
+		m.logs = append(m.logs, msg.lines...)
+		m.logs = ui.ClipLines(m.logs, 140)
 		return m, m.fetchStatus()
 	case tea.KeyMsg:
 		return m.handleKey(msg.String())
@@ -131,11 +162,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
+	if m.confirmRemove {
+		switch key {
+		case "y", "Y":
+			m.confirmRemove = false
+			m.busy = true
+			m.message = "Deleting model..."
+			return m, m.runAction("delete-model")
+		case "n", "N", "esc":
+			m.confirmRemove = false
+			return m, nil
+		}
+		return m, nil
+	}
+
 	switch key {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
 	case "r":
 		return m, m.fetchStatus()
+	case "up", "k":
+		m.scrollOffset++
+		return m, nil
+	case "down", "j":
+		if m.scrollOffset > 0 {
+			m.scrollOffset--
+		}
+		return m, nil
+	case "pageup":
+		m.scrollOffset += 10
+		return m, nil
+	case "pagedown":
+		if m.scrollOffset > 10 {
+			m.scrollOffset -= 10
+		} else {
+			m.scrollOffset = 0
+		}
+		return m, nil
+	case "home":
+		m.scrollOffset = 999999
+		return m, nil
+	case "end":
+		m.scrollOffset = 0
+		return m, nil
 	}
 	if m.busy {
 		return m, nil
@@ -165,18 +234,23 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 		m.busy = true
 		m.message = "Starting setup..."
 		return m, m.runAction("setup")
-	case "t":
-		m.busy = true
-		return m, m.runAction("test")
 	case "d":
 		m.busy = true
 		return m, m.runAction("diagnose")
+	case "t":
+		m.busy = true
+		return m, m.runAction("test")
 	case "e":
 		m.busy = true
 		return m, m.runAction("edit")
 	case "k":
 		m.busy = true
 		return m, m.runAction("key-test")
+	case "x":
+		if m.bool("modelReady") {
+			m.confirmRemove = true
+		}
+		return m, nil
 	case "c":
 		if len(m.recentItems()) > 0 {
 			m.busy = true
@@ -192,242 +266,371 @@ func (m Model) View() string {
 	}
 
 	contentW := max(16, m.width-2)
-	fixedRows := 2
-	if m.message != "" || m.err != "" || m.busy {
+	fixedRows := 1 // help
+	if m.statusLine() != "" {
 		fixedRows++
 	}
 	contentH := max(12, m.height-fixedRows-2)
 
-	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), ui.Background)
-	help := ui.HelpText(
-		ui.HelpItem("enter", m.primaryHelp()),
-		ui.HelpItem("s", "setup"),
-		ui.HelpItem("e", "bindings"),
-		ui.HelpItem("k", "key tester"),
-		ui.HelpItem("d", "diagnose"),
-		ui.HelpItem("t", "test tui"),
-		ui.HelpItem("r", "refresh"),
-		ui.HelpItem("q", "quit"),
-	)
+	content := ui.PreserveBackground(ui.FitBlock(m.mainPanel(contentW, contentH), contentW, contentH), ui.Background)
 
-	parts := []string{content, help}
+	var helpText string
+	if m.confirmRemove {
+		helpText = ui.HelpText(ui.HelpItem("y", "confirm delete"), ui.HelpItem("n/esc", "cancel"))
+	} else {
+		helpText = ui.HelpText(m.helpItems()...)
+	}
+
+	parts := []string{content, helpText}
 	if status := m.statusLine(); status != "" {
 		parts = append([]string{status}, parts...)
 	}
 	return ui.Screen.Padding(1, 1).Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
 }
 
-func (m Model) contentView(width, height int) string {
+func (m Model) mainPanel(width, height int) string {
 	if m.status == nil {
 		return "Loading..."
 	}
 
-	heroH := 11
-	if width < 82 {
-		heroH = 18
+	if width >= 90 {
+		leftW := min(54, max(38, width/3))
+		rightW := width - leftW - 2
+		if rightW < 40 {
+			rightW = 40
+			leftW = max(28, width-2-rightW)
+		}
+		left := ui.PreserveBackground(ui.FitBlock(m.controlView(leftW), leftW, height), ui.Background)
+		right := ui.PreserveBackground(ui.FitBlock(m.rightPaneView(rightW, height), rightW, height), ui.Background)
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 	}
-	remaining := max(4, height-heroH-1)
-	top := m.heroView(width)
-	body := m.bodyView(width, remaining)
-	return strings.Join([]string{top, "", body}, "\n")
+
+	left := m.controlView(width)
+	right := m.rightPaneView(width, max(8, height/2))
+	return left + "\n\n" + right
 }
 
-func (m Model) heroView(width int) string {
-	previewW := 22
-	infoW := width - previewW - 3
-	if infoW < 48 {
-		return strings.Join([]string{
-			m.voicePreview(previewW, 8),
-			m.statusInfo(width),
-			m.primaryButtons(width),
-		}, "\n")
+func (m Model) controlView(width int) string {
+	health := m.stateLabel()
+	title := m.statusLight() + " " + ui.Title.Render("Voice Input")
+	if m.busy {
+		title += " " + ui.OKText.Render("working…")
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top,
-		m.voicePreview(previewW, 8),
-		"   ",
-		strings.Join([]string{
-			m.statusInfo(infoW),
-			"",
-			m.primaryButtons(infoW),
-		}, "\n"),
-	)
-}
 
-func (m Model) voicePreview(width, height int) string {
-	width = max(18, width)
-	height = max(7, height)
-	innerW := max(12, width-4)
-	pal := m.tone()
-	state := m.stateLabel()
-	level := lipgloss.NewStyle().Background(pal).Foreground(ui.Background).Width(innerW).Render(" " + m.stateMarker())
-	icon := lipgloss.NewStyle().Foreground(pal).Bold(true).Width(innerW).Render(" " + iconMic + "  Voice")
-	line := lipgloss.NewStyle().Foreground(ui.Muted).Width(innerW).Render(" " + ui.TruncatePlain(state, max(1, innerW-2)))
-	fillRows := max(1, height-5)
-	fills := make([]string, 0, fillRows)
-	for i := 0; i < fillRows; i++ {
-		fills = append(fills, lipgloss.NewStyle().Background(ui.Background).Width(innerW).Render(" "))
-	}
-	wave := lipgloss.NewStyle().Foreground(pal).Width(innerW).Render(" " + recordingWave(m.recording()))
-	rows := append([]string{level, icon, line}, fills...)
-	rows = append(rows, wave)
-	return lipgloss.NewStyle().
-		Border(lipgloss.ThickBorder()).
-		BorderForeground(ui.LineSoft).
-		Background(ui.Background).
-		Padding(0, 1).
-		Render(strings.Join(rows, "\n"))
-}
-
-func (m Model) statusInfo(width int) string {
-	model := "missing"
-	if m.bool("modelReady") {
-		model = "SenseVoice Small"
-	}
-	venv := "missing"
-	if m.bool("venvReady") {
-		venv = "ready"
-	}
 	daemon := "idle"
 	if m.bool("daemonRunning") {
 		daemon = "running"
 	}
+	size := m.value("modelSizeMB", "0")
+	subtitle := fmt.Sprintf("%s · SenseVoice · %s MB · daemon %s", health, size, daemon)
+	if !m.bool("modelReady") {
+		subtitle = fmt.Sprintf("%s · SenseVoice · Model missing", health)
+	}
 
 	lines := []string{
-		ui.Title.Render("Voice Input"),
-		ui.MutedText.Render(ui.TruncateStyled("Speech-to-text model, microphone test, and helper tools.", width)),
+		title,
+		ui.MutedText.Render(ui.TruncateStyled(subtitle, width)),
 		"",
-		m.row("State", m.stateLabel(), width),
-		m.row("Model", model, width),
-		m.row("Size", m.value("modelSizeMB", "0")+" MB", width),
-		m.row("Venv", venv, width),
-		m.row("Daemon", daemon, width),
-	}
-	if m.state() == "downloading" {
-		lines = append(lines, "", m.downloadView(width))
-	}
-	return strings.Join(lines, "\n")
-}
-
-func (m Model) primaryButtons(width int) string {
-	active := m.recording()
-	label := "Record"
-	key := "enter"
-	icon := iconMic
-	switch m.state() {
-	case "nomodel":
-		label = "Setup"
-		icon = iconDownload
-	case "downloading":
-		label = "Cancel"
-		icon = iconStop
-	case "recording":
-		label = "Stop"
-		icon = iconStop
-	}
-	buttons := []string{
-		ui.ActionButton(icon, key, label, active),
-		ui.ActionButton(iconRefresh, "r", "Refresh", false),
-	}
-	if width < 40 {
-		return lipgloss.JoinVertical(lipgloss.Left,
-			buttons[0],
-			buttons[1],
-		)
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
-}
-
-func (m Model) bodyView(width, height int) string {
-	if width < 90 {
-		return lipgloss.JoinVertical(lipgloss.Left,
-			m.bindingsView(width, max(6, height/2)),
-			"",
-			m.recentAndToolsView(width, max(6, height/2)),
-		)
-	}
-	leftW := max(36, width/2-2)
-	rightW := width - leftW - 3
-	left := ui.PreserveBackground(ui.FitBlock(m.bindingsView(leftW, height), leftW, height), ui.Background)
-	right := ui.PreserveBackground(ui.FitBlock(m.recentAndToolsView(rightW, height), rightW, height), ui.Background)
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
-}
-
-func (m Model) bindingsView(width, height int) string {
-	lines := []string{
-		ui.Section.Render("Bindings"),
-		ui.MutedText.Render(ui.TruncateStyled("Runtime uses Hyprland bindings. Edit the file when you need custom triggers.", width)),
+		m.modelBox(width),
 		"",
 	}
-	binds := m.bindings
-	if len(binds) == 0 {
-		binds = []string{m.value("defaultTrigger", "ALT + A")}
-		lines = append(lines, ui.SubtleText.Render("Using defaults"))
-	}
-	for i, raw := range binds {
-		if len(lines) >= height-4 {
-			lines = append(lines, ui.SubtleText.Render(fmt.Sprintf("... %d more", len(binds)-i)))
-			break
+
+	if m.bool("modelReady") {
+		recordLabel := "Record"
+		if m.recording() {
+			recordLabel = "Stop & transcribe"
 		}
 		lines = append(lines,
-			lipgloss.NewStyle().Foreground(ui.Text).Render(ui.TruncateStyled("  "+friendly(raw), width)),
-			ui.SubtleText.Render(ui.TruncateStyled("  "+raw, width)),
+			m.sectionTitle("TRIAL RECORD"),
+			ui.MutedText.Render("Test the mic and paste pipeline from this panel."),
+			m.actionPrimary(recordLabel, true, width),
+			"",
+		)
+
+		lines = append(lines,
+			m.sectionTitle("BINDINGS"),
+			ui.MutedText.Render(ui.TruncateStyled("Primary trigger first. Esc cancels while recording.", width)),
+		)
+		binds := m.bindings
+		if len(binds) == 0 {
+			binds = []string{m.value("defaultTrigger", "ALT + A")}
+			lines = append(lines, ui.SubtleText.Render("  Using defaults"))
+		}
+		for i, raw := range binds {
+			prefix := "  · "
+			if i == 0 {
+				prefix = "  ★ "
+				lines = append(lines, lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(ui.TruncatePlain(prefix+friendly(raw), width)))
+			} else {
+				lines = append(lines, lipgloss.NewStyle().Foreground(ui.Text).Render(ui.TruncatePlain(prefix+friendly(raw), width)))
+			}
+		}
+		lines = append(lines,
+			m.actionSecondary("e", "Edit bindings file", true),
+			m.actionSecondary("k", "Key tester", true),
+			ui.SubtleText.Render("  "+ui.ShortPath(m.value("bindingsFile", "-"))),
+			"",
+		)
+
+		lines = append(lines,
+			m.sectionTitle("ADVANCED"),
+			m.actionSecondary("d", "Diagnose", true),
+			m.actionSecondary("t", "Test TUI", true),
+			m.actionSecondary("s", "Re-run setup", true),
+			"",
+		)
+	} else {
+		lines = append(lines,
+			m.sectionTitle("ADVANCED"),
+			m.actionSecondary("d", "Diagnose", true),
+			"",
 		)
 	}
-	lines = append(lines, "",
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			ui.ActionButton(iconKeyboard, "k", "Key tester", false),
-			ui.ActionButton(iconKeyboard, "e", "Edit file", false),
-		),
-	)
-	lines = append(lines, ui.SubtleText.Render(ui.TruncateStyled(ui.ShortPath(m.value("bindingsFile", "-")), width)))
+
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) recentAndToolsView(width, height int) string {
-	lines := []string{
-		ui.Section.Render("Recent"),
+type palette struct {
+	background lipgloss.Color
+	line       lipgloss.Color
+}
+
+func (m Model) palette() palette {
+	return palette{
+		background: ui.Panel,
+		line:       ui.Accent,
 	}
-	items := m.recentItems()
-	if len(items) == 0 {
-		lines = append(lines, ui.SubtleText.Render(ui.TruncateStyled("No transcriptions yet. Press enter to test.", width)))
+}
+
+func (m Model) modelBox(width int) string {
+	pal := m.palette()
+	boxW := width
+	if boxW < 20 {
+		boxW = 20
+	}
+	innerW := boxW - 4
+
+	var statusLines []string
+	statusLines = append(statusLines, m.sectionTitle("MODEL SPECIFICATIONS"))
+	statusLines = append(statusLines, m.kvLine("Engine", "SenseVoice Small INT8", innerW))
+	statusLines = append(statusLines, m.kvLine("Size", m.value("modelSizeMB", "0")+" MB", innerW))
+	statusLines = append(statusLines, m.kvLine("Venv", boolReady(m.bool("venvReady")), innerW))
+	statusLines = append(statusLines, m.kvLine("Daemon", boolRunning(m.bool("daemonRunning")), innerW))
+
+	var actionText string
+	if m.confirmRemove {
+		actionText = lipgloss.NewStyle().Foreground(ui.Danger).Bold(true).Render("  Confirm delete? y (yes) / n (no)")
+	} else if m.bool("modelReady") {
+		actionText = m.actionSecondary("x", "Delete model", true)
 	} else {
+		actionText = m.actionPrimary("Setup voice input", true, innerW)
+	}
+	statusLines = append(statusLines, "", actionText)
+
+	boxContent := strings.Join(statusLines, "\n")
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.ThickBorder()).
+		BorderForeground(pal.line).
+		Background(pal.background).
+		Padding(1, 2).
+		Width(boxW).
+		Render(boxContent)
+}
+
+func (m Model) rightPaneView(width, height int) string {
+	state := m.state()
+
+	if state == "downloading" {
+		percent := ui.ParseInt(m.value("download.percent", "0"))
+		label := m.value("download.label", "model")
+		if label == "" {
+			label = "model"
+		}
+		speed := speedLabel(m.value("download.speedBps", "0"))
+		eta := etaLabel(m.value("download.etaSec", "0"))
+		barW := max(10, min(40, width-8))
+
+		progressBlock := strings.Join([]string{
+			m.sectionTitle("PROGRESS"),
+			ui.WarnText.Render("Downloading " + label),
+			ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
+			m.kvLine("Speed", speed, width),
+			m.kvLine("Remaining", eta, width),
+			m.actionPrimary("Cancel setup", true, width),
+		}, "\n")
+
+		progH := strings.Count(progressBlock, "\n") + 1
+		logH := height - progH - 2
+		if logH < 3 {
+			logH = 3
+		}
+
+		logHeader := m.sectionTitle("SETUP LOG OUTPUT")
+		logBody := m.logBody(width, logH)
+
+		return progressBlock + "\n\n" + logHeader + "\n" + logBody
+	}
+
+	if !m.bool("modelReady") {
+		welcomeLines := []string{
+			m.sectionTitle("GET STARTED"),
+			ui.MutedText.Render(ui.TruncatePlain("Welcome to Voice Input setup.", width)),
+			"",
+			ui.MutedText.Render(ui.TruncatePlain("This feature enables you to dictate text using local", width)),
+			ui.MutedText.Render(ui.TruncatePlain("speech recognition. All audio processing is done entirely", width)),
+			ui.MutedText.Render(ui.TruncatePlain("on your device — no external network requests are made.", width)),
+			"",
+			ui.MutedText.Render(ui.TruncatePlain("Setup will download the SenseVoice model (~229 MB) and", width)),
+			ui.MutedText.Render(ui.TruncatePlain("prepare the Python virtual environment.", width)),
+			"",
+			ui.MutedText.Render(ui.TruncatePlain("To begin, select 'Setup voice input' on the left.", width)),
+		}
+
+		welcomeBlock := strings.Join(welcomeLines, "\n")
+		welcomeH := strings.Count(welcomeBlock, "\n") + 1
+		logH := height - welcomeH - 2
+		if logH < 3 {
+			logH = 3
+		}
+
+		logHeader := m.sectionTitle("CONSOLE LOGS")
+		logBody := m.logBody(width, logH)
+
+		return welcomeBlock + "\n\n" + logHeader + "\n" + logBody
+	}
+
+	logHeader := m.sectionTitle("LIVE DIAGNOSTICS & LOGS")
+
+	recentLines := []string{}
+	items := m.recentItems()
+	if len(items) > 0 {
+		recentLines = append(recentLines, "", m.sectionTitle("RECENT TRANSCRIPTIONS"))
 		for i, item := range items {
-			if len(lines) >= height-7 {
-				lines = append(lines, ui.SubtleText.Render(fmt.Sprintf("... %d more", len(items)-i)))
+			if i >= 3 {
+				recentLines = append(recentLines, ui.SubtleText.Render(fmt.Sprintf("  … %d more", len(items)-i)))
 				break
 			}
-			lines = append(lines, ui.TruncateStyled("  "+item.Text, width))
+			recentLines = append(recentLines, ui.MutedText.Render(ui.TruncatePlain("  "+item.Text, width)))
 		}
+		recentLines = append(recentLines, m.actionSecondary("c", "Clear recent", true))
 	}
-	lines = append(lines,
-		"",
-		ui.Section.Render("Tools"),
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			ui.ActionButton(iconWrench, "d", "Diagnose", false),
-			ui.ActionButton(iconClipboard, "t", "Test TUI", false),
-		),
-		ui.ActionButton(iconClear, "c", "Clear recent", false),
-		"",
-		ui.Section.Render("Paths"),
-		m.row("Model", ui.ShortPath(m.value("modelDir", "-")), width),
-		m.row("Socket", m.value("socket", "-"), width),
-		m.row("Cache", ui.ShortPath(m.value("cacheDir", "-")), width),
-	)
-	return strings.Join(lines, "\n")
+
+	recentH := len(recentLines)
+	logH := height - recentH - 2
+	if logH < 3 {
+		logH = 3
+	}
+
+	logBody := m.logBody(width, logH)
+
+	rightBlock := logHeader + "\n" + logBody
+	if len(recentLines) > 0 {
+		rightBlock += "\n" + strings.Join(recentLines, "\n")
+	}
+	return rightBlock
 }
 
-func (m Model) downloadView(width int) string {
-	percent := ui.ParseInt(m.value("download.percent", "0"))
-	label := m.value("download.label", "model")
-	speed := speedLabel(m.value("download.speedBps", "0"))
-	eta := etaLabel(m.value("download.etaSec", "0"))
-	barW := max(10, min(34, width-10))
-	return strings.Join([]string{
-		ui.WarnText.Render("Downloading " + label),
-		ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
-		m.row("Speed", speed, width),
-		m.row("Remaining", eta, width),
-	}, "\n")
+func (m Model) logBody(width, logCount int) string {
+	logWidth := width - 2
+	if logWidth < 8 {
+		logWidth = 8
+	}
+	var wrappedLogs []string
+	for _, logLine := range m.logs {
+		wrappedLogs = append(wrappedLogs, ui.WrapStyled(logLine, logWidth)...)
+	}
+
+	totalLines := len(wrappedLogs)
+	displayedLogs := make([]string, logCount)
+
+	if totalLines == 0 {
+		for i := 0; i < logCount; i++ {
+			if i == 0 {
+				displayedLogs[i] = ui.SubtleText.Render(ui.PadPlain("No log output yet.", logWidth)) + "  "
+			} else {
+				displayedLogs[i] = strings.Repeat(" ", logWidth) + "  "
+			}
+		}
+	} else if totalLines <= logCount {
+		for i := 0; i < logCount; i++ {
+			if i < totalLines {
+				padded := ui.PadPlain(wrappedLogs[i], logWidth)
+				displayedLogs[i] = padded + " " + ui.SubtleText.Render("│")
+			} else {
+				displayedLogs[i] = strings.Repeat(" ", logWidth) + " " + ui.SubtleText.Render("│")
+			}
+		}
+	} else {
+		maxOffset := totalLines - logCount
+		if m.scrollOffset > maxOffset {
+			m.scrollOffset = maxOffset
+		}
+		if m.scrollOffset < 0 {
+			m.scrollOffset = 0
+		}
+		start := totalLines - logCount - m.scrollOffset
+		end := start + logCount
+
+		thumbStart := (start * logCount) / totalLines
+		thumbEnd := (end * logCount) / totalLines
+		if thumbEnd-thumbStart < 1 {
+			thumbEnd = thumbStart + 1
+		}
+		if thumbEnd > logCount {
+			thumbEnd = logCount
+		}
+
+		for i := 0; i < logCount; i++ {
+			padded := ui.PadPlain(wrappedLogs[start+i], logWidth)
+			sbChar := ui.SubtleText.Render("│")
+			if i >= thumbStart && i < thumbEnd {
+				sbChar = ui.OKText.Render("┃")
+			}
+			displayedLogs[i] = padded + " " + sbChar
+		}
+	}
+
+	return strings.Join(displayedLogs, "\n")
+}
+
+func (m Model) sectionTitle(text string) string {
+	return lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(text)
+}
+
+func (m Model) heroLines(width int, subtitle string) []string {
+	title := m.statusLight() + " " + ui.Title.Render("Voice Input")
+	if m.busy {
+		title += " " + ui.OKText.Render("working…")
+	}
+	lines := []string{title}
+	if subtitle != "" {
+		lines = append(lines, ui.MutedText.Render(ui.TruncateStyled(subtitle, width)))
+	}
+	return lines
+}
+
+func (m Model) statusLight() string {
+	style := lipgloss.NewStyle().Foreground(m.tone())
+	return style.Render("●")
+}
+
+func (m Model) actionPrimary(label string, enabled bool, width int) string {
+	style := lipgloss.NewStyle().Foreground(ui.Muted)
+	prefix := "  "
+	if enabled && !m.busy {
+		style = lipgloss.NewStyle().Foreground(ui.Accent).Bold(true)
+		prefix = "→ "
+	}
+	return style.Render(ui.TruncatePlain(prefix+label+" (enter)", width))
+}
+
+func (m Model) actionSecondary(key, label string, enabled bool) string {
+	style := lipgloss.NewStyle().Foreground(ui.Muted)
+	if enabled && !m.busy {
+		style = lipgloss.NewStyle().Foreground(ui.Text)
+	}
+	return style.Render("  " + label + " (" + key + ")")
 }
 
 func (m Model) statusLine() string {
@@ -444,6 +647,60 @@ func (m Model) statusLine() string {
 	return strings.Join(parts, " ")
 }
 
+func (m Model) helpItems() []string {
+	items := []string{
+		ui.HelpItem("enter", m.primaryHelp()),
+	}
+	switch m.state() {
+	case "nomodel":
+		items = append(items, ui.HelpItem("d", "diagnose"))
+	case "downloading":
+		// cancel is enter
+	case "recording":
+		// stop is enter
+	default:
+		items = append(items,
+			ui.HelpItem("e", "bindings"),
+			ui.HelpItem("k", "key tester"),
+			ui.HelpItem("d", "diagnose"),
+			ui.HelpItem("t", "test tui"),
+			ui.HelpItem("s", "setup"),
+			ui.HelpItem("x", "delete model"),
+		)
+		if len(m.recentItems()) > 0 {
+			items = append(items, ui.HelpItem("c", "clear recent"))
+		}
+	}
+	items = append(items, ui.HelpItem("r", "refresh"), ui.HelpItem("q", "quit"))
+	return items
+}
+
+func (m Model) kvLine(label, value string, width int) string {
+	labelStyle := lipgloss.NewStyle().Foreground(ui.Text)
+	valueStyle := lipgloss.NewStyle().Foreground(ui.Muted)
+	left := labelStyle.Render(label)
+	gap := 2
+	remain := width - lipgloss.Width(label) - gap
+	if remain < 8 {
+		remain = 8
+	}
+	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
+}
+
+func boolReady(ok bool) string {
+	if ok {
+		return "ready"
+	}
+	return "missing"
+}
+
+func boolRunning(ok bool) string {
+	if ok {
+		return "running"
+	}
+	return "idle"
+}
+
 func (m Model) fetchStatus() tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-voice", "status")
@@ -454,10 +711,17 @@ func (m Model) fetchStatus() tea.Cmd {
 	}
 }
 
+func (m Model) fetchLogs() tea.Cmd {
+	return func() tea.Msg {
+		result := m.backend.Run("omd-settings-voice", "logs")
+		return logsMsg{lines: result.Lines, err: result.Err}
+	}
+}
+
 func (m Model) runAction(action string) tea.Cmd {
 	return func() tea.Msg {
 		result := m.backend.Run("omd-settings-voice", action)
-		return backend.ActionMsg{Action: action, Err: result.Err}
+		return actionLogMsg{action: action, lines: result.Lines, err: result.Err}
 	}
 }
 
@@ -477,8 +741,6 @@ func (m Model) recording() bool {
 	return m.state() == "recording"
 }
 
-// stateMeta drives the static per-state presentation. stateLabel stays a
-// method because recording appends a live timer and idle can become "Ready".
 var stateMeta = map[string]struct {
 	label  string
 	marker string
@@ -591,9 +853,11 @@ func actionMessage(action string) string {
 	case "record-stop":
 		return "Transcription finished"
 	case "test":
-		return "Test tool opened"
+		return "Test completed"
 	case "diagnose":
-		return "Diagnose opened"
+		return "Diagnosis completed"
+	case "delete-model":
+		return "Model deleted successfully"
 	case "edit":
 		return "Binding file opened"
 	case "bind-tui":

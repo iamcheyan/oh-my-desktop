@@ -62,29 +62,70 @@ Single column: hero + primary → connection → specs → advanced.
 
 ## State Views
 
-| State | Left primary | Right emphasis |
-| --- | --- | --- |
-| **Blocked** | Hero warning + Fix Requirements | Requirements checklist expanded |
-| **Not installed** | Install Windows | Default/current specs preview |
-| **Installing / fixing** | Progress + phase% + Open Console | Logs expanded |
-| **Ready** | Connect | Connection details; Start/Stop secondary |
-| **Stopped** | Start & Connect | Specs + Remove in danger zone |
-| **Partial / broken** | Resume / Repair | Remove more visible but still confirm |
+| State | Primary CTA | Right pane | Hidden until relevant |
+| --- | --- | --- | --- |
+| **Blocked** | Fix requirements | none (single column) | Connection, specs, logs, power, remove |
+| **Not installed** | Install Windows | none (single column) | Connection, runtime, manage, logs, remove |
+| **Installing / fixing / booting** | Open console / wait | Logs expanded | Remove (optional), connect |
+| **Ready** | Connect | Connection + short logs | Requirements checklist |
+| **Stopped** | Start | Specs / connection | Requirements checklist |
+| **Partial / broken** | Repair / start | Logs + status | — |
 
-One primary button per state. Secondary actions never match its visual weight.
+One primary action per state (`→ label (enter)`). Secondary actions are plain
+key-annotated lines, never equal visual weight. Fake status “buttons”
+(Docker/KVM/RDP pills) are not used — blockers are written as failed checks
+with human-readable detail.
 
 ## Progressive Disclosure
 
-| Level | Content |
-| --- | --- |
-| Primary | Health hero, one CTA, connection when configured |
-| Secondary | Specs, Start/Stop, Open Console, Keep Alive |
-| Advanced | Requirements rows, compose/storage paths, FreeRDP path, logs |
-| Danger | Remove with two-step confirm (`SettingsDangerZone`) |
+| Level | Content | When shown |
+| --- | --- | --- |
+| Hero | Status light + one-line situation | Always |
+| Blockers | Only **failed** host checks + detail | `blocked` only |
+| Install guide | What install does + defaults | `install` only |
+| Primary CTA | One next step | Always |
+| Secondary ops | Console / stop / start only | VM running or stopped |
+| Connection / specs | Endpoints, RAM/CPU/disk | Ready / stopped / repair |
+| Logs | Container output | Booting, busy, repair, ready side pane |
+| Danger | Remove with `y` / `n` confirm | Configured VM only |
 
-Logs: collapsed by default; auto-expand while `installing` or `fixing`.
+Logs: hidden before a VM exists; auto-shown while installing, fixing, or booting.
 
-## Implementation Notes
+## Go Settings TUI (`tui-go`)
+
+Canonical interactive page:
+
+- File: `tui-go/internal/pages/windows/model.go`
+- Backend: `bin/omd-settings-windows-vm`
+- Layout rules match `docs/tui-style-system.md` (borderless dashboard, no
+  pill-buttons for non-interactive status).
+
+State rendering is branch-based (`blockedView`, `installView`, `readyView`, …)
+rather than one form with every section always visible.
+
+### Example: current host blocked + not installed
+
+```text
+● Windows VM
+  Host requirements need attention before install.
+
+WHAT'S BLOCKING
+Only failed checks are listed. Fix these, then install.
+
+✗ Docker access
+  permission denied while trying to connect to the docker API…
+✗ Free disk space
+  49 GB free (need ≥ 74 GB)
+
+NEXT STEP
+Resolve host requirements before install or start.
+→ Fix requirements (enter)
+  Refresh status (r)
+```
+
+No Connection / Runtime / empty Specs / empty Logs until install is possible.
+
+## QML Settings Center (legacy panel)
 
 - Keep `QtObject` status model and Process helpers; fix `parseKeyValue` to split
   on real newlines (`"\n"`).
@@ -92,6 +133,8 @@ Logs: collapsed by default; auto-expand while `installing` or `fixing`.
   `SettingsDangerZone`, `ButtonRow`, `SettingsButton`.
 - Footer remains Close only (actions are immediate).
 - File: `quickshell/modules/settings/pages/WindowsVmPage.qml`
+
+QML should follow the same progressive disclosure table when next touched.
 
 ## Phases
 
@@ -104,14 +147,25 @@ tokenized colors.
 
 Single primary label per state; connection and power actions secondary.
 
-### Phase C — Later (optional)
+### Phase C — Go TUI state pages ✅ (2026-07-18)
+
+`tui-go` Windows page is state-driven: blocked/install are single-column
+guided flows; manage/logs only appear after a VM exists or during work.
+
+### Phase D — Later (optional)
 
 Editable RAM/CPU/Disk drafts, password display, dedicated Requirements/Logs
-subpages.
+subpages; align QML panel with Go TUI disclosure rules.
 
 ## Success Criteria
 
 - Healthy VM: Connect is obvious within two seconds
-- Blocked host: one blocker sentence + Fix, checklist not competing with noise
+- Blocked host: only failed checks + Fix; no manage/connect noise
+- Not installed (host OK): Install is the only primary path; no empty panels
 - Installing: progress and logs visible without scrolling past five cards
 - Remove is hard to hit accidentally and still two-step confirmed
+
+## Related
+
+Disk / ISO / peak-space research (why 74 GB, what actually downloads):
+`docs/windows-vm-settings-redesign.md` § *Disk & Image Size Research*.

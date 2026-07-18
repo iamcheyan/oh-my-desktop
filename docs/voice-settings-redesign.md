@@ -176,6 +176,22 @@ Until then, state auto-paste as a short readonly note if it is always on.
 - Real preference toggles where applicable
 - Dedicated setup flow when engine is not installed
 
+### Phase 5 — Go TUI state pages ✅ (2026-07-18)
+
+`tui-go/internal/pages/voice/model.go` follows the same progressive disclosure
+pattern as the Windows VM TUI:
+
+| State | What the user sees |
+| --- | --- |
+| **nomodel** | Setup guide only: what will install (~229 MB model + venv), primary Setup |
+| **downloading** | Progress bar + Cancel; no bindings/tools |
+| **recording** | Live timer + Stop & transcribe |
+| **idle (ready)** | Trial record, model summary, bindings, recent; Advanced demoted |
+
+Day-to-day settings (bindings, diagnose, test TUI, paths) stay hidden until the
+engine is installed. Typographic actions (`→ label (enter)`) match wallpaper /
+Windows VM styling; no fake status pills.
+
 ## Non-Goals
 
 - Replacing the Python daemon or SenseVoice pipeline

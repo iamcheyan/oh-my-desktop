@@ -238,6 +238,10 @@ setup() {
     return
   fi
 
+  local log_file="$STATE_DIR/install.log"
+  echo "=== Voice Input Setup Log ===" >"$log_file"
+  echo "Starting virtual environment setup..." >>"$log_file"
+
   # Mark downloading immediately so the UI can flip state before the first
   # curl progress line arrives.
   write_state '{"phase":"downloading","bytes":0,"percent":0,"speedBps":0,"etaSec":0,"label":"Starting…","heartbeat":'$(date +%s)'}'
@@ -245,15 +249,19 @@ setup() {
   (
     # venv first
     if [[ -x "$VOICE_SETUP" ]]; then
-      "$VOICE_SETUP" >/dev/null 2>&1
+      echo "Setting up Python virtual environment (this may take a minute)..." >>"$log_file"
+      "$VOICE_SETUP" >>"$log_file" 2>&1
     fi
     # then model download with progress tracking
     if ! model_ready && [[ -x "$VOICE_DOWNLOAD" ]]; then
-      download_with_progress
+      echo "Downloading speech model files (~229 MB)..." >>"$log_file"
+      download_with_progress >>"$log_file" 2>&1
     fi
     if model_ready && venv_ready; then
+      echo "Setup completed successfully! Daemon is ready to run." >>"$log_file"
       clear_state
     else
+      echo "Setup failed. Please review errors above." >>"$log_file"
       # leave state.json so the UI can show an error; clear phase so it's
       # not treated as an in-flight download.
       python3 - "$STATE_FILE" <<'PY'
@@ -272,7 +280,7 @@ with open(path, "w", encoding="utf-8") as f:
     f.write("\n")
 PY
     fi
-  ) >/dev/null 2>&1 &
+  ) &
   kv result "setup-started"
 }
 
@@ -482,13 +490,104 @@ PY
 }
 
 diagnose() {
-  launch_tui "$VOICE_DIAGNOSE"
-  kv result "diagnose-opened"
+  echo "Starting system status diagnosis..."
+  echo "==================================="
+
+  # 1. venv check
+  if [[ -x "$VENV_DIR/bin/python3" ]]; then
+    echo "[Venv]   OK - Python virtual environment is ready."
+  else
+    echo "[Venv]   FAIL - Virtual environment missing at $VENV_DIR"
+  fi
+
+  # 2. deps check
+  if [[ -x "$VENV_DIR/bin/python3" ]]; then
+    if "$VENV_DIR/bin/python3" -c 'import sherpa_onnx, numpy' >/dev/null 2>&1; then
+      echo "[Deps]   OK - Python dependencies (sherpa-onnx, numpy) loaded successfully."
+    else
+      echo "[Deps]   FAIL - sherpa-onnx or numpy missing in venv."
+    fi
+  else
+    echo "[Deps]   FAIL - Skipped (Venv not ready)."
+  fi
+
+  # 3. model check
+  if model_ready; then
+    local sz
+    sz=$(du -sm "$MODEL_DIR" 2>/dev/null | awk '{print $1}')
+    echo "[Model]  OK - Model files present (~$sz MB)."
+  else
+    echo "[Model]  FAIL - Model files missing at $MODEL_DIR"
+  fi
+
+  # 4. daemon check
+  if daemon_running; then
+    echo "[Daemon] OK - Voice background daemon is active."
+  else
+    echo "[Daemon] WARN - Daemon is idle (will auto-launch on first recording)."
+  fi
+
+  # 5. recording tool check
+  if command -v parecord >/dev/null 2>&1; then
+    echo "[Record] OK - parecord utility is available."
+  else
+    echo "[Record] FAIL - parecord missing (install pulseaudio or pipewire-pulse)."
+  fi
+
+  # 6. ffmpeg check
+  if command -v ffmpeg >/dev/null 2>&1; then
+    echo "[ffmpeg] OK - ffmpeg utility is available."
+  else
+    echo "[ffmpeg] WARN - ffmpeg missing (audio normalization disabled)."
+  fi
+
+  # 7. auto-paste check
+  local has_wlcopy=false
+  command -v wl-copy >/dev/null 2>&1 && has_wlcopy=true
+  local backends=()
+  command -v hyprctl >/dev/null 2>&1 && backends+=("hyprctl")
+  command -v wtype >/dev/null 2>&1 && backends+=("wtype")
+  command -v ydotool >/dev/null 2>&1 && backends+=("ydotool")
+
+  if $has_wlcopy && [[ ${#backends[@]} -gt 0 ]]; then
+    echo "[Paste]  OK - wl-copy + paste backend is ready (${backends[*]})."
+  else
+    echo "[Paste]  FAIL - Missing wl-copy or any paste backend (hyprctl/wtype/ydotool)."
+  fi
+
+  echo "==================================="
+  echo "Diagnosis completed."
+  kv result "diagnose-done"
 }
 
 test_tui() {
-  launch_tui "$VOICE_TEST_TUI"
-  kv result "test-opened"
+  echo "Starting a 3-second recording test..."
+  local test_wav="/tmp/omd-voice-test.wav"
+  rm -f "$test_wav"
+
+  if command -v parecord >/dev/null 2>&1; then
+    echo "Speak now (recording for 3s)..."
+    parecord --channels=1 --rate=16000 --format=s16le "$test_wav" &
+    local rpid=$!
+    sleep 3
+    kill "$rpid" >/dev/null 2>&1 || true
+    wait "$rpid" >/dev/null 2>&1 || true
+    echo "Recording completed. Transcribing..."
+    if [[ -f "$test_wav" ]]; then
+      local text
+      text="$("$OMD_ROOT/share/bin/omarchy-voice-transcribe" "$test_wav" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("text",""))' 2>/dev/null || true)"
+      if [[ -n "$text" ]]; then
+        echo "Transcription result: \"$text\""
+      else
+        echo "Transcription completed: No speech detected."
+      fi
+    else
+      echo "ERROR: test WAV file was not created."
+    fi
+  else
+    echo "ERROR: parecord not found."
+  fi
+  kv result "test-done"
 }
 
 # record-start / record-stop let the TUI drive a recording session directly
@@ -526,6 +625,19 @@ case "${1:-status}" in
   bind-tui) bind_tui ;;
   diagnose) diagnose ;;
   test) test_tui ;;
+  delete-model)
+    rm -rf "$MODEL_DIR"
+    rm -rf "$VENV_DIR"
+    clear_state
+    kv result "model-deleted"
+    ;;
+  logs)
+    if [[ -f "$STATE_DIR/install.log" ]]; then
+      cat "$STATE_DIR/install.log"
+    else
+      echo "No installation logs available."
+    fi
+    ;;
   record) record ;;                       # legacy: launches test TUI
   record-start) record_start ;;
   record-stop) record_stop ;;
@@ -534,7 +646,7 @@ case "${1:-status}" in
     ;;
   recent-clear) rm -f "$RECENT_FILE"; kv result "recent-cleared" ;;
   *)
-    echo "usage: omd-settings-voice status|setup|cancel|add <key>|remove <key>|capture|key-test|edit|bind-tui|diagnose|test|record|record-start|record-stop|recent|recent-clear" >&2
+    echo "usage: omd-settings-voice status|setup|cancel|add <key>|remove <key>|capture|key-test|edit|bind-tui|diagnose|test|delete-model|logs|record|record-start|record-stop|recent|recent-clear" >&2
     exit 2
     ;;
 esac

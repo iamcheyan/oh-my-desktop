@@ -154,3 +154,21 @@ git diff --check -- quickshell apps docs
 
 Hard-coded colors in `TuiStyle.qml` itself are expected. Hard-coded colors in
 feature modules should be justified or moved into `TuiStyle.qml`.
+
+## Go Settings TUI Styling Guidelines
+
+For the Go-based terminal settings pages (`tui-go/internal/pages/`), we enforce the following styling principles to achieve a cohesive, clean, and premium look:
+
+1. **Borderless Dashboards Aligned with Previews**:
+   - Avoid nesting every text card or button block in double borders when next to visual previews (like the pixelated wallpaper preview). This prevents a cluttered, boxy look.
+   - Restrict borders to visual media preview containers (e.g. `wallpaperPreview`).
+   - Lay out the status and controls on the right as a clean, borderless typographic panel. Match its vertical height with the preview box using exact padding for pixel-perfect alignment.
+
+2. **Inline Radio-Style Toggle Rows (◉/○)**:
+   - Present mutually exclusive options as single horizontal rows of radio indicators instead of bulky bordered buttons.
+   - Highlight the active choice with the accent color and bold font style (e.g. `◉ File (f)`), while keeping inactive choices muted (e.g. `○ Folder (d)`).
+   - Annotate choices with their direct key mnemonics in parentheses.
+
+3. **Adaptive Two-Column Layout**:
+   - Use a horizontal layout for wide viewports, placing the preview on the left and the borderless dashboard/control panel on the right.
+   - Automatically fall back to a stacked vertical layout when terminal width is narrow.

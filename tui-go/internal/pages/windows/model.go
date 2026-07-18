@@ -78,17 +78,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						key  string
 					}
 					buttons := []btn{
-						{"Refresh", "r"},
+						{"Refresh status", "r"},
 						{"Start only", "s"},
-						{"Open console", "w"},
+						{"Open web console", "w"},
 						{"Stop VM", "x"},
 						{"Remove VM", "d"},
-						{"confirm remove", "y"},
-						{"cancel", "n"},
-						{"Install", "enter"},
-						{"Fix", "enter"},
+						{"Confirm remove", "y"},
+						{"Cancel", "n"},
+						{"Install Windows", "enter"},
+						{"Fix requirements", "enter"},
 						{"Connect", "enter"},
-						{"Start & Connect", "enter"},
+						{"Start", "enter"},
+						{"Open console", "enter"},
+						{"Repair / start", "enter"},
 					}
 					for _, b := range buttons {
 						idx := strings.Index(plain, b.text)
@@ -210,9 +212,9 @@ func (m Model) View() string {
 	height := m.height
 
 	const (
-		screenPaddingX = 2 // Screen.Padding(_, 1) on each side
-		screenPaddingY = 2 // Screen.Padding(1, _) on each side
-		panelGap       = 2 // "  " between panels
+		screenPaddingX = 2
+		screenPaddingY = 2
+		panelGap       = 2
 		fixedRows      = 1 // footer help
 	)
 
@@ -225,6 +227,22 @@ func (m Model) View() string {
 		contentH = 8
 	}
 
+	var helpText string
+	if m.confirmRemove {
+		helpText = ui.HelpText(ui.HelpItem("y", "confirm remove"), ui.HelpItem("n/esc", "cancel"))
+	} else {
+		helpText = ui.HelpText(m.helpItems()...)
+	}
+
+	// Setup / blocked states: single focused column. No empty logs or dead
+	// connection panels before a VM exists.
+	if !m.showSidePanel() {
+		main := ui.PreserveBackground(ui.FitBlock(m.mainPanel(contentW), contentW, contentH), ui.Background)
+		return ui.Screen.Padding(1, 1).Render(
+			lipgloss.JoinVertical(lipgloss.Left, main, helpText),
+		)
+	}
+
 	leftW := min(54, max(38, contentW/3))
 	rightW := contentW - leftW - panelGap
 	if rightW < 40 {
@@ -232,142 +250,305 @@ func (m Model) View() string {
 		leftW = max(28, contentW-panelGap-rightW)
 	}
 
-	left := ui.PreserveBackground(ui.FitBlock(m.controlView(leftW), leftW, contentH), ui.Background)
-	right := ui.PreserveBackground(ui.FitBlock(m.logView(rightW, contentH), rightW, contentH), ui.Background)
-
-	var helpText string
-	if m.confirmRemove {
-		helpText = ui.HelpText(ui.HelpItem("y", "confirm remove"), ui.HelpItem("n/esc", "cancel"))
-	} else {
-		helpText = ui.HelpText(m.helpItems()...)
-	}
-	help := helpText
+	left := ui.PreserveBackground(ui.FitBlock(m.mainPanel(leftW), leftW, contentH), ui.Background)
+	right := ui.PreserveBackground(ui.FitBlock(m.sidePanel(rightW, contentH), rightW, contentH), ui.Background)
 
 	return ui.Screen.Padding(1, 1).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right),
-			help,
+			helpText,
 		),
 	)
 }
 
-func (m Model) controlView(width int) string {
+// showSidePanel is true once there is something worth showing on the right:
+// live logs during work/boot, or connection details after the VM exists.
+func (m Model) showSidePanel() bool {
+	if m.status == nil {
+		return false
+	}
+	if m.confirmRemove {
+		return false
+	}
+	state := m.primaryState()
+	switch state {
+	case "blocked", "install":
+		// Still show logs while a fix/install action is running.
+		return m.busy
+	case "booting", "ready", "stopped", "repair":
+		return true
+	default:
+		return m.busy
+	}
+}
+
+func (m Model) mainPanel(width int) string {
 	if m.status == nil {
 		return "Loading..."
 	}
-
-	health := m.value("phase", "unknown")
-	if m.ready() {
-		health = "Ready"
+	if m.confirmRemove {
+		return m.confirmRemoveView(width)
 	}
+	switch m.primaryState() {
+	case "blocked":
+		return m.blockedView(width)
+	case "install":
+		return m.installView(width)
+	case "booting":
+		return m.bootingView(width)
+	case "ready":
+		return m.readyView(width)
+	case "stopped":
+		return m.stoppedView(width)
+	default:
+		return m.repairView(width)
+	}
+}
 
+func (m Model) heroLines(width int, subtitle string) []string {
 	title := m.statusLight() + " " + ui.Title.Render("Windows VM")
 	if m.busy {
-		title += " " + ui.OKText.Render("working...")
+		title += " " + ui.OKText.Render("working…")
 	}
 	if m.err != "" {
-		title += " " + ui.DangerText.Render(m.err)
+		title += " " + ui.DangerText.Render(ui.TruncatePlain(m.err, max(12, width-24)))
 	}
-
-	lines := []string{
-		title,
-		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("%s · %s · RDP %s · Web %s", m.vmStateLabel(), health, m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), width)),
-		"",
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			ui.StatusPill("Docker", m.bool("dockerAccess")),
-			ui.StatusPill("KVM", m.bool("kvm")),
-			ui.StatusPill("RDP", m.bool("rdpReachable")),
-		),
-		"",
-		ui.Section.Render("Actions"),
-		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
-		"",
-		m.actionButtons(),
-		"",
-		m.opsButtons(),
-		"",
+	lines := []string{title}
+	if subtitle != "" {
+		lines = append(lines, ui.MutedText.Render(ui.TruncateStyled(subtitle, width)))
 	}
+	return lines
+}
 
-	if m.hasSystemBlocker() {
-		lines = append(lines,
-			ui.Section.Render("Requirements Blocked"),
-			ui.Row("KVM Virtualization", ui.BoolStatus(m.bool("kvm")), width),
-			ui.Row("Docker CLI", ui.BoolStatus(m.bool("dockerCli")), width),
-			ui.Row("Docker Daemon", ui.BoolStatus(m.bool("dockerAccess")), width),
-			ui.Row("Docker Compose", ui.BoolStatus(m.bool("compose")), width),
-			ui.Row("Free RDP Client", ui.BoolStatus(m.bool("freerdp")), width),
-			ui.Row("Free disk space", ui.BoolStatus(m.diskAvailable() >= 74), width),
-			"",
-		)
+func (m Model) sectionTitle(text string) string {
+	return lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(text)
+}
+
+func (m Model) actionPrimary(width int) string {
+	label := m.primaryActionLabel()
+	enabled := !m.busy && m.primaryActionName() != ""
+	if m.primaryActionName() == "connect" {
+		enabled = enabled && m.bool("freerdp")
 	}
+	style := lipgloss.NewStyle().Foreground(ui.Muted)
+	prefix := "  "
+	if enabled {
+		style = lipgloss.NewStyle().Foreground(ui.Accent).Bold(true)
+		prefix = "→ "
+	}
+	return style.Render(ui.TruncatePlain(prefix+label+" (enter)", width))
+}
 
-	lines = append(lines,
-		ui.Section.Render("Connection"),
-		ui.Row("Web", m.value("web", "-")+"  "+ui.BoolStatus(m.bool("webReachable")), width),
-		ui.Row("RDP", m.value("rdpEndpoint", "-")+"  "+ui.BoolStatus(m.bool("rdpReachable")), width),
+func (m Model) actionSecondary(key, label string, enabled bool) string {
+	style := lipgloss.NewStyle().Foreground(ui.Muted)
+	if enabled && !m.busy {
+		style = lipgloss.NewStyle().Foreground(ui.Text)
+	}
+	return style.Render("  " + label + " (" + key + ")")
+}
+
+// blockedView: host cannot install/run yet — only show failures + fix CTA.
+func (m Model) blockedView(width int) string {
+	lines := m.heroLines(width, "Host requirements need attention before install.")
+	lines = append(lines, "",
+		m.sectionTitle("WHAT'S BLOCKING"),
+		ui.MutedText.Render("Only failed checks are listed. Fix these, then install."),
 		"",
-		ui.Section.Render("Runtime"),
-		ui.Row("Container", m.value("container", "-"), width),
-		ui.Row("Docker", ui.BoolStatus(m.bool("dockerAccess")), width),
-		ui.Row("KVM", ui.BoolStatus(m.bool("kvm")), width),
-		"",
-		ui.Section.Render("Specs"),
-		ui.Row("RAM", m.value("ram", "-"), width),
-		ui.Row("CPU", m.value("cpu", "-"), width),
-		ui.Row("Disk", m.value("disk", "-"), width),
-		ui.Row("User", m.value("user", "-"), width),
-		ui.Row("Shared", m.value("sharedDir", "-"), width),
 	)
-
-	if m.confirmRemove {
-		lines = append(lines,
-			"",
-			ui.Section.Render("Danger Zone"),
-			ui.DangerText.Render("Press y to CONFIRM REMOVE | n to cancel"),
-			ui.DangerText.Render("Deletes container & local VM storage."),
-		)
-	} else {
-		if m.configured() {
-			lines = append(lines,
-				"",
-				ui.Section.Render("Danger Zone"),
-				ui.SubtleText.Render("d Remove VM (deletes container & storage)"),
-			)
-		}
+	for _, row := range m.blockerDetails(width) {
+		lines = append(lines, row)
 	}
-
+	lines = append(lines, "",
+		m.sectionTitle("NEXT STEP"),
+		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
+		m.actionPrimary(width),
+		m.actionSecondary("r", "Refresh status", true),
+	)
 	return strings.Join(lines, "\n")
+}
+
+// installView: ready to install — guide the user, hide manage/connect/logs.
+func (m Model) installView(width int) string {
+	lines := m.heroLines(width, "Windows is not installed on this machine yet.")
+	lines = append(lines, "",
+		m.sectionTitle("GET STARTED"),
+		ui.MutedText.Render("Installs a Dockurr Windows 11 VM with sensible defaults."),
+		ui.MutedText.Render("First run downloads an image and can take a while."),
+		"",
+		m.sectionTitle("DEFAULTS"),
+		m.kvLine("Shared folder", m.value("sharedDir", "~/Windows"), width),
+		m.kvLine("Web console", m.value("web", "http://127.0.0.1:8006"), width),
+		m.kvLine("RDP", m.value("rdpEndpoint", "127.0.0.1:3389"), width),
+		m.kvLine("Host free disk", fmt.Sprintf("%d GB available", m.diskAvailable()), width),
+		"",
+		m.sectionTitle("NEXT STEP"),
+		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
+		m.actionPrimary(width),
+		m.actionSecondary("r", "Refresh status", true),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) bootingView(width int) string {
+	phase := m.value("phase", "starting")
+	progress := m.value("progressPercent", "")
+	sub := "Windows is starting up…"
+	if progress != "" {
+		sub = fmt.Sprintf("%s · %s%%", phase, progress)
+	} else if phase != "" {
+		sub = phase
+	}
+	lines := m.heroLines(width, sub)
+	lines = append(lines, "",
+		m.sectionTitle("WHILE YOU WAIT"),
+		ui.MutedText.Render("Use the web console to watch install/boot progress."),
+		"",
+		m.sectionTitle("ACTIONS"),
+		m.actionPrimary(width),
+	)
+	if m.running() {
+		lines = append(lines, m.actionSecondary("w", "Open web console", true))
+		lines = append(lines, m.actionSecondary("x", "Stop VM", true))
+	}
+	lines = append(lines, m.actionSecondary("r", "Refresh status", true))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) readyView(width int) string {
+	lines := m.heroLines(width, "Ready · RDP and web console are reachable.")
+	lines = append(lines, "",
+		m.sectionTitle("CONNECTION"),
+		m.kvLine("RDP", m.value("rdpEndpoint", "-"), width),
+		m.kvLine("Web", m.value("web", "-"), width),
+		"",
+		m.sectionTitle("ACTIONS"),
+		m.actionPrimary(width),
+		m.actionSecondary("w", "Open web console", true),
+		m.actionSecondary("x", "Stop VM", true),
+		m.actionSecondary("r", "Refresh status", true),
+		"",
+		m.sectionTitle("DANGER"),
+		m.actionSecondary("d", "Remove VM", true),
+		ui.SubtleText.Render("  Deletes container and local VM storage."),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) stoppedView(width int) string {
+	lines := m.heroLines(width, "VM is installed but not running.")
+	lines = append(lines, "",
+		m.sectionTitle("SPECS"),
+		m.kvLine("RAM", nonEmpty(m.value("ram", ""), "-"), width),
+		m.kvLine("CPU", nonEmpty(m.value("cpu", ""), "-"), width),
+		m.kvLine("Disk", nonEmpty(m.value("disk", ""), "-"), width),
+		m.kvLine("User", nonEmpty(m.value("user", ""), "-"), width),
+		m.kvLine("Shared", m.value("sharedDir", "-"), width),
+		"",
+		m.sectionTitle("ACTIONS"),
+		m.actionPrimary(width),
+		m.actionSecondary("s", "Start only (no RDP)", true),
+		m.actionSecondary("r", "Refresh status", true),
+		"",
+		m.sectionTitle("DANGER"),
+		m.actionSecondary("d", "Remove VM", true),
+		ui.SubtleText.Render("  Deletes container and local VM storage."),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) repairView(width int) string {
+	lines := m.heroLines(width, "VM stack looks partial or broken.")
+	lines = append(lines, "",
+		m.sectionTitle("STATUS"),
+		m.kvLine("Phase", m.value("phase", "-"), width),
+		m.kvLine("Container", m.value("container", "-"), width),
+		m.kvLine("Docker", boolLabel(m.bool("dockerAccess")), width),
+		m.kvLine("KVM", boolLabel(m.bool("kvm")), width),
+		"",
+		m.sectionTitle("ACTIONS"),
+		m.actionPrimary(width),
+		m.actionSecondary("r", "Refresh status", true),
+	)
+	if m.configured() {
+		lines = append(lines, "",
+			m.sectionTitle("DANGER"),
+			m.actionSecondary("d", "Remove VM", true),
+			ui.SubtleText.Render("  Deletes container and local VM storage."),
+		)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) confirmRemoveView(width int) string {
+	lines := m.heroLines(width, "Confirm destructive action.")
+	lines = append(lines, "",
+		m.sectionTitle("REMOVE WINDOWS VM"),
+		ui.DangerText.Render("This deletes the container and local VM storage."),
+		ui.DangerText.Render(ui.TruncatePlain(m.value("storageDir", "~/.windows"), width)),
+		"",
+		ui.DangerText.Render("→ Confirm remove (y)"),
+		lipgloss.NewStyle().Foreground(ui.Text).Render("  Cancel (n / esc)"),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) sidePanel(width, height int) string {
+	state := m.primaryState()
+	// Booting / busy / repair: logs are the useful right pane.
+	if m.busy || state == "booting" || state == "repair" || m.isInstallingPhase() {
+		return m.logView(width, height)
+	}
+	// Ready / stopped: connection summary + optional short logs.
+	lines := []string{
+		ui.Title.Render("Details"),
+		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("%s · %s", m.vmStateLabel(), m.value("phase", "-")), width)),
+		"",
+		m.sectionTitle("CONNECTION"),
+		m.kvLine("Web", fmt.Sprintf("%s  %s", m.value("web", "-"), boolLabel(m.bool("webReachable"))), width),
+		m.kvLine("RDP", fmt.Sprintf("%s  %s", m.value("rdpEndpoint", "-"), boolLabel(m.bool("rdpReachable"))), width),
+		m.kvLine("Container", m.value("container", "-"), width),
+		"",
+		m.sectionTitle("LOGS"),
+	}
+	static := 0
+	for _, l := range lines {
+		static += strings.Count(l, "\n") + 1
+	}
+	logH := height - static
+	if logH < 3 {
+		return strings.Join(lines, "\n")
+	}
+	// Reuse log body without its own title.
+	body := m.logBody(width, logH)
+	return strings.Join(lines, "\n") + "\n" + body
+}
+
+func (m Model) isInstallingPhase() bool {
+	phase := strings.ToLower(m.value("phase", ""))
+	return strings.Contains(phase, "install") ||
+		strings.Contains(phase, "pull") ||
+		strings.Contains(phase, "download") ||
+		strings.Contains(phase, "extract")
 }
 
 func (m Model) logView(width, height int) string {
 	if m.status == nil {
 		return "Loading..."
 	}
-
-	lines := []string{
+	header := []string{
 		ui.Title.Render("Logs"),
 		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("Container %s · %s", m.value("container", "-"), m.value("phase", "-")), width)),
 		"",
 	}
-
-	// Expand elements with internal newlines to count actual rendered lines
-	var staticLines []string
-	for _, l := range lines {
-		staticLines = append(staticLines, strings.Split(l, "\n")...)
+	static := len(header)
+	logH := height - static
+	if logH < 1 {
+		return strings.Join(header, "\n")
 	}
+	return strings.Join(header, "\n") + "\n" + m.logBody(width, logH)
+}
 
-	logCount := height - len(staticLines)
-	if logCount < 0 {
-		if height >= 0 && len(staticLines) > height {
-			staticLines = staticLines[:height]
-		}
-		return strings.Join(staticLines, "\n")
-	}
-	if logCount == 0 {
-		return strings.Join(staticLines, "\n")
-	}
-
-	// Wrap log lines to fit within (width - 2) to leave 2 columns for space + scrollbar
+func (m Model) logBody(width, logCount int) string {
 	logWidth := width - 2
 	if logWidth < 8 {
 		logWidth = 8
@@ -380,12 +561,14 @@ func (m Model) logView(width, height int) string {
 
 	displayedLogs := make([]string, logCount)
 	if totalLines == 0 {
-		// No logs to show, pad with blank lines
 		for i := 0; i < logCount; i++ {
-			displayedLogs[i] = strings.Repeat(" ", logWidth) + "  "
+			if i == 0 {
+				displayedLogs[i] = ui.SubtleText.Render(ui.PadPlain("No log output yet.", logWidth)) + "  "
+			} else {
+				displayedLogs[i] = strings.Repeat(" ", logWidth) + "  "
+			}
 		}
 	} else if totalLines <= logCount {
-		// All logs fit, draw solid scrollbar for log rows, trailing blank rows have track
 		for i := 0; i < logCount; i++ {
 			if i < totalLines {
 				padded := ui.PadPlain(wrappedLogs[i], logWidth)
@@ -395,7 +578,6 @@ func (m Model) logView(width, height int) string {
 			}
 		}
 	} else {
-		// Logs overflow, clamp scrollOffset and slide viewport
 		maxOffset := totalLines - logCount
 		scrollOffset := m.scrollOffset
 		if scrollOffset > maxOffset {
@@ -404,11 +586,8 @@ func (m Model) logView(width, height int) string {
 		if scrollOffset < 0 {
 			scrollOffset = 0
 		}
-
 		start := totalLines - logCount - scrollOffset
 		end := totalLines - scrollOffset
-
-		// Calculate scrollbar thumb position
 		thumbStart := (start * logCount) / totalLines
 		thumbEnd := (end * logCount) / totalLines
 		if thumbEnd-thumbStart < 1 {
@@ -417,7 +596,6 @@ func (m Model) logView(width, height int) string {
 		if thumbEnd > logCount {
 			thumbEnd = logCount
 		}
-
 		for i := 0; i < logCount; i++ {
 			padded := ui.PadPlain(wrappedLogs[start+i], logWidth)
 			sbChar := ui.SubtleText.Render("│")
@@ -427,59 +605,89 @@ func (m Model) logView(width, height int) string {
 			displayedLogs[i] = padded + " " + sbChar
 		}
 	}
-
-	for _, dLine := range displayedLogs {
-		staticLines = append(staticLines, dLine)
-	}
-
-	return strings.Join(staticLines, "\n")
+	return strings.Join(displayedLogs, "\n")
 }
 
-func (m Model) actionButtons() string {
-	var primaryBtn string
-	label := m.primaryActionLabel()
-
-	action := m.primaryActionName()
-	enabled := !m.busy && action != ""
-	if action == "connect" {
-		enabled = enabled && m.bool("freerdp")
+func (m Model) kvLine(label, value string, width int) string {
+	labelStyle := lipgloss.NewStyle().Foreground(ui.Text)
+	valueStyle := lipgloss.NewStyle().Foreground(ui.Muted)
+	left := labelStyle.Render(label)
+	// "  label  value" with value truncated to remaining width.
+	gap := 2
+	remain := width - lipgloss.Width(label) - gap
+	if remain < 8 {
+		remain = 8
 	}
-
-	if enabled {
-		primaryBtn = ui.PrimaryButtonView(ui.ActionText("enter", label))
-	} else {
-		primaryBtn = ui.DisabledButtonView(ui.ActionText("enter", label))
-	}
-
-	refreshBtn := ui.ButtonView(ui.ActionText("r", "Refresh"), false)
-	if m.busy {
-		refreshBtn = ui.DisabledButtonView(ui.ActionText("r", "Refresh"))
-	}
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, primaryBtn, refreshBtn)
+	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
 }
 
-func (m Model) opsButtons() string {
-	var buttons []string
-	if m.running() {
-		web := ui.ButtonView(ui.ActionText("w", "Open console"), false)
-		stop := ui.ButtonView(ui.ActionText("x", "Stop VM"), false)
-		if m.busy {
-			web = ui.DisabledButtonView(ui.ActionText("w", "Open console"))
-			stop = ui.DisabledButtonView(ui.ActionText("x", "Stop VM"))
-		}
-		buttons = append(buttons, web, stop)
-	} else if m.stopped() {
-		start := ui.ButtonView(ui.ActionText("s", "Start only"), false)
-		if m.busy {
-			start = ui.DisabledButtonView(ui.ActionText("s", "Start only"))
-		}
-		buttons = append(buttons, start)
+type reqCheck struct {
+	ok     bool
+	label  string
+	detail string
+}
+
+func (m Model) allRequirementChecks() []reqCheck {
+	diskOK := m.diskAvailable() >= 74
+	diskDetail := fmt.Sprintf("%d GB free (need ≥ 74 GB)", m.diskAvailable())
+	if diskOK {
+		diskDetail = fmt.Sprintf("%d GB free", m.diskAvailable())
 	}
-	if len(buttons) == 0 {
-		return ""
+
+	dockerDetail := "Docker daemon reachable"
+	if !m.bool("dockerAccess") {
+		if err := m.value("dockerError", ""); err != "" {
+			dockerDetail = err
+		} else if !m.bool("dockerDaemon") {
+			dockerDetail = "Docker daemon is not running"
+		} else if !m.bool("dockerGroupMember") {
+			dockerDetail = "User is not in the docker group (re-login after usermod)"
+		} else {
+			dockerDetail = "Cannot access Docker socket"
+		}
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, buttons...)
+
+	return []reqCheck{
+		{m.bool("kvm"), "KVM virtualization", "Hardware virtualization (/dev/kvm)"},
+		{m.bool("dockerCli"), "Docker CLI", "docker command available"},
+		{m.bool("dockerAccess"), "Docker access", dockerDetail},
+		{m.bool("compose"), "Docker Compose", "compose plugin or docker-compose"},
+		{m.bool("freerdp"), "FreeRDP client", nonEmpty(m.value("freerdpBin", ""), "xfreerdp not found")},
+		{diskOK, "Free disk space", diskDetail},
+	}
+}
+
+func (m Model) blockerDetails(width int) []string {
+	var lines []string
+	for _, c := range m.allRequirementChecks() {
+		if c.ok {
+			continue
+		}
+		mark := lipgloss.NewStyle().Foreground(ui.Danger).Render("✗")
+		label := lipgloss.NewStyle().Foreground(ui.Text).Bold(true).Render(" " + c.label)
+		lines = append(lines, mark+label)
+		if c.detail != "" {
+			lines = append(lines, ui.MutedText.Render("  "+ui.TruncatePlain(c.detail, max(8, width-2))))
+		}
+	}
+	if len(lines) == 0 {
+		lines = append(lines, ui.OKText.Render("✓ All host checks passed"))
+	}
+	return lines
+}
+
+func nonEmpty(v, fallback string) string {
+	if strings.TrimSpace(v) == "" {
+		return fallback
+	}
+	return v
+}
+
+func boolLabel(ok bool) string {
+	if ok {
+		return "ok"
+	}
+	return "no"
 }
 
 func (m Model) fetchStatus() tea.Cmd {
@@ -633,19 +841,22 @@ func (m Model) running() bool {
 
 func (m Model) helpItems() []string {
 	items := []string{
-		ui.HelpItem("enter", m.primaryActionLabel()),
+		ui.HelpItem("enter", strings.ToLower(m.primaryActionLabel())),
 	}
-	if m.ready() {
-		items = append(items, ui.HelpItem("c", "connect"))
-	}
-	if m.stopped() {
-		items = append(items, ui.HelpItem("s", "start only"))
-	}
-	if m.running() {
-		items = append(items, ui.HelpItem("w", "web"), ui.HelpItem("x", "stop"))
-	}
-	if m.configured() {
-		items = append(items, ui.HelpItem("d", "remove"))
+	state := m.primaryState()
+	switch state {
+	case "ready":
+		items = append(items, ui.HelpItem("w", "console"), ui.HelpItem("x", "stop"), ui.HelpItem("d", "remove"))
+	case "stopped":
+		items = append(items, ui.HelpItem("s", "start only"), ui.HelpItem("d", "remove"))
+	case "booting":
+		if m.running() {
+			items = append(items, ui.HelpItem("w", "console"), ui.HelpItem("x", "stop"))
+		}
+	case "repair":
+		if m.configured() {
+			items = append(items, ui.HelpItem("d", "remove"))
+		}
 	}
 	items = append(items, ui.HelpItem("r", "refresh"), ui.HelpItem("q", "quit"))
 	return items
