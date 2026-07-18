@@ -66,6 +66,11 @@ if [ -n "$mime" ]; then
   fi
 
   if [ -s "$tmp" ]; then
+    # Keep the Wayland clipboard and the bracketed-paste payload in sync.
+    # Image-aware TUIs such as OpenCode inspect the clipboard when they receive
+    # a paste event. Leaving the original image there makes them attach both
+    # that image and the decoded path sent below.
+    printf '%s ' "$tmp" | wl-copy
     printf '%s ' "$tmp" | send
     log "image->path $tmp"
     notify-send -t 2000 '📋 已粘贴图片路径' "$tmp" 2>/dev/null || true

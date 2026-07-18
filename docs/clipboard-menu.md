@@ -59,6 +59,15 @@ Do not replace this with ordinary image paste. Both actions are useful:
 clicking the row pastes image data, while the row action or `Ctrl+Enter` pastes
 the generated file path.
 
+Kitty also maps `Ctrl+V` to `bin/omd-kitty-smart-paste`. When the clipboard
+contains an image, that helper decodes it to `/tmp/omd-clip-*`, replaces the
+active Wayland clipboard payload with the generated path, and sends the same
+path to Kitty as bracketed paste. Keeping both payloads identical is required
+for image-aware terminal applications such as OpenCode: if the clipboard is
+left as an image while the terminal receives a path, OpenCode imports both and
+shows the image twice (`omd-clip-*.png` plus `clipboard`). The original image
+remains available in cliphist history.
+
 ## Performance Rules
 
 - Keep the process on demand; do not add it to the persistent Quickshell apps.
