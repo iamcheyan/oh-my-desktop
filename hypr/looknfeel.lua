@@ -37,6 +37,9 @@ o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1000,
 o.window("org.omarchy.key-test", { float = true, center = true, size = { 1000, 700 } })
 o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000, 700 } })
 
+-- Go settings TUI pages (theme/background, etc.) launched via omd-launch-tui
+o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
+
 -- Flatpak install progress terminal (scripts/flatpak-launch) floats and centers
 o.window("org.omd.flatpak-install", { float = true, center = true, size = { 880, 620 } })
 

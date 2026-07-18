@@ -19,7 +19,7 @@
       "presetOverrides": {}
     },
     "guo-magic-keyboard": {
-      "displayName": "guoのmagic keyboard",
+      "displayName": "guo\u306emagic keyboard",
       "hyprName": "guo-magic-keyboard",
       "keydId": "004c:029c",
       "enabled": true,

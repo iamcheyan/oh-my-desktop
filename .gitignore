@@ -15,6 +15,7 @@ omarchy/opencode/
 quickshell/*.conf
 __pycache__/
 *.pyc
+tui-go/omd-settings-tui
 
 .mimocode/
 

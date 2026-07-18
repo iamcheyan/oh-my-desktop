@@ -62,10 +62,17 @@ reload_hyprland() {
     fi
 }
 
+reload_terminals() {
+    if [ -x "$omd_root/scripts/reload-terminals" ]; then
+        OMD_ROOT="$omd_root" "$omd_root/scripts/reload-terminals" >/dev/null 2>&1 || true
+    fi
+}
+
 stop_quickshell
 stop_waybar
 start_quickshell
 reload_hyprland
+reload_terminals
 
 sleep 1
 pgrep -af '(quickshell|qs|wl-paste)' || true

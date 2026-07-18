@@ -12,6 +12,9 @@ tui-go/
 ├── cmd/omd-settings-tui/       CLI entry point and page routing
 ├── internal/backend/           Calls existing OMD shell backends
 ├── internal/pages/windows/     Windows VM settings page
+├── internal/pages/theme/       Theme, wallpaper, and effects settings page
+├── internal/pages/voice/       Voice input status, setup, and binding page
+├── internal/pages/keyboard/    Keyboard remap profile and preset page
 └── internal/ui/                Shared colors, buttons, panels, layout helpers
 ```
 
@@ -28,6 +31,69 @@ packaged install, build one binary:
 cd tui-go
 go build -o omd-settings-tui ./cmd/omd-settings-tui
 ```
+
+## Routes
+
+```sh
+bin/omd-settings-tui windows    # Windows VM settings and connection controls
+bin/omd-settings-tui theme      # Theme picker and active theme info
+bin/omd-settings-tui voice      # Voice input setup, model, and keybindings
+bin/omd-settings-tui keyboard   # Keyboard remap presets and keyd apply
+```
+
+Each route maps to a Go package under `internal/pages/<name>/` and a
+thin backend script under `bin/omd-settings-<name>` (the Windows VM route
+uses `bin/omd-settings-windows-vm`). The TUI owns layout, key handling,
+and status rendering; all real work stays in the backend scripts so the same
+operations are usable from Quickshell, the TUI, shell scripts, and future
+automation.
+
+### Backend contract
+
+Status is read as `key=value` lines (parsed by `backend.ParseKV`).
+Action subcommands return `key=value` lines plus optional `log=` lines that
+the TUI surfaces in an action log. Two-step / privileged actions (keyd
+apply, voice setup) are invoked through the backend which shells out to the
+existing `share/bin/omarchy-*` implementations.
+
+## Current Parity Scope
+
+The Go TUI is intended to replace the Quickshell settings pages, so every page
+must read and write the same runtime state as the old UI.
+
+### Appearance / Theme
+
+- Lists all user and system themes.
+- Applies the selected theme through `bin/omd-settings-theme apply`.
+- Shows the active theme colors.
+- Controls wallpaper file/folder selection, folder rotation, next image, and
+  rotation interval.
+- Controls the display effects mode (`performance`, `balanced`, `visuals`) by
+  writing the same Quickshell state file and applying the Hyprland eval string.
+
+### Voice Input
+
+- Uses the same model, venv, cache, socket, and binding file paths as
+  `VoiceInput.qml`.
+- Reports setup state from exact model-file and Python dependency checks.
+- Runs setup plus model download from the existing voice scripts.
+- Supports adding a binding through the existing key capture window.
+- Supports removing bindings and opening the full binding editor TUI.
+- Opens the existing voice test and diagnose TUI tools instead of duplicating
+  their recording and diagnostic state machines inside Bubble Tea.
+
+### Keyboard Remap
+
+- Reads connected devices from `omd-keyboard-list`.
+- Merges saved, currently disconnected profiles so old bindings remain visible.
+- Preserves per-device enable state, enabled presets, and preset target
+  overrides from `keyboard-remap/profiles.json`.
+- Supports setup, apply, function-row mode cycling, per-device enable/disable,
+  preset toggle, target override, override reset, and deleting disconnected
+  profiles.
+- Applies the same preset conflict rule as the Quickshell service: enabling a
+  preset removes any existing preset that maps from the same physical source
+  key.
 
 ## Hyprland Floating Launch
 
@@ -228,4 +294,3 @@ For destructive operations (e.g. "Remove VM"), prevent accidental activation by 
 - Pressing the action key (e.g. `d`) sets `confirmRemove = true`.
 - Update the bottom help bar to show confirmation options: `y confirm remove  n/esc cancel`.
 - Pressing `y` triggers the actual backend script (e.g. `remove --yes`). Pressing `n` or `esc` resets the confirmation state.
-
