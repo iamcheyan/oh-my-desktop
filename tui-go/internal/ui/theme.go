@@ -103,6 +103,22 @@ func StatusPill(label string, ok bool) string {
 	return style.Render(label)
 }
 
+func ButtonView(text string, active bool) string {
+	style := Button.Copy().Padding(0, 1)
+	if active {
+		style = style.BorderForeground(Accent).Foreground(Accent).Bold(true)
+	}
+	return style.Render(PreserveBackground(text, Panel))
+}
+
+func DisabledButtonView(text string) string {
+	return DisabledButton.Copy().Padding(0, 1).Render(PreserveBackground(text, Panel))
+}
+
+func PrimaryButtonView(text string) string {
+	return PrimaryButton.Copy().Padding(0, 1).Render(PreserveBackground(text, Panel))
+}
+
 func MiniPreview(title, subtitle string, width int) string {
 	width = max(18, width)
 	inner := max(12, width-2)

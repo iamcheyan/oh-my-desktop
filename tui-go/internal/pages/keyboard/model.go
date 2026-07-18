@@ -290,26 +290,20 @@ func (m Model) View() string {
 	height := m.height
 
 	const (
-		screenPaddingX = 4
+		screenPaddingX = 2
 		screenPaddingY = 2
 		panelGap       = 2
-		panelBorderW   = 2
-		panelBorderH   = 2
-		panelPadW      = 4
-		panelPadH      = 2
 		fixedRows      = 2
 	)
 
-	panelInnerW := (width - screenPaddingX - panelGap - panelBorderW*2 - panelPadW*2) / 2
+	panelInnerW := (width - screenPaddingX - panelGap) / 2
 	if panelInnerW < 20 {
 		panelInnerW = 20
 	}
-	panelInnerH := height - screenPaddingY - fixedRows - panelBorderH - panelPadH
+	panelInnerH := height - screenPaddingY - fixedRows
 	if panelInnerH < 8 {
 		panelInnerH = 8
 	}
-	panelBoxW := panelInnerW + panelPadW
-	panelBoxH := panelInnerH + panelPadH
 
 	header := ui.Title.Render("Input") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Keyboard remap")
 	if m.busy {
@@ -322,12 +316,8 @@ func (m Model) View() string {
 		header += " " + ui.OKText.Render(m.message)
 	}
 
-	left := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.deviceView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
-	)
-	right := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.presetView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
-	)
+	left := ui.PreserveBackground(ui.FitBlock(m.deviceView(panelInnerW), panelInnerW, panelInnerH), ui.Background)
+	right := ui.PreserveBackground(ui.FitBlock(m.presetView(panelInnerW), panelInnerW, panelInnerH), ui.Background)
 
 	help := ui.HelpText(
 		ui.HelpItem("tab", "focus"),
@@ -345,7 +335,7 @@ func (m Model) View() string {
 		help = ui.OKText.Render("working...")
 	}
 
-	return ui.Screen.Padding(1, 2).Render(
+	return ui.Screen.Padding(1, 1).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			header,
 			lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right),

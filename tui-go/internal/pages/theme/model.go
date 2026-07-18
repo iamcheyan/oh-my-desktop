@@ -294,48 +294,42 @@ func (m Model) View() string {
 	height := m.height
 
 	const (
-		screenPaddingX = 4
+		screenPaddingX = 2
 		screenPaddingY = 2
-		panelBorderW   = 2
-		panelBorderH   = 2
-		panelPadW      = 4
-		panelPadH      = 2
-		fixedRows      = 2
 	)
 
 	pal := m.palette()
-	panelInnerW := width - screenPaddingX - panelBorderW - panelPadW
-	if panelInnerW < 14 {
-		panelInnerW = 14
+	contentW := width - screenPaddingX
+	if contentW < 14 {
+		contentW = 14
 	}
-	panelInnerH := height - screenPaddingY - fixedRows - panelBorderH - panelPadH
-	if panelInnerH < 14 {
-		panelInnerH = 14
-	}
-	panelBoxW := panelInnerW + panelPadW
-	panelBoxH := panelInnerH + panelPadH
-
-	titleStyle := lipgloss.NewStyle().Foreground(pal.text).Bold(true)
-	mutedStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	header := titleStyle.Render("Personalization") + " " + mutedStyle.Render(">") + " " + titleStyle.Render("Background")
+	header := ""
 	if m.busy {
-		header += " " + lipgloss.NewStyle().Foreground(pal.accent).Render("working...")
+		header = lipgloss.NewStyle().Foreground(pal.accent).Render("working...")
 	}
 	if m.err != "" {
-		header += " " + ui.DangerText.Render(m.err)
+		if header != "" {
+			header += " "
+		}
+		header += ui.DangerText.Render(m.err)
 	}
 	if m.message != "" && !m.busy {
-		header += " " + lipgloss.NewStyle().Foreground(pal.accent).Render(m.message)
+		if header != "" {
+			header += " "
+		}
+		header += lipgloss.NewStyle().Foreground(pal.accent).Render(m.message)
 	}
 
-	panelStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(pal.line).
-		Background(pal.panel).
-		Padding(1, 2)
-	content := panelStyle.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.contentView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), pal.panel),
-	)
+	fixedRows := 1
+	if header != "" {
+		fixedRows++
+	}
+	contentH := height - screenPaddingY - fixedRows
+	if contentH < 14 {
+		contentH = 14
+	}
+
+	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), pal.background)
 
 	help := lipgloss.NewStyle().Foreground(pal.muted).Render(strings.Join([]string{
 		helpKey("arrows", "theme"),
@@ -353,12 +347,12 @@ func (m Model) View() string {
 		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
 	}
 
-	return lipgloss.NewStyle().Background(pal.background).Foreground(pal.text).Padding(1, 2).Render(
-		lipgloss.JoinVertical(lipgloss.Left,
-			header,
-			content,
-			help,
-		),
+	parts := []string{content, help}
+	if header != "" {
+		parts = append([]string{header}, parts...)
+	}
+	return lipgloss.NewStyle().Background(pal.background).Foreground(pal.text).Padding(1, 1).Render(
+		lipgloss.JoinVertical(lipgloss.Left, parts...),
 	)
 }
 

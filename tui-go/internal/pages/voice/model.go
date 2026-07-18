@@ -170,25 +170,19 @@ func (m Model) View() string {
 	height := m.height
 
 	const (
-		screenPaddingX = 4
+		screenPaddingX = 2
 		screenPaddingY = 2
-		panelBorderW   = 2
-		panelBorderH   = 2
-		panelPadW      = 4
-		panelPadH      = 2
 		fixedRows      = 2
 	)
 
-	panelInnerW := width - screenPaddingX - panelBorderW*2 - panelPadW*2
-	if panelInnerW < 20 {
-		panelInnerW = 20
+	contentW := width - screenPaddingX
+	if contentW < 20 {
+		contentW = 20
 	}
-	panelInnerH := height - screenPaddingY - fixedRows - panelBorderH - panelPadH
-	if panelInnerH < 8 {
-		panelInnerH = 8
+	contentH := height - screenPaddingY - fixedRows
+	if contentH < 8 {
+		contentH = 8
 	}
-	panelBoxW := panelInnerW + panelPadW
-	panelBoxH := panelInnerH + panelPadH
 
 	header := ui.Title.Render("Input") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Voice input")
 	if m.busy {
@@ -201,9 +195,7 @@ func (m Model) View() string {
 		header += " " + ui.OKText.Render(m.message)
 	}
 
-	body := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.bodyView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
-	)
+	body := ui.PreserveBackground(ui.FitBlock(m.bodyView(contentW), contentW, contentH), ui.Background)
 
 	help := ui.HelpText(
 		ui.HelpItem("enter/a", labelForPrimary(m)),
@@ -219,7 +211,7 @@ func (m Model) View() string {
 		help = ui.OKText.Render("working...")
 	}
 
-	return ui.Screen.Padding(1, 2).Render(
+	return ui.Screen.Padding(1, 1).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
 			header,
 			body,

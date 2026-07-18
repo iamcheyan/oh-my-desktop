@@ -75,23 +75,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			width := m.width
 			const (
-				screenPaddingX = 4
+				screenPaddingX = 2
 				panelGap       = 2
-				panelBorderW   = 2
-				panelPadW      = 4
 			)
-			panelInnerW := (width - screenPaddingX - panelGap - panelBorderW*2 - panelPadW*2) / 2
-			panelBoxW := panelInnerW + panelPadW
+			contentW := width - screenPaddingX
+			leftW := min(54, max(38, contentW/3))
+			rightW := contentW - leftW - panelGap
+			if rightW < 40 {
+				leftW = max(28, contentW-panelGap-40)
+			}
 
-			leftInnerX := 5
-			leftInnerY := 4
-
-			rightInnerX := 9 + panelBoxW
-			rightInnerY := 4
+			leftInnerX := 1
+			leftInnerY := 1
 
 			// 1. Primary Action Button
 			primaryW := len(m.primaryActionLabel()) + 12
-			if y >= leftInnerY+10 && y <= leftInnerY+12 && x >= leftInnerX && x < leftInnerX+primaryW {
+			if y >= leftInnerY+9 && y <= leftInnerY+11 && x >= leftInnerX && x < leftInnerX+primaryW {
 				if !m.busy {
 					m.busy = true
 					return m, m.runAction(m.primaryActionName())
@@ -100,12 +99,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// 2. Refresh Button
 			refreshStartX := leftInnerX + primaryW + 1
-			if y >= leftInnerY+10 && y <= leftInnerY+12 && x >= refreshStartX && x < refreshStartX+15 {
+			if y >= leftInnerY+9 && y <= leftInnerY+11 && x >= refreshStartX && x < refreshStartX+12 {
 				return m, tea.Batch(m.fetchStatus(), m.fetchLogs())
 			}
 
 			// 3. Web Button
-			if y >= rightInnerY+7 && y <= rightInnerY+9 && x >= rightInnerX && x < rightInnerX+20 {
+			if y >= leftInnerY+13 && y <= leftInnerY+15 && x >= leftInnerX && x < leftInnerX+17 {
 				if !m.busy {
 					m.busy = true
 					return m, m.runAction("web")
@@ -113,7 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// 4. Start Button
-			if y >= rightInnerY+7 && y <= rightInnerY+9 && x >= rightInnerX+21 && x < rightInnerX+34 {
+			if y >= leftInnerY+13 && y <= leftInnerY+15 && x >= leftInnerX+18 && x < leftInnerX+30 {
 				if !m.running() && !m.busy {
 					m.busy = true
 					return m, m.runAction("start")
@@ -121,7 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// 5. Stop Button
-			if y >= rightInnerY+10 && y <= rightInnerY+12 && x >= rightInnerX && x < rightInnerX+12 {
+			if y >= leftInnerY+16 && y <= leftInnerY+18 && x >= leftInnerX && x < leftInnerX+12 {
 				if m.running() && !m.busy {
 					m.busy = true
 					return m, m.runAction("stop")
@@ -231,46 +230,30 @@ func (m Model) View() string {
 	height := m.height
 
 	const (
-		screenPaddingX = 4 // Screen.Padding(_, 2) on each side
+		screenPaddingX = 2 // Screen.Padding(_, 1) on each side
 		screenPaddingY = 2 // Screen.Padding(1, _) on each side
 		panelGap       = 2 // "  " between panels
-		panelBorderW   = 2 // left+right border
-		panelBorderH   = 2 // top+bottom border
-		panelPadW      = 4 // Padding(_, 2) on each side
-		panelPadH      = 2 // Padding(1, _) on each side
-		fixedRows      = 2 // header + footer help
+		fixedRows      = 1 // footer help
 	)
 
-	// lipgloss Style.Width/Height set the inner box (content + padding) and
-	// do NOT include the border. So a panel's total footprint is:
-	//   Width = innerW + borderW,  Height = innerH + borderH
-	// and the pure content area is innerW - padW, innerH - padH.
-	panelInnerW := (width - screenPaddingX - panelGap - panelBorderW*2 - panelPadW*2) / 2
-	if panelInnerW < 20 {
-		panelInnerW = 20
+	contentW := width - screenPaddingX
+	if contentW < 40 {
+		contentW = 40
 	}
-	panelInnerH := height - screenPaddingY - fixedRows - panelBorderH - panelPadH
-	if panelInnerH < 8 {
-		panelInnerH = 8
-	}
-	// Style.Width/Height take the inner box (content + padding).
-	panelBoxW := panelInnerW + panelPadW
-	panelBoxH := panelInnerH + panelPadH
-
-	header := ui.Title.Render("System") + " " + ui.MutedText.Render(">") + " " + ui.Title.Render("Windows VM")
-	if m.busy {
-		header += " " + ui.OKText.Render("working...")
-	}
-	if m.err != "" {
-		header += " " + ui.DangerText.Render(m.err)
+	contentH := height - screenPaddingY - fixedRows
+	if contentH < 8 {
+		contentH = 8
 	}
 
-	left := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.statusView(panelInnerW), panelInnerW, panelInnerH), ui.Panel),
-	)
-	right := ui.PanelBox.Width(panelBoxW).Height(panelBoxH).Render(
-		ui.PreserveBackground(ui.FitBlock(m.opsView(panelInnerW, panelInnerH), panelInnerW, panelInnerH), ui.Panel),
-	)
+	leftW := min(54, max(38, contentW/3))
+	rightW := contentW - leftW - panelGap
+	if rightW < 40 {
+		rightW = 40
+		leftW = max(28, contentW-panelGap-rightW)
+	}
+
+	left := ui.PreserveBackground(ui.FitBlock(m.controlView(leftW), leftW, contentH), ui.Background)
+	right := ui.PreserveBackground(ui.FitBlock(m.logView(rightW, contentH), rightW, contentH), ui.Background)
 
 	var helpText string
 	if m.confirmRemove {
@@ -289,16 +272,15 @@ func (m Model) View() string {
 	}
 	help := helpText
 
-	return ui.Screen.Padding(1, 2).Render(
+	return ui.Screen.Padding(1, 1).Render(
 		lipgloss.JoinVertical(lipgloss.Left,
-			header,
 			lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right),
 			help,
 		),
 	)
 }
 
-func (m Model) statusView(width int) string {
+func (m Model) controlView(width int) string {
 	if m.status == nil {
 		return "Loading..."
 	}
@@ -308,26 +290,30 @@ func (m Model) statusView(width int) string {
 		health = "Ready"
 	}
 
+	title := ui.Title.Render("Windows VM")
+	if m.busy {
+		title += " " + ui.OKText.Render("working...")
+	}
+	if m.err != "" {
+		title += " " + ui.DangerText.Render(m.err)
+	}
+
 	lines := []string{
+		title,
+		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("%s · RDP %s · Web %s", health, m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), width)),
+		"",
 		lipgloss.JoinHorizontal(lipgloss.Top,
-			ui.MiniPreview("Windows VM", health, min(30, max(20, width/2-1))),
-			"  ",
-			strings.Join([]string{
-				ui.Title.Render("Windows VM"),
-				ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("RDP %s · Web %s", m.value("rdpEndpoint", "-"), upDownPlain(m.bool("webReachable"))), max(20, width-34))),
-				"",
-				lipgloss.JoinHorizontal(lipgloss.Top,
-					ui.StatusPill("Docker", m.bool("dockerAccess")),
-					ui.StatusPill("KVM", m.bool("kvm")),
-					ui.StatusPill("RDP", m.bool("rdpReachable")),
-				),
-			}, "\n"),
+			ui.StatusPill("Docker", m.bool("dockerAccess")),
+			ui.StatusPill("KVM", m.bool("kvm")),
+			ui.StatusPill("RDP", m.bool("rdpReachable")),
 		),
 		"",
-		ui.Section.Render("Primary action"),
+		ui.Section.Render("Actions"),
 		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
 		"",
 		m.actionButtons(),
+		"",
+		m.opsButtons(),
 		"",
 	}
 
@@ -344,29 +330,14 @@ func (m Model) statusView(width int) string {
 	}
 
 	lines = append(lines,
+		ui.Section.Render("Connection"),
+		ui.Row("Web", m.value("web", "-")+"  "+ui.BoolStatus(m.bool("webReachable")), width),
+		ui.Row("RDP", m.value("rdpEndpoint", "-")+"  "+ui.BoolStatus(m.bool("rdpReachable")), width),
+		"",
 		ui.Section.Render("Runtime"),
 		ui.Row("Container", m.value("container", "-"), width),
 		ui.Row("Docker", ui.BoolStatus(m.bool("dockerAccess")), width),
 		ui.Row("KVM", ui.BoolStatus(m.bool("kvm")), width),
-	)
-
-	return strings.Join(lines, "\n")
-}
-
-func (m Model) opsView(width, height int) string {
-	if m.status == nil {
-		return "Loading..."
-	}
-
-	lines := []string{
-		ui.Title.Render("Connection & Ops"),
-		ui.TruncateStyled(fmt.Sprintf("Container %s · %s", m.value("container", "-"), m.value("phase", "-")), width),
-		"",
-		ui.Section.Render("Connection"),
-		ui.Row("Web console", m.value("web", "-")+"  "+ui.BoolStatus(m.bool("webReachable")), width),
-		ui.Row("RDP endpoint", m.value("rdpEndpoint", "-")+"  "+ui.BoolStatus(m.bool("rdpReachable")), width),
-		"",
-		m.opsButtons(),
 		"",
 		ui.Section.Render("Specs"),
 		ui.Row("RAM", m.value("ram", "-"), width),
@@ -374,11 +345,11 @@ func (m Model) opsView(width, height int) string {
 		ui.Row("Disk", m.value("disk", "-"), width),
 		ui.Row("User", m.value("user", "-"), width),
 		ui.Row("Shared", m.value("sharedDir", "-"), width),
-		"",
-	}
+	)
 
 	if m.confirmRemove {
 		lines = append(lines,
+			"",
 			ui.Section.Render("Danger Zone"),
 			ui.DangerText.Render("Press y to CONFIRM REMOVE | n to cancel"),
 			ui.DangerText.Render("Deletes container & local VM storage."),
@@ -386,13 +357,26 @@ func (m Model) opsView(width, height int) string {
 	} else {
 		if m.configured() {
 			lines = append(lines,
+				"",
 				ui.Section.Render("Danger Zone"),
 				ui.SubtleText.Render("d Remove VM (deletes container & storage)"),
 			)
 		}
 	}
 
-	lines = append(lines, "", ui.Section.Render("Logs"))
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) logView(width, height int) string {
+	if m.status == nil {
+		return "Loading..."
+	}
+
+	lines := []string{
+		ui.Title.Render("Logs"),
+		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("Container %s · %s", m.value("container", "-"), m.value("phase", "-")), width)),
+		"",
+	}
 
 	// Expand elements with internal newlines to count actual rendered lines
 	var staticLines []string
@@ -489,31 +473,31 @@ func (m Model) actionButtons() string {
 	}
 
 	if enabled {
-		primaryBtn = ui.PrimaryButton.Render(ui.ActionText("enter", label))
+		primaryBtn = ui.PrimaryButtonView(ui.ActionText("enter", label))
 	} else {
-		primaryBtn = ui.DisabledButton.Render(ui.ActionText("enter", label))
+		primaryBtn = ui.DisabledButtonView(ui.ActionText("enter", label))
 	}
 
-	refreshBtn := ui.Button.Render(ui.ActionText("r", "Refresh"))
+	refreshBtn := ui.ButtonView(ui.ActionText("r", "Refresh"), false)
 	if m.busy {
-		refreshBtn = ui.DisabledButton.Render(ui.ActionText("r", "Refresh"))
+		refreshBtn = ui.DisabledButtonView(ui.ActionText("r", "Refresh"))
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, primaryBtn, refreshBtn)
 }
 
 func (m Model) opsButtons() string {
-	start := ui.Button.Render(ui.ActionText("s", "Start"))
-	stop := ui.Button.Render(ui.ActionText("x", "Stop"))
-	web := ui.Button.Render(ui.ActionText("w", "Open console"))
+	start := ui.ButtonView(ui.ActionText("s", "Start"), false)
+	stop := ui.ButtonView(ui.ActionText("x", "Stop"), false)
+	web := ui.ButtonView(ui.ActionText("w", "Open console"), false)
 	if m.running() || m.busy {
-		start = ui.DisabledButton.Render(ui.ActionText("s", "Start"))
+		start = ui.DisabledButtonView(ui.ActionText("s", "Start"))
 	}
 	if !m.running() || m.busy {
-		stop = ui.DisabledButton.Render(ui.ActionText("x", "Stop"))
+		stop = ui.DisabledButtonView(ui.ActionText("x", "Stop"))
 	}
 	if m.busy {
-		web = ui.DisabledButton.Render(ui.ActionText("w", "Open console"))
+		web = ui.DisabledButtonView(ui.ActionText("w", "Open console"))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Top, web, start),
