@@ -739,9 +739,6 @@ ColumnLayout {
     }
 
     Process {
-
-
-    Process {
         id: themeListProc
         command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme list"]
         running: true
