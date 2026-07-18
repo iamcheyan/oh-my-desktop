@@ -14,7 +14,6 @@ tui-go/
 ├── internal/pages/windows/     Windows VM settings page
 ├── internal/pages/theme/       Theme, wallpaper, and effects settings page
 ├── internal/pages/voice/       Voice input status, setup, and binding page
-├── internal/pages/keyboard/    Keyboard remap profile and preset page
 └── internal/ui/                Shared colors, buttons, panels, layout helpers
 ```
 
@@ -24,12 +23,27 @@ The launcher is:
 bin/omd-settings-tui windows
 ```
 
-During development, the launcher uses `go run` if no built binary exists. For a
-packaged install, build one binary:
+`Init.sh` installs the Go toolchain and builds one binary for all routes:
 
 ```sh
-cd tui-go
-go build -o omd-settings-tui ./cmd/omd-settings-tui
+./scripts/build-go-tools
+```
+
+The generated `tui-go/omd-settings-tui` file is machine-local and ignored by
+Git. The launcher checks whether this binary is missing or older than any
+`*.go`, `go.mod`, or `go.sum` source file. It rebuilds once when necessary and
+otherwise starts immediately. Concurrent launch attempts share a build lock,
+and the completed binary is installed atomically.
+
+Compilation is deliberately not part of `omd-restart` or Quickshell reload.
+Those commands are frequent runtime operations and must not depend on the Go
+compiler or network access. Running `./Init.sh --runtime-only` also refreshes
+the binary when Go is already installed, without installing packages.
+
+For a forced development rebuild:
+
+```sh
+./scripts/build-go-tools --force
 ```
 
 ## Routes
@@ -38,7 +52,6 @@ go build -o omd-settings-tui ./cmd/omd-settings-tui
 bin/omd-settings-tui windows    # Windows VM settings and connection controls
 bin/omd-settings-tui theme      # Theme picker and active theme info
 bin/omd-settings-tui voice      # Voice input setup, model, and keybindings
-bin/omd-settings-tui keyboard   # Keyboard remap presets and keyd apply
 ```
 
 Each route maps to a Go package under `internal/pages/<name>/` and a
@@ -81,19 +94,6 @@ must read and write the same runtime state as the old UI.
 - Supports removing bindings and opening the full binding editor TUI.
 - Opens the existing voice test and diagnose TUI tools instead of duplicating
   their recording and diagnostic state machines inside Bubble Tea.
-
-### Keyboard Remap
-
-- Reads connected devices from `omd-keyboard-list`.
-- Merges saved, currently disconnected profiles so old bindings remain visible.
-- Preserves per-device enable state, enabled presets, and preset target
-  overrides from `keyboard-remap/profiles.json`.
-- Supports setup, apply, function-row mode cycling, per-device enable/disable,
-  preset toggle, target override, override reset, and deleting disconnected
-  profiles.
-- Applies the same preset conflict rule as the Quickshell service: enabling a
-  preset removes any existing preset that maps from the same physical source
-  key.
 
 ## Hyprland Floating Launch
 

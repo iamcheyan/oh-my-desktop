@@ -154,6 +154,7 @@ PACKAGES_TERMINAL=(
 
 # Essential tools
 PACKAGES_TOOLS=(
+    go
     jq
     curl
     git
@@ -254,6 +255,7 @@ get_debian_pkg() {
         gnome-keyring-pam)      echo "libpam-gnome-keyring" ;;
         foot)                   echo "foot" ;;
         kitty)                  echo "kitty" ;;
+        go)                     echo "golang-go" ;;
         jq)                     echo "jq" ;;
         curl)                   echo "curl" ;;
         git)                    echo "git" ;;
@@ -333,6 +335,7 @@ get_fedora_pkg() {
         gnome-keyring-pam)      echo "gnome-keyring-pam" ;;
         foot)                   echo "foot" ;;
         kitty)                  echo "kitty" ;;
+        go)                     echo "golang" ;;
         jq)                     echo "jq" ;;
         curl)                   echo "curl" ;;
         git)                    echo "git" ;;
@@ -372,6 +375,7 @@ get_fedora_pkg() {
 
 get_arch_pkg() {
     case "$1" in
+        go)                     echo "go" ;;
         network-manager)        echo "networkmanager" ;;
         network-manager-wifi)   echo "networkmanager" ;;
         network-manager-tui)    echo "networkmanager" ;;
@@ -543,6 +547,7 @@ install_nixos_system_config() {
     # Terminals and shell/tooling
     foot
     kitty
+    go
     jq
     curl
     git
@@ -1323,6 +1328,31 @@ install_custom_launchers() {
     fi
 }
 
+# ── Go tools ─────────────────────────────────────────────────────────────────
+build_go_tools() {
+    local required="${1:-1}"
+
+    echo
+    info "Building OMD Go tools..."
+    if [[ ! -x "$REPO/scripts/build-go-tools" ]]; then
+        if [[ "$required" == 1 ]]; then
+            err "scripts/build-go-tools is missing or not executable"
+            return 1
+        fi
+        warn "scripts/build-go-tools is missing or not executable; skipping"
+        return 0
+    fi
+
+    if "$REPO/scripts/build-go-tools"; then
+        ok "OMD Go tools ready"
+    elif [[ "$required" == 1 ]]; then
+        err "OMD Go tools could not be built"
+        return 1
+    else
+        warn "OMD Go tools could not be refreshed; run the full ./Init.sh"
+    fi
+}
+
 # ── Print summary ─────────────────────────────────────────────────────────────
 print_summary() {
     local login_manager="your display manager"
@@ -1388,6 +1418,7 @@ main() {
         create_symlinks
         repair_runtime_config
         install_custom_launchers
+        build_go_tools 0
         ok "Runtime repair complete."
         exit 0
     fi
@@ -1404,7 +1435,7 @@ main() {
     echo "  - Quickshell"
     echo "  - Input method (fcitx5)"
     echo "  - Terminal (foot)"
-    echo "  - Essential tools (jq, curl, git, ripgrep, fish, ydotool, ffmpeg)"
+    echo "  - Essential tools (Go, jq, curl, git, ripgrep, fish, ydotool, ffmpeg)"
     echo "  - Desktop extras (hyprsunset, keyd)"
     echo "  - Fonts/icons (Cantarell, Noto, Nerd Fonts, Material Symbols)"
     echo "  - Qt/GTK integration"
@@ -1418,6 +1449,7 @@ main() {
     fi
 
     install_all_dependencies
+    build_go_tools 1
     create_symlinks
     repair_runtime_config
     install_custom_launchers

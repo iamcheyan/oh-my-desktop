@@ -16,6 +16,7 @@ quickshell/*.conf
 __pycache__/
 *.pyc
 tui-go/omd-settings-tui
+tui-go/.omd-settings-tui.*
 
 .mimocode/
 

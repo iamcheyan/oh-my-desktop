@@ -195,6 +195,7 @@ Additional manual symlinks (not created by Init.sh):
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
+- Go settings TUI: `docs/settings-tui-go.md`
 - Settings panel layout: `docs/settings-layout-system.md`
 - Voice settings redesign: `docs/voice-settings-redesign.md`
 - Windows VM settings layout: `docs/windows-vm-settings-layout.md`

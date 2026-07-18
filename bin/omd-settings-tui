@@ -5,9 +5,6 @@ OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
 APP="$OMD_ROOT/tui-go/omd-settings-tui"
-if [[ -x "$APP" ]]; then
-  exec "$APP" "$@"
-fi
+"$OMD_ROOT/scripts/build-go-tools" --quiet
 
-cd "$OMD_ROOT/tui-go"
-exec go run ./cmd/omd-settings-tui "$@"
+exec "$APP" "$@"

@@ -29,6 +29,21 @@ stop_timer() {
   fi
 }
 
+focus_picker() {
+  local title="$1"
+  command -v hyprctl >/dev/null 2>&1 || return 0
+
+  # Native pickers are separate Wayland clients, so they cannot inherit the
+  # terminal's parent relationship. Raise the uniquely titled picker after it
+  # maps; the second attempt covers slower GTK/KDE cold starts.
+  (
+    sleep 0.12
+    hyprctl dispatch focuswindow "title:^${title}$" >/dev/null 2>&1 || true
+    sleep 0.28
+    hyprctl dispatch focuswindow "title:^${title}$" >/dev/null 2>&1 || true
+  ) &
+}
+
 start_timer() {
   stop_timer
   if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
@@ -41,10 +56,12 @@ start_timer() {
 }
 
 pick_image_file() {
+  local title="Select wallpaper image"
+  focus_picker "$title"
   if command -v kdialog >/dev/null 2>&1; then
-    kdialog --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null
+    kdialog --title "$title" --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null
   elif command -v zenity >/dev/null 2>&1; then
-    zenity --file-selection --title="Select wallpaper image" \
+    zenity --file-selection --title="$title" --modal \
       --file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.gif' 2>/dev/null
   else
     return 1
@@ -52,10 +69,12 @@ pick_image_file() {
 }
 
 pick_image_dir() {
+  local title="Select wallpaper folder"
+  focus_picker "$title"
   if command -v kdialog >/dev/null 2>&1; then
-    kdialog --getexistingdirectory "$HOME/Pictures" 2>/dev/null
+    kdialog --title "$title" --getexistingdirectory "$HOME/Pictures" 2>/dev/null
   elif command -v zenity >/dev/null 2>&1; then
-    zenity --file-selection --directory --title="Select wallpaper folder" 2>/dev/null
+    zenity --file-selection --directory --title="$title" --modal 2>/dev/null
   else
     return 1
   fi

@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+TUI_ROOT="$OMD_ROOT/tui-go"
+APP="$TUI_ROOT/omd-settings-tui"
+QUIET=0
+FORCE=0
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/build-go-tools [--force] [--quiet]
+
+Build OMD's Go tools when their binaries are missing or older than the source.
+
+  --force  Rebuild even when the binary is current
+  --quiet  Suppress the "already current" message
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force) FORCE=1 ;;
+        --quiet) QUIET=1 ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+    shift
+done
+
+needs_build() {
+    [[ "$FORCE" == 1 || ! -x "$APP" ]] && return 0
+
+    [[ -n "$(find "$TUI_ROOT" -type f \
+        \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) \
+        -newer "$APP" -print -quit)" ]]
+}
+
+if ! needs_build; then
+    [[ "$QUIET" == 1 ]] || echo "Go tools are already current."
+    exit 0
+fi
+
+if ! command -v go >/dev/null 2>&1 && [[ -r "$OMD_ROOT/scripts/omd-path.sh" ]]; then
+    # User-managed Go installations are added only on the cold build path.
+    # shellcheck source=/dev/null
+    . "$OMD_ROOT/scripts/omd-path.sh"
+fi
+
+if ! command -v go >/dev/null 2>&1; then
+    cat >&2 <<EOF
+Cannot build OMD settings: the Go toolchain is missing.
+Run "$OMD_ROOT/Init.sh" to install dependencies and build the settings binary.
+EOF
+    exit 127
+fi
+
+lock_dir=""
+if command -v flock >/dev/null 2>&1; then
+    lock_file="$TUI_ROOT/.omd-settings-tui.lock"
+    exec 9>"$lock_file"
+    if ! flock -w 300 9; then
+        echo "Timed out waiting for another OMD Go build." >&2
+        exit 1
+    fi
+else
+    lock_dir="$TUI_ROOT/.omd-settings-tui.lock.d"
+    waited=0
+    while ! mkdir "$lock_dir" 2>/dev/null; do
+        if [[ -r "$lock_dir/pid" ]]; then
+            lock_pid="$(cat "$lock_dir/pid" 2>/dev/null || true)"
+            if [[ "$lock_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+                rm -f "$lock_dir/pid"
+                rmdir "$lock_dir" 2>/dev/null || true
+                continue
+            fi
+        elif (( waited >= 3 )) && rmdir "$lock_dir" 2>/dev/null; then
+            continue
+        fi
+        if (( waited >= 300 )); then
+            echo "Timed out waiting for another OMD Go build." >&2
+            exit 1
+        fi
+        sleep 1
+        ((waited += 1))
+    done
+    printf '%s\n' "$$" >"$lock_dir/pid"
+fi
+
+tmp="$(mktemp "$TUI_ROOT/.omd-settings-tui.XXXXXX")"
+cleanup() {
+    rm -f "$tmp"
+    if [[ -n "$lock_dir" && "$(cat "$lock_dir/pid" 2>/dev/null || true)" == "$$" ]]; then
+        rm -f "$lock_dir/pid"
+        rmdir "$lock_dir" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+# Another process may have completed the build while this one waited for the lock.
+if [[ "$FORCE" != 1 ]] && ! needs_build; then
+    [[ "$QUIET" == 1 ]] || echo "Go tools are already current."
+    exit 0
+fi
+
+echo "Building omd-settings-tui..."
+(
+    cd "$TUI_ROOT"
+    CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags='-s -w' \
+        -o "$tmp" ./cmd/omd-settings-tui
+)
+chmod 0755 "$tmp"
+mv -f "$tmp" "$APP"
+echo "Built $APP"

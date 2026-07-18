@@ -88,6 +88,25 @@ for cmd in qs quickshell hyprctl jq curl swaybg systemd-run; do
   check_cmd "$cmd"
 done
 
+section "Go settings TUI"
+settings_tui="$repo/tui-go/omd-settings-tui"
+if command -v go >/dev/null 2>&1; then
+  ok "Go toolchain: $(go version 2>/dev/null || printf 'available')"
+else
+  fail "Go toolchain missing; run ./Init.sh before building OMD settings"
+fi
+if [[ -x "$settings_tui" ]]; then
+  if [[ -n "$(find "$repo/tui-go" -type f \
+      \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' \) \
+      -newer "$settings_tui" -print -quit 2>/dev/null)" ]]; then
+    warn "Go settings binary is older than its source; run scripts/build-go-tools"
+  else
+    ok "Go settings binary"
+  fi
+else
+  fail "Go settings binary missing; run scripts/build-go-tools or ./Init.sh"
+fi
+
 section "desktop helpers"
 for cmd in wl-copy wl-paste cliphist mako grim slurp swappy hyprpicker; do
   check_optional_cmd "$cmd"

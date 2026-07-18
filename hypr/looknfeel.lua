@@ -41,6 +41,14 @@ o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000,
 -- Go settings TUI pages (theme/background, etc.) launched via omd-launch-tui
 o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
 
+-- Native wallpaper pickers are separate Wayland clients rather than true
+-- children of the settings terminal. Keep these specifically titled dialogs
+-- above the TUI while they are open.
+o.window({
+  class = "^(org.kde.kdialog|kdialog|zenity)$",
+  title = "^Select wallpaper (image|folder)$",
+}, { float = true, center = true, stay_focused = true })
+
 -- Flatpak install progress terminal (scripts/flatpak-launch) floats and centers
 o.window("org.omd.flatpak-install", { float = true, center = true, size = { 880, 620 } })
 
