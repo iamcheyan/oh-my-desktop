@@ -21,11 +21,7 @@ ColumnLayout {
 
     width: parent ? parent.width : 900
     spacing: SettingsTokens.controlGap
-    implicitHeight: {
-        const viewportHeight = root.settingsRoot ? root.settingsRoot.height - 120 : 500;
-        const contentHeight = contentGrid.implicitHeight + 50 + spacing + 12;
-        return Math.max(viewportHeight, contentHeight);
-    }
+    implicitHeight: 420
 
     function ensureSelection() {
         if (configState.outputByName(selectedOutputName))

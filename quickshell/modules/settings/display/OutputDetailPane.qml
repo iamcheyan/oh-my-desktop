@@ -25,7 +25,7 @@ Rectangle {
     readonly property var scaleOptions: (displayState.revision, buildScaleOptions())
     readonly property var scaleDropdownOptions: (displayState.revision, buildScaleDropdownOptions())
 
-    implicitHeight: detailColumn.implicitHeight + SettingsTokens.panelPadding * 2
+    implicitHeight: 320
     radius: SettingsTokens.roundRadius
     color: SettingsTokens.panel
     border.width: 1
@@ -252,159 +252,170 @@ Rectangle {
             color: SettingsTokens.line
         }
 
-        SettingsSection {
-            title: "Display mode"
-
-            SettingsDropdownRow {
-                label: "Resolution"
-                description: "Number of pixels shown by this display"
-                currentValue: root.resolutionValue
-                options: root.resolutionOptions
-                dropdownWidth: 190
-                controlled: true
-                onValueChanged: value => root.chooseResolution(value)
-            }
-
-            SettingsDropdownRow {
-                label: "Refresh rate"
-                description: "Higher rates make motion appear smoother"
-                currentValue: root.draft.mode || ""
-                options: root.refreshOptions
-                dropdownWidth: 190
-                controlled: true
-                onValueChanged: value => {
-                    if (root.output)
-                        root.displayState.setDraftValue(root.output.name, "mode", value);
-                }
-            }
-
-            SettingsDropdownRow {
-                label: "Orientation"
-                description: "Rotate or flip the displayed image"
-                currentValue: String(root.draft.transform ?? 0)
-                options: [
-                    { value: "0", label: "Normal" },
-                    { value: "1", label: "90°" },
-                    { value: "2", label: "180°" },
-                    { value: "3", label: "270°" },
-                    { value: "4", label: "Flipped" },
-                    { value: "5", label: "Flipped 90°" },
-                    { value: "6", label: "Flipped 180°" },
-                    { value: "7", label: "Flipped 270°" }
-                ]
-                dropdownWidth: 190
-                controlled: true
-                onValueChanged: value => {
-                    if (root.output)
-                        root.displayState.setDraftValue(root.output.name, "transform", Number(value));
-                }
-            }
-
-            StyledText {
-                visible: root.displayState.modeIsLowRefresh(root.draft.mode)
-                Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                text: "This refresh rate can make motion and pointer movement feel choppy."
-                color: SettingsTokens.danger
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        SettingsSection {
-            title: "Scale"
-
-            SettingsDropdownRow {
-                label: "Scale"
-                description: "Choose how large text, windows, and controls appear"
-                currentValue: String(Number(root.draft.scalePreset || root.draft.scale || 1).toFixed(2))
-                options: root.scaleDropdownOptions
-                dropdownWidth: 250
-                controlled: true
-                onValueChanged: value => {
-                    if (!root.output)
-                        return;
-                    const preset = Number(value);
-                    const effectiveScale = root.effectiveScaleForPreset(preset);
-                    if (Number.isFinite(effectiveScale))
-                        root.displayState.setScalePreset(root.output.name, preset, effectiveScale);
-                }
-            }
-        }
-
-        SettingsSection {
-            title: "Advanced"
-
-            SettingsDropdownRow {
-                label: "Horizontal position"
-                description: "Horizontal coordinate of the display in the layout space"
-                currentValue: String(root.draft.x || 0)
-                options: root.buildPositionOptions(root.draft.x)
-                dropdownWidth: 190
-                controlled: true
-                onValueChanged: value => {
-                    if (root.output)
-                        root.displayState.setDraftValue(root.output.name, "x", Number(value));
-                }
-            }
-
-            SettingsDropdownRow {
-                label: "Vertical position"
-                description: "Vertical coordinate of the display in the layout space"
-                currentValue: String(root.draft.y || 0)
-                options: root.buildPositionOptions(root.draft.y)
-                dropdownWidth: 190
-                controlled: true
-                onValueChanged: value => {
-                    if (root.output)
-                        root.displayState.setDraftValue(root.output.name, "y", Number(value));
-                }
-            }
-
-            // Hardware details row
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 56
-                color: "transparent"
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 12
-                    spacing: 14
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 3
-
-                        StyledText {
-                            text: "Hardware details"
-                            color: SettingsTokens.fg
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-
-                        StyledText {
-                            text: root.output ? `${root.output.make || "Unknown vendor"} ${root.output.model || ""}`.trim() : ""
-                            color: SettingsTokens.dim
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    SettingsButton {
-                        Layout.preferredWidth: 120
-                        Layout.preferredHeight: 32
-                        label: "wlr-randr"
-                        iconName: "open_in_new"
-                        onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
-                    }
-                }
-            }
-        }
-
-        Item {
+        StyledFlickable {
+            id: settingsFlickable
+            Layout.fillWidth: true
             Layout.fillHeight: true
+            clip: true
+            contentWidth: width
+            contentHeight: settingsColumn.implicitHeight
+
+            ColumnLayout {
+                id: settingsColumn
+                width: settingsFlickable.width
+                spacing: 10
+
+                SettingsSection {
+                    title: "Display mode"
+
+                    SettingsDropdownRow {
+                        label: "Resolution"
+                        description: "Number of pixels shown by this display"
+                        currentValue: root.resolutionValue
+                        options: root.resolutionOptions
+                        dropdownWidth: 190
+                        controlled: true
+                        onValueChanged: value => root.chooseResolution(value)
+                    }
+
+                    SettingsDropdownRow {
+                        label: "Refresh rate"
+                        description: "Higher rates make motion appear smoother"
+                        currentValue: root.draft.mode || ""
+                        options: root.refreshOptions
+                        dropdownWidth: 190
+                        controlled: true
+                        onValueChanged: value => {
+                            if (root.output)
+                                root.displayState.setDraftValue(root.output.name, "mode", value);
+                        }
+                    }
+
+                    SettingsDropdownRow {
+                        label: "Orientation"
+                        description: "Rotate or flip the displayed image"
+                        currentValue: String(root.draft.transform ?? 0)
+                        options: [
+                            { value: "0", label: "Normal" },
+                            { value: "1", label: "90°" },
+                            { value: "2", label: "180°" },
+                            { value: "3", label: "270°" },
+                            { value: "4", label: "Flipped" },
+                            { value: "5", label: "Flipped 90°" },
+                            { value: "6", label: "Flipped 180°" },
+                            { value: "7", label: "Flipped 270°" }
+                        ]
+                        dropdownWidth: 190
+                        controlled: true
+                        onValueChanged: value => {
+                            if (root.output)
+                                root.displayState.setDraftValue(root.output.name, "transform", Number(value));
+                        }
+                    }
+
+                    StyledText {
+                        visible: root.displayState.modeIsLowRefresh(root.draft.mode)
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 12
+                        Layout.rightMargin: 12
+                        text: "This refresh rate can make motion and pointer movement feel choppy."
+                        color: SettingsTokens.danger
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        wrapMode: Text.WordWrap
+                    }
+                }
+
+                SettingsSection {
+                    title: "Scale"
+
+                    SettingsDropdownRow {
+                        label: "Scale"
+                        description: "Choose how large text, windows, and controls appear"
+                        currentValue: String(Number(root.draft.scalePreset || root.draft.scale || 1).toFixed(2))
+                        options: root.scaleDropdownOptions
+                        dropdownWidth: 250
+                        controlled: true
+                        onValueChanged: value => {
+                            if (!root.output)
+                                return;
+                            const preset = Number(value);
+                            const effectiveScale = root.effectiveScaleForPreset(preset);
+                            if (Number.isFinite(effectiveScale))
+                                root.displayState.setScalePreset(root.output.name, preset, effectiveScale);
+                        }
+                    }
+                }
+
+                SettingsSection {
+                    title: "Advanced"
+
+                    SettingsDropdownRow {
+                        label: "Horizontal position"
+                        description: "Horizontal coordinate of the display in the layout space"
+                        currentValue: String(root.draft.x || 0)
+                        options: root.buildPositionOptions(root.draft.x)
+                        dropdownWidth: 190
+                        controlled: true
+                        onValueChanged: value => {
+                            if (root.output)
+                                root.displayState.setDraftValue(root.output.name, "x", Number(value));
+                        }
+                    }
+
+                    SettingsDropdownRow {
+                        label: "Vertical position"
+                        description: "Vertical coordinate of the display in the layout space"
+                        currentValue: String(root.draft.y || 0)
+                        options: root.buildPositionOptions(root.draft.y)
+                        dropdownWidth: 190
+                        controlled: true
+                        onValueChanged: value => {
+                            if (root.output)
+                                root.displayState.setDraftValue(root.output.name, "y", Number(value));
+                        }
+                    }
+
+                    // Hardware details row
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 56
+                        color: "transparent"
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 14
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 3
+
+                                StyledText {
+                                    text: "Hardware details"
+                                    color: SettingsTokens.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                }
+
+                                StyledText {
+                                    text: root.output ? `${root.output.make || "Unknown vendor"} ${root.output.model || ""}`.trim() : ""
+                                    color: SettingsTokens.dim
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            SettingsButton {
+                                Layout.preferredWidth: 120
+                                Layout.preferredHeight: 32
+                                label: "wlr-randr"
+                                iconName: "open_in_new"
+                                onClicked: Quickshell.execDetached(["foot", "--app-id=wlr-randr", "--title=wlr-randr", "--window-size-pixels=880x620", "-e", "wlr-randr"])
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
