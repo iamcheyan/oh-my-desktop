@@ -89,7 +89,7 @@ for cmd in qs quickshell hyprctl jq curl swaybg systemd-run; do
 done
 
 section "desktop helpers"
-for cmd in wl-copy wl-paste cliphist mako grim slurp swappy; do
+for cmd in wl-copy wl-paste cliphist mako grim slurp swappy hyprpicker; do
   check_optional_cmd "$cmd"
 done
 for cmd in pavucontrol bluetoothctl nm-connection-editor nmtui kitty fish; do
