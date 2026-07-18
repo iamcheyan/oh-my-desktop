@@ -25,7 +25,14 @@ PageBody {
                     Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
                 }
             }
-            SettingsButton { label: "Voice Input"; iconName: "keyboard_voice"; onClicked: settingsRoot.currentPage = "voice" }
+            SettingsButton {
+                label: "Voice Input"
+                iconName: "keyboard_voice"
+                onClicked: {
+                    if (settingsRoot) settingsRoot.dismiss();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-voice-tui`]);
+                }
+            }
             SettingsButton { label: "Keyboard Remap"; iconName: "keyboard"; onClicked: settingsRoot.currentPage = "keyremap" }
             SettingsButton {
                 label: "Windows VM"

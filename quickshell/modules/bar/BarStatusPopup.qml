@@ -404,7 +404,10 @@ Scope {
                 icon: "keyboard_voice"
                 title: "Voice Input"
                 subtitle: "Speech engine, model and shortcuts"
-                onClicked: root.openDialog("voice")
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-voice-tui`]);
+                }
             }
 
             ToolLauncherRow {

@@ -46,7 +46,6 @@ WindowDialog {
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
-        { key: "voice", icon: "keyboard_voice", title: "Voice Input", keywords: "speech transcribe sherpa microphone dictation record model keybinding diagnostic" },
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
     ]
 
@@ -78,7 +77,7 @@ WindowDialog {
         if (page === "virtualization") return "overview";
         if (page === "vm") return "overview";
         if (page === "windows-vm") return "overview";
-        if (page === "voice") return "voice";
+        if (page === "voice" || page === "voice-input" || page === "speech") return "overview";
         if (page === "keyboard" || page === "keymap" || page === "remap") return "keyremap";
         return page && page.length > 0 ? page : "overview";
     }
@@ -97,7 +96,6 @@ WindowDialog {
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
         if (page === "display") return migratedDisplayPage;
-        if (page === "voice") return voicePage;
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
         if (page === "power") return powerPageComponent;
@@ -188,8 +186,6 @@ WindowDialog {
             mode: root.currentPage
         }
     }
-
-    Component { id: voicePage; VoicePage { settingsRoot: root } }
 
     Component { id: bluetoothPage; BluetoothPage { settingsRoot: root } }
 
