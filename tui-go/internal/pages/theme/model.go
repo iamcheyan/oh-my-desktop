@@ -377,29 +377,46 @@ func (m Model) statusInfoText(width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) wallpaperControls(width int, mode string) string {
-	modeButtons := lipgloss.JoinHorizontal(lipgloss.Top,
-		m.button(buttonText("f", "File"), mode == "file"),
-		m.button(buttonText("d", "Folder"), mode == "folder"),
-	)
+func (m Model) modeSelector(mode string) string {
+	pal := m.palette()
 	
-	btnLines := make([]string, 0, 3)
-	if width < 60 {
-		btnLines = append(btnLines, modeButtons, m.effectSelect())
-	} else {
-		btnLines = append(btnLines, lipgloss.JoinHorizontal(lipgloss.Top, modeButtons, "  ", m.effectSelect()))
+	fileIndicator := "○"
+	fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "file" {
+		fileIndicator = "◉"
+		fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
 	}
+	fileLabel := fileStyle.Render(fileIndicator + " " + buttonText("f", "File"))
+
+	folderIndicator := "○"
+	folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "folder" {
+		folderIndicator = "◉"
+		folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	folderLabel := folderStyle.Render(folderIndicator + " " + buttonText("d", "Folder"))
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(pal.line).
+		Background(pal.panel).
+		Padding(0, 1).
+		Render("Mode:  " + fileLabel + "   " + folderLabel)
+}
+
+func (m Model) wallpaperControls(width int, mode string) string {
+	modeSelector := m.modeSelector(mode)
+	
+	btnLines := make([]string, 0, 2)
+	btnLines = append(btnLines, modeSelector)
 	
 	if mode == "folder" {
 		folderButtons := lipgloss.JoinHorizontal(lipgloss.Top,
 			m.button(buttonText("w", "Next"), false),
 			m.button(buttonText("x", "Stop"), false),
+			m.intervalSelect(),
 		)
-		if width < 60 {
-			btnLines = append(btnLines, folderButtons, m.intervalSelect())
-		} else {
-			btnLines = append(btnLines, lipgloss.JoinHorizontal(lipgloss.Top, folderButtons, "  ", m.intervalSelect()))
-		}
+		btnLines = append(btnLines, folderButtons)
 	}
 	
 	buttonsBlock := strings.Join(btnLines, "\n\n")
@@ -513,17 +530,7 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 	return style.Render(tile)
 }
 
-// effectSelect keeps the three effect levels in one compact selector so this
-// secondary setting cannot force the wallpaper controls beyond the viewport.
-// The visible 1/2/3 hint documents the direct keyboard choices.
-func (m Model) effectSelect() string {
-	pal := m.palette()
-	label := effectLabel(m.value("effects.mode", "balanced"))
-	text := lipgloss.NewStyle().Foreground(pal.muted).Render("Effects ") +
-		lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render("1/2/3") +
-		"  " + label + " ▾"
-	return m.button(text, false)
-}
+
 
 func (m Model) intervalSelect() string {
 	pal := m.palette()
