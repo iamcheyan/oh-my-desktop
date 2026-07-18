@@ -96,7 +96,7 @@ func FitBlock(text string, width, height int) string {
 		lines = lines[:height]
 	}
 	for i, line := range lines {
-		lines[i] = padPlain(TruncateStyled(line, width), width)
+		lines[i] = PadPlain(TruncateStyled(line, width), width)
 	}
 	for len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", width))
@@ -160,7 +160,7 @@ func TruncateStyled(line string, width int) string {
 	return b.String()
 }
 
-func padPlain(line string, width int) string {
+func PadPlain(line string, width int) string {
 	w := lipgloss.Width(stripAnsi(line))
 	if w >= width {
 		return line
@@ -217,4 +217,59 @@ func stripAnsi(s string) string {
 		i++
 	}
 	return b.String()
+}
+
+// WrapStyled wraps a single line containing ANSI escape sequences to a given visible width.
+// It preserves styling state across wrapped line breaks.
+func WrapStyled(line string, width int) []string {
+	if width <= 0 {
+		return []string{line}
+	}
+	if lipgloss.Width(stripAnsi(line)) <= width {
+		return []string{line}
+	}
+
+	var lines []string
+	var current strings.Builder
+	currentStyle := ""
+	used := 0
+	i := 0
+	for i < len(line) {
+		if line[i] == '\x1b' {
+			seq, next := readAnsi(line, i)
+			current.WriteString(seq)
+			if seq == "\x1b[0m" {
+				currentStyle = ""
+			} else {
+				currentStyle += seq
+			}
+			i = next
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(line[i:])
+		if r == utf8.RuneError && size <= 1 {
+			i++
+			continue
+		}
+		rw := lipgloss.Width(string(r))
+
+		if used+rw > width {
+			current.WriteString("\x1b[0m")
+			lines = append(lines, current.String())
+
+			current.Reset()
+			current.WriteString(currentStyle)
+			used = 0
+		}
+
+		current.WriteRune(r)
+		used += rw
+		i += size
+	}
+
+	if current.Len() > 0 {
+		lines = append(lines, current.String())
+	}
+	return lines
 }

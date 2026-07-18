@@ -33,13 +33,14 @@ type actionMsg struct {
 type tickMsg time.Time
 
 type Model struct {
-	backend backend.Backend
-	status  status
-	logs    []string
-	width   int
-	height  int
-	busy    bool
-	err     string
+	backend      backend.Backend
+	status       status
+	logs         []string
+	width        int
+	height       int
+	busy         bool
+	err          string
+	scrollOffset int
 }
 
 func New(b backend.Backend) Model {
@@ -59,6 +60,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "esc", "ctrl+c":
 			return m, tea.Quit
+		case "up", "k":
+			m.scrollOffset++
+		case "down", "j":
+			m.scrollOffset--
+			if m.scrollOffset < 0 {
+				m.scrollOffset = 0
+			}
+		case "pgup":
+			m.scrollOffset += 10
+		case "pgdown":
+			m.scrollOffset -= 10
+			if m.scrollOffset < 0 {
+				m.scrollOffset = 0
+			}
+		case "home":
+			m.scrollOffset = 999999
+		case "end":
+			m.scrollOffset = 0
 		case "r":
 			return m, tea.Batch(m.fetchStatus(), m.fetchLogs())
 		case "c":
@@ -234,14 +253,71 @@ func (m Model) opsView(width, height int) string {
 		return strings.Join(staticLines, "\n")
 	}
 
-	logs := ui.ClipLines(m.logs, logCount)
-	renderedLogs := make([]string, 0, len(logs))
-	for _, line := range logs {
-		renderedLogs = append(renderedLogs, ui.TruncateStyled(line, width))
+	// Wrap log lines to fit within (width - 2) to leave 2 columns for space + scrollbar
+	logWidth := width - 2
+	if logWidth < 8 {
+		logWidth = 8
 	}
-	if len(renderedLogs) > 0 {
-		staticLines = append(staticLines, ui.SubtleText.Render(strings.Join(renderedLogs, "\n")))
+	var wrappedLogs []string
+	for _, logLine := range m.logs {
+		wrappedLogs = append(wrappedLogs, ui.WrapStyled(logLine, logWidth)...)
 	}
+	totalLines := len(wrappedLogs)
+
+	displayedLogs := make([]string, logCount)
+	if totalLines == 0 {
+		// No logs to show, pad with blank lines
+		for i := 0; i < logCount; i++ {
+			displayedLogs[i] = strings.Repeat(" ", logWidth) + "  "
+		}
+	} else if totalLines <= logCount {
+		// All logs fit, draw solid scrollbar for log rows, trailing blank rows have track
+		for i := 0; i < logCount; i++ {
+			if i < totalLines {
+				padded := ui.PadPlain(wrappedLogs[i], logWidth)
+				displayedLogs[i] = padded + " " + ui.OKText.Render("┃")
+			} else {
+				displayedLogs[i] = strings.Repeat(" ", logWidth) + " " + ui.SubtleText.Render("│")
+			}
+		}
+	} else {
+		// Logs overflow, clamp scrollOffset and slide viewport
+		maxOffset := totalLines - logCount
+		scrollOffset := m.scrollOffset
+		if scrollOffset > maxOffset {
+			scrollOffset = maxOffset
+		}
+		if scrollOffset < 0 {
+			scrollOffset = 0
+		}
+
+		start := totalLines - logCount - scrollOffset
+		end := totalLines - scrollOffset
+
+		// Calculate scrollbar thumb position
+		thumbStart := (start * logCount) / totalLines
+		thumbEnd := (end * logCount) / totalLines
+		if thumbEnd-thumbStart < 1 {
+			thumbEnd = thumbStart + 1
+		}
+		if thumbEnd > logCount {
+			thumbEnd = logCount
+		}
+
+		for i := 0; i < logCount; i++ {
+			padded := ui.PadPlain(wrappedLogs[start+i], logWidth)
+			sbChar := ui.SubtleText.Render("│")
+			if i >= thumbStart && i < thumbEnd {
+				sbChar = ui.OKText.Render("┃")
+			}
+			displayedLogs[i] = padded + " " + sbChar
+		}
+	}
+
+	for _, dLine := range displayedLogs {
+		staticLines = append(staticLines, dLine)
+	}
+
 	return strings.Join(staticLines, "\n")
 }
 
