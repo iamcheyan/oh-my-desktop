@@ -96,6 +96,14 @@ ColumnLayout {
         pageRoot.settingsRoot.keyremapEditingPreset = ""
     }
 
+    function refreshPage() {
+        KeyboardRemap.refreshDevices()
+        KeyboardRemap.loadProfiles()
+        KeyboardRemap.checkKeyd()
+        KeyboardRemap.checkPendingChanges()
+        KeyboardRemap.refreshFunctionRow()
+    }
+
     GridLayout {
         id: contentGrid
         Layout.fillWidth: true
@@ -178,43 +186,6 @@ ColumnLayout {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 1
                     color: SettingsTokens.line
-                }
-
-                SettingsSection {
-                    title: "Service"
-
-                    ButtonRow {
-                        SettingsButton {
-                            label: KeyboardRemap.state === "setup" ? "Setup keyd" : "Recheck"
-                            iconName: KeyboardRemap.state === "setup" ? "download" : "refresh"
-                            onClicked: {
-                                if (KeyboardRemap.state === "setup")
-                                    KeyboardRemap.setup()
-                                else
-                                    KeyboardRemap.checkKeyd()
-                            }
-                        }
-                        SettingsButton {
-                            label: "Refresh list"
-                            iconName: "devices"
-                            onClicked: {
-                                KeyboardRemap.refreshDevices()
-                                KeyboardRemap.loadProfiles()
-                                KeyboardRemap.checkKeyd()
-                            }
-                        }
-                    }
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 4
-                        text: KeyboardRemap.hasPendingChanges
-                            ? "Use Apply in the footer to write /etc/keyd/omd.conf and restart keyd."
-                            : "Select a keyboard to enable presets. Changes stay as a draft until Apply."
-                        color: SettingsTokens.dim
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        wrapMode: Text.WordWrap
-                    }
                 }
 
                 SettingsSection {
@@ -479,14 +450,6 @@ ColumnLayout {
                         }
                     }
 
-                    SettingsToggleRow {
-                        iconName: "power_settings_new"
-                        label: "Enable this keyboard"
-                        description: "When off, no presets are emitted for this keyboard."
-                        checked: KeyboardRemap.selectedEnabled
-                        onToggled: KeyboardRemap.setProfileEnabled(!KeyboardRemap.selectedEnabled)
-                    }
-
                     StyledText {
                         Layout.fillWidth: true
                         Layout.topMargin: 8
@@ -635,12 +598,16 @@ ColumnLayout {
         }
     }
 
-    Component.onCompleted: {
-        KeyboardRemap.refreshDevices()
-        KeyboardRemap.loadProfiles()
-        KeyboardRemap.checkKeyd()
-        KeyboardRemap.checkPendingChanges()
-        KeyboardRemap.refreshFunctionRow()
+    Component.onCompleted: pageRoot.refreshPage()
+
+    Connections {
+        target: pageRoot.settingsRoot
+
+        function onVisibleChanged() {
+            if (pageRoot.settingsRoot.visible
+                    && pageRoot.settingsRoot.currentPage === "keyremap")
+                pageRoot.refreshPage()
+        }
     }
 
     Connections {

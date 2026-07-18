@@ -43,6 +43,14 @@
       "enabled": true,
       "enabledPresets": [],
       "presetOverrides": {}
+    },
+    "guo-magic-keyboard": {
+      "displayName": "guoのmagic keyboard",
+      "hyprName": "guo-magic-keyboard",
+      "keydId": "004c:029c",
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {}
     }
   }
 }

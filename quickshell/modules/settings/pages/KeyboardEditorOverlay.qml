@@ -23,10 +23,8 @@ Item {
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                if (keyEditorPopup.visible)
+                if (keyEditorPopup.opened)
                     keyEditorPopup.close()
-                else
-                    overlay.settingsRoot.keyremapEditingPreset = ""
             }
         }
     }
@@ -117,7 +115,7 @@ Item {
                 radius: SettingsTokens.radius
                 color: keyEditorMouse.containsMouse ? SettingsTokens.buttonHover : SettingsTokens.panel
                 border.width: 1
-                border.color: keyEditorPopup.visible ? SettingsTokens.accent : SettingsTokens.line
+                border.color: keyEditorPopup.opened ? SettingsTokens.accent : SettingsTokens.line
 
                 RowLayout {
                     anchors.fill: parent
@@ -146,7 +144,7 @@ Item {
                     }
 
                     MaterialSymbol {
-                        text: keyEditorPopup.visible ? "expand_less" : "expand_more"
+                        text: keyEditorPopup.opened ? "expand_less" : "expand_more"
                         iconSize: 20
                         color: SettingsTokens.muted
                     }
@@ -158,7 +156,7 @@ Item {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        if (keyEditorPopup.visible)
+                        if (keyEditorPopup.opened)
                             keyEditorPopup.close()
                         else
                             keyEditorPopup.open()
@@ -171,6 +169,7 @@ Item {
                     width: keyEditorTargetBox.width
                     height: Math.min(260, keyEditorList.contentHeight + 8)
                     padding: 4
+                    closePolicy: Popup.CloseOnEscape
 
                     background: Rectangle {
                         radius: SettingsTokens.radius
