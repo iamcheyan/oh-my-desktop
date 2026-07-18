@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/backend"
 )
 
@@ -63,6 +64,26 @@ func TestReadyViewShowsSettings(t *testing.T) {
 	}
 	if strings.Contains(out, "GET STARTED") {
 		t.Error("ready view should not show setup guide")
+	}
+}
+
+func TestReadyViewFitsHeightAndDeduplicatesFriendlyBindings(t *testing.T) {
+	m := modelWithStatus(backend.Status{
+		"state":         "idle",
+		"modelReady":    "true",
+		"venvReady":     "true",
+		"modelSizeMB":   "229",
+		"daemonRunning": "false",
+		"recent":        "[]",
+	})
+	m.bindings = []string{"ALT + A", "0X100811D0", "HANGUL_HANJA", "XF86Tools"}
+
+	out := m.View()
+	if got := lipgloss.Height(out); got != m.height {
+		t.Fatalf("view height = %d, want %d", got, m.height)
+	}
+	if got := strings.Count(out, "Hangul / Hanja"); got != 1 {
+		t.Fatalf("Hangul / Hanja count = %d, want 1", got)
 	}
 }
 
@@ -135,4 +156,3 @@ func TestDownloadingViewShowsProgress(t *testing.T) {
 		t.Error("downloading view should not show bindings")
 	}
 }
-

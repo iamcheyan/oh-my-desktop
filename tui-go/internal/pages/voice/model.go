@@ -464,8 +464,8 @@ func (m *Model) logTrialProgress() {
 	if hearing && !m.trialSpeechSeen {
 		m.trialSpeechSeen = true
 		m.appendLog(fmt.Sprintf(
-			"[trial] Speech detected at %s  level=%d/100  %s",
-			ui.FormatDuration(elapsed), level, listeningWave(m.animTick, level),
+			"[trial] Speech detected at %s  level=%d/100",
+			ui.FormatDuration(elapsed), level,
 		))
 		m.appendLog("[trial] Keep speaking — press Space when finished")
 		m.trialLastLogAt = now
@@ -501,8 +501,8 @@ func (m *Model) logTrialProgress() {
 		phase = "Listening (paused / quiet)"
 	}
 	m.appendLog(fmt.Sprintf(
-		"[trial] %s  t=%s  level=%d/100  peak=%d  %s",
-		phase, ui.FormatDuration(elapsed), level, m.trialPeakLevel, listeningWave(m.animTick, level),
+		"[trial] %s  t=%s  level=%d/100  peak=%d",
+		phase, ui.FormatDuration(elapsed), level, m.trialPeakLevel,
 	))
 	m.trialLastLogAt = now
 	m.trialLastLevel = level
@@ -587,7 +587,7 @@ func (m Model) controlView(width int) string {
 	if m.bool("modelReady") {
 		lines = append(lines,
 			m.sectionTitle("VOICE TRIGGERS"),
-			ui.MutedText.Render(ui.TruncateStyled("Press any of these keys to start voice input:", width)),
+			ui.MutedText.Render("Configured shortcuts"),
 			"",
 		)
 		binds := m.bindings
@@ -599,7 +599,7 @@ func (m Model) controlView(width int) string {
 		lines = append(lines, keycapLine)
 		lines = append(lines,
 			"",
-			ui.SubtleText.Render(ui.TruncateStyled("Space: trial record (logs)  ·  Space again: transcribe  ·  Esc: cancel  ·  Edit: (e)", width)),
+			ui.SubtleText.Render(ui.TruncateStyled("Space: test recording  ·  Esc: cancel", width)),
 			"",
 		)
 	}
@@ -657,6 +657,9 @@ func (m Model) modelBox(width int) string {
 
 func (m Model) rightPaneView(width, height int) string {
 	state := m.state()
+	innerW := max(8, width-4)
+	innerH := max(4, height-2)
+	paneStyle := lipgloss.NewStyle().Padding(1, 2)
 
 	if state == "downloading" {
 		percent := ui.ParseInt(m.value("download.percent", "0"))
@@ -666,66 +669,66 @@ func (m Model) rightPaneView(width, height int) string {
 		}
 		speed := speedLabel(m.value("download.speedBps", "0"))
 		eta := etaLabel(m.value("download.etaSec", "0"))
-		barW := max(10, min(40, width-8))
+		barW := max(10, min(40, innerW-8))
 
 		progressBlock := strings.Join([]string{
 			m.sectionTitle("PROGRESS"),
 			ui.WarnText.Render("Downloading " + label),
 			ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
-			m.kvLine("Speed", speed, width),
-			m.kvLine("Remaining", eta, width),
-			m.actionPrimary("Cancel setup", true, width),
+			m.kvLine("Speed", speed, innerW),
+			m.kvLine("Remaining", eta, innerW),
+			m.actionPrimary("Cancel setup", true, innerW),
 		}, "\n")
 
 		progH := strings.Count(progressBlock, "\n") + 1
-		logH := height - progH - 2
+		logH := innerH - progH - 2
 		if logH < 3 {
 			logH = 3
 		}
 
 		logHeader := m.sectionTitle("SETUP LOG OUTPUT")
-		logBody := m.logBody(width, logH)
+		logBody := m.logBody(innerW, logH)
 
-		return progressBlock + "\n\n" + logHeader + "\n" + logBody
+		return paneStyle.Render(progressBlock + "\n\n" + logHeader + "\n" + logBody)
 	}
 
 	if !m.bool("modelReady") {
 		welcomeLines := []string{
 			m.sectionTitle("GET STARTED"),
-			ui.MutedText.Render(ui.TruncatePlain("Welcome to Voice Input setup.", width)),
+			ui.MutedText.Render(ui.TruncatePlain("Welcome to Voice Input setup.", innerW)),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("This feature enables you to dictate text using local", width)),
-			ui.MutedText.Render(ui.TruncatePlain("speech recognition. All audio processing is done entirely", width)),
-			ui.MutedText.Render(ui.TruncatePlain("on your device — no external network requests are made.", width)),
+			ui.MutedText.Render(ui.TruncatePlain("This feature enables you to dictate text using local", innerW)),
+			ui.MutedText.Render(ui.TruncatePlain("speech recognition. All audio processing is done entirely", innerW)),
+			ui.MutedText.Render(ui.TruncatePlain("on your device — no external network requests are made.", innerW)),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("Setup will download the SenseVoice model (~229 MB) and", width)),
-			ui.MutedText.Render(ui.TruncatePlain("prepare the Python virtual environment.", width)),
+			ui.MutedText.Render(ui.TruncatePlain("Setup will download the SenseVoice model (~229 MB) and", innerW)),
+			ui.MutedText.Render(ui.TruncatePlain("prepare the Python virtual environment.", innerW)),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("To begin, select 'Setup voice input' on the left.", width)),
+			ui.MutedText.Render(ui.TruncatePlain("To begin, select 'Setup voice input' on the left.", innerW)),
 		}
 
 		welcomeBlock := strings.Join(welcomeLines, "\n")
 		welcomeH := strings.Count(welcomeBlock, "\n") + 1
-		logH := height - welcomeH - 2
+		logH := innerH - welcomeH - 2
 		if logH < 3 {
 			logH = 3
 		}
 
 		logHeader := m.sectionTitle("CONSOLE LOGS")
-		logBody := m.logBody(width, logH)
+		logBody := m.logBody(innerW, logH)
 
-		return welcomeBlock + "\n\n" + logHeader + "\n" + logBody
+		return paneStyle.Render(welcomeBlock + "\n\n" + logHeader + "\n" + logBody)
 	}
 
 	logHeader := m.sectionTitle("DETAILED LOGS")
-	logBody := m.logBody(width, height-2)
-	return logHeader + "\n" + logBody
+	logBody := m.logBody(innerW, innerH-1)
+	return paneStyle.Render(logHeader + "\n" + logBody)
 }
 
 func (m Model) logBody(width, logCount int) string {
 	logWidth := width - 2
-	if logWidth < 8 {
-		logWidth = 8
+	if logWidth < 6 {
+		logWidth = 6
 	}
 	var wrappedLogs []string
 	for _, logLine := range m.logs {
@@ -819,9 +822,9 @@ func (m Model) actionPrimary(label string, enabled bool, width int) string {
 func (m Model) actionSecondary(key, label string, enabled bool) string {
 	style := lipgloss.NewStyle().Foreground(ui.Muted)
 	if enabled && !m.busy {
-		style = lipgloss.NewStyle().Foreground(ui.Text)
+		style = lipgloss.NewStyle().Foreground(ui.Danger)
 	}
-	return style.Render("  " + label + " (" + key + ")")
+	return style.Render(label + " (" + key + ")")
 }
 
 func (m Model) statusLine() string {
@@ -881,15 +884,8 @@ func (m Model) helpItems() []string {
 	default:
 		items = append(items,
 			ui.HelpItem("e", "bindings"),
-			ui.HelpItem("k", "key tester"),
 			ui.HelpItem("d", "diagnose"),
-			ui.HelpItem("t", "test tui"),
-			ui.HelpItem("s", "setup"),
-			ui.HelpItem("x", "delete model"),
 		)
-		if len(m.recentItems()) > 0 {
-			items = append(items, ui.HelpItem("c", "clear recent"))
-		}
 	}
 	items = append(items, ui.HelpItem("r", "refresh"), ui.HelpItem("q", "quit"))
 	return items
@@ -907,8 +903,7 @@ func (m Model) kvLine(label, value string, width int) string {
 	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
 }
 
-// keycapRow renders trigger bindings as a vertical list of highlighted key labels.
-// No individual borders — uses background color only, so nothing can misalign.
+// keycapRow renders unique trigger bindings as a compact keyboard shortcut list.
 func (m Model) keycapRow(binds []string) string {
 	if len(binds) == 0 {
 		return ""
@@ -918,13 +913,18 @@ func (m Model) keycapRow(binds []string) string {
 		Foreground(ui.Text).
 		Bold(true).
 		Padding(0, 1)
+	iconStyle := lipgloss.NewStyle().Foreground(ui.Accent)
 
 	var lines []string
+	seen := make(map[string]struct{}, len(binds))
 	for _, raw := range binds {
 		label := friendly(raw)
-		// Render each key as a background-highlighted chip, indented
+		if _, exists := seen[label]; exists {
+			continue
+		}
+		seen[label] = struct{}{}
 		chip := keyStyle.Render(" " + label + " ")
-		lines = append(lines, "  "+chip)
+		lines = append(lines, "  "+iconStyle.Render("\uf11c")+"  "+chip)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -1114,52 +1114,6 @@ func actionMessage(action string) string {
 		return "Recent history cleared"
 	}
 	return action + " done"
-}
-
-// listeningWave draws an animated level meter. When micLevel is low the bars
-// idle-pulse gently; when speech is present they track the level so the user
-// gets immediate feedback that the mic is hearing them.
-func listeningWave(tick, level int) string {
-	const n = 14
-	bars := []rune{'▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
-	var b strings.Builder
-	// Normalize level 0–100 into 0–7 bar height, with a floor when idle.
-	base := level * (len(bars) - 1) / 100
-	if base < 1 {
-		base = 1
-	}
-	for i := 0; i < n; i++ {
-		// Traveling pulse so idle still feels alive.
-		phase := (tick + i*2) % (n * 2)
-		pulse := 0
-		if phase < n {
-			pulse = phase * 2 / n
-		} else {
-			pulse = (2*n - phase) * 2 / n
-		}
-		h := base
-		if level < 12 {
-			h = pulse
-			if h < 1 {
-				h = 1
-			}
-		} else {
-			// Speech: center bars taller, edges softer, with slight shimmer.
-			dist := i - n/2
-			if dist < 0 {
-				dist = -dist
-			}
-			h = base - dist/2 + (tick+i)%2
-			if h < 1 {
-				h = 1
-			}
-			if h >= len(bars) {
-				h = len(bars) - 1
-			}
-		}
-		b.WriteRune(bars[h])
-	}
-	return b.String()
 }
 
 func speedLabel(raw string) string {
