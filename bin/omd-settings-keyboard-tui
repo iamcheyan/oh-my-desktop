@@ -657,18 +657,17 @@ def view(stdscr, model):
     left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
 
-    # Focusable areas:
-    #   Left:   only Keyboards (device list) — Health/Actions are info/buttons only
-    #   Right:  Profile + Presets both interactive; Activity is read-only log
-    left_on = model.focus_area == 0
-    right_on = model.focus_area == 1
+    # Focusable areas – Tab cycles 0 (Keyboards) → 1 (Profile) → 2 (Presets) → 0
+    on_keyboards = model.focus_area == 0
+    on_profile    = model.focus_area == 1
+    on_presets    = model.focus_area == 2
 
     # ── Left: three stacked boxes ──
     # Box 1: Keyboards (focusable)
     device_lines = render_device_list(model, left_w - 4)
     device_box_h = min(content_h, len(device_lines) + 3)
     if device_box_h >= 3:
-        S.draw_focus_border(stdscr, left_on, hero_h, margin, device_box_h, left_w, "Keyboards")
+        S.draw_focus_border(stdscr, on_keyboards, hero_h, margin, device_box_h, left_w, "Keyboards")
         S.draw_lines_in_area(stdscr, hero_h, margin, device_box_h, left_w, device_lines)
     else:
         device_box_h = 0
@@ -712,7 +711,7 @@ def view(stdscr, model):
         profile_lines.append(("muted", "(view only — connect to edit)"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
-        S.draw_focus_border(stdscr, right_on, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
+        S.draw_focus_border(stdscr, on_profile, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
         S.draw_lines_in_area(stdscr, hero_h, margin + left_w, profile_box_h, right_w, profile_lines)
     else:
         profile_box_h = 0
@@ -732,7 +731,7 @@ def view(stdscr, model):
             preset_row = i + 1
             if model.fnmode_available and not view_only:
                 preset_row += 1
-            focused = model.focus_area == 1 and model.selected_preset == preset_row
+            focused = model.focus_area == 2 and model.selected_preset == preset_row
             trailing = ""
             if ptype == "remap" and not view_only:
                 target = pdefault
@@ -744,7 +743,7 @@ def view(stdscr, model):
     presets_title = f"Presets  {on_count} on"
     presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
     if presets_box_h >= 3 and len(presets_lines) > 0:
-        S.draw_focus_border(stdscr, right_on, presets_y, margin + left_w, presets_box_h, right_w, presets_title)
+        S.draw_focus_border(stdscr, on_presets, presets_y, margin + left_w, presets_box_h, right_w, presets_title)
         S.draw_lines_in_area(stdscr, presets_y, margin + left_w, presets_box_h, right_w, presets_lines)
     else:
         presets_box_h = 0
@@ -837,7 +836,7 @@ def handle_key(stdscr, model, key):
                         if model.fnmode_available:
                             preset_row += 1
                         model.selected_preset = preset_row
-                        model.focus_area = 1
+                        model.focus_area = 2
                         if _can_edit_selected(model):
                             if ptype == "remap":
                                 # Check if click is past the label (on trailing target)
@@ -868,13 +867,15 @@ def handle_key(stdscr, model, key):
                     return True
         return True
 
+    pf_rows = 2 if model.fnmode_available else 1
     if model.focus_area == 0:  # device list
         if key == curses.KEY_UP or key == ord('k'):
             model.selected = max(0, model.selected - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected = min(max(0, len(model.devices) - 1), model.selected + 1)
-        elif key == ord('\t') or key == 9:  # Tab
+        elif key == ord('\t') or key == 9:  # Tab → Profile
             model.focus_area = 1
+            model.selected_preset = 0
         elif key == ord(' '):
             model.toggle_profile_enabled()
         elif key == ord('s'):
@@ -890,14 +891,38 @@ def handle_key(stdscr, model, key):
                 src = model.find_copy_source()
                 if src:
                     model.copy_profile_from(src)
-        elif key == ord('\n') or key == 10:  # Enter
+        elif key == ord('\n') or key == 10:  # Enter → Profile
             model.focus_area = 1
-    else:  # right panel (presets)
+            model.selected_preset = 0
+    elif model.focus_area == 1:  # Profile (top right)
         if key == curses.KEY_UP or key == ord('k'):
             model.selected_preset = max(0, model.selected_preset - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
+            model.selected_preset = min(pf_rows - 1, model.selected_preset + 1)
+        elif key == ord('\t') or key == 9:  # Tab → Presets (or back to left if none)
+            if model.right_col_rows() > pf_rows:
+                model.focus_area = 2
+                model.selected_preset = pf_rows
+            else:
+                model.focus_area = 0
+        elif key == ord('\n') or key == 10:
+            if model.selected_preset == 0:
+                model.toggle_profile_enabled()
+            elif model.fnmode_available and model.selected_preset == 1:
+                model.busy = True
+                model.cycle_fnmode()
+        elif key == ord(' '):
+            if model.selected_preset == 0:
+                model.toggle_profile_enabled()
+            elif model.fnmode_available and model.selected_preset == 1:
+                model.busy = True
+                model.cycle_fnmode()
+    elif model.focus_area == 2:  # Presets (bottom right)
+        if key == curses.KEY_UP or key == ord('k'):
+            model.selected_preset = max(pf_rows, model.selected_preset - 1)
+        elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected_preset = min(model.right_col_rows() - 1, model.selected_preset + 1)
-        elif key == ord('\t') or key == 9:
+        elif key == ord('\t') or key == 9:  # Tab → back to left
             model.focus_area = 0
         elif key == ord('\n') or key == 10:
             if model.selected_preset == 0:
