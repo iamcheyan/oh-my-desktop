@@ -470,6 +470,13 @@ refresh_running_apps() {
     "$qs_cmd" -p "$OMD_ROOT/apps/$app" ipc call theme reload >/dev/null 2>&1 || true
   done
 
+  # If wallpaper mode is color, refresh the solid color background to match the new theme colors
+  local wallpaper_mode
+  wallpaper_mode="$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper/mode" 2>/dev/null || echo "file")"
+  if [[ "$wallpaper_mode" == "color" ]]; then
+    "$OMD_ROOT/bin/omd-wallpaper" set-color >/dev/null 2>&1 || true
+  fi
+
   # Hyprland border colors come from current/theme/hyprland.lua
   hyprctl reload >/dev/null 2>&1 || true
 
@@ -528,12 +535,14 @@ case "${1:-list}" in
   current) current_theme ;;
   appearance-status) appearance_status ;;
   wallpaper-status) wallpaper_status ;;
+  wallpaper-set-color) "$OMD_ROOT/bin/omd-wallpaper" set-color; wallpaper_status ;;
   wallpaper-next) "$OMD_ROOT/bin/omd-wallpaper" random; wallpaper_status ;;
   wallpaper-stop) "$OMD_ROOT/bin/omd-wallpaper" stop; wallpaper_status ;;
   wallpaper-pick-file) "$OMD_ROOT/bin/omd-wallpaper" pick-file; wallpaper_status ;;
   wallpaper-pick-folder) "$OMD_ROOT/bin/omd-wallpaper" pick-folder; wallpaper_status ;;
   wallpaper-interval)
     [[ -n "${2:-}" ]] || { echo "usage: omd-settings-theme wallpaper-interval <seconds>" >&2; exit 2; }
+    [[ "$2" =~ ^[0-9]+$ ]] && (( "$2" > 0 )) || { echo "wallpaper interval must be a positive number of seconds" >&2; exit 2; }
     mkdir -p "$(dirname "$WALLPAPER_INTERVAL_FILE")"
     printf '%s\n' "$2" >"$WALLPAPER_INTERVAL_FILE"
     # Restart the folder timer without using `stop`: stop intentionally

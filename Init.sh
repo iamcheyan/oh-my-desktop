@@ -1189,9 +1189,9 @@ repair_runtime_config() {
 
     mkdir -p "$REPO/current"
     if [[ ! -f "$REPO/current/wallpaper" ]]; then
-        cp "$REPO/quickshell/assets/images/default_wallpaper.png" "$REPO/current/wallpaper"
+        cp "$REPO/share/themes/last-horizon/backgrounds/4-new-horizons.jpg" "$REPO/current/wallpaper"
         chmod 0644 "$REPO/current/wallpaper"
-        ok "  seeded current/wallpaper from the default wallpaper"
+        ok "  seeded current/wallpaper from the default theme"
     fi
     ln -sfn "wallpaper" "$REPO/current/background"
     ok "  current/background -> wallpaper"

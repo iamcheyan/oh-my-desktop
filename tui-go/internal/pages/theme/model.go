@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -140,216 +141,91 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			clickX := msg.X
 			clickY := msg.Y
 
-			yOffset := 1
-			if m.busy || m.err != "" || m.message != "" {
-				yOffset += 1
-			}
-
-			// 1. Check wallpaper controls click
-			if clickY >= yOffset && clickY < yOffset + 8 {
-				mode := m.value("wallpaper.mode", "file")
-				if mode == "file" {
-					// Mode selector click
-					if clickY == yOffset + 3 {
-						if clickX >= 37 && clickX <= 51 {
-							// File
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-pick-file")
-							}
-						} else if clickX >= 52 && clickX <= 69 {
-							// Folder
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-pick-folder")
-							}
-						}
+			// First check top controls using plain text hit-testing
+			viewStr := m.View()
+			lines := strings.Split(viewStr, "\n")
+			matchedControl := false
+			if clickY >= 0 && clickY < len(lines) {
+				var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+				plain := ansiRegex.ReplaceAllString(lines[clickY], "")
+				if clickX >= 0 && clickX < len(plain) {
+					type btn struct {
+						text string
+						key  string
 					}
-					// Effect selector click
-					if clickY == yOffset + 4 {
-						if clickX >= 37 && clickX <= 50 {
-							// Perf
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("performance")
-							}
-						} else if clickX >= 51 && clickX <= 64 {
-							// Bal
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("balanced")
-							}
-						} else if clickX >= 65 && clickX <= 79 {
-							// Vis
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("visuals")
-							}
-						}
+					buttons := []btn{
+						{"Image (i)", "i"},
+						{"Color (c)", "c"},
+						{"Image File (f)", "f"},
+						{"Folder (d)", "d"},
+						{"Next (w)", "w"},
+						{"Perf (1)", "1"},
+						{"Bal (2)", "2"},
+						{"Vis (3)", "3"},
 					}
-				} else {
-					// Mode selector click
-					if clickY == yOffset + 2 {
-						if clickX >= 37 && clickX <= 51 {
-							// File
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-pick-file")
-							}
-						} else if clickX >= 52 && clickX <= 69 {
-							// Folder
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-pick-folder")
-							}
-						}
-					}
-					// Action selector click (Next)
-					if clickY == yOffset + 3 {
-						if clickX >= 37 && clickX <= 51 {
-							// Next
-							if !m.busy {
-								m.busy = true
-								return m, m.runAction("wallpaper-next")
-							}
-						}
-					}
-					// Effect selector click
-					if clickY == yOffset + 4 {
-						if clickX >= 37 && clickX <= 50 {
-							// Perf
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("performance")
-							}
-						} else if clickX >= 51 && clickX <= 64 {
-							// Bal
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("balanced")
-							}
-						} else if clickX >= 65 && clickX <= 79 {
-							// Vis
-							if !m.busy {
-								m.busy = true
-								return m, m.effects("visuals")
+					for _, b := range buttons {
+						idx := strings.Index(plain, b.text)
+						if idx >= 0 {
+							if clickX >= idx-2 && clickX <= idx+len(b.text)+2 {
+								matchedControl = true
+								return m.handleKey(b.key)
 							}
 						}
 					}
 				}
 			}
 
-			// 2. Check theme grid click
-			heroHeight := 10
-			themeGridY := yOffset + heroHeight + 1
-			cols := m.gridColumnsFor(m.contentWidth())
-			tileW := m.themeTileWidth(m.contentWidth(), cols)
-			gridStartY := themeGridY + 3
-
-			selectedRow := m.selected / cols
-			themeRows := max(1, (m.height-15)/5)
-			startRow := 0
-			if selectedRow >= themeRows {
-				startRow = selectedRow - themeRows + 1
-			}
-			if startRow > 0 {
-				gridStartY += 1
-			}
-
-			if clickY >= gridStartY && clickY < gridStartY + themeRows * 5 {
-				clickRow := (clickY - gridStartY) / 5
-				clickCol := -1
-				for c := 0; c < cols; c++ {
-					x1 := 1 + c * (tileW + 4)
-					x2 := x1 + tileW + 2
-					if clickX >= x1 && clickX < x2 {
-						clickCol = c
-						break
-					}
+			if !matchedControl {
+				// Fallback to checking theme grid click
+				yOffset := 1
+				if m.busy || m.err != "" || m.message != "" {
+					yOffset += 1
 				}
-				if clickCol >= 0 {
-					themeIdx := (startRow + clickRow) * cols + clickCol
-					if themeIdx >= 0 && themeIdx < len(m.themes) {
-						m.selected = themeIdx
-						if !m.busy {
-							slug := m.themes[m.selected].slug
-							m.busy = true
-							m.applying = slug
-							m.message = fmt.Sprintf("Applying %s…", slug)
-							return m, m.apply(slug)
+				heroHeight := 13 // 10 baseline + 3 title lines
+				themeGridY := yOffset + heroHeight + 1
+				cols := m.gridColumnsFor(m.contentWidth())
+				tileW := m.themeTileWidth(m.contentWidth(), cols)
+				gridStartY := themeGridY + 3
+
+				selectedRow := m.selected / cols
+				themeRows := max(1, (m.height-18-yOffset)/5)
+				startRow := 0
+				if selectedRow >= themeRows {
+					startRow = selectedRow - themeRows + 1
+				}
+				if startRow > 0 {
+					gridStartY += 1
+				}
+
+				if clickY >= gridStartY && clickY < gridStartY+themeRows*5 {
+					clickRow := (clickY - gridStartY) / 5
+					clickCol := -1
+					for c := 0; c < cols; c++ {
+						x1 := 1 + c*(tileW+4)
+						x2 := x1 + tileW + 2
+						if clickX >= x1 && clickX < x2 {
+							clickCol = c
+							break
+						}
+					}
+					if clickCol >= 0 {
+						themeIdx := (startRow+clickRow)*cols + clickCol
+						if themeIdx >= 0 && themeIdx < len(m.themes) {
+							m.selected = themeIdx
+							if !m.busy {
+								slug := m.themes[m.selected].slug
+								m.busy = true
+								m.applying = slug
+								m.message = fmt.Sprintf("Applying %s…", slug)
+								return m, m.apply(slug)
+							}
 						}
 					}
 				}
 			}
 		}
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		case "up", "k":
-			m.moveSelection(-m.gridColumnsFor(m.contentWidth()))
-		case "down", "j":
-			m.moveSelection(m.gridColumnsFor(m.contentWidth()))
-		case "left", "h":
-			m.moveSelection(-1)
-		case "right", "l":
-			m.moveSelection(1)
-		case "r":
-			return m, tea.Batch(m.fetchStatus(), m.fetchThemes())
-		case "enter", "a":
-			if !m.busy && m.selected < len(m.themes) {
-				slug := m.themes[m.selected].slug
-				m.busy = true
-				m.applying = slug
-				m.message = fmt.Sprintf("Applying %s…", slug)
-				return m, m.apply(slug)
-			}
-		case "w":
-			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
-				m.busy = true
-				return m, m.runAction("wallpaper-next")
-			}
-		case "x":
-			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
-				m.busy = true
-				return m, m.runAction("wallpaper-stop")
-			}
-		case "f":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("wallpaper-pick-file")
-			}
-		case "d":
-			if !m.busy {
-				m.busy = true
-				return m, m.runAction("wallpaper-pick-folder")
-			}
-		case "[", "-":
-			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
-				m.busy = true
-				return m, m.interval(-300)
-			}
-		case "]", "=":
-			if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
-				m.busy = true
-				return m, m.interval(300)
-			}
-		case "1":
-			if !m.busy {
-				m.busy = true
-				return m, m.effects("performance")
-			}
-		case "2":
-			if !m.busy {
-				m.busy = true
-				return m, m.effects("balanced")
-			}
-		case "3":
-			if !m.busy {
-				m.busy = true
-				return m, m.effects("visuals")
-			}
-		}
+		return m.handleKey(msg.String())
 	case backend.StatusMsg:
 		if msg.Err != nil {
 			m.err = msg.Err.Error()
@@ -436,24 +312,42 @@ func (m Model) View() string {
 
 	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), pal.background)
 
-	helpItems := []string{
-		ui.HelpItem("arrows", "theme"),
-		ui.HelpItem("enter", "apply"),
-		ui.HelpItem("f", "file"),
-		ui.HelpItem("d", "folder"),
-	}
-	if m.value("wallpaper.mode", "file") == "folder" {
-		helpItems = append(helpItems,
+	var helpItems []string
+	mode := m.value("wallpaper.mode", "file")
+	if mode == "color" {
+		helpItems = []string{
+			ui.HelpItem("arrows", "theme"),
+			ui.HelpItem("enter", "apply"),
+			ui.HelpItem("i", "image mode"),
+			ui.HelpItem("r", "refresh"),
+			ui.HelpItem("q", "quit"),
+		}
+	} else if mode == "folder" {
+		helpItems = []string{
+			ui.HelpItem("arrows", "theme"),
+			ui.HelpItem("enter", "apply"),
+			ui.HelpItem("c", "color mode"),
+			ui.HelpItem("f", "pick file"),
+			ui.HelpItem("d", "pick folder"),
 			ui.HelpItem("w", "next"),
 			ui.HelpItem("x", "stop"),
 			ui.HelpItem("[/]", "interval"),
-		)
+			ui.HelpItem("1/2/3", "effects"),
+			ui.HelpItem("r", "refresh"),
+			ui.HelpItem("q", "quit"),
+		}
+	} else {
+		helpItems = []string{
+			ui.HelpItem("arrows", "theme"),
+			ui.HelpItem("enter", "apply"),
+			ui.HelpItem("c", "color mode"),
+			ui.HelpItem("f", "pick file"),
+			ui.HelpItem("d", "pick folder"),
+			ui.HelpItem("1/2/3", "effects"),
+			ui.HelpItem("r", "refresh"),
+			ui.HelpItem("q", "quit"),
+		}
 	}
-	helpItems = append(helpItems,
-		ui.HelpItem("1/2/3", "effects"),
-		ui.HelpItem("r", "refresh"),
-		ui.HelpItem("q", "quit"),
-	)
 	help := ui.HelpText(helpItems...)
 	if m.applying != "" {
 		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
@@ -525,26 +419,55 @@ func (m Model) wallpaperControls(width int) string {
 	mode := m.value("wallpaper.mode", "file")
 	effect := m.value("effects.mode", "balanced")
 
-	// 1. Mode selector line
-	fileIndicator := "○"
-	fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if mode == "file" {
-		fileIndicator = "◉"
-		fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	// 1. Mode selector line: Image (i) vs Color (c)
+	imageIndicator := "○"
+	imageStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "file" || mode == "folder" {
+		imageIndicator = "◉"
+		imageStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
 	}
-	fileLabel := fileStyle.Render(fileIndicator + " File (f)")
+	imageLabel := imageStyle.Render(imageIndicator + " Image (i)")
 
-	folderIndicator := "○"
-	folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	colorIndicator := "○"
+	colorStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "color" {
+		colorIndicator = "◉"
+		colorStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	colorLabel := colorStyle.Render(colorIndicator + " Color (c)")
+
+	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + imageLabel + "     " + colorLabel
+
+	// 2. Type selector line (only shown if Image mode is active)
+	var typeLine string
+	if mode == "file" || mode == "folder" {
+		fileIndicator := "○"
+		fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
+		if mode == "file" {
+			fileIndicator = "◉"
+			fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+		}
+		fileLabel := fileStyle.Render(fileIndicator + " Image File (f)")
+
+		folderIndicator := "○"
+		folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
+		if mode == "folder" {
+			folderIndicator = "◉"
+			folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+		}
+		folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
+
+		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") + fileLabel + "     " + folderLabel
+	}
+
+	// 3. Action selector line (only shown if Folder type is active)
+	var actionLine string
 	if mode == "folder" {
-		folderIndicator = "◉"
-		folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
+		actionLine = lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + nextLabel
 	}
-	folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
 
-	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + fileLabel + "     " + folderLabel
-
-	// 2. Effect selector line
+	// 4. Effect selector line
 	perfIndicator := "○"
 	perfStyle := lipgloss.NewStyle().Foreground(pal.muted)
 	if effect == "performance" {
@@ -571,46 +494,40 @@ func (m Model) wallpaperControls(width int) string {
 
 	effectLine := lipgloss.NewStyle().Foreground(pal.text).Render("Effect: ") + perfLabel + "     " + balLabel + "     " + visLabel
 
-	// 3. Current wallpaper info
-	currentWp := m.value("wallpaper.current", "")
-	wpName := "No wallpaper set"
-	if currentWp != "" {
-		wpName = filepath.Base(currentWp)
-	}
-
-	if mode == "folder" {
-		interval := intervalLabel(m.value("wallpaper.interval", "3600"))
-		wpName = fmt.Sprintf("%s (rotating every %s)", wpName, interval)
-	}
-
-	activeLine := lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
-	valLine := lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncatePlain(wpName, width-6))
-
-	var lines []string
-	if mode == "file" {
-		lines = []string{
-			lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
-			"",
-			modeLine,
-			effectLine,
-			"",
-			activeLine,
-			valLine,
-		}
+	// 5. Active background details line
+	var activeLine, valLine string
+	if mode == "color" {
+		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Background:")
+		bgHex := fmt.Sprintf("#%s", strings.TrimPrefix(string(pal.background), "#"))
+		valLine = lipgloss.NewStyle().Foreground(pal.muted).Render(fmt.Sprintf("Solid Color (%s)", bgHex))
 	} else {
-		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
-		actionLine := lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + nextLabel
-
-		lines = []string{
-			lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"),
-			modeLine,
-			actionLine,
-			effectLine,
-			"",
-			activeLine,
-			valLine,
+		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
+		currentWp := m.value("wallpaper.current", "")
+		wpName := "No wallpaper set"
+		if currentWp != "" {
+			wpName = filepath.Base(currentWp)
 		}
+		if mode == "folder" {
+			interval := intervalLabel(m.value("wallpaper.interval", "3600"))
+			wpName = fmt.Sprintf("%s (rotating every %s)", wpName, interval)
+		}
+		valLine = lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncatePlain(wpName, width-6))
 	}
+
+	// Assemble the lines
+	var lines []string
+	lines = append(lines, lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"))
+	lines = append(lines, modeLine)
+	if typeLine != "" {
+		lines = append(lines, typeLine)
+	}
+	if actionLine != "" {
+		lines = append(lines, actionLine)
+	}
+	lines = append(lines, effectLine)
+	lines = append(lines, "")
+	lines = append(lines, activeLine)
+	lines = append(lines, valLine)
 
 	return lipgloss.NewStyle().
 		Padding(1, 0).
@@ -624,10 +541,22 @@ func (m Model) wallpaperPreview(width, height int) string {
 	innerW := max(14, width-4)
 	innerH := max(4, height-2)
 	pal := m.palette()
-	imageView := renderImagePreview(expandPath(m.value("wallpaper.current", "")), innerW, innerH)
-	if imageView == "" {
-		imageView = m.previewPlaceholder("Wallpaper", ui.ShortPath(m.value("wallpaper.current", "-")), innerW, innerH)
+
+	var imageView string
+	if m.value("wallpaper.mode", "file") == "color" {
+		line := strings.Repeat(" ", innerW)
+		var block []string
+		for i := 0; i < innerH; i++ {
+			block = append(block, lipgloss.NewStyle().Background(pal.background).Render(line))
+		}
+		imageView = strings.Join(block, "\n")
+	} else {
+		imageView = renderImagePreview(expandPath(m.value("wallpaper.current", "")), innerW, innerH)
+		if imageView == "" {
+			imageView = m.previewPlaceholder("Wallpaper", ui.ShortPath(m.value("wallpaper.current", "-")), innerW, innerH)
+		}
 	}
+
 	return lipgloss.NewStyle().
 		Border(lipgloss.ThickBorder()).
 		BorderForeground(pal.line).
@@ -1143,6 +1072,87 @@ func intervalLabel(s string) string {
 		return fmt.Sprintf("%dm", sec/60)
 	}
 	return fmt.Sprintf("%ds", sec)
+}
+
+func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "q", "ctrl+c", "esc":
+		return m, tea.Quit
+	case "up", "k":
+		m.moveSelection(-m.gridColumnsFor(m.contentWidth()))
+	case "down", "j":
+		m.moveSelection(m.gridColumnsFor(m.contentWidth()))
+	case "left", "h":
+		m.moveSelection(-1)
+	case "right", "l":
+		m.moveSelection(1)
+	case "r":
+		return m, tea.Batch(m.fetchStatus(), m.fetchThemes())
+	case "enter", "a":
+		if !m.busy && m.selected < len(m.themes) {
+			slug := m.themes[m.selected].slug
+			m.busy = true
+			m.applying = slug
+			m.message = fmt.Sprintf("Applying %s…", slug)
+			return m, m.apply(slug)
+		}
+	case "i":
+		if !m.busy && m.value("wallpaper.mode", "file") == "color" {
+			m.busy = true
+			return m, m.runAction("wallpaper-pick-file")
+		}
+	case "c":
+		if !m.busy && m.value("wallpaper.mode", "file") != "color" {
+			m.busy = true
+			return m, m.runAction("wallpaper-set-color")
+		}
+	case "w":
+		if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
+			m.busy = true
+			return m, m.runAction("wallpaper-next")
+		}
+	case "x":
+		if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
+			m.busy = true
+			return m, m.runAction("wallpaper-stop")
+		}
+	case "f":
+		if !m.busy {
+			m.busy = true
+			return m, m.runAction("wallpaper-pick-file")
+		}
+	case "d":
+		if !m.busy {
+			m.busy = true
+			return m, m.runAction("wallpaper-pick-folder")
+		}
+	case "[", "-":
+		if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
+			m.busy = true
+			return m, m.interval(-300)
+		}
+	case "]", "=":
+		if !m.busy && m.value("wallpaper.mode", "file") == "folder" {
+			m.busy = true
+			return m, m.interval(300)
+		}
+	case "1":
+		if !m.busy {
+			m.busy = true
+			return m, m.effects("performance")
+		}
+	case "2":
+		if !m.busy {
+			m.busy = true
+			return m, m.effects("balanced")
+		}
+	case "3":
+		if !m.busy {
+			m.busy = true
+			return m, m.effects("visuals")
+		}
+	}
+	return m, nil
 }
 
 func effectLabel(mode string) string {

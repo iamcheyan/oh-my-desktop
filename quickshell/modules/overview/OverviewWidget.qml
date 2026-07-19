@@ -16,6 +16,13 @@ Item {
     required property var screen
     property string searchQuery: ""
     property real wheelAccum: 0
+    readonly property string configuredWallpaperPath: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
+    readonly property string fallbackWallpaperPath: ""
+    readonly property url versionedWallpaperUrl: Wallpaper.versionedUrl(root.configuredWallpaperPath)
+    // Keep showing the last decoded wallpaper while a new revision loads.
+    // Falling back during Image.Loading causes a visible default-wallpaper
+    // flash every time folder rotation or the picker changes the image.
+    property url displayedWallpaperUrl: root.fallbackWallpaperPath
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     // Re-evaluate the model only when the HyprlandData dirty-flag, an
     // explicit overview refresh, or the toplevel count changes. The
@@ -88,6 +95,25 @@ Item {
     }
     property var windowByAddress: HyprlandData.windowByAddress
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
+
+    // Keep one decoded copy warm while the overview process is idle. Every
+    // workspace preview then reuses Qt's image cache instead of independently
+    // decoding the managed wallpaper when the overview becomes visible.
+    Image {
+        id: wallpaperPreloader
+        width: 1
+        height: 1
+        opacity: 0
+        source: root.versionedWallpaperUrl
+        asynchronous: true
+        cache: true
+        visible: true
+
+        onStatusChanged: {
+            if (status === Image.Ready)
+                root.displayedWallpaperUrl = root.versionedWallpaperUrl;
+        }
+    }
 
     // ── Adaptive scaling ──
     // Overview (工作区概览): full-screen grid, auto-select optimal columns
@@ -605,32 +631,13 @@ Item {
                     // Wallpaper background for all workspaces (including trailing empty)
                     Image {
                         id: workspaceWallpaper
-                        property bool fallbackActive: false
-                        readonly property string configuredSource: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
-                        readonly property string fallbackSource: `${Directories.assetsPath}/images/default_wallpaper.png`
 
                         anchors.fill: parent
-                        source: fallbackActive
-                            ? fallbackSource
-                            : Wallpaper.versionedUrl(configuredSource)
+                        source: root.displayedWallpaperUrl
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
-                        // The managed wallpaper path is stable while its file
-                        // contents change during folder rotation.
-                        cache: false
+                        cache: true
                         mipmap: true
-
-                        onConfiguredSourceChanged: fallbackActive = false
-                        Connections {
-                            target: Wallpaper
-                            function onRevisionChanged() {
-                                workspaceWallpaper.fallbackActive = false;
-                            }
-                        }
-                        onStatusChanged: {
-                            if (status === Image.Error && !fallbackActive)
-                                fallbackActive = true;
-                        }
                     }
 
                     StyledText {

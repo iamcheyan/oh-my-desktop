@@ -47,4 +47,10 @@ func TestWallpaperControlsFollowMode(t *testing.T) {
 	if !strings.Contains(folderView, "rotating every 1h") {
 		t.Fatal("folder mode is missing rotation info")
 	}
+
+	m.status["wallpaper.mode"] = "color"
+	colorView := m.wallpaperControls(100)
+	if !strings.Contains(colorView, "Active Background:") || !strings.Contains(colorView, "Solid Color") {
+		t.Fatal("color mode is missing active background info")
+	}
 }

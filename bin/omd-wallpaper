@@ -8,6 +8,10 @@ INTERVAL_FILE="$STATE_DIR/interval"
 INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-$(cat "$INTERVAL_FILE" 2>/dev/null || printf '3600')}"
 UNIT_NAME="omd-wallpaper-random"
 
+if [[ ! "$INTERVAL_SEC" =~ ^[0-9]+$ ]] || (( INTERVAL_SEC < 1 )); then
+  INTERVAL_SEC=3600
+fi
+
 image_find_expr=(
   -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o
   -iname '*.bmp' -o -iname '*.gif'
@@ -143,13 +147,46 @@ random_saved() {
   random_from_folder "$source"
 }
 
+set_color() {
+  stop_timer
+  ensure_state_dir
+  echo "color" > "$MODE_FILE"
+
+  local omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+  local colors_file="$omd_root/current/theme/colors.toml"
+  local bg_color="#000000"
+  if [[ -f "$colors_file" ]]; then
+    bg_color="$(grep -E '^background[[:space:]]*=' "$colors_file" | head -n 1 | cut -d'"' -f2 | cut -d"'" -f2 || true)"
+    [[ -n "$bg_color" ]] || bg_color="#000000"
+  fi
+
+  pkill -x swaybg >/dev/null 2>&1 || true
+  setsid uwsm-app -- swaybg -c "$bg_color" >/dev/null 2>&1 &
+
+  local quickshell_config="$HOME/.config/quickshell/config.json"
+  if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
+    local tmp
+    tmp="$(mktemp)"
+    jq '.background.wallpaperPath = "" | .background.thumbnailPath = ""' "$quickshell_config" >"$tmp" &&
+      mv "$tmp" "$quickshell_config"
+    rm -f "$tmp"
+  fi
+
+  notify "Wallpaper set to solid color" "$bg_color"
+}
+
 restore() {
   local mode source
-
   mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
   if [[ "$mode" == "folder" && -n "$source" ]]; then
     start_timer
+  elif [[ "$mode" == "color" ]]; then
+    set_color
+  else
+    if [[ -n "$source" && -f "$source" ]]; then
+      omd-theme-bg-set "$source"
+    fi
   fi
 }
 
@@ -168,7 +205,6 @@ restart_rotation() {
 
 status() {
   local mode source current
-
   mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
   current="$(readlink -f "$HOME/.config/omd/current/background" 2>/dev/null || true)"
@@ -207,11 +243,14 @@ case "${1:-}" in
     echo "file" > "$MODE_FILE"
     notify "Wallpaper rotation stopped"
     ;;
+  set-color)
+    set_color
+    ;;
   status)
     status
     ;;
   *)
-    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|random|restore|restart|stop|status" >&2
+    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|set-color|random|restore|restart|stop|status" >&2
     exit 2
     ;;
 esac
