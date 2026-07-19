@@ -387,12 +387,14 @@ def view_remote_files(model):
         model.message = "Backend script not found"
         model.dirty = True
         return
+    # Keep terminal open after listing: append a pause prompt
+    inner_cmd = backup_script + ' list; echo ""; read -p "Press Enter to close..."'
     cmd = (
         'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
-        'exec xdg-terminal-exec --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -- bash -c "' + backup_script + ' list"; '
+        'exec xdg-terminal-exec --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -- bash -c ' + repr(inner_cmd) + '; '
         'elif command -v foot >/dev/null 2>&1; then '
-        'exec foot --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -e ' + backup_script + ' list; '
-        'else exec kitty --class=org.omd.list-file-share-backup --title="Remote Backup Files" -- ' + backup_script + ' list; fi'
+        'exec foot --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -e bash -c ' + repr(inner_cmd) + '; '
+        'else exec kitty --class=org.omd.list-file-share-backup --title="Remote Backup Files" -- bash -c ' + repr(inner_cmd) + '; fi'
     )
     try:
         subprocess.Popen(
@@ -402,7 +404,7 @@ def view_remote_files(model):
             stderr=subprocess.DEVNULL,
             start_new_session=True
         )
-        model.message = "Remote files opened in terminal"
+        model.message = "Opened terminal — press Enter to close"
     except Exception as e:
         model.message = f"Failed to open terminal: {e}"
     model.dirty = True
