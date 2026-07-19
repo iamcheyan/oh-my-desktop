@@ -771,7 +771,7 @@ class WiFiTUI:
             if overflow > 0 and saved_h > 4:
                 saved_h = max(4, saved_h - overflow)
 
-        y = margin + hero_h
+        y = margin + hero_h - 1
         box_w = w - margin * 2
 
         # ── Hero ──
