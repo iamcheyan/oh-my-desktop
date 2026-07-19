@@ -111,24 +111,32 @@ Item {
                 }
             }
 
-            // Right: time + buttons stacked
+            // Right: time / buttons — same slot, no height change
             ColumnLayout {
                 Layout.alignment: Qt.AlignTop
-                spacing: 6
+                spacing: 0
 
-                StyledText {
+                Item {
                     Layout.alignment: Qt.AlignRight
-                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.family: Appearance.font.family.monospace
-                    color: TuiStyle.dim
-                    opacity: 0.7
-                }
+                    implicitWidth: timeOrButtons.implicitWidth
+                    implicitHeight: 28
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignRight
-                    visible: root.hovered
-                    spacing: 4
+                    StyledText {
+                        id: timeText
+                        anchors.centerIn: parent
+                        visible: !root.hovered
+                        text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.family: Appearance.font.family.monospace
+                        color: TuiStyle.dim
+                        opacity: 0.7
+                    }
+
+                    RowLayout {
+                        id: timeOrButtons
+                        anchors.centerIn: parent
+                        visible: root.hovered
+                        spacing: 4
 
                     Rectangle {
                         id: copyBtn
@@ -223,6 +231,7 @@ Item {
                     }
 
                     Item { Layout.fillHeight: true }
+                }
             }
         }
     }

@@ -521,52 +521,60 @@ Item {
                 }
             }
 
-            // Right: time + buttons
+            // Right: time / buttons — same slot, no height change
             ColumnLayout {
                 Layout.alignment: Qt.AlignTop
-                spacing: 6
+                spacing: 0
 
-                StyledText {
+                Item {
                     Layout.alignment: Qt.AlignRight
-                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                    font.family: Appearance.font.family.monospace
-                    font.pixelSize: 9
-                    color: TuiStyle.dim
-                    opacity: 0.7
-                }
+                    implicitWidth: timeOrButtons.implicitWidth
+                    implicitHeight: 28
 
-                RowLayout {
-                    Layout.alignment: Qt.AlignRight
-                    visible: rowHover.hovered
-                    spacing: 4
+                    StyledText {
+                        anchors.centerIn: parent
+                        visible: !rowHover.hovered
+                        text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                        font.family: Appearance.font.family.monospace
+                        font.pixelSize: 9
+                        color: TuiStyle.dim
+                        opacity: 0.7
+                    }
 
-                    IconButton {
-                        id: copyButton
-                        symbol: "content_copy"
-                        tooltip: "Copy"
-                        enabled: row.hasBody || (notificationObject?.summary || "").length > 0
-                        onClicked: row.copyText()
+                    RowLayout {
+                        id: timeOrButtons
+                        anchors.centerIn: parent
+                        visible: rowHover.hovered
+                        spacing: 4
 
-                        Timer {
-                            id: copyReset
-                            interval: 1200
-                            repeat: false
-                            onTriggered: copyButton.symbol = "content_copy"
+                        IconButton {
+                            id: copyButton
+                            symbol: "content_copy"
+                            tooltip: "Copy"
+                            enabled: row.hasBody || (notificationObject?.summary || "").length > 0
+                            onClicked: row.copyText()
+
+                            Timer {
+                                id: copyReset
+                                interval: 1200
+                                repeat: false
+                                onTriggered: copyButton.symbol = "content_copy"
+                            }
                         }
-                    }
 
-                    IconButton {
-                        symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
-                        tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
-                        danger: Notifications.isMuted(row.displayApp)
-                        onClicked: Notifications.toggleMuteApp(row.displayApp)
-                    }
+                        IconButton {
+                            symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
+                            tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
+                            danger: Notifications.isMuted(row.displayApp)
+                            onClicked: Notifications.toggleMuteApp(row.displayApp)
+                        }
 
-                    IconButton {
-                        symbol: "close"
-                        tooltip: "Dismiss"
-                        danger: true
-                        onClicked: row.discard()
+                        IconButton {
+                            symbol: "close"
+                            tooltip: "Dismiss"
+                            danger: true
+                            onClicked: row.discard()
+                        }
                     }
                 }
 
