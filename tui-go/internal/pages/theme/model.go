@@ -58,51 +58,6 @@ var imagePreviewCache struct {
 	view    string
 }
 
-// Nerd Font glyphs for the action buttons (terminal must use a patched font).
-const (
-	iconFile    = "\uf15b" // nf-fa-file
-	iconFolder  = "\uf07b" // nf-fa-folder
-	iconNext    = "\uf04e" // nf-fa-forward
-	iconStop    = "\uf04d" // nf-fa-stop
-	iconBolt    = "\uf0e7" // nf-fa-bolt
-	iconBalance = "\uf24e" // nf-fa-balance_scale
-	iconImage   = "\uf03e" // nf-fa-image
-	iconApply   = "\uf00c" // nf-fa-check
-	iconRefresh = "\uf021" // nf-fa-refresh
-)
-
-// actionIcon maps a button's leading key token to its Nerd Font glyph.
-func actionIcon(key string) string {
-	switch key {
-	case "f":
-		return iconFile
-	case "d":
-		return iconFolder
-	case "w":
-		return iconNext
-	case "x":
-		return iconStop
-	case "1":
-		return iconBolt
-	case "2":
-		return iconBalance
-	case "3":
-		return iconImage
-	case "enter", "a":
-		return iconApply
-	case "r":
-		return iconRefresh
-	}
-	return ""
-}
-
-// buttonText renders the theme button label: a Nerd Font glyph (looked up by
-// the action key) plus the mnemonic. Delegates the mnemonic rendering to
-// ui.ActionText so all pages share one styling path.
-func buttonText(key, label string) string {
-	return ui.IconButton(actionIcon(key), key, label)
-}
-
 type Model struct {
 	backend  backend.Backend
 	status   backend.Status
@@ -197,11 +152,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					gridStartY += 1
 				}
 
+				// Right column x-offset: screenPaddingX(1) + leftW + columnGap(2)
+				contentW := max(14, m.width-10)
+				leftW := min(54, max(28, contentW/3))
+				rightColX := 1 + leftW + 2
+
 				if clickY >= gridStartY && clickY < gridStartY+themeRows*5 {
 					clickRow := (clickY - gridStartY) / 5
 					clickCol := -1
 					for c := 0; c < cols; c++ {
-						x1 := 1 + c*(tileW+4)
+						x1 := rightColX + c*(tileW+4)
 						x2 := x1 + tileW + 2
 						if clickX >= x1 && clickX < x2 {
 							clickCol = c
@@ -268,54 +228,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.width <= 0 || m.height <= 0 {
-		return "Initializing..."
-	}
-	width := m.width
-	height := m.height
-
-	const (
-		screenPaddingX = 2
-		screenPaddingY = 2
-	)
-
-	pal := m.palette()
-	contentW := width - screenPaddingX
-	if contentW < 14 {
-		contentW = 14
-	}
-	header := ""
-	if m.busy {
-		header = lipgloss.NewStyle().Foreground(pal.accent).Render("working...")
-	}
+	msg := ""
 	if m.err != "" {
-		if header != "" {
-			header += " "
-		}
-		header += ui.DangerText.Render(m.err)
-	}
-	if m.message != "" && !m.busy {
-		if header != "" {
-			header += " "
-		}
-		header += lipgloss.NewStyle().Foreground(pal.accent).Render(m.message)
+		msg = m.err
+	} else if m.message != "" && !m.busy {
+		msg = m.message
+	} else if m.applying != "" {
+		msg = "applying " + m.applying + "…"
 	}
 
-	fixedRows := 1
-	if header != "" {
-		fixedRows++
-	}
-	contentH := height - screenPaddingY - fixedRows
-	if contentH < 14 {
-		contentH = 14
-	}
+	return ui.RenderPage(ui.Page{
+		Width:  m.width,
+		Height: m.height,
+		Hero: ui.Hero("Theme & Appearance", m.heroSubtitle(), ui.HeroOpts{
+			Tone:    ui.ToneOK,
+			Busy:    m.busy,
+			Message: msg,
+		}),
+		Left:  m.leftColumn(),
+		Right: m.rightColumn(),
+		Wide:  m.width >= 90,
+		Help:  m.helpItems(),
+	})
+}
 
-	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), pal.background)
+func (m Model) heroSubtitle() string {
+	if m.status == nil {
+		return "Loading…"
+	}
+	currentTheme := m.value("theme.current", "Default")
+	count := len(m.themes)
+	mode := m.value("wallpaper.mode", "file")
+	daemon := "single image"
+	if mode == "folder" {
+		interval := intervalLabel(m.value("wallpaper.interval", "3600"))
+		daemon = fmt.Sprintf("rotating every %s", interval)
+	} else if mode == "color" {
+		daemon = "solid color"
+	}
+	return fmt.Sprintf("%s · %d themes · %s", currentTheme, count, daemon)
+}
 
-	var helpItems []string
+func (m Model) helpItems() []string {
 	mode := m.value("wallpaper.mode", "file")
 	if mode == "color" {
-		helpItems = []string{
+		return []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
 			ui.HelpItem("f", "file"),
@@ -323,8 +280,9 @@ func (m Model) View() string {
 			ui.HelpItem("r", "refresh"),
 			ui.HelpItem("q", "quit"),
 		}
-	} else if mode == "folder" {
-		helpItems = []string{
+	}
+	if mode == "folder" {
+		return []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
 			ui.HelpItem("f", "file"),
@@ -337,82 +295,33 @@ func (m Model) View() string {
 			ui.HelpItem("r", "refresh"),
 			ui.HelpItem("q", "quit"),
 		}
-	} else {
-		helpItems = []string{
-			ui.HelpItem("arrows", "theme"),
-			ui.HelpItem("enter", "apply"),
-			ui.HelpItem("d", "folder"),
-			ui.HelpItem("c", "color"),
-			ui.HelpItem("f", "pick file"),
-			ui.HelpItem("1/2/3", "effects"),
-			ui.HelpItem("r", "refresh"),
-			ui.HelpItem("q", "quit"),
-		}
 	}
-	help := ui.HelpText(helpItems...)
-	if m.applying != "" {
-		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
+	return []string{
+		ui.HelpItem("arrows", "theme"),
+		ui.HelpItem("enter", "apply"),
+		ui.HelpItem("d", "folder"),
+		ui.HelpItem("c", "color"),
+		ui.HelpItem("f", "pick file"),
+		ui.HelpItem("1/2/3", "effects"),
+		ui.HelpItem("r", "refresh"),
+		ui.HelpItem("q", "quit"),
 	}
-
-	parts := []string{content, help}
-	if header != "" {
-		parts = append([]string{header}, parts...)
-	}
-	return lipgloss.NewStyle().Background(pal.background).Foreground(pal.text).Padding(1, 1).Render(
-		lipgloss.JoinVertical(lipgloss.Left, parts...),
-	)
 }
 
-func (m Model) statusLight() string {
-	style := lipgloss.NewStyle().Foreground(m.palette().accent)
-	return style.Render("●")
-}
-
-func (m Model) contentView(width, height int) string {
+func (m Model) leftColumn() string {
 	if m.status == nil {
-		return "Loading..."
+		return ""
 	}
-
-	title := m.statusLight() + " " + ui.Title.Render("Theme & Appearance")
-	if m.busy {
-		title += " " + ui.OKText.Render("working…")
-	}
-	currentTheme := m.value("theme.current", "Default")
-	count := len(m.themes)
-	mode := m.value("wallpaper.mode", "file")
-
-	daemon := "single image"
-	if mode == "folder" {
-		interval := intervalLabel(m.value("wallpaper.interval", "3600"))
-		daemon = fmt.Sprintf("rotating every %s", interval)
-	}
-	subtitle := fmt.Sprintf("%s · %d themes · %s", currentTheme, count, daemon)
-
-	titleLines := []string{
-		title,
-		ui.MutedText.Render(ui.TruncateStyled(subtitle, width)),
-		"",
-	}
-
-	themeRows := max(1, (height-len(titleLines)-15)/5)
-	lines := append(titleLines, m.heroView(width))
-	lines = append(lines, "")
-	lines = append(lines, m.themeGridView(width, themeRows))
-	return strings.Join(lines, "\n")
+	preview := m.wallpaperPreview(28, 10)
+	controls := m.wallpaperControls(36)
+	return preview + "\n\n" + controls
 }
 
-func (m Model) heroView(width int) string {
-	previewWidth := 22
-	previewHeight := 9
-	preview := m.wallpaperPreview(previewWidth, previewHeight)
-	// Borders and padding make the rendered preview wider than previewWidth.
-	// Measure the final block so the information column never crosses the
-	// terminal boundary at fractional/HiDPI terminal sizes.
-	infoWidth := width - lipgloss.Width(preview) - 3
-	if infoWidth < 44 {
-		return strings.Join([]string{preview, m.wallpaperControls(width)}, "\n")
+func (m Model) rightColumn() string {
+	if m.status == nil {
+		return "Loading…"
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center, preview, "   ", m.wallpaperControls(infoWidth))
+	return m.themeGridView(54, 6)
 }
 
 func (m Model) wallpaperControls(width int) string {
@@ -420,75 +329,48 @@ func (m Model) wallpaperControls(width int) string {
 	mode := m.value("wallpaper.mode", "file")
 	effect := m.value("effects.mode", "balanced")
 
-	// 1. Mode selector line: File (f) vs Folder (d) vs Color (c)
-	fileIndicator := "○"
-	fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	modeIdx := 0
+	switch mode {
+	case "folder":
+		modeIdx = 1
+	case "color":
+		modeIdx = 2
+	}
+	modeLine := ui.SegmentedLine("Mode", []string{"file (f)", "folder (d)", "color (c)"}, modeIdx, false)
+
+	effectIdx := 1
+	switch effect {
+	case "performance":
+		effectIdx = 0
+	case "visuals":
+		effectIdx = 2
+	}
+	effectLine := ui.SegmentedLine("Effect", []string{"perf (1)", "bal (2)", "vis (3)"}, effectIdx, false)
+
+	var lines []string
+	lines = append(lines, ui.SectionTitle("Settings & Status"))
+	lines = append(lines, modeLine)
+	lines = append(lines, effectLine)
+	lines = append(lines, "")
+
 	if mode == "file" {
-		fileIndicator = "◉"
-		fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	fileLabel := fileStyle.Render(fileIndicator + " File (f)")
-
-	folderIndicator := "○"
-	folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if mode == "folder" {
-		folderIndicator = "◉"
-		folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
-
-	colorIndicator := "○"
-	colorStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if mode == "color" {
-		colorIndicator = "◉"
-		colorStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	colorLabel := colorStyle.Render(colorIndicator + " Color (c)")
-
-	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + fileLabel + "     " + folderLabel + "     " + colorLabel
-
-	// 2. Action selector line (only shown if Folder type is active)
-	var actionLine string
-	if mode == "folder" {
-		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
-		actionLine = lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + nextLabel
-	}
-
-	// 3. Effect selector line
-	perfIndicator := "○"
-	perfStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if effect == "performance" {
-		perfIndicator = "◉"
-		perfStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	perfLabel := perfStyle.Render(perfIndicator + " Perf (1)")
-
-	balIndicator := "○"
-	balStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if effect == "balanced" {
-		balIndicator = "◉"
-		balStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	balLabel := balStyle.Render(balIndicator + " Bal (2)")
-
-	visIndicator := "○"
-	visStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if effect == "visuals" {
-		visIndicator = "◉"
-		visStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	visLabel := visStyle.Render(visIndicator + " Vis (3)")
-
-	effectLine := lipgloss.NewStyle().Foreground(pal.text).Render("Effect: ") + perfLabel + "     " + balLabel + "     " + visLabel
-
-	// 4. Active background details line
-	var activeLine, valLine string
-	if mode == "color" {
-		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Background:")
-		bgHex := fmt.Sprintf("#%s", strings.TrimPrefix(string(pal.colorWallpaper), "#"))
-		valLine = lipgloss.NewStyle().Foreground(pal.muted).Render(fmt.Sprintf("Solid Color (%s)", bgHex))
+		lines = append(lines, ui.ActionLine("f", "Pick file", !m.busy))
+	} else if mode == "folder" {
+		lines = append(lines, ui.ActionLine("d", "Pick folder", !m.busy))
+		lines = append(lines, ui.ActionLine("w", "Next wallpaper", !m.busy))
+		lines = append(lines, ui.ActionLine("x", "Stop rotation", !m.busy))
+		lines = append(lines, m.intervalSelect())
 	} else {
-		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
+		lines = append(lines, ui.ActionLine("c", "Solid color mode", !m.busy))
+	}
+
+	lines = append(lines, "")
+	if mode == "color" {
+		lines = append(lines, ui.SectionTitle("Active Background"))
+		bgHex := fmt.Sprintf("#%s", strings.TrimPrefix(string(pal.colorWallpaper), "#"))
+		lines = append(lines, ui.MutedText.Render(fmt.Sprintf("Solid color (%s)", bgHex)))
+	} else {
+		lines = append(lines, ui.SectionTitle("Active Wallpaper"))
 		currentWp := m.value("wallpaper.current", "")
 		wpName := "No wallpaper set"
 		if currentWp != "" {
@@ -498,25 +380,10 @@ func (m Model) wallpaperControls(width int) string {
 			interval := intervalLabel(m.value("wallpaper.interval", "3600"))
 			wpName = fmt.Sprintf("%s (rotating every %s)", wpName, interval)
 		}
-		valLine = lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncatePlain(wpName, width-6))
+		lines = append(lines, ui.MutedText.Render(ui.TruncatePlain(wpName, max(12, width-2))))
 	}
 
-	// Assemble the lines
-	var lines []string
-	lines = append(lines, lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"))
-	lines = append(lines, modeLine)
-	if actionLine != "" {
-		lines = append(lines, actionLine)
-	}
-	lines = append(lines, effectLine)
-	lines = append(lines, "")
-	lines = append(lines, activeLine)
-	lines = append(lines, valLine)
-
-	return lipgloss.NewStyle().
-		Padding(1, 0).
-		Width(width).
-		Render(strings.Join(lines, "\n"))
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) wallpaperPreview(width, height int) string {
@@ -551,12 +418,12 @@ func (m Model) wallpaperPreview(width, height int) string {
 
 func (m Model) themeGridView(width, maxRows int) string {
 	if len(m.themes) == 0 {
-		return "No themes available"
+		return ui.SectionTitle("Themes") + "\n" + ui.MutedText.Render("No themes available")
 	}
 	pal := m.palette()
 	lines := []string{
-		lipgloss.NewStyle().Foreground(pal.muted).Bold(true).Render("Themes"),
-		lipgloss.NewStyle().Foreground(pal.muted).Render(ui.TruncateStyled("Choose a theme color. Enter applies the selected theme.", width)),
+		ui.SectionTitle("Themes"),
+		ui.MutedText.Render(ui.TruncateStyled("Choose a theme. Enter applies the selected theme.", width)),
 		"",
 	}
 	cols := m.gridColumnsFor(width)
@@ -631,11 +498,7 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 
 
 func (m Model) intervalSelect() string {
-	pal := m.palette()
-	text := lipgloss.NewStyle().Foreground(pal.muted).Render("Interval ") +
-		lipgloss.NewStyle().Foreground(pal.accent).Underline(true).Render("[/]") +
-		"  " + intervalLabel(m.value("wallpaper.interval", "3600"))
-	return m.button(text, false)
+	return ui.CycleLine("Interval", intervalLabel(m.value("wallpaper.interval", "3600")), "[/]", false)
 }
 
 func (m Model) fetchStatus() tea.Cmd {
@@ -953,23 +816,6 @@ func (m Model) row(label, value string, width int) string {
 	left := lipgloss.NewStyle().Foreground(pal.text).Width(labelWidth).Render(label)
 	right := lipgloss.NewStyle().Foreground(pal.muted).Width(valueWidth).Align(lipgloss.Right).Render(value)
 	return left + " " + right
-}
-
-func (m Model) button(text string, active bool) string {
-	pal := m.palette()
-	style := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(pal.line).
-		Background(pal.panel).
-		Foreground(pal.text).
-		Padding(0, 1).
-		MarginRight(1)
-	if active {
-		style = style.BorderForeground(pal.accent).Foreground(pal.accent).Bold(true)
-	}
-	// PreserveBackground stops ANSI resets inside the mnemonic/icon from
-	// leaking and turning the panel background default (see commit 1a7e819).
-	return style.Render(ui.PreserveBackground(text, pal.panel))
 }
 
 func blend(a, b lipgloss.Color, amount float64) lipgloss.Color {
