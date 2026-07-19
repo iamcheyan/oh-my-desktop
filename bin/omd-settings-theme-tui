@@ -421,6 +421,8 @@ class Model(S.StatusModel):
         self.themes = []
         self.applying = ""
         self.loaded = False
+        self.focused_panel = "settings"  # "settings" or "themes"
+        self.selected_setting = 0  # 0-5: file/folder/color/perf/bal/vis
         self.refresh()
 
     def refresh(self):
@@ -592,7 +594,7 @@ def _hero(model):
 
 def _help(model):
     mode = model.val("wallpaper.mode", "file")
-    generic = [("arrows", "navigate"), ("q", "quit"), ("r", "refresh")]
+    generic = [("Tab", "switch panel"), ("q", "quit"), ("r", "refresh")]
     if mode == "color":
         return (generic, [("enter", "apply"), ("f", "file"), ("d", "folder")])
     if mode == "folder":
@@ -639,10 +641,13 @@ def _render_settings(model, width):
     mode_idx = mode_vals.index(mode) if mode in mode_vals else 0
     mode_keys = ["f", "d", "c"]
     for i, label in enumerate(mode_labels):
-        if i == mode_idx:
-            lines.append(("ok", f"● {label} ({mode_keys[i]})"))
+        circle = "●" if i == mode_idx else "○"
+        if model.selected_setting == i:
+            lines.append(("focus", f"{circle} {label} ({mode_keys[i]})"))
+        elif i == mode_idx:
+            lines.append(("ok", f"{circle} {label} ({mode_keys[i]})"))
         else:
-            lines.append(("muted", f"○ {label} ({mode_keys[i]})"))
+            lines.append(("muted", f"{circle} {label} ({mode_keys[i]})"))
 
     # Separator
     lines.append(("subtle", " " + "─" * max(2, width - 2)))
@@ -655,10 +660,14 @@ def _render_settings(model, width):
     eff_idx = eff_vals.index(effect) if effect in eff_vals else 1
     eff_keys = ["1", "2", "3"]
     for i, label in enumerate(eff_labels):
-        if i == eff_idx:
-            lines.append(("ok", f"● {label} ({eff_keys[i]})"))
+        idx = i + 3
+        circle = "●" if i == eff_idx else "○"
+        if model.selected_setting == idx:
+            lines.append(("focus", f"{circle} {label} ({eff_keys[i]})"))
+        elif i == eff_idx:
+            lines.append(("ok", f"{circle} {label} ({eff_keys[i]})"))
         else:
-            lines.append(("muted", f"○ {label} ({eff_keys[i]})"))
+            lines.append(("muted", f"{circle} {label} ({eff_keys[i]})"))
 
     return lines
 
@@ -871,7 +880,7 @@ def _view(stdscr, m):
         desired_preview_h = int(inner_w * 9 / 16 / 2) + 3
         preview_h = max(10, min(desired_preview_h, avail_h - 11))
 
-        S.draw_thick_border(stdscr, hero_h, margin, preview_h, preview_w, "Preview")
+        S.draw_border(stdscr, hero_h, margin, preview_h, preview_w, "Preview")
         mode = m.val("wallpaper.mode", "file")
         if mode == "color":
             S.draw_lines_in_area(stdscr, hero_h, margin, preview_h, preview_w,
@@ -898,41 +907,49 @@ def _view(stdscr, m):
         ctrl_y = hero_h + preview_h
         ctrl_h = avail_h - preview_h
 
+        settings_focused = m.focused_panel == "settings"
+        left_border = S.draw_thick_border if settings_focused else S.draw_border
+        right_border = S.draw_thick_border if not settings_focused else S.draw_border
+
         settings_lines = _render_settings(m, preview_w - 4)
         settings_h = min(len(settings_lines) + 2, ctrl_h - 3)
         settings_h = max(settings_h, 3)
-        S.draw_thick_border(stdscr, ctrl_y, margin, settings_h, preview_w, "Settings")
+        left_border(stdscr, ctrl_y, margin, settings_h, preview_w, "Settings")
         S.draw_lines_in_area(stdscr, ctrl_y, margin, settings_h, preview_w, settings_lines)
 
         actions_lines = _render_actions(m, preview_w - 4)
         actions_y = ctrl_y + settings_h
         actions_h = ctrl_h - settings_h
-        S.draw_thick_border(stdscr, actions_y, margin, actions_h, preview_w, "")
+        S.draw_border(stdscr, actions_y, margin, actions_h, preview_w, "")
         S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, preview_w, actions_lines)
 
         # Right column — theme grid
         grid_w_total = grid_w - preview_w - 1
-        S.draw_thick_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w_total, "Themes")
+        right_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w_total, "Themes")
         _draw_theme_grid(stdscr, m, hero_h, preview_w + 3,
                          grid_w_total - 4, avail_h - 4,
                          _render_theme_grid(m, grid_w_total - 4, avail_h - 4))
     else:
         ctrl_h = min(avail_h // 2, 14)
 
+        settings_focused = m.focused_panel == "settings"
+        left_border = S.draw_thick_border if settings_focused else S.draw_border
+        right_border = S.draw_thick_border if not settings_focused else S.draw_border
+
         settings_lines = _render_settings(m, content_w - 4)
         settings_h = min(len(settings_lines) + 2, ctrl_h - 3)
         settings_h = max(settings_h, 3)
-        S.draw_thick_border(stdscr, hero_h, margin, settings_h, content_w, "Settings")
+        left_border(stdscr, hero_h, margin, settings_h, content_w, "Settings")
         S.draw_lines_in_area(stdscr, hero_h, margin, settings_h, content_w, settings_lines)
 
         actions_lines = _render_actions(m, content_w - 4)
         actions_h = ctrl_h - settings_h
-        S.draw_thick_border(stdscr, hero_h + settings_h, margin, actions_h, content_w, "")
+        S.draw_border(stdscr, hero_h + settings_h, margin, actions_h, content_w, "")
         S.draw_lines_in_area(stdscr, hero_h + settings_h, margin, actions_h, content_w, actions_lines)
 
         grid_y = hero_h + ctrl_h
         grid_h = avail_h - ctrl_h
-        S.draw_thick_border(stdscr, grid_y, margin, grid_h, content_w, "Themes")
+        right_border(stdscr, grid_y, margin, grid_h, content_w, "Themes")
         _draw_theme_grid(stdscr, m, grid_y, 2,
                          content_w - 4, grid_h - 4,
                          _render_theme_grid(m, content_w - 4, grid_h - 4))
@@ -994,25 +1011,51 @@ def _handle_key(stdscr, m, key):
                         return _handle_key(stdscr, m, ord(k))
         return True
 
+    # Tab / Shift+Tab: toggle focus between settings and themes panels
+    if key == ord('\t'):
+        if m.focused_panel == "settings":
+            m.focused_panel = "themes"
+        else:
+            m.focused_panel = "settings"
+        m.dirty = True
+        return True
+
     cols = m.grid_columns(m.width - 10) if m.themes else 1
 
-    if key in (curses.KEY_UP, ord('k')):
-        m.move_selection(-cols)
-    elif key in (curses.KEY_DOWN, ord('j')):
-        m.move_selection(cols)
-    elif key in (curses.KEY_LEFT, ord('h')):
-        m.move_selection(-1)
-    elif key in (curses.KEY_RIGHT, ord('l')):
-        m.move_selection(1)
-    elif key == curses.KEY_PPAGE:
-        m.move_selection(-cols * 3)
-    elif key == curses.KEY_NPAGE:
-        m.move_selection(cols * 3)
-    elif key == curses.KEY_HOME:
-        m.selected = 0
-    elif key == curses.KEY_END:
-        m.selected = max(0, len(m.themes) - 1)
-    elif key in (ord('\n'), ord('a')):
+    # When Settings is focused, navigate settings items with arrows
+    if m.focused_panel == "settings":
+        if key in (curses.KEY_UP, ord('k')):
+            m.selected_setting = max(0, m.selected_setting - 1)
+            m.dirty = True
+            return True
+        elif key in (curses.KEY_DOWN, ord('j')):
+            m.selected_setting = min(5, m.selected_setting + 1)
+            m.dirty = True
+            return True
+        elif key in (ord('\n'), ord(' ')):
+            return _handle_key(stdscr, m, ord(("f", "d", "c", "1", "2", "3")[m.selected_setting]))
+
+    # Arrow keys only navigate themes when Themes panel is focused
+    if m.focused_panel == "themes":
+        if key in (curses.KEY_UP, ord('k')):
+            m.move_selection(-cols)
+        elif key in (curses.KEY_DOWN, ord('j')):
+            m.move_selection(cols)
+        elif key in (curses.KEY_LEFT, ord('h')):
+            m.move_selection(-1)
+        elif key in (curses.KEY_RIGHT, ord('l')):
+            m.move_selection(1)
+        elif key == curses.KEY_PPAGE:
+            m.move_selection(-cols * 3)
+        elif key == curses.KEY_NPAGE:
+            m.move_selection(cols * 3)
+        elif key == curses.KEY_HOME:
+            m.selected = 0
+        elif key == curses.KEY_END:
+            m.selected = max(0, len(m.themes) - 1)
+
+    # Enter / a: apply selected theme (works in both panels)
+    if key in (ord('\n'), ord('a')):
         if m.selected < len(m.themes):
             m.apply_theme(m.themes[m.selected].slug)
     elif key == ord('r'):

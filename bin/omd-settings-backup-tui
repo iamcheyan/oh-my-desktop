@@ -71,7 +71,6 @@ class Model:
         self.message = ""
         self.dirty = True
         self.scroll_offset = 0
-        self.focus_area = 0  # 0=left (fields), 1=right (table+log)
         self.selected_left = 0  # 0-7 fields
         self.test_result = None  # None / "ok" / "error"
         self.test_error = ""
@@ -108,8 +107,7 @@ class Model:
                 "Welcome to File Share / Backup.",
                 "",
                 "To get started:",
-                "  1. Tab to the right panel",
-                "  2. Press Enter on a field to edit it",
+                "  1. Press Enter on a field to edit it",
                 "  3. Fill in Address, Share, User, Password",
                 "  4. Set Local path and Remote path",
                 "  5. Press t to test the connection",
@@ -592,8 +590,7 @@ def help_items(model):
         return (generic, [])
     generic = [
         ("arrows", "navigate"),
-        ("tab", "panel"),
-        ("pgup/pgdn", "scroll"),
+        ("pgup/pgdn", "scroll log"),
         ("r", "refresh"),
         ("q", "quit"),
     ]
@@ -634,7 +631,7 @@ def render_field_list(model, width):
     for i, key in enumerate(FIELD_KEYS):
         label = FIELD_LABELS.get(key, key)
         val = config_value_display(model, key)
-        focused = model.focus_area == 0 and sel_field == i
+        focused = sel_field == i
         if focused and model.editing_field and model.edit_field_key == key:
             display = model.edit_buffer if key != "password" else "*" * len(model.edit_buffer)
             lines.append(("focus", f"{label}: {display}█"))
@@ -649,7 +646,6 @@ def render_connection_status(model, width):
     lines = []
     if not model.has_config:
         lines.append(("primary", "→ Configure server below"))
-        lines.append(("muted", "Tab to right panel"))
         lines.append(("muted", "Enter to edit fields"))
         lines.append(("muted", "t to test connection"))
         return lines
@@ -679,7 +675,7 @@ def render_schedule(model, width):
     lines = []
     sel_sched = model.selected_left if model.selected_left < 4 else model.selected_left  # persist
     for i, st in enumerate(SCHEDULE_TYPES):
-        focused = model.focus_area == 0 and model.selected_left == i
+        focused = model.selected_left == i
         label = {"manual": "Manual only", "every_h": "Every N hours",
                  "every_d": "Every N days", "at_time": "At specific time"}.get(st, st)
         sel = model.config.get("scheduleType", "manual") == st
@@ -810,14 +806,11 @@ def view(stdscr, model):
     left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
 
-    left_focused = (model.focus_area == 0)
-    right_focused = (model.focus_area == 1)
-
-    # Left: Status (info-only, no focus) + Connection (config, focusable) + Actions (no focus)
+    # Left: Status (info-only) + Connection (config) + Actions
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
-        S.draw_focus_border(stdscr, False, hero_h, margin, conn_box_h, left_w, "Status")
+        S.draw_border(stdscr, hero_h, margin, conn_box_h, left_w, "Status")
         S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
     else:
         conn_box_h = 0
@@ -826,7 +819,7 @@ def view(stdscr, model):
     field_lines = render_field_list(model, left_w - 4)
     field_box_h = min(content_h - field_y + hero_h, len(field_lines) + 3)
     if field_box_h >= 3:
-        S.draw_focus_border(stdscr, left_focused, field_y, margin, field_box_h, left_w, "Connection")
+        S.draw_border(stdscr, field_y, margin, field_box_h, left_w, "Connection")
         S.draw_lines_in_area(stdscr, field_y, margin, field_box_h, left_w, field_lines)
     else:
         field_box_h = 0
@@ -834,7 +827,7 @@ def view(stdscr, model):
     actions_y = field_y + field_box_h
     actions_h = hero_h + content_h - actions_y
     if actions_h >= 4:
-        S.draw_focus_border(stdscr, False, actions_y, margin, actions_h, left_w, "Actions")
+        S.draw_border(stdscr, actions_y, margin, actions_h, left_w, "Actions")
         S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
 
     # Right: Managed Items table + Activity log
@@ -849,13 +842,13 @@ def view(stdscr, model):
     if table_box_h < 3:
         table_box_h = 0
     if table_box_h >= 3:
-        S.draw_focus_border(stdscr, right_focused, hero_h, margin + left_w, table_box_h, right_w, "Managed Items")
+        S.draw_border(stdscr, hero_h, margin + left_w, table_box_h, right_w, "Managed Items")
         S.draw_lines_in_area(stdscr, hero_h, margin + left_w, table_box_h, right_w, table_lines)
     # Activity log below table
     act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
-        S.draw_focus_border(stdscr, False, act_y, margin + left_w, act_h, right_w, "Activity")
+        S.draw_border(stdscr, act_y, margin + left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
@@ -889,48 +882,29 @@ def handle_key(stdscr, model, key):
                 return True
         return True
 
-    # Navigation
-    if key == ord('\t') or key == 9:
-        model.focus_area = 1 if model.focus_area == 0 else 0
-        model.dirty = True
-        return True
-
     if key == curses.KEY_UP or key == ord('k'):
-        if model.focus_area == 0:
-            # Left: move through fields (0-7)
-            if model.selected_left > 7:
-                model.selected_left = 7
-            elif model.selected_left > 0:
-                model.selected_left -= 1
-        else:
-            # Right: scroll activity log
-            if model.scroll_offset < model.logs.count and len(model.logs) > 0:
-                model.scroll_offset += 1
-                model.dirty = True
+        # Left: move through fields (0-7)
+        if model.selected_left > 7:
+            model.selected_left = 7
+        elif model.selected_left > 0:
+            model.selected_left -= 1
         model.dirty = True
         return True
 
     if key == curses.KEY_DOWN or key == ord('j'):
-        if model.focus_area == 0:
-            if model.selected_left >= 7:
-                pass  # already at bottom
-            else:
-                model.selected_left += 1
+        if model.selected_left >= 7:
+            pass  # already at bottom
         else:
-            if model.scroll_offset > 0:
-                model.scroll_offset -= 1
-                model.dirty = True
+            model.selected_left += 1
         model.dirty = True
         return True
 
     if key == ord('\n') or key == 10:
-        if model.focus_area == 0:
-            start_edit(model)
+        start_edit(model)
         return True
 
     if key == ord(' '):
-        if model.focus_area == 0:
-            start_edit(model)
+        start_edit(model)
         return True
 
     # Action keys
