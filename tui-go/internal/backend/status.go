@@ -14,9 +14,11 @@ type StatusMsg struct {
 }
 
 // ActionMsg is the common tea.Msg emitted by RunAction.
+// Lines is optional command output for page activity logs.
 type ActionMsg struct {
 	Action string
 	Err    error
+	Lines  []string
 }
 
 // ParseStatus parses key=value lines into a Status and stashes the raw output

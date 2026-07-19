@@ -35,10 +35,11 @@ func TestKeyboardPage(t *testing.T) {
 
 	// 1. Assert simple rendering (series shell + Title Case sections)
 	m.width, m.height = 120, 40
-	view := m.View()
-	if !strings.Contains(view, "Connected Keyboards") || !strings.Contains(view, "minila-r-convertible") {
+	left := m.renderLeftColumn(80)
+	if !strings.Contains(left, "Keyboards") || !strings.Contains(left, "minila-r-convertible") {
 		t.Fatal("keyboard view is missing device list or section headers")
 	}
+	view := m.View()
 	if !strings.Contains(view, "Keyboard Remap") {
 		t.Fatal("keyboard view is missing shared hero title")
 	}
@@ -149,10 +150,10 @@ func TestFnModeRendersOnlyInRightColumn(t *testing.T) {
 		fnmode:          "media",
 	}
 
-	if strings.Contains(m.renderLeftColumn(), "Fn Row Mode") {
+	if strings.Contains(m.renderLeftColumn(80), "Fn Row Mode") {
 		t.Fatal("Fn mode control should not render in the keyboard list")
 	}
-	if !strings.Contains(m.renderRightColumn(), "Fn Row Mode") {
+	if !strings.Contains(m.renderRightColumn(80, 30), "Fn Row Mode") {
 		t.Fatal("Fn mode control is missing from the detail column")
 	}
 }

@@ -678,7 +678,8 @@ func (m Model) runAction(action string) tea.Cmd {
 			return actionLogMsg{action: action}
 		}
 
-		result := m.backend.Run("omd-settings-windows-vm", action)
+		args := strings.Fields(action)
+		result := m.backend.Run("omd-settings-windows-vm", args...)
 		return actionLogMsg{action: action, lines: result.Lines, err: result.Err}
 	}
 }
@@ -853,5 +854,3 @@ func (m Model) vmStateLabel() string {
 		return "Unknown"
 	}
 }
-
-

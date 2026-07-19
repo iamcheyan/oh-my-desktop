@@ -525,12 +525,38 @@ func (m Model) View() string {
 		Message: msg,
 	})
 
+	// Compute right column dimensions for the log pane.
+	const screenPaddingX = 2
+	const screenPaddingY = 2
+	const columnGap = 2
+	contentW := m.width - screenPaddingX
+	if contentW < 40 {
+		contentW = 40
+	}
+	leftW := min(54, max(28, contentW/3))
+	rightW := contentW - leftW - columnGap
+	if rightW < 30 {
+		rightW = 30
+	}
+	heroH := strings.Count(hero, "\n") + 1
+	fixedRows := heroH
+	if len(help) > 0 {
+		fixedRows++
+	}
+	if m.statusLinePlain() != "" {
+		fixedRows++
+	}
+	contentH := m.height - screenPaddingY - fixedRows
+	if contentH < 12 {
+		contentH = 12
+	}
+
 	return ui.RenderPage(ui.Page{
 		Width:  m.width,
 		Height: m.height,
 		Hero:   hero,
 		Left:   m.controlView(),
-		Right:  m.rightPaneView(),
+		Right:  m.rightPaneView(rightW, contentH),
 		Wide:   m.width >= 90,
 		Help:   help,
 	})
@@ -636,10 +662,17 @@ func (m Model) modelBox() string {
 		Render(ui.PreserveBackground(boxContent, ui.Panel))
 }
 
-func (m Model) rightPaneView() string {
+func (m Model) rightPaneView(width, height int) string {
 	if m.status == nil {
 		return ""
 	}
+	if width < 20 {
+		width = 20
+	}
+	if height < 6 {
+		height = 6
+	}
+	innerW := max(8, width-4)
 	state := m.state()
 
 	if state == "downloading" {
@@ -650,18 +683,24 @@ func (m Model) rightPaneView() string {
 		}
 		speed := speedLabel(m.value("download.speedBps", "0"))
 		eta := etaLabel(m.value("download.etaSec", "0"))
-		barW := 28
+		barW := innerW - 12
 
 		progressBlock := strings.Join([]string{
 			ui.SectionTitle("Progress"),
 			ui.WarnText.Render("Downloading " + label),
 			ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
-			ui.KVLine("Speed", speed, 40),
-			ui.KVLine("Remaining", eta, 40),
+			ui.KVLine("Speed", speed, innerW),
+			ui.KVLine("Remaining", eta, innerW),
 			ui.PrimaryLine("Cancel setup", "enter", true),
 		}, "\n")
 
-		return progressBlock + "\n\n" + ui.SectionTitle("Setup Log") + "\n" + m.logBody(48, 10)
+		progH := strings.Count(progressBlock, "\n") + 1
+		logH := height - progH - 3
+		if logH < 3 {
+			logH = 3
+		}
+
+		return progressBlock + "\n\n" + ui.SectionTitle("Setup Log") + "\n" + m.logBody(innerW, logH)
 	}
 
 	if !m.bool("modelReady") {
@@ -676,14 +715,21 @@ func (m Model) rightPaneView() string {
 			ui.MutedText.Render("prepares the Python virtual environment."),
 			"",
 			ui.MutedText.Render("Use Setup voice input on the left to begin."),
-			"",
-			ui.SectionTitle("Console Logs"),
-			m.logBody(48, 8),
 		}
-		return strings.Join(welcomeLines, "\n")
+		welcomeBlock := strings.Join(welcomeLines, "\n")
+		welcomeH := strings.Count(welcomeBlock, "\n") + 1
+		logH := height - welcomeH - 3
+		if logH < 3 {
+			logH = 3
+		}
+		return welcomeBlock + "\n\n" + ui.SectionTitle("Console Logs") + "\n" + m.logBody(innerW, logH)
 	}
 
-	return ui.SectionTitle("Detailed Logs") + "\n" + m.logBody(48, 16)
+	logH := height - 2
+	if logH < 3 {
+		logH = 3
+	}
+	return ui.SectionTitle("Detailed Logs") + "\n" + m.logBody(innerW, logH)
 }
 
 func (m Model) logBody(width, logCount int) string {

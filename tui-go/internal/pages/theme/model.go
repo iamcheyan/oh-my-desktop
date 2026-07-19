@@ -307,10 +307,17 @@ func (m Model) leftColumn() string {
 	if m.status == nil {
 		return ""
 	}
-	w := max(40, m.width-10)
-	preview := m.wallpaperPreview(w, 8)
-	controls := m.wallpaperControls(w)
-	return preview + "\n\n" + controls
+	contentW := max(40, m.width-10)
+	// Landscape 16:9 preview: height matches controls, width for 16:9 ratio
+	previewH := 8
+	previewW := 28
+	controlsW := contentW - previewW - 2
+	if controlsW < 20 {
+		controlsW = 20
+	}
+	preview := m.wallpaperPreview(previewW, previewH)
+	controls := m.wallpaperControls(controlsW)
+	return lipgloss.JoinHorizontal(lipgloss.Top, preview, "  ", controls)
 }
 
 func (m Model) rightColumn() string {
@@ -350,15 +357,19 @@ func (m Model) wallpaperControls(width int) string {
 	lines = append(lines, effectLine)
 	lines = append(lines, "")
 
+	var actions []string
 	if mode == "file" {
-		lines = append(lines, ui.ActionLine("f", "Pick file", !m.busy))
+		actions = append(actions, ui.ActionLine("f", "Pick file", !m.busy))
 	} else if mode == "folder" {
-		lines = append(lines, ui.ActionLine("d", "Pick folder", !m.busy))
-		lines = append(lines, ui.ActionLine("w", "Next wallpaper", !m.busy))
-		lines = append(lines, ui.ActionLine("x", "Stop rotation", !m.busy))
-		lines = append(lines, m.intervalSelect())
+		actions = append(actions, ui.ActionLine("d", "Pick folder", !m.busy))
+		actions = append(actions, ui.ActionLine("w", "Next", !m.busy))
+		actions = append(actions, ui.ActionLine("x", "Stop", !m.busy))
+		actions = append(actions, m.intervalSelect())
 	} else {
-		lines = append(lines, ui.ActionLine("c", "Solid color mode", !m.busy))
+		actions = append(actions, ui.ActionLine("c", "Solid color", !m.busy))
+	}
+	if len(actions) > 0 {
+		lines = append(lines, strings.Join(actions, "  "))
 	}
 
 	lines = append(lines, "")
@@ -385,7 +396,7 @@ func (m Model) wallpaperControls(width int) string {
 
 func (m Model) wallpaperPreview(width, height int) string {
 	width = max(22, width)
-	height = max(9, height)
+	height = max(6, height)
 	innerW := max(14, width-4)
 	innerH := max(4, height-2)
 	pal := m.palette()
