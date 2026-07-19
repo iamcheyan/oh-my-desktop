@@ -110,7 +110,7 @@ Singleton {
             case ScreenshotAction.Action.Search:
                 return `${setup}xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadCurrentTempCommand()})"`;
             case ScreenshotAction.Action.CharRecognition:
-                return `${setup}paddleocr ocr -i "$tmpFile" --lang ch 2>/dev/null | python3 -c "import sys,json; print('\\n'.join(r[1][0] for r in json.load(sys.stdin)))" 2>/dev/null | wl-copy`;
+                return `${setup}tesseract "$tmpFile" stdout -l $(tesseract --list-langs | awk 'NR>1{print $1}' | tr '\\n' '+' | sed 's/\\+$/\\n/') | wl-copy`;
             case ScreenshotAction.Action.Record:
             case ScreenshotAction.Action.RecordWithSound:
                 console.warn("[Region Selector] Record actions require a selected region, not a temp file.");
