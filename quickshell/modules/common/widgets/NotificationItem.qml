@@ -131,22 +131,65 @@ Item {
                     spacing: 4
 
                     Rectangle {
+                        id: copyBtn
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        radius: 5
+                        visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
+                        color: copyArea.pressed ? TuiStyle.surfacePressed
+                            : copyArea.containsMouse ? TuiStyle.surfaceHover
+                            : "transparent"
+
+                        QtObject {
+                            id: copyState
+                            property string label: "content_copy"
+                        }
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: copyState.label
+                            iconSize: 18
+                            color: TuiStyle.dim
+                        }
+
+                        MouseArea {
+                            id: copyArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
+                                copyState.label = "check";
+                                copyReset.restart();
+                            }
+                        }
+
+                        Timer {
+                            id: copyReset
+                            interval: 1500
+                            repeat: false
+                            onTriggered: copyState.label = "content_copy"
+                        }
+                    }
+
+                    Rectangle {
                         id: muteBtn
                         implicitWidth: 28
-                        implicitHeight: 26
-                        radius: TuiStyle.miniRadius
-                        color: "transparent"
-                        border.width: 1
-                        border.color: TuiStyle.line
+                        implicitHeight: 28
+                        radius: 5
+                        color: muteMouse.pressed ? TuiStyle.surfacePressed
+                            : muteMouse.containsMouse ? TuiStyle.surfaceHover
+                            : "transparent"
 
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: Notifications.isMuted(root.displayApp) ? "notifications_off" : "notifications"
-                            iconSize: 16
+                            iconSize: 18
                             color: Notifications.isMuted(root.displayApp) ? TuiStyle.danger : TuiStyle.dim
                         }
 
                         MouseArea {
+                            id: muteMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -156,21 +199,22 @@ Item {
 
                     Rectangle {
                         id: closeBtn
-                        implicitWidth: 44
-                        implicitHeight: 26
-                        radius: TuiStyle.miniRadius
-                        color: "transparent"
-                        border.width: 1
-                        border.color: TuiStyle.line
+                        implicitWidth: 28
+                        implicitHeight: 28
+                        radius: 5
+                        color: closeArea.pressed ? TuiStyle.surfacePressed
+                            : closeArea.containsMouse ? TuiStyle.surfaceHover
+                            : "transparent"
 
-                        StyledText {
+                        MaterialSymbol {
                             anchors.centerIn: parent
                             text: "close"
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: TuiStyle.dim
+                            iconSize: 18
+                            color: TuiStyle.danger
                         }
 
                         MouseArea {
+                            id: closeArea
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
@@ -178,50 +222,8 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        id: copyBtn
-                        implicitWidth: 44
-                        implicitHeight: 26
-                        radius: TuiStyle.miniRadius
-                        visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
-                        color: "transparent"
-                        border.width: 1
-                        border.color: TuiStyle.line
-
-                        QtObject {
-                            id: copyState
-                            property string label: "copy"
-                        }
-
-                        StyledText {
-                            anchors.centerIn: parent
-                            text: copyState.label
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: TuiStyle.dim
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
-                                copyState.label = "copied";
-                                copyReset.restart();
-                            }
-                        }
-
-                        Timer {
-                            id: copyReset
-                            interval: 1500
-                            repeat: false
-                            onTriggered: copyState.label = "copy"
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
+                    Item { Layout.fillHeight: true }
             }
         }
     }
-}
+}}
