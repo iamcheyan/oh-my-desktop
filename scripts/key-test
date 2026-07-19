@@ -137,14 +137,14 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app, initial_mode="current", mode_locked=False):
         super().__init__(
             application=app,
-            title="OMD Advanced Key Capture — Debug",
+            title="OMD Advanced Key Capture",
         )
         self.capture_mode = initial_mode
         self.initial_mode = initial_mode
         self.mode_locked = mode_locked
         self.auto_return = mode_locked and initial_mode == "original"
         self._updating_mode = False
-        self.set_default_size(640, 420)
+        self.set_default_size(680, 520)
         
         # bind system events
         self.connect("realize", self.on_realize)
@@ -159,100 +159,123 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             color: #dcdccc;
         }
         .main-box {
-            padding: 14px;
+            padding: 28px 32px;
         }
         .title-label {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 20px;
             font-weight: 800;
             color: #00bcd4;
+            margin-bottom: 20px;
         }
-        .hint-label {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 12px;
-            color: #a8a8a8;
-            margin-top: 2px;
+        .tab-bar {
+            margin-bottom: 0;
         }
-        .display-box {
+        .tab-button {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            border-radius: 0;
+            padding: 8px 28px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7080;
+            min-width: 140px;
+            outline: none;
+            transition: color 150ms ease, border-color 150ms ease;
+        }
+        .tab-button:checked {
+            color: #00bcd4;
+            border-bottom: 2px solid #00bcd4;
+            background: transparent;
+        }
+        .tab-button:hover {
+            color: #dcdccc;
+            background: transparent;
+        }
+        .content-card {
             background-color: #16181d;
             border: 1px solid #2d3139;
-            padding: 14px;
-            margin-top: 10px;
-            margin-bottom: 10px;
+            border-radius: 10px;
+            padding: 28px 32px;
+        }
+        .hint-label {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: #6b7080;
+            margin-bottom: 24px;
         }
         .key-display {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 28px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 38px;
             font-weight: 800;
             color: #f5c542;
         }
         .keyd-display {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 14px;
             font-weight: 700;
             color: #4caf50;
+            margin-top: 4px;
         }
         .bind-display {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 12px;
-            color: #a8a8a8;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 13px;
+            color: #6b7080;
+            margin-top: 2px;
         }
         .status-label {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 12px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 13px;
             font-weight: 700;
             color: #4caf50;
+            margin-top: 10px;
         }
         .detail-title {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 11px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12px;
             font-weight: 700;
-            color: #00bcd4;
+            color: #5c6370;
         }
         .detail-value {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 11px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12px;
             color: #dcdccc;
         }
         .divider {
-            background-color: #2d3139;
+            background-color: #252931;
             min-height: 1px;
-            margin-top: 10px;
-            margin-bottom: 10px;
+            margin: 18px 0;
         }
         .info-box {
-            background-color: #101216;
-            border-left: 3px solid #2d3139;
-            padding: 8px 10px;
-            margin-top: 6px;
+            background-color: #13151a;
+            border-left: 3px solid #00bcd4;
+            border-radius: 4px;
+            padding: 14px 18px;
+            margin-top: 0;
         }
         .info-text {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 11px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 12px;
             color: #a8a8a8;
+            line-height: 1.7;
         }
         button.quit-btn {
             background-color: #21252b;
             color: #dcdccc;
             border: 1px solid #2d3139;
-            padding: 5px 14px;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
+            border-radius: 6px;
+            padding: 8px 28px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-weight: bold;
-            font-size: 12px;
+            font-size: 13px;
+            margin-top: 12px;
+            min-width: 120px;
         }
         button.quit-btn:hover {
             background-color: #2c313c;
-        }
-        .mode-switch {
-            margin-top: 8px;
-            margin-bottom: 2px;
-        }
-        .mode-switch button {
-            min-width: 130px;
-            padding: 4px 10px;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-weight: 700;
-            font-size: 12px;
+            border-color: #3d4350;
         }
         """
         css_provider.load_from_data(css)
@@ -268,27 +291,29 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.set_child(main_box)
 
         # title
-        title = Gtk.Label(label=" OMD Advanced Key Capture ")
+        title = Gtk.Label(label="OMD Advanced Key Capture")
         title.set_halign(Gtk.Align.CENTER)
         title.add_css_class("title-label")
         main_box.append(title)
 
-        self.hint = Gtk.Label()
-        self.hint.set_halign(Gtk.Align.CENTER)
-        self.hint.add_css_class("hint-label")
-        main_box.append(self.hint)
+        # content card (contains everything except title)
+        content_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        content_card.add_css_class("content-card")
+        main_box.append(content_card)
 
-        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        mode_box.set_halign(Gtk.Align.CENTER)
-        mode_box.add_css_class("linked")
-        mode_box.add_css_class("mode-switch")
-        main_box.append(mode_box)
+        # tab bar
+        tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        tab_bar.set_halign(Gtk.Align.CENTER)
+        tab_bar.add_css_class("tab-bar")
+        content_card.append(tab_bar)
 
         self.current_mode_btn = Gtk.ToggleButton(label="Current Key")
+        self.current_mode_btn.add_css_class("tab-button")
         self.original_mode_btn = Gtk.ToggleButton(label="Raw Source")
+        self.original_mode_btn.add_css_class("tab-button")
         self.original_mode_btn.set_group(self.current_mode_btn)
-        mode_box.append(self.current_mode_btn)
-        mode_box.append(self.original_mode_btn)
+        tab_bar.append(self.current_mode_btn)
+        tab_bar.append(self.original_mode_btn)
 
         if self.capture_mode == "original":
             self.original_mode_btn.set_active(True)
@@ -297,33 +322,40 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.current_mode_btn.connect("toggled", self.on_mode_toggled, "current")
         self.original_mode_btn.connect("toggled", self.on_mode_toggled, "original")
 
-        # key display area
-        display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        display_box.add_css_class("display-box")
-        main_box.append(display_box)
+        # hint
+        self.hint = Gtk.Label()
+        self.hint.set_halign(Gtk.Align.CENTER)
+        self.hint.add_css_class("hint-label")
+        content_card.append(self.hint)
 
+        # key display area
         self.key_display = Gtk.Label(label="( waiting for input )")
         self.key_display.add_css_class("key-display")
-        display_box.append(self.key_display)
+        content_card.append(self.key_display)
 
         self.keyd_display = Gtk.Label(label="")
         self.keyd_display.add_css_class("keyd-display")
-        display_box.append(self.keyd_display)
+        content_card.append(self.keyd_display)
 
         self.bind_display = Gtk.Label(label="")
         self.bind_display.add_css_class("bind-display")
-        display_box.append(self.bind_display)
+        content_card.append(self.bind_display)
 
         self.status_label = Gtk.Label(label="")
         self.status_label.add_css_class("status-label")
-        display_box.append(self.status_label)
+        content_card.append(self.status_label)
+
+        # divider
+        divider = Gtk.Box()
+        divider.add_css_class("divider")
+        content_card.append(divider)
 
         # detail params
         details_grid = Gtk.Grid()
-        details_grid.set_column_spacing(24)
-        details_grid.set_row_spacing(8)
+        details_grid.set_column_spacing(32)
+        details_grid.set_row_spacing(6)
         details_grid.set_halign(Gtk.Align.CENTER)
-        main_box.append(details_grid)
+        content_card.append(details_grid)
 
         def add_row(grid, row, label_text):
             title_lbl = Gtk.Label(label=label_text)
@@ -336,27 +368,27 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             grid.attach(val_lbl, 1, row, 1, 1)
             return val_lbl
 
-        self.val_keyd = add_row(details_grid, 0, "keyd name:")
-        self.val_evdev = add_row(details_grid, 1, "evdev code:")
-        self.val_name = add_row(details_grid, 2, "GDK keyname:")
-        self.val_val = add_row(details_grid, 3, "GDK keyval:")
-        self.val_code = add_row(details_grid, 4, "XKB keycode:")
-        self.val_bind = add_row(details_grid, 5, "Hypr bind:")
-        self.val_clipboard = add_row(details_grid, 6, "Clipboard:")
+        self.val_keyd = add_row(details_grid, 0, "keyd name")
+        self.val_evdev = add_row(details_grid, 1, "evdev code")
+        self.val_name = add_row(details_grid, 2, "GDK keyname")
+        self.val_val = add_row(details_grid, 3, "GDK keyval")
+        self.val_code = add_row(details_grid, 4, "XKB keycode")
+        self.val_bind = add_row(details_grid, 5, "Hypr bind")
+        self.val_clipboard = add_row(details_grid, 6, "Clipboard")
         self.detail_values = (
             self.val_keyd, self.val_evdev, self.val_name, self.val_val,
             self.val_code, self.val_bind, self.val_clipboard,
         )
 
         # divider
-        divider = Gtk.Box()
-        divider.add_css_class("divider")
-        main_box.append(divider)
+        divider2 = Gtk.Box()
+        divider2.add_css_class("divider")
+        content_card.append(divider2)
 
         # info box
         info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         info_box.add_css_class("info-box")
-        main_box.append(info_box)
+        content_card.append(info_box)
 
         self.info_lbl = Gtk.Label()
         self.info_lbl.set_halign(Gtk.Align.START)
@@ -367,14 +399,14 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         # spacer
         spacer = Gtk.Box()
         spacer.set_vexpand(True)
-        main_box.append(spacer)
+        content_card.append(spacer)
 
         # quit button
         quit_btn = Gtk.Button(label="Exit (Q)")
         quit_btn.add_css_class("quit-btn")
         quit_btn.set_halign(Gtk.Align.CENTER)
         quit_btn.connect("clicked", lambda _: app.quit())
-        main_box.append(quit_btn)
+        content_card.append(quit_btn)
 
         # ── key events ──
         key_ctrl = Gtk.EventControllerKey()
@@ -388,25 +420,21 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def update_mode_text(self):
         if self.is_original_mode():
             self.hint.set_label(
-                "Raw Source — pauses keyd, shows the physical key as sent by hardware\n"
-                "Use to inspect or configure remap sources"
+                "Raw Source — keyd is paused · shows the physical key as sent by hardware"
             )
             self.info_lbl.set_label(
-                "Info:\n"
-                "• Large text is the raw keyd physical key name — use as remap source.\n"
-                "• keyd is paused so existing remaps won't affect capture.\n"
-                "• Escape and Q are also capturable — use Ctrl+W or button to exit."
+                "  \u2022  Large text is the raw keyd physical key name — use as remap source.\n"
+                "  \u2022  keyd is paused so existing remaps won't affect capture.\n"
+                "  \u2022  Escape and Q are also capturable — use Ctrl+W or button to exit."
             )
         else:
             self.hint.set_label(
-                "Current Key — keeps keyd running, shows what apps actually receive\n"
-                "Use to inspect shortcuts and remap results"
+                "Current Key — keyd is running · shows what apps actually receive"
             )
             self.info_lbl.set_label(
-                "Info:\n"
-                "• Large text shows the current keyd-mapped value, not the raw key.\n"
-                "• Hypr bind is the key name used by Hyprland and applications.\n"
-                "• Press Q, Escape or the exit button to close."
+                "  \u2022  Large text shows the current keyd-mapped value, not the raw key.\n"
+                "  \u2022  Hypr bind is the key name used by Hyprland and applications.\n"
+                "  \u2022  Press Q, Escape or the exit button to close."
             )
 
     def reset_capture_display(self):
@@ -416,7 +444,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.bind_display.set_label("")
         self.status_label.set_label("")
         for value in self.detail_values:
-            value.set_label("—")
+            value.set_label("\u2014")
 
     def on_mode_toggled(self, button, mode):
         if self._updating_mode or not button.get_active() or mode == self.capture_mode:
@@ -426,7 +454,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             self._updating_mode = True
             self.current_mode_btn.set_active(True)
             self._updating_mode = False
-            self.status_label.set_label("✗ cannot pause keyd, using current key values")
+            self.status_label.set_label("\u2717 cannot pause keyd, using current key values")
             return
 
         if mode == "current":
@@ -561,7 +589,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             if not self.can_export_capture():
                 expected = "Raw Source" if self.initial_mode == "original" else "Current Key"
                 self.status_label.set_label(
-                    f"Monitor only: switch to {expected} mode and capture to export"
+                    f"\u25b7 Monitor only: switch to {expected} mode and capture to export"
                 )
                 return
             if copy_to_clipboard(clipboard_text):
@@ -571,19 +599,19 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 if self.auto_return:
                     if keyd_name:
                         self.status_label.set_label(
-                            f"✓ keyd-name:{keyd_name} (evdev {evdev_code}) captured, returning"
+                            f"\u2713 keyd-name:{keyd_name} (evdev {evdev_code}) captured, returning"
                         )
                     else:
                         self.status_label.set_label(
-                            f"✓ captured, no keyd mapping (XKB {keycode}), returning"
+                            f"\u2713 captured, no keyd mapping (XKB {keycode}), returning"
                         )
                     GLib.timeout_add(180, lambda: (self.get_application().quit(), False)[1])
                 else:
                     self.status_label.set_label(
-                        f"✓ copied keyd-name:{keyd_name or final_key}"
+                        f"\u2713 copied keyd-name:{keyd_name or final_key}"
                     )
             else:
-                self.status_label.set_label("✗ copy failed (check clipboard service)")
+                self.status_label.set_label("\u2717 copy failed (check clipboard service)")
 
         # format output key name
         if is_modifier and not self.is_original_mode():
@@ -608,19 +636,19 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             finalize_capture(final_key)
 
         # update detail panel
-        keyd_name = gtk_keycode_to_keyd(keycode) or "—"
+        keyd_name = gtk_keycode_to_keyd(keycode) or "\u2014"
         evdev_code = gtk_keycode_to_evdev(keycode)
         self.val_keyd.set_label(keyd_name)
-        self.val_evdev.set_label(str(evdev_code) if evdev_code is not None else "—")
+        self.val_evdev.set_label(str(evdev_code) if evdev_code is not None else "\u2014")
         self.val_name.set_label(keyname or "unknown")
         self.val_val.set_label(f"0x{keyval:08x} ({keyval})")
         self.val_code.set_label(str(keycode))
         if is_modifier and not self.is_original_mode():
-            self.val_bind.set_label("—")
+            self.val_bind.set_label("\u2014")
         else:
             mapped_name = self.preferred_bind_name(keyname, keycode)
             bind_label = " + ".join(mods) + (" + " + mapped_name if mods else mapped_name)
-            self.val_bind.set_label(bind_label or "—")
+            self.val_bind.set_label(bind_label or "\u2014")
 
         return True
 
