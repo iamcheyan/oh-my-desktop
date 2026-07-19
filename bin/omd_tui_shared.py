@@ -618,10 +618,10 @@ def draw_hero(stdscr, hero_tuple):
     # Status text on the right
     if status_text:
         _, w = stdscr.getmaxyx()
-        right_x = w - 2 - text_width(status_text)
+        right_x = w - 1 - text_width(status_text)
         if right_x > x + 1:
             safe_addstr(stdscr, 0, right_x, status_text, sa)
-    safe_addstr(stdscr, 1, 2, sub, ATTR_MUTED)
+    safe_addstr(stdscr, 1, 1, sub, ATTR_MUTED)
 def primary_line(label, key="enter", enabled=True):
     """→ Label (key) — main CTA."""
     if enabled:
