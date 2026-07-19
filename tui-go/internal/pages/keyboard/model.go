@@ -387,7 +387,7 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		} else {
 			m.selectedPresetIdx = min(len(globalPresetChoices), m.selectedPresetIdx+1)
 		}
-	case "space":
+	case " ", "space":
 		if m.focusArea == 0 {
 			m.toggleSelectedProfileEnabled()
 		} else {
@@ -437,6 +437,8 @@ func (m *Model) toggleSelectedProfileEnabled() {
 			PresetOverrides: make(map[string]string),
 		}
 		m.profiles.Devices[dev.HyprName] = prof
+		m.saveProfiles()
+		return
 	}
 	prof.Enabled = !prof.Enabled
 	m.saveProfiles()
