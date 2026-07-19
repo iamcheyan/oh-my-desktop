@@ -154,6 +154,23 @@ check_font "JetBrainsMono Nerd Font Mono" "Nerd Font icons"
 check_font "MesloLGS Nerd Font Mono" "monospace UI font"
 check_font "Material Symbols Rounded" "Material Symbols icons"
 
+section "OCR / PaddleOCR"
+if python3 -c "import paddleocr" >/dev/null 2>&1; then
+  ok "paddleocr Python package"
+else
+  warn "paddleocr Python package missing; pip install paddleocr onnxruntime"
+fi
+if python3 -c "import onnxruntime" >/dev/null 2>&1; then
+  ok "onnxruntime Python package"
+else
+  warn "onnxruntime Python package missing; pip install paddleocr onnxruntime"
+fi
+if [[ -x "$repo/bin/omd-ocr" ]]; then
+  ok "omd-ocr helper script"
+else
+  fail "omd-ocr helper script missing"
+fi
+
 section "voice input"
 check_cmd parecord "parecord"
 check_optional_cmd ydotool "ydotool auto-paste"

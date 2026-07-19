@@ -17,6 +17,7 @@ Pages:
   theme      Theme picker and active theme info
   voice      Voice input setup, model, and keybindings
   keyboard   Keyboard Remap settings, presets, and visual key picker
+  ocr        OCR engine setup, test, and diagnostic
   backup     File share / Backup settings
 EOF
     ;;
@@ -31,6 +32,9 @@ EOF
     ;;
   keyboard|keyboard-remap|remap)
     exec python3 "$OMD_ROOT/bin/omd-settings-keyboard-tui"
+    ;;
+  ocr|paddleocr|recognition)
+    exec python3 "$OMD_ROOT/bin/omd-settings-ocr-tui"
     ;;
   backup|file-share|sync)
     exec python3 "$OMD_ROOT/bin/omd-settings-backup-tui"
