@@ -392,6 +392,7 @@ def view(stdscr, m):
     S.draw_hero(stdscr, hero(m))
 
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
+    margin = 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -406,17 +407,17 @@ def view(stdscr, m):
         top_h = avail_h
 
     left_lines = render_left(m, left_w - 4)
-    S.draw_thick_border(stdscr, hero_h, 0, top_h, left_w, "")
-    S.draw_lines_in_area(stdscr, hero_h, 0, top_h, left_w, left_lines)
+    S.draw_thick_border(stdscr, hero_h, margin, top_h, left_w, "")
+    S.draw_lines_in_area(stdscr, hero_h, margin, top_h, left_w, left_lines)
 
     if show_right:
         right_lines = render_right(m, right_w - 4)
-        S.draw_thick_border(stdscr, hero_h, left_w, top_h, right_w, "Container Logs")
+        S.draw_thick_border(stdscr, hero_h, margin + left_w, top_h, right_w, "Container Logs")
         inner_y = hero_h + 1
         for i, (tag, text) in enumerate(right_lines):
             if i >= top_h - 2:
                 break
-            S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+            S.safe_addstr(stdscr, inner_y + i, margin + left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
 
         log_start_y = inner_y + len(right_lines)
         log_h = top_h - 2 - len(right_lines)
@@ -424,7 +425,7 @@ def view(stdscr, m):
             # draw_log_in_area expects (y, x, h, w) to be the box bounds
             # (content begins one row down); we want content to start at
             # log_start_y, so pass y = log_start_y - 1, h = log_h + 2.
-            S.draw_log_in_area(stdscr, log_start_y - 1, left_w,
+            S.draw_log_in_area(stdscr, log_start_y - 1, margin + left_w,
                                log_h + 2, right_w, m.logs, m.scroll_offset)
 
     S.draw_help_bar(stdscr, *help_items(m))

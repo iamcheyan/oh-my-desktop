@@ -500,6 +500,7 @@ def view(stdscr, m):
 
     # geometry
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
+    margin = 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -514,16 +515,16 @@ def view(stdscr, m):
     # Box 1: Model specs (fixed height)
     specs_lines = render_model_specs(m, left_w - 4)
     specs_box_h = min(content_h, len(specs_lines) + 3)
-    S.draw_thick_border(stdscr, hero_h, 0, specs_box_h, left_w, "Model")
-    S.draw_lines_in_area(stdscr, hero_h, 0, specs_box_h, left_w, specs_lines)
+    S.draw_thick_border(stdscr, hero_h, margin, specs_box_h, left_w, "Model")
+    S.draw_lines_in_area(stdscr, hero_h, margin, specs_box_h, left_w, specs_lines)
 
     # Box 2: setup/triggers (fixed height based on content)
     setup_y = hero_h + specs_box_h
     setup_lines = render_setup_actions(m, left_w - 4)
     setup_box_h = min(content_h - specs_box_h, len(setup_lines) + 3)
     if setup_box_h >= 3 and len(setup_lines) > 0:
-        S.draw_thick_border(stdscr, setup_y, 0, setup_box_h, left_w, "")
-        S.draw_lines_in_area(stdscr, setup_y, 0, setup_box_h, left_w, setup_lines)
+        S.draw_thick_border(stdscr, setup_y, margin, setup_box_h, left_w, "")
+        S.draw_lines_in_area(stdscr, setup_y, margin, setup_box_h, left_w, setup_lines)
     else:
         setup_box_h = 0
 
@@ -531,15 +532,15 @@ def view(stdscr, m):
     actions_y = setup_y + setup_box_h
     actions_h = content_h - actions_y + hero_h
     if actions_h >= 4:
-        S.draw_thick_border(stdscr, actions_y, 0, actions_h, left_w, "")
-        S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w,
+        S.draw_thick_border(stdscr, actions_y, margin, actions_h, left_w, "")
+        S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w,
                              render_voice_actions(m, left_w - 4))
     else:
         actions_h = 0
 
     # Right panel — logs (or below in single-column mode)
     if show_right:
-        S.draw_thick_border(stdscr, hero_h, left_w + 1, content_h, right_w, "Logs")
+        S.draw_thick_border(stdscr, hero_h, margin + left_w + 1, content_h, right_w, "Logs")
         right_lines = render_right(m, right_w - 4)
         inner_y = hero_h + 1
         for i, (tag, text) in enumerate(right_lines):
@@ -559,8 +560,8 @@ def view(stdscr, m):
             # bottom border (log_inner_h = log_box_h - 3), so pass h such
             # that draw_log_in_area sees inner_h = log_box_h - 3.
             log_y = hero_h + left_total_h
-            S.draw_thick_border(stdscr, log_y, 0, log_box_h, left_w, "Logs")
-            S.draw_log_in_area(stdscr, log_y, 0, log_box_h - 1, left_w,
+            S.draw_thick_border(stdscr, log_y, margin, log_box_h, left_w, "Logs")
+            S.draw_log_in_area(stdscr, log_y, margin, log_box_h - 1, left_w,
                                m.logs, m.scroll_offset)
 
     S.draw_help_bar(stdscr, *help_items(m))

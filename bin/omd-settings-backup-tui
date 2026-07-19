@@ -805,6 +805,7 @@ def view(stdscr, model):
 
     # geometry
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
+    margin = 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -817,8 +818,8 @@ def view(stdscr, model):
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
-        S.draw_focus_border(stdscr, left_focused, hero_h, 0, conn_box_h, left_w, "Status")
-        S.draw_lines_in_area(stdscr, hero_h, 0, conn_box_h, left_w, conn_lines)
+        S.draw_focus_border(stdscr, left_focused, hero_h, margin, conn_box_h, left_w, "Status")
+        S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
     else:
         conn_box_h = 0
 
@@ -826,16 +827,16 @@ def view(stdscr, model):
     field_lines = render_field_list(model, left_w - 4)
     field_box_h = min(content_h - field_y + hero_h, len(field_lines) + 3)
     if field_box_h >= 3:
-        S.draw_focus_border(stdscr, left_focused, field_y, 0, field_box_h, left_w, "Connection")
-        S.draw_lines_in_area(stdscr, field_y, 0, field_box_h, left_w, field_lines)
+        S.draw_focus_border(stdscr, left_focused, field_y, margin, field_box_h, left_w, "Connection")
+        S.draw_lines_in_area(stdscr, field_y, margin, field_box_h, left_w, field_lines)
     else:
         field_box_h = 0
 
     actions_y = field_y + field_box_h
     actions_h = hero_h + content_h - actions_y
     if actions_h >= 4:
-        S.draw_focus_border(stdscr, left_focused, actions_y, 0, actions_h, left_w, "Actions")
-        S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
+        S.draw_focus_border(stdscr, left_focused, actions_y, margin, actions_h, left_w, "Actions")
+        S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
 
     # Right: Managed Items table + Activity log
     table_lines = render_item_table(model, right_w - 4)
@@ -849,14 +850,14 @@ def view(stdscr, model):
     if table_box_h < 3:
         table_box_h = 0
     if table_box_h >= 3:
-        S.draw_focus_border(stdscr, True, hero_h, left_w, table_box_h, right_w, "Managed Items")
-        S.draw_lines_in_area(stdscr, hero_h, left_w, table_box_h, right_w, table_lines)
+        S.draw_focus_border(stdscr, True, hero_h, margin + left_w, table_box_h, right_w, "Managed Items")
+        S.draw_lines_in_area(stdscr, hero_h, margin + left_w, table_box_h, right_w, table_lines)
     # Activity log below table
     act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
-        S.draw_focus_border(stdscr, True, act_y, left_w, act_h, right_w, "Activity")
-        S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset,
+        S.draw_focus_border(stdscr, True, act_y, margin + left_w, act_h, right_w, "Activity")
+        S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
     S.draw_help_bar(stdscr, *help_items(model))

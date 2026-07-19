@@ -839,6 +839,7 @@ def _view(stdscr, m):
     pad_x, pad_y = 2, 2
     hero_h = 2
     help_h = 0
+    margin = 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -862,10 +863,10 @@ def _view(stdscr, m):
         desired_preview_h = int(inner_w * 9 / 16 / 2) + 3
         preview_h = max(10, min(desired_preview_h, avail_h - 11))
 
-        S.draw_thick_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
+        S.draw_thick_border(stdscr, hero_h, margin, preview_h, preview_w, "Preview")
         mode = m.val("wallpaper.mode", "file")
         if mode == "color":
-            S.draw_lines_in_area(stdscr, hero_h, 0, preview_h, preview_w,
+            S.draw_lines_in_area(stdscr, hero_h, margin, preview_h, preview_w,
                                  _render_preview(m, preview_w - 4, preview_h - 3))
         else:
             # file/folder mode: try pixel preview
@@ -888,8 +889,8 @@ def _view(stdscr, m):
         # Controls below preview
         ctrl_y = hero_h + preview_h
         ctrl_h = avail_h - preview_h
-        S.draw_thick_border(stdscr, ctrl_y, 0, ctrl_h, preview_w, "")
-        S.draw_lines_in_area(stdscr, ctrl_y, 0, ctrl_h, preview_w,
+        S.draw_thick_border(stdscr, ctrl_y, margin, ctrl_h, preview_w, "")
+        S.draw_lines_in_area(stdscr, ctrl_y, margin, ctrl_h, preview_w,
                              _render_controls(m, preview_w - 4))
 
         # Right column — theme grid
@@ -900,13 +901,13 @@ def _view(stdscr, m):
                          _render_theme_grid(m, grid_w_total - 4, avail_h - 4))
     else:
         ctrl_h = min(avail_h // 2, 14)
-        S.draw_thick_border(stdscr, hero_h, 0, ctrl_h, content_w, "")
-        S.draw_lines_in_area(stdscr, hero_h, 0, ctrl_h, content_w,
+        S.draw_thick_border(stdscr, hero_h, margin, ctrl_h, content_w, "")
+        S.draw_lines_in_area(stdscr, hero_h, margin, ctrl_h, content_w,
                              _render_controls(m, content_w - 4))
 
         grid_y = hero_h + ctrl_h
         grid_h = avail_h - ctrl_h
-        S.draw_thick_border(stdscr, grid_y, 0, grid_h, content_w, "Themes")
+        S.draw_thick_border(stdscr, grid_y, margin, grid_h, content_w, "Themes")
         _draw_theme_grid(stdscr, m, grid_y, 2,
                          content_w - 4, grid_h - 4,
                          _render_theme_grid(m, content_w - 4, grid_h - 4))
