@@ -63,12 +63,13 @@ Item {
             }
             spacing: 10
 
-            // Left: icon (48px, no padding)
+            // Left: icon
             NotificationAppIcon {
-                Layout.preferredWidth: 56
-                Layout.preferredHeight: 56
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
                 Layout.alignment: Qt.AlignTop
-                scale: 56 / 38
+                Layout.topMargin: 2
+                scale: 40 / 38
                 appIcon: notificationObject?.appIcon || ""
                 image: notificationObject?.image || ""
                 summary: notificationObject?.summary || ""
