@@ -522,6 +522,14 @@ class BluetoothTUI:
             subtitle_parts.append(f"powered {a.get('powered', '?').lower()}")
         paired = [d for d in self.devices if d["status"] != "available"]
         subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Bluetooth"
+        # Append status message to subtitle
+        extra = ""
+        if self.busy:
+            extra = "working…"
+        elif self.status_msg and not self.status_msg.startswith("Press"):
+            extra = self.status_msg.strip()
+        if extra:
+            subtitle = subtitle + (" · " + extra if subtitle else extra)
         status_text = ""
         tone = "muted"
         if self.busy:
@@ -1045,15 +1053,6 @@ class BluetoothTUI:
 
         # ── Hero ──
         S.draw_hero(self.stdscr, self._hero_info())
-
-        # ── Status message ──
-        if self.status_msg and not self.status_msg.startswith("Press"):
-            try:
-                msg = self.status_msg[:box_w]
-                self.stdscr.addnstr(margin + hero_h - 1, margin + max(0, (box_w - len(msg)) // 2),
-                                    msg, box_w, S.ATTR_PRIMARY)
-            except curses.error:
-                pass
 
         # ── Paired Devices (fills most of the screen when not scanning) ──
         S.draw_thick_border(self.stdscr, y, margin, paired_h, box_w, "Paired Devices")
