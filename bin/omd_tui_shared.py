@@ -23,6 +23,7 @@ C_OK, C_WARN, C_DANGER, C_SECTION = 4, 5, 6, 7
 C_BORDER, C_SUBTLE, C_PANEL = 8, 9, 10
 # Extended pairs for theme swatches (11..30 allocated at runtime)
 C_THEME_START = 11
+C_FOCUS_BORDER = 31
 
 # Theme accent color cache (loaded from quickshell.json)
 _THEME_ACCENT = None  # (r, g, b) or None
@@ -82,12 +83,34 @@ def _load_theme_accent():
         pass
     return None
 
+
+def _load_theme_border_color():
+    """Load the active_border_color from colors.toml.
+    Returns (r,g,b) on success, None on failure.
+    """
+    try:
+        path = os.path.join(OMD_ROOT, "current", "theme", "colors.toml")
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("active_border_color"):
+                    hex_val = line.split("=", 1)[1].strip().strip('"')
+                    if hex_val.startswith("#") and len(hex_val) == 7:
+                        r = int(hex_val[1:3], 16)
+                        g = int(hex_val[3:5], 16)
+                        b = int(hex_val[5:7], 16)
+                        return (r, g, b)
+    except (FileNotFoundError, OSError, ValueError, IndexError):
+        pass
+    return None
+
+
 _callback_queue = queue.SimpleQueue()
 
 def init_colors():
     global ATTR_SECTION, ATTR_FOCUS, ATTR_OK, ATTR_WARN, ATTR_DANGER
     global ATTR_ACTION, ATTR_MUTED, ATTR_SUBTLE, ATTR_TEXT, ATTR_BORDER, TAG_STYLE
-    global ATTR_PRIMARY, ATTR_DANGER_ACTION, ATTR_OK_BOLD, ATTR_ACCENT_BOLD
+    global ATTR_PRIMARY, ATTR_DANGER_ACTION, ATTR_OK_BOLD, ATTR_ACCENT_BOLD, ATTR_FOCUS_BORDER
     if not curses.has_colors():
         return
     curses.start_color()
@@ -139,6 +162,21 @@ def init_colors():
     ATTR_DANGER_ACTION = attr(C_DANGER)
     ATTR_OK_BOLD = attr(C_OK, True)
     ATTR_ACCENT_BOLD = attr(C_ACCENT, True)
+    # Focus border: try theme active_border_color, fall back to accent
+    border_rgb = _load_theme_border_color()
+    border_set = False
+    if border_rgb and colors >= 256:
+        r, g, b = border_rgb
+        try:
+            xterm_idx = _nearest_xterm_index(r, g, b)
+            curses.init_pair(C_FOCUS_BORDER, xterm_idx, bg)
+            border_set = True
+        except curses.error:
+            pass
+    if not border_set:
+        # Share C_ACCENT's pair index so the pair is already initialized
+        C_FOCUS_BORDER = C_ACCENT
+    ATTR_FOCUS_BORDER = attr(C_FOCUS_BORDER, True)
     TAG_STYLE = {
         "section": ATTR_SECTION,
         "focus":   ATTR_FOCUS,
@@ -355,23 +393,23 @@ def draw_thick_border(win, y, x, h, w, title=""):
     """Draw a thick/rounded-style border (like lipgloss.ThickBorder)."""
     if h < 2 or w < 2:
         return
-    safe_addstr(win, y, x, "╭" + "─"*(w-2), ATTR_ACCENT_BOLD)
+    safe_addstr(win, y, x, "╭" + "─"*(w-2), ATTR_FOCUS_BORDER)
     if title:
         t = f" {title} "
         tw = text_width(t)
         tx = x + (w - tw) // 2
         safe_addstr(win, y, tx, t, ATTR_SECTION)
         if tx > x + 1:
-            safe_addstr(win, y, x+1, "─"*(tx-x-1), ATTR_ACCENT_BOLD)
+            safe_addstr(win, y, x+1, "─"*(tx-x-1), ATTR_FOCUS_BORDER)
         if tx + tw < x + w - 1:
-            safe_addstr(win, y, tx+tw, "─"*(x+w-1-tx-tw), ATTR_ACCENT_BOLD)
-        safe_addstr(win, y, x+w-1, "╮", ATTR_ACCENT_BOLD)
+            safe_addstr(win, y, tx+tw, "─"*(x+w-1-tx-tw), ATTR_FOCUS_BORDER)
+        safe_addstr(win, y, x+w-1, "╮", ATTR_FOCUS_BORDER)
     else:
-        safe_addstr(win, y, x+w-1, "╮", ATTR_ACCENT_BOLD)
+        safe_addstr(win, y, x+w-1, "╮", ATTR_FOCUS_BORDER)
     for i in range(1, h-1):
-        safe_addstr(win, y+i, x, "│", ATTR_ACCENT_BOLD)
-        safe_addstr(win, y+i, x+w-1, "│", ATTR_ACCENT_BOLD)
-    safe_addstr(win, y+h-1, x, "╰" + "─"*(w-2) + "╯", ATTR_ACCENT_BOLD)
+        safe_addstr(win, y+i, x, "│", ATTR_FOCUS_BORDER)
+        safe_addstr(win, y+i, x+w-1, "│", ATTR_FOCUS_BORDER)
+    safe_addstr(win, y+h-1, x, "╰" + "─"*(w-2) + "╯", ATTR_FOCUS_BORDER)
 
 def draw_lines_in_area(win, y, x, h, w, tagged_lines):
     inner_y = y + 1

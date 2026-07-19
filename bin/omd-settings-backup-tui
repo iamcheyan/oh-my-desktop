@@ -813,11 +813,11 @@ def view(stdscr, model):
     left_focused = (model.focus_area == 0)
     right_focused = (model.focus_area == 1)
 
-    # Left: Status + Connection (config) + Actions
+    # Left: Status (info-only, no focus) + Connection (config, focusable) + Actions (no focus)
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
-        S.draw_focus_border(stdscr, left_focused, hero_h, margin, conn_box_h, left_w, "Status")
+        S.draw_focus_border(stdscr, False, hero_h, margin, conn_box_h, left_w, "Status")
         S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
     else:
         conn_box_h = 0
@@ -834,7 +834,7 @@ def view(stdscr, model):
     actions_y = field_y + field_box_h
     actions_h = hero_h + content_h - actions_y
     if actions_h >= 4:
-        S.draw_focus_border(stdscr, left_focused, actions_y, margin, actions_h, left_w, "Actions")
+        S.draw_focus_border(stdscr, False, actions_y, margin, actions_h, left_w, "Actions")
         S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
 
     # Right: Managed Items table + Activity log
@@ -855,7 +855,7 @@ def view(stdscr, model):
     act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
-        S.draw_focus_border(stdscr, right_focused, act_y, margin + left_w, act_h, right_w, "Activity")
+        S.draw_focus_border(stdscr, False, act_y, margin + left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
