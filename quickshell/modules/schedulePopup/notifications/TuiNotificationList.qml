@@ -126,8 +126,7 @@ Item {
         Item {
             id: listHost
             Layout.fillWidth: true
-            Layout.fillHeight: root.height > 0
-            Layout.preferredHeight: root.height > 0 ? -1 : root.listHeight
+            Layout.preferredHeight: root.listHeight
             Layout.topMargin: root.headerGap
             implicitHeight: root.listHeight
 
@@ -299,20 +298,6 @@ Item {
     }
 
     } // column
-
-    // ── Muted apps management ──
-    QtObject {
-        id: muteState
-        property bool showMuted: false
-        property var mutedList: Notifications.mutedApps
-    }
-
-    Connections {
-        target: Notifications
-        function onMutedAppsChanged() {
-            muteState.mutedList = Notifications.mutedApps;
-        }
-    }
 
     component TuiToggle: Rectangle {
         id: toggle
