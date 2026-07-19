@@ -556,11 +556,10 @@ Item {
                     }
 
                     IconButton {
-                        symbol: row.expanded ? "expand_less" : "expand_more"
-                        tooltip: row.expanded ? "Collapse" : "Expand"
-                        visible: row.interactive
-                        enabled: row.interactive
-                        onClicked: root.toggleExpanded(row.notificationObject.notificationId)
+                        symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
+                        tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
+                        danger: Notifications.isMuted(row.displayApp)
+                        onClicked: Notifications.toggleMuteApp(row.displayApp)
                     }
 
                     IconButton {
@@ -568,13 +567,6 @@ Item {
                         tooltip: "Dismiss"
                         danger: true
                         onClicked: row.discard()
-                    }
-
-                    IconButton {
-                        symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
-                        tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
-                        danger: Notifications.isMuted(row.displayApp)
-                        onClicked: Notifications.toggleMuteApp(row.displayApp)
                     }
                 }
 
