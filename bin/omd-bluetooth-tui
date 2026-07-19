@@ -1056,7 +1056,7 @@ class BluetoothTUI:
         S.draw_hero(self.stdscr, self._hero_info())
 
         # ── Paired Devices (fills most of the screen when not scanning) ──
-        S.draw_thick_border(self.stdscr, y, margin, paired_h, box_w, "Paired Devices")
+        S.draw_focus_border(self.stdscr, self.focus == F_PAIRED, y, margin, paired_h, box_w, "Paired Devices")
         self._draw_paired_table(y + 1, margin + 1, paired_h - 2, box_w - 2, paired)
         y += paired_h
 
@@ -1064,12 +1064,12 @@ class BluetoothTUI:
         if has_disc and disc_h >= 4:
             spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[self._tick % 10]
             title = f"Scanning {spin}" if self.scanning else "Discovered devices"
-            S.draw_thick_border(self.stdscr, y, margin, disc_h, box_w, title)
+            S.draw_focus_border(self.stdscr, self.focus == F_DISCOVERED, y, margin, disc_h, box_w, title)
             self._draw_discovered_table(y + 1, margin + 1, disc_h - 2, box_w - 2, discovered)
             y += disc_h
 
         # ── Adapter (fixed at bottom, above help) ──
-        S.draw_thick_border(self.stdscr, y, margin, adapter_h, box_w, "Adapter")
+        S.draw_focus_border(self.stdscr, self.focus == F_ADAPTER, y, margin, adapter_h, box_w, "Adapter")
         self._draw_adapter_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
         y += adapter_h
 

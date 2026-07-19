@@ -778,7 +778,7 @@ class WiFiTUI:
         S.draw_hero(self.stdscr, self._hero_info())
 
         # ── Saved Networks ──
-        S.draw_thick_border(self.stdscr, y, margin, saved_h, box_w, "Saved Networks")
+        S.draw_focus_border(self.stdscr, self.focus == F_SAVED, y, margin, saved_h, box_w, "Saved Networks")
         self._draw_saved_table(y + 1, margin + 1, saved_h - 2, box_w - 2, self.saved)
         y += saved_h
 
@@ -787,12 +787,12 @@ class WiFiTUI:
             title = "Available Networks"
             if self._scan_deadline:
                 title = "Scanning…"
-            S.draw_thick_border(self.stdscr, y, margin, avail_h, box_w, title)
+            S.draw_focus_border(self.stdscr, self.focus == F_AVAILABLE, y, margin, avail_h, box_w, title)
             self._draw_available_table(y + 1, margin + 1, avail_h - 2, box_w - 2, self.available)
             y += avail_h
 
         # ── Status ──
-        S.draw_thick_border(self.stdscr, y, margin, adapter_h, box_w, "Status")
+        S.draw_focus_border(self.stdscr, self.focus == F_STATUS, y, margin, adapter_h, box_w, "Status")
         self._draw_status_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
         y += adapter_h
 
