@@ -313,17 +313,26 @@ def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0, empty_text="(no act
     inner_y = y + 1
     inner_h = h - 2
     inner_w = w - 4
-    wrapped = []
-    for line in logs:
-        wrapped.extend(wrap_text(line, inner_w))
-    total = len(wrapped)
+    # Build list of (attr, text) pairs, supporting color-tagged entries
+    pair_list = []
+    for entry in logs:
+        if isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], str) and entry[0] in TAG_STYLE:
+            # Color-tagged entry: ("ok", "text"), ("danger", "text"), etc.
+            tag, text = entry
+            attr = TAG_STYLE[tag]
+        else:
+            text = str(entry)
+            attr = ATTR_MUTED
+        for line in wrap_text(text, inner_w):
+            pair_list.append((attr, line))
+    total = len(pair_list)
     if total == 0:
         safe_addstr(win, inner_y, x + 2, empty_text, ATTR_MUTED)
         return
     start = max(0, total - inner_h - scroll_offset)
     end = min(total, start + inner_h)
-    for i, line in enumerate(wrapped[start:end]):
-        safe_addstr(win, inner_y + i, x + 2, line, ATTR_MUTED)
+    for i, (attr, line) in enumerate(pair_list[start:end]):
+        safe_addstr(win, inner_y + i, x + 2, line, attr)
     # scrollbar
     if total > inner_h:
         bar_h = max(1, inner_h * inner_h // total)

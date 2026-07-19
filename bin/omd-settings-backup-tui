@@ -340,6 +340,41 @@ class Model:
 
         threading.Thread(target=_cb, daemon=True).start()
 
+    def _run_compare_verbose(self):
+        """Run omd-backup compare --verbose for per-file colored diffs."""
+        if self.busy:
+            return
+
+        def _cb():
+            lines, err = self.run_backend("compare", "--verbose")
+            if err:
+                self.append_log(f"  error: {err}")
+                self.dirty = True
+                return
+            if lines:
+                # Map prefix to tag (color)
+                tag_map = {"+ ": "ok", "~ ": "warn", "- ": "danger", "= ": "muted"}
+                summary_lines = []
+                for l in lines:
+                    if l.startswith("{"):
+                        continue  # skip JSON result line
+                    prefix = l[:2] if len(l) >= 2 else ""
+                    tag = tag_map.get(prefix)
+                    if tag:
+                        self.logs.append((tag, l[2:].strip()))
+                    else:
+                        self.logs.append(l)
+                    summary_lines.append(l)
+                # Parse JSON for item_rows update
+                data, _ = self._parse_json_line(lines)
+                if data and data.get("ok"):
+                    self.compare_result = data
+                    self._refresh_item_rows()
+            self.logs = S.clip_lines(self.logs, 200)
+            self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
 
 def view_remote_files(model):
     """Open a terminal window showing the remote backup directory listing."""
@@ -442,10 +477,12 @@ def help_items(model):
             ("enter", "edit config"),
             ("t", "test"),
             ("b", "backup"),
-            ("c", "compare"),
+            ("c", "compare summary"),
+            ("2", "compare verbose"),
             ("l", "browse remote"),
             ("s", "save"),
             ("e", "edit file"),
+            ("u", "unmount"),
             ("r", "refresh"),
             ("pgup/pgdn", "scroll"),
             ("q", "quit"),
@@ -542,6 +579,8 @@ def render_actions(model):
     has_config = bool(model.config.get("address") and model.config.get("localPath"))
     lines.append(S.action_line("t", "Test connection", enabled))
     lines.append(S.action_line("b", "Backup now", enabled and has_config))
+    lines.append(S.action_line("c", "Compare summary", enabled and has_config))
+    lines.append(S.action_line("2", "Compare verbose", enabled and has_config))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
     lines.append(S.action_line("s", "Save config", enabled))
     lines.append(S.action_line("e", "Edit config file", enabled))
@@ -800,6 +839,10 @@ def handle_key(stdscr, model, key):
     if key == ord('c'):
         model.message = ""
         model._run_compare()
+        return True
+    if key == ord('2'):
+        model.append_log("$ compare — verbose per-file diff")
+        model._run_compare_verbose()
         return True
     if key == ord('l'):
         view_remote_files(model)

@@ -117,7 +117,7 @@ do_mount() {
   # Try direct mount first (may work if user has cap_sys_admin or FUSE cifs)
   local err
   err=$(mount.cifs "//$addr/$share" "$mnt" \
-    -o "credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm,noattr" 2>&1) || true
+    -o "credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm" 2>&1) || true
 
   if mountpoint -q "$mnt" 2>/dev/null; then
     echo "MOUNT_OK:$mnt"
@@ -130,17 +130,24 @@ do_mount() {
     if have pkexec; then
       echo "MOUNT_NEED_POLKIT"
       echo "  Requesting administrator privileges to mount SMB share…"
-      pkexec bash -c "
+      local pk_err rc
+      pk_err=$(pkexec bash -c "
         mkdir -p '$mnt'
         mount.cifs '//$addr/$share' '$mnt' \
-          -o 'credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm,noattr'
-      " 2>&1 || true
+          -o 'credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm'
+      " 2>&1) && rc=0 || rc=$?
       if mountpoint -q "$mnt" 2>/dev/null; then
         echo "MOUNT_OK:$mnt"
         echo "$mnt"
         return 0
       else
-        echo '{"ok":false,"error":"Polkit authorization failed or cancelled"}'
+        if [[ $rc -eq 126 || $rc -eq 127 ]]; then
+          echo '{"ok":false,"error":"Polkit authorization failed or cancelled"}'
+        else
+          local clean_err
+          clean_err=$(echo "$pk_err" | grep -v "pam_systemd" | head -1 | tr -d '\n\r')
+          echo "{\"ok\":false,\"error\":\"Mount failed: ${clean_err:-unknown error}\"}"
+        fi
         return 1
       fi
     else
@@ -192,14 +199,22 @@ do_unmount() {
 }
 
 # ── main ───────────────────────────────────────────────────────────────
+get_mount_line() {
+  local out="$1"
+  if echo "$out" | grep -q "^MOUNT_OK"; then
+    echo "$out" | grep "^MOUNT_OK" | head -1
+  else
+    echo "$out" | grep "^MOUNT_" | head -1
+  fi
+}
 
 case "$cmd" in
   mount)
     data=$(load_config)
     output=$(do_mount "$data") || true
-    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+    mount_line=$(get_mount_line "$output")
     if echo "$mount_line" | grep -q "^MOUNT_OK"; then
-      mnt=$(echo "$output" | grep "^MOUNT_" | sed 's/^MOUNT_[^:]*://')
+      mnt=$(echo "$mount_line" | sed 's/^MOUNT_OK://')
       echo "Mounted at $mnt"
     elif echo "$mount_line" | grep -q "^MOUNT_NEED_POLKIT"; then
       echo "Authorization requested — check polkit dialog"
@@ -228,10 +243,10 @@ case "$cmd" in
 
     echo "Testing connection to $addr/$share..."
     output=$(do_mount "$data") || true
-    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+    mount_line=$(get_mount_line "$output")
 
     if echo "$mount_line" | grep -q "^MOUNT_OK"; then
-      mnt=$(echo "$mount_line" | sed 's/^MOUNT_[^:]*://')
+      mnt=$(echo "$mount_line" | sed 's/^MOUNT_OK://')
       echo "  Connected — mounted at $mnt"
       echo "{\"ok\":true,\"mount\":\"$mnt\"}"
     elif echo "$mount_line" | grep -q "^MOUNT_NEED_POLKIT"; then
@@ -293,7 +308,7 @@ case "$cmd" in
 
     # Ensure mounted
     output=$(do_mount "$data") || true
-    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+    mount_line=$(get_mount_line "$output")
     if ! echo "$mount_line" | grep -q "^MOUNT_OK"; then
       # Mount failed — print the error JSON if present
       err_line=$(echo "$output" | grep '{"ok":false' | head -1)
@@ -408,14 +423,18 @@ case "$cmd" in
 
   compare)
     data=$(load_config)
+    verbose=false
+    [[ "${1:-}" == "-v" || "${1:-}" == "--verbose" ]] && verbose=true
     local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
     CACHE_FILE="$STATE_DIR/md5-cache.json"
 
     cache_json=$(cat "$CACHE_FILE" 2>/dev/null || echo '{}')
 
-    echo "Comparing local files against last backup..."
-    echo "  (MD5-based — no remote access needed)"
-    echo ""
+    if [[ "$verbose" == false ]]; then
+      echo "Comparing local files against last backup..."
+      echo "  (MD5-based — no remote access needed)"
+      echo ""
+    fi
 
     # Walk all files, compute MD5
     CUR_FILE=$(mktemp)
@@ -427,15 +446,15 @@ case "$cmd" in
         md5sum "$local_path" | awk -v p="$local_path" -v pp="$local_path" '{print p "\t" $1 "\t" pp}' >> "$CUR_FILE"
       elif [[ -d "$local_path" ]]; then
         path_name=$(basename "$local_path")
-        echo "  Scanning $path_name/ ..."
+        [[ "$verbose" == false ]] && echo "  Scanning $path_name/ ..."
         while IFS= read -r f; do
           md5sum "$f" | awk -v p="$f" -v pp="$local_path" '{print p "\t" $1 "\t" pp}' >> "$CUR_FILE"
         done < <(find "$local_path" -type f)
       fi
     done <<< "$local_paths"
 
-    total=0; new=0; modified=0; unchanged=0
-    declare -A p_total p_new p_modified p_unchanged
+    total=0; new=0; modified=0; deleted=0; unchanged=0
+    declare -A p_total p_new p_modified p_deleted p_unchanged
 
     while IFS=$'\t' read -r file_path file_hash parent_path; do
       old_hash=$(echo "$cache_json" | jq -r --arg p "$file_path" '.[$p] // ""')
@@ -443,33 +462,52 @@ case "$cmd" in
       if [[ -z "$old_hash" ]]; then
         new=$((new + 1))
         p_new["$parent_path"]=$(( ${p_new["$parent_path"]:-0} + 1 ))
+        [[ "$verbose" == true ]] && echo "+ $file_path"
       elif [[ "$file_hash" != "$old_hash" ]]; then
         modified=$((modified + 1))
         p_modified["$parent_path"]=$(( ${p_modified["$parent_path"]:-0} + 1 ))
+        [[ "$verbose" == true ]] && echo "~ $file_path"
       else
         unchanged=$((unchanged + 1))
         p_unchanged["$parent_path"]=$(( ${p_unchanged["$parent_path"]:-0} + 1 ))
+        [[ "$verbose" == true ]] && echo "= $file_path"
       fi
       total=$((total + 1))
     done < "$CUR_FILE"
 
-    # Show per-path summary (concise)
-    while read -r local_path; do
-      [[ -z "$local_path" ]] && continue
-      t=${p_total["$local_path"]:-0}
-      n=${p_new["$local_path"]:-0}
-      m=${p_modified["$local_path"]:-0}
-      if [[ -d "$local_path" ]]; then
-        label="$(basename "$local_path")/"
-      else
-        label="$(basename "$local_path")"
+    # Detect deleted files (in cache but not on disk)
+    DEL_FILE=$(mktemp)
+    echo "$cache_json" | jq -r 'keys[]' > "$DEL_FILE"
+    del_count=0
+    while IFS= read -r cached_path; do
+      if [[ ! -e "$cached_path" ]]; then
+        deleted=$((deleted + 1))
+        del_count=$((del_count + 1))
+        p_deleted["$(dirname "$cached_path")"]=$(( ${p_deleted["$(dirname "$cached_path")"]:-0} + 1 ))
+        [[ "$verbose" == true ]] && echo "- $cached_path"
       fi
-      parts=""
-      [[ $n -gt 0 ]] && parts+="$n new "
-      [[ $m -gt 0 ]] && parts+="$m changed "
-      [[ $((t - n - m)) -gt 0 ]] && parts+="$((t - n - m)) ok"
-      echo "  $label  $parts"
-    done <<< "$local_paths"
+    done < "$DEL_FILE"
+    rm -f "$DEL_FILE"
+
+    # Show per-path summary (concise) — only when not verbose
+    if [[ "$verbose" == false ]]; then
+      while read -r local_path; do
+        [[ -z "$local_path" ]] && continue
+        t=${p_total["$local_path"]:-0}
+        n=${p_new["$local_path"]:-0}
+        m=${p_modified["$local_path"]:-0}
+        if [[ -d "$local_path" ]]; then
+          label="$(basename "$local_path")/"
+        else
+          label="$(basename "$local_path")"
+        fi
+        parts=""
+        [[ $n -gt 0 ]] && parts+="$n new "
+        [[ $m -gt 0 ]] && parts+="$m changed "
+        [[ $((t - n - m)) -gt 0 ]] && parts+="$((t - n - m)) ok"
+        echo "  $label  $parts"
+      done <<< "$local_paths"
+    fi
 
     needs_sync=$((new + modified))
     echo ""
@@ -494,7 +532,7 @@ case "$cmd" in
     done <<< "$local_paths"
     paths_json+="]"
 
-    result_json="{\"ok\":true,\"total\":$total,\"new\":$new,\"modified\":$modified,\"unchanged\":$unchanged,\"needs_sync\":$needs_sync,\"paths\":$paths_json}"
+    result_json="{\"ok\":true,\"total\":$total,\"new\":$new,\"modified\":$modified,\"deleted\":$deleted,\"unchanged\":$unchanged,\"needs_sync\":$needs_sync,\"paths\":$paths_json}"
     echo "$result_json" > "$STATE_DIR/last-compare.json"
     echo "$result_json"
     ;;
