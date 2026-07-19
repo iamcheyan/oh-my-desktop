@@ -5,7 +5,7 @@
       "displayName": "apple spi keyboard",
       "hyprName": "apple-spi-keyboard",
       "keydId": "05ac:0342",
-      "enabled": true,
+      "enabled": false,
       "enabledPresets": [
         "rightalt-down"
       ],
@@ -15,7 +15,7 @@
       "displayName": "compx 2.4g receiver",
       "hyprName": "compx-2-4g-receiver",
       "keydId": "25a7:fa61",
-      "enabled": true,
+      "enabled": false,
       "enabledPresets": [],
       "presetOverrides": {}
     },
