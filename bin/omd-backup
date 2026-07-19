@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# OMD Backup backend — smbclient wrapper for remote file backup.
+# OMD Backup backend — mount.cifs + rsync
+# Mounts SMB share locally, then uses rsync for fast incremental sync.
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -9,18 +10,37 @@ OLD_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/backup"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/file-share-backup"
 
 if [[ -d "$OLD_CONFIG_DIR" && ! -d "$CONFIG_DIR" ]]; then
-  mv "$OLD_CONFIG_DIR" "$CONFIG_DIR"
+  mv "$OLD_CONFIG_DIR" "$CONFIG_DIR" 2>/dev/null || true
 fi
 if [[ -d "$OLD_STATE_DIR" && ! -d "$STATE_DIR" ]]; then
-  mv "$OLD_STATE_DIR" "$STATE_DIR"
+  mv "$OLD_STATE_DIR" "$STATE_DIR" 2>/dev/null || true
 fi
 
 CONFIG_FILE="$CONFIG_DIR/config.json"
+CREDS_FILE="$STATE_DIR/.smbcreds"
 
 mkdir -p "$CONFIG_DIR" "$STATE_DIR"
 
-usage() { echo "Usage: omd-backup {status|test|backup|compare|list|save-config|load-config}" >&2; exit 2; }
+usage() {
+  cat >&2 <<'EOF'
+Usage: omd-backup {mount|unmount|test|backup|compare|list|status|save-config|load-config}
+
+  mount       Mount SMB share (keeps mounted for browsing/sync)
+  unmount     Unmount the share
+  test        Test connection + mount share
+  backup      Rsync local files to mounted share
+  compare     Rsync --dry-run to show pending changes
+  list        Browse mounted files in terminal
+  status      Show mount/config status
+  save-config Write config from stdin
+  load-config Print current config JSON
+EOF
+  exit 2
+}
+
 cmd="${1:-}"; shift || true
+
+# ── helpers ────────────────────────────────────────────────────────────
 
 load_config() {
   if [[ -f "$CONFIG_FILE" ]]; then
@@ -35,134 +55,320 @@ save_config() {
   echo "Config saved"
 }
 
-smb_prefix() {
-  local addr share user pass
-  addr=$(echo "$1" | jq -r '.address // ""')
-  share=$(echo "$1" | jq -r '.share // ""')
-  user=$(echo "$1" | jq -r '.user // ""')
-  pass=$(echo "$1" | jq -r '.password // ""')
-  echo "//$addr/$share" "$user" "$pass"
+have() { command -v "$1" >/dev/null 2>&1; }
+
+mount_point() {
+  local share
+  share=$(echo "$1" | jq -r '.share // "smb"')
+  echo "$HOME/$share"
 }
 
+write_creds() {
+  local user="$1" pass="$2"
+  cat > "$CREDS_FILE" <<EOF
+username=$user
+password=$pass
+domain=WORKGROUP
+EOF
+  chmod 600 "$CREDS_FILE"
+}
+
+# ── mount / unmount ───────────────────────────────────────────────────
+
+do_mount() {
+  local data="$1"
+  local addr share remote_path mnt
+  addr=$(echo "$data" | jq -r '.address // ""')
+  share=$(echo "$data" | jq -r '.share // ""')
+  remote_path=$(echo "$data" | jq -r '.remotePath // "Backups"')
+  mnt=$(mount_point "$data")
+
+  if [[ -z "$addr" || -z "$share" ]]; then
+    echo '{"ok":false,"error":"Server address or share not configured"}'
+    return 1
+  fi
+
+  # Already mounted?
+  if mountpoint -q "$mnt" 2>/dev/null; then
+    echo "MOUNT_OK:$mnt"
+    echo "$mnt"
+    return 0
+  fi
+
+  # Write credentials
+  local user pass
+  user=$(echo "$data" | jq -r '.user // ""')
+  pass=$(echo "$data" | jq -r '.password // ""')
+  write_creds "$user" "$pass"
+
+  mkdir -p "$mnt"
+
+  # Check prerequisites
+  if ! have mount.cifs; then
+    echo "MOUNT_NEED_INSTALL"
+    echo ""
+    echo "  mount.cifs not found — install cifs-utils:"
+    echo "    Arch:    sudo pacman -S cifs-utils"
+    echo "    Debian:  sudo apt install cifs-utils"
+    echo "    Fedora:  sudo dnf install cifs-utils"
+    return 1
+  fi
+
+  # Try direct mount first (may work if user has cap_sys_admin or FUSE cifs)
+  local err
+  err=$(mount.cifs "//$addr/$share" "$mnt" \
+    -o "credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm,noattr" 2>&1) || true
+
+  if mountpoint -q "$mnt" 2>/dev/null; then
+    echo "MOUNT_OK:$mnt"
+    echo "$mnt"
+    return 0
+  fi
+
+  # Permission denied → try pkexec (polkit popup)
+  if echo "$err" | grep -qiE "permission denied|operation not permitted|not authorized|not installed setuid"; then
+    if have pkexec; then
+      echo "MOUNT_NEED_POLKIT"
+      echo "  Requesting administrator privileges to mount SMB share…"
+      pkexec bash -c "
+        mkdir -p '$mnt'
+        mount.cifs '//$addr/$share' '$mnt' \
+          -o 'credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g),vers=3.0,mfsymlinks,nounix,serverino,noperm,noattr'
+      " 2>&1 || true
+      if mountpoint -q "$mnt" 2>/dev/null; then
+        echo "MOUNT_OK:$mnt"
+        echo "$mnt"
+        return 0
+      else
+        echo '{"ok":false,"error":"Polkit authorization failed or cancelled"}'
+        return 1
+      fi
+    else
+      echo "MOUNT_NEED_INSTALL"
+      echo ""
+      echo "  mount.cifs needs root privileges."
+      echo ""
+      echo "  Option 1 — Install polkit for auto-elevation:"
+      echo "    Arch:    sudo pacman -S polkit"
+      echo "    Debian:  sudo apt install policykit-1"
+      echo "    Fedora:  sudo dnf install polkit"
+      echo "    (Then connect via TUI — polkit will pop up a password dialog)"
+      echo ""
+      echo "  Option 2 — Grant setcap capability (one-time, no dialog):"
+      echo "    sudo setcap cap_sys_admin+ep /sbin/mount.cifs"
+      echo "    (This allows mount.cifs to run directly without elevation)"
+      echo ""
+      echo "  Option 3 — Mount once with sudo:"
+      echo "    sudo mount.cifs //$addr/$share $mnt -o credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g)"
+      return 1
+    fi
+  fi
+
+  # Other errors
+  echo "MOUNT_FAILED:$err"
+  if echo "$err" | grep -qi "NT_STATUS_LOGON_FAILURE"; then
+    echo '{"ok":false,"error":"Login failed — check username/password"}'
+  elif echo "$err" | grep -qi "NT_STATUS_CONNECTION_REFUSED\|No route to host\|Connection timed out"; then
+    echo '{"ok":false,"error":"Cannot reach server — check address"}'
+  elif echo "$err" | grep -qi "NT_STATUS_HOST_UNREACHABLE\|host unreachable"; then
+    echo '{"ok":false,"error":"Host unreachable"}'
+  else
+    echo "{\"ok\":false,\"error\":\"$(echo "$err" | head -1 | tr -d '\n\r')\"}"
+  fi
+  return 1
+}
+
+do_unmount() {
+  local data="$1"
+  local mnt
+  mnt=$(mount_point "$data")
+  if mountpoint -q "$mnt" 2>/dev/null; then
+    umount "$mnt" 2>/dev/null || true
+    rmdir "$mnt" 2>/dev/null || true
+    echo "Unmounted $mnt"
+  else
+    echo "Not mounted"
+  fi
+}
+
+# ── main ───────────────────────────────────────────────────────────────
+
 case "$cmd" in
-  status)
-    echo '{"ready":true}'
+  mount)
+    data=$(load_config)
+    output=$(do_mount "$data") || true
+    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+    if echo "$mount_line" | grep -q "^MOUNT_OK"; then
+      mnt=$(echo "$output" | grep "^MOUNT_" | sed 's/^MOUNT_[^:]*://')
+      echo "Mounted at $mnt"
+    elif echo "$mount_line" | grep -q "^MOUNT_NEED_POLKIT"; then
+      echo "Authorization requested — check polkit dialog"
+    elif echo "$mount_line" | grep -q "^MOUNT_NEED_INSTALL"; then
+      echo "$output" | grep -v "^MOUNT_"
+    elif echo "$mount_line" | grep -q "^MOUNT_FAILED"; then
+      echo "$output" | grep -v "^MOUNT_" | head -1
+    else
+      echo "Mount failed"
+    fi
     ;;
+
+  unmount)
+    data=$(load_config)
+    do_unmount "$data"
+    ;;
+
   test)
     data=$(load_config)
-    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
-    if [[ -z "$smb_url" || "$smb_url" == "//" ]]; then
+    addr=$(echo "$data" | jq -r '.address // ""')
+    share=$(echo "$data" | jq -r '.share // ""')
+    if [[ -z "$addr" || -z "$share" ]]; then
       echo '{"ok":false,"error":"Server not configured"}'
       exit 0
     fi
-    output=$(smbclient -L "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 --option='client min protocol=SMB2' 2>&1 || true)
-    if echo "$output" | grep -q "NT_STATUS_LOGON_FAILURE"; then
-      echo '{"ok":false,"error":"Login failed"}'
-    elif echo "$output" | grep -q "NT_STATUS_CONNECTION_REFUSED"; then
-      echo '{"ok":false,"error":"Connection refused"}'
-    elif echo "$output" | grep -q "NT_STATUS"; then
-      echo "{\"ok\":false,\"error\":\"$(echo "$output" | grep "NT_STATUS" | head -1 | tr -d '\n\r')\"}"
-    elif [[ -n "$output" ]]; then
-      shares=$(echo "$output" | grep -E "^\\s+[^\\s]+\\s+Disk" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
-      echo "{\"ok\":true,\"shares\":\"$shares\"}"
+
+    echo "Testing connection to $addr/$share..."
+    output=$(do_mount "$data") || true
+    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+
+    if echo "$mount_line" | grep -q "^MOUNT_OK"; then
+      mnt=$(echo "$mount_line" | sed 's/^MOUNT_[^:]*://')
+      echo "  Connected — mounted at $mnt"
+      echo "{\"ok\":true,\"mount\":\"$mnt\"}"
+    elif echo "$mount_line" | grep -q "^MOUNT_NEED_POLKIT"; then
+      echo "  Authorization requested via polkit…"
+      # do_mount already ran pkexec; check result again
+      # mount_line is from do_mount — already handled
+      # Check actual result
+      final_line=$(echo "$output" | tail -1)
+      if echo "$final_line" | grep -q '"ok":true'; then
+        echo "$final_line"
+      else
+        echo "$final_line"
+      fi
+    elif echo "$mount_line" | grep -q "^MOUNT_NEED_INSTALL"; then
+      echo "  Need privileged mount access for SMB shares."
+      echo ""
+      echo "  Make sure cifs-utils is installed:"
+      echo "    Arch:    sudo pacman -S cifs-utils"
+      echo "    Debian:  sudo apt install cifs-utils"
+      echo "    Fedora:  sudo dnf install cifs-utils"
+      echo ""
+      echo "  Then choose one:"
+      echo ""
+      echo "  [A] Install polkit — auto popup via TUI (recommended)"
+      echo "    Arch:    sudo pacman -S polkit"
+      echo "    Debian:  sudo apt install policykit-1"
+      echo "    Fedora:  sudo dnf install polkit"
+      echo ""
+      echo "  [B] Grant setcap — no dialog needed"
+      echo "    sudo setcap cap_sys_admin+ep /sbin/mount.cifs"
+      echo ""
+      echo "  [C] Mount manually once (stays until reboot):"
+      echo "    sudo mount.cifs //$addr/$share $mnt -o credentials=$CREDS_FILE,uid=$(id -u),gid=$(id -g)"
+      echo '{"ok":false,"error":"mount.cifs not set up for user (see instructions above)"}'
+    elif echo "$mount_line" | grep -q "^MOUNT_FAILED"; then
+      # The error JSON is already output after MOUNT_FAILED
+      err_line=$(echo "$output" | grep '{"ok":false' | head -1)
+      if [[ -n "$err_line" ]]; then
+        echo "$err_line"
+      else
+        echo '{"ok":false,"error":"Mount failed"}'
+      fi
     else
-      echo '{"ok":false,"error":"Unknown error"}'
+      echo '{"ok":false,"error":"Unknown mount error"}'
     fi
     ;;
+
   backup)
     data=$(load_config)
-    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
     local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
-    remote_path=$(echo "$data" | jq -r '.remotePath // ""')
+    remote_path=$(echo "$data" | jq -r '.remotePath // "Backups"')
     include_ext=$(echo "$data" | jq -r '.includeExt // ""')
     exclude_ext=$(echo "$data" | jq -r '.excludeExt // ""')
 
-    if [[ -z "$smb_url" || -z "$local_paths" ]]; then
-      echo '{"ok":false,"error":"Invalid config or local path"}'
+    if [[ -z "$local_paths" ]]; then
+      echo '{"ok":false,"error":"No local paths configured"}'
       exit 0
     fi
 
-    log_file="$STATE_DIR/last-sync.log"
-    # remote_dir is the path WITHIN the SMB share (relative to share root)
-    remote_dir="$(echo "$remote_path" | sed 's|^/*||')"
-    remote_dir="${remote_dir//\/\///}"
+    # Ensure mounted
+    output=$(do_mount "$data") || true
+    mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+    if ! echo "$mount_line" | grep -q "^MOUNT_OK"; then
+      # Mount failed — print the error JSON if present
+      err_line=$(echo "$output" | grep '{"ok":false' | head -1)
+      if [[ -n "$err_line" ]]; then
+        echo "$err_line"
+      else
+        echo '{"ok":false,"error":"Cannot mount share before backup"}'
+      fi
+      exit 0
+    fi
+    mnt=$(echo "$mount_line" | sed 's/^MOUNT_[^:]*://')
+
+    host_prefix="$(uname -s)-$(hostname)"
+    remote_base="${mnt}/${remote_path}/${host_prefix}"
+
+    # Ensure host prefix directory exists
+    mkdir -p "$remote_base"
 
     echo "Backup starting"
     start=$(date +%s)
+    rsync_opts=(-a --no-owner --no-group --no-perms --info=progress2)
+
+    # Build filter rules from config
+    filter_file="$STATE_DIR/.rsync-filter"
+    rm -f "$filter_file"
+    if [[ -n "$include_ext" ]]; then
+      IFS=',' read -ra exts <<< "$include_ext"
+      for ext in "${exts[@]}"; do
+        ext=$(echo "$ext" | xargs)
+        echo "+ *${ext}" >> "$filter_file"
+      done
+      echo '- *' >> "$filter_file"
+    fi
+    if [[ -n "$exclude_ext" ]]; then
+      IFS=',' read -ra exts <<< "$exclude_ext"
+      for ext in "${exts[@]}"; do
+        ext=$(echo "$ext" | xargs)
+        echo "- *${ext}" >> "$filter_file"
+      done
+    fi
+    if [[ -f "$filter_file" ]]; then
+      rsync_opts+=(--filter="merge $filter_file")
+    fi
+
     total_files=0
-
-    host_prefix="$(uname -s)-$(hostname)"
-
     while read -r local_path; do
-      if [[ -z "$local_path" ]]; then
-        echo "  SKIP (empty): $local_path"
-        continue
-      fi
+      [[ -z "$local_path" ]] && continue
 
       if [[ -f "$local_path" ]]; then
-        # Single file upload
         base=$(basename "$local_path")
-        echo "  upload file $base"
+        echo "  sync $base"
+        rsync "${rsync_opts[@]}" "$local_path" "$remote_base/" 2>&1 | tail -1 || echo "  FAILED: $base"
         total_files=$((total_files + 1))
-        smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
-          --option='client min protocol=SMB2' \
-          -c "cd ${remote_dir}; mkdir \"$host_prefix\"; cd \"$host_prefix\"; put \"$local_path\" \"$base\"" 2>/dev/null 1>/dev/null || echo "  FAILED: $base"
       elif [[ -d "$local_path" ]]; then
-        # Directory: upload all files into host_prefix/parent_dir/
-        echo "  from: $local_path"
         parent_dir=$(basename "$local_path")
-        while read -r f; do
-          base=$(basename "$f")
-          ok=true
-          if [[ -n "$include_ext" ]]; then
-            ok=false
-            IFS=',' read -ra exts <<< "$include_ext"
-            for ext in "${exts[@]}"; do
-              ext=$(echo "$ext" | xargs)
-              if [[ "$base" == *${ext} ]]; then
-                ok=true
-                break
-              fi
-            done
-          fi
-          if [[ -n "$exclude_ext" ]]; then
-            IFS=',' read -ra exts <<< "$exclude_ext"
-            for ext in "${exts[@]}"; do
-              ext=$(echo "$ext" | xargs)
-              if [[ "$base" == *${ext} ]]; then
-                ok=false
-                break
-              fi
-            done
-          fi
-          if $ok; then
-            echo "  upload $base"
-            total_files=$((total_files + 1))
-            smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
-              --option='client min protocol=SMB2' \
-              -c "cd ${remote_dir}; mkdir \"$host_prefix\"; cd \"$host_prefix\"; mkdir \"$parent_dir\"; cd \"$parent_dir\"; put \"$f\" \"$base\"" 2>/dev/null 1>/dev/null || echo "  FAILED: $base"
-          fi
-        done < <(find "$local_path" -maxdepth 1 -type f)
+        echo "  sync $parent_dir/"
+        rsync "${rsync_opts[@]}" "$local_path/" "$remote_base/$parent_dir/" 2>&1 | tail -1 || echo "  FAILED: $parent_dir"
+        total_files=$((total_files + $(find "$local_path" -type f | wc -l)))
       else
         echo "  SKIP (not found): $local_path"
       fi
     done <<< "$local_paths"
 
+    rm -f "$filter_file"
+
     end=$(date +%s)
     elapsed=$((end - start))
+
     # Save per-item tracking
     time_fmt="$(date +%H:%M)"
     items_json="["
     first=true
     while read -r item_path; do
-      if [[ -z "$item_path" ]]; then
-        continue
-      fi
-      if [[ "$first" == true ]]; then
-        first=false
-      else
-        items_json+=","
-      fi
+      [[ -z "$item_path" ]] && continue
+      if [[ "$first" == true ]]; then first=false; else items_json+=","; fi
       if [[ -f "$item_path" ]]; then
         item_type="file"
       elif [[ -d "$item_path" ]]; then
@@ -175,41 +381,43 @@ case "$cmd" in
     items_json+="]"
     echo "$items_json" > "$STATE_DIR/items.json"
 
-    # Update MD5 cache with current hashes
-    md5_json="{ "
+    # Save MD5 cache for fast local compare (no remote access needed)
+    md5_json="{"
     first_md5=true
     while read -r item_path; do
-      if [[ -z "$item_path" ]]; then continue; fi
+      [[ -z "$item_path" ]] && continue
       if [[ -f "$item_path" ]]; then
         h=$(md5sum "$item_path" | cut -d' ' -f1)
-        if [[ "$first_md5" == true ]]; then first_md5=false; else md5_json+=", "; fi
+        [[ "$first_md5" == true ]] && first_md5=false || md5_json+=","
         md5_json+="\"$item_path\":\"$h\""
       elif [[ -d "$item_path" ]]; then
-        while read -r f; do
+        while IFS= read -r f; do
           h=$(md5sum "$f" | cut -d' ' -f1)
-          if [[ "$first_md5" == true ]]; then first_md5=false; else md5_json+=", "; fi
+          [[ "$first_md5" == true ]] && first_md5=false || md5_json+=","
           md5_json+="\"$f\":\"$h\""
-        done < <(find "$item_path" -maxdepth 1 -type f)
+        done < <(find "$item_path" -type f)
       fi
     done <<< "$local_paths"
-    md5_json+=" }"
+    md5_json+="}"
     echo "$md5_json" > "$STATE_DIR/md5-cache.json"
 
-    echo "Backup complete in ${elapsed}s, ${total_files} files"
+    echo "Backup complete in ${elapsed}s"
     echo "{\"ok\":true,\"elapsed\":$elapsed}" > "$STATE_DIR/last-result.json"
     echo "{\"ok\":true,\"elapsed\":$elapsed}"
     ;;
+
   compare)
     data=$(load_config)
     local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
     CACHE_FILE="$STATE_DIR/md5-cache.json"
 
-    # Load cache once
     cache_json=$(cat "$CACHE_FILE" 2>/dev/null || echo '{}')
 
     echo "Comparing local files against last backup..."
+    echo "  (MD5-based — no remote access needed)"
+    echo ""
 
-    # Walk all files, compute MD5 per-path for later
+    # Walk all files, compute MD5
     CUR_FILE=$(mktemp)
     trap "rm -f $CUR_FILE" EXIT
 
@@ -220,9 +428,9 @@ case "$cmd" in
       elif [[ -d "$local_path" ]]; then
         path_name=$(basename "$local_path")
         echo "  Scanning $path_name/ ..."
-        while read -r f; do
+        while IFS= read -r f; do
           md5sum "$f" | awk -v p="$f" -v pp="$local_path" '{print p "\t" $1 "\t" pp}' >> "$CUR_FILE"
-        done < <(find "$local_path" -maxdepth 1 -type f)
+        done < <(find "$local_path" -type f)
       fi
     done <<< "$local_paths"
 
@@ -233,11 +441,9 @@ case "$cmd" in
       old_hash=$(echo "$cache_json" | jq -r --arg p "$file_path" '.[$p] // ""')
       p_total["$parent_path"]=$(( ${p_total["$parent_path"]:-0} + 1 ))
       if [[ -z "$old_hash" ]]; then
-        echo "  NEW: $(basename "$file_path")"
         new=$((new + 1))
         p_new["$parent_path"]=$(( ${p_new["$parent_path"]:-0} + 1 ))
       elif [[ "$file_hash" != "$old_hash" ]]; then
-        echo "  MODIFIED: $(basename "$file_path")"
         modified=$((modified + 1))
         p_modified["$parent_path"]=$(( ${p_modified["$parent_path"]:-0} + 1 ))
       else
@@ -246,6 +452,24 @@ case "$cmd" in
       fi
       total=$((total + 1))
     done < "$CUR_FILE"
+
+    # Show per-path summary (concise)
+    while read -r local_path; do
+      [[ -z "$local_path" ]] && continue
+      t=${p_total["$local_path"]:-0}
+      n=${p_new["$local_path"]:-0}
+      m=${p_modified["$local_path"]:-0}
+      if [[ -d "$local_path" ]]; then
+        label="$(basename "$local_path")/"
+      else
+        label="$(basename "$local_path")"
+      fi
+      parts=""
+      [[ $n -gt 0 ]] && parts+="$n new "
+      [[ $m -gt 0 ]] && parts+="$m changed "
+      [[ $((t - n - m)) -gt 0 ]] && parts+="$((t - n - m)) ok"
+      echo "  $label  $parts"
+    done <<< "$local_paths"
 
     needs_sync=$((new + modified))
     echo ""
@@ -265,7 +489,7 @@ case "$cmd" in
       n=${p_new["$local_path"]:-0}
       m=${p_modified["$local_path"]:-0}
       u=${p_unchanged["$local_path"]:-0}
-      if [[ "$first_path" == true ]]; then first_path=false; else paths_json+=","; fi
+      [[ "$first_path" == true ]] && first_path=false || paths_json+=","
       paths_json+="{\"path\":\"$local_path\",\"total\":$t,\"new\":$n,\"modified\":$m,\"unchanged\":$u}"
     done <<< "$local_paths"
     paths_json+="]"
@@ -274,37 +498,82 @@ case "$cmd" in
     echo "$result_json" > "$STATE_DIR/last-compare.json"
     echo "$result_json"
     ;;
+
   list)
     data=$(load_config)
-    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
-    remote_path=$(echo "$data" | jq -r '.remotePath // ""')
-    if [[ -z "$smb_url" || "$smb_url" == "//" ]]; then
+    addr=$(echo "$data" | jq -r '.address // ""')
+    share=$(echo "$data" | jq -r '.share // ""')
+    remote_path=$(echo "$data" | jq -r '.remotePath // "Backups"')
+    mnt=$(mount_point "$data")
+
+    if [[ -z "$addr" || -z "$share" ]]; then
       echo '{"ok":false,"error":"Server not configured"}'
       exit 0
     fi
-    remote_dir="$(echo "$remote_path" | sed 's|^/*||')"
+
     host_prefix="$(uname -s)-$(hostname)"
-    echo "Remote: //$(echo "$data" | jq -r '.address // ""')/$(echo "$data" | jq -r '.share // ""')/${remote_dir}/"
+    remote_base="${mnt}/${remote_path}/${host_prefix}"
+
+    # Mount if needed
+    if ! mountpoint -q "$mnt" 2>/dev/null; then
+      output=$(do_mount "$data") || true
+      mount_line=$(echo "$output" | grep "^MOUNT_" | head -1)
+      if ! echo "$mount_line" | grep -q "^MOUNT_OK"; then
+        echo "Cannot mount share:"
+        echo "$output" | grep -v "^MOUNT_"
+        exit 0
+      fi
+    fi
+
+    echo "Mounted at: $mnt"
+    echo "Remote: //$addr/$share/${remote_path}/${host_prefix}"
     echo ""
-    echo "=== ${remote_dir}/${host_prefix}/ ==="
-    smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
-      --option='client min protocol=SMB2' \
-      -c "cd ${remote_dir}; cd \"${host_prefix}\"; ls" 2>/dev/null
+
+    echo "=== ${remote_path}/${host_prefix}/ ==="
+    if [[ -d "$remote_base" ]]; then
+      find "$remote_base" -type f -o -type d | head -200 | sed "s|$remote_base/||" | sed "s|$mnt/||" | sort
+    else
+      echo "  (no files yet — run backup first)"
+    fi
     echo ""
-    echo "=== ${remote_dir}/ (top-level) ==="
-    smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
-      --option='client min protocol=SMB2' \
-      -c "cd ${remote_dir}; ls" 2>/dev/null
+
+    echo "=== Mounted share (top) ==="
+    ls -la "$mnt" 2>/dev/null | head -20
+    echo ""
+
+    echo "=== Mapped at: $mnt ==="
+    echo "Browse locally: file://$mnt"
     echo ""
     echo "(Press any key to close)"
     read -r -n 1 2>/dev/null || true
     ;;
+
+  status)
+    data=$(load_config)
+    addr=$(echo "$data" | jq -r '.address // ""')
+    share=$(echo "$data" | jq -r '.share // ""')
+    mnt=$(mount_point "$data")
+
+    if [[ -z "$addr" || -z "$share" ]]; then
+      echo '{"ok":true,"config":false,"mounted":false}'
+      exit 0
+    fi
+
+    if mountpoint -q "$mnt" 2>/dev/null; then
+      echo "{\"ok\":true,\"config\":true,\"mounted\":true,\"mount\":\"$mnt\"}"
+    else
+      echo "{\"ok\":true,\"config\":true,\"mounted\":false}"
+    fi
+    ;;
+
   save-config)
     save_config
     ;;
+
   load-config)
     load_config
     ;;
+
   *)
     usage
     ;;

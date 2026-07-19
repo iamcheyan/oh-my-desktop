@@ -120,6 +120,13 @@ class Model:
                 "",
                 "Press e to edit config file directly in vi.",
             ]
+        # Load last compare result from cache
+        try:
+            with open(os.path.join(STATE_DIR, "last-compare.json")) as f:
+                self.compare_result = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.compare_result = None
+
         self.has_config = bool(self.config.get("address"))
         self._refresh_item_rows()
         self._run_compare()
@@ -154,11 +161,22 @@ class Model:
         except FileNotFoundError as e:
             return [], str(e)
 
+    def _parse_json_line(self, lines):
+        """Find and parse the last JSON line from output lines."""
+        for l in reversed(lines):
+            l = l.strip()
+            if l.startswith("{"):
+                try:
+                    return json.loads(l), l
+                except json.JSONDecodeError:
+                    pass
+        return None, None
+
     def test_connection(self):
         if self.busy:
             return
         self.busy = True
-        self.message = "Testing…"
+        self.message = "Testing\u2026"
         self.dirty = True
         self.append_log("$ test connection")
         self._save_temp_config()
@@ -172,22 +190,20 @@ class Model:
                 self.message = "Test failed"
                 self.append_log(f"  error: {err}")
             elif lines:
-                try:
-                    data = json.loads("".join(lines))
-                    if data.get("ok"):
-                        self.test_result = "ok"
-                        self.test_error = ""
-                        self.message = "Connection OK"
-                        self.append_log(f"  connected · shares: {data.get('shares', '?')}")
-                    else:
-                        self.test_result = "error"
-                        self.test_error = data.get("error", "unknown")
-                        self.message = "Connection failed"
-                        self.append_log(f"  error: {self.test_error}")
-                except json.JSONDecodeError:
+                for l in lines:
+                    l = l.strip()
+                    if l and not l.startswith("{"):
+                        self.append_log(f"  {l}")
+                data, _ = self._parse_json_line(lines)
+                if data and data.get("ok"):
+                    self.test_result = "ok"
+                    self.test_error = ""
+                    self.message = "Connection OK"
+                else:
                     self.test_result = "error"
-                    self.test_error = "unparseable response"
-                    self.message = "Test failed"
+                    self.test_error = (data or {}).get("error", "unknown")
+                    self.message = "Connection failed"
+                    self.append_log(f"  error: {self.test_error}")
             self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
@@ -214,22 +230,20 @@ class Model:
                 self.message = "Backup failed"
                 self.append_log(f"  error: {err}")
             else:
-                try:
-                    data = json.loads("".join(lines))
-                    if data.get("ok"):
-                        self.last_sync_ok = True
-                        elapsed = data.get("elapsed", 0)
-                        self.message = f"Backup done ({elapsed}s)"
-                        self.append_log(f"  completed in {elapsed}s")
-                    else:
-                        self.last_sync_ok = False
-                        self.message = "Backup failed"
-                        self.append_log(f"  error: {data.get('error', 'unknown')}")
-                except json.JSONDecodeError:
-                    self.last_sync_ok = True  # assume success if no parse error
-                    self.message = "Backup done"
-                    for l in lines:
+                for l in lines:
+                    l = l.strip()
+                    if l and not l.startswith("{"):
                         self.append_log(f"  {l}")
+                data, _ = self._parse_json_line(lines)
+                if data and data.get("ok"):
+                    self.last_sync_ok = True
+                    elapsed = data.get("elapsed", 0)
+                    self.message = f"Backup done ({elapsed}s)"
+                else:
+                    self.last_sync_ok = False
+                    err_msg = (data or {}).get("error", "unknown")
+                    self.message = "Backup failed"
+                    self.append_log(f"  error: {err_msg}")
             self._refresh_item_rows()
             self._run_compare()
 
@@ -377,18 +391,15 @@ def hero_info(model):
             subtitle_parts.append(f"last sync {model.last_sync_time}")
         subtitle = " · ".join(subtitle_parts) if subtitle_parts else "File share backup"
         tone = "muted"
+
     status_text = ""
+    # Sync status has precedence for top-right status indicator and overall tone
     if not model.has_config:
         status_text = ""
-    elif model.busy:
-        status_text = "Backing up…"
-        tone = "ok"
-    elif model.test_result == "error":
-        status_text = "Disconnected"
-        tone = "danger"
-    elif model.test_result != "ok":
-        status_text = "Not tested"
         tone = "muted"
+    elif model.busy:
+        status_text = "Syncing..."
+        tone = "warn"
     elif model.compare_result:
         ns = model.compare_result.get("needs_sync", 0)
         if ns > 0:
@@ -398,8 +409,17 @@ def hero_info(model):
             status_text = "Synced"
             tone = "ok"
     else:
-        status_text = "Connected"
-        tone = "ok"
+        # Fallback to test connection result
+        if model.test_result == "ok":
+            status_text = "Connected"
+            tone = "ok"
+        elif model.test_result == "error":
+            status_text = "Disconnected"
+            tone = "danger"
+        else:
+            status_text = "Not checked"
+            tone = "muted"
+
     msg = ""
     if model.busy:
         msg = "working…"
@@ -525,6 +545,7 @@ def render_actions(model):
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
     lines.append(S.action_line("s", "Save config", enabled))
     lines.append(S.action_line("e", "Edit config file", enabled))
+    lines.append(S.action_line("u", "Unmount share", enabled and has_config))
     lines.append(S.action_line("r", "Refresh", enabled))
     return lines
 
@@ -534,30 +555,60 @@ def render_item_table(model, width):
     rows = model.item_rows
     if not rows:
         return [("muted", "  (no items configured)")]
+    
     # Column widths
-    avail = width - 8  # 2 padding on each side + 4 gaps
-    name_w = max(12, avail - 5 - 7 - 8 - 10 - 14)  # type(5)+files(7)+changes(8)+backed(10)+status(14)=44
+    avail = width - 8  # padding and spacing
+    name_w = max(12, avail - 5 - 6 - 7 - 8 - 10)  # Type(5) + Files(6) + Changes(7) + Backed(8) + margin
     if name_w < 10:
         name_w = 10
+        
+    def format_col_left(text, col_w):
+        text = str(text)
+        w = S.text_width(text)
+        if w > col_w:
+            return S.truncate(text, col_w)
+        return text + " " * (col_w - w)
+
+    def format_col_right(text, col_w):
+        text = str(text)
+        w = S.text_width(text)
+        if w > col_w:
+            return S.truncate(text, col_w)
+        return " " * (col_w - w) + text
+
     lines = []
-    # Header — use short labels
-    hdr = f"  {'Name'.ljust(name_w)} {'Type':<5} {'Files':>6} {'Changes':>7} {'Backed':<8} Status"
+    # Header — align type, files, changes, backed, status
+    hdr_name = format_col_left("Name", name_w)
+    hdr_type = format_col_left("Type", 5)
+    hdr_files = format_col_right("Files", 6)
+    hdr_changes = format_col_right("Changes", 7)
+    hdr_backed = format_col_left("Backed", 8)
+    hdr = f"  {hdr_name} {hdr_type} {hdr_files} {hdr_changes} {hdr_backed} Status"
     lines.append(("muted", hdr))
-    lines.append(("muted", "  " + "─" * (len(hdr.strip()))))
+    lines.append(("muted", "  " + "─" * (S.text_width(hdr.strip()))))
+
     for row in rows:
-        name = S.truncate(row["name"], name_w)
-        typ = row["type"]
-        backed = row["last_backup"] if row["last_backup"] else "—"
+        name = format_col_left(row["name"], name_w)
+        typ = format_col_left(row["type"], 5)
+        
         # Files and changes counts
         total_f = row.get("total_files", 0)
         new_f = row.get("new_files", 0)
         mod_f = row.get("modified_files", 0)
         changes = new_f + mod_f
+        
         files_str = str(total_f) if total_f > 0 else "—"
         if changes > 0:
             ch_str = f"+{changes}"
         else:
             ch_str = "✓" if total_f > 0 else "—"
+            
+        files_col = format_col_right(files_str, 6)
+        changes_col = format_col_right(ch_str, 7)
+        
+        backed_time = row["last_backup"] if row["last_backup"] else "—"
+        backed_col = format_col_left(backed_time, 8)
+        
         # Status
         if not row["exists"]:
             status = "⚠ Missing"
@@ -565,13 +616,14 @@ def render_item_table(model, width):
         elif changes > 0:
             status = f"🔄 {changes} pending"
             st_tag = "warn"
-        elif backed != "—":
+        elif backed_time != "—":
             status = "✅ Synced"
             st_tag = "ok"
         else:
             status = "○ Pending"
             st_tag = "muted"
-        line = f"  {name:<{name_w}} {typ:<5} {files_str:>6} {ch_str:>7} {backed:<8} {status}"
+            
+        line = f"  {name} {typ} {files_col} {changes_col} {backed_col} {status}"
         lines.append((st_tag, line))
     return lines
 
@@ -751,6 +803,20 @@ def handle_key(stdscr, model, key):
         return True
     if key == ord('l'):
         view_remote_files(model)
+        return True
+    if key == ord('u'):
+        model.append_log("$ unmount share")
+        model.dirty = True
+        def _cb():
+            lines, err = model.run_backend("unmount")
+            if err:
+                model.append_log(f"  error: {err}")
+            else:
+                for l in lines:
+                    if l.strip():
+                        model.append_log(f"  {l}")
+            model.dirty = True
+        threading.Thread(target=_cb, daemon=True).start()
         return True
     if key == ord('s'):
         model.save_config()
