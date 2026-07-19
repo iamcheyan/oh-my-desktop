@@ -379,22 +379,6 @@ class StatusModel:
         self.dirty = True
 
 
-# ── composite layout helpers (shared across all settings TUIs) ───────────
-def draw_hero(stdscr, hero_tuple):
-    """Render the standard 2-row hero block produced by hero_line().
-
-    Layout (rows 0-1):
-        ● Title  message
-        subtitle
-    """
-    dot, da, title, ta, msg, ma, sub = hero_tuple
-    safe_addstr(stdscr, 0, 1, dot, da)
-    safe_addstr(stdscr, 0, 2, title, ta)
-    if msg:
-        safe_addstr(stdscr, 0, 2 + text_width(title) + 1, msg, ma)
-    safe_addstr(stdscr, 1, 2, sub, ATTR_MUTED)
-
-
 def draw_help_bar(stdscr, items):
     """Render the context-sensitive help line at the bottom row."""
     h, _ = stdscr.getmaxyx()
