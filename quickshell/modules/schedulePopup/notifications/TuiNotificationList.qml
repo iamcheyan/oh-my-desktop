@@ -281,6 +281,10 @@ Item {
 
     } // column
 
+    function openMutedEditor() {
+        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-edit-muted-apps`]);
+    }
+
     component TuiToggle: Rectangle {
         id: toggle
 
