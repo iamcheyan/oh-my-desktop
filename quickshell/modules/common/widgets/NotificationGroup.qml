@@ -106,11 +106,11 @@ MouseArea {
         anchors.left: parent.left
         anchors.leftMargin: root.xOffset
         width: parent.width
-        radius: root.singleNotification ? 8 : TuiStyle.radius
+        radius: 8
         clip: true
-        color: root.singleNotification ? "transparent" : TuiStyle.bg
-        border.width: root.singleNotification ? 0 : TuiStyle.borderWidth
-        border.color: root.isCritical ? TuiStyle.danger : TuiStyle.shellBorder
+        color: TuiStyle.bg
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.shellBorder
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
         Behavior on anchors.leftMargin {
@@ -122,42 +122,20 @@ MouseArea {
             }
         }
 
-        Rectangle {
-            anchors {
-                left: parent.left
-                top: parent.top
-                bottom: parent.bottom
-            }
-            visible: !root.singleNotification
-            width: root.isCritical ? TuiStyle.borderWidth : 0
-            color: TuiStyle.danger
-        }
-
         ColumnLayout {
             anchors.fill: parent
             spacing: 0
 
-            Rectangle {
+            Item {
                 id: titlebar
                 Layout.fillWidth: true
                 visible: !root.singleNotification
-                implicitHeight: visible ? 32 : 0
-                radius: TuiStyle.radius
-                color: root.isCritical ? TuiStyle.dangerPanel
-                    : TuiStyle.surfaceRaised
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: parent.radius
-                    color: parent.color
-                }
+                implicitHeight: visible ? 28 : 0
 
                 RowLayout {
                     anchors {
                         fill: parent
-                        leftMargin: 12 + (root.isCritical ? 4 : 0)
+                        leftMargin: 12
                         rightMargin: 10
                     }
                     spacing: 8
@@ -168,7 +146,7 @@ MouseArea {
                         elide: Text.ElideRight
                         maximumLineCount: 1
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         color: TuiStyle.fg
                     }
 
@@ -176,14 +154,14 @@ MouseArea {
                         visible: root.isCritical
                         text: "critical"
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         color: TuiStyle.danger
                     }
 
                     StyledText {
                         text: NotificationUtils.getFriendlyNotifTimeString(notificationGroup?.time)
                         font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.monospace
+                        font.family: Appearance.font.family.main
                         color: TuiStyle.dim
                     }
 
@@ -193,17 +171,6 @@ MouseArea {
                         fontSize: Appearance.font.pixelSize.smaller
                         onClicked: root.toggleExpanded()
                     }
-                }
-
-                Rectangle {
-                    anchors {
-                        left: parent.left
-                        right: parent.right
-                        bottom: parent.bottom
-                    }
-                    height: 1
-                    color: TuiStyle.line
-                    opacity: TuiStyle.dividerOpacity
                 }
             }
 

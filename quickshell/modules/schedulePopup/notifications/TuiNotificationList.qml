@@ -348,9 +348,9 @@ Item {
             ? hubContent.implicitHeight + 12
             : standardContent.implicitHeight + 12
         height: implicitHeight
-        radius: row.hubStyle ? 0 : 6
+        radius: 6
         color: rowHover.hovered || expanded ? TuiStyle.surfaceHover
-            : TuiStyle.surfaceSubtle
+            : "transparent"
         border.width: 0
 
         Behavior on color {
@@ -371,17 +371,6 @@ Item {
                 else if (row.interactive)
                     root.toggleExpanded(row.notificationObject.notificationId);
             }
-        }
-
-        // Critical left bar
-        Rectangle {
-            visible: row.critical && !row.hubStyle
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: 3
-            radius: 2
-            color: TuiStyle.danger
         }
 
         // ── Hub style (compact, for OSK/sidebar) ──
@@ -434,16 +423,6 @@ Item {
             }
         }
 
-        Rectangle {
-            visible: row.hubStyle
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: 1
-            color: TuiStyle.line
-            opacity: TuiStyle.dividerOpacity
-        }
-
         // ── Standard style (for bar notification center) ──
         RowLayout {
             id: standardContent
@@ -452,7 +431,7 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            anchors.leftMargin: row.critical ? 15 : 12
+            anchors.leftMargin: 12
             anchors.rightMargin: 10
             anchors.topMargin: 8
             anchors.bottomMargin: 8

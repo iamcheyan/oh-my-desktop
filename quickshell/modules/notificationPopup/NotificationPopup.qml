@@ -15,15 +15,24 @@ Scope {
         id: root
         visible: (Notifications.popupList.length > 0) && !GlobalStates.screenLocked
         screen: Quickshell.screens.find(s => Config.options.notifications.forceMonitor.enable ? s.name === Config.options.notifications.forceMonitor.name : s.name === Hyprland.focusedMonitor?.name) ?? null
+        readonly property bool barOnBottom: Config.options.bar.bottom
+        readonly property real outerMargin: Appearance.sizes.elevationMargin
 
         WlrLayershell.namespace: "quickshell:notificationPopup"
         WlrLayershell.layer: WlrLayer.Overlay
+        exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
 
         anchors {
-            top: true
+            top: !root.barOnBottom
+            bottom: root.barOnBottom
             right: true
-            bottom: true
+        }
+
+        margins {
+            top: root.barOnBottom ? 0 : Appearance.sizes.barHeight + 4
+            bottom: root.barOnBottom ? Appearance.sizes.barHeight + 4 : 0
+            right: 4
         }
 
         mask: Region {
@@ -31,18 +40,18 @@ Scope {
         }
 
         color: "transparent"
-        implicitWidth: Appearance.sizes.notificationPopupWidth
+        implicitWidth: Appearance.sizes.notificationPopupWidth + root.outerMargin * 2
+        implicitHeight: Math.min(
+            listview.contentHeight + root.outerMargin * 2,
+            (root.screen?.height ?? 1080) - Appearance.sizes.barHeight - 8
+        )
 
         NotificationListView {
             id: listview
             anchors {
-                top: parent.top
-                bottom: parent.bottom
-                right: parent.right
-                rightMargin: 4
-                topMargin: Config.options.bar.bottom ? 4 : Appearance.sizes.barHeight + 8
+                fill: parent
+                margins: root.outerMargin
             }
-            implicitWidth: parent.width - Appearance.sizes.elevationMargin * 2
             popup: true
         }
     }

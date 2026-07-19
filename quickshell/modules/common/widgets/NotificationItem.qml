@@ -47,24 +47,12 @@ Item {
     Rectangle {
         id: rowBackground
         width: parent.width
-        radius: onlyNotification ? 8 : TuiStyle.miniRadius
+        radius: 8
         color: onlyNotification
-            ? (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : TuiStyle.surfaceRaised)
+            ? (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : "transparent")
             : (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : "transparent")
-        border.width: onlyNotification ? TuiStyle.borderWidth : 0
-        border.color: critical ? TuiStyle.danger : TuiStyle.shellBorder
+        border.width: 0
         implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
-
-        Rectangle {
-            anchors {
-                left: parent.left
-                top: parent.top
-                bottom: parent.bottom
-            }
-            width: root.critical ? TuiStyle.borderWidth : 0
-            radius: onlyNotification ? 8 : 0
-            color: TuiStyle.danger
-        }
 
         ColumnLayout {
             id: contentColumn
@@ -72,7 +60,7 @@ Item {
                 left: parent.left
                 right: parent.right
                 verticalCenter: parent.verticalCenter
-                leftMargin: root.horizontalPadding + (root.critical ? 6 : 0)
+                leftMargin: root.horizontalPadding
                 rightMargin: root.horizontalPadding
             }
             spacing: onlyNotification ? 6 : 2
@@ -82,18 +70,14 @@ Item {
                 visible: onlyNotification
                 spacing: 8
 
-                Item {
-                    Layout.preferredWidth: 24
-                    Layout.preferredHeight: 24
-
-                    NotificationAppIcon {
-                        anchors.centerIn: parent
-                        scale: 24 / 38
-                        appIcon: notificationObject?.appIcon || ""
-                        image: notificationObject?.image || ""
-                        summary: notificationObject?.summary || ""
-                        urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
-                    }
+                NotificationAppIcon {
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    scale: 20 / 38
+                    appIcon: notificationObject?.appIcon || ""
+                    image: notificationObject?.image || ""
+                    summary: notificationObject?.summary || ""
+                    urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
                 }
 
                 StyledText {
@@ -162,7 +146,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: onlyNotification ? 4 : 5
-                visible: root.expanded || (onlyNotification && (root.hovered || root.hasActions))
+                visible: true
                 spacing: 4
 
                 Repeater {
@@ -206,18 +190,6 @@ Item {
                     }
                 }
             }
-        }
-
-        Rectangle {
-            anchors {
-                left: parent.left
-                right: parent.right
-                bottom: parent.bottom
-            }
-            visible: !onlyNotification
-            height: 1
-            color: TuiStyle.line
-            opacity: root.expanded ? 0 : TuiStyle.dividerOpacity
         }
     }
 }

@@ -17,11 +17,10 @@ Item { // App icon
     readonly property string resolvedImage: root.image === "image://icon/network-transmit" ? "" : root.image
     property real materialIconScale: 0.57
     property real appIconScale: 0.8
-    property real smallAppIconScale: 0.49
     readonly property real baseSize: 38 * scale
     property real materialIconSize: baseSize * materialIconScale
     property real appIconSize: baseSize * appIconScale
-    property real smallAppIconSize: baseSize * smallAppIconScale
+    property real smallAppIconSize: baseSize * 0.49
 
     implicitWidth: baseSize
     implicitHeight: baseSize
@@ -30,22 +29,17 @@ Item { // App icon
         id: materialSymbolLoader
         active: root.resolvedAppIcon == "" && root.resolvedImage == ""
         anchors.fill: parent
-        sourceComponent: Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: isUrgent ? Qt.rgba(1, 0, 0, 0.12) : Qt.rgba(0.5, 0.5, 0.5, 0.12)
 
-            MaterialSymbol {
-                anchors.centerIn: parent
-                text: {
-                    const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
-                    const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
-                    return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
-                        "priority_high" : guessedIcon
-                }
-                iconSize: root.materialIconSize
-                color: isUrgent ? Appearance.colors.colError : Qt.rgba(0.5, 0.5, 0.5, 0.6)
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: {
+                const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
+                const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
+                return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
+                    "priority_high" : guessedIcon
             }
+            iconSize: root.materialIconSize
+            color: isUrgent ? Appearance.colors.colError : Qt.rgba(0.5, 0.5, 0.5, 0.6)
         }
     }
     Loader {
