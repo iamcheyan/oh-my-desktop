@@ -136,37 +136,25 @@ var keyboardRows = [][]Key{
 	},
 }
 
-type palette struct {
-	background lipgloss.Color
-	panel      lipgloss.Color
-	panelSoft  lipgloss.Color
-	line       lipgloss.Color
-	lineSoft   lipgloss.Color
-	text       lipgloss.Color
-	muted      lipgloss.Color
-	subtle     lipgloss.Color
-	accent     lipgloss.Color
-}
-
 type Model struct {
-	backend            backend.Backend
-	busy               bool
-	status             backend.Status
-	message            string
-	devices            []Device
-	selectedDeviceIdx  int
-	focusArea          int // 0: keyboard list, 1: profile settings presets list
-	selectedPresetIdx  int
-	showPicker         bool
-	pickerPresetID     string
-	pickerRow          int
-	pickerCol          int
-	profiles           Profiles
-	width              int
-	height             int
-	fnmodeAvailable    bool
-	fnmode             string
-	fnmodeValue        int
+	backend           backend.Backend
+	busy              bool
+	status            backend.Status
+	message           string
+	devices           []Device
+	selectedDeviceIdx int
+	focusArea         int // 0: keyboard list, 1: profile settings presets list
+	selectedPresetIdx int
+	showPicker        bool
+	pickerPresetID    string
+	pickerRow         int
+	pickerCol         int
+	profiles          Profiles
+	width             int
+	height            int
+	fnmodeAvailable   bool
+	fnmode            string
+	fnmodeValue       int
 }
 
 func New(b backend.Backend) Model {
@@ -257,20 +245,6 @@ func (m Model) runAction(action string) tea.Cmd {
 	}
 }
 
-func (m Model) palette() palette {
-	return palette{
-		background: ui.Background,
-		panel:      ui.Panel,
-		panelSoft:  ui.PanelSoft,
-		line:       ui.Line,
-		lineSoft:   ui.LineSoft,
-		text:       ui.Text,
-		muted:      ui.Muted,
-		subtle:     ui.Subtle,
-		accent:     ui.Accent,
-	}
-}
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -330,10 +304,10 @@ func (m *Model) mergeDevices(connected []Device) {
 	for _, dev := range connected {
 		dev.Connected = true
 		m.devices = append(m.devices, dev)
-		connectedMap[dev.HyprName] = true
+		connectedMap[deviceIdentity(dev.HyprName)] = true
 	}
-	for name, prof := range m.profiles.Devices {
-		if connectedMap[name] {
+	for _, prof := range m.profiles.Devices {
+		if prof == nil || connectedMap[deviceIdentity(prof.HyprName)] {
 			continue
 		}
 		m.devices = append(m.devices, Device{
@@ -350,6 +324,36 @@ func (m *Model) mergeDevices(connected []Device) {
 		}
 		return m.devices[i].DisplayName < m.devices[j].DisplayName
 	})
+}
+
+// Hyprland may append "-keyboard" when the same device is exposed through a
+// different connection path. Keep those names attached to one saved profile.
+func deviceIdentity(name string) string {
+	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), "-keyboard")
+}
+
+func profileWeight(prof *Profile) int {
+	if prof == nil {
+		return -1
+	}
+	return len(prof.EnabledPresets)*10 + len(prof.PresetOverrides)
+}
+
+func (m Model) profileForDevice(dev Device) (string, *Profile) {
+	identity := deviceIdentity(dev.HyprName)
+	bestKey := ""
+	var best *Profile
+	for key, prof := range m.profiles.Devices {
+		if prof == nil || deviceIdentity(prof.HyprName) != identity {
+			continue
+		}
+		if best == nil || profileWeight(prof) > profileWeight(best) ||
+			(profileWeight(prof) == profileWeight(best) && key == dev.HyprName) {
+			bestKey = key
+			best = prof
+		}
+	}
+	return bestKey, best
 }
 
 func keyboardActionMessage(action string) string {
@@ -390,8 +394,7 @@ func (m *Model) confirmPickerSelection() {
 		m.showPicker = false
 		return
 	}
-	devName := m.devices[m.selectedDeviceIdx].HyprName
-	prof := m.profiles.Devices[devName]
+	_, prof := m.profileForDevice(m.devices[m.selectedDeviceIdx])
 	if prof == nil {
 		m.showPicker = false
 		return
@@ -406,6 +409,13 @@ func (m *Model) confirmPickerSelection() {
 		m.saveProfiles()
 	}
 	m.showPicker = false
+}
+
+func (m Model) rightColRows() int {
+	if m.fnmodeAvailable {
+		return 1 + 1 + len(globalPresetChoices)
+	}
+	return 1 + len(globalPresetChoices)
 }
 
 func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
@@ -428,7 +438,7 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		if m.focusArea == 0 {
 			m.selectedDeviceIdx = min(len(m.devices)-1, m.selectedDeviceIdx+1)
 		} else {
-			m.selectedPresetIdx = min(len(globalPresetChoices), m.selectedPresetIdx+1)
+			m.selectedPresetIdx = min(m.rightColRows()-1, m.selectedPresetIdx+1)
 		}
 	case " ", "space":
 		if m.focusArea == 0 {
@@ -436,6 +446,9 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		} else {
 			if m.selectedPresetIdx == 0 {
 				m.toggleSelectedProfileEnabled()
+			} else if m.fnmodeAvailable && m.selectedPresetIdx == 1 {
+				m.busy = true
+				return m, m.cycleFnmodeCmd()
 			} else {
 				m.toggleSelectedPreset()
 			}
@@ -444,6 +457,9 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		if m.focusArea == 1 {
 			if m.selectedPresetIdx == 0 {
 				m.toggleSelectedProfileEnabled()
+			} else if m.fnmodeAvailable && m.selectedPresetIdx == 1 {
+				m.busy = true
+				return m, m.cycleFnmodeCmd()
 			} else {
 				m.triggerOverridePicker()
 			}
@@ -465,17 +481,13 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		}
 	case "f":
 		if m.fnmodeAvailable && !m.busy {
-			next := "media"
-			switch m.fnmode {
-			case "media":
-				next = "function"
-			case "function":
-				next = "auto"
-			case "auto":
-				next = "media"
-			}
 			m.busy = true
-			return m, m.setFnmode(next)
+			return m, m.cycleFnmodeCmd()
+		}
+	case "c":
+		src := m.findCopySourceProfile()
+		if src != "" {
+			m.copyProfileFrom(src)
 		}
 	case "r":
 		return m, tea.Batch(m.fetchStatus(), m.fetchDevices(), m.fetchFnmode())
@@ -483,13 +495,26 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) cycleFnmodeCmd() tea.Cmd {
+	next := "media"
+	switch m.fnmode {
+	case "media":
+		next = "function"
+	case "function":
+		next = "auto"
+	case "auto":
+		next = "media"
+	}
+	return m.setFnmode(next)
+}
+
 func (m *Model) toggleSelectedProfileEnabled() {
 	if m.selectedDeviceIdx >= len(m.devices) {
 		return
 	}
 	dev := m.devices[m.selectedDeviceIdx]
-	prof, exists := m.profiles.Devices[dev.HyprName]
-	if !exists {
+	_, prof := m.profileForDevice(dev)
+	if prof == nil {
 		prof = &Profile{
 			DisplayName:     dev.DisplayName,
 			HyprName:        dev.HyprName,
@@ -510,10 +535,9 @@ func (m *Model) toggleSelectedPreset() {
 	if m.selectedDeviceIdx >= len(m.devices) {
 		return
 	}
-	devName := m.devices[m.selectedDeviceIdx].HyprName
-	prof, exists := m.profiles.Devices[devName]
-	if !exists {
-		dev := m.devices[m.selectedDeviceIdx]
+	dev := m.devices[m.selectedDeviceIdx]
+	_, prof := m.profileForDevice(dev)
+	if prof == nil {
 		prof = &Profile{
 			DisplayName:     dev.DisplayName,
 			HyprName:        dev.HyprName,
@@ -522,10 +546,14 @@ func (m *Model) toggleSelectedPreset() {
 			EnabledPresets:  []string{},
 			PresetOverrides: make(map[string]string),
 		}
-		m.profiles.Devices[devName] = prof
+		m.profiles.Devices[dev.HyprName] = prof
 	}
 
 	presetIdx := m.selectedPresetIdx - 1
+	if m.fnmodeAvailable {
+		presetIdx = m.selectedPresetIdx - 2
+	}
+
 	if presetIdx < 0 || presetIdx >= len(globalPresetChoices) {
 		return
 	}
@@ -551,6 +579,10 @@ func (m *Model) triggerOverridePicker() {
 		return
 	}
 	presetIdx := m.selectedPresetIdx - 1
+	if m.fnmodeAvailable {
+		presetIdx = m.selectedPresetIdx - 2
+	}
+
 	if presetIdx < 0 || presetIdx >= len(globalPresetChoices) {
 		return
 	}
@@ -563,6 +595,59 @@ func (m *Model) triggerOverridePicker() {
 	m.showPicker = true
 	m.pickerRow = 0
 	m.pickerCol = 0
+}
+
+func (m *Model) findCopySourceProfile() string {
+	if m.selectedDeviceIdx >= len(m.devices) {
+		return ""
+	}
+	dev := m.devices[m.selectedDeviceIdx]
+	_, prof := m.profileForDevice(dev)
+	if prof != nil && len(prof.EnabledPresets) > 0 {
+		return ""
+	}
+
+	for name, otherProf := range m.profiles.Devices {
+		if otherProf != nil && deviceIdentity(otherProf.HyprName) != deviceIdentity(dev.HyprName) && len(otherProf.EnabledPresets) > 0 {
+			return name
+		}
+	}
+	return ""
+}
+
+func (m *Model) copyProfileFrom(sourceName string) {
+	if m.selectedDeviceIdx >= len(m.devices) || sourceName == "" {
+		return
+	}
+	dev := m.devices[m.selectedDeviceIdx]
+	source := m.profiles.Devices[sourceName]
+	if source == nil {
+		return
+	}
+
+	destKey, dest := m.profileForDevice(dev)
+	if dest == nil {
+		destKey = dev.HyprName
+		dest = &Profile{
+			DisplayName:     dev.DisplayName,
+			HyprName:        dev.HyprName,
+			KeydID:          dev.KeydID,
+			Enabled:         true,
+			EnabledPresets:  []string{},
+			PresetOverrides: make(map[string]string),
+		}
+		m.profiles.Devices[destKey] = dest
+	}
+
+	dest.EnabledPresets = make([]string, len(source.EnabledPresets))
+	copy(dest.EnabledPresets, source.EnabledPresets)
+	dest.PresetOverrides = make(map[string]string)
+	for k, v := range source.PresetOverrides {
+		dest.PresetOverrides[k] = v
+	}
+
+	m.saveProfiles()
+	m.message = "Copied presets from " + source.DisplayName
 }
 
 func (m Model) handlePickerClick(clickX, clickY int) (tea.Model, tea.Cmd) {
@@ -653,11 +738,15 @@ func (m Model) handleMainClick(clickX, clickY int) (tea.Model, tea.Cmd) {
 		if idx >= 0 {
 			if clickX >= idx-4 && clickX <= idx+len(rowText)+4 {
 				m.selectedPresetIdx = i + 1
+				if m.fnmodeAvailable {
+					m.selectedPresetIdx++
+				}
 				m.focusArea = 1
 				if preset.Type == "remap" {
-					targetText := "[ "
-					targetIdx := strings.Index(plain, targetText)
-					if targetIdx >= 0 && clickX >= targetIdx {
+					// Trailing remap target sits after the label; click past the
+					// label opens the key picker.
+					labelEnd := idx + len(rowText)
+					if clickX >= labelEnd {
 						m.triggerOverridePicker()
 						return m, nil
 					}
@@ -678,27 +767,30 @@ func (m Model) handleMainClick(clickX, clickY int) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) statusLight() string {
-	pal := m.palette()
-	style := lipgloss.NewStyle().Foreground(pal.accent)
-	if !m.status.Bool("keydRunning") {
-		style = lipgloss.NewStyle().Foreground(ui.Danger)
+func (m Model) heroTone() ui.Tone {
+	if m.status == nil {
+		return ui.ToneIdle
 	}
-	return style.Render("●")
+	if m.status.Bool("keydRunning") {
+		return ui.ToneOK
+	}
+	return ui.ToneDanger
 }
 
-func (m Model) headerView() string {
-	title := m.statusLight() + " " + ui.Title.Render("Keyboard Remap")
-	if m.busy {
-		title += " " + ui.OKText.Render("working…")
+func (m Model) heroSubtitle() string {
+	keyd := "keyd inactive"
+	if m.status != nil && m.status.Bool("keydRunning") {
+		keyd = "keyd active"
 	}
-	return title
+	n := len(m.devices)
+	pending := ""
+	if m.status != nil && m.status.Bool("pendingChanges") {
+		pending = " · pending changes"
+	}
+	return fmt.Sprintf("%s · %d devices%s", keyd, n, pending)
 }
 
 func (m Model) View() string {
-	pal := m.palette()
-	header := m.headerView()
-
 	if m.showPicker {
 		pickerView := m.renderPickerView()
 		if m.width > 0 && m.height > 0 {
@@ -707,18 +799,33 @@ func (m Model) View() string {
 		return pickerView
 	}
 
-	contentW := m.width - 4
-	contentH := m.height - 8
-	if contentW < 40 {
-		contentW = 40
+	msg := ""
+	if m.message != "" && !m.busy {
+		msg = m.message
 	}
-	if contentH < 14 {
-		contentH = 14
+	pending := ""
+	if m.status != nil && m.status.Bool("pendingChanges") {
+		pending = ui.PendingLine("a", "x")
 	}
 
-	content := ui.PreserveBackground(ui.FitBlock(m.contentView(contentW, contentH), contentW, contentH), pal.background)
+	return ui.RenderPage(ui.Page{
+		Width:  m.width,
+		Height: m.height,
+		Hero: ui.Hero("Keyboard Remap", m.heroSubtitle(), ui.HeroOpts{
+			Tone:    m.heroTone(),
+			Busy:    m.busy,
+			Message: msg,
+		}),
+		Left:    m.renderLeftColumn(),
+		Right:   m.renderRightColumn(),
+		Wide:    true,
+		Help:    m.helpItems(),
+		Pending: pending,
+	})
+}
 
-	helpItems := []string{
+func (m Model) helpItems() []string {
+	return []string{
 		ui.HelpItem("arrows", "navigate"),
 		ui.HelpItem("tab", "switch column"),
 		ui.HelpItem("space", "toggle"),
@@ -728,154 +835,91 @@ func (m Model) View() string {
 		ui.HelpItem("r", "refresh"),
 		ui.HelpItem("q", "quit"),
 	}
-
-	help := ui.HelpText(helpItems...)
-	if m.status.Bool("pendingChanges") {
-		help = help + "\n" + lipgloss.NewStyle().Foreground(pal.accent).Render("Pending changes:  ○ Apply (a)  ○ Discard (x)")
-	}
-
-	parts := []string{content, help}
-	if header != "" {
-		parts = append([]string{header}, parts...)
-	}
-
-	return lipgloss.NewStyle().Background(pal.background).Foreground(pal.text).Padding(1, 1).Render(
-		lipgloss.JoinVertical(lipgloss.Left, parts...),
-	)
 }
 
 func (m Model) renderPickerView() string {
-	pal := m.palette()
 	var b strings.Builder
 
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(pal.accent).Render("Select Target Key Override"))
+	b.WriteString(ui.OKText.Bold(true).Render("Select Target Key Override"))
 	b.WriteString("\n\n")
 
 	for rowIdx, row := range keyboardRows {
 		b.WriteString("  ")
 		for colIdx, key := range row {
 			isSel := m.pickerRow == rowIdx && m.pickerCol == colIdx
-			b.WriteString(renderKey(key, isSel, pal))
+			b.WriteString(renderKey(key, isSel))
 		}
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(pal.muted).Render("  arrows: navigate  |  Enter/Space: select  |  Esc: cancel"))
+	b.WriteString(ui.MutedText.Render("  arrows: navigate  |  Enter/Space: select  |  Esc: cancel"))
 	b.WriteString("\n")
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(pal.line).
-		Background(pal.panel).
+		BorderForeground(ui.Line).
+		Background(ui.Panel).
 		Padding(1, 2).
-		Render(b.String())
+		Render(ui.PreserveBackground(b.String(), ui.Panel))
 }
 
-func (m Model) contentView(w, h int) string {
-	leftW := 32
-	rightW := w - 35
-	if rightW < 30 {
-		rightW = 30
-	}
-
-	leftCol := m.renderLeftColumn(leftW, h)
-	rightCol := m.renderRightColumn(rightW, h)
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, "   ", rightCol)
-}
-
-func (m Model) renderLeftColumn(w, h int) string {
-	pal := m.palette()
+func (m Model) renderLeftColumn() string {
 	var b strings.Builder
 
-	statusText := "keyd: inactive"
-	statusOk := false
-	if m.status.Bool("keydRunning") {
-		statusText = "keyd: active"
-		statusOk = true
-	}
-	b.WriteString(ui.StatusPill(statusText, statusOk))
-	b.WriteString("\n\n")
-
-	b.WriteString(ui.Section.Render("CONNECTED KEYBOARDS"))
+	b.WriteString(ui.SectionTitle("Connected Keyboards"))
 	b.WriteString("\n")
 
 	for i, dev := range m.devices {
-		bullet := "○"
-		style := lipgloss.NewStyle()
-		if dev.Connected {
-			bullet = "●"
-			style = style.Foreground(pal.accent)
-		} else {
-			style = style.Foreground(pal.subtle)
-		}
-
-		if m.focusArea == 0 && i == m.selectedDeviceIdx {
-			bullet = "🔘"
-			if dev.Connected {
-				style = lipgloss.NewStyle().Background(pal.accent).Foreground(pal.background).Bold(true)
-			} else {
-				style = lipgloss.NewStyle().Background(pal.subtle).Foreground(pal.background).Bold(true)
-			}
-		}
-
-		offlineText := ""
-		if !dev.Connected {
-			offlineText = " (offline)"
-		}
-
-		b.WriteString(fmt.Sprintf("%s %s\n", bullet, style.Render(dev.DisplayName+offlineText)))
+		b.WriteString(ui.ListItem(dev.DisplayName, ui.ListItemOpts{
+			Focused:   m.focusArea == 0 && i == m.selectedDeviceIdx,
+			Connected: dev.Connected,
+			Offline:   !dev.Connected,
+		}))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(ui.Section.Render("ACTIONS"))
+	b.WriteString(ui.SectionTitle("Actions"))
 	b.WriteString("\n")
-	b.WriteString(ui.ActionButton("", "s", "Setup keyd", m.busy))
+	b.WriteString(ui.ActionLine("s", "Setup keyd", !m.busy))
 	b.WriteString("\n")
-	b.WriteString(ui.ActionButton("", "t", "Key Tester", m.busy))
+	b.WriteString(ui.ActionLine("t", "Key Tester", !m.busy))
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+func (m Model) renderRightColumn() string {
+	var b strings.Builder
+
+	if m.selectedDeviceIdx >= len(m.devices) {
+		return ui.MutedText.Render("Select a keyboard device to configure…")
+	}
+
+	dev := m.devices[m.selectedDeviceIdx]
+	_, prof := m.profileForDevice(dev)
+	exists := prof != nil
+	isEnabled := exists && prof.Enabled
+
+	b.WriteString(ui.SectionTitle("Keyboard Profile"))
+	b.WriteString("\n")
+	b.WriteString(fmt.Sprintf("Device: %s\n", ui.OKText.Bold(true).Render(dev.DisplayName)))
+	b.WriteString(fmt.Sprintf("ID:     %s\n\n", ui.MutedText.Render(dev.KeydID)))
+
+	b.WriteString(ui.ProfileEnabledLine(isEnabled, m.focusArea == 1 && m.selectedPresetIdx == 0))
 	b.WriteString("\n")
 
 	if m.fnmodeAvailable {
 		b.WriteString("\n")
-		b.WriteString(ui.Section.Render("APPLE KEYBOARD"))
+		b.WriteString(ui.SectionTitle("Function Row"))
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("Fn Row Mode: %s\n", ui.ActionButton("", "f", "< "+m.fnmode+" >", m.busy)))
+		b.WriteString(ui.CycleLine("Fn Row Mode", m.fnmode, "f", m.focusArea == 1 && m.selectedPresetIdx == 1))
+		b.WriteString("\n")
 	}
 
-	return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
-}
-
-func (m Model) renderRightColumn(w, h int) string {
-	pal := m.palette()
-	var b strings.Builder
-
-	if m.selectedDeviceIdx >= len(m.devices) {
-		b.WriteString(lipgloss.NewStyle().Foreground(pal.muted).Render("Select a keyboard device to configure..."))
-		return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
-	}
-
-	dev := m.devices[m.selectedDeviceIdx]
-	prof, exists := m.profiles.Devices[dev.HyprName]
-
-	isEnabled := exists && prof.Enabled
-	enabledBullet := "[ ]"
-	if isEnabled {
-		enabledBullet = "[X]"
-	}
-
-	b.WriteString(ui.Section.Render("KEYBOARD PROFILE"))
 	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("Device: %s\n", lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render(dev.DisplayName)))
-	b.WriteString(fmt.Sprintf("ID:     %s\n\n", lipgloss.NewStyle().Foreground(pal.muted).Render(dev.KeydID)))
-
-	profileStyle := lipgloss.NewStyle().Foreground(pal.text)
-	if m.focusArea == 1 && m.selectedPresetIdx == 0 {
-		profileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-	}
-	b.WriteString(profileStyle.Render(fmt.Sprintf("Profile: %s Enabled\n\n", enabledBullet)))
-
-	b.WriteString(ui.Section.Render("PRESETS"))
+	b.WriteString(ui.SectionTitle("Presets"))
 	b.WriteString("\n")
 
 	for i, preset := range globalPresetChoices {
@@ -889,28 +933,13 @@ func (m Model) renderRightColumn(w, h int) string {
 			}
 		}
 
-		bullet := "[ ]"
-		if active {
-			bullet = "[X]"
+		presetRow := i + 1
+		if m.fnmodeAvailable {
+			presetRow++
 		}
+		focused := m.focusArea == 1 && m.selectedPresetIdx == presetRow
 
-		presetStyle := lipgloss.NewStyle().Foreground(pal.text)
-		overrideStyle := lipgloss.NewStyle().Foreground(pal.accent)
-
-		if !isEnabled {
-			presetStyle = lipgloss.NewStyle().Foreground(pal.subtle)
-			overrideStyle = lipgloss.NewStyle().Foreground(pal.subtle)
-		}
-
-		if m.focusArea == 1 && m.selectedPresetIdx == i+1 {
-			if isEnabled {
-				presetStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-			} else {
-				presetStyle = lipgloss.NewStyle().Foreground(pal.muted).Bold(true).Underline(true)
-			}
-		}
-
-		overrideText := ""
+		trailing := ""
 		if preset.Type == "remap" {
 			target := preset.DefaultTo
 			if exists && prof.PresetOverrides != nil {
@@ -918,16 +947,21 @@ func (m Model) renderRightColumn(w, h int) string {
 					target = val
 				}
 			}
-			overrideText = fmt.Sprintf("  [ %s ]", target)
+			trailing = target
 		}
 
-		b.WriteString(fmt.Sprintf("%s %s%s\n", bullet, presetStyle.Render(preset.Label), overrideStyle.Render(overrideText)))
+		b.WriteString(ui.ToggleLine(active, preset.Label, ui.ToggleOpts{
+			Focused:  focused,
+			Dimmed:   !isEnabled,
+			Trailing: trailing,
+		}))
+		b.WriteString("\n")
 	}
 
-	return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
+	return b.String()
 }
 
-func renderKey(k Key, isSelected bool, pal palette) string {
+func renderKey(k Key, isSelected bool) string {
 	content := k.Label
 	innerW := k.W - 2
 	if innerW < 1 {
@@ -942,12 +976,12 @@ func renderKey(k Key, isSelected bool, pal palette) string {
 
 	if isSelected {
 		return lipgloss.NewStyle().
-			Foreground(pal.background).
-			Background(pal.accent).
+			Foreground(ui.Background).
+			Background(ui.Accent).
 			Bold(true).
 			Render("[" + padded + "]")
 	}
 	return lipgloss.NewStyle().
-		Foreground(pal.text).
+		Foreground(ui.Text).
 		Render("[" + padded + "]")
 }

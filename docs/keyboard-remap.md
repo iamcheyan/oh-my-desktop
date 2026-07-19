@@ -77,9 +77,17 @@ Bar [keyboard icon] ──click──► BarStatusPopup (keyremap)
 }
 ```
 
-- **Profile key** = Hyprland keyboard `name` (stable across reconnect for same device).
+- **Profile key** = the first saved Hyprland keyboard `name`. The raw name is
+  not always stable across connection paths: the same keyboard may appear as
+  `minila-r-convertible` over one path and
+  `minila-r-convertible-keyboard` over another. OMD strips the optional
+  `-keyboard` suffix when matching devices, so both names resolve to one
+  logical profile instead of creating an empty duplicate.
 - **displayName** = friendly label (editable; defaults from device name).
-- **keydId** = `vvvv:pppp` vendor:product (without keyd `k:` prefix). OMD adds the `k:` prefix when emitting `[ids]` blocks. Resolved from `/proc/bus/input/devices`.
+- **keydId** = `vvvv:pppp` vendor:product (without keyd `k:` prefix). OMD adds
+  the `k:` prefix when emitting `[ids]` blocks. A saved ID is a fallback only:
+  USB and Bluetooth paths can expose different IDs, so config generation uses
+  the currently connected device's ID from `/proc/bus/input/devices`.
 - **enabledPresets** = fixed per-keyboard toggles from Settings Center.
   Current presets include `alt-win-swap`, `ctrl-caps-swap`,
   `grave-esc-swap`, `caps-esc`, `muhenkan-meta`, `meta-f13`,
@@ -111,6 +119,11 @@ leftalt = leftmeta
 ```
 
 Devices with remaps but no `keydId` are skipped with a `## WARN` comment and surfaced in the UI. Disabled profiles are omitted. Apply runs `pkexec` to install `/etc/keyd/omd.conf` and `systemctl restart keyd`. A polkit rule (`share/polkit-1/rules.d/50-omd-keyboard.rules`) allows active users to apply without a password; install it via `omarchy-keyboard-setup`.
+
+The left column is only the keyboard selector. Device-specific controls and
+the Apple HID Fn-row mode control live in the right detail column. Fn mode is
+machine-level rather than profile data, but it remains interactive there via
+keyboard navigation, Enter/Space, mouse click, or the `f` shortcut.
 
 Generation is shared by:
 
@@ -260,7 +273,9 @@ Validated on **MINILA-R Convertible Keyboard** (Bluetooth, `event28`).
 | 全角/半角 | `ZENKAKU_HANKAKU` | `grave` | `grave` ↔ `esc` |
 | 無変換 | `Muhenkan` | `muhenkan` | `muhenkan` ↔ `leftmeta` |
 
-Profile example: `keyboard-remap/profiles.json` → `minila-r-convertible-keyboard`.
+Profile example: `keyboard-remap/profiles.json` → `minila-r-convertible`.
+When Bluetooth reports `minila-r-convertible-keyboard`, OMD reuses this same
+profile and renders it against the live Bluetooth ID `0a5c:8502`.
 
 ### Fn keys — not capturable alone
 

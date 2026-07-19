@@ -33,10 +33,14 @@ func TestKeyboardPage(t *testing.T) {
 		},
 	}
 
-	// 1. Assert simple rendering
+	// 1. Assert simple rendering (series shell + Title Case sections)
+	m.width, m.height = 120, 40
 	view := m.View()
-	if !strings.Contains(view, "CONNECTED KEYBOARDS") || !strings.Contains(view, "minila-r-convertible") {
+	if !strings.Contains(view, "Connected Keyboards") || !strings.Contains(view, "minila-r-convertible") {
 		t.Fatal("keyboard view is missing device list or section headers")
+	}
+	if !strings.Contains(view, "Keyboard Remap") {
+		t.Fatal("keyboard view is missing shared hero title")
 	}
 
 	// 2. Toggle Profile Enabled
@@ -103,5 +107,52 @@ func TestKeyboardPicker(t *testing.T) {
 	}
 	if m.showPicker {
 		t.Fatal("picker modal did not close after confirming selection")
+	}
+}
+
+func TestConnectedKeyboardUsesConfiguredAliasProfile(t *testing.T) {
+	m := Model{
+		profiles: Profiles{
+			Version: 1,
+			Devices: map[string]*Profile{
+				"minila-r-convertible": {
+					HyprName:       "minila-r-convertible",
+					Enabled:        true,
+					EnabledPresets: []string{"alt-win-swap", "grave-esc-swap"},
+				},
+			},
+		},
+	}
+	connected := Device{
+		HyprName:    "minila-r-convertible-keyboard",
+		DisplayName: "MINILA-R Convertible Keyboard",
+		KeydID:      "0a5c:8502",
+	}
+
+	m.mergeDevices([]Device{connected})
+	if len(m.devices) != 1 {
+		t.Fatalf("expected one logical keyboard, got %d", len(m.devices))
+	}
+	_, profile := m.profileForDevice(connected)
+	if profile == nil || len(profile.EnabledPresets) != 2 {
+		t.Fatal("connected alias did not resolve to the configured profile")
+	}
+}
+
+func TestFnModeRendersOnlyInRightColumn(t *testing.T) {
+	m := Model{
+		devices: []Device{{HyprName: "apple-spi-keyboard", DisplayName: "Apple SPI Keyboard"}},
+		profiles: Profiles{Version: 1, Devices: map[string]*Profile{
+			"apple-spi-keyboard": {HyprName: "apple-spi-keyboard", Enabled: true},
+		}},
+		fnmodeAvailable: true,
+		fnmode:          "media",
+	}
+
+	if strings.Contains(m.renderLeftColumn(), "Fn Row Mode") {
+		t.Fatal("Fn mode control should not render in the keyboard list")
+	}
+	if !strings.Contains(m.renderRightColumn(), "Fn Row Mode") {
+		t.Fatal("Fn mode control is missing from the detail column")
 	}
 }

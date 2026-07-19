@@ -24,7 +24,10 @@ CONNECTED_JSON="$("$LIST_KEYBOARDS" 2>/dev/null || printf '[]')"
     echo
 
     jq -r --argjson connected "$CONNECTED_JSON" '
-        ($connected | map({key: .hyprName, value: true}) | from_entries) as $connectedByHyprName |
+        def device_identity:
+          ascii_downcase | sub("-keyboard$"; "");
+
+        ($connected | map({key: (.hyprName | device_identity), value: .}) | from_entries) as $connectedByIdentity |
 
         def preset_remaps($id; $overrides):
           # Get base remaps, then apply per-device overrides for remap-type presets
@@ -81,15 +84,16 @@ CONNECTED_JSON="$("$LIST_KEYBOARDS" 2>/dev/null || printf '[]')"
 
         .devices
         | to_entries[]
-        | select($connectedByHyprName[.key] == true)
-        | select(.value.enabled != false)
         | . as $dev
+        | ($connectedByIdentity[($dev.value.hyprName | device_identity)] // null) as $connectedDevice
+        | select($connectedDevice != null)
+        | select(.value.enabled != false)
         | ($dev.value.enabledPresets // []) as $deviceEnabled
         | ($dev.value.presetOverrides // {}) as $overrides
         | preset_rows($deviceEnabled; $overrides) as $deviceRemaps
         | clean_remaps($deviceRemaps) as $remaps
         | select($remaps | length > 0)
-        | ($dev.value.keydId // "") as $id
+        | ($connectedDevice.keydId // $dev.value.keydId // "") as $id
         | if ($id | length) > 0 then
             "[ids]\nk:" + $id + "\n\n[main]\n"
             + ($remaps
