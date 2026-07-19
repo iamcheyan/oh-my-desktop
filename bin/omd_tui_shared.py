@@ -12,6 +12,7 @@ import os
 import queue
 import subprocess
 import threading
+import time
 import unicodedata
 
 OMD_ROOT = os.environ.get("OMD_ROOT", os.path.expanduser("~/development/OMD"))
@@ -308,7 +309,7 @@ def draw_lines_in_area(win, y, x, h, w, tagged_lines):
             break
         safe_addstr(win, inner_y + i, x + 2, truncate(text, inner_w), TAG_STYLE.get(tag, ATTR_TEXT))
 
-def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0):
+def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0, empty_text="(no activity yet)"):
     inner_y = y + 1
     inner_h = h - 2
     inner_w = w - 4
@@ -317,7 +318,7 @@ def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0):
         wrapped.extend(wrap_text(line, inner_w))
     total = len(wrapped)
     if total == 0:
-        safe_addstr(win, inner_y, x + 2, "(no activity yet)", ATTR_MUTED)
+        safe_addstr(win, inner_y, x + 2, empty_text, ATTR_MUTED)
         return
     start = max(0, total - inner_h - scroll_offset)
     end = min(total, start + inner_h)
@@ -339,6 +340,154 @@ def help_text(items):
     for k, l in items:
         parts.append(f"{k}: {l}")
     return "  ".join(parts)
+
+
+# ── model ────────────────────────────────────────────────────────────────
+
+class StatusModel:
+    """Common model fields for TUI pages backed by a status-command schema.
+
+    Provides ``width``, ``height``, ``status``, ``logs``, ``selected``,
+    ``scroll_offset``, ``busy``, ``refreshing``, ``message``, ``err``, and
+    ``dirty``.  The ``val()`` / ``boo()`` helpers read the ``status`` dict.
+    ``append_log()`` keeps the last 200 lines.
+    """
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.status = {}
+        self.logs = []
+        self.selected = 0
+        self.scroll_offset = 0
+        self.busy = False
+        self.refreshing = False
+        self.message = ""
+        self.err = ""
+        self.dirty = True
+
+    def val(self, key, fallback=""):
+        return self.status.get(key, fallback)
+
+    def boo(self, key):
+        return self.status.get(key) == "true"
+
+    def append_log(self, text):
+        self.logs.append(text)
+        if len(self.logs) > 200:
+            self.logs = self.logs[-200:]
+        self.scroll_offset = 0
+        self.dirty = True
+
+
+# ── composite layout helpers (shared across all settings TUIs) ───────────
+def draw_hero(stdscr, hero_tuple):
+    """Render the standard 2-row hero block produced by hero_line().
+
+    Layout (rows 0-1):
+        ● Title  message
+        subtitle
+    """
+    dot, da, title, ta, msg, ma, sub = hero_tuple
+    safe_addstr(stdscr, 0, 1, dot, da)
+    safe_addstr(stdscr, 0, 2, title, ta)
+    if msg:
+        safe_addstr(stdscr, 0, 2 + text_width(title) + 1, msg, ma)
+    safe_addstr(stdscr, 1, 2, sub, ATTR_MUTED)
+
+
+def draw_help_bar(stdscr, items):
+    """Render the context-sensitive help line at the bottom row."""
+    h, _ = stdscr.getmaxyx()
+    safe_addstr(stdscr, h - 1, 1, help_text(items), ATTR_SUBTLE)
+
+
+def finish_frame(stdscr):
+    """Mark a frame complete: noutrefresh + doupdate."""
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+def run_tui_loop(stdscr, model, view, handle_key, *,
+                poll_timeout=200,
+                refresh_interval=None,
+                refresh_callback=None,
+                show_cursor=False):
+    """Standard curses event loop shared by all settings TUIs.
+
+    - Initialises colours, mouse, ESC delay, cursor visibility.
+    - Calls ``view(stdscr, model)`` whenever ``model.dirty`` is set.
+    - Polls ``stdscr.getch()`` with ``poll_timeout`` ms and dispatches to
+      ``handle_key(stdscr, model, key)`` (return Falsey to exit the loop).
+    - Optionally calls ``refresh_callback(model)`` once at least
+      ``refresh_interval`` seconds have elapsed since the last refresh.
+    - ``poll_timeout`` and ``refresh_interval`` may be numbers or callables
+      ``model -> number`` so the cadence can vary with application state
+      (e.g. voice trial listening uses a shorter interval).
+    - Restores mouse state on exit; ``KeyboardInterrupt`` exits cleanly.
+    """
+    init_colors()
+    enable_mouse()
+    if not show_cursor:
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
+    curses.set_escdelay(1)
+    model.dirty = True
+    try:
+        while True:
+            drain_callbacks()
+            if model.dirty:
+                view(stdscr, model)
+                model.dirty = False
+
+            if refresh_callback is not None and refresh_interval is not None:
+                ri = refresh_interval(model) if callable(refresh_interval) else refresh_interval
+                if ri and ri > 0:
+                    now = time.time()
+                    last = getattr(model, "last_tick", now)
+                    if now - last >= ri:
+                        model.last_tick = now
+                        refresh_callback(model)
+
+            pt = poll_timeout(model) if callable(poll_timeout) else poll_timeout
+            stdscr.timeout(max(1, int(pt)))
+
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not handle_key(stdscr, model, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        disable_mouse()
+
+
+def two_column_widths(content_w, *, left_w=34, right_min=28, gap=0):
+    """Resolve (left_w, right_w) for the standard two-column settings layout.
+
+    Guarantees the right column is at least ``right_min`` columns wide;
+    shrinks the left column (down to a floor of 22) when space is tight.
+    Returns ``(content_w, 0)`` when there is no room for two columns.
+    """
+    if left_w < 22:
+        left_w = 22
+    right_w = content_w - left_w - gap
+    if right_w < right_min:
+        right_w = max(right_min, content_w - max(22, content_w - right_min) - gap)
+        left_w = max(22, content_w - right_w - gap)
+    if right_w < right_min:
+        return content_w, 0
+    return left_w, right_w
+
+
+def draw_focus_border(stdscr, focused, y, x, h, w, title=""):
+    """Border that uses the thick/rounded style when the panel is focused."""
+    if focused:
+        draw_thick_border(stdscr, y, x, h, w, title)
+    else:
+        draw_border(stdscr, y, x, h, w, title)
 
 # ── visual primitives (port of Go ui/*.go) ────────────────────────────────
 

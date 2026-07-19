@@ -16,19 +16,11 @@ Three-panel bordered layout with full feature parity:
 import curses
 import json
 import os
-import subprocess
 import sys
-import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import importlib
-import importlib.util
-_shared_spec = importlib.util.spec_from_file_location(
-    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
-_shared = importlib.util.module_from_spec(_shared_spec)
-_shared_spec.loader.exec_module(_shared)
-S = _shared
+import omd_tui_shared as S
 
 # ── keyboard layout for visual key picker ────────────────────────────────
 KEYBOARD_ROWS = [
@@ -75,25 +67,17 @@ FN_MODES = ["media", "function", "auto"]
 
 
 # ── data model ───────────────────────────────────────────────────────────
-class Model:
+class Model(S.StatusModel):
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.status = {}
-        self.devices = []
-        self.logs = [
+        super().__init__()
+        self.logs[:] = [
             "Keyboard Remap ready.",
             "Toggle presets, then Apply (a) to write /etc/keyd/omd.conf.",
         ]
-        self.selected = 0
+        self.devices = []
         self.selected_preset = 0
         self.focus_area = 0  # 0=devices, 1=right panel
-        self.busy = False
-        self.refreshing = False
-        self.message = ""
         self.pending_changes = False
-        self.dirty = True
-        self.scroll_offset = 0
         self.last_apply_ok = None  # True/False/None
         self.fnmode_available = False
         self.fnmode = "media"
@@ -107,12 +91,6 @@ class Model:
         self.profiles = {"version": 1, "devices": {}}
         self.load_profiles()
         self.refresh()
-
-    def val(self, key, fallback=""):
-        return self.status.get(key, fallback)
-
-    def boo(self, key):
-        return self.status.get(key) == "true"
 
     def load_profiles(self):
         profiles_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
@@ -273,12 +251,6 @@ class Model:
         self.busy = True
         self.set_fnmode(next_mode)
 
-    def append_log(self, text):
-        self.logs.append(text)
-        if len(self.logs) > 200:
-            self.logs = self.logs[-200:]
-        self.scroll_offset = 0  # pin to bottom on new output
-        self.dirty = True
 
     def toggle_profile_enabled(self):
         if not self.devices or self.selected >= len(self.devices):
@@ -648,7 +620,6 @@ def help_items(model):
 
 # ── view ─────────────────────────────────────────────────────────────────
 def view(stdscr, model):
-    curses.curs_set(0)
     h, w = stdscr.getmaxyx()
     model.width = w
     model.height = h
@@ -659,19 +630,12 @@ def view(stdscr, model):
     if model.show_picker:
         stdscr.erase()
         render_picker_view(model, stdscr)
-        stdscr.noutrefresh()
-        curses.doupdate()
+        S.finish_frame(stdscr)
         return
 
     stdscr.erase()
 
-    # ── hero ──
-    dot, da, title, ta, msg, ma, sub = hero_info(model)
-    S.safe_addstr(stdscr, 0, 1, dot, da)
-    S.safe_addstr(stdscr, 0, 2, title, ta)
-    if msg:
-        S.safe_addstr(stdscr, 0, len(title)+3, msg, ma)
-    S.safe_addstr(stdscr, 1, 2, sub, S.ATTR_MUTED)
+    S.draw_hero(stdscr, hero_info(model))
 
     # ── geometry ──
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
@@ -679,12 +643,7 @@ def view(stdscr, model):
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h - pending_h
 
-    left_w = 34
-    right_w = content_w - left_w
-    if right_w < 28:
-        right_w = 28
-        left_w = max(22, content_w - right_w)
-
+    left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
 
     # ── Left: three stacked boxes ──
@@ -712,12 +671,7 @@ def view(stdscr, model):
     actions_h = content_h - actions_y + hero_h
     if actions_h >= 4:
         S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "")
-        action_lines = render_actions(model)
-        inner_h = actions_h - 2
-        for i, (tag, text) in enumerate(action_lines):
-            if i >= inner_h:
-                break
-            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
 
     # ── Right: Profile (with Fn Row) + Presets + Activity (stacked boxes) ──
     # Box 1: Profile & Function Row (merged)
@@ -780,42 +734,19 @@ def view(stdscr, model):
     act_h = content_h - act_y + hero_h
     if act_h >= 4:
         S.draw_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
-        log_inner_y = act_y + 1
-        log_inner_h = act_h - 2
-        log_inner_w = right_w - 4
-        visible_logs = S.wrapped_lines(model.logs, log_inner_w)
-        total = len(visible_logs)
-        if total == 0:
-            S.safe_addstr(stdscr, log_inner_y, left_w + 2, "(no activity yet)", S.ATTR_MUTED)
-        else:
-            start = max(0, total - log_inner_h - model.scroll_offset)
-            end = min(total, start + log_inner_h)
-            for i, line in enumerate(visible_logs[start:end]):
-                if log_inner_y + i < act_y + act_h - 1:
-                    S.safe_addstr(stdscr, log_inner_y + i, left_w + 2, line, S.ATTR_MUTED)
-            if total > log_inner_h:
-                bar_h = max(1, log_inner_h * log_inner_h // total)
-                if model.scroll_offset == 0:
-                    bar_pos = log_inner_h - bar_h
-                else:
-                    bar_pos = max(0, log_inner_h - bar_h - model.scroll_offset * log_inner_h // total)
-                for i in range(log_inner_h):
-                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
-                    S.safe_addstr(stdscr, log_inner_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+        S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset)
 
-    # ── help bar ──
+    # ── help bar (shifted up when a pending-changes bar is showing) ──
     help_y = h - 1 - pending_h
     S.safe_addstr(stdscr, help_y, 1, S.help_text(help_items(model)), S.ATTR_SUBTLE)
 
     # ── pending bar ──
     if model.pending_changes:
-        pending_y = h - 1
-        S.safe_addstr(stdscr, pending_y, 1,
+        S.safe_addstr(stdscr, h - 1, 1,
                      "Pending changes · Apply (a) · Discard (r)",
                      S.ATTR_OK_BOLD)
 
-    stdscr.noutrefresh()
-    curses.doupdate()
+    S.finish_frame(stdscr)
 
 
 # ── input handling ───────────────────────────────────────────────────────
@@ -982,29 +913,7 @@ def handle_key(stdscr, model, key):
 
 # ── main ─────────────────────────────────────────────────────────────────
 def main(stdscr):
-    S.init_colors()
-    S.enable_mouse()
-    model = Model()
-    model.dirty = True
-    curses.set_escdelay(1)
-
-    try:
-        while True:
-            S.drain_callbacks()
-            if model.dirty:
-                view(stdscr, model)
-                model.dirty = False
-
-            stdscr.timeout(200)
-            key = stdscr.getch()
-            if key == -1:
-                continue
-            if not handle_key(stdscr, model, key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        S.disable_mouse()
+    S.run_tui_loop(stdscr, Model(), view, handle_key, poll_timeout=200)
 
 if __name__ == "__main__":
     curses.wrapper(main)

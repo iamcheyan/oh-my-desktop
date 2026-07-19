@@ -14,20 +14,11 @@ Features:
 """
 
 import curses
-import importlib
-import importlib.util
-import json
-import math
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-_shared_spec = importlib.util.spec_from_file_location(
-    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
-_shared = importlib.util.module_from_spec(_shared_spec)
-_shared_spec.loader.exec_module(_shared)
-S = _shared
+import omd_tui_shared as S
 
 # ── image preview cache ──────────────────────────────────────────────────
 _image_preview_cache = {"path": "", "width": 0, "height": 0, "mtime": 0, "size": 0, "view": ""}
@@ -250,28 +241,13 @@ class ThemeEntry:
         self.foreground = foreground
 
 
-class Model:
+class Model(S.StatusModel):
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.status = {}
+        super().__init__()
         self.themes = []
-        self.selected = 0
-        self.busy = False
-        self.refreshing = False
         self.applying = ""
-        self.err = ""
-        self.message = ""
-        self.scroll_offset = 0
-        self.dirty = True
         self.loaded = False
         self.refresh()
-
-    def val(self, key, fallback=""):
-        return self.status.get(key, fallback)
-
-    def boo(self, key):
-        return self.status.get(key) == "true"
 
     def refresh(self):
         if self.refreshing:
@@ -687,12 +663,7 @@ def _view(stdscr, m):
     if not S.require_terminal_size(stdscr, 68, 18):
         return
 
-    hd = _hero(m)
-    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
-    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
-    if hd[4]:
-        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
-    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+    S.draw_hero(stdscr, _hero(m))
 
     # geometry
     pad_x, pad_y = 2, 2
@@ -703,13 +674,10 @@ def _view(stdscr, m):
 
     show_right = w >= 108
     if show_right:
-        preview_w = 34
+        preview_w, _ = S.two_column_widths(content_w, left_w=34, right_min=34, gap=1)
         grid_w = content_w
-        grid_h = avail_h
-        left_h = min(avail_h, 20)
     else:
         preview_w = content_w
-        left_h = avail_h
         grid_w = content_w
 
     # Left column — preview + controls stacked
@@ -719,10 +687,8 @@ def _view(stdscr, m):
         S.draw_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
         mode = m.val("wallpaper.mode", "file")
         if mode == "color":
-            # color mode: keep text rendering
-            prev_lines = _render_preview(m, preview_w - 4, preview_h - 3)
-            for i, (tag, text) in enumerate(prev_lines):
-                S.safe_addstr(stdscr, hero_h + 1 + i, 2, S.truncate(text, preview_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+            S.draw_lines_in_area(stdscr, hero_h, 0, preview_h, preview_w,
+                                 _render_preview(m, preview_w - 4, preview_h - 3))
         else:
             # file/folder mode: try pixel preview
             inner_y = hero_h + 1
@@ -738,7 +704,6 @@ def _view(stdscr, m):
             if rows:
                 _render_image_view(stdscr, inner_y, inner_x, rows)
             else:
-                # fallback: show filename placeholder
                 fname = os.path.basename(wp_path) if wp_path else "No wallpaper"
                 S.safe_addstr(stdscr, inner_y, inner_x, S.truncate(fname, inner_w), S.ATTR_MUTED)
 
@@ -746,74 +711,52 @@ def _view(stdscr, m):
         ctrl_y = hero_h + preview_h
         ctrl_h = avail_h - preview_h
         S.draw_border(stdscr, ctrl_y, 0, ctrl_h, preview_w, "")
-        ctrl_lines = _render_controls(m, preview_w - 4)
-        inner_h = ctrl_h - 2
-        for i, (tag, text) in enumerate(ctrl_lines):
-            if i >= inner_h:
-                break
-            S.safe_addstr(stdscr, ctrl_y + 1 + i, 2, S.truncate(text, preview_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        S.draw_lines_in_area(stdscr, ctrl_y, 0, ctrl_h, preview_w,
+                             _render_controls(m, preview_w - 4))
 
         # Right column — theme grid
-        S.draw_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w - preview_w - 1, "Themes")
-        grid_lines = _render_theme_grid(m, grid_w - preview_w - 4, avail_h - 4)
-        grid_start_x = preview_w + 3
-        grid_w_available = grid_w - preview_w - 4
-        for i, item in enumerate(grid_lines):
-            if i >= avail_h - 4:
-                break
-            tag = item[0]
-            if tag == "tile_row":
-                cells = item[1]
-                cur_x = grid_start_x
-                for cell in cells:
-                    attr = curses.color_pair(cell["pair"])
-                    if cell["bold"]:
-                        attr |= curses.A_BOLD
-                    S.safe_addstr(stdscr, hero_h + 1 + i, cur_x, cell["text"], attr)
-                    cur_x += cell["width"]
-            else:
-                text = item[1]
-                S.safe_addstr(stdscr, hero_h + 1 + i, grid_start_x,
-                              S.truncate(text, grid_w_available), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        grid_w_total = grid_w - preview_w - 1
+        S.draw_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w_total, "Themes")
+        _draw_theme_grid(stdscr, m, hero_h, preview_w + 3,
+                         grid_w_total - 4, avail_h - 4,
+                         _render_theme_grid(m, grid_w_total - 4, avail_h - 4))
     else:
-        # Single column: controls then grid
         ctrl_h = min(avail_h // 2, 14)
         S.draw_border(stdscr, hero_h, 0, ctrl_h, content_w, "")
-        ctrl_lines = _render_controls(m, content_w - 4)
-        inner_h = ctrl_h - 2
-        for i, (tag, text) in enumerate(ctrl_lines):
-            if i >= inner_h:
-                break
-            S.safe_addstr(stdscr, hero_h + 1 + i, 2, S.truncate(text, content_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        S.draw_lines_in_area(stdscr, hero_h, 0, ctrl_h, content_w,
+                             _render_controls(m, content_w - 4))
 
         grid_y = hero_h + ctrl_h
         grid_h = avail_h - ctrl_h
         S.draw_border(stdscr, grid_y, 0, grid_h, content_w, "Themes")
-        grid_lines = _render_theme_grid(m, content_w - 4, grid_h - 4)
-        grid_start_x = 2
-        grid_w_available = content_w - 4
-        for i, item in enumerate(grid_lines):
-            if i >= grid_h - 4:
-                break
-            tag = item[0]
-            if tag == "tile_row":
-                cells = item[1]
-                cur_x = grid_start_x
-                for cell in cells:
-                    attr = curses.color_pair(cell["pair"])
-                    if cell["bold"]:
-                        attr |= curses.A_BOLD
-                    S.safe_addstr(stdscr, grid_y + 1 + i, cur_x, cell["text"], attr)
-                    cur_x += cell["width"]
-            else:
-                text = item[1]
-                S.safe_addstr(stdscr, grid_y + 1 + i, grid_start_x,
-                              S.truncate(text, grid_w_available), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        _draw_theme_grid(stdscr, m, grid_y, 2,
+                         content_w - 4, grid_h - 4,
+                         _render_theme_grid(m, content_w - 4, grid_h - 4))
 
-    # help bar
-    S.safe_addstr(stdscr, h - 1, 1, S.help_text(_help(m)), S.ATTR_SUBTLE)
-    stdscr.noutrefresh()
-    curses.doupdate()
+    S.draw_help_bar(stdscr, _help(m))
+    S.finish_frame(stdscr)
+
+
+def _draw_theme_grid(stdscr, m, grid_top_y, grid_start_x, grid_w_available, max_rows, grid_lines):
+    """Render theme grid rows. ``tile_row`` items are multi-cell color swatches;
+    any other tag is rendered as plain tagged text via TAG_STYLE."""
+    for i, item in enumerate(grid_lines):
+        if i >= max_rows:
+            break
+        tag = item[0]
+        if tag == "tile_row":
+            cells = item[1]
+            cur_x = grid_start_x
+            for cell in cells:
+                attr = curses.color_pair(cell["pair"])
+                if cell["bold"]:
+                    attr |= curses.A_BOLD
+                S.safe_addstr(stdscr, grid_top_y + 1 + i, cur_x, cell["text"], attr)
+                cur_x += cell["width"]
+        else:
+            text = item[1]
+            S.safe_addstr(stdscr, grid_top_y + 1 + i, grid_start_x,
+                          S.truncate(text, grid_w_available), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
 
 
 def _handle_key(stdscr, m, key):
@@ -896,27 +839,7 @@ def _handle_key(stdscr, m, key):
 
 
 def main(stdscr):
-    S.init_colors()
-    S.enable_mouse()
-    curses.curs_set(0)
-    curses.set_escdelay(1)
-    m = Model()
-    try:
-        while True:
-            S.drain_callbacks()
-            if m.dirty:
-                _view(stdscr, m)
-                m.dirty = False
-            stdscr.timeout(200)
-            key = stdscr.getch()
-            if key == -1:
-                continue
-            if not _handle_key(stdscr, m, key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        S.disable_mouse()
+    S.run_tui_loop(stdscr, Model(), _view, _handle_key, poll_timeout=200)
 
 if __name__ == "__main__":
     curses.wrapper(main)

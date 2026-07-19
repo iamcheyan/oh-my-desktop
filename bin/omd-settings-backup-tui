@@ -14,17 +14,26 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import importlib
-import importlib.util
-_shared_spec = importlib.util.spec_from_file_location(
-    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
-_shared = importlib.util.module_from_spec(_shared_spec)
-_shared_spec.loader.exec_module(_shared)
-S = _shared
+import omd_tui_shared as S
 
-CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
+_OLD_CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
+CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "file-share-backup")
+_OLD_STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "backup")
+STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "file-share-backup")
+
+import shutil
+if os.path.exists(_OLD_CONFIG_DIR) and not os.path.exists(CONFIG_DIR):
+    try:
+        shutil.move(_OLD_CONFIG_DIR, CONFIG_DIR)
+    except Exception:
+        pass
+if os.path.exists(_OLD_STATE_DIR) and not os.path.exists(STATE_DIR):
+    try:
+        shutil.move(_OLD_STATE_DIR, STATE_DIR)
+    except Exception:
+        pass
+
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
-STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "backup")
 
 DEFAULT_CONFIG = {
     "address": "",
@@ -107,7 +116,7 @@ class Model:
                 "  5. Press t to test the connection",
                 "  6. Press b to run a backup",
                 "",
-                "Press E to edit config file directly in vi.",
+                "Press e to edit config file directly in vi.",
             ]
         self.has_config = bool(self.config.get("address"))
         self._sync_schedule_idx()
@@ -274,13 +283,15 @@ def help_items(model):
     ]
     if model.editing_field:
         items = [("type", "edit value"), ("enter", "confirm"), ("esc", "cancel")]
+        if model.edit_field_key == "localPath":
+            items.append(("comma", "separate paths"))
     else:
         items += [
             ("enter", "edit field"),
             ("t", "test conn"),
             ("b", "backup now"),
             ("s", "save config"),
-            ("E", "edit config file"),
+            ("e", "edit config file"),
             ("r", "refresh"),
             ("pgup/pgdn", "logs"),
             ("q", "quit"),
@@ -369,6 +380,7 @@ def render_actions(model):
     lines.append(S.action_line("t", "Test connection", enabled))
     lines.append(S.action_line("b", "Backup now", enabled and has_config))
     lines.append(S.action_line("s", "Save config", enabled))
+    lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("r", "Refresh", enabled))
     return lines
 
@@ -387,7 +399,6 @@ def render_sync_status(model, width):
 # ── view ──
 
 def view(stdscr, model):
-    curses.curs_set(0)
     h, w = stdscr.getmaxyx()
     model.width = w
     model.height = h
@@ -397,32 +408,24 @@ def view(stdscr, model):
 
     stdscr.erase()
 
-    # hero
-    dot, da, title, ta, msg, ma, sub = hero_info(model)
-    S.safe_addstr(stdscr, 0, 1, dot, da)
-    S.safe_addstr(stdscr, 0, 2, title, ta)
-    if msg:
-        S.safe_addstr(stdscr, 0, len(title) + 3, msg, ma)
-    S.safe_addstr(stdscr, 1, 2, sub, S.ATTR_MUTED)
+    S.draw_hero(stdscr, hero_info(model))
 
     # geometry
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
-    left_w = 34
-    right_w = content_w - left_w
-    if right_w < 28:
-        right_w = 28
-        left_w = max(22, content_w - right_w)
-
+    left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
+
+    left_focused = (model.focus_area == 0)
+    right_focused = (model.focus_area == 1)
 
     # Left: Connection status + Schedule + Actions
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
-        S.draw_border(stdscr, hero_h, 0, conn_box_h, left_w, "Status")
+        S.draw_focus_border(stdscr, left_focused, hero_h, 0, conn_box_h, left_w, "Status")
         S.draw_lines_in_area(stdscr, hero_h, 0, conn_box_h, left_w, conn_lines)
     else:
         conn_box_h = 0
@@ -431,7 +434,7 @@ def view(stdscr, model):
     sched_lines = render_schedule(model, left_w - 4)
     sched_box_h = min(content_h - conn_box_h, len(sched_lines) + 3)
     if sched_box_h >= 3:
-        S.draw_border(stdscr, schedule_y, 0, sched_box_h, left_w, "Schedule")
+        S.draw_focus_border(stdscr, left_focused, schedule_y, 0, sched_box_h, left_w, "Schedule")
         S.draw_lines_in_area(stdscr, schedule_y, 0, sched_box_h, left_w, sched_lines)
     else:
         sched_box_h = 0
@@ -439,19 +442,14 @@ def view(stdscr, model):
     actions_y = schedule_y + sched_box_h
     actions_h = content_h - actions_y + hero_h
     if actions_h >= 4:
-        S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "Actions")
-        action_lines = render_actions(model)
-        inner_h = actions_h - 2
-        for i, (tag, text) in enumerate(action_lines):
-            if i >= inner_h:
-                break
-            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        S.draw_focus_border(stdscr, left_focused, actions_y, 0, actions_h, left_w, "Actions")
+        S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
 
     # Right: Config fields + Sync status + Activity
     field_lines = render_field_list(model, right_w - 4)
     field_box_h = min(content_h, len(field_lines) + 3)
     if field_box_h >= 3:
-        S.draw_border(stdscr, hero_h, left_w, field_box_h, right_w, "Connection")
+        S.draw_focus_border(stdscr, right_focused, hero_h, left_w, field_box_h, right_w, "Connection")
         S.draw_lines_in_area(stdscr, hero_h, left_w, field_box_h, right_w, field_lines)
     else:
         field_box_h = 0
@@ -460,7 +458,7 @@ def view(stdscr, model):
     sync_lines = render_sync_status(model, right_w - 4)
     sync_box_h = min(content_h - field_box_h, len(sync_lines) + 3)
     if sync_box_h >= 3:
-        S.draw_border(stdscr, sync_y, left_w, sync_box_h, right_w, "")
+        S.draw_focus_border(stdscr, right_focused, sync_y, left_w, sync_box_h, right_w, "")
         S.draw_lines_in_area(stdscr, sync_y, left_w, sync_box_h, right_w, sync_lines)
     else:
         sync_box_h = 0
@@ -468,34 +466,12 @@ def view(stdscr, model):
     act_y = sync_y + sync_box_h
     act_h = content_h - act_y + hero_h
     if act_h >= 4:
-        S.draw_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
-        log_inner_y = act_y + 1
-        log_inner_h = act_h - 2
-        log_inner_w = right_w - 4
-        visible_logs = S.wrapped_lines(model.logs, log_inner_w)
-        total = len(visible_logs)
-        if total == 0:
-            S.safe_addstr(stdscr, log_inner_y, left_w + 2, "(no activity)", S.ATTR_MUTED)
-        else:
-            start = max(0, total - log_inner_h - model.scroll_offset)
-            end = min(total, start + log_inner_h)
-            for i, line in enumerate(visible_logs[start:end]):
-                if log_inner_y + i < act_y + act_h - 1:
-                    S.safe_addstr(stdscr, log_inner_y + i, left_w + 2, line, S.ATTR_MUTED)
-            if total > log_inner_h:
-                bar_h = max(1, log_inner_h * log_inner_h // total)
-                if model.scroll_offset == 0:
-                    bar_pos = log_inner_h - bar_h
-                else:
-                    bar_pos = max(0, log_inner_h - bar_h - model.scroll_offset * log_inner_h // total)
-                for i in range(log_inner_h):
-                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
-                    S.safe_addstr(stdscr, log_inner_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+        S.draw_focus_border(stdscr, right_focused, act_y, left_w, act_h, right_w, "Activity")
+        S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset,
+                           empty_text="(no activity)")
 
-    # help
-    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(model)), S.ATTR_SUBTLE)
-    stdscr.noutrefresh()
-    curses.doupdate()
+    S.draw_help_bar(stdscr, help_items(model))
+    S.finish_frame(stdscr)
 
 
 # ── input handling ──
@@ -583,20 +559,23 @@ def handle_key(stdscr, model, key):
         model.message = ""
         model.dirty = True
         return True
-    if key == ord('E'):
+    if key in (ord('e'), ord('E')):
         model.save_config()
-        # Open vi in a new terminal window (like omarchy-launch-tui)
-        term = os.environ.get("TERMINAL", "")
-        if not term:
-            for t in ["foot", "kitty", "ghostty", "alacritty", "xfce4-terminal", "gnome-terminal"]:
-                if subprocess.run(["which", t], capture_output=True).returncode == 0:
-                    term = t
-                    break
-        if term:
-            subprocess.Popen([term, "-e", "vi", CONFIG_FILE])
-        else:
-            # Fallback: try xdg-terminal-exec
-            subprocess.Popen(["xdg-terminal-exec", "-e", "vi", CONFIG_FILE])
+        # Open vi in a new terminal window with specific app-id/class to trigger floating rules
+        cmd = (
+            'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
+            'exec xdg-terminal-exec --app-id=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -- vi "$1"; '
+            'elif command -v foot >/dev/null 2>&1; then '
+            'exec foot --app-id=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -e vi "$1"; '
+            'else exec kitty --class=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -- vi "$1"; fi'
+        )
+        subprocess.Popen(
+            ["bash", "-c", cmd, "omd-file-share-backup-editor", CONFIG_FILE],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
         # Don't reload immediately — wait for user to finish editing
         model.message = "Opened in terminal — press r to reload after editing"
         model.dirty = True
@@ -629,13 +608,20 @@ def start_edit(model):
     key = FIELD_KEYS[model.selected_field]
     model.editing_field = True
     model.edit_field_key = key
-    model.edit_buffer = model.config.get(key, "")
+    val = model.config.get(key, "")
+    if key == "localPath" and isinstance(val, list):
+        model.edit_buffer = ",".join(val)
+    else:
+        model.edit_buffer = str(val) if val is not None else ""
     model.dirty = True
 
 
 def handle_edit_key(model, key):
     if key == ord('\n') or key == 10:
-        model.config[model.edit_field_key] = model.edit_buffer
+        if model.edit_field_key == "localPath":
+            model.config[model.edit_field_key] = [p.strip() for p in model.edit_buffer.split(",") if p.strip()]
+        else:
+            model.config[model.edit_field_key] = model.edit_buffer
         model.editing_field = False
         model.message = f"{FIELD_LABELS.get(model.edit_field_key, model.edit_field_key)} updated"
         model.dirty = True
@@ -658,29 +644,7 @@ def handle_edit_key(model, key):
 # ── main ──
 
 def main(stdscr):
-    S.init_colors()
-    S.enable_mouse()
-    model = load_model()
-    model.dirty = True
-    curses.set_escdelay(1)
-
-    try:
-        while True:
-            S.drain_callbacks()
-            if model.dirty:
-                view(stdscr, model)
-                model.dirty = False
-
-            stdscr.timeout(200)
-            key = stdscr.getch()
-            if key == -1:
-                continue
-            if not handle_key(stdscr, model, key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        S.disable_mouse()
+    S.run_tui_loop(stdscr, load_model(), view, handle_key, poll_timeout=200)
 
 
 if __name__ == "__main__":

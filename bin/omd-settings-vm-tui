@@ -18,37 +18,15 @@ import os
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import importlib
-import importlib.util
-_shared_spec = importlib.util.spec_from_file_location(
-    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
-_shared = importlib.util.module_from_spec(_shared_spec)
-_shared_spec.loader.exec_module(_shared)
-S = _shared
+import omd_tui_shared as S
 
 
-class Model:
+class Model(S.StatusModel):
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.status = {}
-        self.logs = []
-        self.selected = 0
-        self.scroll_offset = 0
-        self.busy = False
-        self.refreshing = False
-        self.err = ""
-        self.message = ""
+        super().__init__()
         self.confirm_remove = False
-        self.dirty = True
         self.last_tick = 0
         self.refresh()
-
-    def val(self, key, fallback=""):
-        return self.status.get(key, fallback)
-
-    def boo(self, key):
-        return self.status.get(key) == "true"
 
     def disk_available(self):
         try:
@@ -137,13 +115,12 @@ class Model:
         self.busy = True
         self.message = f"{action}…"
         self.dirty = True
-        self.logs.append("$ " + " ".join((action, *extra)))
+        self.append_log("$ " + " ".join((action, *extra)))
         # connect and launch should be detached (no wait for output)
         detach_actions = ("connect", "launch")
         def cb(lines, err):
             for l in (lines or []):
-                self.logs.append(f"  {l}")
-            self.logs = S.clip_lines(self.logs, 200)
+                self.append_log(f"  {l}")
             self.busy = False
             if err:
                 self.message = "action failed"
@@ -163,7 +140,7 @@ class Model:
                     cwd=S.OMD_ROOT, close_fds=True,
                 )
             except Exception as e:
-                self.logs.append(f"  detach error: {e}")
+                self.append_log(f"  detach error: {e}")
             self.busy = False
             self.message = f"{action} launched"
             self.dirty = True
@@ -404,15 +381,8 @@ def view(stdscr, m):
     if not S.require_terminal_size(stdscr, 68, 18):
         return
 
-    # hero
-    hd = hero(m)
-    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
-    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
-    if hd[4]:
-        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
-    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+    S.draw_hero(stdscr, hero(m))
 
-    # geometry
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
@@ -421,15 +391,10 @@ def view(stdscr, m):
     show_right = w >= 92 and (ps in ("booting", "ready", "stopped", "repair") or m.busy)
 
     if show_right:
-        left_w = 34
-        right_w = content_w - left_w
-        if right_w < 30:
-            right_w = 30
-            left_w = max(24, content_w - right_w)
+        left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=30)
         top_h = avail_h
     else:
-        left_w = content_w
-        right_w = 0
+        left_w, right_w = content_w, 0
         top_h = avail_h
 
     left_lines = render_left(m, left_w - 4)
@@ -439,40 +404,23 @@ def view(stdscr, m):
     if show_right:
         right_lines = render_right(m, right_w - 4)
         S.draw_border(stdscr, hero_h, left_w, top_h, right_w, "Container Logs")
-        # Draw right panel content
         inner_y = hero_h + 1
         for i, (tag, text) in enumerate(right_lines):
             if i >= top_h - 2:
                 break
             S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
 
-        # Log body in right panel
         log_start_y = inner_y + len(right_lines)
         log_h = top_h - 2 - len(right_lines)
         if log_h > 0:
-            log_inner_w = right_w - 4
-            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
-            total = len(visible_logs)
-            start = max(0, total - log_h - m.scroll_offset)
-            end = min(total, start + log_h)
-            for i, line in enumerate(visible_logs[start:end]):
-                if log_start_y + i < hero_h + top_h - 1:
-                    S.safe_addstr(stdscr, log_start_y + i, left_w + 2, line, S.ATTR_MUTED)
-            # scrollbar
-            if total > log_h:
-                bar_h = max(1, log_h * log_h // total)
-                if m.scroll_offset == 0:
-                    bar_pos = log_h - bar_h
-                else:
-                    bar_pos = max(0, log_h - bar_h - m.scroll_offset * log_h // total)
-                for i in range(log_h):
-                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
-                    S.safe_addstr(stdscr, log_start_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+            # draw_log_in_area expects (y, x, h, w) to be the box bounds
+            # (content begins one row down); we want content to start at
+            # log_start_y, so pass y = log_start_y - 1, h = log_h + 2.
+            S.draw_log_in_area(stdscr, log_start_y - 1, left_w,
+                               log_h + 2, right_w, m.logs, m.scroll_offset)
 
-    # help bar
-    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(m)), S.ATTR_SUBTLE)
-    stdscr.noutrefresh()
-    curses.doupdate()
+    S.draw_help_bar(stdscr, help_items(m))
+    S.finish_frame(stdscr)
 
 
 # ── input ────────────────────────────────────────────────────────────────
@@ -576,35 +524,14 @@ def handle_key(stdscr, m, key):
 
 
 def main(stdscr):
-    S.init_colors()
-    S.enable_mouse()
-    curses.curs_set(0)
-    curses.set_escdelay(1)
     m = Model()
     m.last_tick = time.time()
-    try:
-        while True:
-            S.drain_callbacks()
-            if m.dirty:
-                view(stdscr, m)
-                m.dirty = False
-
-            # Auto-refresh every 3 seconds
-            now = time.time()
-            if now - m.last_tick >= 3.0:
-                m.last_tick = now
-                m.refresh()
-
-            stdscr.timeout(500)
-            key = stdscr.getch()
-            if key == -1:
-                continue
-            if not handle_key(stdscr, m, key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        S.disable_mouse()
+    S.run_tui_loop(
+        stdscr, m, view, handle_key,
+        poll_timeout=500,
+        refresh_interval=3.0,
+        refresh_callback=lambda mdl: mdl.refresh(),
+    )
 
 if __name__ == "__main__":
     curses.wrapper(main)

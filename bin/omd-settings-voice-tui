@@ -23,13 +23,7 @@ import os
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import importlib
-import importlib.util
-_shared_spec = importlib.util.spec_from_file_location(
-    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
-_shared = importlib.util.module_from_spec(_shared_spec)
-_shared_spec.loader.exec_module(_shared)
-S = _shared
+import omd_tui_shared as S
 
 FRIENDLY_MAP = {
     "ALT + A": "Alt + A", "code:472": "Globe (Fn)", "XF86Tools": "F13 / Tools",
@@ -71,18 +65,10 @@ def eta_label(raw):
     return f"{sec//60}m{sec%60:02d}s"
 
 
-class Model:
+class Model(S.StatusModel):
     def __init__(self):
-        self.width = 0
-        self.height = 0
-        self.status = {}
+        super().__init__()
         self.bindings = []
-        self.logs = []
-        self.scroll_offset = 0
-        self.busy = False
-        self.refreshing = False
-        self.err = ""
-        self.message = ""
         self.confirm_remove = False
         self.last_tick = 0
         # Trial state
@@ -95,16 +81,9 @@ class Model:
         self.rec_start = 0.0
         self.last_result_text = ""
         self.last_result_ts = 0
-        self.dirty = True
         self.refresh()
         # Auto-diagnose on init
         self.run_action("diagnose")
-
-    def val(self, key, fallback=""):
-        return self.status.get(key, fallback)
-
-    def boo(self, key):
-        return self.status.get(key) == "true"
 
     def state(self):
         return self.val("state", "idle")
@@ -317,12 +296,6 @@ class Model:
         self.trial_last_log_at = now
         self.trial_last_level = level
 
-    def append_log(self, text):
-        self.logs.append(text)
-        self.logs = S.clip_lines(self.logs, 200)
-        self.scroll_offset = 0
-        self.dirty = True
-
 
 def action_message(action):
     mapping = {
@@ -508,12 +481,7 @@ def view(stdscr, m):
     if not S.require_terminal_size(stdscr, 68, 18):
         return
 
-    hd = hero_info(m)
-    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
-    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
-    if hd[4]:
-        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
-    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+    S.draw_hero(stdscr, hero_info(m))
 
     # geometry
     pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
@@ -522,19 +490,13 @@ def view(stdscr, m):
 
     show_right = w >= 108
     if show_right:
-        left_w = 34
-        right_w = content_w - left_w - 1
-        if right_w < 30:
-            right_w = 30
-            left_w = content_w - right_w - 1
+        left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=30, gap=1)
     else:
-        left_w = content_w
-        right_w = 0
+        left_w, right_w = content_w, 0
 
     content_h = avail_h
 
-    # Left column: three stacked boxes
-    # Box 1: model specs (fixed height)
+    # Box 1: Model specs (fixed height)
     specs_lines = render_model_specs(m, left_w - 4)
     specs_box_h = min(content_h, len(specs_lines) + 3)
     S.draw_border(stdscr, hero_h, 0, specs_box_h, left_w, "Model")
@@ -555,16 +517,12 @@ def view(stdscr, m):
     actions_h = content_h - actions_y + hero_h
     if actions_h >= 4:
         S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "")
-        action_lines = render_voice_actions(m, left_w - 4)
-        inner_h = actions_h - 2
-        for i, (tag, text) in enumerate(action_lines):
-            if i >= inner_h:
-                break
-            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w,
+                             render_voice_actions(m, left_w - 4))
     else:
         actions_h = 0
 
-    # Right panel — logs
+    # Right panel — logs (or below in single-column mode)
     if show_right:
         S.draw_border(stdscr, hero_h, left_w + 1, content_h, right_w, "Logs")
         right_lines = render_right(m, right_w - 4)
@@ -573,59 +531,25 @@ def view(stdscr, m):
             if i >= content_h - 3:
                 break
             S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
-
-        # Log body
-        log_start_y = inner_y + len(right_lines)
         log_h = content_h - 2 - len(right_lines)
         if log_h > 0:
-            log_inner_w = right_w - 4
-            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
-            total = len(visible_logs)
-            start = max(0, total - log_h - m.scroll_offset)
-            end = min(total, start + log_h)
-            for i, line in enumerate(visible_logs[start:end]):
-                if log_start_y + i < hero_h + content_h - 1:
-                    S.safe_addstr(stdscr, log_start_y + i, left_w + 2, line, S.ATTR_MUTED)
-            # scrollbar
-            if total > log_h:
-                bar_h = max(1, log_h * log_h // total)
-                if m.scroll_offset == 0:
-                    bar_pos = log_h - bar_h
-                else:
-                    bar_pos = max(0, log_h - bar_h - m.scroll_offset * log_h // total)
-                for i in range(log_h):
-                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
-                    S.safe_addstr(stdscr, log_start_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+            S.draw_log_in_area(stdscr, inner_y + len(right_lines) - 1,
+                               left_w + 1, log_h + 2, right_w,
+                               m.logs, m.scroll_offset)
     else:
-        # Single column: left boxes + log below
         left_total_h = specs_box_h + setup_box_h + actions_h
-        log_y = hero_h + left_total_h
-        log_h = content_h - left_total_h
-        if log_h > 2:
-            S.draw_border(stdscr, log_y, 0, log_h, left_w, "Logs")
-            log_inner_w = left_w - 4
-            log_inner_h = log_h - 3
-            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
-            total = len(visible_logs)
-            start = max(0, total - log_inner_h - m.scroll_offset)
-            end = min(total, start + log_inner_h)
-            for i, line in enumerate(visible_logs[start:end]):
-                S.safe_addstr(stdscr, log_y + 1 + i, 2, line, S.ATTR_MUTED)
-            # scrollbar
-            if total > log_inner_h:
-                bar_h = max(1, log_inner_h * log_inner_h // total)
-                if m.scroll_offset == 0:
-                    bar_pos = log_inner_h - bar_h
-                else:
-                    bar_pos = max(0, log_inner_h - bar_h - m.scroll_offset * log_inner_h // total)
-                for i in range(log_inner_h):
-                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
-                    S.safe_addstr(stdscr, log_y + 1 + i, left_w - 2, ch, S.ATTR_SUBTLE)
+        log_box_h = content_h - left_total_h
+        if log_box_h > 2:
+            # Single-column log box reserves one extra blank row above the
+            # bottom border (log_inner_h = log_box_h - 3), so pass h such
+            # that draw_log_in_area sees inner_h = log_box_h - 3.
+            log_y = hero_h + left_total_h
+            S.draw_border(stdscr, log_y, 0, log_box_h, left_w, "Logs")
+            S.draw_log_in_area(stdscr, log_y, 0, log_box_h - 1, left_w,
+                               m.logs, m.scroll_offset)
 
-    # help
-    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(m)), S.ATTR_SUBTLE)
-    stdscr.noutrefresh()
-    curses.doupdate()
+    S.draw_help_bar(stdscr, help_items(m))
+    S.finish_frame(stdscr)
 
 
 # ── input ────────────────────────────────────────────────────────────────
@@ -748,37 +672,19 @@ def handle_key(stdscr, m, key):
     return True
 
 
+def _voice_interval(m):
+    return 0.4 if m.trial_listening else 0.9
+
+
 def main(stdscr):
-    S.init_colors()
-    S.enable_mouse()
-    curses.curs_set(0)
-    curses.set_escdelay(1)
     m = Model()
     m.last_tick = time.time()
-    try:
-        while True:
-            S.drain_callbacks()
-            if m.dirty:
-                view(stdscr, m)
-                m.dirty = False
-
-            # Auto-refresh: 900ms normal, 400ms during trial
-            now = time.time()
-            interval = 0.4 if m.trial_listening else 0.9
-            if now - m.last_tick >= interval:
-                m.last_tick = now
-                m.refresh()
-
-            stdscr.timeout(int(interval * 1000))
-            key = stdscr.getch()
-            if key == -1:
-                continue
-            if not handle_key(stdscr, m, key):
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        S.disable_mouse()
+    S.run_tui_loop(
+        stdscr, m, view, handle_key,
+        poll_timeout=lambda mdl: int(_voice_interval(mdl) * 1000),
+        refresh_interval=_voice_interval,
+        refresh_callback=lambda mdl: mdl.refresh(),
+    )
 
 if __name__ == "__main__":
     curses.wrapper(main)

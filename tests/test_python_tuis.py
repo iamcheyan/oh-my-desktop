@@ -18,7 +18,7 @@ def load_script(name, relative_path):
     return module
 
 
-S = load_script("omd_tui_shared_test", "bin/omd-tui-shared.py")
+S = load_script("omd_tui_shared_test", "bin/omd_tui_shared.py")
 
 
 class SharedRuntimeTests(unittest.TestCase):
