@@ -35,7 +35,7 @@ o.window("org.omd.bluetui", { float = true, center = true, size = { 1180, 760 } 
 o.window("org.omd.voice-test-tui", { float = true, center = true, size = { 1000, 700 } })
 o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1000, 700 } })
 o.window("org.omd.omd-edit-voice-bindings", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omarchy.key-test", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omarchy.key-test", { float = true, center = true, size = { 980, 620 } })
 o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000, 700 } })
 
 -- Go settings TUI pages (theme/background, etc.) launched via omd-launch-tui

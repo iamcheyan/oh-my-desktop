@@ -5,11 +5,11 @@
       "displayName": "apple spi keyboard",
       "hyprName": "apple-spi-keyboard",
       "keydId": "05ac:0342",
-      "enabled": false,
-      "enabledPresets": [
-        "rightalt-down"
-      ],
-      "presetOverrides": {}
+      "enabled": true,
+      "enabledPresets": [],
+      "presetOverrides": {
+        "muhenkan-meta": "escape"
+      }
     },
     "compx-2-4g-receiver": {
       "displayName": "compx 2.4g receiver",

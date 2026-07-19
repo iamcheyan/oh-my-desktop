@@ -9,7 +9,7 @@ and formats them as OMD bind strings to the system clipboard.
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Gdk, Gio, Adw, GLib
+from gi.repository import Gtk, Gdk, Gio, Adw, GLib, Pango
 import json
 import os
 import subprocess
@@ -132,6 +132,31 @@ def copy_to_clipboard(text):
     except Exception:
         return False
 
+
+def load_ui_colors():
+    """Read the active OMD palette without depending on the Quickshell runtime."""
+    colors = {
+        "accent": "#82fb9c",
+        "background": "#0b0c16",
+        "foreground": "#ddf7ff",
+    }
+    theme_path = os.path.expanduser("~/.config/omd/current/theme/quickshell.json")
+    try:
+        with open(theme_path, "r", encoding="utf-8") as handle:
+            theme = json.load(handle)
+        for source, target in (
+            ("primary", "accent"),
+            ("background", "background"),
+            ("backgroundText", "foreground"),
+        ):
+            value = theme.get(source)
+            if isinstance(value, str) and len(value) == 7 and value.startswith("#"):
+                int(value[1:], 16)
+                colors[target] = value
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        pass
+    return colors
+
 # ── main window ──
 class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app, initial_mode="current", mode_locked=False):
@@ -144,8 +169,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.mode_locked = mode_locked
         self.auto_return = mode_locked and initial_mode == "original"
         self._updating_mode = False
-        self.set_default_size(680, 520)
-        
+        self.last_clipboard_text = ""
+        self.set_default_size(980, 620)
+
         # bind system events
         self.connect("realize", self.on_realize)
         self.connect("notify::is-active", self.on_is_active_changed)
@@ -155,137 +181,179 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         css_provider = Gtk.CssProvider()
         css = b"""
         window {
-            background-color: #0d0e11;
+            background-color: #08090b;
             color: #dcdccc;
         }
         .main-box {
             padding: 0;
+        }
+        .left-pane {
+            background-color: #12141a;
+            border-right: 1px solid #1c1f26;
+            padding: 40px 28px;
+        }
+        .right-pane {
+            background-color: #08090b;
+            padding: 40px 48px;
         }
         .title-label {
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 20px;
             font-weight: 800;
             color: #00bcd4;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            text-shadow: 0 0 10px rgba(0, 188, 212, 0.25);
         }
         .tab-bar {
-            margin-bottom: 0;
+            background-color: #181b22;
+            border: 1px solid #282d3a;
+            border-radius: 20px;
+            padding: 4px;
+            margin-bottom: 16px;
         }
         .tab-button {
             background: transparent;
             background-image: none;
             border: none;
-            border-bottom: 2px solid transparent;
-            border-radius: 0;
+            border-radius: 16px;
             box-shadow: none;
-            padding: 8px 28px;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 14px;
-            font-weight: 600;
-            color: #6b7080;
+            padding: 8px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            color: #8c92a2;
             min-width: 140px;
             outline: none;
-            transition: color 150ms ease, border-color 150ms ease;
+            transition: all 200ms ease-in-out;
         }
         .tab-button:checked {
-            color: #00bcd4;
-            border-bottom: 2px solid #00bcd4;
-            background: transparent;
+            color: #08090b;
+            background-color: #00bcd4;
             background-image: none;
-            box-shadow: none;
+            box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3);
         }
-        .tab-button:hover {
-            color: #dcdccc;
-            background: transparent;
-            background-image: none;
-            box-shadow: none;
+        .tab-button:hover:not(:checked) {
+            color: #ffffff;
+            background-color: #222631;
         }
         .tab-button:focus-visible {
             outline: none;
             box-shadow: none;
         }
-        .content-card {
-            background-color: #16181d;
-            border: 1px solid #2d3139;
-            border-radius: 10px;
-            padding: 32px 36px;
-        }
         .hint-label {
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 13px;
+            font-size: 12px;
             color: #6b7080;
-            margin-bottom: 24px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        /* 3D Keycap Visual Card */
+        .keycap-container {
+            background: linear-gradient(180deg, #1c1f26, #12141a);
+            border: 2px solid #2d3341;
+            border-bottom-width: 6px;
+            border-radius: 16px;
+            padding: 32px;
+            margin: 16px 0;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+            min-width: 260px;
         }
         .key-display {
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 38px;
+            font-size: 48px;
             font-weight: 800;
             color: #f5c542;
+            text-shadow: 0 0 15px rgba(245, 197, 66, 0.3);
         }
-        .keyd-display {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 14px;
-            font-weight: 700;
+        .keyd-badge {
+            background-color: rgba(76, 175, 80, 0.15);
             color: #4caf50;
-            margin-top: 4px;
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            border-radius: 12px;
+            padding: 4px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 16px;
+            letter-spacing: 0.5px;
         }
         .bind-display {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
-            color: #6b7080;
-            margin-top: 2px;
-        }
-        .status-label {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 13px;
-            font-weight: 700;
-            color: #4caf50;
+            color: #8c92a2;
             margin-top: 10px;
         }
-        .detail-title {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 12px;
-            font-weight: 700;
-            color: #5c6370;
+        .status-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            color: #4caf50;
         }
-        .detail-value {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 12px;
-            color: #dcdccc;
-        }
-        .divider {
-            background-color: #252931;
-            min-height: 1px;
-            margin: 18px 0;
-        }
-        .info-box {
-            background-color: #13151a;
-            border-left: 3px solid #00bcd4;
-            border-radius: 4px;
-            padding: 14px 18px;
-            margin-top: 0;
-        }
-        .info-text {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 12px;
-            color: #a8a8a8;
-            line-height: 1.7;
-        }
+
+        /* Exit Button */
         button.quit-btn {
-            background-color: #21252b;
-            color: #dcdccc;
-            border: 1px solid #2d3139;
-            border-radius: 6px;
-            padding: 8px 28px;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: linear-gradient(180deg, #1c1f26, #13151a);
+            color: #ffffff;
+            border: 1px solid #2d3341;
+            border-radius: 20px;
+            padding: 12px 48px;
+            font-family: 'JetBrains Mono', monospace;
             font-weight: bold;
             font-size: 13px;
-            margin-top: 12px;
-            min-width: 120px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            transition: all 200ms ease-in-out;
+            min-width: 140px;
         }
         button.quit-btn:hover {
-            background-color: #2c313c;
-            border-color: #3d4350;
+            background: #dc3545;
+            border-color: #dc3545;
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+        }
+
+        /* Parameters Rows List */
+        .section-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 800;
+            color: #8c92a2;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+        .details-card {
+            background-color: #11131a;
+            border: 1px solid #1c1f26;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+        .detail-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            color: #00bcd4;
+        }
+        .detail-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            color: #f4f4f4;
+            line-height: 1.5;
+        }
+        .info-box {
+            background-color: #0b0c10;
+            border-left: 4px solid #f5c542;
+            border-radius: 0 8px 8px 0;
+            padding: 18px 24px;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .info-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: #b5bd68;
+            line-height: 1.7;
         }
         """
         css_provider.load_from_data(css)
@@ -295,36 +363,250 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
+        colors = load_ui_colors()
+        visual_provider = Gtk.CssProvider()
+        visual_css = f"""
+        window {{
+            background-color: {colors['background']};
+            color: {colors['foreground']};
+        }}
+        .inspector-root {{ padding: 28px 32px 26px 32px; }}
+        .inspector-header {{ margin-bottom: 18px; }}
+        .app-icon {{
+            color: {colors['accent']};
+            background-color: alpha({colors['accent']}, 0.12);
+            border-radius: 8px;
+            padding: 9px;
+            margin-right: 12px;
+        }}
+        .inspector-title, .capture-key, .capture-bind, .capture-status,
+        .pipeline-value, .technical-value, .clipboard-value, .inspector-tab {{
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }}
+        .inspector-title {{
+            color: {colors['foreground']};
+            font-size: 20px;
+            font-weight: 700;
+        }}
+        .inspector-subtitle, .eyebrow, .pipeline-title, .technical-title,
+        .mode-description, .footer-hint {{
+            color: alpha({colors['foreground']}, 0.55);
+        }}
+        .inspector-subtitle {{ font-size: 12px; }}
+        .inspector-icon-button {{
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            color: alpha({colors['foreground']}, 0.65);
+            min-width: 36px;
+            min-height: 36px;
+            border-radius: 6px;
+            padding: 0;
+            margin-left: 6px;
+        }}
+        .inspector-icon-button:hover {{
+            background-color: alpha({colors['foreground']}, 0.08);
+            color: {colors['foreground']};
+        }}
+        .inspector-tabs {{
+            background-color: alpha({colors['foreground']}, 0.06);
+            border: 1px solid alpha({colors['foreground']}, 0.13);
+            border-radius: 8px;
+            padding: 3px;
+        }}
+        .inspector-tab {{
+            background: transparent;
+            background-image: none;
+            border: none;
+            border-radius: 5px;
+            box-shadow: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            color: alpha({colors['foreground']}, 0.58);
+            min-width: 100px;
+            outline: none;
+        }}
+        .inspector-tab:checked {{
+            color: {colors['background']};
+            background-color: {colors['accent']};
+            background-image: none;
+        }}
+        .inspector-tab:hover:not(:checked) {{
+            color: {colors['foreground']};
+            background-color: alpha({colors['foreground']}, 0.08);
+        }}
+        .capture-surface {{
+            background-color: alpha({colors['foreground']}, 0.035);
+            border: 1px solid alpha({colors['foreground']}, 0.14);
+            border-radius: 10px;
+            padding: 22px 30px 18px 30px;
+        }}
+        .eyebrow, .pipeline-title, .technical-title {{
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }}
+        .capture-key {{
+            color: {colors['foreground']};
+            font-size: 40px;
+            font-weight: 750;
+            margin-top: 4px;
+        }}
+        .capture-key.waiting {{
+            color: alpha({colors['foreground']}, 0.32);
+            font-size: 21px;
+        }}
+        .capture-badge {{
+            color: {colors['accent']};
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 3px;
+        }}
+        .capture-bind {{
+            color: alpha({colors['foreground']}, 0.58);
+            font-size: 12px;
+        }}
+        .capture-status {{
+            color: {colors['accent']};
+            font-size: 11px;
+            min-height: 17px;
+        }}
+        .mode-strip {{
+            background-color: alpha({colors['foreground']}, 0.035);
+            border: 1px solid alpha({colors['foreground']}, 0.11);
+            border-radius: 8px;
+            padding: 9px 14px;
+            margin-top: 14px;
+        }}
+        .mode-strip.raw {{
+            background-color: alpha(#f5c542, 0.08);
+            border-color: alpha(#f5c542, 0.30);
+        }}
+        .mode-dot {{ color: {colors['accent']}; font-size: 14px; }}
+        .mode-strip.raw .mode-dot {{ color: #f5c542; }}
+        .mode-description {{ font-size: 11px; }}
+        .signal-pipeline {{
+            background-color: alpha({colors['foreground']}, 0.025);
+            border: 1px solid alpha({colors['foreground']}, 0.11);
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-top: 14px;
+        }}
+        .pipeline-step {{ padding: 2px 10px; }}
+        .pipeline-value {{
+            color: {colors['foreground']};
+            font-size: 13px;
+            font-weight: 650;
+            margin-top: 3px;
+        }}
+        .pipeline-arrow {{
+            color: alpha({colors['foreground']}, 0.24);
+            font-size: 16px;
+        }}
+        .technical-card {{
+            background-color: alpha({colors['foreground']}, 0.025);
+            border: 1px solid alpha({colors['foreground']}, 0.11);
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin-top: 14px;
+        }}
+        .technical-cell {{ padding: 2px 10px; }}
+        .technical-value {{
+            color: {colors['foreground']};
+            font-size: 12px;
+            margin-top: 3px;
+        }}
+        .clipboard-row {{
+            background-color: alpha({colors['foreground']}, 0.035);
+            border-radius: 6px;
+            padding: 7px 10px;
+            margin-top: 9px;
+        }}
+        .clipboard-value {{
+            color: alpha({colors['foreground']}, 0.68);
+            font-size: 11px;
+        }}
+        .inspector-footer {{ margin-top: 16px; }}
+        .footer-hint {{ font-size: 11px; }}
+        .inspector-action {{
+            background-color: alpha({colors['foreground']}, 0.055);
+            background-image: none;
+            color: {colors['foreground']};
+            border: 1px solid alpha({colors['foreground']}, 0.14);
+            border-radius: 6px;
+            box-shadow: none;
+            min-height: 34px;
+            padding: 0 16px;
+            font-size: 13px;
+            font-weight: 700;
+        }}
+        .inspector-action:hover {{
+            background-color: alpha({colors['foreground']}, 0.10);
+        }}
+        .inspector-action.suggested-action {{
+            background-color: {colors['accent']};
+            color: {colors['background']};
+            border-color: {colors['accent']};
+        }}
+        popover > contents {{
+            background-color: {colors['background']};
+            color: {colors['foreground']};
+            border: 1px solid alpha({colors['foreground']}, 0.18);
+            border-radius: 8px;
+            padding: 14px 16px;
+        }}
+        .help-text {{
+            color: alpha({colors['foreground']}, 0.75);
+            font-size: 11px;
+        }}
+        """
+        visual_provider.load_from_data(visual_css.encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            visual_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+        )
+
         # ── layout ──
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        main_box.add_css_class("main-box")
-        main_box.set_margin_start(40)
-        main_box.set_margin_end(40)
-        main_box.set_margin_top(32)
-        main_box.set_margin_bottom(32)
-        self.set_child(main_box)
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        root.add_css_class("inspector-root")
+        self.set_child(root)
 
-        # title
-        title = Gtk.Label(label="OMD Advanced Key Capture")
-        title.set_halign(Gtk.Align.CENTER)
-        title.add_css_class("title-label")
-        main_box.append(title)
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        header.add_css_class("inspector-header")
+        root.append(header)
 
-        # content card (contains everything except title)
-        content_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        content_card.add_css_class("content-card")
-        main_box.append(content_card)
+        app_icon = Gtk.Image.new_from_icon_name("input-keyboard-symbolic")
+        app_icon.set_pixel_size(22)
+        app_icon.add_css_class("app-icon")
+        header.append(app_icon)
 
-        # tab bar
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        title_box.set_hexpand(True)
+        header.append(title_box)
+
+        title = Gtk.Label(label="Key Inspector")
+        title.set_halign(Gtk.Align.START)
+        title.add_css_class("inspector-title")
+        title_box.append(title)
+
+        subtitle = Gtk.Label(
+            label="Trace hardware input through keyd to the application binding"
+        )
+        subtitle.set_halign(Gtk.Align.START)
+        subtitle.add_css_class("inspector-subtitle")
+        title_box.append(subtitle)
+
         tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        tab_bar.set_halign(Gtk.Align.CENTER)
-        tab_bar.add_css_class("tab-bar")
-        content_card.append(tab_bar)
+        tab_bar.add_css_class("inspector-tabs")
+        header.append(tab_bar)
 
-        self.current_mode_btn = Gtk.ToggleButton(label="Current Key")
-        self.current_mode_btn.add_css_class("tab-button")
-        self.original_mode_btn = Gtk.ToggleButton(label="Raw Source")
-        self.original_mode_btn.add_css_class("tab-button")
+        self.current_mode_btn = Gtk.ToggleButton(label="CURRENT")
+        self.current_mode_btn.add_css_class("inspector-tab")
+        self.original_mode_btn = Gtk.ToggleButton(label="RAW SOURCE")
+        self.original_mode_btn.add_css_class("inspector-tab")
         self.original_mode_btn.set_group(self.current_mode_btn)
         tab_bar.append(self.current_mode_btn)
         tab_bar.append(self.original_mode_btn)
@@ -336,91 +618,185 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.current_mode_btn.connect("toggled", self.on_mode_toggled, "current")
         self.original_mode_btn.connect("toggled", self.on_mode_toggled, "original")
 
-        # hint
-        self.hint = Gtk.Label()
-        self.hint.set_halign(Gtk.Align.CENTER)
-        self.hint.add_css_class("hint-label")
-        content_card.append(self.hint)
+        help_btn = Gtk.MenuButton(icon_name="help-about-symbolic")
+        help_btn.add_css_class("inspector-icon-button")
+        help_btn.set_tooltip_text("About capture modes")
+        header.append(help_btn)
 
-        # key display area
-        self.key_display = Gtk.Label(label="( waiting for input )")
-        self.key_display.add_css_class("key-display")
-        content_card.append(self.key_display)
+        help_popover = Gtk.Popover()
+        help_text = Gtk.Label(
+            label=(
+                "Current shows the final key received by applications after keyd remapping.\n"
+                "Raw Source pauses keyd and reads the physical hardware key.\n\n"
+                "Use the footer actions to copy or clear without reserving testable shortcuts."
+            )
+        )
+        help_text.set_halign(Gtk.Align.START)
+        help_text.set_justify(Gtk.Justification.LEFT)
+        help_text.add_css_class("help-text")
+        help_popover.set_child(help_text)
+        help_btn.set_popover(help_popover)
+
+        close_btn = Gtk.Button(icon_name="window-close-symbolic")
+        close_btn.add_css_class("inspector-icon-button")
+        close_btn.set_tooltip_text("Close")
+        close_btn.connect("clicked", lambda _: app.quit())
+        header.append(close_btn)
+
+        capture_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        capture_card.add_css_class("capture-surface")
+        root.append(capture_card)
+
+        caption = Gtk.Label(label="DETECTED KEY")
+        caption.set_halign(Gtk.Align.CENTER)
+        caption.add_css_class("eyebrow")
+        capture_card.append(caption)
+
+        self.key_display = Gtk.Label(label="Press any key")
+        self.key_display.set_halign(Gtk.Align.CENTER)
+        self.key_display.set_ellipsize(Pango.EllipsizeMode.END)
+        self.key_display.add_css_class("capture-key")
+        self.key_display.add_css_class("waiting")
+        capture_card.append(self.key_display)
 
         self.keyd_display = Gtk.Label(label="")
-        self.keyd_display.add_css_class("keyd-display")
-        content_card.append(self.keyd_display)
+        self.keyd_display.set_halign(Gtk.Align.CENTER)
+        self.keyd_display.set_visible(False)
+        self.keyd_display.add_css_class("capture-badge")
+        capture_card.append(self.keyd_display)
 
         self.bind_display = Gtk.Label(label="")
-        self.bind_display.add_css_class("bind-display")
-        content_card.append(self.bind_display)
+        self.bind_display.set_halign(Gtk.Align.CENTER)
+        self.bind_display.add_css_class("capture-bind")
+        capture_card.append(self.bind_display)
 
         self.status_label = Gtk.Label(label="")
-        self.status_label.add_css_class("status-label")
-        content_card.append(self.status_label)
+        self.status_label.set_halign(Gtk.Align.CENTER)
+        self.status_label.add_css_class("capture-status")
+        capture_card.append(self.status_label)
 
-        # divider
-        divider = Gtk.Box()
-        divider.add_css_class("divider")
-        content_card.append(divider)
+        self.mode_strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=9)
+        self.mode_strip.add_css_class("mode-strip")
+        root.append(self.mode_strip)
 
-        # detail params
-        details_grid = Gtk.Grid()
-        details_grid.set_column_spacing(32)
-        details_grid.set_row_spacing(6)
-        details_grid.set_halign(Gtk.Align.CENTER)
-        content_card.append(details_grid)
+        mode_dot = Gtk.Label(label="●")
+        mode_dot.add_css_class("mode-dot")
+        self.mode_strip.append(mode_dot)
 
-        def add_row(grid, row, label_text):
-            title_lbl = Gtk.Label(label=label_text)
-            title_lbl.add_css_class("detail-title")
-            title_lbl.set_halign(Gtk.Align.END)
-            val_lbl = Gtk.Label(label="—")
-            val_lbl.add_css_class("detail-value")
-            val_lbl.set_halign(Gtk.Align.START)
-            grid.attach(title_lbl, 0, row, 1, 1)
-            grid.attach(val_lbl, 1, row, 1, 1)
-            return val_lbl
+        self.mode_description = Gtk.Label()
+        self.mode_description.set_halign(Gtk.Align.START)
+        self.mode_description.set_hexpand(True)
+        self.mode_description.add_css_class("mode-description")
+        self.mode_strip.append(self.mode_description)
 
-        self.val_keyd = add_row(details_grid, 0, "keyd name")
-        self.val_evdev = add_row(details_grid, 1, "evdev code")
-        self.val_name = add_row(details_grid, 2, "GDK keyname")
-        self.val_val = add_row(details_grid, 3, "GDK keyval")
-        self.val_code = add_row(details_grid, 4, "XKB keycode")
-        self.val_bind = add_row(details_grid, 5, "Hypr bind")
-        self.val_clipboard = add_row(details_grid, 6, "Clipboard")
+        pipeline = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        pipeline.add_css_class("signal-pipeline")
+        root.append(pipeline)
+
+        def add_pipeline_step(title_text):
+            step = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            step.set_hexpand(True)
+            step.add_css_class("pipeline-step")
+            title_lbl = Gtk.Label(label=title_text)
+            title_lbl.set_halign(Gtk.Align.START)
+            title_lbl.add_css_class("pipeline-title")
+            step.append(title_lbl)
+            value_lbl = Gtk.Label(label="—")
+            value_lbl.set_halign(Gtk.Align.START)
+            value_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            value_lbl.add_css_class("pipeline-value")
+            step.append(value_lbl)
+            pipeline.append(step)
+            return value_lbl
+
+        self.val_keyd = add_pipeline_step("PHYSICAL / KEYD")
+        arrow = Gtk.Label(label="→")
+        arrow.add_css_class("pipeline-arrow")
+        pipeline.append(arrow)
+        self.val_evdev = add_pipeline_step("EVDEV CODE")
+        arrow = Gtk.Label(label="→")
+        arrow.add_css_class("pipeline-arrow")
+        pipeline.append(arrow)
+        self.val_name = add_pipeline_step("GDK KEYNAME")
+        arrow = Gtk.Label(label="→")
+        arrow.add_css_class("pipeline-arrow")
+        pipeline.append(arrow)
+        self.val_bind = add_pipeline_step("HYPR BIND")
+
+        technical_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        technical_card.add_css_class("technical-card")
+        root.append(technical_card)
+
+        technical_grid = Gtk.Grid()
+        technical_grid.set_column_homogeneous(True)
+        technical_grid.set_column_spacing(10)
+        technical_card.append(technical_grid)
+
+        def add_technical_cell(column, title_text):
+            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            cell.add_css_class("technical-cell")
+            title_lbl = Gtk.Label(label=title_text)
+            title_lbl.set_halign(Gtk.Align.START)
+            title_lbl.add_css_class("technical-title")
+            cell.append(title_lbl)
+            value_lbl = Gtk.Label(label="—")
+            value_lbl.set_halign(Gtk.Align.START)
+            value_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            value_lbl.add_css_class("technical-value")
+            cell.append(value_lbl)
+            technical_grid.attach(cell, column, 0, 1, 1)
+            return value_lbl
+
+        self.val_code = add_technical_cell(0, "XKB KEYCODE")
+        self.val_val = add_technical_cell(1, "GDK KEYVAL")
+
+        clipboard_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        clipboard_box.add_css_class("clipboard-row")
+        technical_card.append(clipboard_box)
+
+        clipboard_title = Gtk.Label(label="CLIPBOARD")
+        clipboard_title.add_css_class("technical-title")
+        clipboard_box.append(clipboard_title)
+
+        self.val_clipboard = Gtk.Label(label="—")
+        self.val_clipboard.set_hexpand(True)
+        self.val_clipboard.set_halign(Gtk.Align.START)
+        self.val_clipboard.set_ellipsize(Pango.EllipsizeMode.END)
+        self.val_clipboard.add_css_class("clipboard-value")
+        clipboard_box.append(self.val_clipboard)
+
         self.detail_values = (
             self.val_keyd, self.val_evdev, self.val_name, self.val_val,
             self.val_code, self.val_bind, self.val_clipboard,
         )
 
-        # divider
-        divider2 = Gtk.Box()
-        divider2.add_css_class("divider")
-        content_card.append(divider2)
+        footer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        footer.add_css_class("inspector-footer")
+        root.append(footer)
 
-        # info box
-        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        info_box.add_css_class("info-box")
-        content_card.append(info_box)
+        footer_hint = Gtk.Label(
+            label="Press any key to inspect · results copy automatically"
+        )
+        footer_hint.set_halign(Gtk.Align.START)
+        footer_hint.set_hexpand(True)
+        footer_hint.add_css_class("footer-hint")
+        footer.append(footer_hint)
 
-        self.info_lbl = Gtk.Label()
-        self.info_lbl.set_halign(Gtk.Align.START)
-        self.info_lbl.set_justify(Gtk.Justification.LEFT)
-        self.info_lbl.add_css_class("info-text")
-        info_box.append(self.info_lbl)
+        clear_btn = Gtk.Button(label="Clear")
+        clear_btn.add_css_class("inspector-action")
+        clear_btn.connect("clicked", lambda _: self.reset_capture_display())
+        footer.append(clear_btn)
 
-        # spacer
-        spacer = Gtk.Box()
-        spacer.set_vexpand(True)
-        content_card.append(spacer)
+        copy_btn = Gtk.Button(label="Copy")
+        copy_btn.add_css_class("inspector-action")
+        copy_btn.connect("clicked", lambda _: self.copy_current_capture())
+        footer.append(copy_btn)
 
-        # quit button
-        quit_btn = Gtk.Button(label="Exit (Q)")
-        quit_btn.add_css_class("quit-btn")
-        quit_btn.set_halign(Gtk.Align.CENTER)
-        quit_btn.connect("clicked", lambda _: app.quit())
-        content_card.append(quit_btn)
+        done_btn = Gtk.Button(label="Close")
+        done_btn.add_css_class("inspector-action")
+        done_btn.add_css_class("suggested-action")
+        done_btn.connect("clicked", lambda _: app.quit())
+        footer.append(done_btn)
 
         # ── key events ──
         key_ctrl = Gtk.EventControllerKey()
@@ -433,32 +809,39 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
     def update_mode_text(self):
         if self.is_original_mode():
-            self.hint.set_label(
-                "Raw Source — keyd is paused · shows the physical key as sent by hardware"
-            )
-            self.info_lbl.set_label(
-                "  \u2022  Large text is the raw keyd physical key name — use as remap source.\n"
-                "  \u2022  keyd is paused so existing remaps won't affect capture.\n"
-                "  \u2022  Escape and Q are also capturable — use Ctrl+W or button to exit."
+            self.mode_strip.add_css_class("raw")
+            self.mode_description.set_label(
+                "keyd paused · reading the physical key directly from hardware"
             )
         else:
-            self.hint.set_label(
-                "Current Key — keyd is running · shows what apps actually receive"
+            self.mode_strip.remove_css_class("raw")
+            self.mode_description.set_label(
+                "keyd running · showing the final key received by applications"
             )
-            self.info_lbl.set_label(
-                "  \u2022  Large text shows the current keyd-mapped value, not the raw key.\n"
-                "  \u2022  Hypr bind is the key name used by Hyprland and applications.\n"
-                "  \u2022  Press Q, Escape or the exit button to close."
-            )
+
+    def set_keyd_text(self, text):
+        self.keyd_display.set_label(text)
+        self.keyd_display.set_visible(bool(text))
 
     def reset_capture_display(self):
         clear_capture_state()
-        self.key_display.set_label("( waiting for input )")
-        self.keyd_display.set_label("")
+        self.last_clipboard_text = ""
+        self.key_display.set_label("Press any key")
+        self.key_display.add_css_class("waiting")
+        self.set_keyd_text("")
         self.bind_display.set_label("")
         self.status_label.set_label("")
         for value in self.detail_values:
             value.set_label("\u2014")
+
+    def copy_current_capture(self):
+        if not self.last_clipboard_text:
+            self.status_label.set_label("No captured key to copy")
+            return
+        if copy_to_clipboard(self.last_clipboard_text):
+            self.status_label.set_label("\u2713 copied current capture")
+        else:
+            self.status_label.set_label("\u2717 copy failed (check clipboard service)")
 
     def on_mode_toggled(self, button, mode):
         if self._updating_mode or not button.get_active() or mode == self.capture_mode:
@@ -583,22 +966,24 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         def finalize_capture(final_key):
             keyd_name = gtk_keycode_to_keyd(keycode) or ""
             evdev_code = gtk_keycode_to_evdev(keycode)
+            self.key_display.remove_css_class("waiting")
             if keyd_name:
                 self.key_display.set_label(keyd_name)
-                self.keyd_display.set_label(
+                self.set_keyd_text(
                     "original keyd physical key name"
                     if self.is_original_mode()
                     else "keyd-mapped current key value"
                 )
             else:
                 self.key_display.set_label(f"[ {final_key} ]")
-                self.keyd_display.set_label("unrecognized physical key")
+                self.set_keyd_text("unrecognized physical key")
             self.bind_display.set_label(
                 f"Hypr/GDK: {final_key}" if final_key else ""
             )
             clipboard_text = build_clipboard_text(
                 final_key, keyval, keycode, keyname, keyd_name, evdev_code
             )
+            self.last_clipboard_text = clipboard_text
             self.val_clipboard.set_label(clipboard_text.replace("\n", " / "))
             if not self.can_export_capture():
                 expected = "Raw Source" if self.initial_mode == "original" else "Current Key"
@@ -632,8 +1017,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             # solitary modifier: show only, don't copy
             display_name = " + ".join(mods) or keyname.upper()
             keyd_name = gtk_keycode_to_keyd(keycode) or ""
+            self.key_display.remove_css_class("waiting")
             self.key_display.set_label(keyd_name or f"[ {display_name} ]")
-            self.keyd_display.set_label(
+            self.set_keyd_text(
                 "keyd-mapped current key value" if keyd_name else ""
             )
             self.bind_display.set_label(
