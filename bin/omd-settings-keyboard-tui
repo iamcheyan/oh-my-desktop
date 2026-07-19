@@ -583,6 +583,12 @@ def render_log(model, width):
     return lines
 
 
+def _can_edit_selected(model):
+    """True when the selected device exists and is currently connected."""
+    return (model.devices and model.selected < len(model.devices)
+            and model.devices[model.selected].get("connected", False))
+
+
 def hero_info(model):
     keyd = "keyd inactive"
     if model.boo("keydRunning"):
@@ -590,6 +596,10 @@ def hero_info(model):
     parts = [keyd, f"{len(model.devices)} devices", f"{model.selected_preset_count()} presets on"]
     if model.pending_changes:
         parts.append("pending")
+    if _can_edit_selected(model):
+        parts.append("editing")
+    else:
+        parts.append("viewing")
     subtitle = " · ".join(parts)
     tone = "ok" if model.boo("keydRunning") else "danger"
     status_text = "keyd active" if model.boo("keydRunning") else "keyd inactive"
@@ -610,13 +620,11 @@ def help_items(model):
         ("pgup/pgdn", "logs"),
         ("q", "quit"),
     ]
-    tool = [
-        ("space", "toggle"),
-        ("enter", "edit key"),
-        ("a", "apply"),
-        ("s", "setup"),
-        ("t", "tester"),
-    ]
+    can_edit = _can_edit_selected(model)
+    tool = [("space", "toggle")]
+    if can_edit:
+        tool.append(("enter", "edit key"))
+    tool += [("a", "apply"), ("s", "setup"), ("t", "tester")]
     return (generic, tool)
 
 
@@ -677,6 +685,7 @@ def view(stdscr, model):
         S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
 
     # ── Right: Profile (with Fn Row) + Presets + Activity (stacked boxes) ──
+    view_only = not _can_edit_selected(model)
     # Box 1: Profile & Function Row (merged)
     profile_lines = []
     if model.devices and model.selected < len(model.devices):
@@ -687,12 +696,14 @@ def view(stdscr, model):
         did = dev.get("keydId") or "—"
         profile_lines.append(("text",   f"  Device    {dev.get('displayName', dev.get('hyprName', '?'))}"))
         profile_lines.append(("muted",  f"  ID        {did}"))
-        profile_lines.append(S.profile_enabled_line(is_enabled, model.focus_area == 1 and model.selected_preset == 0))
-        if model.fnmode_available:
+        profile_lines.append(S.profile_enabled_line(is_enabled and not view_only, model.focus_area == 1 and model.selected_preset == 0))
+        if model.fnmode_available and not view_only:
             profile_lines.append(("", ""))
             profile_lines.append(S.cycle_line("Fn Row Mode", model.fnmode, "f", model.focus_area == 1 and model.selected_preset == (1 if model.fnmode_available else 0)))
     else:
         profile_lines.append(("muted", "  Select a device…"))
+    if view_only and len([l for l in profile_lines if l[0] != ""]) == 3:
+        profile_lines.append(("muted", "  (view only — connect to edit)"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
         S.draw_thick_border(stdscr, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
@@ -713,16 +724,16 @@ def view(stdscr, model):
             if is_enabled and exists:
                 active = pid in prof.get("enabledPresets", [])
             preset_row = i + 1
-            if model.fnmode_available:
+            if model.fnmode_available and not view_only:
                 preset_row += 1
             focused = model.focus_area == 1 and model.selected_preset == preset_row
             trailing = ""
-            if ptype == "remap":
+            if ptype == "remap" and not view_only:
                 target = pdefault
                 if exists and prof.get("presetOverrides"):
                     target = prof["presetOverrides"].get(pid, pdefault)
                 trailing = target
-            presets_lines.append(S.toggle_line(active, plabel, focused, not is_enabled, trailing))
+            presets_lines.append(S.toggle_line(active, plabel, focused, view_only or not is_enabled, trailing))
     on_count = sum(1 for l in presets_lines if l[1].startswith("[X]"))
     presets_title = f"Presets  {on_count} on"
     presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
@@ -768,8 +779,12 @@ def handle_key(stdscr, model, key):
             return True
         return False
 
-    # Key picker mode
+    # Key picker mode — only if selected device is still connected
     if model.show_picker:
+        if not _can_edit_selected(model):
+            model.show_picker = False
+            model.dirty = True
+            return True
         if key == curses.KEY_UP or key == ord('k'):
             model.picker_row = max(0, model.picker_row - 1)
             model.picker_col = min(model.picker_col, len(KEYBOARD_ROWS[model.picker_row]) - 1)
@@ -817,15 +832,16 @@ def handle_key(stdscr, model, key):
                             preset_row += 1
                         model.selected_preset = preset_row
                         model.focus_area = 1
-                        if ptype == "remap":
-                            # Check if click is past the label (on trailing target)
-                            label_end = plain[my].find(plabel) + len(plabel) if my < len(plain) else 0
-                            if mx >= label_end:
-                                model.trigger_override_picker()
+                        if _can_edit_selected(model):
+                            if ptype == "remap":
+                                # Check if click is past the label (on trailing target)
+                                label_end = plain[my].find(plabel) + len(plabel) if my < len(plain) else 0
+                                if mx >= label_end:
+                                    model.trigger_override_picker()
+                                else:
+                                    model.toggle_preset()
                             else:
                                 model.toggle_preset()
-                        else:
-                            model.toggle_preset()
                         model.dirty = True
                         return True
                 # Check action buttons
@@ -836,11 +852,12 @@ def handle_key(stdscr, model, key):
                 for label, k in actions:
                     if S.hit_test(plain, mx, my, label):
                         return handle_key(stdscr, model, ord(k))
-                # Check profile toggle
+                # Check profile toggle (view-only if device offline)
                 if S.hit_test(plain, mx, my, "Profile:"):
                     model.selected_preset = 0
                     model.focus_area = 1
-                    model.toggle_profile_enabled()
+                    if _can_edit_selected(model):
+                        model.toggle_profile_enabled()
                     model.dirty = True
                     return True
         return True
@@ -863,9 +880,10 @@ def handle_key(stdscr, model, key):
         elif key == ord('r'):
             model.refresh()
         elif key == ord('c'):
-            src = model.find_copy_source()
-            if src:
-                model.copy_profile_from(src)
+            if _can_edit_selected(model):
+                src = model.find_copy_source()
+                if src:
+                    model.copy_profile_from(src)
         elif key == ord('\n') or key == 10:  # Enter
             model.focus_area = 1
     else:  # right panel (presets)
@@ -903,9 +921,10 @@ def handle_key(stdscr, model, key):
             model.busy = True
             model.cycle_fnmode()
         elif key == ord('c'):
-            src = model.find_copy_source()
-            if src:
-                model.copy_profile_from(src)
+            if _can_edit_selected(model):
+                src = model.find_copy_source()
+                if src:
+                    model.copy_profile_from(src)
 
     # Global scroll keys
     if key == curses.KEY_PPAGE:
