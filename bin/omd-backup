@@ -150,6 +150,31 @@ case "$cmd" in
 
     end=$(date +%s)
     elapsed=$((end - start))
+    # Save per-item tracking
+    time_fmt="$(date +%H:%M)"
+    items_json="["
+    first=true
+    while read -r item_path; do
+      if [[ -z "$item_path" ]]; then
+        continue
+      fi
+      if [[ "$first" == true ]]; then
+        first=false
+      else
+        items_json+=","
+      fi
+      if [[ -f "$item_path" ]]; then
+        item_type="file"
+      elif [[ -d "$item_path" ]]; then
+        item_type="dir"
+      else
+        item_type="missing"
+      fi
+      items_json+="{\"path\":\"$item_path\",\"type\":\"$item_type\",\"last_backup\":\"$time_fmt\"}"
+    done <<< "$local_paths"
+    items_json+="]"
+    echo "$items_json" > "$STATE_DIR/items.json"
+
     echo "Backup complete in ${elapsed}s, ${total_files} files"
     echo "{\"ok\":true,\"elapsed\":$elapsed}" > "$STATE_DIR/last-result.json"
     echo "{\"ok\":true,\"elapsed\":$elapsed}"

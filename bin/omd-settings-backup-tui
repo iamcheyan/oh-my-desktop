@@ -74,17 +74,20 @@ class Model:
         self.message = ""
         self.dirty = True
         self.scroll_offset = 0
-        self.focus_area = 0  # 0=left (status/schedule/actions), 1=right (config fields)
+        self.focus_area = 0  # 0=left (status/schedule/actions), 1=right (item table/fields/activity)
         self.selected_field = 0
+        self.selected_table_row = 0
         self.selected_schedule = 0
         self.test_result = None  # None / "ok" / "error"
         self.test_error = ""
         self.last_sync_ok = None
         self.last_sync_time = ""
+        self.item_rows = []  # list of {path, type, exists, last_backup}
         self.editing_field = False
         self.edit_buffer = ""
         self.edit_field_key = ""
         self.load_config()
+        self._refresh_item_rows()
 
     def load_config(self):
         try:
@@ -120,12 +123,14 @@ class Model:
             ]
         self.has_config = bool(self.config.get("address"))
         self._sync_schedule_idx()
+        self._refresh_item_rows()
 
     def save_config(self):
         os.makedirs(CONFIG_DIR, exist_ok=True)
         with open(CONFIG_FILE, "w") as f:
             json.dump(self.config, f, indent=2)
         self.has_config = bool(self.config.get("address"))
+        self._refresh_item_rows()
         self.append_log("Config saved")
         self.message = "Config saved"
 
@@ -233,7 +238,7 @@ class Model:
                     self.message = "Backup done"
                     for l in lines:
                         self.append_log(f"  {l}")
-            self.dirty = True
+            self._refresh_item_rows()
 
         threading.Thread(target=_cb, daemon=True).start()
 
@@ -244,6 +249,40 @@ class Model:
                 json.dump(self.config, f, indent=2)
         except OSError:
             pass
+
+    def _refresh_item_rows(self):
+        """Rebuild item_rows from config localPath + state items.json + disk check."""
+        paths = self.config.get("localPath", [])
+        if isinstance(paths, str):
+            paths = [p.strip() for p in paths.split(",") if p.strip()]
+        # Load per-item backup times from state
+        item_times = {}
+        try:
+            with open(os.path.join(STATE_DIR, "items.json")) as f:
+                for entry in json.load(f):
+                    item_times[entry.get("path", "")] = entry.get("last_backup", "")
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        rows = []
+        for p in paths:
+            if not p:
+                continue
+            exists = os.path.exists(p)
+            if os.path.isdir(p):
+                typ = "dir"
+            elif os.path.isfile(p):
+                typ = "file"
+            else:
+                typ = "—"
+            rows.append({
+                "path": p,
+                "name": os.path.basename(p) or p,
+                "type": typ,
+                "exists": exists,
+                "last_backup": item_times.get(p, ""),
+            })
+        self.item_rows = rows
+        self.dirty = True
 
 
 def view_remote_files(model):
@@ -414,6 +453,40 @@ def render_actions(model):
     return lines
 
 
+def render_item_table(model, width):
+    """Render the managed items table: name | type | last backup | status."""
+    rows = model.item_rows
+    if not rows:
+        return [("muted", "  (no items configured)")]
+    # Column widths
+    avail = width - 6  # 2 padding on each side + gaps
+    name_w = max(15, avail - 5 - 10 - 16)  # type(5) + backed(10) + status(16) = 31
+    if name_w < 10:
+        name_w = 10
+    lines = []
+    # Header
+    hdr = f"  {'Name'.ljust(name_w)} {'Type':<6} {'Backed':<10} Status"
+    lines.append(("muted", hdr))
+    # Table separator
+    lines.append(("muted", "  " + "─" * len(hdr.strip())))
+    for i, row in enumerate(rows):
+        name = S.truncate(row["name"], name_w)
+        typ = row["type"]
+        backed = row["last_backup"] if row["last_backup"] else "—"
+        if not row["exists"]:
+            status = "⚠ Missing"
+            st_tag = "danger"
+        elif backed != "—":
+            status = "✅ Synced"
+            st_tag = "ok"
+        else:
+            status = "○ Pending"
+            st_tag = "muted"
+        line = f"  {name:<{name_w}} {typ:<6} {backed:<10} {status}"
+        lines.append((st_tag, line))
+    return lines
+
+
 def render_sync_status(model, width):
     lines = []
     if model.last_sync_ok is True:
@@ -474,26 +547,38 @@ def view(stdscr, model):
         S.draw_focus_border(stdscr, left_focused, actions_y, 0, actions_h, left_w, "Actions")
         S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
 
-    # Right: Config fields + Sync status + Activity
+    # Right: Managed Items table + Config fields + Activity
     field_lines = render_field_list(model, right_w - 4)
-    field_box_h = min(content_h, len(field_lines) + 3)
-    if field_box_h >= 3:
-        S.draw_focus_border(stdscr, right_focused, hero_h, left_w, field_box_h, right_w, "Connection")
-        S.draw_lines_in_area(stdscr, hero_h, left_w, field_box_h, right_w, field_lines)
-    else:
+    field_box_h = min(9, len(field_lines) + 3)
+    if field_box_h < 3:
         field_box_h = 0
 
-    sync_y = hero_h + field_box_h
-    sync_lines = render_sync_status(model, right_w - 4)
-    sync_box_h = min(content_h - field_box_h, len(sync_lines) + 3)
-    if sync_box_h >= 3:
-        S.draw_focus_border(stdscr, right_focused, sync_y, left_w, sync_box_h, right_w, "")
-        S.draw_lines_in_area(stdscr, sync_y, left_w, sync_box_h, right_w, sync_lines)
+    table_lines = render_item_table(model, right_w - 4)
+    table_h = len(table_lines) + 3 if table_lines else 0
+    if table_h < 3:
+        table_h = 0
+    # Distribute: table gets as much as it needs, fields fixed, activity gets rest
+    avail_right = content_h
+    table_box_h = min(table_h, avail_right - field_box_h - 3) if field_box_h > 0 else min(table_h, avail_right - 3)
+    if table_box_h < 3:
+        table_box_h = 0
+    # If table + fields + min activity don't fit, shrink table
+    if table_box_h > 0 and field_box_h > 0 and (table_box_h + field_box_h + 3) > avail_right:
+        table_box_h = max(3, avail_right - field_box_h - 3)
+    # Draw items table
+    if table_box_h >= 3:
+        S.draw_focus_border(stdscr, right_focused, hero_h, left_w, table_box_h, right_w, "Managed Items")
+        S.draw_lines_in_area(stdscr, hero_h, left_w, table_box_h, right_w, table_lines)
+    # Draw config fields below table, or at top if table is empty
+    fields_y = hero_h + table_box_h
+    if field_box_h >= 3 and (fields_y + field_box_h) < hero_h + content_h:
+        S.draw_focus_border(stdscr, right_focused, fields_y, left_w, field_box_h, right_w, "Connection")
+        S.draw_lines_in_area(stdscr, fields_y, left_w, field_box_h, right_w, field_lines)
     else:
-        sync_box_h = 0
-
-    act_y = sync_y + sync_box_h
-    act_h = content_h - act_y + hero_h
+        field_box_h = 0
+    # Activity log fills remaining space
+    act_y = fields_y + field_box_h
+    act_h = hero_h + content_h - act_y
     if act_h >= 4:
         S.draw_focus_border(stdscr, right_focused, act_y, left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset,
@@ -589,6 +674,7 @@ def handle_key(stdscr, model, key):
         return True
     if key == ord('r'):
         model.message = ""
+        model._refresh_item_rows()
         model.dirty = True
         return True
     if key in (ord('e'), ord('E')):
