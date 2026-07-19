@@ -537,6 +537,7 @@ Item {
 
                 RowLayout {
                     Layout.alignment: Qt.AlignRight
+                    visible: rowHover.hovered
                     spacing: 4
 
                     IconButton {
