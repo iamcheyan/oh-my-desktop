@@ -610,7 +610,12 @@ Item {
                     property bool existingWorkspace: modelData.existingWorkspace ?? false
                     property int colIndex: root.entryLocalColumn(index)
                     property int rowIndex: root.entryLocalRow(index)
-                    property color defaultWorkspaceColor: Appearance.colors.colSurfaceContainerLow
+                    property color defaultWorkspaceColor: {
+                        if (!root.configuredWallpaperPath || root.displayedWallpaperUrl == "") {
+                            return OmarchyTheme.tintedBackground;
+                        }
+                        return Appearance.colors.colSurfaceContainerLow;
+                    }
                     property color hoveredWorkspaceColor: ColorUtils.mix(defaultWorkspaceColor, Appearance.colors.colLayer1Hover, 0.1)
                     property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                     property bool hoveredWhileDragging: false

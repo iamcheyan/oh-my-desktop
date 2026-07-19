@@ -15,6 +15,12 @@ Singleton {
     readonly property color accentSofter: Qt.rgba(accent.r, accent.g, accent.b, 0.10)
     readonly property color accentBorder: Qt.rgba(accent.r, accent.g, accent.b, 0.78)
     readonly property color accentActiveBorder: Qt.rgba(accent.r, accent.g, accent.b, 0.88)
+    readonly property color tintedBackground: {
+        var r = background.r * 0.92 + accent.r * 0.08;
+        var g = background.g * 0.92 + accent.g * 0.08;
+        var b = background.b * 0.92 + accent.b * 0.08;
+        return Qt.rgba(r, g, b, 1.0);
+    }
 
     function reload() {
         themeFile.reload();
