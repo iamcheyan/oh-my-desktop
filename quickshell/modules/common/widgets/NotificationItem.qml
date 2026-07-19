@@ -13,8 +13,8 @@ Item {
     property bool expanded: false
     property bool onlyNotification: false
     property real fontSize: Appearance.font.pixelSize.small
-    property real horizontalPadding: onlyNotification ? 12 : 8
-    property real verticalPadding: onlyNotification ? 10 : 6
+    property real horizontalPadding: 12
+    property real verticalPadding: 10
     readonly property bool critical: notificationObject?.urgency == NotificationUrgency.Critical
         || notificationObject?.urgency == NotificationUrgency.Critical.toString()
     readonly property bool hovered: hoverHandler.hovered
@@ -50,183 +50,178 @@ Item {
         radius: 8
         color: "transparent"
         border.width: 0
-        implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
+        implicitHeight: contentRow.implicitHeight + root.verticalPadding * 2
 
-        ColumnLayout {
-            id: contentColumn
+        RowLayout {
+            id: contentRow
             anchors {
                 left: parent.left
                 right: parent.right
-                verticalCenter: parent.verticalCenter
+                top: parent.top
+                topMargin: root.verticalPadding
                 leftMargin: root.horizontalPadding
                 rightMargin: root.horizontalPadding
             }
-            spacing: onlyNotification ? 6 : 2
+            spacing: 12
 
-            RowLayout {
-                Layout.fillWidth: true
-                visible: onlyNotification
-                spacing: 8
-
-                NotificationAppIcon {
-                    Layout.preferredWidth: 20
-                    Layout.preferredHeight: 20
-                    scale: 20 / 38
-                    appIcon: notificationObject?.appIcon || ""
-                    image: notificationObject?.image || ""
-                    summary: notificationObject?.summary || ""
-                    urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: displayApp
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.family: Appearance.font.family.main
-                    font.weight: Font.Medium
-                    color: TuiStyle.dim
-                }
-
-                StyledText {
-                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.family: Appearance.font.family.monospace
-                    color: TuiStyle.dim
-                }
+            // Left: icon
+            NotificationAppIcon {
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: 2
+                scale: 36 / 38
+                appIcon: notificationObject?.appIcon || ""
+                image: notificationObject?.image || ""
+                summary: notificationObject?.summary || ""
+                urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
             }
 
-            RowLayout {
+            // Right: title + content + buttons
+            ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                Layout.alignment: Qt.AlignTop
+                spacing: 4
 
+                // Title row: app name + time
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: displayApp
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.family: Appearance.font.family.main
+                        font.weight: Font.Medium
+                        color: TuiStyle.dim
+                    }
+
+                    StyledText {
+                        text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.family: Appearance.font.family.monospace
+                        color: TuiStyle.dim
+                        opacity: 0.7
+                    }
+                }
+
+                // Summary
                 StyledText {
                     Layout.fillWidth: true
                     text: root.notificationObject?.summary || ""
                     elide: Text.ElideRight
-                    maximumLineCount: onlyNotification ? (expanded ? 3 : 2) : 1
-                    wrapMode: onlyNotification && expanded ? Text.Wrap : Text.NoWrap
-                    font.pixelSize: onlyNotification ? Appearance.font.pixelSize.normal : root.fontSize
+                    maximumLineCount: 2
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.normal
                     font.family: Appearance.font.family.main
-                    font.weight: onlyNotification ? Font.DemiBold : Font.Normal
+                    font.weight: Font.DemiBold
                     color: root.critical ? TuiStyle.danger : TuiStyle.fg
                     textFormat: Text.PlainText
                 }
 
+                // Body
                 StyledText {
-                    visible: !onlyNotification && root.notificationObject?.actions?.length > 0
-                    text: `[${root.notificationObject?.actions?.length ?? 0}]`
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    font.family: Appearance.font.family.monospace
-                    color: TuiStyle.dim
-                }
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                visible: root.hasBody
-                text: root.bodyText().replace(/\n/g, root.expanded ? "<br/>" : " ")
-                maximumLineCount: root.expanded ? 999 : (onlyNotification ? 3 : 1)
-                wrapMode: root.expanded || onlyNotification ? Text.Wrap : Text.NoWrap
-                elide: Text.ElideRight
-                font.pixelSize: root.fontSize
-                font.family: Appearance.font.family.main
-                color: TuiStyle.dim
-                textFormat: root.expanded ? Text.RichText : Text.StyledText
-                onLinkActivated: link => {
-                    Qt.openUrlExternally(link);
-                    GlobalStates.barPopupType = "";
-                }
-                PointingHandLinkHover {}
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: onlyNotification ? 4 : 5
-                visible: true
-                spacing: 4
-
-                Repeater {
-                    model: root.expanded ? (root.notificationObject?.actions ?? []) : []
-                    NotificationActionButton {
-                        required property var modelData
-                        buttonText: modelData.text
-                        urgency: root.notificationObject?.urgency
-                        onClicked: {
-                            Notifications.attemptInvokeAction(root.notificationObject.notificationId, modelData.identifier);
-                        }
-                    }
-                }
-
-                Item {
                     Layout.fillWidth: true
+                    visible: root.hasBody && root.bodyText() !== (root.notificationObject?.summary || "")
+                    text: root.bodyText().replace(/\n/g, " ")
+                    maximumLineCount: 3
+                    wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.main
+                    color: TuiStyle.dim
+                    textFormat: Text.PlainText
                 }
 
-                Rectangle {
-                    id: closeBtn
-                    implicitWidth: 52
-                    implicitHeight: 24
-                    radius: TuiStyle.miniRadius
-                    color: "transparent"
-                    border.width: 1
-                    border.color: TuiStyle.line
+                // Action buttons row
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 2
+                    visible: true
+                    spacing: 4
 
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: "close"
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: TuiStyle.dim
-                    }
-
-                    MouseArea {
-                        id: closeArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.discard()
-                    }
-                }
-
-                Rectangle {
-                    id: copyBtn
-                    implicitWidth: 52
-                    implicitHeight: 24
-                    radius: TuiStyle.miniRadius
-                    visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
-                    color: "transparent"
-                    border.width: 1
-                    border.color: TuiStyle.line
-
-                    QtObject {
-                        id: copyState
-                        property string label: "copy"
-                    }
-
-                    StyledText {
-                        anchors.centerIn: parent
-                        text: copyState.label
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: TuiStyle.dim
-                    }
-
-                    MouseArea {
-                        id: copyArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
-                            copyState.label = "copied";
-                            copyReset.restart();
+                    Repeater {
+                        model: root.expanded ? (root.notificationObject?.actions ?? []) : []
+                        NotificationActionButton {
+                            required property var modelData
+                            buttonText: modelData.text
+                            urgency: root.notificationObject?.urgency
+                            onClicked: {
+                                Notifications.attemptInvokeAction(root.notificationObject.notificationId, modelData.identifier);
+                            }
                         }
                     }
 
-                    Timer {
-                        id: copyReset
-                        interval: 1500
-                        repeat: false
-                        onTriggered: copyState.label = "copy"
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        id: closeBtn
+                        implicitWidth: 52
+                        implicitHeight: 24
+                        radius: TuiStyle.miniRadius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: TuiStyle.line
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: "close"
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: TuiStyle.dim
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.discard()
+                        }
+                    }
+
+                    Rectangle {
+                        id: copyBtn
+                        implicitWidth: 52
+                        implicitHeight: 24
+                        radius: TuiStyle.miniRadius
+                        visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
+                        color: "transparent"
+                        border.width: 1
+                        border.color: TuiStyle.line
+
+                        QtObject {
+                            id: copyState
+                            property string label: "copy"
+                        }
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: copyState.label
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: TuiStyle.dim
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
+                                copyState.label = "copied";
+                                copyReset.restart();
+                            }
+                        }
+
+                        Timer {
+                            id: copyReset
+                            interval: 1500
+                            repeat: false
+                            onTriggered: copyState.label = "copy"
+                        }
                     }
                 }
             }
