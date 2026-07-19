@@ -201,8 +201,33 @@ Item {
                         wrapMode: Text.Wrap
                     }
                 }
+        }
+    }
+
+    // Muted apps section
+    ColumnLayout {
+        Layout.fillWidth: true
+        Layout.topMargin: 8
+        visible: Notifications.mutedApps.length > 0 && !root.hubStyle
+        spacing: 4
+
+        StyledText {
+            Layout.leftMargin: 4
+            text: "Muted apps"
+            font.family: Appearance.font.family.main
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            font.weight: Font.DemiBold
+            color: TuiStyle.dim
+        }
+
+        Repeater {
+            model: Notifications.mutedApps
+            delegate: MutedAppRow {
+                required property var modelData
+                appName: modelData
             }
         }
+    }
 
     Item {
         id: footer
@@ -274,6 +299,20 @@ Item {
     }
 
     } // column
+
+    // ── Muted apps management ──
+    QtObject {
+        id: muteState
+        property bool showMuted: false
+        property var mutedList: Notifications.mutedApps
+    }
+
+    Connections {
+        target: Notifications
+        function onMutedAppsChanged() {
+            muteState.mutedList = Notifications.mutedApps;
+        }
+    }
 
     component TuiToggle: Rectangle {
         id: toggle
@@ -559,7 +598,73 @@ Item {
                             danger: true
                             onClicked: row.discard()
                         }
+
+                        IconButton {
+                            symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
+                            tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
+                            danger: Notifications.isMuted(row.displayApp)
+                            onClicked: Notifications.toggleMuteApp(row.displayApp)
+                        }
                     }
+                }
+            }
+        }
+    }
+
+    component MutedAppRow: Item {
+        id: muteRow
+        required property string appName
+        implicitHeight: 36
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 8
+            spacing: 8
+
+            MaterialSymbol {
+                text: "notifications_off"
+                iconSize: 18
+                color: TuiStyle.danger
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                text: muteRow.appName
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: TuiStyle.dim
+            }
+
+            StyledText {
+                text: "muted"
+                font.family: Appearance.font.family.main
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: TuiStyle.danger
+            }
+
+            Rectangle {
+                implicitWidth: 52
+                implicitHeight: 26
+                radius: TuiStyle.miniRadius
+                color: unmuteMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                border.width: 1
+                border.color: TuiStyle.line
+
+                StyledText {
+                    anchors.centerIn: parent
+                    text: "unmute"
+                    font.family: Appearance.font.family.main
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: TuiStyle.dim
+                }
+
+                MouseArea {
+                    id: unmuteMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Notifications.toggleMuteApp(muteRow.appName)
                 }
             }
         }

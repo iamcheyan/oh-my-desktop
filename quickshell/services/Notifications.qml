@@ -74,10 +74,11 @@ Singleton {
     }
 
     readonly property bool silent: Config.options?.notifications?.silent ?? false
+    property var mutedApps: Config.options?.notifications?.mutedApps ?? []
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
-    property var popupList: list.filter((notif) => notif.popup);
+    property var popupList: list.filter((notif) => notif.popup && !root.isMuted(notif.appName));
     property bool popupInhibited: silent
     property var latestTimeForApp: ({})
     Component {
@@ -213,6 +214,26 @@ Singleton {
             Config.options.notifications.silent = !Config.options.notifications.silent;
         }
     }
+
+    function isMuted(appName) {
+        return root.mutedApps.indexOf(appName) >= 0;
+    }
+
+    function toggleMuteApp(appName) {
+        if (!Config.options || !Config.options.notifications)
+            return;
+        const list = [...root.mutedApps];
+        const idx = list.indexOf(appName);
+        if (idx >= 0)
+            list.splice(idx, 1);
+        else
+            list.push(appName);
+        root.mutedApps = list;
+        Config.options.notifications.mutedApps = list;
+        root.mutedAppsChanged();
+    }
+
+    signal mutedAppsChanged();
 
     function discardLatestNotification() {
         if (root.list.length === 0)

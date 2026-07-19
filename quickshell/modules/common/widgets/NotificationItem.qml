@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -129,6 +130,30 @@ Item {
                     Layout.alignment: Qt.AlignRight
                     visible: root.hovered
                     spacing: 4
+
+                    Rectangle {
+                        id: muteBtn
+                        implicitWidth: 28
+                        implicitHeight: 26
+                        radius: TuiStyle.miniRadius
+                        color: "transparent"
+                        border.width: 1
+                        border.color: TuiStyle.line
+
+                        MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: Notifications.isMuted(root.displayApp) ? "notifications_off" : "notifications"
+                            iconSize: 16
+                            color: Notifications.isMuted(root.displayApp) ? TuiStyle.danger : TuiStyle.dim
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Notifications.toggleMuteApp(root.displayApp)
+                        }
+                    }
 
                     Rectangle {
                         id: closeBtn

@@ -4,6 +4,7 @@
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 WALLPAPER_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omd-wallpaper-output-refresh.lock"
+MONITOR_TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
 
 refresh_wallpaper_outputs() {
   # Output geometry is not stable at the instant Hyprland publishes the event.
@@ -15,14 +16,32 @@ refresh_wallpaper_outputs() {
   ) 9>"$WALLPAPER_LOCK" &
 }
 
+recover_internal_monitor() {
+  local changed=false
+
+  # If no external connector remains, stale disable/mirror overrides can leave
+  # the laptop panel unavailable. The vendored Omarchy recovery scripts depend
+  # on toggle helpers that are not present in this repository, so repair the two
+  # concrete state files directly and reload Hyprland once when needed.
+  "$HOME/.config/omd/bin/omd-hw-external-monitors" && return 0
+
+  for toggle in internal-monitor-disable internal-monitor-mirror; do
+    if [[ -e "$MONITOR_TOGGLE_DIR/$toggle.lua" ]]; then
+      rm -f "$MONITOR_TOGGLE_DIR/$toggle.lua"
+      changed=true
+    fi
+  done
+
+  [[ "$changed" == false ]] || hyprctl reload >/dev/null 2>&1 || true
+}
+
 socat -U - "UNIX-CONNECT:$SOCKET" | while read -r event; do
   case "$event" in
     monitoradded\>\>*|monitoraddedv2\>\>*)
       refresh_wallpaper_outputs
       ;;
     monitorremoved\>\>*|monitorremovedv2\>\>*)
-      "$HOME/.config/omd/bin/omd-hyprland-monitor-internal" recover
-      "$HOME/.config/omd/bin/omd-hyprland-monitor-internal-mirror" recover
+      recover_internal_monitor
       refresh_wallpaper_outputs
       ;;
   esac
