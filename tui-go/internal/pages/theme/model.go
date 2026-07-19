@@ -36,13 +36,14 @@ type themeEntry struct {
 }
 
 type palette struct {
-	background lipgloss.Color
-	panel      lipgloss.Color
-	panelSoft  lipgloss.Color
-	line       lipgloss.Color
-	text       lipgloss.Color
-	muted      lipgloss.Color
-	accent     lipgloss.Color
+	background     lipgloss.Color
+	panel          lipgloss.Color
+	panelSoft      lipgloss.Color
+	line           lipgloss.Color
+	text           lipgloss.Color
+	muted          lipgloss.Color
+	accent         lipgloss.Color
+	colorWallpaper lipgloss.Color
 }
 
 // imagePreviewCache memoizes the decoded wallpaper preview so repeated View
@@ -498,7 +499,7 @@ func (m Model) wallpaperControls(width int) string {
 	var activeLine, valLine string
 	if mode == "color" {
 		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Background:")
-		bgHex := fmt.Sprintf("#%s", strings.TrimPrefix(string(pal.background), "#"))
+		bgHex := fmt.Sprintf("#%s", strings.TrimPrefix(string(pal.colorWallpaper), "#"))
 		valLine = lipgloss.NewStyle().Foreground(pal.muted).Render(fmt.Sprintf("Solid Color (%s)", bgHex))
 	} else {
 		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Wallpaper:")
@@ -547,7 +548,7 @@ func (m Model) wallpaperPreview(width, height int) string {
 		line := strings.Repeat(" ", innerW)
 		var block []string
 		for i := 0; i < innerH; i++ {
-			block = append(block, lipgloss.NewStyle().Background(pal.background).Render(line))
+			block = append(block, lipgloss.NewStyle().Background(pal.colorWallpaper).Render(line))
 		}
 		imageView = strings.Join(block, "\n")
 	} else {
@@ -937,13 +938,14 @@ func (m Model) palette() palette {
 		accentC = ui.Accent
 	}
 	pal := palette{
-		background: bgC,
-		panel:      blend(bgC, fgC, 0.08),
-		panelSoft:  blend(bgC, fgC, 0.14),
-		line:       blend(bgC, fgC, 0.28),
-		text:       fgC,
-		muted:      blend(bgC, fgC, 0.68),
-		accent:     accentC,
+		background:     bgC,
+		panel:          blend(bgC, fgC, 0.08),
+		panelSoft:      blend(bgC, fgC, 0.14),
+		line:           blend(bgC, fgC, 0.28),
+		text:           fgC,
+		muted:          blend(bgC, fgC, 0.68),
+		accent:         accentC,
+		colorWallpaper: blend(bgC, accentC, 0.08),
 	}
 	paletteCache = struct {
 		bg, fg, accent string
