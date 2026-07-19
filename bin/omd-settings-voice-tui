@@ -445,6 +445,8 @@ def hero_info(model):
     status_text = state_label(model) if model.model_ready() else st_for_status
     if not model.model_ready():
         st_tone = "warn"
+    elif status_text == "Ready":
+        st_tone = "ok"
     elif st == "recording":
         st_tone = "danger"
     elif st == "downloading" or st == "nomodel":
