@@ -499,19 +499,39 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         }}
         .inspector-action:hover {{
             background-color: alpha({colors['foreground']}, 0.10);
-            transform: translateY(-1px);
-        }}
-        .inspector-action:active {{
-            transform: translateY(0);
         }}
         .inspector-action:checked {{
             background-color: {colors['accent']};
             color: {colors['background']};
             border-color: {colors['accent']};
-            box-shadow: 0 2px 8px alpha({colors['accent']}, 0.3);
+            box-shadow: 0 2px 10px alpha({colors['accent']}, 0.4);
         }}
         .inspector-action:checked:hover {{
             background-color: alpha({colors['accent']}, 0.85);
+            box-shadow: 0 2px 14px alpha({colors['accent']}, 0.55);
+        }}
+        /* Tab toggle buttons — dimmer inactive state for clear visual contrast */
+        .tab-action {{
+            color: alpha({colors['foreground']}, 0.25);
+            border-color: transparent;
+            background-color: transparent;
+            font-weight: 600;
+        }}
+        .tab-action:hover {{
+            color: alpha({colors['foreground']}, 0.55);
+            background-color: alpha({colors['foreground']}, 0.06);
+            border-color: alpha({colors['foreground']}, 0.08);
+        }}
+        .tab-action:checked {{
+            color: {colors['background']};
+            background-color: {colors['accent']};
+            border-color: {colors['accent']};
+            box-shadow: 0 2px 10px alpha({colors['accent']}, 0.4);
+            font-weight: 700;
+        }}
+        .tab-action:checked:hover {{
+            background-color: alpha({colors['accent']}, 0.88);
+            box-shadow: 0 2px 14px alpha({colors['accent']}, 0.55);
         }}
         .inspector-action.suggested-action {{
             background-color: {colors['accent']};
@@ -563,8 +583,10 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         header.append(tab_bar)
 
         self.current_mode_btn = Gtk.ToggleButton(label="CURRENT")
+        self.current_mode_btn.add_css_class("tab-action")
         self.current_mode_btn.add_css_class("inspector-action")
         self.original_mode_btn = Gtk.ToggleButton(label="RAW SOURCE")
+        self.original_mode_btn.add_css_class("tab-action")
         self.original_mode_btn.add_css_class("inspector-action")
         self.original_mode_btn.set_group(self.current_mode_btn)
         tab_bar.append(self.current_mode_btn)
