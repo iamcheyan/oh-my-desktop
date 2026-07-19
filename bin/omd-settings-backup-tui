@@ -8,6 +8,7 @@ tests connections, and runs manual backups.
 import curses
 import json
 import os
+import platform
 import subprocess
 import sys
 import threading
@@ -479,16 +480,29 @@ class Model:
         threading.Thread(target=_cb, daemon=True).start()
 
 def view_remote_files(model):
-    """Open a terminal at the NAS mount point for interactive file browsing."""
+    """Open a terminal at the host-specific backup directory for interactive browsing."""
     mnt = os.path.expanduser("~/NAS")
     if not os.path.isdir(mnt):
         model.message = "NAS not mounted — test connection first"
         model.dirty = True
         return
 
-    title = "NAS - Remote Backup Files"
-    # Universal approach: cd to mount point then exec bash
-    inner = f"cd {mnt} && exec bash"
+    # Compute host-specific backup directory
+    remote_path = model.config.get("remotePath", "Backups")
+    host_prefix = f"{platform.system()}-{platform.node().split('.')[0]}"
+    target = os.path.join(mnt, remote_path, host_prefix, "")
+
+    # Ensure the target directory exists
+    if not os.path.isdir(target):
+        try:
+            os.makedirs(target, exist_ok=True)
+        except OSError:
+            model.message = f"Failed to create {target}"
+            model.dirty = True
+            return
+
+    title = "NAS - Backup Directory"
+    inner = f"cd {target} && exec bash"
     cmd = (
         'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
         'exec xdg-terminal-exec --app-id=org.omd.list-file-share-backup --title="' + title + '" -- bash -c ' + repr(inner) + '; '
@@ -504,7 +518,7 @@ def view_remote_files(model):
             stderr=subprocess.DEVNULL,
             start_new_session=True
         )
-        model.message = f"Opened terminal at {mnt}"
+        model.message = f"Opened terminal at {target}"
     except Exception as e:
         model.message = f"Failed to open terminal: {e}"
     model.dirty = True
