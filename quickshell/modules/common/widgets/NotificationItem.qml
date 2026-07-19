@@ -165,28 +165,61 @@ Item {
                     Layout.fillWidth: true
                 }
 
-                NotificationActionButton {
-                    buttonText: "close"
-                    urgency: root.notificationObject?.urgency
-                    onClicked: root.discard()
+                Rectangle {
+                    id: closeBtn
+                    implicitWidth: closeLabel.implicitWidth + 18
+                    implicitHeight: 24
+                    radius: TuiStyle.miniRadius
+                    color: closeHover.pressed ? TuiStyle.surfacePressed : closeHover.hovered ? TuiStyle.surfaceHover : "transparent"
+                    border.width: 1
+                    border.color: closeHover.hovered ? TuiStyle.shellBorder : TuiStyle.line
+
+                    StyledText {
+                        id: closeLabel
+                        anchors.centerIn: parent
+                        text: "close"
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.dim
+                    }
+
+                    HoverHandler { id: closeHover }
+                    TapHandler { onTapped: root.discard() }
                 }
 
-                NotificationActionButton {
-                    id: copyButton
-                    buttonText: "copy"
-                    urgency: root.notificationObject?.urgency
+                Rectangle {
+                    id: copyBtn
+                    implicitWidth: copyLabel.implicitWidth + 18
+                    implicitHeight: 24
+                    radius: TuiStyle.miniRadius
                     visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
-                    onClicked: {
-                        Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
-                        copyButton.buttonText = "copied";
-                        copyTimer.restart();
+                    color: copyHover.pressed ? TuiStyle.surfacePressed : copyHover.hovered ? TuiStyle.surfaceHover : "transparent"
+                    border.width: 1
+                    border.color: copyHover.hovered ? TuiStyle.shellBorder : TuiStyle.line
+
+                    StyledText {
+                        id: copyLabel
+                        anchors.centerIn: parent
+                        text: copyBtnText
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.dim
+                    }
+
+                    property string copyBtnText: "copy"
+
+                    HoverHandler { id: copyHover }
+                    TapHandler {
+                        onTapped: {
+                            Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
+                            copyBtn.copyBtnText = "copied";
+                            copyReset.restart();
+                        }
                     }
 
                     Timer {
-                        id: copyTimer
+                        id: copyReset
                         interval: 1500
                         repeat: false
-                        onTriggered: copyButton.buttonText = "copy"
+                        onTriggered: copyBtn.copyBtnText = "copy"
                     }
                 }
             }

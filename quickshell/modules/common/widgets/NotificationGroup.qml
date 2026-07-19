@@ -109,8 +109,8 @@ MouseArea {
         radius: 8
         clip: true
         color: TuiStyle.bg
-        border.width: TuiStyle.borderWidth
-        border.color: TuiStyle.shellBorder
+        border.width: 1
+        border.color: "#555555"
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
         Behavior on anchors.leftMargin {
