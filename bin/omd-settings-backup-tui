@@ -208,7 +208,7 @@ class Model:
 
         threading.Thread(target=_cb, daemon=True).start()
 
-    def run_backup(self):
+    def run_backup(self, delete_remote=False):
         if self.busy:
             return
         if not self.config.get("address") or not self.config.get("localPath"):
@@ -216,13 +216,17 @@ class Model:
             self.dirty = True
             return
         self.busy = True
-        self.message = "Backing up…"
+        label = "Full sync" if delete_remote else "Incremental sync"
+        self.message = f"{label}…"
         self.dirty = True
-        self.append_log("$ backup started")
+        self.append_log(f"$ {label} started")
         self._save_temp_config()
 
         def _cb():
-            lines, err = self.run_backend("backup")
+            args = ["backup"]
+            if delete_remote:
+                args.append("--delete")
+            lines, err = self.run_backend(*args)
             self.busy = False
             self.last_sync_time = time.strftime("%H:%M")
             if err:
@@ -472,7 +476,8 @@ def help_items(model):
         items = [
             ("enter", "edit config"),
             ("t", "test conn"),
-            ("s", "sync"),
+            ("s", "sync inc"),
+            ("S", "sync full"),
             ("c", "compare"),
             ("e", "edit file"),
             ("l", "remote browse"),
@@ -568,7 +573,8 @@ def render_actions(model):
     enabled = not model.busy
     has_config = bool(model.config.get("address") and model.config.get("localPath"))
     lines.append(S.action_line("t", "Test connection", enabled))
-    lines.append(S.action_line("s", "Sync / Backup now", enabled and has_config))
+    lines.append(S.action_line("s", "Sync (incremental)", enabled and has_config))
+    lines.append(S.action_line("S", "Sync (full, --delete)", enabled and has_config))
     lines.append(S.action_line("c", "Compare changes", enabled and has_config))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
@@ -822,8 +828,11 @@ def handle_key(stdscr, model, key):
     if key in (ord('t'), ord('T')):
         model.test_connection()
         return True
-    if key in (ord('s'), ord('S'), ord('b'), ord('B')):
-        model.run_backup()
+    if key == ord('s') or key == ord('b'):
+        model.run_backup(delete_remote=False)
+        return True
+    if key == ord('S') or key == ord('B'):
+        model.run_backup(delete_remote=True)
         return True
     if key in (ord('c'), ord('C')):
         model.message = ""

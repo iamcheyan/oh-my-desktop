@@ -296,6 +296,11 @@ case "$cmd" in
 
   backup)
     data=$(load_config)
+    # Check for delete flag
+    delete_flag=0
+    if [[ "$1" == "--delete" ]]; then
+      delete_flag=1
+    fi
     local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
     remote_path=$(echo "$data" | jq -r '.remotePath // "Backups"')
     include_ext=$(echo "$data" | jq -r '.includeExt // ""')
@@ -351,6 +356,12 @@ case "$cmd" in
     fi
     if [[ -f "$filter_file" ]]; then
       rsync_opts+=(--filter="merge $filter_file")
+    fi
+
+    # Full sync: delete remote files not present locally
+    if [[ "$delete_flag" -eq 1 ]]; then
+      rsync_opts+=(--delete)
+      echo "Full sync mode (--delete)"
     fi
 
     total_files=0
