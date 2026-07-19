@@ -180,16 +180,20 @@ class Model:
         self._save_temp_config()
 
         def _cb():
-            lines, err = self.run_backend("test")
-            self.busy = False
-            if err:
-                self.test_result = "error"
-                self.test_error = err
-                self.message = "Test failed"
-                self.append_log(f"  error: {err}", "danger")
-            elif lines:
-                for l in lines:
-                    l = l.strip()
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "test"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
                     if l and not l.startswith("{"):
                         if "Connected" in l or "mounted" in l or "Already" in l:
                             self.append_log(f"  {l}", "ok")
@@ -199,17 +203,36 @@ class Model:
                             self.append_log(f"  {l}", "muted")
                         else:
                             self.append_log(f"  {l}")
-                data, _ = self._parse_json_line(lines)
-                if data and data.get("ok"):
-                    self.test_result = "ok"
-                    self.test_error = ""
-                    self.message = "Connection OK"
-                else:
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                self.busy = False
+                if err:
                     self.test_result = "error"
-                    self.test_error = (data or {}).get("error", "unknown")
-                    self.message = "Connection failed"
-                    self.append_log(f"  error: {self.test_error}", "danger")
-            self.dirty = True
+                    self.test_error = err
+                    self.message = "Test failed"
+                    self.append_log(f"  error: {err}", "danger")
+                else:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.test_result = "ok"
+                        self.test_error = ""
+                        self.message = "Connection OK"
+                    else:
+                        self.test_result = "error"
+                        self.test_error = (data or {}).get("error", "unknown")
+                        self.message = "Connection failed"
+                        self.append_log(f"  error: {self.test_error}", "danger")
+                self.dirty = True
+            except FileNotFoundError:
+                self.busy = False
+                self.test_result = "error"
+                self.test_error = "Backend script not found"
+                self.message = "Test failed \u2014 script not found"
+                self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
 
@@ -228,19 +251,22 @@ class Model:
         self._save_temp_config()
 
         def _cb():
-            args = ["backup"]
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "backup"]
             if delete_remote:
-                args.append("--delete")
-            lines, err = self.run_backend(*args)
-            self.busy = False
-            self.last_sync_time = time.strftime("%H:%M")
-            if err:
-                self.last_sync_ok = False
-                self.message = "Backup failed"
-                self.append_log(f"  error: {err}", "danger")
-            else:
-                for l in lines:
-                    l = l.strip()
+                cmd.append("--delete")
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
                     if l and not l.startswith("{"):
                         if "Backup complete" in l or "Backup done" in l:
                             self.append_log(f"  {l}", "ok")
@@ -250,18 +276,37 @@ class Model:
                             self.append_log(f"  {l}", "muted")
                         else:
                             self.append_log(f"  {l}")
-                data, _ = self._parse_json_line(lines)
-                if data and data.get("ok"):
-                    self.last_sync_ok = True
-                    elapsed = data.get("elapsed", 0)
-                    self.message = f"Backup done ({elapsed}s)"
-                else:
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                self.busy = False
+                self.last_sync_time = time.strftime("%H:%M")
+                if err:
                     self.last_sync_ok = False
-                    err_msg = (data or {}).get("error", "unknown")
                     self.message = "Backup failed"
-                    self.append_log(f"  error: {err_msg}", "danger")
-            self._refresh_item_rows()
-            self._run_compare()
+                    self.append_log(f"  error: {err}", "danger")
+                else:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.last_sync_ok = True
+                        elapsed = data.get("elapsed", 0)
+                        self.message = f"Backup done ({elapsed}s)"
+                    else:
+                        self.last_sync_ok = False
+                        err_msg = (data or {}).get("error", "unknown")
+                        self.message = "Backup failed"
+                        self.append_log(f"  error: {err_msg}", "danger")
+                self._refresh_item_rows()
+                self._run_compare()
+                self.dirty = True
+            except FileNotFoundError:
+                self.busy = False
+                self.last_sync_ok = False
+                self.message = "Backup failed \u2014 script not found"
+                self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
 
@@ -327,15 +372,20 @@ class Model:
             return
 
         def _cb():
-            lines, err = self.run_backend("compare")
-            if err:
-                self.append_log(f"  error: {err}", "danger")
-                self.dirty = True
-                return
-            # Append human-readable lines (all except last JSON line)
-            if lines:
-                for l in lines[:-1]:
-                    l = l.strip()
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "compare"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
                     if l:
                         if "→ All files up to date" in l:
                             self.append_log(f"  {l}", "ok")
@@ -345,22 +395,34 @@ class Model:
                             self.append_log(f"  {l}", "text")
                         else:
                             self.append_log(f"  {l}")
-                # Parse last line as JSON
-                try:
-                    data = json.loads(lines[-1])
-                    if data.get("ok"):
-                        self.compare_result = data
-                        self._refresh_item_rows()
-                        ns = data.get("needs_sync", 0)
-                        if ns > 0:
-                            self.append_log(f"→ {ns} file(s) need backup — press s to sync", "warn")
-                            self.message = f"{ns} file(s) changed"
-                        else:
-                            self.append_log("→ All files up to date ✓", "ok")
-                            self.message = "All up to date"
-                except (json.JSONDecodeError, IndexError):
-                    pass
-            self.dirty = True
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                if err:
+                    self.append_log(f"  error: {err}", "danger")
+                    self.dirty = True
+                    return
+                if all_lines:
+                    try:
+                        data = json.loads(all_lines[-1])
+                        if data.get("ok"):
+                            self.compare_result = data
+                            self._refresh_item_rows()
+                            ns = data.get("needs_sync", 0)
+                            if ns > 0:
+                                self.append_log(f"→ {ns} file(s) need backup — press s to sync", "warn")
+                                self.message = f"{ns} file(s) changed"
+                            else:
+                                self.append_log("→ All files up to date ✓", "ok")
+                                self.message = "All up to date"
+                    except (json.JSONDecodeError, IndexError):
+                        pass
+                self.dirty = True
+            except FileNotFoundError:
+                self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
 
@@ -370,35 +432,51 @@ class Model:
             return
 
         def _cb():
-            lines, err = self.run_backend("compare", "--verbose")
-            if err:
-                self.append_log(f"  error: {err}", "danger")
-                self.dirty = True
-                return
-            if lines:
-                # Map prefix to tag (color)
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "compare", "--verbose"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
                 tag_map = {"+ ": "ok", "~ ": "warn", "- ": "danger", "= ": "muted"}
-                summary_lines = []
-                for l in lines:
-                    if l.startswith("{"):
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    if line.startswith("{"):
                         continue  # skip JSON result line
-                    prefix = l[:2] if len(l) >= 2 else ""
+                    prefix = line[:2] if len(line) >= 2 else ""
                     tag = tag_map.get(prefix)
                     if tag:
-                        self.logs.append((tag, l[2:].strip()))
+                        self.logs.append((tag, line[2:].strip()))
+                        self.dirty = True
                     else:
-                        self.logs.append(l)
-                    summary_lines.append(l)
-                # Parse JSON for item_rows update
-                data, _ = self._parse_json_line(lines)
-                if data and data.get("ok"):
-                    self.compare_result = data
-                    self._refresh_item_rows()
-            self.logs = S.clip_lines(self.logs, 200)
-            self.dirty = True
+                        self.logs.append(line)
+                        self.dirty = True
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                if err:
+                    self.append_log(f"  error: {err}", "danger")
+                    self.dirty = True
+                    return
+                if all_lines:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.compare_result = data
+                        self._refresh_item_rows()
+                self.logs = S.clip_lines(self.logs, 200)
+                self.dirty = True
+            except FileNotFoundError:
+                self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
-
 
 def view_remote_files(model):
     """Open a terminal at the NAS mount point for interactive file browsing."""
