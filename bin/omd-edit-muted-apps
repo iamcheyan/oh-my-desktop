@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
-# Open muted apps config in vi as a centered Hyprland floating window.
+# Open muted apps editor as centered Hyprland floating window.
 set -euo pipefail
 
-app_id="org.omd.edit-muted-apps"
-file="${XDG_CONFIG_HOME:-$HOME/.config}/omd/notifications/muted_apps.cfg"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
 
-if command -v xdg-terminal-exec >/dev/null 2>&1; then
-  exec setsid xdg-terminal-exec --app-id "$app_id" -e vi "$file"
-fi
-
-for term in foot kitty alacritty ghostty; do
-  if command -v "$term" >/dev/null 2>&1; then
-    exec setsid "$term" --app-id "$app_id" -e vi "$file"
-  fi
-done
-
-echo "No terminal emulator found" >&2
-exit 127
+exec "$OMD_ROOT/bin/omd-launch-tui" "$OMD_ROOT/share/bin/omarchy-edit-muted-apps"

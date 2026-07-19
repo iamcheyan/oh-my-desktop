@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Wrapper for omd-launch-tui: opens muted apps config in vi.
+set -euo pipefail
+
+exec vi "${XDG_CONFIG_HOME:-$HOME/.config}/omd/notifications/muted_apps.cfg"
