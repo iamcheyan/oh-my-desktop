@@ -370,17 +370,17 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             background-color: {colors['background']};
             color: {colors['foreground']};
         }}
-        .inspector-root {{ padding: 28px 32px 26px 32px; }}
-        .inspector-header {{ margin-bottom: 18px; }}
-        .app-icon {{
+        .inspector-header {{
+            margin-bottom: 12px;
+        }}
+        .app-icon-wrapper {{
             color: {colors['accent']};
             background-color: alpha({colors['accent']}, 0.12);
             border-radius: 8px;
-            padding: 9px;
-            margin-right: 12px;
+            margin-right: 14px;
         }}
         .inspector-title, .capture-key, .capture-bind, .capture-status,
-        .pipeline-value, .technical-value, .clipboard-value, .inspector-tab {{
+        .pipeline-value, .technical-value, .clipboard-value, .inspector-action {{
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
         }}
         .inspector-title {{
@@ -398,8 +398,8 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             border: none;
             box-shadow: none;
             color: alpha({colors['foreground']}, 0.65);
-            min-width: 36px;
-            min-height: 36px;
+            min-width: 30px;
+            min-height: 30px;
             border-radius: 6px;
             padding: 0;
             margin-left: 6px;
@@ -408,77 +408,58 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             background-color: alpha({colors['foreground']}, 0.08);
             color: {colors['foreground']};
         }}
-        .inspector-tabs {{
-            background-color: alpha({colors['foreground']}, 0.06);
-            border: 1px solid alpha({colors['foreground']}, 0.13);
-            border-radius: 8px;
-            padding: 3px;
-        }}
-        .inspector-tab {{
-            background: transparent;
-            background-image: none;
-            border: none;
-            border-radius: 5px;
-            box-shadow: none;
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 700;
-            color: alpha({colors['foreground']}, 0.58);
-            min-width: 100px;
-            outline: none;
-        }}
-        .inspector-tab:checked {{
-            color: {colors['background']};
-            background-color: {colors['accent']};
-            background-image: none;
-        }}
-        .inspector-tab:hover:not(:checked) {{
-            color: {colors['foreground']};
-            background-color: alpha({colors['foreground']}, 0.08);
-        }}
         .capture-surface {{
             background-color: alpha({colors['foreground']}, 0.035);
             border: 1px solid alpha({colors['foreground']}, 0.14);
-            border-radius: 10px;
-            padding: 22px 30px 18px 30px;
+            border-radius: 12px;
         }}
         .eyebrow, .pipeline-title, .technical-title {{
             font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 1px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
         }}
         .capture-key {{
             color: {colors['foreground']};
             font-size: 40px;
-            font-weight: 750;
-            margin-top: 4px;
+            font-weight: 800;
         }}
         .capture-key.waiting {{
             color: alpha({colors['foreground']}, 0.32);
-            font-size: 21px;
+            font-size: 22px;
+        }}
+        .capture-badge-container {{
+            background-color: alpha({colors['accent']}, 0.12);
+            border: 1px solid alpha({colors['accent']}, 0.3);
+            border-radius: 12px;
+            margin-top: 8px;
+        }}
+        .capture-badge-container.warning-badge {{
+            background-color: alpha(#dc3545, 0.12);
+            border-color: alpha(#dc3545, 0.3);
         }}
         .capture-badge {{
             color: {colors['accent']};
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
             font-weight: 700;
-            margin-top: 3px;
+            letter-spacing: 0.5px;
+        }}
+        .capture-badge-container.warning-badge .capture-badge {{
+            color: #dc3545;
         }}
         .capture-bind {{
             color: alpha({colors['foreground']}, 0.58);
-            font-size: 12px;
+            font-size: 13px;
         }}
         .capture-status {{
             color: {colors['accent']};
-            font-size: 11px;
-            min-height: 17px;
+            font-size: 12px;
+            min-height: 18px;
         }}
         .mode-strip {{
             background-color: alpha({colors['foreground']}, 0.035);
             border: 1px solid alpha({colors['foreground']}, 0.11);
             border-radius: 8px;
-            padding: 9px 14px;
-            margin-top: 14px;
         }}
         .mode-strip.raw {{
             background-color: alpha(#f5c542, 0.08);
@@ -486,20 +467,17 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         }}
         .mode-dot {{ color: {colors['accent']}; font-size: 14px; }}
         .mode-strip.raw .mode-dot {{ color: #f5c542; }}
-        .mode-description {{ font-size: 11px; }}
+        .mode-description {{ font-size: 12px; }}
         .signal-pipeline {{
             background-color: alpha({colors['foreground']}, 0.025);
             border: 1px solid alpha({colors['foreground']}, 0.11);
-            border-radius: 10px;
-            padding: 16px 20px;
-            margin-top: 14px;
+            border-radius: 12px;
         }}
-        .pipeline-step {{ padding: 2px 10px; }}
+        .pipeline-step {{ padding: 2px 8px; }}
         .pipeline-value {{
             color: {colors['foreground']};
-            font-size: 13px;
-            font-weight: 650;
-            margin-top: 3px;
+            font-size: 14px;
+            font-weight: 700;
         }}
         .pipeline-arrow {{
             color: alpha({colors['foreground']}, 0.24);
@@ -508,28 +486,27 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         .technical-card {{
             background-color: alpha({colors['foreground']}, 0.025);
             border: 1px solid alpha({colors['foreground']}, 0.11);
-            border-radius: 10px;
-            padding: 14px 20px;
-            margin-top: 14px;
+            border-radius: 12px;
         }}
-        .technical-cell {{ padding: 2px 10px; }}
+        .technical-cell {{ padding: 2px 8px; }}
         .technical-value {{
             color: {colors['foreground']};
-            font-size: 12px;
-            margin-top: 3px;
+            font-size: 13px;
         }}
         .clipboard-row {{
             background-color: alpha({colors['foreground']}, 0.035);
-            border-radius: 6px;
-            padding: 7px 10px;
-            margin-top: 9px;
+            border-radius: 8px;
         }}
         .clipboard-value {{
             color: alpha({colors['foreground']}, 0.68);
-            font-size: 11px;
+            font-size: 12px;
         }}
-        .inspector-footer {{ margin-top: 16px; }}
-        .footer-hint {{ font-size: 11px; }}
+        .inspector-footer {{
+            margin-top: 4px;
+        }}
+        .footer-hint {{ font-size: 12px; }}
+        
+        /* Unified button system */
         .inspector-action {{
             background-color: alpha({colors['foreground']}, 0.055);
             background-image: none;
@@ -537,19 +514,37 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             border: 1px solid alpha({colors['foreground']}, 0.14);
             border-radius: 6px;
             box-shadow: none;
-            min-height: 34px;
-            padding: 0 16px;
-            font-size: 13px;
+            min-height: 30px;
+            padding: 0 14px;
+            font-size: 12px;
             font-weight: 700;
+            transition: all 150ms ease-in-out;
         }}
         .inspector-action:hover {{
             background-color: alpha({colors['foreground']}, 0.10);
+            transform: translateY(-1px);
+        }}
+        .inspector-action:active {{
+            transform: translateY(0);
+        }}
+        .inspector-action:checked {{
+            background-color: {colors['accent']};
+            color: {colors['background']};
+            border-color: {colors['accent']};
+            box-shadow: 0 2px 8px alpha({colors['accent']}, 0.3);
+        }}
+        .inspector-action:checked:hover {{
+            background-color: alpha({colors['accent']}, 0.85);
         }}
         .inspector-action.suggested-action {{
             background-color: {colors['accent']};
             color: {colors['background']};
             border-color: {colors['accent']};
         }}
+        .inspector-action.suggested-action:hover {{
+            background-color: alpha({colors['accent']}, 0.85);
+        }}
+        
         popover > contents {{
             background-color: {colors['background']};
             color: {colors['foreground']};
@@ -560,6 +555,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         .help-text {{
             color: alpha({colors['foreground']}, 0.75);
             font-size: 11px;
+            line-height: 1.5;
         }}
         """
         visual_provider.load_from_data(visual_css.encode("utf-8"))
@@ -570,18 +566,29 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         )
 
         # ── layout ──
-        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         root.add_css_class("inspector-root")
+        root.set_margin_start(24)
+        root.set_margin_end(24)
+        root.set_margin_top(20)
+        root.set_margin_bottom(20)
         self.set_child(root)
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         header.add_css_class("inspector-header")
         root.append(header)
 
+        icon_wrapper = Gtk.Box()
+        icon_wrapper.add_css_class("app-icon-wrapper")
+        header.append(icon_wrapper)
+
         app_icon = Gtk.Image.new_from_icon_name("input-keyboard-symbolic")
-        app_icon.set_pixel_size(22)
-        app_icon.add_css_class("app-icon")
-        header.append(app_icon)
+        app_icon.set_pixel_size(20)
+        app_icon.set_margin_start(8)
+        app_icon.set_margin_end(8)
+        app_icon.set_margin_top(8)
+        app_icon.set_margin_bottom(8)
+        icon_wrapper.append(app_icon)
 
         title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         title_box.set_hexpand(True)
@@ -599,14 +606,13 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         subtitle.add_css_class("inspector-subtitle")
         title_box.append(subtitle)
 
-        tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        tab_bar.add_css_class("inspector-tabs")
+        tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(tab_bar)
 
         self.current_mode_btn = Gtk.ToggleButton(label="CURRENT")
-        self.current_mode_btn.add_css_class("inspector-tab")
+        self.current_mode_btn.add_css_class("inspector-action")
         self.original_mode_btn = Gtk.ToggleButton(label="RAW SOURCE")
-        self.original_mode_btn.add_css_class("inspector-tab")
+        self.original_mode_btn.add_css_class("inspector-action")
         self.original_mode_btn.set_group(self.current_mode_btn)
         tab_bar.append(self.current_mode_btn)
         tab_bar.append(self.original_mode_btn)
@@ -643,9 +649,16 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         close_btn.connect("clicked", lambda _: app.quit())
         header.append(close_btn)
 
-        capture_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        capture_card.add_css_class("capture-surface")
-        root.append(capture_card)
+        capture_card_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        capture_card_outer.add_css_class("capture-surface")
+        root.append(capture_card_outer)
+
+        capture_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        capture_card.set_margin_start(24)
+        capture_card.set_margin_end(24)
+        capture_card.set_margin_top(16)
+        capture_card.set_margin_bottom(16)
+        capture_card_outer.append(capture_card)
 
         caption = Gtk.Label(label="DETECTED KEY")
         caption.set_halign(Gtk.Align.CENTER)
@@ -659,11 +672,20 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.key_display.add_css_class("waiting")
         capture_card.append(self.key_display)
 
+        self.keyd_wrapper = Gtk.Box()
+        self.keyd_wrapper.set_halign(Gtk.Align.CENTER)
+        self.keyd_wrapper.set_visible(False)
+        self.keyd_wrapper.add_css_class("capture-badge-container")
+        capture_card.append(self.keyd_wrapper)
+
         self.keyd_display = Gtk.Label(label="")
         self.keyd_display.set_halign(Gtk.Align.CENTER)
-        self.keyd_display.set_visible(False)
+        self.keyd_display.set_margin_start(14)
+        self.keyd_display.set_margin_end(14)
+        self.keyd_display.set_margin_top(4)
+        self.keyd_display.set_margin_bottom(4)
         self.keyd_display.add_css_class("capture-badge")
-        capture_card.append(self.keyd_display)
+        self.keyd_wrapper.append(self.keyd_display)
 
         self.bind_display = Gtk.Label(label="")
         self.bind_display.set_halign(Gtk.Align.CENTER)
@@ -675,9 +697,16 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.status_label.add_css_class("capture-status")
         capture_card.append(self.status_label)
 
+        mode_strip_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        mode_strip_outer.add_css_class("mode-strip")
+        root.append(mode_strip_outer)
+
         self.mode_strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=9)
-        self.mode_strip.add_css_class("mode-strip")
-        root.append(self.mode_strip)
+        self.mode_strip.set_margin_start(14)
+        self.mode_strip.set_margin_end(14)
+        self.mode_strip.set_margin_top(8)
+        self.mode_strip.set_margin_bottom(8)
+        mode_strip_outer.append(self.mode_strip)
 
         mode_dot = Gtk.Label(label="●")
         mode_dot.add_css_class("mode-dot")
@@ -689,12 +718,19 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.mode_description.add_css_class("mode-description")
         self.mode_strip.append(self.mode_description)
 
+        pipeline_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        pipeline_outer.add_css_class("signal-pipeline")
+        root.append(pipeline_outer)
+
         pipeline = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        pipeline.add_css_class("signal-pipeline")
-        root.append(pipeline)
+        pipeline.set_margin_start(14)
+        pipeline.set_margin_end(14)
+        pipeline.set_margin_top(12)
+        pipeline.set_margin_bottom(12)
+        pipeline_outer.append(pipeline)
 
         def add_pipeline_step(title_text):
-            step = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            step = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             step.set_hexpand(True)
             step.add_css_class("pipeline-step")
             title_lbl = Gtk.Label(label=title_text)
@@ -723,9 +759,16 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         pipeline.append(arrow)
         self.val_bind = add_pipeline_step("HYPR BIND")
 
-        technical_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        technical_card.add_css_class("technical-card")
-        root.append(technical_card)
+        technical_card_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        technical_card_outer.add_css_class("technical-card")
+        root.append(technical_card_outer)
+
+        technical_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        technical_card.set_margin_start(14)
+        technical_card.set_margin_end(14)
+        technical_card.set_margin_top(12)
+        technical_card.set_margin_bottom(12)
+        technical_card_outer.append(technical_card)
 
         technical_grid = Gtk.Grid()
         technical_grid.set_column_homogeneous(True)
@@ -733,7 +776,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         technical_card.append(technical_grid)
 
         def add_technical_cell(column, title_text):
-            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             cell.add_css_class("technical-cell")
             title_lbl = Gtk.Label(label=title_text)
             title_lbl.set_halign(Gtk.Align.START)
@@ -756,6 +799,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
         clipboard_title = Gtk.Label(label="CLIPBOARD")
         clipboard_title.add_css_class("technical-title")
+        clipboard_title.set_margin_start(12)
+        clipboard_title.set_margin_top(8)
+        clipboard_title.set_margin_bottom(8)
         clipboard_box.append(clipboard_title)
 
         self.val_clipboard = Gtk.Label(label="—")
@@ -763,6 +809,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.val_clipboard.set_halign(Gtk.Align.START)
         self.val_clipboard.set_ellipsize(Pango.EllipsizeMode.END)
         self.val_clipboard.add_css_class("clipboard-value")
+        self.val_clipboard.set_margin_end(12)
+        self.val_clipboard.set_margin_top(8)
+        self.val_clipboard.set_margin_bottom(8)
         clipboard_box.append(self.val_clipboard)
 
         self.detail_values = (
@@ -821,7 +870,11 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
     def set_keyd_text(self, text):
         self.keyd_display.set_label(text)
-        self.keyd_display.set_visible(bool(text))
+        self.keyd_wrapper.set_visible(bool(text))
+        if "unrecognized" in text.lower():
+            self.keyd_wrapper.add_css_class("warning-badge")
+        else:
+            self.keyd_wrapper.remove_css_class("warning-badge")
 
     def reset_capture_display(self):
         clear_capture_state()
