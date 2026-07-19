@@ -648,7 +648,7 @@ def view(stdscr, model):
     device_lines = render_device_list(model, left_w - 4)
     device_box_h = min(content_h, len(device_lines) + 3)
     if device_box_h >= 3:
-        S.draw_border(stdscr, hero_h, 0, device_box_h, left_w, "Keyboards")
+        S.draw_thick_border(stdscr, hero_h, 0, device_box_h, left_w, "Keyboards")
         S.draw_lines_in_area(stdscr, hero_h, 0, device_box_h, left_w, device_lines)
     else:
         device_box_h = 0
@@ -658,7 +658,7 @@ def view(stdscr, model):
     health_lines = render_health(model, left_w - 4)
     health_box_h = min(content_h - device_box_h, len(health_lines) + 3)
     if health_box_h >= 3 and len(health_lines) > 0:
-        S.draw_border(stdscr, health_y, 0, health_box_h, left_w, "")
+        S.draw_thick_border(stdscr, health_y, 0, health_box_h, left_w, "")
         S.draw_lines_in_area(stdscr, health_y, 0, health_box_h, left_w, health_lines)
     else:
         health_box_h = 0
@@ -667,7 +667,7 @@ def view(stdscr, model):
     actions_y = health_y + health_box_h
     actions_h = content_h - actions_y + hero_h
     if actions_h >= 4:
-        S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "")
+        S.draw_thick_border(stdscr, actions_y, 0, actions_h, left_w, "")
         S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
 
     # ── Right: Profile (with Fn Row) + Presets + Activity (stacked boxes) ──
@@ -689,7 +689,7 @@ def view(stdscr, model):
         profile_lines.append(("muted", "  Select a device…"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
-        S.draw_border(stdscr, hero_h, left_w, profile_box_h, right_w, "Profile")
+        S.draw_thick_border(stdscr, hero_h, left_w, profile_box_h, right_w, "Profile")
         S.draw_lines_in_area(stdscr, hero_h, left_w, profile_box_h, right_w, profile_lines)
     else:
         profile_box_h = 0
@@ -721,7 +721,7 @@ def view(stdscr, model):
     presets_title = f"Presets  {on_count} on"
     presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
     if presets_box_h >= 3 and len(presets_lines) > 0:
-        S.draw_border(stdscr, presets_y, left_w, presets_box_h, right_w, presets_title)
+        S.draw_thick_border(stdscr, presets_y, left_w, presets_box_h, right_w, presets_title)
         S.draw_lines_in_area(stdscr, presets_y, left_w, presets_box_h, right_w, presets_lines)
     else:
         presets_box_h = 0
@@ -730,7 +730,7 @@ def view(stdscr, model):
     act_y = presets_y + presets_box_h
     act_h = content_h - act_y + hero_h
     if act_h >= 4:
-        S.draw_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
+        S.draw_thick_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset)
 
     # ── help bar (shifted up when a pending-changes bar is showing) ──

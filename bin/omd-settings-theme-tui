@@ -681,7 +681,7 @@ def _view(stdscr, m):
     if show_right:
         # Preview at top
         preview_h = 10
-        S.draw_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
+        S.draw_thick_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
         mode = m.val("wallpaper.mode", "file")
         if mode == "color":
             S.draw_lines_in_area(stdscr, hero_h, 0, preview_h, preview_w,
@@ -707,25 +707,25 @@ def _view(stdscr, m):
         # Controls below preview
         ctrl_y = hero_h + preview_h
         ctrl_h = avail_h - preview_h
-        S.draw_border(stdscr, ctrl_y, 0, ctrl_h, preview_w, "")
+        S.draw_thick_border(stdscr, ctrl_y, 0, ctrl_h, preview_w, "")
         S.draw_lines_in_area(stdscr, ctrl_y, 0, ctrl_h, preview_w,
                              _render_controls(m, preview_w - 4))
 
         # Right column — theme grid
         grid_w_total = grid_w - preview_w - 1
-        S.draw_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w_total, "Themes")
+        S.draw_thick_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w_total, "Themes")
         _draw_theme_grid(stdscr, m, hero_h, preview_w + 3,
                          grid_w_total - 4, avail_h - 4,
                          _render_theme_grid(m, grid_w_total - 4, avail_h - 4))
     else:
         ctrl_h = min(avail_h // 2, 14)
-        S.draw_border(stdscr, hero_h, 0, ctrl_h, content_w, "")
+        S.draw_thick_border(stdscr, hero_h, 0, ctrl_h, content_w, "")
         S.draw_lines_in_area(stdscr, hero_h, 0, ctrl_h, content_w,
                              _render_controls(m, content_w - 4))
 
         grid_y = hero_h + ctrl_h
         grid_h = avail_h - ctrl_h
-        S.draw_border(stdscr, grid_y, 0, grid_h, content_w, "Themes")
+        S.draw_thick_border(stdscr, grid_y, 0, grid_h, content_w, "Themes")
         _draw_theme_grid(stdscr, m, grid_y, 2,
                          content_w - 4, grid_h - 4,
                          _render_theme_grid(m, content_w - 4, grid_h - 4))

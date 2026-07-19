@@ -402,12 +402,12 @@ def view(stdscr, m):
         top_h = avail_h
 
     left_lines = render_left(m, left_w - 4)
-    S.draw_border(stdscr, hero_h, 0, top_h, left_w, "")
+    S.draw_thick_border(stdscr, hero_h, 0, top_h, left_w, "")
     S.draw_lines_in_area(stdscr, hero_h, 0, top_h, left_w, left_lines)
 
     if show_right:
         right_lines = render_right(m, right_w - 4)
-        S.draw_border(stdscr, hero_h, left_w, top_h, right_w, "Container Logs")
+        S.draw_thick_border(stdscr, hero_h, left_w, top_h, right_w, "Container Logs")
         inner_y = hero_h + 1
         for i, (tag, text) in enumerate(right_lines):
             if i >= top_h - 2:
