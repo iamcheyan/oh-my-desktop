@@ -791,7 +791,6 @@ def view(stdscr, model):
     content_h = avail_h
 
     left_focused = (model.focus_area == 0)
-    right_focused = (model.focus_area == 1)
 
     # Left: Status + Connection (config) + Actions
     conn_lines = render_connection_status(model, left_w - 4)
@@ -829,13 +828,13 @@ def view(stdscr, model):
     if table_box_h < 3:
         table_box_h = 0
     if table_box_h >= 3:
-        S.draw_focus_border(stdscr, right_focused, hero_h, left_w, table_box_h, right_w, "Managed Items")
+        S.draw_focus_border(stdscr, True, hero_h, left_w, table_box_h, right_w, "Managed Items")
         S.draw_lines_in_area(stdscr, hero_h, left_w, table_box_h, right_w, table_lines)
     # Activity log below table
     act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
-        S.draw_focus_border(stdscr, right_focused, act_y, left_w, act_h, right_w, "Activity")
+        S.draw_focus_border(stdscr, True, act_y, left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
