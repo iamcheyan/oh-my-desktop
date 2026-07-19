@@ -8,7 +8,7 @@
 
 原 Go 实现（`tui-go/internal/pages/theme/model.go`）有两个视觉功能在 Python 移植版里没有生效：
 
-1. **壁纸像素预览** — 用 `▀` 半块字符渲染实际壁纸图片
+1. **壁纸像素预览** — 用 Unicode 象限字符渲染实际壁纸图片
 2. **主题 tile 颜色 swatch** — 每个主题格子用该主题的 accent/bg/fg 颜色实际渲染
 
 Python 文件里 `_render_image_preview()` 和 `_get_image_color_pair()` 的逻辑已经写好，
@@ -59,7 +59,10 @@ for i, (tag, text) in enumerate(prev_lines):
        S.safe_addstr(stdscr, inner_y, inner_x, S.truncate(fname, inner_w), S.ATTR_MUTED)
    ```
 
-3. `_render_image_view()` 已经实现（第 176-187 行），不需要修改。
+3. `_render_image_preview()` 将每个终端字符对应的区域采样为 2×2
+   图像点，再将四个颜色聚类为终端可表达的前景色和背景色，最后选择
+   `▘▝▀▖▌▞▛▗▚▐▜▄▙▟█` 中对应的象限字符。相比原来的 `▀` 半块方案，横向
+   细节提高一倍，同时按终端字符约 1:2 的宽高比裁切，避免图片变形。
 
 ### 依赖条件
 
@@ -218,9 +221,11 @@ for i, item in enumerate(grid_lines):
 
 ## 注意事项
 
-1. **Color pair 数量限制**：curses 最多 256 个 color pair（终端依赖）。
-   `_get_image_color_pair()` 已经做了 5 阶量化 + 数量上限控制（`_MAX_COLOR_PAIRS = 200`）。
-   主题 tile 的颜色使用同一套 pair 池，不超限。
+1. **Color pair 数量限制**：可用数量由终端和 terminfo 决定。
+   `_get_image_color_pair()` 将 RGB 映射到最接近的 xterm-256 扩展色，并设置数量上限
+   （`_MAX_COLOR_PAIRS = 1024`）。共享样式会把第 16 号颜色改成主题强调色，因此图片
+   渲染明确排除该索引；颜色对耗尽时复用最接近的已分配图片颜色，不能回退到主题色。
+   主题 tile 的颜色使用同一套 pair 池。
 
 2. **PIL 不可用时的 fallback**：`_render_image_preview()` 在 `ImportError` 时返回 `[]`，
    代码要判断 `if rows:` 再调用 `_render_image_view()`，否则走文字 fallback。
@@ -228,8 +233,9 @@ for i, item in enumerate(grid_lines):
 3. **terminfo COLORS 检查**：`_get_image_color_pair()` 里已经检查 `curses.COLORS < 256`
    时返回默认 pair，主题颜色 swatch 也受此保护，256 色以下终端自动降级为默认色。
 
-4. **不要修改 `_render_image_preview()` 和 `_render_image_view()`** — 这两个函数逻辑正确，
-   只需在 `_view()` 里正确调用它们。
+4. **预览算法契约**：`_render_image_preview()` 返回
+   `(字符, 前景 RGB, 背景 RGB)` 数据，`_render_image_view()` 只负责 curses 绘制。
+   调整清晰度时应修改采样算法，不要通过无上限扩大 Preview 面板来获得细节。
 
 5. **共享库 `omd_tui_shared.py`** 不需要修改。
 
