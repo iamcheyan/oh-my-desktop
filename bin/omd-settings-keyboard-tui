@@ -873,6 +873,12 @@ def handle_key(stdscr, model, key):
             model.selected = max(0, model.selected - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected = min(max(0, len(model.devices) - 1), model.selected + 1)
+        elif key == curses.KEY_BTAB:  # Shift+Tab → Presets (reverse)
+            if model.right_col_rows() > pf_rows:
+                model.focus_area = 2
+                model.selected_preset = pf_rows
+            else:
+                model.focus_area = 0
         elif key == ord('\t') or key == 9:  # Tab → Profile
             model.focus_area = 1
             model.selected_preset = 0
@@ -899,6 +905,8 @@ def handle_key(stdscr, model, key):
             model.selected_preset = max(0, model.selected_preset - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected_preset = min(pf_rows - 1, model.selected_preset + 1)
+        elif key == curses.KEY_BTAB:  # Shift+Tab → Keyboards
+            model.focus_area = 0
         elif key == ord('\t') or key == 9:  # Tab → Presets (or back to left if none)
             if model.right_col_rows() > pf_rows:
                 model.focus_area = 2
@@ -922,6 +930,9 @@ def handle_key(stdscr, model, key):
             model.selected_preset = max(pf_rows, model.selected_preset - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected_preset = min(model.right_col_rows() - 1, model.selected_preset + 1)
+        elif key == curses.KEY_BTAB:  # Shift+Tab → Profile
+            model.focus_area = 1
+            model.selected_preset = pf_rows - 1
         elif key == ord('\t') or key == 9:  # Tab → back to left
             model.focus_area = 0
         elif key == ord('\n') or key == 10:
