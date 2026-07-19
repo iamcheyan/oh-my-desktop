@@ -505,6 +505,8 @@ def hero_line(title, subtitle, tone="ok", busy=False, message="", status_text=""
         }.get(tone, ATTR_ACCENT_BOLD)
         msg = f" {message}"
     st_attr = status_attr(tone)
+    if status_text:
+        status_text = "● " + status_text
     return (title, title_attr, msg, msg_attr, subtitle, status_text, st_attr)
 
 
@@ -512,7 +514,7 @@ def draw_hero(stdscr, hero_tuple):
     """Render the standard 2-row hero block produced by hero_line().
 
     Layout (rows 0-1):
-        Title [message]                                  Status
+        Title [message]                              ● Status
         subtitle
     """
     title, ta, msg, ma, sub, status_text, sa = hero_tuple
