@@ -242,12 +242,24 @@ case "$cmd" in
     fi
 
     echo "Testing connection to $addr/$share..."
+    mnt=$(mount_point "$data")
+    echo "  Target share: //$addr/$share"
+    echo "  Mount point:  $mnt"
+    if mountpoint -q "$mnt" 2>/dev/null; then
+      echo "  Already mounted ✓"
+    else
+      echo "  Attempting to mount..."
+    fi
+    if [[ -f "$CREDS_FILE" ]]; then
+      echo "  Credentials:  saved"
+    fi
+    echo ""
     output=$(do_mount "$data") || true
     mount_line=$(get_mount_line "$output")
 
     if echo "$mount_line" | grep -q "^MOUNT_OK"; then
       mnt=$(echo "$mount_line" | sed 's/^MOUNT_OK://')
-      echo "  Connected — mounted at $mnt"
+      echo "  Connected ✓ — mounted at $mnt"
       echo "{\"ok\":true,\"mount\":\"$mnt\"}"
     elif echo "$mount_line" | grep -q "^MOUNT_NEED_POLKIT"; then
       echo "  Authorization requested via polkit…"

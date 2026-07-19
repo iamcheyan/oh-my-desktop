@@ -129,7 +129,8 @@ class Model:
 
         self.has_config = bool(self.config.get("address"))
         self._refresh_item_rows()
-        self._run_compare()
+        # Auto-connect on startup instead of auto-compare
+        self.test_connection()
 
     def save_config(self):
         os.makedirs(CONFIG_DIR, exist_ok=True)
