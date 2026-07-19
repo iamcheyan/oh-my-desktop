@@ -11,6 +11,7 @@ import (
 	themepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/theme"
 	voicepage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/voice"
 	windowspage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/windows"
+	keyboardpage "github.com/iamcheyan/oh-my-desktop/tui-go/internal/pages/keyboard"
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/ui"
 )
 
@@ -41,6 +42,8 @@ func main() {
 		model = themepage.New(backend.New(root))
 	case "voice", "voice-input":
 		model = voicepage.New(backend.New(root))
+	case "keyboard", "keyboard-remap", "remap":
+		model = keyboardpage.New(backend.New(root))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown settings page: %s\n\n", route)
 		printHelp()
@@ -60,6 +63,7 @@ func printHelp() {
 	fmt.Println("  windows    Windows VM settings and connection controls")
 	fmt.Println("  theme      Theme picker and active theme info")
 	fmt.Println("  voice      Voice input setup, model, and keybindings")
+	fmt.Println("  keyboard   Keyboard Remap settings, presets, and visual key picker")
 }
 
 func detectRoot() (string, error) {
