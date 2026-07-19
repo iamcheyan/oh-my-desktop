@@ -13,6 +13,7 @@ Three-panel bordered layout with full feature parity:
   - Last apply status tracking
 """
 
+import copy
 import curses
 import json
 import os
@@ -90,6 +91,7 @@ class Model(S.StatusModel):
         # Profile management
         self.profiles = {"version": 1, "devices": {}}
         self.load_profiles()
+        self.profiles_snapshot = copy.deepcopy(self.profiles)
         self.refresh()
 
     def load_profiles(self):
@@ -165,7 +167,6 @@ class Model(S.StatusModel):
         def on_status(lines, err):
             if not err:
                 self.status = S.parse_kv(lines)
-                self.pending_changes = self.boo("pendingChanges")
             else:
                 self.append_log(f"status failed: {err}")
             complete()
@@ -267,11 +268,11 @@ class Model(S.StatusModel):
                 "presetOverrides": {},
             }
             self.profiles["devices"][dev.get("hyprName", "")] = prof
-            self.save_profiles()
+            self.pending_changes = True
             self.append_log(f"created profile for {dev.get('displayName', '?')} (enabled)")
             return
         prof["enabled"] = not prof.get("enabled", True)
-        self.save_profiles()
+        self.pending_changes = True
         state = "enabled" if prof["enabled"] else "disabled"
         self.append_log(f"profile {dev.get('displayName', '?')} {state}")
 
@@ -305,7 +306,7 @@ class Model(S.StatusModel):
             enabled.append(preset_id)
             self.append_log(f"preset on: {preset_id}")
         prof["enabledPresets"] = enabled
-        self.save_profiles()
+        self.pending_changes = True
 
     def trigger_override_picker(self):
         if not self.devices or self.selected >= len(self.devices):
@@ -337,7 +338,7 @@ class Model(S.StatusModel):
             if "presetOverrides" not in prof:
                 prof["presetOverrides"] = {}
             prof["presetOverrides"][self.picker_preset_id] = target_key
-            self.save_profiles()
+            self.pending_changes = True
         self.show_picker = False
 
     def find_copy_source(self):
@@ -373,11 +374,39 @@ class Model(S.StatusModel):
             self.profiles["devices"][dest_key] = dest
         dest["enabledPresets"] = list(source.get("enabledPresets", []))
         dest["presetOverrides"] = dict(source.get("presetOverrides", {}))
-        self.save_profiles()
+        self.pending_changes = True
         self.message = f"Copied presets from {source.get('displayName', '?')}"
 
     def apply_remaps(self):
-        self.run_action("apply")
+        self.save_profiles()
+        self.busy = True
+        self.message = "apply…"
+        self.dirty = True
+        self.append_log("$ apply")
+        def _cb(lines, err):
+            for l in lines or []:
+                self.append_log(f"{l}")
+            self.busy = False
+            if err:
+                self.message = "action failed"
+                self.last_apply_ok = False
+            else:
+                self.message = "Key remaps applied successfully"
+                self.last_apply_ok = True
+                self.profiles_snapshot = copy.deepcopy(self.profiles)
+                self.pending_changes = False
+            self.dirty = True
+            self.refresh()
+        S.run_cmd_bg("omd-settings-keyboard", "apply", callback=_cb)
+
+    def cancel_changes(self):
+        "Revert all changes to the last applied snapshot."
+        self.profiles = copy.deepcopy(self.profiles_snapshot)
+        self.save_profiles()
+        self.pending_changes = False
+        self.message = "Changes cancelled, reverted to last applied state"
+        self.append_log("changes cancelled (reverted to last applied state)")
+        self.dirty = True
 
     def setup_keyd(self):
         self.run_action("setup")
@@ -624,7 +653,7 @@ def help_items(model):
     tool = [("space", "toggle")]
     if can_edit:
         tool.append(("enter", "edit key"))
-    tool += [("a", "apply"), ("s", "setup"), ("t", "tester")]
+    tool += [("a", "apply"), ("u", "undo"), ("s", "setup"), ("t", "tester")]
     return (generic, tool)
 
 
@@ -978,6 +1007,10 @@ def handle_key(stdscr, model, key):
                 src = model.find_copy_source()
                 if src:
                     model.copy_profile_from(src)
+
+    # Cancel / undo: revert to last applied snapshot
+    if key == ord('u') and model.pending_changes:
+        model.cancel_changes()
 
     # Global scroll keys
     if key == curses.KEY_PPAGE:
