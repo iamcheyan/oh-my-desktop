@@ -1,10 +1,44 @@
 #!/usr/bin/env bash
+# Route settings TUI pages to the Python curses implementations.
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
-APP="$OMD_ROOT/tui-go/omd-settings-tui"
-"$OMD_ROOT/scripts/build-go-tools" --quiet
+route="${1:-windows}"
 
-exec "$APP" "$@"
+case "$route" in
+  -h|--help|help)
+    cat <<'EOF'
+Usage: omd-settings-tui [page]
+
+Pages:
+  windows    Windows VM settings and connection controls
+  theme      Theme picker and active theme info
+  voice      Voice input setup, model, and keybindings
+  keyboard   Keyboard Remap settings, presets, and visual key picker
+  backup     File share / Backup settings
+EOF
+    ;;
+  windows|windows-vm|vm)
+    exec python3 "$OMD_ROOT/bin/omd-settings-vm-tui"
+    ;;
+  theme|appearance)
+    exec python3 "$OMD_ROOT/bin/omd-settings-theme-tui"
+    ;;
+  voice|voice-input)
+    exec python3 "$OMD_ROOT/bin/omd-settings-voice-tui"
+    ;;
+  keyboard|keyboard-remap|remap)
+    exec python3 "$OMD_ROOT/bin/omd-settings-keyboard-tui"
+    ;;
+  backup|file-share|sync)
+    exec python3 "$OMD_ROOT/bin/omd-settings-backup-tui"
+    ;;
+  *)
+    echo "unknown settings page: $route" >&2
+    echo >&2
+    exec "$0" help >&2
+    exit 2
+    ;;
+esac

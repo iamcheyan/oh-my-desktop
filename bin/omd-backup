@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# OMD Backup backend — smbclient wrapper for remote file backup.
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/backup"
+CONFIG_FILE="$CONFIG_DIR/config.json"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/backup"
+
+usage() { echo "Usage: omd-backup {status|test|backup|save-config|load-config}" >&2; exit 2; }
+cmd="${1:-}"; shift || true
+
+mkdir -p "$CONFIG_DIR" "$STATE_DIR"
+
+load_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    cat "$CONFIG_FILE"
+  else
+    echo '{"address":"","share":"","user":"","password":"","remotePath":"","localPath":"","includeExt":"","excludeExt":"","scheduleType":"manual","scheduleValue":""}'
+  fi
+}
+
+save_config() {
+  cat > "$CONFIG_FILE"
+  echo "Config saved"
+}
+
+smb_prefix() {
+  local addr share user pass
+  addr=$(echo "$1" | jq -r '.address // ""')
+  share=$(echo "$1" | jq -r '.share // ""')
+  user=$(echo "$1" | jq -r '.user // ""')
+  pass=$(echo "$1" | jq -r '.password // ""')
+  echo "//$addr/$share" "$user" "$pass"
+}
+
+case "$cmd" in
+  status)
+    echo '{"ready":true}'
+    ;;
+  test)
+    data=$(load_config)
+    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
+    if [[ -z "$smb_url" || "$smb_url" == "//" ]]; then
+      echo '{"ok":false,"error":"Server not configured"}'
+      exit 0
+    fi
+    output=$(smbclient -L "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 --option='client min protocol=SMB2' 2>&1 || true)
+    if echo "$output" | grep -q "NT_STATUS_LOGON_FAILURE"; then
+      echo '{"ok":false,"error":"Login failed"}'
+    elif echo "$output" | grep -q "NT_STATUS_CONNECTION_REFUSED"; then
+      echo '{"ok":false,"error":"Connection refused"}'
+    elif echo "$output" | grep -q "NT_STATUS"; then
+      echo "{\"ok\":false,\"error\":\"$(echo "$output" | grep "NT_STATUS" | head -1 | tr -d '\n\r')\"}"
+    elif [[ -n "$output" ]]; then
+      shares=$(echo "$output" | grep -E "^\\s+[^\\s]+\\s+Disk" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
+      echo "{\"ok\":true,\"shares\":\"$shares\"}"
+    else
+      echo '{"ok":false,"error":"Unknown error"}'
+    fi
+    ;;
+  backup)
+    data=$(load_config)
+    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
+    local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
+    remote_path=$(echo "$data" | jq -r '.remotePath // ""')
+    include_ext=$(echo "$data" | jq -r '.includeExt // ""')
+    exclude_ext=$(echo "$data" | jq -r '.excludeExt // ""')
+
+    if [[ -z "$smb_url" || -z "$local_paths" ]]; then
+      echo '{"ok":false,"error":"Invalid config or local path"}'
+      exit 0
+    fi
+
+    log_file="$STATE_DIR/last-sync.log"
+    remote_share="${smb_url%%/*}"
+    remote_dir="${smb_url#*/}"
+    remote_dir="${remote_dir}/$(echo "$remote_path" | sed 's|^/*||')"
+    remote_dir="${remote_dir//\/\///}"
+
+    echo "Backup starting"
+    start=$(date +%s)
+    total_files=0
+
+    echo "$local_paths" | while read -r local_path; do
+      if [[ -z "$local_path" || ! -d "$local_path" ]]; then
+        echo "  SKIP (not a dir): $local_path"
+        continue
+      fi
+      echo "  from: $local_path"
+
+      find "$local_path" -maxdepth 1 -type f | while read -r f; do
+        base=$(basename "$f")
+        ok=true
+        if [[ -n "$include_ext" ]]; then
+          ok=false
+          IFS=',' read -ra exts <<< "$include_ext"
+          for ext in "${exts[@]}"; do
+            ext=$(echo "$ext" | xargs)
+            if [[ "$base" == *${ext} ]]; then
+              ok=true
+              break
+            fi
+          done
+        fi
+        if [[ -n "$exclude_ext" ]]; then
+          IFS=',' read -ra exts <<< "$exclude_ext"
+          for ext in "${exts[@]}"; do
+            ext=$(echo "$ext" | xargs)
+            if [[ "$base" == *${ext} ]]; then
+              ok=false
+              break
+            fi
+          done
+        fi
+        if $ok; then
+          echo "  upload $base"
+          total_files=$((total_files + 1))
+          parent_dir=$(basename "$local_path")
+          smbclient "//$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
+            --option='client min protocol=SMB2' \
+            -c "cd ${remote_dir}; mkdir \"$parent_dir\"; cd \"$parent_dir\"; put \"$f\" \"$base\"" 2>/dev/null || echo "  FAILED: $base"
+        fi
+      done
+    done
+
+    end=$(date +%s)
+    elapsed=$((end - start))
+    echo "Backup complete in ${elapsed}s, ${total_files} files"
+    echo "{\"ok\":true,\"elapsed\":$elapsed}" > "$STATE_DIR/last-result.json"
+    echo "{\"ok\":true,\"elapsed\":$elapsed}"
+    ;;
+  save-config)
+    save_config
+    ;;
+  load-config)
+    load_config
+    ;;
+  *)
+    usage
+    ;;
+esac

@@ -1,0 +1,687 @@
+#!/usr/bin/env python3
+"""File Share / Backup settings TUI — Python curses program.
+
+Two-column layout matching voice/theme TUIs. Manages SMB backup config,
+tests connections, and runs manual backups.
+"""
+
+import curses
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import importlib
+import importlib.util
+_shared_spec = importlib.util.spec_from_file_location(
+    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
+_shared = importlib.util.module_from_spec(_shared_spec)
+_shared_spec.loader.exec_module(_shared)
+S = _shared
+
+CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "backup")
+
+DEFAULT_CONFIG = {
+    "address": "",
+    "share": "",
+    "user": "",
+    "password": "",
+    "remotePath": "",
+    "localPath": [],
+    "includeExt": "",
+    "excludeExt": "",
+    "scheduleType": "manual",
+    "scheduleValue": "",
+}
+
+SCHEDULE_TYPES = ["manual", "every_h", "every_d", "at_time"]
+
+FIELD_KEYS = ["address", "share", "user", "password", "remotePath", "localPath", "includeExt", "excludeExt"]
+FIELD_LABELS = {
+    "address": "Address",
+    "share": "Share",
+    "user": "User",
+    "password": "Password",
+    "remotePath": "Remote path",
+    "localPath": "Local paths",
+    "includeExt": "Include ext",
+    "excludeExt": "Exclude ext",
+}
+
+
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.config = dict(DEFAULT_CONFIG)
+        self.logs = []
+        self.has_config = False
+        self.busy = False
+        self.message = ""
+        self.dirty = True
+        self.scroll_offset = 0
+        self.focus_area = 0  # 0=left (status/schedule/actions), 1=right (config fields)
+        self.selected_field = 0
+        self.selected_schedule = 0
+        self.test_result = None  # None / "ok" / "error"
+        self.test_error = ""
+        self.last_sync_ok = None
+        self.last_sync_time = ""
+        self.editing_field = False
+        self.edit_buffer = ""
+        self.edit_field_key = ""
+        self.load_config()
+
+    def load_config(self):
+        try:
+            with open(CONFIG_FILE) as f:
+                data = json.load(f)
+            # Keep all keys from file, fill missing with defaults
+            for k in DEFAULT_CONFIG:
+                if k in data:
+                    self.config[k] = data.get(k, DEFAULT_CONFIG[k])
+                elif k not in self.config:
+                    self.config[k] = DEFAULT_CONFIG[k]
+            for k in data:
+                if k not in self.config:
+                    self.config[k] = data[k]
+            # Migrate string localPath to array
+            if isinstance(self.config.get("localPath"), str):
+                val = self.config["localPath"].strip()
+                self.config["localPath"] = [val] if val else []
+            self.logs = ["Config loaded from file."]
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.logs = [
+                "Welcome to File Share / Backup.",
+                "",
+                "To get started:",
+                "  1. Tab to the right panel",
+                "  2. Press Enter on a field to edit it",
+                "  3. Fill in Address, Share, User, Password",
+                "  4. Set Local path and Remote path",
+                "  5. Press t to test the connection",
+                "  6. Press b to run a backup",
+                "",
+                "Press E to edit config file directly in vi.",
+            ]
+        self.has_config = bool(self.config.get("address"))
+        self._sync_schedule_idx()
+
+    def save_config(self):
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(self.config, f, indent=2)
+        self.has_config = bool(self.config.get("address"))
+        self.append_log("Config saved")
+        self.message = "Config saved"
+
+    def _sync_schedule_idx(self):
+        st = self.config.get("scheduleType", "manual")
+        if st in SCHEDULE_TYPES:
+            self.selected_schedule = SCHEDULE_TYPES.index(st)
+        else:
+            self.selected_schedule = 0
+
+    def append_log(self, text):
+        self.logs.append(text)
+        if len(self.logs) > 200:
+            self.logs = self.logs[-200:]
+        self.scroll_offset = 0
+        self.dirty = True
+
+    def run_backend(self, action, *args):
+        cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), action] + list(args)
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            lines = res.stdout.strip().split("\n") if res.stdout.strip() else []
+            err = res.stderr.strip() if res.stderr.strip() else ""
+            if res.returncode != 0 and not err:
+                err = f"exit {res.returncode}"
+            return lines, err
+        except subprocess.TimeoutExpired:
+            return [], "Timeout"
+        except FileNotFoundError as e:
+            return [], str(e)
+
+    def test_connection(self):
+        if self.busy:
+            return
+        self.busy = True
+        self.message = "Testing…"
+        self.dirty = True
+        self.append_log("$ test connection")
+        self._save_temp_config()
+
+        def _cb():
+            lines, err = self.run_backend("test")
+            self.busy = False
+            if err:
+                self.test_result = "error"
+                self.test_error = err
+                self.message = "Test failed"
+                self.append_log(f"  error: {err}")
+            elif lines:
+                try:
+                    data = json.loads("".join(lines))
+                    if data.get("ok"):
+                        self.test_result = "ok"
+                        self.test_error = ""
+                        self.message = "Connection OK"
+                        self.append_log(f"  connected · shares: {data.get('shares', '?')}")
+                    else:
+                        self.test_result = "error"
+                        self.test_error = data.get("error", "unknown")
+                        self.message = "Connection failed"
+                        self.append_log(f"  error: {self.test_error}")
+                except json.JSONDecodeError:
+                    self.test_result = "error"
+                    self.test_error = "unparseable response"
+                    self.message = "Test failed"
+            self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+    def run_backup(self):
+        if self.busy:
+            return
+        if not self.config.get("address") or not self.config.get("localPath"):
+            self.message = "Configure address and local path first"
+            self.dirty = True
+            return
+        self.busy = True
+        self.message = "Backing up…"
+        self.dirty = True
+        self.append_log("$ backup started")
+        self._save_temp_config()
+
+        def _cb():
+            lines, err = self.run_backend("backup")
+            self.busy = False
+            self.last_sync_time = time.strftime("%H:%M")
+            if err:
+                self.last_sync_ok = False
+                self.message = "Backup failed"
+                self.append_log(f"  error: {err}")
+            else:
+                try:
+                    data = json.loads("".join(lines))
+                    if data.get("ok"):
+                        self.last_sync_ok = True
+                        elapsed = data.get("elapsed", 0)
+                        self.message = f"Backup done ({elapsed}s)"
+                        self.append_log(f"  completed in {elapsed}s")
+                    else:
+                        self.last_sync_ok = False
+                        self.message = "Backup failed"
+                        self.append_log(f"  error: {data.get('error', 'unknown')}")
+                except json.JSONDecodeError:
+                    self.last_sync_ok = True  # assume success if no parse error
+                    self.message = "Backup done"
+                    for l in lines:
+                        self.append_log(f"  {l}")
+            self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+    def _save_temp_config(self):
+        try:
+            os.makedirs(CONFIG_DIR, exist_ok=True)
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(self.config, f, indent=2)
+        except OSError:
+            pass
+
+
+def load_model():
+    return Model()
+
+
+def hero_info(model):
+    subtitle_parts = []
+    if not model.has_config:
+        subtitle = "Set up your SMB server to begin"
+        tone = "muted"
+    else:
+        if model.config.get("address"):
+            subtitle_parts.append(model.config["address"])
+        if model.test_result == "ok":
+            subtitle_parts.append("connected")
+        elif model.test_result == "error":
+            subtitle_parts.append("disconnected")
+        else:
+            subtitle_parts.append("not tested")
+        if model.last_sync_ok is True:
+            subtitle_parts.append(f"last sync {model.last_sync_time}")
+        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "File share backup"
+        tone = "ok" if model.test_result == "ok" else ("danger" if model.test_result == "error" else "muted")
+    msg = ""
+    if model.busy:
+        msg = "working…"
+    elif model.message:
+        msg = model.message
+    return S.hero_line("File Share / Backup", subtitle, tone, model.busy, msg)
+
+
+def help_items(model):
+    items = [
+        ("arrows", "navigate"),
+        ("tab", "area"),
+    ]
+    if model.editing_field:
+        items = [("type", "edit value"), ("enter", "confirm"), ("esc", "cancel")]
+    else:
+        items += [
+            ("enter", "edit field"),
+            ("t", "test conn"),
+            ("b", "backup now"),
+            ("s", "save config"),
+            ("E", "edit config file"),
+            ("r", "refresh"),
+            ("pgup/pgdn", "logs"),
+            ("q", "quit"),
+        ]
+    return items
+
+
+# ── render helpers ──
+
+def config_value_display(model, key):
+    val = model.config.get(key, "")
+    if key == "password" and val:
+        return "*" * len(val)
+    if key == "localPath" and isinstance(val, list):
+        if not val:
+            return "—"
+        if len(val) == 1:
+            return val[0]
+        return f"{len(val)} paths"
+    return val if val else "—"
+
+
+def render_field_list(model, width):
+    lines = []
+    for i, key in enumerate(FIELD_KEYS):
+        label = FIELD_LABELS.get(key, key)
+        val = config_value_display(model, key)
+        focused = model.focus_area == 1 and model.selected_field == i
+        if focused and model.editing_field and model.edit_field_key == key:
+            display = model.edit_buffer if key != "password" else "*" * len(model.edit_buffer)
+            lines.append(("focus", f"  {label}: {display}█"))
+        elif focused:
+            lines.append(("focus", f"  {label}: {S.truncate(val, width - len(label) - 5)}"))
+        else:
+            lines.append(("text", f"  {label}: {S.truncate(val, width - len(label) - 5)}"))
+    return lines
+
+
+def render_connection_status(model, width):
+    lines = []
+    if not model.has_config:
+        lines.append(("primary", "→ Configure server below"))
+        lines.append(("muted", "  Tab to right panel"))
+        lines.append(("muted", "  Enter to edit fields"))
+        lines.append(("muted", "  t to test connection"))
+        return lines
+    if model.test_result == "ok":
+        lines.append(("ok", "  ● Connected"))
+    elif model.test_result == "error":
+        lines.append(("danger", f"  ✗ {S.truncate(model.test_error, width - 4)}"))
+    else:
+        lines.append(("muted", "  ○ Not tested"))
+    addr = model.config.get("address", "")
+    share = model.config.get("share", "")
+    if addr and share:
+        lines.append(("muted", f"  //{addr}/{share}"))
+    elif addr:
+        lines.append(("muted", f"  {addr}"))
+    return lines
+
+
+def render_schedule(model, width):
+    lines = []
+    for i, st in enumerate(SCHEDULE_TYPES):
+        focused = model.focus_area == 0 and model.selected_schedule == i + 1
+        label = {"manual": "Manual only", "every_h": "Every N hours",
+                 "every_d": "Every N days", "at_time": "At specific time"}.get(st, st)
+        sel = model.selected_schedule == i
+        prefix = "▸" if sel else " "
+        box = "[X]" if sel else "[ ]"
+        val = model.config.get("scheduleValue", "")
+        trail = f" ({val})" if val and sel else ""
+        if focused:
+            lines.append(("focus", f"  {box} {label}{trail}"))
+        elif sel:
+            lines.append(("ok", f"  {box} {label}{trail}"))
+        else:
+            lines.append(("muted", f"  {box} {label}{trail}"))
+    return lines
+
+
+def render_actions(model):
+    lines = []
+    enabled = not model.busy
+    has_config = bool(model.config.get("address") and model.config.get("localPath"))
+    lines.append(S.action_line("t", "Test connection", enabled))
+    lines.append(S.action_line("b", "Backup now", enabled and has_config))
+    lines.append(S.action_line("s", "Save config", enabled))
+    lines.append(S.action_line("r", "Refresh", enabled))
+    return lines
+
+
+def render_sync_status(model, width):
+    lines = []
+    if model.last_sync_ok is True:
+        lines.append(("ok", f"  Last sync: {model.last_sync_time}  ✅"))
+    elif model.last_sync_ok is False:
+        lines.append(("danger", "  Last sync: failed"))
+    else:
+        lines.append(("muted", "  No sync yet"))
+    return lines
+
+
+# ── view ──
+
+def view(stdscr, model):
+    curses.curs_set(0)
+    h, w = stdscr.getmaxyx()
+    model.width = w
+    model.height = h
+
+    if not S.require_terminal_size(stdscr, 72, 20):
+        return
+
+    stdscr.erase()
+
+    # hero
+    dot, da, title, ta, msg, ma, sub = hero_info(model)
+    S.safe_addstr(stdscr, 0, 1, dot, da)
+    S.safe_addstr(stdscr, 0, 2, title, ta)
+    if msg:
+        S.safe_addstr(stdscr, 0, len(title) + 3, msg, ma)
+    S.safe_addstr(stdscr, 1, 2, sub, S.ATTR_MUTED)
+
+    # geometry
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    content_w = w - pad_x
+    avail_h = h - pad_y - hero_h - help_h
+
+    left_w = 34
+    right_w = content_w - left_w
+    if right_w < 28:
+        right_w = 28
+        left_w = max(22, content_w - right_w)
+
+    content_h = avail_h
+
+    # Left: Connection status + Schedule + Actions
+    conn_lines = render_connection_status(model, left_w - 4)
+    conn_box_h = min(content_h, len(conn_lines) + 3)
+    if conn_box_h >= 3:
+        S.draw_border(stdscr, hero_h, 0, conn_box_h, left_w, "Status")
+        S.draw_lines_in_area(stdscr, hero_h, 0, conn_box_h, left_w, conn_lines)
+    else:
+        conn_box_h = 0
+
+    schedule_y = hero_h + conn_box_h
+    sched_lines = render_schedule(model, left_w - 4)
+    sched_box_h = min(content_h - conn_box_h, len(sched_lines) + 3)
+    if sched_box_h >= 3:
+        S.draw_border(stdscr, schedule_y, 0, sched_box_h, left_w, "Schedule")
+        S.draw_lines_in_area(stdscr, schedule_y, 0, sched_box_h, left_w, sched_lines)
+    else:
+        sched_box_h = 0
+
+    actions_y = schedule_y + sched_box_h
+    actions_h = content_h - actions_y + hero_h
+    if actions_h >= 4:
+        S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "Actions")
+        action_lines = render_actions(model)
+        inner_h = actions_h - 2
+        for i, (tag, text) in enumerate(action_lines):
+            if i >= inner_h:
+                break
+            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+    # Right: Config fields + Sync status + Activity
+    field_lines = render_field_list(model, right_w - 4)
+    field_box_h = min(content_h, len(field_lines) + 3)
+    if field_box_h >= 3:
+        S.draw_border(stdscr, hero_h, left_w, field_box_h, right_w, "Connection")
+        S.draw_lines_in_area(stdscr, hero_h, left_w, field_box_h, right_w, field_lines)
+    else:
+        field_box_h = 0
+
+    sync_y = hero_h + field_box_h
+    sync_lines = render_sync_status(model, right_w - 4)
+    sync_box_h = min(content_h - field_box_h, len(sync_lines) + 3)
+    if sync_box_h >= 3:
+        S.draw_border(stdscr, sync_y, left_w, sync_box_h, right_w, "")
+        S.draw_lines_in_area(stdscr, sync_y, left_w, sync_box_h, right_w, sync_lines)
+    else:
+        sync_box_h = 0
+
+    act_y = sync_y + sync_box_h
+    act_h = content_h - act_y + hero_h
+    if act_h >= 4:
+        S.draw_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
+        log_inner_y = act_y + 1
+        log_inner_h = act_h - 2
+        log_inner_w = right_w - 4
+        visible_logs = S.wrapped_lines(model.logs, log_inner_w)
+        total = len(visible_logs)
+        if total == 0:
+            S.safe_addstr(stdscr, log_inner_y, left_w + 2, "(no activity)", S.ATTR_MUTED)
+        else:
+            start = max(0, total - log_inner_h - model.scroll_offset)
+            end = min(total, start + log_inner_h)
+            for i, line in enumerate(visible_logs[start:end]):
+                if log_inner_y + i < act_y + act_h - 1:
+                    S.safe_addstr(stdscr, log_inner_y + i, left_w + 2, line, S.ATTR_MUTED)
+            if total > log_inner_h:
+                bar_h = max(1, log_inner_h * log_inner_h // total)
+                if model.scroll_offset == 0:
+                    bar_pos = log_inner_h - bar_h
+                else:
+                    bar_pos = max(0, log_inner_h - bar_h - model.scroll_offset * log_inner_h // total)
+                for i in range(log_inner_h):
+                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
+                    S.safe_addstr(stdscr, log_inner_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+
+    # help
+    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(model)), S.ATTR_SUBTLE)
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+# ── input handling ──
+
+def handle_key(stdscr, model, key):
+    if key == ord('q') or key == 27:
+        if model.editing_field:
+            model.editing_field = False
+            model.dirty = True
+            return True
+        return False
+
+    if model.editing_field:
+        return handle_edit_key(model, key)
+
+    if model.busy and key not in (ord('q'),):
+        return True
+
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                model.scroll_offset = max(0, model.scroll_offset + wheel)
+                model.dirty = True
+                return True
+        return True
+
+    # Navigation
+    if key == ord('\t') or key == 9:
+        model.focus_area = 1 if model.focus_area == 0 else 0
+        model.selected_field = 0
+        model.dirty = True
+        return True
+
+    if key == curses.KEY_UP or key == ord('k'):
+        if model.focus_area == 0:
+            model.selected_schedule = max(0, model.selected_schedule - 1)
+        else:
+            model.selected_field = max(0, model.selected_field - 1)
+        model.dirty = True
+        return True
+
+    if key == curses.KEY_DOWN or key == ord('j'):
+        if model.focus_area == 0:
+            model.selected_schedule = min(3, model.selected_schedule + 1)
+        else:
+            model.selected_field = min(len(FIELD_KEYS) - 1, model.selected_field + 1)
+        model.dirty = True
+        return True
+
+    if key == ord('\n') or key == 10:
+        if model.focus_area == 0:
+            idx = model.selected_schedule
+            if 0 <= idx < len(SCHEDULE_TYPES):
+                model.config["scheduleType"] = SCHEDULE_TYPES[idx]
+                model.dirty = True
+        else:
+            start_edit(model)
+        return True
+
+    if key == ord(' '):
+        if model.focus_area == 0:
+            idx = model.selected_schedule
+            if 0 <= idx < len(SCHEDULE_TYPES):
+                model.config["scheduleType"] = SCHEDULE_TYPES[idx]
+                model.dirty = True
+            return True
+        else:
+            start_edit(model)
+            return True
+
+    # Action keys
+    if key == ord('t'):
+        model.test_connection()
+        return True
+    if key == ord('b'):
+        model.run_backup()
+        return True
+    if key == ord('s'):
+        model.save_config()
+        model.dirty = True
+        return True
+    if key == ord('r'):
+        model.message = ""
+        model.dirty = True
+        return True
+    if key == ord('E'):
+        model.save_config()
+        # Open vi in a new terminal window (like omarchy-launch-tui)
+        term = os.environ.get("TERMINAL", "")
+        if not term:
+            for t in ["foot", "kitty", "ghostty", "alacritty", "xfce4-terminal", "gnome-terminal"]:
+                if subprocess.run(["which", t], capture_output=True).returncode == 0:
+                    term = t
+                    break
+        if term:
+            subprocess.Popen([term, "-e", "vi", CONFIG_FILE])
+        else:
+            # Fallback: try xdg-terminal-exec
+            subprocess.Popen(["xdg-terminal-exec", "-e", "vi", CONFIG_FILE])
+        # Don't reload immediately — wait for user to finish editing
+        model.message = "Opened in terminal — press r to reload after editing"
+        model.dirty = True
+        return True
+
+    # Scroll
+    if key == curses.KEY_PPAGE:
+        model.scroll_offset += 3
+        model.dirty = True
+        return True
+    if key == curses.KEY_NPAGE:
+        model.scroll_offset = max(0, model.scroll_offset - 3)
+        model.dirty = True
+        return True
+    if key == curses.KEY_HOME:
+        model.scroll_offset = 9999
+        model.dirty = True
+        return True
+    if key == curses.KEY_END:
+        model.scroll_offset = 0
+        model.dirty = True
+        return True
+
+    return True
+
+
+def start_edit(model):
+    if model.focus_area != 1 or model.selected_field >= len(FIELD_KEYS):
+        return
+    key = FIELD_KEYS[model.selected_field]
+    model.editing_field = True
+    model.edit_field_key = key
+    model.edit_buffer = model.config.get(key, "")
+    model.dirty = True
+
+
+def handle_edit_key(model, key):
+    if key == ord('\n') or key == 10:
+        model.config[model.edit_field_key] = model.edit_buffer
+        model.editing_field = False
+        model.message = f"{FIELD_LABELS.get(model.edit_field_key, model.edit_field_key)} updated"
+        model.dirty = True
+        return True
+    if key == 27:  # esc
+        model.editing_field = False
+        model.dirty = True
+        return True
+    if key == 127 or key == curses.KEY_BACKSPACE or key == 8:
+        model.edit_buffer = model.edit_buffer[:-1]
+        model.dirty = True
+        return True
+    if 32 <= key <= 126:
+        model.edit_buffer += chr(key)
+        model.dirty = True
+        return True
+    return True
+
+
+# ── main ──
+
+def main(stdscr):
+    S.init_colors()
+    S.enable_mouse()
+    model = load_model()
+    model.dirty = True
+    curses.set_escdelay(1)
+
+    try:
+        while True:
+            S.drain_callbacks()
+            if model.dirty:
+                view(stdscr, model)
+                model.dirty = False
+
+            stdscr.timeout(200)
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not handle_key(stdscr, model, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        S.disable_mouse()
+
+
+if __name__ == "__main__":
+    curses.wrapper(main)
