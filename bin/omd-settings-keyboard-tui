@@ -171,6 +171,10 @@ class Model(S.StatusModel):
         self.picker_preset_id = ""
         self.picker_row = 0
         self.picker_col = 0
+        # Visual key tester state
+        self.show_tester = False
+        self.tester_highlight = ""
+        self.tester_last_key = ""
         # Profile management
         self.profiles = {"version": 1, "devices": {}}
         self.load_profiles()
