@@ -230,10 +230,7 @@ Singleton {
             list.push(appName);
         root.mutedApps = list;
         Config.options.notifications.mutedApps = list;
-        root.mutedAppsChanged();
     }
-
-    signal mutedAppsChanged();
 
     function discardLatestNotification() {
         if (root.list.length === 0)

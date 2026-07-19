@@ -461,7 +461,7 @@ Item {
             }
         }
 
-        // ── Standard style (for bar notification center) ──
+        // ── Standard style (three-column: icon | content | time+buttons) ──
         RowLayout {
             id: standardContent
             visible: !row.hubStyle
@@ -475,57 +475,35 @@ Item {
             anchors.bottomMargin: 8
             spacing: 10
 
+            // Left: icon
             NotificationAppIcon {
-                Layout.preferredWidth: 32
-                Layout.preferredHeight: 32
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
                 Layout.alignment: Qt.AlignTop
                 Layout.topMargin: 2
-                scale: 32 / 38
+                scale: 40 / 38
                 appIcon: notificationObject?.appIcon || ""
                 image: notificationObject?.image || ""
                 summary: notificationObject?.summary || ""
                 urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
             }
 
+            // Middle: summary + body
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 spacing: 3
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: row.displayApp
-                        font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.weight: Font.Medium
-                        color: TuiStyle.dim
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                    }
-
-                    StyledText {
-                        text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: 9
-                        color: TuiStyle.dim
-                        opacity: 0.7
-                    }
-                }
-
                 StyledText {
                     Layout.fillWidth: true
                     text: notificationObject?.summary || row.displayApp
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Appearance.font.pixelSize.normal
                     font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.DemiBold
                     color: row.critical ? TuiStyle.danger : TuiStyle.fg
-                    elide: Text.ElideRight
-                    maximumLineCount: row.expanded ? 3 : 1
-                    wrapMode: row.expanded ? Text.Wrap : Text.NoWrap
                     textFormat: Text.PlainText
                 }
 
@@ -533,80 +511,73 @@ Item {
                     Layout.fillWidth: true
                     visible: row.hasBody && (row.expanded || (notificationObject?.summary || "") !== row.bodyText())
                     text: row.bodyText().replace(/\n/g, " ")
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: TuiStyle.dim
-                    elide: Text.ElideRight
                     maximumLineCount: row.expanded ? 5 : 1
                     wrapMode: Text.Wrap
+                    elide: Text.ElideRight
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.main
+                    color: TuiStyle.dim
                     textFormat: Text.PlainText
                 }
+            }
 
-                // Actions + utility buttons row
+            // Right: time + buttons
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop
+                spacing: 6
+
+                StyledText {
+                    Layout.alignment: Qt.AlignRight
+                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                    font.family: Appearance.font.family.monospace
+                    font.pixelSize: 9
+                    color: TuiStyle.dim
+                    opacity: 0.7
+                }
+
                 RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: row.expanded && (row.hasActions || row.interactive) ? 4 : 0
-                    visible: row.expanded
-                    spacing: 6
+                    Layout.alignment: Qt.AlignRight
+                    spacing: 4
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
+                    IconButton {
+                        id: copyButton
+                        symbol: "content_copy"
+                        tooltip: "Copy"
+                        enabled: row.hasBody || (notificationObject?.summary || "").length > 0
+                        onClicked: row.copyText()
 
-                        Repeater {
-                            model: row.expanded ? (notificationObject?.actions ?? []) : []
-                            PillButton {
-                                required property var modelData
-                                label: modelData.text
-                                active: true
-                                accent: TuiStyle.accent
-                                onClicked: Notifications.attemptInvokeAction(notificationObject.notificationId, modelData.identifier)
-                            }
+                        Timer {
+                            id: copyReset
+                            interval: 1200
+                            repeat: false
+                            onTriggered: copyButton.symbol = "content_copy"
                         }
                     }
 
-                    // Utility buttons
-                    RowLayout {
-                        spacing: 2
+                    IconButton {
+                        symbol: row.expanded ? "expand_less" : "expand_more"
+                        tooltip: row.expanded ? "Collapse" : "Expand"
+                        visible: row.interactive
+                        enabled: row.interactive
+                        onClicked: root.toggleExpanded(row.notificationObject.notificationId)
+                    }
 
-                        IconButton {
-                            id: copyButton
-                            symbol: "content_copy"
-                            tooltip: "Copy"
-                            enabled: row.hasBody || (notificationObject?.summary || "").length > 0
-                            onClicked: row.copyText()
+                    IconButton {
+                        symbol: "close"
+                        tooltip: "Dismiss"
+                        danger: true
+                        onClicked: row.discard()
+                    }
 
-                            Timer {
-                                id: copyReset
-                                interval: 1200
-                                repeat: false
-                                onTriggered: copyButton.symbol = "content_copy"
-                            }
-                        }
-
-                        IconButton {
-                            symbol: row.expanded ? "expand_less" : "expand_more"
-                            tooltip: row.expanded ? "Collapse" : "Expand"
-                            visible: row.interactive
-                            enabled: row.interactive
-                            onClicked: root.toggleExpanded(row.notificationObject.notificationId)
-                        }
-
-                        IconButton {
-                            symbol: "close"
-                            tooltip: "Dismiss"
-                            danger: true
-                            onClicked: row.discard()
-                        }
-
-                        IconButton {
-                            symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
-                            tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
-                            danger: Notifications.isMuted(row.displayApp)
-                            onClicked: Notifications.toggleMuteApp(row.displayApp)
-                        }
+                    IconButton {
+                        symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
+                        tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
+                        danger: Notifications.isMuted(row.displayApp)
+                        onClicked: Notifications.toggleMuteApp(row.displayApp)
                     }
                 }
+
+                Item { Layout.fillHeight: true }
             }
         }
     }
