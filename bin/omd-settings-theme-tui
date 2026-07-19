@@ -50,11 +50,74 @@ def _blend(hex_a, hex_b, amount):
     return _rgb_to_hex(min(255, r), min(255, g), min(255, bl))
 
 
-def _render_image_preview(path, width, height):
-    """Render an image file as curses half-block characters.
+_QUADRANT_CHARS = {
+    0x0: " ", 0x1: "▘", 0x2: "▝", 0x3: "▀",
+    0x4: "▖", 0x5: "▌", 0x6: "▞", 0x7: "▛",
+    0x8: "▗", 0x9: "▚", 0xA: "▐", 0xB: "▜",
+    0xC: "▄", 0xD: "▙", 0xE: "▟", 0xF: "█",
+}
 
-    Returns a list of rows, where each row is a list of (pair_index, fg_r, fg_g, fg_b, bg_r, bg_g, bg_b)
-    tuples for each column. Returns empty list on failure.
+
+def _distance_sq(a, b):
+    return sum((a[i] - b[i]) ** 2 for i in range(3))
+
+
+def _perceptual_dist(a, b):
+    """Perceptual color distance (redmean approximation).
+    Weights: green ×4, red ×2-3, blue ×3.
+    Much better than plain Euclidean for distinguishing dark greens from greys.
+    """
+    dr = a[0] - b[0]
+    dg = a[1] - b[1]
+    db = a[2] - b[2]
+    r_mean = (a[0] + b[0]) >> 1
+    wr = 2 + (r_mean >> 7)  # 2 for dark, 3 for bright reds
+    return wr * dr * dr + 4 * dg * dg + 3 * db * db
+
+
+def _average_rgb(colors):
+    if not colors:
+        return (0, 0, 0)
+    count = len(colors)
+    return tuple(round(sum(color[i] for color in colors) / count) for i in range(3))
+
+
+def _quadrant_cell(pixels):
+    """Reduce four RGB pixels to a two-color Unicode quadrant cell."""
+    first = pixels[0]
+    second = max(pixels[1:], key=lambda color: _distance_sq(first, color))
+    foreground, background = first, second
+
+    # A few tiny k-means passes retain local edges while fitting the terminal's
+    # two colors per character limitation.
+    assignments = [False] * 4
+    for _ in range(3):
+        assignments = [
+            _distance_sq(pixel, foreground) <= _distance_sq(pixel, background)
+            for pixel in pixels
+        ]
+        fg_pixels = [pixel for pixel, is_fg in zip(pixels, assignments) if is_fg]
+        bg_pixels = [pixel for pixel, is_fg in zip(pixels, assignments) if not is_fg]
+        if fg_pixels:
+            foreground = _average_rgb(fg_pixels)
+        if bg_pixels:
+            background = _average_rgb(bg_pixels)
+
+    mask = sum(1 << index for index, is_fg in enumerate(assignments) if is_fg)
+    if mask == 0xF:
+        # A solid cell only needs its background color and avoids allocating a
+        # redundant foreground/background pair.
+        background = foreground
+        mask = 0
+    return (_QUADRANT_CHARS[mask], *foreground, *background)
+
+
+def _render_image_preview(path, width, height):
+    """Render an image file as two-color Unicode quadrant characters.
+
+    Each terminal cell represents a 2x2 source sample. Returns rows containing
+    (character, fg_r, fg_g, fg_b, bg_r, bg_g, bg_b) tuples, or an empty list on
+    failure.
     """
     global _image_preview_cache
     if not path or width <= 0 or height <= 0:
@@ -80,27 +143,46 @@ def _render_image_preview(path, width, height):
         if src_w <= 0 or src_h <= 0:
             return []
 
-        sample_w = width
+        sample_w = width * 2
         sample_h = height * 2
-        scale = max(sample_w / src_w, sample_h / src_h)
-        crop_w = sample_w / scale
-        crop_h = sample_h / scale
-        offset_x = (src_w - crop_w) / 2
-        offset_y = (src_h - crop_h) / 2
+
+        # Crop to target aspect ratio and resize using high-quality downsampling to prevent aliasing
+        img_aspect = src_w / src_h
+        # Terminal cells are roughly twice as tall as they are wide. The 2x2
+        # samples are packed into one such cell, so crop for the displayed cell
+        # geometry rather than the square-pixel sample buffer geometry.
+        target_aspect = width / (height * 2)
+        if img_aspect > target_aspect:
+            new_w = int(src_h * target_aspect)
+            offset_x = (src_w - new_w) // 2
+            img_cropped = img.crop((offset_x, 0, offset_x + new_w, src_h))
+        else:
+            new_h = int(src_w / target_aspect)
+            offset_y = (src_h - new_h) // 2
+            img_cropped = img.crop((0, offset_y, src_w, offset_y + new_h))
+
+        if hasattr(Image, "Resampling"):
+            resample_filter = Image.Resampling.LANCZOS
+        elif hasattr(Image, "ANTIALIAS"):
+            resample_filter = Image.ANTIALIAS
+        else:
+            resample_filter = Image.BICUBIC
+
+        img_resized = img_cropped.resize((sample_w, sample_h), resample_filter)
 
         rows = []
         for row in range(height):
             cols_data = []
             for col in range(width):
-                sx = int(offset_x + (col + 0.5) * crop_w / sample_w)
-                sy_top = int(offset_y + (row * 2 + 0.5) * crop_h / sample_h)
-                sy_bot = int(offset_y + (row * 2 + 1.5) * crop_h / sample_h)
-                sx = max(0, min(src_w - 1, sx))
-                sy_top = max(0, min(src_h - 1, sy_top))
-                sy_bot = max(0, min(src_h - 1, sy_bot))
-                r_top, g_top, b_top = img.getpixel((sx, sy_top))
-                r_bot, g_bot, b_bot = img.getpixel((sx, sy_bot))
-                cols_data.append((r_top, g_top, b_top, r_bot, g_bot, b_bot))
+                sample_x = col * 2
+                sample_y = row * 2
+                pixels = (
+                    img_resized.getpixel((sample_x, sample_y)),
+                    img_resized.getpixel((sample_x + 1, sample_y)),
+                    img_resized.getpixel((sample_x, sample_y + 1)),
+                    img_resized.getpixel((sample_x + 1, sample_y + 1)),
+                )
+                cols_data.append(_quadrant_cell(pixels))
             rows.append(cols_data)
 
         _image_preview_cache = {"path": path, "width": width, "height": height,
@@ -112,64 +194,157 @@ def _render_image_preview(path, width, height):
         return []
 
 
-# Dynamic color pair allocator for image preview
-# We use pairs starting from C_THEME_START (11) up to 255 max (curses limit)
-_color_pair_map = {}  # (r5, g5, b5, r5_bg, g5_bg, b5_bg) -> pair_index
-_next_pair_idx = [S.C_THEME_START if hasattr(S, 'C_THEME_START') else 11]
-_MAX_COLOR_PAIRS = 200
+# ── color pair pools ──────────────────────────────────────────────────────
+# The terminal has a fixed number of color pairs (often 256).  We split the
+# pool into two non-overlapping regions so theme tile swatches always get a
+# dedicated slot and are never evicted by the wallpaper preview.
+#
+#   pairs _C_TILE_BASE .. _C_TILE_BASE+_MAX_TILE_PAIRS-1  → theme tile swatches
+#   pairs _C_IMG_BASE  .. _C_IMG_BASE+_MAX_IMG_PAIRS-1    → wallpaper preview
+#
+_C_TILE_BASE = S.C_THEME_START if hasattr(S, "C_THEME_START") else 11
+_MAX_TILE_PAIRS = 80          # enough for 22 themes × 3 roles + margin
+_C_IMG_BASE = _C_TILE_BASE + _MAX_TILE_PAIRS   # wallpaper preview starts here
+_MAX_IMG_PAIRS = 160          # cap so we never overflow into tile territory
+
+# Tile swatch pool
+_tile_pair_map = {}   # (fg_xterm_idx, bg_xterm_idx) -> pair_idx
+_next_tile_idx = [_C_TILE_BASE]
+
+# Wallpaper image preview pool (legacy name kept for compatibility)
+_color_pair_map = {}  # (fg_xterm_idx, bg_xterm_idx) -> pair_idx
+_next_pair_idx = [_C_IMG_BASE]
+_MAX_COLOR_PAIRS = _MAX_IMG_PAIRS
+_XTERM_LEVELS = (0, 95, 135, 175, 215, 255)
+_xterm_color_cache = {}
 
 
-def _quantize5(v):
-    """Quantize 0-255 to 0-4 (5 levels per channel)."""
-    return max(0, min(4, v * 5 // 256))
+def _xterm_rgb(index):
+    """Return the standard RGB value represented by an extended xterm color."""
+    if 16 <= index <= 231:
+        value = index - 16
+        return (
+            _XTERM_LEVELS[value // 36],
+            _XTERM_LEVELS[(value // 6) % 6],
+            _XTERM_LEVELS[value % 6],
+        )
+    if 232 <= index <= 255:
+        level = 8 + (index - 232) * 10
+        return (level, level, level)
+    return (0, 0, 0)
+
+
+def _chroma(r, g, b):
+    """RGB chroma (max - min). A simple measure of colorfulness.
+    Zero for grayscale (R=G=B), higher for saturated colors.
+    """
+    return max(r, g, b) - min(r, g, b)
+
+
+def _rgb_to_xterm_index(r, g, b):
+    """Strategy C: Chroma-sensitive xterm-256 color mapping.
+
+    Truly achromatic pixels (chroma <= 12) map to the 24-level grayscale ramp
+    (indices 232-255) for smooth, accurate gray rendering.
+    Chromatic pixels map to the 6x6x6 color cube (indices 16-231) to prevent
+    the dense grayscale ramp from pulling colors into gray.
+    """
+    if _chroma(r, g, b) <= 12:
+        gray = round((r + g + b) / 3 * 23 / 255)
+        return 232 + min(23, max(0, gray))
+    r6 = round(r * 5 / 255)
+    g6 = round(g * 5 / 255)
+    b6 = round(b * 5 / 255)
+    return 16 + 36 * r6 + 6 * g6 + b6
+
+
+def _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    """Reuse the nearest allocated image pair when the terminal pair pool is full."""
+    if not _color_pair_map:
+        return 0
+    requested_fg = (r_fg, g_fg, b_fg)
+    requested_bg = (r_bg, g_bg, b_bg)
+    key = min(
+        _color_pair_map,
+        key=lambda pair: (
+            _distance_sq(requested_fg, _xterm_rgb(pair[0]))
+            + _distance_sq(requested_bg, _xterm_rgb(pair[1]))
+        ),
+    )
+    return _color_pair_map[key]
 
 
 def _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
-    """Get or allocate a curses color pair for the given fg/bg color combo."""
-    # Quantize to reduce the total number of unique pairs needed
-    key = (_quantize5(r_fg), _quantize5(g_fg), _quantize5(b_fg),
-           _quantize5(r_bg), _quantize5(g_bg), _quantize5(b_bg))
+    """Get or allocate a curses color pair for the wallpaper image preview pool."""
+    fg_color_idx = _rgb_to_xterm_index(r_fg, g_fg, b_fg)
+    bg_color_idx = _rgb_to_xterm_index(r_bg, g_bg, b_bg)
+    key = (fg_color_idx, bg_color_idx)
     if key in _color_pair_map:
         return _color_pair_map[key]
 
+    # Wallpaper pool: _C_IMG_BASE .. _C_IMG_BASE+_MAX_IMG_PAIRS-1
     pair_limit = min(
-        S.C_THEME_START + _MAX_COLOR_PAIRS,
-        max(S.C_THEME_START, getattr(curses, "COLOR_PAIRS", 0)),
+        _C_IMG_BASE + _MAX_IMG_PAIRS,
+        max(_C_IMG_BASE, getattr(curses, "COLOR_PAIRS", 0)),
     )
     if getattr(curses, "COLORS", 0) < 256 or _next_pair_idx[0] >= pair_limit:
-        # Fallback to closest existing pair or default subtle
-        return S.C_SUBTLE if hasattr(S, 'C_SUBTLE') else 9
+        return _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg)
 
     pair_idx = _next_pair_idx[0]
     _next_pair_idx[0] += 1
 
-    # Use the terminal's standard 6x6x6 xterm cube. This avoids rewriting
-    # terminal palette entries and keeps all color indices below 256.
-    def xterm_index(r5, g5, b5):
-        r6 = round(r5 * 5 / 4)
-        g6 = round(g5 * 5 / 4)
-        b6 = round(b5 * 5 / 4)
-        return 16 + 36 * r6 + 6 * g6 + b6
-
     try:
-        fg_color_idx = xterm_index(key[0], key[1], key[2])
-        bg_color_idx = xterm_index(key[3], key[4], key[5])
         curses.init_pair(pair_idx, fg_color_idx, bg_color_idx)
     except curses.error:
-        # Terminal doesn't support custom colors — fall back
-        _color_pair_map[key] = 0  # default pair
+        _color_pair_map[key] = 0
         return 0
 
     _color_pair_map[key] = pair_idx
     return pair_idx
 
 
+def _get_tile_color_pair(fg_rgb, bg_rgb):
+    """Allocate a color pair from the tile swatch pool (never shares with image preview)."""
+    fg_idx = _rgb_to_xterm_index(*fg_rgb)
+    bg_idx = _rgb_to_xterm_index(*bg_rgb)
+    key = (fg_idx, bg_idx)
+    if key in _tile_pair_map:
+        return _tile_pair_map[key]
+
+    tile_limit = min(
+        _C_TILE_BASE + _MAX_TILE_PAIRS,
+        max(_C_TILE_BASE, getattr(curses, "COLOR_PAIRS", 0)),
+    )
+    if getattr(curses, "COLORS", 0) < 256 or _next_tile_idx[0] >= tile_limit:
+        # Pool exhausted: reuse nearest already-allocated tile pair
+        if _tile_pair_map:
+            nearest = min(
+                _tile_pair_map,
+                key=lambda k: (
+                    _distance_sq(fg_rgb, _xterm_rgb(k[0]))
+                    + _distance_sq(bg_rgb, _xterm_rgb(k[1]))
+                ),
+            )
+            _tile_pair_map[key] = _tile_pair_map[nearest]
+            return _tile_pair_map[nearest]
+        return 0
+
+    pair_idx = _next_tile_idx[0]
+    _next_tile_idx[0] += 1
+    try:
+        curses.init_pair(pair_idx, fg_idx, bg_idx)
+    except curses.error:
+        _tile_pair_map[key] = 0
+        return 0
+    _tile_pair_map[key] = pair_idx
+    return pair_idx
+
+
 def _get_theme_tile_pair(accent_hex, bg_hex, fg_hex, role):
-    """
-    为主题 tile 的某个角色（'header' or 'sample'）分配 curses color pair。
-    role='header': fg=fg_hex on bg=accent_hex
-    role='sample': fg=fg_hex on bg=bg_hex
-    返回 curses color pair index，失败返回 0。
+    """Return a curses color pair for a theme tile role.
+    role='header': fg text on accent background
+    role='sample': fg text on theme background
+    Uses the dedicated tile pool, isolated from the wallpaper preview pool.
     """
     if role == "header":
         fg_h, bg_h = fg_hex, accent_hex
@@ -180,8 +355,7 @@ def _get_theme_tile_pair(accent_hex, bg_hex, fg_hex, role):
     bg_rgb = _hex_to_rgb(bg_h)
     if not fg_rgb or not bg_rgb:
         return 0
-    return _get_image_color_pair(fg_rgb[0], fg_rgb[1], fg_rgb[2],
-                                  bg_rgb[0], bg_rgb[1], bg_rgb[2])
+    return _get_tile_color_pair(fg_rgb, bg_rgb)
 
 
 def _render_image_view(stdscr, y, x, rows):
@@ -190,12 +364,12 @@ def _render_image_view(stdscr, y, x, rows):
         return
     for row_idx, row_pixels in enumerate(rows):
         for col_idx, pixel in enumerate(row_pixels):
-            if len(pixel) != 6:
+            if len(pixel) != 7:
                 continue
-            r_fg, g_fg, b_fg, r_bg, g_bg, b_bg = pixel
+            char, r_fg, g_fg, b_fg, r_bg, g_bg, b_bg = pixel
             pair_idx = _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg)
             attr = curses.color_pair(pair_idx)
-            S.safe_addstr(stdscr, y + row_idx, x + col_idx, "▀", attr)
+            S.safe_addstr(stdscr, y + row_idx, x + col_idx, char, attr)
 
 
 # ── palette cache ───────────────────────────────────────────────────────
@@ -549,8 +723,7 @@ def _render_theme_grid(model, width, max_rows):
                 bg     = theme.background or "#111111"
                 fg     = theme.foreground or "#eeeeee"
                 accent_rgb = _hex_to_rgb(accent) or (32, 214, 199)
-                border_pair = _get_image_color_pair(
-                    accent_rgb[0], accent_rgb[1], accent_rgb[2], 0, 0, 0)
+                border_pair = _get_tile_color_pair(accent_rgb, (0, 0, 0))
 
                 if sub_row == 0:
                     # 顶边框
@@ -571,9 +744,8 @@ def _render_theme_grid(model, width, max_rows):
                     if is_selected:
                         marker = "►"
                         fg_rgb = _hex_to_rgb(fg) or (238, 238, 238)
-                        pair = _get_image_color_pair(
-                            accent_rgb[0], accent_rgb[1], accent_rgb[2],
-                            fg_rgb[0], fg_rgb[1], fg_rgb[2])
+                        # fg text on accent background
+                        pair = _get_tile_color_pair(fg_rgb, accent_rgb)
                         left_b = "│"
                         right_b = "│"
                         b_pair = border_pair
@@ -672,7 +844,12 @@ def _view(stdscr, m):
 
     show_right = w >= 108
     if show_right:
-        preview_w, _ = S.two_column_widths(content_w, left_w=34, right_min=34, gap=1)
+        left_w_desired = 34
+        if content_w >= 120:
+            left_w_desired = 44
+        elif content_w >= 108:
+            left_w_desired = 38
+        preview_w, _ = S.two_column_widths(content_w, left_w=left_w_desired, right_min=70, gap=1)
         grid_w = content_w
     else:
         preview_w = content_w
@@ -680,8 +857,11 @@ def _view(stdscr, m):
 
     # Left column — preview + controls stacked
     if show_right:
-        # Preview at top
-        preview_h = 10
+        # Preview at top — dynamically calculate height based on 16:9 ratio and space limits
+        inner_w = preview_w - 4
+        desired_preview_h = int(inner_w * 9 / 16 / 2) + 3
+        preview_h = max(10, min(desired_preview_h, avail_h - 11))
+
         S.draw_thick_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
         mode = m.val("wallpaper.mode", "file")
         if mode == "color":
