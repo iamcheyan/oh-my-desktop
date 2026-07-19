@@ -757,13 +757,13 @@ def view(stdscr, model):
     else:
         help_y = h - 2
     if gen:
-        S.safe_addstr(stdscr, help_y, 3, S.help_text(gen), S.ATTR_SUBTLE)
+        S.safe_addstr(stdscr, help_y, 2, S.help_text(gen), S.ATTR_SUBTLE)
     if tool:
-        S.safe_addstr(stdscr, help_y + 1, 3, S.help_text(tool), S.ATTR_SUBTLE)
+        S.safe_addstr(stdscr, help_y + 1, 2, S.help_text(tool), S.ATTR_SUBTLE)
 
     # ── pending bar ──
     if model.pending_changes:
-        S.safe_addstr(stdscr, h - 1, 3,
+        S.safe_addstr(stdscr, h - 1, 2,
                      "Pending changes · Apply (a) · Discard (r)",
                      S.ATTR_OK_BOLD)
 

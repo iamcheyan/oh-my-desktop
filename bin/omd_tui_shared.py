@@ -430,7 +430,7 @@ def draw_help_bar(stdscr, generic_items, tool_items):
     Line 2 (row h-1): tool-specific operations.
     """
     h, _ = stdscr.getmaxyx()
-    pad = 3
+    pad = 2
     if generic_items:
         safe_addstr(stdscr, h - 2, pad, help_text(generic_items), ATTR_SUBTLE)
     if tool_items:
@@ -609,7 +609,7 @@ def draw_hero(stdscr, hero_tuple):
         subtitle
     """
     title, ta, msg, ma, sub, status_text, sa = hero_tuple
-    pad = 3
+    pad = 2
     # Title + message on the left
     x = pad
     safe_addstr(stdscr, 0, x, title, ta)
