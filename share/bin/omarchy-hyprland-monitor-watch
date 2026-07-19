@@ -1,14 +1,29 @@
 #!/bin/bash
 
-# omarchy:summary=Watch Hyprland monitor events and recover monitor toggles when a monitor is removed
+# omarchy:summary=Watch Hyprland monitor events and repair monitor and wallpaper state
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+WALLPAPER_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omd-wallpaper-output-refresh.lock"
+
+refresh_wallpaper_outputs() {
+  # Output geometry is not stable at the instant Hyprland publishes the event.
+  # Coalesce bursts from dock/undock and render once against the final topology.
+  (
+    flock -n 9 || exit 0
+    sleep 0.45
+    "$HOME/.config/omd/bin/omd-wallpaper" refresh-outputs >/dev/null 2>&1 || true
+  ) 9>"$WALLPAPER_LOCK" &
+}
 
 socat -U - "UNIX-CONNECT:$SOCKET" | while read -r event; do
   case "$event" in
+    monitoradded\>\>*|monitoraddedv2\>\>*)
+      refresh_wallpaper_outputs
+      ;;
     monitorremoved\>\>*|monitorremovedv2\>\>*)
       omarchy-hyprland-monitor-internal recover
       omarchy-hyprland-monitor-internal-mirror recover
+      refresh_wallpaper_outputs
       ;;
   esac
 done

@@ -76,6 +76,51 @@ render_color() {
   start_renderer -c "$1"
 }
 
+theme_background_color() {
+  local omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+  local colors_file="$omd_root/current/theme/colors.toml"
+
+  if [[ ! -f "$colors_file" ]]; then
+    printf '#000000\n'
+    return
+  fi
+
+  python3 - "$colors_file" <<'PY'
+import sys, re
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+except Exception:
+    print("#000000")
+    sys.exit(0)
+
+colors = {}
+for line in content.splitlines():
+    line = line.strip()
+    if not line or line.startswith('#'):
+        continue
+    m = re.match(r'^([a-zA-Z0-9_]+)\s*=\s*["\']([^"\']+)["\']', line)
+    if m:
+        colors[m.group(1)] = m.group(2)
+
+bg = colors.get("background", "#000000")
+tint = colors.get("accent") or colors.get("selection_background") or colors.get("foreground")
+if not tint:
+    print(bg)
+    sys.exit(0)
+
+bg = bg.lstrip('#')
+tint = tint.lstrip('#')
+r1, g1, b1 = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+r2, g2, b2 = int(tint[0:2], 16), int(tint[2:4], 16), int(tint[4:6], 16)
+r = int(r1 * 0.92 + r2 * 0.08)
+g = int(g1 * 0.92 + g2 * 0.08)
+b = int(b1 * 0.92 + b2 * 0.08)
+print(f"#{r:02x}{g:02x}{b:02x}")
+PY
+}
+
 stop_timer() {
   if command -v systemctl >/dev/null 2>&1; then
     systemctl --user stop "$UNIT_NAME.timer" "$UNIT_NAME.service" >/dev/null 2>&1 || true
@@ -202,53 +247,9 @@ set_color() {
   ensure_state_dir
   echo "color" > "$MODE_FILE"
 
-  local omd_root="${OMD_ROOT:-$HOME/.config/omd}"
-  local colors_file="$omd_root/current/theme/colors.toml"
-  local bg_color="#000000"
-  if [[ -f "$colors_file" ]]; then
-    bg_color="$(python3 - "$colors_file" <<'PY'
-import sys, re
-path = sys.argv[1]
-try:
-    with open(path, encoding="utf-8") as f:
-        content = f.read()
-except Exception:
-    print("#000000")
-    sys.exit(0)
-
-colors = {}
-for line in content.splitlines():
-    line = line.strip()
-    if not line or line.startswith('#'):
-        continue
-    m = re.match(r'^([a-zA-Z0-9_]+)\s*=\s*["\']([^"\']+)["\']', line)
-    if m:
-        colors[m.group(1)] = m.group(2)
-
-bg = colors.get("background", "#000000")
-tint = colors.get("accent")
-if not tint:
-    tint = colors.get("selection_background")
-if not tint:
-    tint = colors.get("foreground")
-
-if not tint:
-    print(bg)
-    sys.exit(0)
-
-# blend bg (92%) and tint (8%)
-bg = bg.lstrip('#')
-tint = tint.lstrip('#')
-r1, g1, b1 = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
-r2, g2, b2 = int(tint[0:2], 16), int(tint[2:4], 16), int(tint[4:6], 16)
-r = int(r1 * 0.92 + r2 * 0.08)
-g = int(g1 * 0.92 + g2 * 0.08)
-b = int(b1 * 0.92 + b2 * 0.08)
-print(f"#{r:02x}{g:02x}{b:02x}")
-PY
-    )"
-    [[ -n "$bg_color" ]] || bg_color="#000000"
-  fi
+  local bg_color
+  bg_color="$(theme_background_color)"
+  [[ -n "$bg_color" ]] || bg_color="#000000"
 
   render_color "$bg_color"
 
@@ -262,6 +263,22 @@ PY
   fi
 
   notify "Wallpaper set to solid color" "$bg_color"
+}
+
+refresh_outputs() {
+  local mode current_background
+  mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
+  current_background="$HOME/.config/omd/current/background"
+
+  # Recreate swaybg after the output topology changes without changing the
+  # selected source, rotation mode, interval, or timer deadline.
+  if [[ "$mode" == "color" ]]; then
+    render_color "$(theme_background_color)"
+  elif [[ -f "$current_background" ]]; then
+    render_image "$current_background"
+  else
+    restore
+  fi
 }
 
 restore() {
@@ -334,6 +351,9 @@ case "${1:-}" in
   restart)
     restart_rotation
     ;;
+  refresh-outputs)
+    refresh_outputs
+    ;;
   stop)
     stop_timer
     ensure_state_dir
@@ -355,7 +375,7 @@ case "${1:-}" in
     status
     ;;
   *)
-    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|set-color|random|restore|restart|stop|status" >&2
+    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|set-color|random|restore|restart|refresh-outputs|stop|status" >&2
     exit 2
     ;;
 esac

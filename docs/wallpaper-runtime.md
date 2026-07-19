@@ -36,6 +36,18 @@ The renderer is a directly detached `swaybg` process rather than an
 `uwsm-app` scope, so wallpaper restoration does not depend on user D-Bus being
 ready during early Hyprland startup. Renderer stderr is retained in
 `~/.local/state/omd/wallpaper/renderer.log` instead of being discarded.
+There must be exactly one autostart owner: `hypr/autostart.lua` invokes
+`omd-wallpaper restore`; default Hyprland modules must not launch another
+`swaybg` process directly.
+
+Hyprland destroys and recreates output surfaces when a monitor is connected,
+removed, or re-enabled. `omd-hyprland-monitor-watch` therefore coalesces
+`monitoradded*` and `monitorremoved*` event bursts and invokes
+`omd-wallpaper refresh-outputs` after the topology settles. This recreates
+`swaybg` for every active output while preserving the selected source, folder
+mode, interval, and current timer deadline. A preview updating successfully is
+not proof that the desktop renderer covers every output: previews read the
+managed image file, while the desktop requires a live layer surface per output.
 
 The interval file is read directly whenever the timer is created. Changing the
 interval uses `omd-wallpaper restart`; it must not use `stop`, because `stop`

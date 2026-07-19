@@ -1,7 +1,8 @@
 o.launch_on_start("hypridle -c $HOME/.config/omd/hypr/hypridle.conf")
 -- Notifications are handled by the OMD bar notification server.
 o.launch_on_start("fcitx5 --disable notificationitem")
-o.launch_on_start("swaybg -i ~/.config/omd/current/background -m fill")
+-- Wallpaper rendering is owned by hypr/autostart.lua through omd-wallpaper.
+-- Starting swaybg here as well races folder rotation and monitor hotplug repair.
 local function file_exists(path)
   local f = io.open(path, "r")
   if f then

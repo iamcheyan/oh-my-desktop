@@ -62,51 +62,25 @@ Item {
                 leftMargin: root.horizontalPadding
                 rightMargin: root.horizontalPadding
             }
-            spacing: 12
+            spacing: 10
 
-            // Left: icon
+            // Left: icon (48px, no padding)
             NotificationAppIcon {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
+                Layout.preferredWidth: 56
+                Layout.preferredHeight: 56
                 Layout.alignment: Qt.AlignTop
-                Layout.topMargin: 2
-                scale: 36 / 38
+                scale: 56 / 38
                 appIcon: notificationObject?.appIcon || ""
                 image: notificationObject?.image || ""
                 summary: notificationObject?.summary || ""
                 urgency: root.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
             }
 
-            // Right: title + content + buttons
+            // Middle: summary + body
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                spacing: 4
-
-                // Title row: app name + time
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: displayApp
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.main
-                        font.weight: Font.Medium
-                        color: TuiStyle.dim
-                    }
-
-                    StyledText {
-                        text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        font.family: Appearance.font.family.monospace
-                        color: TuiStyle.dim
-                        opacity: 0.7
-                    }
-                }
+                spacing: 3
 
                 // Summary
                 StyledText {
@@ -127,7 +101,7 @@ Item {
                     Layout.fillWidth: true
                     visible: root.hasBody && root.bodyText() !== (root.notificationObject?.summary || "")
                     text: root.bodyText().replace(/\n/g, " ")
-                    maximumLineCount: 3
+                    maximumLineCount: 2
                     wrapMode: Text.Wrap
                     elide: Text.ElideRight
                     font.pixelSize: Appearance.font.pixelSize.smaller
@@ -135,33 +109,29 @@ Item {
                     color: TuiStyle.dim
                     textFormat: Text.PlainText
                 }
+            }
 
-                // Action buttons row
+            // Right: time + buttons stacked
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop
+                spacing: 6
+
+                StyledText {
+                    Layout.alignment: Qt.AlignRight
+                    text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    font.family: Appearance.font.family.monospace
+                    color: TuiStyle.dim
+                    opacity: 0.7
+                }
+
                 RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 2
-                    visible: true
+                    Layout.alignment: Qt.AlignRight
                     spacing: 4
-
-                    Repeater {
-                        model: root.expanded ? (root.notificationObject?.actions ?? []) : []
-                        NotificationActionButton {
-                            required property var modelData
-                            buttonText: modelData.text
-                            urgency: root.notificationObject?.urgency
-                            onClicked: {
-                                Notifications.attemptInvokeAction(root.notificationObject.notificationId, modelData.identifier);
-                            }
-                        }
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
 
                     Rectangle {
                         id: closeBtn
-                        implicitWidth: 52
+                        implicitWidth: 28
                         implicitHeight: 24
                         radius: TuiStyle.miniRadius
                         color: "transparent"
@@ -171,7 +141,7 @@ Item {
                         StyledText {
                             anchors.centerIn: parent
                             text: "close"
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             color: TuiStyle.dim
                         }
 
@@ -185,7 +155,7 @@ Item {
 
                     Rectangle {
                         id: copyBtn
-                        implicitWidth: 52
+                        implicitWidth: 28
                         implicitHeight: 24
                         radius: TuiStyle.miniRadius
                         visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
@@ -201,7 +171,7 @@ Item {
                         StyledText {
                             anchors.centerIn: parent
                             text: copyState.label
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             color: TuiStyle.dim
                         }
 
@@ -224,6 +194,8 @@ Item {
                         }
                     }
                 }
+
+                Item { Layout.fillHeight: true }
             }
         }
     }

@@ -627,8 +627,7 @@ ColumnLayout {
                             Quickshell.execDetached([
                                 "bash", "-c",
                                 'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
-                                '$HOME/.config/omd/bin/omd-wallpaper stop && sleep 0.5 && ' +
-                                '$HOME/.config/omd/bin/omd-wallpaper random'
+                                '$HOME/.config/omd/bin/omd-wallpaper restart'
                             ])
                             wpRefreshTimer.restart()
                         }
