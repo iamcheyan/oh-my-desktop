@@ -512,6 +512,9 @@ def help_items(model):
             if ns > 0:
                 items.append(("s", "sync inc"))
                 items.append(("S", "sync full"))
+                # b/B aliases for backward compatibility
+                items.append(("b", "also sync"))
+                items.append(("B", "also full"))
         items.append(("c", "detail diff"))
     return items
 
@@ -609,6 +612,8 @@ def render_actions(model):
     # Sync keys are always available even if only shown conditionally in help bar
     lines.append(S.action_line("s", "Sync inc", enabled and has_config))
     lines.append(S.action_line("S", "Sync full --delete", enabled and has_config))
+    lines.append(S.action_line("b", "Sync inc (alt)", enabled and has_config))
+    lines.append(S.action_line("B", "Sync full (alt)", enabled and has_config))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
     return lines
