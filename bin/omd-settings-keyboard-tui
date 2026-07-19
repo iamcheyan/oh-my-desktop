@@ -130,6 +130,7 @@ _KEYCODE_TO_LAYOUT = {
     curses.KEY_DC: "delete",
     curses.KEY_PRINT: "sysrq",
     curses.KEY_BTAB: "tab",
+    27: "escape",
     ord(' '): "space",
     ord('\t'): "tab",
     ord('\n'): "enter",
