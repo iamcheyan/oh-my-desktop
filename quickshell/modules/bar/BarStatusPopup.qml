@@ -2431,6 +2431,21 @@ Scope {
                     Layout.alignment: Qt.AlignVCenter
                     spacing: 12
 
+                    MaterialSymbol {
+                        Layout.alignment: Qt.AlignVCenter
+                        text: "settings"
+                        iconSize: 20
+                        color: mutedSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
+
+                        MouseArea {
+                            id: mutedSettingsMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Notifications.openMutedAppsEditor()
+                        }
+                    }
+
                     // Broom button to clear notifications
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignVCenter

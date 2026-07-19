@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import qs.modules.common
+import qs.modules.common.functions
 import qs
 import QtQuick
 import Quickshell
@@ -76,6 +77,7 @@ Singleton {
     readonly property bool silent: Config.options?.notifications?.silent ?? false
     property var mutedApps: Config.options?.notifications?.mutedApps ?? []
     property string mutedAppsFilePath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
+    property bool openMutedEditorAfterWrite: false
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
@@ -232,7 +234,19 @@ Singleton {
         root.mutedApps = list;
         Config.options.notifications.mutedApps = list;
         root.writeMutedAppsFile();
-        root.mutedAppsChanged();
+    }
+
+    function setMutedApps(apps) {
+        const normalized = [...new Set(apps.map(app => String(app).trim()).filter(app => app.length > 0))];
+        root.mutedApps = normalized;
+        if (Config.options && Config.options.notifications)
+            Config.options.notifications.mutedApps = normalized;
+    }
+
+    function openMutedAppsEditor() {
+        root.openMutedEditorAfterWrite = true;
+        if (!writeMutedFile.running)
+            root.writeMutedAppsFile();
     }
 
     function writeMutedAppsFile() {
@@ -247,9 +261,36 @@ Singleton {
     Process {
         id: writeMutedFile
         running: false
+        onExited: {
+            if (!root.openMutedEditorAfterWrite)
+                return;
+            root.openMutedEditorAfterWrite = false;
+            editMutedAppsProc.command = [
+                "bash", "-c",
+                `terminal=""; for t in foot kitty alacritty ghostty; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done; if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsFilePath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsFilePath}'; fi`
+            ];
+            editMutedAppsProc.running = true;
+        }
     }
 
-    signal mutedAppsChanged();
+    Process {
+        id: editMutedAppsProc
+        running: false
+        onExited: readMutedAppsProc.running = true
+    }
+
+    Process {
+        id: readMutedAppsProc
+        command: ["bash", "-c", `cat '${root.mutedAppsFilePath}' 2>/dev/null || true`]
+        running: false
+        stdout: StdioCollector {
+            id: mutedAppsCollector
+            onStreamFinished: {
+                const text = mutedAppsCollector.text.trim();
+                root.setMutedApps(text.length > 0 ? text.split("\n") : []);
+            }
+        }
+    }
 
     function discardLatestNotification() {
         if (root.list.length === 0)

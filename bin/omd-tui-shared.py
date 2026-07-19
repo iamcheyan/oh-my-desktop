@@ -111,7 +111,8 @@ def run_cmd(name, *args):
         path = os.path.join(OMD_ROOT, "bin", name)
     try:
         r = subprocess.run(
-            [path, *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            [path, *args], stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, errors="replace", timeout=15, cwd=OMD_ROOT,
         )
         lines = [line for line in r.stdout.splitlines() if line]

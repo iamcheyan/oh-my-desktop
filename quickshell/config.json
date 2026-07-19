@@ -151,6 +151,9 @@
       "enable": false,
       "name": ""
     },
+    "mutedApps": [
+      "notify-send"
+    ],
     "silent": false,
     "timeout": 7000
   },

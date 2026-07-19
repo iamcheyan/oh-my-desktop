@@ -125,7 +125,7 @@ Item {
             IconButton {
                 symbol: "settings"
                 tooltip: "Muted apps"
-                onClicked: root.openMutedEditor()
+                onClicked: Notifications.openMutedAppsEditor()
             }
         }
     }
@@ -280,39 +280,6 @@ Item {
     }
 
     } // column
-
-    property string mutedAppsPath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
-
-    function openMutedEditor() {
-        editMutedProc.command = ["bash", "-c",
-            `terminal="" && for t in foot kitty ghostty alacritty xfce4-terminal gnome-terminal; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done && if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsPath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsPath}'; fi`];
-        editMutedProc.running = true;
-    }
-
-    Process {
-        id: editMutedProc
-        running: false
-        onExited: {
-            readMutedProc.running = true;
-        }
-    }
-
-    Process {
-        id: readMutedProc
-        command: ["bash", "-c", `cat '${root.mutedAppsPath}' 2>/dev/null || true`]
-        running: false
-        stdout: StdioCollector {
-            id: readMutedCollector
-            onStreamFinished: {
-                const text = readMutedCollector.text.trim();
-                const apps = text.length > 0 ? text.split("\n").map(l => l.trim()).filter(l => l.length > 0) : [];
-                Notifications.mutedApps = apps;
-                if (Config.options && Config.options.notifications) {
-                    Config.options.notifications.mutedApps = apps;
-                }
-            }
-        }
-    }
 
     component TuiToggle: Rectangle {
         id: toggle
