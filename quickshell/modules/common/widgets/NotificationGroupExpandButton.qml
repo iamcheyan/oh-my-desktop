@@ -12,16 +12,14 @@ Item {
     signal clicked()
 
     implicitHeight: 24
-    implicitWidth: Math.max(contentRow.implicitWidth + 10, 34)
+    implicitWidth: contentRow.implicitWidth
     Layout.alignment: Qt.AlignVCenter
     Layout.fillHeight: false
 
     Rectangle {
         anchors.fill: parent
-        radius: 0
-        color: root.hovered ? TuiStyle.panel : TuiStyle.bg
-        border.width: TuiStyle.borderWidth
-        border.color: root.expanded ? TuiStyle.accent : TuiStyle.line
+        color: "transparent"
+        border.width: 0
     }
 
     RowLayout {
@@ -34,14 +32,14 @@ Item {
             text: root.count
             font.pixelSize: root.fontSize
             font.family: Appearance.font.family.monospace
-            color: TuiStyle.dim
+            color: root.hovered || root.expanded ? TuiStyle.accent : TuiStyle.dim
         }
 
         StyledText {
             text: root.expanded ? "-" : "+"
             font.pixelSize: root.fontSize
             font.family: Appearance.font.family.monospace
-            color: TuiStyle.fg
+            color: root.hovered || root.expanded ? TuiStyle.accent : TuiStyle.fg
         }
     }
 

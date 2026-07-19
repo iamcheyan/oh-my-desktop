@@ -191,6 +191,9 @@ Additional manual symlinks (not created by Init.sh):
 
 ## Planning Docs
 
+> **Rule**: All planning and design documents MUST be written to `docs/` inside this repo.
+> Never save docs to `/tmp`, agent scratch dirs, or any path outside the project.
+
 - Module split plan: `docs/module-split-plan.md`
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
@@ -213,6 +216,7 @@ Additional manual symlinks (not created by Init.sh):
 - Quickshell cold-start recovery: `docs/quickshell-cold-start-recovery.md`
 - Wallpaper runtime contract: `docs/wallpaper-runtime.md`
 - Smart paste (image as path in terminals): `docs/smart-paste.md`
+- Theme TUI Python color features (wallpaper preview + tile swatches): `docs/theme-tui-color-impl-plan.md`
 
 ## Editing
 
