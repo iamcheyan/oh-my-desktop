@@ -478,12 +478,12 @@ def help_items(model):
             ("t", "test"),
             ("b", "backup"),
             ("c", "compare summary"),
-            ("2", "compare verbose"),
+            ("r", "compare verbose"),
             ("l", "browse remote"),
             ("s", "save"),
             ("e", "edit file"),
             ("u", "unmount"),
-            ("r", "refresh"),
+            ("R", "refresh"),
             ("pgup/pgdn", "scroll"),
             ("q", "quit"),
         ]
@@ -580,12 +580,12 @@ def render_actions(model):
     lines.append(S.action_line("t", "Test connection", enabled))
     lines.append(S.action_line("b", "Backup now", enabled and has_config))
     lines.append(S.action_line("c", "Compare summary", enabled and has_config))
-    lines.append(S.action_line("2", "Compare verbose", enabled and has_config))
+    lines.append(S.action_line("r", "Compare verbose", enabled and has_config))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
     lines.append(S.action_line("s", "Save config", enabled))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("u", "Unmount share", enabled and has_config))
-    lines.append(S.action_line("r", "Refresh", enabled))
+    lines.append(S.action_line("R", "Refresh", enabled))
     return lines
 
 
@@ -840,7 +840,7 @@ def handle_key(stdscr, model, key):
         model.message = ""
         model._run_compare()
         return True
-    if key == ord('2'):
+    if key == ord('r'):
         model.append_log("$ compare — verbose per-file diff")
         model._run_compare_verbose()
         return True
@@ -865,7 +865,7 @@ def handle_key(stdscr, model, key):
         model.save_config()
         model.dirty = True
         return True
-    if key == ord('r'):
+    if key == ord('R'):
         model.message = ""
         model._refresh_item_rows()
         model._run_compare()
