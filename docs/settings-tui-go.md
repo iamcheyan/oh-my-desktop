@@ -14,8 +14,19 @@ tui-go/
 ├── internal/pages/windows/     Windows VM settings page
 ├── internal/pages/theme/       Theme, wallpaper, and effects settings page
 ├── internal/pages/voice/       Voice input status, setup, and binding page
-└── internal/ui/                Shared colors, buttons, panels, layout helpers
+├── internal/pages/keyboard/    Keyboard remap settings page
+└── internal/ui/                Shared shell, controls, colors, layout helpers
 ```
+
+Visual and structure contract for all four pages:
+
+```text
+docs/settings-tui-visual-system.md
+```
+
+Pages must use `ui.RenderPage`, `ui.Hero`, and the text control primitives
+(`PrimaryLine`, `ActionLine`, `ToggleLine`, `CycleLine`, `ListItem`). Do not
+add page-local bordered buttons or accent section headers for ordinary UI.
 
 The launcher is:
 
