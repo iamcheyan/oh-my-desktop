@@ -197,13 +197,13 @@ class Model:
                     l = line.strip()
                     if l and not l.startswith("{"):
                         if "Connected" in l or "mounted" in l or "Already" in l:
-                            self.append_log(f"  {l}", "ok")
+                            self.append_log(f"{l}", "ok")
                         elif "error" in l.lower() or "fail" in l.lower() or "SKIP" in l or "cannot" in l.lower():
-                            self.append_log(f"  {l}", "danger")
+                            self.append_log(f"{l}", "danger")
                         elif "Attempting" in l or "Testing" in l or "Target" in l or "Mount" in l or "Credential" in l:
-                            self.append_log(f"  {l}", "muted")
+                            self.append_log(f"{l}", "muted")
                         else:
-                            self.append_log(f"  {l}")
+                            self.append_log(f"{l}")
 
                 proc.wait(timeout=30)
                 err = proc.stderr.read().strip() if proc.stderr else ""
@@ -215,7 +215,7 @@ class Model:
                     self.test_result = "error"
                     self.test_error = err
                     self.message = "Test failed"
-                    self.append_log(f"  error: {err}", "danger")
+                    self.append_log(f"error: {err}", "danger")
                 else:
                     data, _ = self._parse_json_line(all_lines)
                     if data and data.get("ok"):
@@ -226,7 +226,7 @@ class Model:
                         self.test_result = "error"
                         self.test_error = (data or {}).get("error", "unknown")
                         self.message = "Connection failed"
-                        self.append_log(f"  error: {self.test_error}", "danger")
+                        self.append_log(f"error: {self.test_error}", "danger")
                 self.dirty = True
             except FileNotFoundError:
                 self.busy = False
@@ -270,13 +270,13 @@ class Model:
                     l = line.strip()
                     if l and not l.startswith("{"):
                         if "Backup complete" in l or "Backup done" in l:
-                            self.append_log(f"  {l}", "ok")
+                            self.append_log(f"{l}", "ok")
                         elif "FAILED" in l or "error" in l.lower() or "fail" in l.lower() or "SKIP" in l:
-                            self.append_log(f"  {l}", "danger")
+                            self.append_log(f"{l}", "danger")
                         elif "sync" in l or "Starting" in l or "Full sync" in l:
-                            self.append_log(f"  {l}", "muted")
+                            self.append_log(f"{l}", "muted")
                         else:
-                            self.append_log(f"  {l}")
+                            self.append_log(f"{l}")
 
                 proc.wait(timeout=30)
                 err = proc.stderr.read().strip() if proc.stderr else ""
@@ -288,7 +288,7 @@ class Model:
                 if err:
                     self.last_sync_ok = False
                     self.message = "Backup failed"
-                    self.append_log(f"  error: {err}", "danger")
+                    self.append_log(f"error: {err}", "danger")
                 else:
                     data, _ = self._parse_json_line(all_lines)
                     if data and data.get("ok"):
@@ -299,7 +299,7 @@ class Model:
                         self.last_sync_ok = False
                         err_msg = (data or {}).get("error", "unknown")
                         self.message = "Backup failed"
-                        self.append_log(f"  error: {err_msg}", "danger")
+                        self.append_log(f"error: {err_msg}", "danger")
                 self._refresh_item_rows()
                 self._run_compare()
                 self.dirty = True
@@ -389,13 +389,13 @@ class Model:
                     l = line.strip()
                     if l:
                         if "→ All files up to date" in l:
-                            self.append_log(f"  {l}", "ok")
+                            self.append_log(f"{l}", "ok")
                         elif "→" in l or "need backup" in l:
-                            self.append_log(f"  {l}", "warn")
+                            self.append_log(f"{l}", "warn")
                         elif "Summary" in l:
-                            self.append_log(f"  {l}", "text")
+                            self.append_log(f"{l}", "text")
                         else:
-                            self.append_log(f"  {l}")
+                            self.append_log(f"{l}")
 
                 proc.wait(timeout=30)
                 err = proc.stderr.read().strip() if proc.stderr else ""
@@ -403,7 +403,7 @@ class Model:
                     err = f"exit {proc.returncode}"
 
                 if err:
-                    self.append_log(f"  error: {err}", "danger")
+                    self.append_log(f"error: {err}", "danger")
                     self.dirty = True
                     return
                 if all_lines:
@@ -464,7 +464,7 @@ class Model:
                     err = f"exit {proc.returncode}"
 
                 if err:
-                    self.append_log(f"  error: {err}", "danger")
+                    self.append_log(f"error: {err}", "danger")
                     self.dirty = True
                     return
                 if all_lines:
@@ -637,11 +637,11 @@ def render_field_list(model, width):
         focused = model.focus_area == 0 and sel_field == i
         if focused and model.editing_field and model.edit_field_key == key:
             display = model.edit_buffer if key != "password" else "*" * len(model.edit_buffer)
-            lines.append(("focus", f"  {label}: {display}█"))
+            lines.append(("focus", f"{label}: {display}█"))
         elif focused:
-            lines.append(("focus", f"  {label}: {S.truncate(val, width - len(label) - 5)}"))
+            lines.append(("focus", f"{label}: {S.truncate(val, width - len(label) - 5)}"))
         else:
-            lines.append(("text", f"  {label}: {S.truncate(val, width - len(label) - 5)}"))
+            lines.append(("text", f"{label}: {S.truncate(val, width - len(label) - 5)}"))
     return lines
 
 
@@ -649,29 +649,29 @@ def render_connection_status(model, width):
     lines = []
     if not model.has_config:
         lines.append(("primary", "→ Configure server below"))
-        lines.append(("muted", "  Tab to right panel"))
-        lines.append(("muted", "  Enter to edit fields"))
-        lines.append(("muted", "  t to test connection"))
+        lines.append(("muted", "Tab to right panel"))
+        lines.append(("muted", "Enter to edit fields"))
+        lines.append(("muted", "t to test connection"))
         return lines
     if model.test_result == "ok":
-        lines.append(("ok", "  ● Connected"))
+        lines.append(("ok", "● Connected"))
     elif model.test_result == "error":
-        lines.append(("danger", f"  ✗ {S.truncate(model.test_error, width - 4)}"))
+        lines.append(("danger", f"✗ {S.truncate(model.test_error, width - 4)}"))
     else:
-        lines.append(("muted", "  ○ Not tested"))
+        lines.append(("muted", "○ Not tested"))
     addr = model.config.get("address", "")
     share = model.config.get("share", "")
     if addr and share:
-        lines.append(("muted", f"  //{addr}/{share}"))
+        lines.append(("muted", f"//{addr}/{share}"))
     elif addr:
-        lines.append(("muted", f"  {addr}"))
+        lines.append(("muted", f"{addr}"))
     # Last sync status
     if model.last_sync_ok is True:
-        lines.append(("ok", f"  Last sync: {model.last_sync_time}  ✅"))
+        lines.append(("ok", f"Last sync: {model.last_sync_time}  ✅"))
     elif model.last_sync_ok is False:
-        lines.append(("danger", "  Last sync: failed"))
+        lines.append(("danger", "Last sync: failed"))
     else:
-        lines.append(("muted", "  No sync yet"))
+        lines.append(("muted", "No sync yet"))
     return lines
 
 
@@ -688,11 +688,11 @@ def render_schedule(model, width):
         val = model.config.get("scheduleValue", "")
         trail = f" ({val})" if val and sel else ""
         if focused:
-            lines.append(("focus", f"  {box} {label}{trail}"))
+            lines.append(("focus", f"{box} {label}{trail}"))
         elif sel:
-            lines.append(("ok", f"  {box} {label}{trail}"))
+            lines.append(("ok", f"{box} {label}{trail}"))
         else:
-            lines.append(("muted", f"  {box} {label}{trail}"))
+            lines.append(("muted", f"{box} {label}{trail}"))
     return lines
 
 
@@ -746,7 +746,7 @@ def render_item_table(model, width):
     hdr_backed = format_col_left("Backed", 8)
     hdr = f"  {hdr_name} {hdr_type} {hdr_files} {hdr_changes} {hdr_backed} Status"
     lines.append(("muted", hdr))
-    lines.append(("muted", "  " + "─" * (S.text_width(hdr.strip()))))
+    lines.append(("muted", "" + "─" * (S.text_width(hdr.strip()))))
 
     for row in rows:
         name = format_col_left(row["name"], name_w)

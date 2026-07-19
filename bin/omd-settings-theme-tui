@@ -641,9 +641,9 @@ def _render_controls(model, width):
     lines.append(("text", "Mode:"))
     for i, label in enumerate(mode_labels):
         if i == mode_idx:
-            lines.append(("focus", f"  [{label}] ({mode_keys[i]})"))
+            lines.append(("focus", f"[{label}] ({mode_keys[i]})"))
         else:
-            lines.append(("muted", f"  {label} ({mode_keys[i]})"))
+            lines.append(("muted", f"{label} ({mode_keys[i]})"))
 
     # Effect selector — vertical layout
     eff_labels = ["perf", "bal", "vis"]
@@ -653,9 +653,9 @@ def _render_controls(model, width):
     lines.append(("text", "Effect:"))
     for i, label in enumerate(eff_labels):
         if i == eff_idx:
-            lines.append(("focus", f"  [{label}] ({eff_keys[i]})"))
+            lines.append(("focus", f"[{label}] ({eff_keys[i]})"))
         else:
-            lines.append(("muted", f"  {label} ({eff_keys[i]})"))
+            lines.append(("muted", f"{label} ({eff_keys[i]})"))
 
     lines.append(("text", ""))
 
@@ -674,7 +674,7 @@ def _render_controls(model, width):
     if mode == "color":
         lines.append(("section", "Active Background"))
         bg_hex = model.val("accent", "000000")
-        lines.append(("muted", f"  Solid color (#{bg_hex})"))
+        lines.append(("muted", f"Solid color (#{bg_hex})"))
     else:
         lines.append(("section", "Active Wallpaper"))
         wp = model.val("wallpaper.current", "")
@@ -682,14 +682,14 @@ def _render_controls(model, width):
         if mode == "folder":
             interval = interval_label(model.val("wallpaper.interval", "3600"))
             wp_name = f"{wp_name} ({interval})"
-        lines.append(("muted", f"  {S.truncate(wp_name, max(8, width-2))}"))
+        lines.append(("muted", f"{S.truncate(wp_name, max(8, width-2))}"))
 
     return lines
 
 
 def _render_theme_grid(model, width, max_rows):
     if not model.themes:
-        return [("section", "Themes"), ("muted", "  No themes available")]
+        return [("section", "Themes"), ("muted", "No themes available")]
 
     cols = model.grid_columns(width)
     tw = model.tile_width(width, cols)
@@ -700,11 +700,11 @@ def _render_theme_grid(model, width, max_rows):
 
     lines = []
     lines.append(("section", "Themes"))
-    lines.append(("muted", "  Choose a theme. Enter applies the selected theme."))
+    lines.append(("muted", "Choose a theme. Enter applies the selected theme."))
     lines.append(("text", ""))
 
     if start_row > 0:
-        lines.append(("muted", f"  … {start_row} rows above"))
+        lines.append(("muted", f"… {start_row} rows above"))
 
     for row in range(start_row, end_row):
         # 每行 5 个 sub_row，拼成 cells 列表
@@ -819,7 +819,7 @@ def _render_theme_grid(model, width, max_rows):
             lines.append(("tile_row", cells))
 
     if end_row < total_rows:
-        lines.append(("muted", f"  … {total_rows - end_row} rows below"))
+        lines.append(("muted", f"… {total_rows - end_row} rows below"))
 
     return lines
 

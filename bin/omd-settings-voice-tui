@@ -155,7 +155,7 @@ class Model(S.StatusModel):
         self.logs.append(f"$ {action}")
         def cb(lines, err):
             for l in (lines or []):
-                self.logs.append(f"  {l}")
+                self.logs.append(f"{l}")
             self.logs = S.clip_lines(self.logs, 200)
             self.busy = False
             if err:
@@ -320,7 +320,7 @@ def render_model_specs(model, w):
     lines.append(S.kv_line("Daemon", "running" if model.boo("daemonRunning") else "idle", w-4))
     lines.append(("text", ""))
     if model.confirm_remove:
-        lines.append(("danger", "  Confirm delete? (y / n)"))
+        lines.append(("danger", "Confirm delete? (y / n)"))
     elif model.model_ready():
         lines.append(S.danger_action_line("x", "Delete model", not model.busy))
     else:
@@ -340,7 +340,7 @@ def render_setup_actions(model, w):
             if fk in seen:
                 continue
             seen.add(fk)
-            lines.append(("text", f"  ⌨  {fk}"))
+            lines.append(("text", f"⌨  {fk}"))
     return lines
 
 
@@ -368,8 +368,8 @@ def render_right(model, w):
         bar_w = max(10, w - 12)
         bar = S.progress_bar(pct, bar_w)
         lines.append(("section", "Progress"))
-        lines.append(("warn", f"  Downloading {label}"))
-        lines.append(("text", f"  {bar} {pct}%"))
+        lines.append(("warn", f"Downloading {label}"))
+        lines.append(("text", f"{bar} {pct}%"))
         lines.append(S.kv_line("Speed", speed, w-4))
         lines.append(S.kv_line("Remaining", eta, w-4))
         lines.append(("text", ""))
@@ -380,15 +380,15 @@ def render_right(model, w):
 
     if not model.model_ready():
         lines.append(("section", "Get Started"))
-        lines.append(("muted", "  Welcome to Voice Input setup."))
+        lines.append(("muted", "Welcome to Voice Input setup."))
         lines.append(("text", ""))
-        lines.append(("muted", "  Dictate text with local speech recognition."))
-        lines.append(("muted", "  Audio stays on this device."))
+        lines.append(("muted", "Dictate text with local speech recognition."))
+        lines.append(("muted", "Audio stays on this device."))
         lines.append(("text", ""))
-        lines.append(("muted", "  Setup downloads SenseVoice (~229 MB) and"))
-        lines.append(("muted", "  prepares the Python virtual environment."))
+        lines.append(("muted", "Setup downloads SenseVoice (~229 MB) and"))
+        lines.append(("muted", "prepares the Python virtual environment."))
         lines.append(("text", ""))
-        lines.append(("muted", "  Use Setup voice input on the left to begin."))
+        lines.append(("muted", "Use Setup voice input on the left to begin."))
         lines.append(("text", ""))
         lines.append(("section", "Console Logs"))
         return lines
@@ -403,12 +403,12 @@ def render_log(model, w, h):
     inner_h = h - 3
     total = len(model.logs)
     if total == 0:
-        lines.append(("muted", "  (no activity yet)"))
+        lines.append(("muted", "(no activity yet)"))
         return lines
     start = max(0, total - inner_h - model.scroll_offset)
     end = min(total, start + inner_h)
     for line in model.logs[start:end]:
-        lines.append(("muted", f"  {S.truncate(line, inner_w-2)}"))
+        lines.append(("muted", f"{S.truncate(line, inner_w-2)}"))
     return lines
 
 

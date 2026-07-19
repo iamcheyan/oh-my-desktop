@@ -120,7 +120,7 @@ class Model(S.StatusModel):
         detach_actions = ("connect", "launch")
         def cb(lines, err):
             for l in (lines or []):
-                self.append_log(f"  {l}")
+                self.append_log(f"{l}")
             self.busy = False
             if err:
                 self.message = "action failed"
@@ -140,7 +140,7 @@ class Model(S.StatusModel):
                     cwd=S.OMD_ROOT, close_fds=True,
                 )
             except Exception as e:
-                self.append_log(f"  detach error: {e}")
+                self.append_log(f"detach error: {e}")
             self.busy = False
             self.message = f"{action} launched"
             self.dirty = True
@@ -182,22 +182,22 @@ def render_left(model, w):
     if model.confirm_remove:
         lines.append(("danger", "⚠  Remove Windows VM"))
         lines.append(("text", ""))
-        lines.append(("text", "  This will delete the VM container and all"))
-        lines.append(("text", "  stored data. This cannot be undone."))
+        lines.append(("text", "This will delete the VM container and all"))
+        lines.append(("text", "stored data. This cannot be undone."))
         lines.append(("text", ""))
-        lines.append(("muted", f"  Storage: {model.val('storageDir', '?')}"))
+        lines.append(("muted", f"Storage: {model.val('storageDir', '?')}"))
         lines.append(("text", ""))
-        lines.append(("danger", "  Confirm remove? (y / n)"))
+        lines.append(("danger", "Confirm remove? (y / n)"))
         return lines
 
     if ps == "blocked":
         lines.append(("section", "What's Blocking"))
-        lines.append(("muted", "  Only failed checks are listed. Fix these, then install."))
+        lines.append(("muted", "Only failed checks are listed. Fix these, then install."))
         lines.append(("text", ""))
         for ok, label, detail in all_requirement_checks(model):
             if not ok:
-                lines.append(("danger", f"  ✗ {label}"))
-                lines.append(("muted", f"    {S.truncate(detail, w-8)}"))
+                lines.append(("danger", f"✗ {label}"))
+                lines.append(("muted", f"{S.truncate(detail, w-8)}"))
         lines.append(("text", ""))
         lines.append(("section", "Next Step"))
         lines.append(S.primary_line(model.primary_action()[0], "enter", not model.busy))
@@ -206,8 +206,8 @@ def render_left(model, w):
 
     if ps == "install":
         lines.append(("section", "Get Started"))
-        lines.append(("muted", "  Installs a Dockurr Windows 11 VM with sensible defaults."))
-        lines.append(("muted", "  First run downloads an image and can take a while."))
+        lines.append(("muted", "Installs a Dockurr Windows 11 VM with sensible defaults."))
+        lines.append(("muted", "First run downloads an image and can take a while."))
         lines.append(("text", ""))
         lines.append(("section", "Defaults"))
         lines.append(S.kv_line("Shared folder", model.val("sharedDir", "~/Windows"), w-4))
@@ -235,17 +235,17 @@ def render_left(model, w):
         lines.append(("text", ""))
         lines.append(("section", "Danger"))
         lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
-        lines.append(("muted", "  Deletes container and local VM storage."))
+        lines.append(("muted", "Deletes container and local VM storage."))
         return lines
 
     if ps == "booting":
         pct = model.val("progressPercent", "?")
         phase = model.val("phase", "starting")
         lines.append(("section", "While You Wait"))
-        lines.append(("muted", "  Use the web console to watch install/boot progress."))
-        lines.append(("text", f"  Phase: {phase}"))
+        lines.append(("muted", "Use the web console to watch install/boot progress."))
+        lines.append(("text", f"Phase: {phase}"))
         if pct != "?":
-            lines.append(("text", f"  Progress: {pct}%"))
+            lines.append(("text", f"Progress: {pct}%"))
         lines.append(("text", ""))
         lines.append(("section", "Actions"))
         lines.append(S.primary_line("Open console", "enter", not model.busy))
@@ -270,7 +270,7 @@ def render_left(model, w):
         lines.append(("text", ""))
         lines.append(("section", "Danger"))
         lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
-        lines.append(("muted", "  Deletes container and local VM storage."))
+        lines.append(("muted", "Deletes container and local VM storage."))
         return lines
 
     # repair
@@ -287,7 +287,7 @@ def render_left(model, w):
         lines.append(("text", ""))
         lines.append(("section", "Danger"))
         lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
-        lines.append(("muted", "  Deletes container and local VM storage."))
+        lines.append(("muted", "Deletes container and local VM storage."))
     return lines
 
 
@@ -302,7 +302,7 @@ def render_right(model, w):
 
     # Connection details for ready/stopped
     if ps in ("ready", "stopped"):
-        lines.append(("muted", f"  {vm_state_label(model)} · {model.val('phase', '—')}"))
+        lines.append(("muted", f"{vm_state_label(model)} · {model.val('phase', '—')}"))
         lines.append(("text", ""))
         lines.append(("section", "Connection"))
         lines.append(S.kv_line("Web", f"{model.val('web', '—')}  {'ok' if model.boo('webReachable') else 'no'}", w-4))

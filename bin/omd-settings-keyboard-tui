@@ -167,7 +167,7 @@ class Model(S.StatusModel):
                 self.status = S.parse_kv(lines)
                 self.pending_changes = self.boo("pendingChanges")
             else:
-                self.append_log(f"  status failed: {err}")
+                self.append_log(f"status failed: {err}")
             complete()
         def on_devices(lines, err):
             try:
@@ -197,7 +197,7 @@ class Model(S.StatusModel):
         self.append_log(f"$ {action}")
         def _cb(lines, err):
             for l in lines:
-                self.append_log(f"  {l}")
+                self.append_log(f"{l}")
             self.busy = False
             if err:
                 self.message = "action failed"
@@ -221,7 +221,7 @@ class Model(S.StatusModel):
         self.append_log(f"$ fnmode-set {mode}")
         def _cb(lines, err):
             for l in lines:
-                self.append_log(f"  {l}")
+                self.append_log(f"{l}")
             self.busy = False
             if err:
                 self.message = "fnmode-set failed"
@@ -477,9 +477,9 @@ def render_device_list(model, width):
         else:
             lines.append(("muted", f"○ {S.truncate(name, width - 2)}"))
         status = "online" if connected else "saved, offline"
-        lines.append(("subtle", f"  {status}  ·  {did}"))
+        lines.append(("subtle", f"{status}  ·  {did}"))
     if not model.devices:
-        lines.append(("muted", "  No keyboards detected"))
+        lines.append(("muted", "No keyboards detected"))
     return lines
 
 
@@ -494,8 +494,8 @@ def render_health(model, width):
     elif model.boo("keydInstalled"):
         keyd_status = "installed"
         keyd_tone = "warn"
-    lines.append((keyd_tone, f"  keyd      {keyd_status}"))
-    lines.append(("muted",  f"  conf      omd.conf"))
+    lines.append((keyd_tone, f"keyd      {keyd_status}"))
+    lines.append(("muted",  f"conf      omd.conf"))
     apply_status = "—"
     if model.last_apply_ok is True:
         apply_status = "ok"
@@ -503,9 +503,9 @@ def render_health(model, width):
         apply_status = "error"
     elif model.pending_changes:
         apply_status = "pending"
-    lines.append(("muted",  f"  apply     {apply_status}"))
+    lines.append(("muted",  f"apply     {apply_status}"))
     if model.pending_changes:
-        lines.append(("warn", "  draft differs from installed"))
+        lines.append(("warn", "draft differs from installed"))
     return lines
 
 
@@ -524,7 +524,7 @@ def render_actions(model):
 def render_profile(model, width):
     lines = []
     if not model.devices or model.selected >= len(model.devices):
-        lines.append(("muted", "  Select a keyboard device to configure…"))
+        lines.append(("muted", "Select a keyboard device to configure…"))
         return lines
     dev = model.devices[model.selected]
     key, prof = model.profile_for_device(dev)
@@ -533,9 +533,9 @@ def render_profile(model, width):
     name = dev.get("displayName", dev.get("hyprName", "?"))
 
     lines.append(("section", f"Profile · {S.truncate(name, width-12)}"))
-    lines.append(("text",   f"  Device    {name}"))
+    lines.append(("text",   f"Device    {name}"))
     did = dev.get("keydId") or "—"
-    lines.append(("muted",  f"  ID        {did}"))
+    lines.append(("muted",  f"ID        {did}"))
     lines.append(S.profile_enabled_line(is_enabled, model.focus_area == 1 and model.selected_preset == 0))
     lines.append(("text", ""))
 
@@ -572,14 +572,14 @@ def render_log(model, width):
     lines = []
     lines.append(("section", "Activity"))
     if not model.logs:
-        lines.append(("muted", "  (no activity yet)"))
+        lines.append(("muted", "(no activity yet)"))
         return lines
     inner_h = 30
     total = len(model.logs)
     start = max(0, total - inner_h - model.scroll_offset)
     end = min(total, start + inner_h)
     for l in model.logs[start:end]:
-        lines.append(("muted", f"  {S.truncate(l, width-4)}"))
+        lines.append(("muted", f"{S.truncate(l, width-4)}"))
     return lines
 
 
@@ -694,16 +694,16 @@ def view(stdscr, model):
         exists = prof is not None
         is_enabled = exists and prof.get("enabled", True)
         did = dev.get("keydId") or "—"
-        profile_lines.append(("text",   f"  Device    {dev.get('displayName', dev.get('hyprName', '?'))}"))
-        profile_lines.append(("muted",  f"  ID        {did}"))
+        profile_lines.append(("text",   f"Device    {dev.get('displayName', dev.get('hyprName', '?'))}"))
+        profile_lines.append(("muted",  f"ID        {did}"))
         profile_lines.append(S.profile_enabled_line(is_enabled and not view_only, model.focus_area == 1 and model.selected_preset == 0))
         if model.fnmode_available and not view_only:
             profile_lines.append(("", ""))
             profile_lines.append(S.cycle_line("Fn Row Mode", model.fnmode, "f", model.focus_area == 1 and model.selected_preset == (1 if model.fnmode_available else 0)))
     else:
-        profile_lines.append(("muted", "  Select a device…"))
+        profile_lines.append(("muted", "Select a device…"))
     if view_only and len([l for l in profile_lines if l[0] != ""]) == 3:
-        profile_lines.append(("muted", "  (view only — connect to edit)"))
+        profile_lines.append(("muted", "(view only — connect to edit)"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
         S.draw_thick_border(stdscr, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
