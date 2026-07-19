@@ -59,12 +59,13 @@ func TestBlockedViewGuidesFixNotManage(t *testing.T) {
 
 	out := m.View()
 	want := []string{
-		"WHAT'S BLOCKING",
+		"What's Blocking",
 		"Docker access",
 		"permission denied",
 		"Free disk space",
 		"Fix requirements",
-		"NEXT STEP",
+		"Next Step",
+		"Windows VM",
 	}
 	for _, s := range want {
 		if !strings.Contains(out, s) {
@@ -72,7 +73,7 @@ func TestBlockedViewGuidesFixNotManage(t *testing.T) {
 		}
 	}
 	// Manage/connect noise should stay hidden until a VM exists.
-	for _, s := range []string{"CONNECTION", "SPECS", "Open web console", "Stop VM", "Remove VM", "StatusPill", "Docker]", "[KVM"} {
+	for _, s := range []string{"Connection", "Specs", "Open web console", "Stop VM", "Remove VM", "StatusPill", "Docker]", "[KVM"} {
 		if strings.Contains(out, s) {
 			t.Errorf("blocked view should not contain %q", s)
 		}
@@ -105,12 +106,12 @@ func TestInstallViewGuidesInstallHidesLogs(t *testing.T) {
 	}
 
 	out := m.View()
-	for _, s := range []string{"GET STARTED", "Install Windows", "DEFAULTS", "Shared folder", "NEXT STEP"} {
+	for _, s := range []string{"Get Started", "Install Windows", "Defaults", "Shared folder", "Next Step"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("install view missing %q\n%s", s, out)
 		}
 	}
-	for _, s := range []string{"WHAT'S BLOCKING", "Stop VM", "Remove VM", "Open web console"} {
+	for _, s := range []string{"What's Blocking", "Stop VM", "Remove VM", "Open web console"} {
 		if strings.Contains(out, s) {
 			t.Errorf("install view should not contain %q", s)
 		}
@@ -144,7 +145,7 @@ func TestReadyViewShowsConnectAndDanger(t *testing.T) {
 	}
 
 	out := m.View()
-	for _, s := range []string{"Connect", "Open web console", "Stop VM", "Remove VM", "CONNECTION"} {
+	for _, s := range []string{"Connect", "Open web console", "Stop VM", "Remove VM", "Connection"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("ready view missing %q\n%s", s, out)
 		}

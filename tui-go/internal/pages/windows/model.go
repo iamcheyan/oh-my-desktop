@@ -205,60 +205,86 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.width <= 0 || m.height <= 0 {
-		return "Initializing..."
-	}
-	width := m.width
-	height := m.height
-
-	const (
-		screenPaddingX = 2
-		screenPaddingY = 2
-		panelGap       = 2
-		fixedRows      = 1 // footer help
-	)
-
-	contentW := width - screenPaddingX
-	if contentW < 40 {
-		contentW = 40
-	}
-	contentH := height - screenPaddingY - fixedRows
-	if contentH < 8 {
-		contentH = 8
-	}
-
-	var helpText string
+	help := m.helpItems()
 	if m.confirmRemove {
-		helpText = ui.HelpText(ui.HelpItem("y", "confirm remove"), ui.HelpItem("n/esc", "cancel"))
-	} else {
-		helpText = ui.HelpText(m.helpItems()...)
+		help = []string{
+			ui.HelpItem("y", "confirm remove"),
+			ui.HelpItem("n/esc", "cancel"),
+		}
 	}
 
-	// Setup / blocked states: single focused column. No empty logs or dead
-	// connection panels before a VM exists.
-	if !m.showSidePanel() {
-		main := ui.PreserveBackground(ui.FitBlock(m.mainPanel(contentW), contentW, contentH), ui.Background)
-		return ui.Screen.Padding(1, 1).Render(
-			lipgloss.JoinVertical(lipgloss.Left, main, helpText),
-		)
+	showRight := m.showSidePanel()
+	return ui.RenderPage(ui.Page{
+		Width:  m.width,
+		Height: m.height,
+		Hero:   m.pageHero(),
+		Left:   m.mainPanel(),
+		Right:  m.sidePanelBody(),
+		Wide:   showRight,
+		Help:   help,
+	})
+}
+
+func (m Model) pageHero() string {
+	subtitle := m.heroSubtitle()
+	msg := ""
+	if m.err != "" {
+		msg = ui.TruncatePlain(m.err, 48)
 	}
+	return ui.Hero("Windows VM", subtitle, ui.HeroOpts{
+		Tone:    m.heroTone(),
+		Busy:    m.busy,
+		Message: msg,
+	})
+}
 
-	leftW := min(54, max(38, contentW/3))
-	rightW := contentW - leftW - panelGap
-	if rightW < 40 {
-		rightW = 40
-		leftW = max(28, contentW-panelGap-rightW)
+func (m Model) heroTone() ui.Tone {
+	switch m.primaryState() {
+	case "ready":
+		return ui.ToneOK
+	case "booting", "install":
+		return ui.ToneWarn
+	case "blocked", "repair":
+		return ui.ToneDanger
+	case "stopped":
+		return ui.ToneIdle
+	default:
+		if m.busy {
+			return ui.ToneWarn
+		}
+		return ui.ToneIdle
 	}
+}
 
-	left := ui.PreserveBackground(ui.FitBlock(m.mainPanel(leftW), leftW, contentH), ui.Background)
-	right := ui.PreserveBackground(ui.FitBlock(m.sidePanel(rightW, contentH), rightW, contentH), ui.Background)
-
-	return ui.Screen.Padding(1, 1).Render(
-		lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right),
-			helpText,
-		),
-	)
+func (m Model) heroSubtitle() string {
+	if m.status == nil {
+		return "Loading…"
+	}
+	if m.confirmRemove {
+		return "Confirm destructive action."
+	}
+	switch m.primaryState() {
+	case "blocked":
+		return "Host requirements need attention before install."
+	case "install":
+		return "Windows is not installed on this machine yet."
+	case "booting":
+		phase := m.value("phase", "starting")
+		progress := m.value("progressPercent", "")
+		if progress != "" {
+			return fmt.Sprintf("%s · %s%%", phase, progress)
+		}
+		if phase != "" {
+			return phase
+		}
+		return "Windows is starting up…"
+	case "ready":
+		return "Ready · RDP and web console are reachable."
+	case "stopped":
+		return "VM is installed but not running."
+	default:
+		return "VM stack looks partial or broken."
+	}
 }
 
 // showSidePanel is true once there is something worth showing on the right:
@@ -282,130 +308,93 @@ func (m Model) showSidePanel() bool {
 	}
 }
 
-func (m Model) mainPanel(width int) string {
+func (m Model) mainPanel() string {
 	if m.status == nil {
-		return "Loading..."
+		return "Loading…"
 	}
 	if m.confirmRemove {
-		return m.confirmRemoveView(width)
+		return m.confirmRemoveView()
 	}
 	switch m.primaryState() {
 	case "blocked":
-		return m.blockedView(width)
+		return m.blockedView()
 	case "install":
-		return m.installView(width)
+		return m.installView()
 	case "booting":
-		return m.bootingView(width)
+		return m.bootingView()
 	case "ready":
-		return m.readyView(width)
+		return m.readyView()
 	case "stopped":
-		return m.stoppedView(width)
+		return m.stoppedView()
 	default:
-		return m.repairView(width)
+		return m.repairView()
 	}
 }
 
-func (m Model) heroLines(width int, subtitle string) []string {
-	title := m.statusLight() + " " + ui.Title.Render("Windows VM")
-	if m.busy {
-		title += " " + ui.OKText.Render("working…")
-	}
-	if m.err != "" {
-		title += " " + ui.DangerText.Render(ui.TruncatePlain(m.err, max(12, width-24)))
-	}
-	lines := []string{title}
-	if subtitle != "" {
-		lines = append(lines, ui.MutedText.Render(ui.TruncateStyled(subtitle, width)))
-	}
-	return lines
-}
-
-func (m Model) sectionTitle(text string) string {
-	return lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(text)
-}
-
-func (m Model) actionPrimary(width int) string {
+func (m Model) actionPrimary() string {
 	label := m.primaryActionLabel()
 	enabled := !m.busy && m.primaryActionName() != ""
 	if m.primaryActionName() == "connect" {
 		enabled = enabled && m.bool("freerdp")
 	}
-	style := lipgloss.NewStyle().Foreground(ui.Muted)
-	prefix := "  "
-	if enabled {
-		style = lipgloss.NewStyle().Foreground(ui.Accent).Bold(true)
-		prefix = "→ "
-	}
-	return style.Render(ui.TruncatePlain(prefix+label+" (enter)", width))
+	return ui.PrimaryLine(label, "enter", enabled)
 }
 
 func (m Model) actionSecondary(key, label string, enabled bool) string {
-	style := lipgloss.NewStyle().Foreground(ui.Muted)
-	if enabled && !m.busy {
-		style = lipgloss.NewStyle().Foreground(ui.Text)
+	if key == "d" {
+		return ui.DangerActionLine(key, label, enabled && !m.busy)
 	}
-	return style.Render("  " + label + " (" + key + ")")
+	return ui.ActionLine(key, label, enabled && !m.busy)
 }
 
 // blockedView: host cannot install/run yet — only show failures + fix CTA.
-func (m Model) blockedView(width int) string {
-	lines := m.heroLines(width, "Host requirements need attention before install.")
-	lines = append(lines, "",
-		m.sectionTitle("WHAT'S BLOCKING"),
+func (m Model) blockedView() string {
+	lines := []string{
+		ui.SectionTitle("What's Blocking"),
 		ui.MutedText.Render("Only failed checks are listed. Fix these, then install."),
 		"",
-	)
-	for _, row := range m.blockerDetails(width) {
+	}
+	for _, row := range m.blockerDetails(48) {
 		lines = append(lines, row)
 	}
 	lines = append(lines, "",
-		m.sectionTitle("NEXT STEP"),
-		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
-		m.actionPrimary(width),
+		ui.SectionTitle("Next Step"),
+		ui.MutedText.Render(m.primaryText()),
+		m.actionPrimary(),
 		m.actionSecondary("r", "Refresh status", true),
 	)
 	return strings.Join(lines, "\n")
 }
 
 // installView: ready to install — guide the user, hide manage/connect/logs.
-func (m Model) installView(width int) string {
-	lines := m.heroLines(width, "Windows is not installed on this machine yet.")
-	lines = append(lines, "",
-		m.sectionTitle("GET STARTED"),
+func (m Model) installView() string {
+	lines := []string{
+		ui.SectionTitle("Get Started"),
 		ui.MutedText.Render("Installs a Dockurr Windows 11 VM with sensible defaults."),
 		ui.MutedText.Render("First run downloads an image and can take a while."),
 		"",
-		m.sectionTitle("DEFAULTS"),
-		m.kvLine("Shared folder", m.value("sharedDir", "~/Windows"), width),
-		m.kvLine("Web console", m.value("web", "http://127.0.0.1:8006"), width),
-		m.kvLine("RDP", m.value("rdpEndpoint", "127.0.0.1:3389"), width),
-		m.kvLine("Host free disk", fmt.Sprintf("%d GB available", m.diskAvailable()), width),
+		ui.SectionTitle("Defaults"),
+		ui.KVLine("Shared folder", m.value("sharedDir", "~/Windows"), 48),
+		ui.KVLine("Web console", m.value("web", "http://127.0.0.1:8006"), 48),
+		ui.KVLine("RDP", m.value("rdpEndpoint", "127.0.0.1:3389"), 48),
+		ui.KVLine("Host free disk", fmt.Sprintf("%d GB available", m.diskAvailable()), 48),
 		"",
-		m.sectionTitle("NEXT STEP"),
-		ui.MutedText.Render(ui.TruncateStyled(m.primaryText(), width)),
-		m.actionPrimary(width),
+		ui.SectionTitle("Next Step"),
+		ui.MutedText.Render(m.primaryText()),
+		m.actionPrimary(),
 		m.actionSecondary("r", "Refresh status", true),
-	)
+	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) bootingView(width int) string {
-	phase := m.value("phase", "starting")
-	progress := m.value("progressPercent", "")
-	sub := "Windows is starting up…"
-	if progress != "" {
-		sub = fmt.Sprintf("%s · %s%%", phase, progress)
-	} else if phase != "" {
-		sub = phase
-	}
-	lines := m.heroLines(width, sub)
-	lines = append(lines, "",
-		m.sectionTitle("WHILE YOU WAIT"),
+func (m Model) bootingView() string {
+	lines := []string{
+		ui.SectionTitle("While You Wait"),
 		ui.MutedText.Render("Use the web console to watch install/boot progress."),
 		"",
-		m.sectionTitle("ACTIONS"),
-		m.actionPrimary(width),
-	)
+		ui.SectionTitle("Actions"),
+		m.actionPrimary(),
+	}
 	if m.running() {
 		lines = append(lines, m.actionSecondary("w", "Open web console", true))
 		lines = append(lines, m.actionSecondary("x", "Stop VM", true))
@@ -414,113 +403,112 @@ func (m Model) bootingView(width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) readyView(width int) string {
-	lines := m.heroLines(width, "Ready · RDP and web console are reachable.")
-	lines = append(lines, "",
-		m.sectionTitle("CONNECTION"),
-		m.kvLine("RDP", m.value("rdpEndpoint", "-"), width),
-		m.kvLine("Web", m.value("web", "-"), width),
+func (m Model) readyView() string {
+	lines := []string{
+		ui.SectionTitle("Connection"),
+		ui.KVLine("RDP", m.value("rdpEndpoint", "-"), 48),
+		ui.KVLine("Web", m.value("web", "-"), 48),
 		"",
-		m.sectionTitle("ACTIONS"),
-		m.actionPrimary(width),
+		ui.SectionTitle("Actions"),
+		m.actionPrimary(),
 		m.actionSecondary("w", "Open web console", true),
 		m.actionSecondary("x", "Stop VM", true),
 		m.actionSecondary("r", "Refresh status", true),
 		"",
-		m.sectionTitle("DANGER"),
+		ui.SectionTitle("Danger"),
 		m.actionSecondary("d", "Remove VM", true),
-		ui.SubtleText.Render("  Deletes container and local VM storage."),
-	)
+		ui.SubtleText.Render("Deletes container and local VM storage."),
+	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) stoppedView(width int) string {
-	lines := m.heroLines(width, "VM is installed but not running.")
-	lines = append(lines, "",
-		m.sectionTitle("SPECS"),
-		m.kvLine("RAM", nonEmpty(m.value("ram", ""), "-"), width),
-		m.kvLine("CPU", nonEmpty(m.value("cpu", ""), "-"), width),
-		m.kvLine("Disk", nonEmpty(m.value("disk", ""), "-"), width),
-		m.kvLine("User", nonEmpty(m.value("user", ""), "-"), width),
-		m.kvLine("Shared", m.value("sharedDir", "-"), width),
+func (m Model) stoppedView() string {
+	lines := []string{
+		ui.SectionTitle("Specs"),
+		ui.KVLine("RAM", nonEmpty(m.value("ram", ""), "-"), 48),
+		ui.KVLine("CPU", nonEmpty(m.value("cpu", ""), "-"), 48),
+		ui.KVLine("Disk", nonEmpty(m.value("disk", ""), "-"), 48),
+		ui.KVLine("User", nonEmpty(m.value("user", ""), "-"), 48),
+		ui.KVLine("Shared", m.value("sharedDir", "-"), 48),
 		"",
-		m.sectionTitle("ACTIONS"),
-		m.actionPrimary(width),
+		ui.SectionTitle("Actions"),
+		m.actionPrimary(),
 		m.actionSecondary("s", "Start only (no RDP)", true),
 		m.actionSecondary("r", "Refresh status", true),
 		"",
-		m.sectionTitle("DANGER"),
+		ui.SectionTitle("Danger"),
 		m.actionSecondary("d", "Remove VM", true),
-		ui.SubtleText.Render("  Deletes container and local VM storage."),
-	)
+		ui.SubtleText.Render("Deletes container and local VM storage."),
+	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) repairView(width int) string {
-	lines := m.heroLines(width, "VM stack looks partial or broken.")
-	lines = append(lines, "",
-		m.sectionTitle("STATUS"),
-		m.kvLine("Phase", m.value("phase", "-"), width),
-		m.kvLine("Container", m.value("container", "-"), width),
-		m.kvLine("Docker", boolLabel(m.bool("dockerAccess")), width),
-		m.kvLine("KVM", boolLabel(m.bool("kvm")), width),
+func (m Model) repairView() string {
+	lines := []string{
+		ui.SectionTitle("Status"),
+		ui.KVLine("Phase", m.value("phase", "-"), 48),
+		ui.KVLine("Container", m.value("container", "-"), 48),
+		ui.KVLine("Docker", boolLabel(m.bool("dockerAccess")), 48),
+		ui.KVLine("KVM", boolLabel(m.bool("kvm")), 48),
 		"",
-		m.sectionTitle("ACTIONS"),
-		m.actionPrimary(width),
+		ui.SectionTitle("Actions"),
+		m.actionPrimary(),
 		m.actionSecondary("r", "Refresh status", true),
-	)
+	}
 	if m.configured() {
 		lines = append(lines, "",
-			m.sectionTitle("DANGER"),
+			ui.SectionTitle("Danger"),
 			m.actionSecondary("d", "Remove VM", true),
-			ui.SubtleText.Render("  Deletes container and local VM storage."),
+			ui.SubtleText.Render("Deletes container and local VM storage."),
 		)
 	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) confirmRemoveView(width int) string {
-	lines := m.heroLines(width, "Confirm destructive action.")
-	lines = append(lines, "",
-		m.sectionTitle("REMOVE WINDOWS VM"),
+func (m Model) confirmRemoveView() string {
+	lines := []string{
+		ui.SectionTitle("Remove Windows VM"),
 		ui.DangerText.Render("This deletes the container and local VM storage."),
-		ui.DangerText.Render(ui.TruncatePlain(m.value("storageDir", "~/.windows"), width)),
+		ui.DangerText.Render(m.value("storageDir", "~/.windows")),
 		"",
 		ui.DangerText.Render("→ Confirm remove (y)"),
-		lipgloss.NewStyle().Foreground(ui.Text).Render("  Cancel (n / esc)"),
-	)
+		lipgloss.NewStyle().Foreground(ui.Text).Render("Cancel (n / esc)"),
+	}
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) sidePanel(width, height int) string {
+// sidePanelBody is the right column content; height is applied by RenderPage.
+func (m Model) sidePanelBody() string {
+	if !m.showSidePanel() {
+		return ""
+	}
 	state := m.primaryState()
 	// Booting / busy / repair: logs are the useful right pane.
 	if m.busy || state == "booting" || state == "repair" || m.isInstallingPhase() {
-		return m.logView(width, height)
+		return m.logViewBody()
 	}
 	// Ready / stopped: connection summary + optional short logs.
 	lines := []string{
-		ui.Title.Render("Details"),
-		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("%s · %s", m.vmStateLabel(), m.value("phase", "-")), width)),
+		ui.SectionTitle("Details"),
+		ui.MutedText.Render(fmt.Sprintf("%s · %s", m.vmStateLabel(), m.value("phase", "-"))),
 		"",
-		m.sectionTitle("CONNECTION"),
-		m.kvLine("Web", fmt.Sprintf("%s  %s", m.value("web", "-"), boolLabel(m.bool("webReachable"))), width),
-		m.kvLine("RDP", fmt.Sprintf("%s  %s", m.value("rdpEndpoint", "-"), boolLabel(m.bool("rdpReachable"))), width),
-		m.kvLine("Container", m.value("container", "-"), width),
+		ui.SectionTitle("Connection"),
+		ui.KVLine("Web", fmt.Sprintf("%s  %s", m.value("web", "-"), boolLabel(m.bool("webReachable"))), 48),
+		ui.KVLine("RDP", fmt.Sprintf("%s  %s", m.value("rdpEndpoint", "-"), boolLabel(m.bool("rdpReachable"))), 48),
+		ui.KVLine("Container", m.value("container", "-"), 48),
 		"",
-		m.sectionTitle("LOGS"),
+		ui.SectionTitle("Logs"),
+		m.logBody(48, 12),
 	}
-	static := 0
-	for _, l := range lines {
-		static += strings.Count(l, "\n") + 1
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) logViewBody() string {
+	lines := []string{
+		ui.SectionTitle("Logs"),
+		m.logBody(48, 18),
 	}
-	logH := height - static
-	if logH < 3 {
-		return strings.Join(lines, "\n")
-	}
-	// Reuse log body without its own title.
-	body := m.logBody(width, logH)
-	return strings.Join(lines, "\n") + "\n" + body
+	return strings.Join(lines, "\n")
 }
 
 func (m Model) isInstallingPhase() bool {
@@ -529,23 +517,6 @@ func (m Model) isInstallingPhase() bool {
 		strings.Contains(phase, "pull") ||
 		strings.Contains(phase, "download") ||
 		strings.Contains(phase, "extract")
-}
-
-func (m Model) logView(width, height int) string {
-	if m.status == nil {
-		return "Loading..."
-	}
-	header := []string{
-		ui.Title.Render("Logs"),
-		ui.MutedText.Render(ui.TruncateStyled(fmt.Sprintf("Container %s · %s", m.value("container", "-"), m.value("phase", "-")), width)),
-		"",
-	}
-	static := len(header)
-	logH := height - static
-	if logH < 1 {
-		return strings.Join(header, "\n")
-	}
-	return strings.Join(header, "\n") + "\n" + m.logBody(width, logH)
 }
 
 func (m Model) logBody(width, logCount int) string {
@@ -606,19 +577,6 @@ func (m Model) logBody(width, logCount int) string {
 		}
 	}
 	return strings.Join(displayedLogs, "\n")
-}
-
-func (m Model) kvLine(label, value string, width int) string {
-	labelStyle := lipgloss.NewStyle().Foreground(ui.Text)
-	valueStyle := lipgloss.NewStyle().Foreground(ui.Muted)
-	left := labelStyle.Render(label)
-	// "  label  value" with value truncated to remaining width.
-	gap := 2
-	remain := width - lipgloss.Width(label) - gap
-	if remain < 8 {
-		remain = 8
-	}
-	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
 }
 
 type reqCheck struct {
@@ -896,15 +854,4 @@ func (m Model) vmStateLabel() string {
 	}
 }
 
-func (m Model) statusLight() string {
-	switch m.vmState() {
-	case "running":
-		return lipgloss.NewStyle().Foreground(ui.Accent).Render("●")
-	case "stopped":
-		return lipgloss.NewStyle().Foreground(ui.Subtle).Render("●")
-	case "error":
-		return lipgloss.NewStyle().Foreground(ui.Danger).Render("●")
-	default:
-		return lipgloss.NewStyle().Foreground(ui.Warn).Render("●")
-	}
-}
+
