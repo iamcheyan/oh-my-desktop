@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+
+exec "$OMD_ROOT/bin/omd-launch-tui" "$OMD_ROOT/bin/omd-settings-tui" keyboard

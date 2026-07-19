@@ -96,6 +96,9 @@ if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
     if [ "$page" = "voice" ] || [ "$page" = "voice-input" ] || [ "$page" = "speech" ]; then
         exec "$HOME/.config/omd/bin/omd-launch-settings-voice-tui"
     fi
+    if [ "$page" = "keyremap" ] || [ "$page" = "keyboard" ] || [ "$page" = "keyboard-remap" ]; then
+        exec "$HOME/.config/omd/bin/omd-launch-settings-keyboard-tui"
+    fi
 fi
 
 case "$action" in
