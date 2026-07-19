@@ -822,6 +822,35 @@ PanelWindow {
                 }
 
                 Rectangle {
+                    id: ocrButton
+                    width: 40; height: 40; radius: 8
+                    color: ocrMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control
+                    border.width: 1
+                    border.color: ocrMouse.containsMouse ? TuiStyle.controlActiveBorder : TuiStyle.menuBorder
+
+                    MaterialSymbol {
+                        anchors.centerIn: parent
+                        iconSize: 22
+                        color: ocrMouse.containsMouse ? TuiStyle.accent : TuiStyle.fg
+                        text: "text_snippet"
+                    }
+
+                    MouseArea {
+                        id: ocrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            Quickshell.execDetached(ScreenshotAction.getTempFileCommand(
+                                root.tempScreenshotPath,
+                                ScreenshotAction.Action.CharRecognition
+                            ));
+                            root.dismiss();
+                        }
+                    }
+                }
+
+                Rectangle {
                     id: editButton
                     width: 40; height: 40; radius: 8
                     color: editMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.control

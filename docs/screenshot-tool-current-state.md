@@ -60,6 +60,132 @@ The QML path remains appropriate for frozen overlays, window targeting, square
 or circular selection, recording, and the post-capture action bar. It is not
 used for ordinary clipboard screenshots.
 
+## Architecture overview
+
+```
+bin/omd-screenshot                    # Shell entry point — dispatches to fast or frozen path
+  ├── screenshot                      # → fast_capture(): slurp → grim → wl-copy
+  └── edit|search|ocr|record          # → launch_direct(): grim snapshot → Quickshell
+
+apps/omd-screenshot/shell.qml         # Cold-start QML process
+  └── RegionSelector {}               # Module entry point
+
+quickshell/modules/regionSelector/     # Region selector QML modules
+  ├── RegionSelector.qml              # Parse target monitor, create RegionSelection per screen
+  ├── RegionSelection.qml             # Core: frozen snapshot display, selection interaction,
+  │                                   #        snip/crop pipeline, post-phase action bar
+  ├── RectCornersSelectionDetails.qml # Rectangle overlay: darken overlay + dashed border
+  │                                   #   + dimension label + aim crosshairs
+  ├── CircleSelectionDetails.qml      # Circle overlay: ShapePath with stroke
+  ├── TargetRegion.qml                # Window/layer/content region highlight box
+  ├── CursorGuide.qml                 # Crosshair cursor indicator at drag corner
+  ├── OptionsToolbar.qml              # Rectangle/Circle mode toggle
+  └── RegionFunctions.qml             # IoU calculation, window/layer overlap filtering
+
+quickshell/modules/common/utils/
+  └── ScreenshotAction.qml            # Post-capture command builder — crops from frozen
+                                      #   snapshot and dispatches Copy/Edit/Search/OCR/Record
+```
+
+## Frozen edit flow detail
+
+### Pre-capture (shell side)
+
+1. `bin/omd-screenshot` acquires a `flock` lock to serialize rapid clicks.
+2. Re-launch while already open = cancel (same mental model as `slurp` toggle).
+3. Touch `/tmp/omd-screenshot-active` and send IPC `screenshot begin` to bar.
+4. Snapshot the focused monitor with `grim -o <monitor> <snapshot_dir>/snapshot-<monitor>-<ts>.png`.
+5. Export `OMD_SNAPSHOT_PATH_<MONITOR_ENV>` with the snapshot path.
+6. Launch `apps/omd-screenshot` as a detached `qs` process.
+
+### Snapshot loading (QML side)
+
+1. `RegionSelection.qml` checks for `OMD_SNAPSHOT_PATH_*` pre-captured files.
+2. If pre-captured snapshot exists → use it directly (`preCapSnapshot = true`).
+   The shell script captures before QS starts, so bar popups/menus are frozen
+   in the image.
+3. If no pre-captured snapshot → fall back to `snapshotProc` which runs
+   `grim -o <screen>` after QML has initialized.
+4. Set `closeMenusOnShow = true` → after the overlay becomes visible, send IPC
+   `menus close` to the bar. This ordering prevents the user from seeing a
+   frame where live menus have disappeared but the frozen overlay hasn't
+   appeared yet.
+5. Display the frozen snapshot as an `Image` filling the full `PanelWindow`.
+
+### Selection interaction
+
+1. `MouseArea` covers the entire screen; cursor hidden during selection.
+2. Hover (no drag): detect window/layer regions under cursor via
+   `targetedRegion` logic. Hovered region gets a highlight border.
+3. Click (no drag): if cursor is over a detected region, snap selection to
+   that region's boundaries.
+4. Drag: update `dragStartX/Y` → `draggingX/Y` → compute `regionX/Y/Width/Height`.
+   - Normal drag: rectangular region from start to current cursor.
+   - Shift+drag: constrain to square.
+   - Circle mode: collect `points[]` for `ShapePath`.
+5. Release: detect click-vs-drag; if drag, finalize region; for circle,
+   compute bounding box of all points with padding.
+6. Four `Rectangle` elements create the dark overlay outside the selection
+   region (no expensive pixel-level compositing).
+
+### Snip / crop pipeline
+
+```
+snip()
+  ├─ Validate region bounds (non-zero, clamp to screen)
+  ├─ Adjust action: Right-click → Edit
+  ├─ snipDelayTimer (100ms)
+  │
+  ├─ [Edit mode]
+  │   └─ postCaptureProc: magick -crop <region> snapshot.png temp.png
+  │      └─ onExited → postCaptureReady = true
+  │         └─ Phase.Post → show action bar
+  │
+  └─ [Other modes: Copy, Search, OCR, Record]
+      └─ ScreenshotAction.getCommand(): crop from frozen snapshot +
+         execute action script
+         └─ dismiss()
+```
+
+### Post-phase action bar (Edit mode only)
+
+After cropping, a semi-transparent overlay with 4 action buttons appears:
+
+| Icon | Action | Command |
+|------|--------|---------|
+| `content_copy` | Copy cropped image to clipboard | `wl-copy` |
+| `save` | Save to configured directory + clipboard | `tee` → save + `wl-copy` |
+| `image_search` | Upload to image search engine | `curl` → upload → `xdg-open` |
+| `edit` | Open in annotation editor | `swappy` / `satty` |
+| `text_snippet` | OCR text recognition | `paddleocr` → extract text → `wl-copy` |
+
+The post-phase bar also captures clicks outside the buttons via a full-screen
+`MouseArea` to dismiss.
+
+## OCR integration (PaddleOCR)
+
+The OCR action replaces the legacy `tesseract` pipeline with PaddleOCR
+(https://github.com/PaddlePaddle/PaddleOCR), which provides:
+
+- PP-OCRv6 models with strong Chinese, English, and Japanese recognition
+- Rotated and vertical text support
+- Layout analysis and table recognition
+- Efficient CPU inference
+
+**Command pipeline:**
+```bash
+paddleocr ocr -i <crop.png> --lang ch 2>/dev/null \
+  | python3 -c "import sys,json; print('\n'.join(r[1][0] for r in json.load(sys.stdin)))" \
+  | wl-copy
+```
+
+**Availability:**
+- The `paddleocr` CLI is provided by the `paddleocr` Python package.
+- Installation: `pip install paddleocr`
+- If `paddleocr` is not installed, the OCR button in the action bar still
+  appears but the command will fail silently. Missing optional tools must
+  not break fast capture or frozen editing.
+
 ## Pointer rendering rules
 
 The QML selector must keep its pointer hot path small:
@@ -77,7 +203,7 @@ without measuring their frame cost.
 
 The bar menu, keyboard bindings, and Screenshot Toolbox call
 `bin/omd-screenshot`; they must not implement separate region-copy or edit
-pipelines. The toolbox may keep specialized external actions such as OCR,
+pipelines. The toolbox may keep specialized external actions such as
 measurement, QR decoding, pinning, and annotation, but ordinary capture and
 capture-and-edit use the shared backend.
 
@@ -92,9 +218,13 @@ Required for the primary paths:
 - ImageMagick (`magick`) for frozen snapshot cropping
 - the configured annotation editor (`swappy` or `satty`)
 
-Optional toolbox actions may additionally require `tesseract`, `hyprpicker`,
-`mark-shot`, `qt-img-viewer`, or `zbarimg`. Missing optional tools must not
-break fast capture or frozen editing.
+Optional for OCR:
+
+- `paddleocr` (Python package, `pip install paddleocr`)
+
+Optional toolbox actions may additionally require `hyprpicker`, `mark-shot`,
+`qt-img-viewer`, or `zbarimg`. Missing optional tools must not break fast
+capture or frozen editing.
 
 ## Relevant files
 
@@ -102,7 +232,12 @@ break fast capture or frozen editing.
 - `apps/omd-screenshot/shell.qml`: cold-start QML process
 - `quickshell/modules/regionSelector/RegionSelector.qml`: target-output scope
 - `quickshell/modules/regionSelector/RegionSelection.qml`: selection behavior
-- `quickshell/modules/common/utils/ScreenshotAction.qml`: post-capture actions
+- `quickshell/modules/regionSelector/RectCornersSelectionDetails.qml`: rectangle overlay rendering
+- `quickshell/modules/regionSelector/CircleSelectionDetails.qml`: circle overlay rendering
+- `quickshell/modules/regionSelector/TargetRegion.qml`: window/layer highlight boxes
+- `quickshell/modules/regionSelector/CursorGuide.qml`: drag corner crosshair
+- `quickshell/modules/regionSelector/RegionFunctions.qml`: IoU utility functions
+- `quickshell/modules/common/utils/ScreenshotAction.qml`: post-capture commands
 - `apps/omd-shot-toolbox/`: optional action toolbox
 - `hypr/bindings.lua`: `Alt+S` and `Alt+Shift+S`
 - `hypr/default/hypr/bindings/utilities.lua`: Print Screen bindings
