@@ -72,7 +72,7 @@ MouseArea {
         anchors.fill: parent
         interactive: !root.expanded
         automaticallyReset: false
-        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        acceptedButtons: Qt.RightButton | Qt.MiddleButton
 
         onPressed: {
             if (mouse.button === Qt.RightButton)
@@ -106,11 +106,11 @@ MouseArea {
         anchors.left: parent.left
         anchors.leftMargin: root.xOffset
         width: parent.width
-        radius: 8
+        radius: TuiStyle.shellRadius
         clip: true
         color: TuiStyle.bg
-        border.width: 1
-        border.color: "#555555"
+        border.width: TuiStyle.borderWidth
+        border.color: TuiStyle.menuBorder
         implicitHeight: titlebar.implicitHeight + notificationsColumn.implicitHeight
 
         Behavior on anchors.leftMargin {

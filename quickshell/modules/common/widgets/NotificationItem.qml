@@ -48,9 +48,7 @@ Item {
         id: rowBackground
         width: parent.width
         radius: 8
-        color: onlyNotification
-            ? (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : "transparent")
-            : (root.expanded ? TuiStyle.surfaceHover : root.hovered ? TuiStyle.surfaceSubtle : "transparent")
+        color: "transparent"
         border.width: 0
         implicitHeight: contentColumn.implicitHeight + root.verticalPadding * 2
 
@@ -170,9 +168,9 @@ Item {
                     implicitWidth: 52
                     implicitHeight: 24
                     radius: TuiStyle.miniRadius
-                    color: closeArea.pressed ? TuiStyle.surfacePressed : closeArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                    color: "transparent"
                     border.width: 1
-                    border.color: closeArea.containsMouse ? TuiStyle.shellBorder : TuiStyle.line
+                    border.color: TuiStyle.line
 
                     StyledText {
                         anchors.centerIn: parent
@@ -196,9 +194,9 @@ Item {
                     implicitHeight: 24
                     radius: TuiStyle.miniRadius
                     visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
-                    color: copyArea.pressed ? TuiStyle.surfacePressed : copyArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                    color: "transparent"
                     border.width: 1
-                    border.color: copyArea.containsMouse ? TuiStyle.shellBorder : TuiStyle.line
+                    border.color: TuiStyle.line
 
                     QtObject {
                         id: copyState

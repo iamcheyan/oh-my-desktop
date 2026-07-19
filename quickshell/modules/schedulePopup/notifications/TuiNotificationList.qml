@@ -349,8 +349,7 @@ Item {
             : standardContent.implicitHeight + 12
         height: implicitHeight
         radius: 6
-        color: rowHover.hovered || expanded ? TuiStyle.surfaceHover
-            : "transparent"
+        color: "transparent"
         border.width: 0
 
         Behavior on color {
