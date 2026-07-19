@@ -387,18 +387,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             color: alpha({colors['foreground']}, 0.55);
         }}
         .inspector-subtitle {{ font-size: 12px; }}
-        .inspector-icon-button {{
-            background: transparent;
-            border: none;
-            box-shadow: none;
-            color: alpha({colors['foreground']}, 0.65);
-            border-radius: 6px;
-            margin-left: 6px;
-        }}
-        .inspector-icon-button:hover {{
-            background-color: alpha({colors['foreground']}, 0.08);
-            color: {colors['foreground']};
-        }}
         .capture-surface {{
             background-color: alpha({colors['foreground']}, 0.035);
             border: 1px solid alpha({colors['foreground']}, 0.14);
@@ -533,19 +521,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         .inspector-action.suggested-action:hover {{
             background-color: alpha({colors['accent']}, 0.85);
         }}
-        
-        popover > contents {{
-            background-color: {colors['background']};
-            color: {colors['foreground']};
-            border: 1px solid alpha({colors['foreground']}, 0.18);
-            border-radius: 8px;
-            padding: 14px 16px;
-        }}
-        .help-text {{
-            color: alpha({colors['foreground']}, 0.75);
-            font-size: 11px;
-            line-height: 1.5;
-        }}
         """
         visual_provider.load_from_data(visual_css.encode("utf-8"))
         Gtk.StyleContext.add_provider_for_display(
@@ -584,6 +559,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         title_box.append(subtitle)
 
         tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        tab_bar.set_valign(Gtk.Align.CENTER)
         header.append(tab_bar)
 
         self.current_mode_btn = Gtk.ToggleButton(label="CURRENT")
@@ -601,30 +577,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.current_mode_btn.connect("toggled", self.on_mode_toggled, "current")
         self.original_mode_btn.connect("toggled", self.on_mode_toggled, "original")
 
-        help_btn = Gtk.MenuButton(icon_name="help-about-symbolic")
-        help_btn.add_css_class("inspector-icon-button")
-        help_btn.set_tooltip_text("About capture modes")
-        header.append(help_btn)
 
-        help_popover = Gtk.Popover()
-        help_text = Gtk.Label(
-            label=(
-                "Current shows the final key received by applications after keyd remapping.\n"
-                "Raw Source pauses keyd and reads the physical hardware key.\n\n"
-                "Use the footer actions to copy or clear without reserving testable shortcuts."
-            )
-        )
-        help_text.set_halign(Gtk.Align.START)
-        help_text.set_justify(Gtk.Justification.LEFT)
-        help_text.add_css_class("help-text")
-        help_popover.set_child(help_text)
-        help_btn.set_popover(help_popover)
-
-        close_btn = Gtk.Button(icon_name="window-close-symbolic")
-        close_btn.add_css_class("inspector-icon-button")
-        close_btn.set_tooltip_text("Close")
-        close_btn.connect("clicked", lambda _: app.quit())
-        header.append(close_btn)
 
         capture_card_outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         capture_card_outer.add_css_class("capture-surface")
