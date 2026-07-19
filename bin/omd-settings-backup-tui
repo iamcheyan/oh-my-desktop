@@ -74,10 +74,8 @@ class Model:
         self.message = ""
         self.dirty = True
         self.scroll_offset = 0
-        self.focus_area = 0  # 0=left (status/schedule/actions), 1=right (item table/fields/activity)
-        self.selected_field = 0
-        self.selected_table_row = 0
-        self.selected_schedule = 0
+        self.focus_area = 0  # 0=left (schedule+fields), 1=right (table+log)
+        self.selected_left = 0  # 0-3 schedule, 4-11 fields
         self.test_result = None  # None / "ok" / "error"
         self.test_error = ""
         self.last_sync_ok = None
@@ -123,7 +121,6 @@ class Model:
                 "Press e to edit config file directly in vi.",
             ]
         self.has_config = bool(self.config.get("address"))
-        self._sync_schedule_idx()
         self._refresh_item_rows()
         self._run_compare()
 
@@ -135,13 +132,6 @@ class Model:
         self._refresh_item_rows()
         self.append_log("Config saved")
         self.message = "Config saved"
-
-    def _sync_schedule_idx(self):
-        st = self.config.get("scheduleType", "manual")
-        if st in SCHEDULE_TYPES:
-            self.selected_schedule = SCHEDULE_TYPES.index(st)
-        else:
-            self.selected_schedule = 0
 
     def append_log(self, text):
         self.logs.append(text)
@@ -406,14 +396,15 @@ def help_items(model):
             items.append(("comma", "separate paths"))
     else:
         items += [
-            ("enter", "edit field"),
-            ("t", "test conn"),
-            ("b", "backup now"),
+            ("enter", "edit config"),
+            ("t", "test"),
+            ("b", "backup"),
             ("c", "compare"),
-            ("s", "save config"),
-            ("e", "edit config file"),
+            ("l", "browse remote"),
+            ("s", "save"),
+            ("e", "edit file"),
             ("r", "refresh"),
-            ("pgup/pgdn", "logs"),
+            ("pgup/pgdn", "scroll"),
             ("q", "quit"),
         ]
     return items
@@ -436,10 +427,11 @@ def config_value_display(model, key):
 
 def render_field_list(model, width):
     lines = []
+    sel_field = model.selected_left - 4 if model.selected_left >= 4 else 0
     for i, key in enumerate(FIELD_KEYS):
         label = FIELD_LABELS.get(key, key)
         val = config_value_display(model, key)
-        focused = model.focus_area == 1 and model.selected_field == i
+        focused = model.focus_area == 0 and sel_field == i
         if focused and model.editing_field and model.edit_field_key == key:
             display = model.edit_buffer if key != "password" else "*" * len(model.edit_buffer)
             lines.append(("focus", f"  {label}: {display}█"))
@@ -470,16 +462,24 @@ def render_connection_status(model, width):
         lines.append(("muted", f"  //{addr}/{share}"))
     elif addr:
         lines.append(("muted", f"  {addr}"))
+    # Last sync status
+    if model.last_sync_ok is True:
+        lines.append(("ok", f"  Last sync: {model.last_sync_time}  ✅"))
+    elif model.last_sync_ok is False:
+        lines.append(("danger", "  Last sync: failed"))
+    else:
+        lines.append(("muted", "  No sync yet"))
     return lines
 
 
 def render_schedule(model, width):
     lines = []
+    sel_sched = model.selected_left if model.selected_left < 4 else model.selected_left  # persist
     for i, st in enumerate(SCHEDULE_TYPES):
-        focused = model.focus_area == 0 and model.selected_schedule == i + 1
+        focused = model.focus_area == 0 and model.selected_left == i
         label = {"manual": "Manual only", "every_h": "Every N hours",
                  "every_d": "Every N days", "at_time": "At specific time"}.get(st, st)
-        sel = model.selected_schedule == i
+        sel = model.config.get("scheduleType", "manual") == st
         prefix = "▸" if sel else " "
         box = "[X]" if sel else "[ ]"
         val = model.config.get("scheduleValue", "")
@@ -553,17 +553,6 @@ def render_item_table(model, width):
     return lines
 
 
-def render_sync_status(model, width):
-    lines = []
-    if model.last_sync_ok is True:
-        lines.append(("ok", f"  Last sync: {model.last_sync_time}  ✅"))
-    elif model.last_sync_ok is False:
-        lines.append(("danger", "  Last sync: failed"))
-    else:
-        lines.append(("muted", "  No sync yet"))
-    return lines
-
-
 # ── view ──
 
 def view(stdscr, model):
@@ -589,7 +578,7 @@ def view(stdscr, model):
     left_focused = (model.focus_area == 0)
     right_focused = (model.focus_area == 1)
 
-    # Left: Connection status + Schedule + Actions
+    # Left: Status + Schedule + Connection (config) + Actions
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
@@ -607,43 +596,37 @@ def view(stdscr, model):
     else:
         sched_box_h = 0
 
-    actions_y = schedule_y + sched_box_h
-    actions_h = content_h - actions_y + hero_h
+    field_y = schedule_y + sched_box_h
+    field_lines = render_field_list(model, left_w - 4)
+    field_box_h = min(content_h - field_y + hero_h, len(field_lines) + 3)
+    if field_box_h >= 3:
+        S.draw_focus_border(stdscr, left_focused, field_y, 0, field_box_h, left_w, "Connection")
+        S.draw_lines_in_area(stdscr, field_y, 0, field_box_h, left_w, field_lines)
+    else:
+        field_box_h = 0
+
+    actions_y = field_y + field_box_h
+    actions_h = hero_h + content_h - actions_y
     if actions_h >= 4:
         S.draw_focus_border(stdscr, left_focused, actions_y, 0, actions_h, left_w, "Actions")
         S.draw_lines_in_area(stdscr, actions_y, 0, actions_h, left_w, render_actions(model))
 
-    # Right: Managed Items table + Config fields + Activity
-    field_lines = render_field_list(model, right_w - 4)
-    field_box_h = min(9, len(field_lines) + 3)
-    if field_box_h < 3:
-        field_box_h = 0
-
+    # Right: Managed Items table + Activity log
     table_lines = render_item_table(model, right_w - 4)
     table_h = len(table_lines) + 3 if table_lines else 0
     if table_h < 3:
         table_h = 0
-    # Distribute: table gets as much as it needs, fields fixed, activity gets rest
+    # Table takes as much as it needs, activity fills the rest
     avail_right = content_h
-    table_box_h = min(table_h, avail_right - field_box_h - 3) if field_box_h > 0 else min(table_h, avail_right - 3)
+    act_min = 4
+    table_box_h = min(table_h, avail_right - act_min)
     if table_box_h < 3:
         table_box_h = 0
-    # If table + fields + min activity don't fit, shrink table
-    if table_box_h > 0 and field_box_h > 0 and (table_box_h + field_box_h + 3) > avail_right:
-        table_box_h = max(3, avail_right - field_box_h - 3)
-    # Draw items table
     if table_box_h >= 3:
         S.draw_focus_border(stdscr, right_focused, hero_h, left_w, table_box_h, right_w, "Managed Items")
         S.draw_lines_in_area(stdscr, hero_h, left_w, table_box_h, right_w, table_lines)
-    # Draw config fields below table, or at top if table is empty
-    fields_y = hero_h + table_box_h
-    if field_box_h >= 3 and (fields_y + field_box_h) < hero_h + content_h:
-        S.draw_focus_border(stdscr, right_focused, fields_y, left_w, field_box_h, right_w, "Connection")
-        S.draw_lines_in_area(stdscr, fields_y, left_w, field_box_h, right_w, field_lines)
-    else:
-        field_box_h = 0
-    # Activity log fills remaining space
-    act_y = fields_y + field_box_h
+    # Activity log below table
+    act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
         S.draw_focus_border(stdscr, right_focused, act_y, left_w, act_h, right_w, "Activity")
@@ -683,46 +666,54 @@ def handle_key(stdscr, model, key):
     # Navigation
     if key == ord('\t') or key == 9:
         model.focus_area = 1 if model.focus_area == 0 else 0
-        model.selected_field = 0
         model.dirty = True
         return True
 
     if key == curses.KEY_UP or key == ord('k'):
         if model.focus_area == 0:
-            model.selected_schedule = max(0, model.selected_schedule - 1)
+            # Left: move through schedule (0-3) then fields (4-11)
+            if model.selected_left > 11:
+                model.selected_left = 11
+            elif model.selected_left > 0:
+                model.selected_left -= 1
         else:
-            model.selected_field = max(0, model.selected_field - 1)
+            # Right: scroll activity log
+            if model.scroll_offset < model.logs.count and len(model.logs) > 0:
+                model.scroll_offset += 1
+                model.dirty = True
         model.dirty = True
         return True
 
     if key == curses.KEY_DOWN or key == ord('j'):
         if model.focus_area == 0:
-            model.selected_schedule = min(3, model.selected_schedule + 1)
+            if model.selected_left >= 11:
+                pass  # already at bottom
+            else:
+                model.selected_left += 1
         else:
-            model.selected_field = min(len(FIELD_KEYS) - 1, model.selected_field + 1)
+            if model.scroll_offset > 0:
+                model.scroll_offset -= 1
+                model.dirty = True
         model.dirty = True
         return True
 
     if key == ord('\n') or key == 10:
         if model.focus_area == 0:
-            idx = model.selected_schedule
-            if 0 <= idx < len(SCHEDULE_TYPES):
-                model.config["scheduleType"] = SCHEDULE_TYPES[idx]
+            if model.selected_left < len(SCHEDULE_TYPES):
+                model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
                 model.dirty = True
-        else:
-            start_edit(model)
+            else:
+                start_edit(model)
         return True
 
     if key == ord(' '):
         if model.focus_area == 0:
-            idx = model.selected_schedule
-            if 0 <= idx < len(SCHEDULE_TYPES):
-                model.config["scheduleType"] = SCHEDULE_TYPES[idx]
+            if model.selected_left < len(SCHEDULE_TYPES):
+                model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
                 model.dirty = True
-            return True
-        else:
-            start_edit(model)
-            return True
+            else:
+                start_edit(model)
+        return True
 
     # Action keys
     if key == ord('t'):
@@ -792,9 +783,12 @@ def handle_key(stdscr, model, key):
 
 
 def start_edit(model):
-    if model.focus_area != 1 or model.selected_field >= len(FIELD_KEYS):
+    if model.focus_area != 0 or model.selected_left < len(SCHEDULE_TYPES):
         return
-    key = FIELD_KEYS[model.selected_field]
+    sel_field = model.selected_left - len(SCHEDULE_TYPES)
+    if sel_field >= len(FIELD_KEYS):
+        return
+    key = FIELD_KEYS[sel_field]
     model.editing_field = True
     model.edit_field_key = key
     val = model.config.get(key, "")
