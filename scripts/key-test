@@ -373,12 +373,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         .inspector-header {{
             margin-bottom: 12px;
         }}
-        .app-icon-wrapper {{
-            color: {colors['accent']};
-            background-color: alpha({colors['accent']}, 0.12);
-            border-radius: 8px;
-            margin-right: 14px;
-        }}
         .inspector-title, .capture-key, .capture-bind, .capture-status,
         .pipeline-value, .technical-value, .clipboard-value, .inspector-action {{
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -514,8 +508,8 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             border: 1px solid alpha({colors['foreground']}, 0.14);
             border-radius: 6px;
             box-shadow: none;
-            min-height: 30px;
-            padding: 0 14px;
+            min-height: 28px;
+            padding: 0 22px;
             font-size: 12px;
             font-weight: 700;
             transition: all 150ms ease-in-out;
@@ -577,18 +571,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         header.add_css_class("inspector-header")
         root.append(header)
-
-        icon_wrapper = Gtk.Box()
-        icon_wrapper.add_css_class("app-icon-wrapper")
-        header.append(icon_wrapper)
-
-        app_icon = Gtk.Image.new_from_icon_name("input-keyboard-symbolic")
-        app_icon.set_pixel_size(20)
-        app_icon.set_margin_start(8)
-        app_icon.set_margin_end(8)
-        app_icon.set_margin_top(8)
-        app_icon.set_margin_bottom(8)
-        icon_wrapper.append(app_icon)
 
         title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         title_box.set_hexpand(True)
