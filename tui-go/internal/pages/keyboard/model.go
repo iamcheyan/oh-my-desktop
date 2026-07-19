@@ -385,17 +385,25 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		if m.focusArea == 0 {
 			m.selectedDeviceIdx = min(len(m.devices)-1, m.selectedDeviceIdx+1)
 		} else {
-			m.selectedPresetIdx = min(len(globalPresetChoices)-1, m.selectedPresetIdx+1)
+			m.selectedPresetIdx = min(len(globalPresetChoices), m.selectedPresetIdx+1)
 		}
 	case "space":
 		if m.focusArea == 0 {
 			m.toggleSelectedProfileEnabled()
 		} else {
-			m.toggleSelectedPreset()
+			if m.selectedPresetIdx == 0 {
+				m.toggleSelectedProfileEnabled()
+			} else {
+				m.toggleSelectedPreset()
+			}
 		}
 	case "enter":
 		if m.focusArea == 1 {
-			m.triggerOverridePicker()
+			if m.selectedPresetIdx == 0 {
+				m.toggleSelectedProfileEnabled()
+			} else {
+				m.triggerOverridePicker()
+			}
 		}
 	case "a":
 		if !m.busy {
@@ -453,7 +461,11 @@ func (m *Model) toggleSelectedPreset() {
 		m.profiles.Devices[devName] = prof
 	}
 
-	presetID := globalPresetChoices[m.selectedPresetIdx].ID
+	presetIdx := m.selectedPresetIdx - 1
+	if presetIdx < 0 || presetIdx >= len(globalPresetChoices) {
+		return
+	}
+	presetID := globalPresetChoices[presetIdx].ID
 	foundIdx := -1
 	for idx, id := range prof.EnabledPresets {
 		if id == presetID {
@@ -474,7 +486,11 @@ func (m *Model) triggerOverridePicker() {
 	if m.selectedDeviceIdx >= len(m.devices) {
 		return
 	}
-	preset := globalPresetChoices[m.selectedPresetIdx]
+	presetIdx := m.selectedPresetIdx - 1
+	if presetIdx < 0 || presetIdx >= len(globalPresetChoices) {
+		return
+	}
+	preset := globalPresetChoices[presetIdx]
 	if preset.Type != "remap" {
 		return
 	}
@@ -570,7 +586,7 @@ func (m Model) handleMainClick(clickX, clickY int) (tea.Model, tea.Cmd) {
 		idx := strings.Index(plain, rowText)
 		if idx >= 0 {
 			if clickX >= idx-4 && clickX <= idx+len(rowText)+4 {
-				m.selectedPresetIdx = i
+				m.selectedPresetIdx = i + 1
 				m.focusArea = 1
 				if preset.Type == "remap" {
 					targetText := "[ "
@@ -588,6 +604,8 @@ func (m Model) handleMainClick(clickX, clickY int) (tea.Model, tea.Cmd) {
 
 	idx := strings.Index(plain, "Profile: ")
 	if idx >= 0 {
+		m.selectedPresetIdx = 0
+		m.focusArea = 1
 		m.toggleSelectedProfileEnabled()
 	}
 
@@ -718,12 +736,21 @@ func (m Model) renderLeftColumn(w, h int) string {
 
 	for i, dev := range m.devices {
 		bullet := "○"
-		style := lipgloss.NewStyle().Foreground(pal.text)
+		style := lipgloss.NewStyle()
+		if dev.Connected {
+			bullet = "●"
+			style = style.Foreground(pal.accent)
+		} else {
+			style = style.Foreground(pal.subtle)
+		}
+
 		if m.focusArea == 0 && i == m.selectedDeviceIdx {
 			bullet = "🔘"
-			style = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-		} else if dev.Connected {
-			bullet = "●"
+			if dev.Connected {
+				style = lipgloss.NewStyle().Background(pal.accent).Foreground(pal.background).Bold(true)
+			} else {
+				style = lipgloss.NewStyle().Background(pal.subtle).Foreground(pal.background).Bold(true)
+			}
 		}
 
 		offlineText := ""
@@ -760,7 +787,11 @@ func (m Model) renderRightColumn(w, h int) string {
 	b.WriteString(fmt.Sprintf("Device: %s\n", lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render(dev.DisplayName)))
 	b.WriteString(fmt.Sprintf("ID:     %s\n\n", lipgloss.NewStyle().Foreground(pal.muted).Render(dev.KeydID)))
 
-	b.WriteString(fmt.Sprintf("Profile: %s Enabled\n\n", enabledBullet))
+	profileStyle := lipgloss.NewStyle().Foreground(pal.text)
+	if m.focusArea == 1 && m.selectedPresetIdx == 0 {
+		profileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	b.WriteString(profileStyle.Render(fmt.Sprintf("Profile: %s Enabled\n\n", enabledBullet)))
 
 	b.WriteString(ui.Section.Render("PRESETS"))
 	b.WriteString("\n")
@@ -782,8 +813,19 @@ func (m Model) renderRightColumn(w, h int) string {
 		}
 
 		presetStyle := lipgloss.NewStyle().Foreground(pal.text)
-		if m.focusArea == 1 && i == m.selectedPresetIdx {
-			presetStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+		overrideStyle := lipgloss.NewStyle().Foreground(pal.accent)
+
+		if !isEnabled {
+			presetStyle = lipgloss.NewStyle().Foreground(pal.subtle)
+			overrideStyle = lipgloss.NewStyle().Foreground(pal.subtle)
+		}
+
+		if m.focusArea == 1 && m.selectedPresetIdx == i+1 {
+			if isEnabled {
+				presetStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+			} else {
+				presetStyle = lipgloss.NewStyle().Foreground(pal.muted).Bold(true).Underline(true)
+			}
 		}
 
 		overrideText := ""
@@ -797,7 +839,7 @@ func (m Model) renderRightColumn(w, h int) string {
 			overrideText = fmt.Sprintf("  [ %s ]", target)
 		}
 
-		b.WriteString(fmt.Sprintf("%s %s%s\n", bullet, presetStyle.Render(preset.Label), lipgloss.NewStyle().Foreground(pal.accent).Render(overrideText)))
+		b.WriteString(fmt.Sprintf("%s %s%s\n", bullet, presetStyle.Render(preset.Label), overrideStyle.Render(overrideText)))
 	}
 
 	return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())

@@ -48,7 +48,7 @@ func TestKeyboardPage(t *testing.T) {
 
 	// 3. Toggle Presets
 	m.focusArea = 1
-	m.selectedPresetIdx = 0 // alt-win-swap
+	m.selectedPresetIdx = 1 // alt-win-swap
 	m.toggleSelectedPreset()
 	// Since "alt-win-swap" was already active, toggling it should remove it
 	found := false
@@ -70,7 +70,7 @@ func TestKeyboardPicker(t *testing.T) {
 		},
 		selectedDeviceIdx: 0,
 		focusArea:         1,
-		selectedPresetIdx: 4, // muhenkan-meta
+		selectedPresetIdx: 5, // muhenkan-meta
 		showPicker:        false,
 	}
 
