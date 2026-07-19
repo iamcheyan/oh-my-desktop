@@ -514,6 +514,40 @@ class WiFiTUI:
     def _cleanup(self):
         pass
 
+    def _hero_info(self):
+        subtitle_parts = []
+        if self.status:
+            active = self.status.get("active")
+            if active and active != "—":
+                subtitle_parts.append(active)
+                ip = self.status.get("ip")
+                if ip and ip != "—":
+                    subtitle_parts.append(ip)
+            subtitle_parts.append(f"radio {self.status.get('radio', '?').lower()}")
+        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "WiFi"
+        status_text = ""
+        tone = "muted"
+        if self.busy:
+            status_text = "Working…"
+            tone = "warn"
+        elif self.status:
+            active = self.status.get("active")
+            if active and active != "—":
+                status_text = "Connected"
+                tone = "ok"
+            elif self.status.get("radio") == "Off":
+                status_text = "WiFi off"
+                tone = "muted"
+            else:
+                status_text = "Not connected"
+                tone = "muted"
+        msg = ""
+        if self.busy:
+            msg = "working…"
+        elif self.status_msg and self.status_msg.startswith("Scan"):
+            msg = "scanning…"
+        return S.hero_line("WiFi", subtitle, tone, self.busy, msg, status_text)
+
     # ── data ──
 
     def _refresh_data(self):
@@ -703,12 +737,13 @@ class WiFiTUI:
             self.stdscr.refresh()
             return
         margin = 1
+        hero_h = 2
 
         # Always keep an Available panel so first-run machines aren't a blank slab
         has_avail = self._show_available
         adapter_h = 1 + 4
-        help_h = 2
-        usable = h - margin * 2
+        help_h = 0
+        usable = h - hero_h - margin * 2
 
         if has_avail:
             saved_h = min(max(len(self.saved), 1) + 4, max(4, usable // 3))
@@ -728,8 +763,11 @@ class WiFiTUI:
             if overflow > 0 and saved_h > 4:
                 saved_h = max(4, saved_h - overflow)
 
-        y = margin
+        y = margin + hero_h
         box_w = w - margin * 2
+
+        # ── Hero ──
+        S.draw_hero(self.stdscr, self._hero_info())
 
         # ── Saved Networks ──
         S.draw_thick_border(self.stdscr, y, margin, saved_h, box_w, "Saved Networks")

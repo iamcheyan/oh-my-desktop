@@ -513,6 +513,37 @@ class BluetoothTUI:
         self._stop_scan()
         self._stop_pair()
 
+    def _hero_info(self):
+        subtitle_parts = []
+        if self.adapter_info:
+            a = self.adapter_info
+            if a.get("alias") and a["alias"] != "?":
+                subtitle_parts.append(a["alias"])
+            subtitle_parts.append(f"powered {a.get('powered', '?').lower()}")
+        paired = [d for d in self.devices if d["status"] != "available"]
+        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Bluetooth"
+        status_text = ""
+        tone = "muted"
+        if self.busy:
+            status_text = "Working…"
+            tone = "warn"
+        elif self.scanning:
+            status_text = "Scanning"
+            tone = "warn"
+        elif paired:
+            status_text = f"{len(paired)} paired"
+            tone = "ok"
+        elif self.adapter_info and self.adapter_info.get("powered") == "Off":
+            status_text = "Off"
+            tone = "muted"
+        else:
+            status_text = "No devices"
+            tone = "muted"
+        msg = ""
+        if self.busy:
+            msg = "working…"
+        return S.hero_line("Bluetooth", subtitle, tone, self.busy, msg, status_text)
+
     # ── data ──
 
     def refresh_devices(self):
@@ -978,6 +1009,7 @@ class BluetoothTUI:
             self.stdscr.refresh()
             return
         margin = 1
+        hero_h = 2
 
         paired = self._paired_devices()
         discovered = self._discovered_devices()
@@ -986,8 +1018,8 @@ class BluetoothTUI:
 
         # Heights match bluetui: adapters = len+4, paired = len+4 when scanning else Fill
         adapter_h = 1 + 4  # one adapter row + header/margin/borders ≈ controllers.len + 4
-        help_h = 2
-        usable = h - margin * 2
+        help_h = 0
+        usable = h - hero_h - margin * 2
 
         if has_disc:
             paired_h = min(len(paired) + 4, max(4, usable // 3))
@@ -1008,8 +1040,11 @@ class BluetoothTUI:
             if overflow > 0 and paired_h > 4:
                 paired_h = max(4, paired_h - overflow)
 
-        y = margin
+        y = margin + hero_h
         box_w = w - margin * 2
+
+        # ── Hero ──
+        S.draw_hero(self.stdscr, self._hero_info())
 
         # ── Paired Devices (fills most of the screen when not scanning) ──
         S.draw_thick_border(self.stdscr, y, margin, paired_h, box_w, "Paired Devices")
