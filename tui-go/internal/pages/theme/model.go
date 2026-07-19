@@ -155,9 +155,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						key  string
 					}
 					buttons := []btn{
-						{"Image (i)", "i"},
+						{"Image (i)", "f"},
 						{"Color (c)", "c"},
-						{"Choose Path (p)", "p"},
+						{"Pick File (f)", "f"},
+						{"Pick Folder (d)", "d"},
 						{"Next (w)", "w"},
 						{"Perf (1)", "1"},
 						{"Bal (2)", "2"},
@@ -318,7 +319,8 @@ func (m Model) View() string {
 		helpItems = []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
-			ui.HelpItem("i", "image mode"),
+			ui.HelpItem("f", "pick file"),
+			ui.HelpItem("d", "pick folder"),
 			ui.HelpItem("r", "refresh"),
 			ui.HelpItem("q", "quit"),
 		}
@@ -438,10 +440,11 @@ func (m Model) wallpaperControls(width int) string {
 
 	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + imageLabel + "     " + colorLabel
 
-	// 2. Choose Path line (only shown if Image mode is active)
+	// 2. Source selection line (only shown if Image mode is active)
 	var typeLine string
 	if mode == "file" || mode == "folder" {
-		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") + lipgloss.NewStyle().Foreground(pal.muted).Render("○ Choose Path (p)")
+		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") +
+			lipgloss.NewStyle().Foreground(pal.muted).Render("○ Pick File (f)     ○ Pick Folder (d)")
 	}
 
 	// 3. Action selector line (only shown if Folder type is active)
@@ -1083,10 +1086,10 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("Applying %s…", slug)
 			return m, m.apply(slug)
 		}
-	case "i", "p":
+	case "i":
 		if !m.busy {
 			m.busy = true
-			return m, m.runAction("wallpaper-pick-path")
+			return m, m.runAction("wallpaper-pick-file")
 		}
 	case "c":
 		if !m.busy && m.value("wallpaper.mode", "file") != "color" {
