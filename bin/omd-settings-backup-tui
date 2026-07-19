@@ -138,11 +138,12 @@ class Model:
             json.dump(self.config, f, indent=2)
         self.has_config = bool(self.config.get("address"))
         self._refresh_item_rows()
-        self.append_log("Config saved")
+        self.append_log("Config saved", "ok")
         self.message = "Config saved"
 
-    def append_log(self, text):
-        self.logs.append(text)
+    def append_log(self, text, tag=None):
+        entry = (tag, text) if tag else text
+        self.logs.append(entry)
         if len(self.logs) > 200:
             self.logs = self.logs[-200:]
         self.scroll_offset = 0
@@ -179,7 +180,7 @@ class Model:
         self.busy = True
         self.message = "Testing\u2026"
         self.dirty = True
-        self.append_log("$ test connection")
+        self.append_log("$ test connection", "primary")
         self._save_temp_config()
 
         def _cb():
@@ -189,12 +190,19 @@ class Model:
                 self.test_result = "error"
                 self.test_error = err
                 self.message = "Test failed"
-                self.append_log(f"  error: {err}")
+                self.append_log(f"  error: {err}", "danger")
             elif lines:
                 for l in lines:
                     l = l.strip()
                     if l and not l.startswith("{"):
-                        self.append_log(f"  {l}")
+                        if "Connected" in l or "mounted" in l or "Already" in l:
+                            self.append_log(f"  {l}", "ok")
+                        elif "error" in l.lower() or "fail" in l.lower() or "SKIP" in l or "cannot" in l.lower():
+                            self.append_log(f"  {l}", "danger")
+                        elif "Attempting" in l or "Testing" in l or "Target" in l or "Mount" in l or "Credential" in l:
+                            self.append_log(f"  {l}", "muted")
+                        else:
+                            self.append_log(f"  {l}")
                 data, _ = self._parse_json_line(lines)
                 if data and data.get("ok"):
                     self.test_result = "ok"
@@ -204,7 +212,7 @@ class Model:
                     self.test_result = "error"
                     self.test_error = (data or {}).get("error", "unknown")
                     self.message = "Connection failed"
-                    self.append_log(f"  error: {self.test_error}")
+                    self.append_log(f"  error: {self.test_error}", "danger")
             self.dirty = True
 
         threading.Thread(target=_cb, daemon=True).start()
@@ -220,7 +228,7 @@ class Model:
         label = "Full sync" if delete_remote else "Incremental sync"
         self.message = f"{label}…"
         self.dirty = True
-        self.append_log(f"$ {label} started")
+        self.append_log(f"$ {label} started", "primary")
         self._save_temp_config()
 
         def _cb():
@@ -233,12 +241,19 @@ class Model:
             if err:
                 self.last_sync_ok = False
                 self.message = "Backup failed"
-                self.append_log(f"  error: {err}")
+                self.append_log(f"  error: {err}", "danger")
             else:
                 for l in lines:
                     l = l.strip()
                     if l and not l.startswith("{"):
-                        self.append_log(f"  {l}")
+                        if "Backup complete" in l or "Backup done" in l:
+                            self.append_log(f"  {l}", "ok")
+                        elif "FAILED" in l or "error" in l.lower() or "fail" in l.lower() or "SKIP" in l:
+                            self.append_log(f"  {l}", "danger")
+                        elif "sync" in l or "Starting" in l or "Full sync" in l:
+                            self.append_log(f"  {l}", "muted")
+                        else:
+                            self.append_log(f"  {l}")
                 data, _ = self._parse_json_line(lines)
                 if data and data.get("ok"):
                     self.last_sync_ok = True
@@ -248,7 +263,7 @@ class Model:
                     self.last_sync_ok = False
                     err_msg = (data or {}).get("error", "unknown")
                     self.message = "Backup failed"
-                    self.append_log(f"  error: {err_msg}")
+                    self.append_log(f"  error: {err_msg}", "danger")
             self._refresh_item_rows()
             self._run_compare()
 
@@ -318,14 +333,22 @@ class Model:
         def _cb():
             lines, err = self.run_backend("compare")
             if err:
-                self.append_log(f"  error: {err}")
+                self.append_log(f"  error: {err}", "danger")
                 self.dirty = True
                 return
             # Append human-readable lines (all except last JSON line)
             if lines:
                 for l in lines[:-1]:
-                    if l.strip():
-                        self.append_log(f"  {l}")
+                    l = l.strip()
+                    if l:
+                        if "→ All files up to date" in l:
+                            self.append_log(f"  {l}", "ok")
+                        elif "→" in l or "need backup" in l:
+                            self.append_log(f"  {l}", "warn")
+                        elif "Summary" in l:
+                            self.append_log(f"  {l}", "text")
+                        else:
+                            self.append_log(f"  {l}")
                 # Parse last line as JSON
                 try:
                     data = json.loads(lines[-1])
@@ -334,10 +357,10 @@ class Model:
                         self._refresh_item_rows()
                         ns = data.get("needs_sync", 0)
                         if ns > 0:
-                            self.append_log(f"→ {ns} file(s) need backup — press b to sync")
+                            self.append_log(f"→ {ns} file(s) need backup — press b to sync", "warn")
                             self.message = f"{ns} file(s) changed"
                         else:
-                            self.append_log("→ All files up to date ✓")
+                            self.append_log("→ All files up to date ✓", "ok")
                             self.message = "All up to date"
                 except (json.JSONDecodeError, IndexError):
                     pass
@@ -353,7 +376,7 @@ class Model:
         def _cb():
             lines, err = self.run_backend("compare", "--verbose")
             if err:
-                self.append_log(f"  error: {err}")
+                self.append_log(f"  error: {err}", "danger")
                 self.dirty = True
                 return
             if lines:
@@ -845,7 +868,7 @@ def handle_key(stdscr, model, key):
         return True
     if key in (ord('c'), ord('C')):
         model.message = ""
-        model.append_log("$ compare — per-file diff")
+        model.append_log("$ compare — per-file diff", "primary")
         model._run_compare_verbose()
         return True
     if key in (ord('l'), ord('L')):
