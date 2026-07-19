@@ -167,50 +167,59 @@ Item {
 
                 Rectangle {
                     id: closeBtn
-                    implicitWidth: closeLabel.implicitWidth + 18
+                    implicitWidth: 52
                     implicitHeight: 24
                     radius: TuiStyle.miniRadius
-                    color: closeHover.pressed ? TuiStyle.surfacePressed : closeHover.hovered ? TuiStyle.surfaceHover : "transparent"
+                    color: closeArea.pressed ? TuiStyle.surfacePressed : closeArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
                     border.width: 1
-                    border.color: closeHover.hovered ? TuiStyle.shellBorder : TuiStyle.line
+                    border.color: closeArea.containsMouse ? TuiStyle.shellBorder : TuiStyle.line
 
                     StyledText {
-                        id: closeLabel
                         anchors.centerIn: parent
                         text: "close"
                         font.pixelSize: Appearance.font.pixelSize.small
                         color: TuiStyle.dim
                     }
 
-                    HoverHandler { id: closeHover }
-                    TapHandler { onTapped: root.discard() }
+                    MouseArea {
+                        id: closeArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.discard()
+                    }
                 }
 
                 Rectangle {
                     id: copyBtn
-                    implicitWidth: copyLabel.implicitWidth + 18
+                    implicitWidth: 52
                     implicitHeight: 24
                     radius: TuiStyle.miniRadius
                     visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
-                    color: copyHover.pressed ? TuiStyle.surfacePressed : copyHover.hovered ? TuiStyle.surfaceHover : "transparent"
+                    color: copyArea.pressed ? TuiStyle.surfacePressed : copyArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
                     border.width: 1
-                    border.color: copyHover.hovered ? TuiStyle.shellBorder : TuiStyle.line
+                    border.color: copyArea.containsMouse ? TuiStyle.shellBorder : TuiStyle.line
+
+                    QtObject {
+                        id: copyState
+                        property string label: "copy"
+                    }
 
                     StyledText {
-                        id: copyLabel
                         anchors.centerIn: parent
-                        text: copyBtnText
+                        text: copyState.label
                         font.pixelSize: Appearance.font.pixelSize.small
                         color: TuiStyle.dim
                     }
 
-                    property string copyBtnText: "copy"
-
-                    HoverHandler { id: copyHover }
-                    TapHandler {
-                        onTapped: {
+                    MouseArea {
+                        id: copyArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
                             Quickshell.clipboardText = root.notificationObject?.body || root.notificationObject?.summary || "";
-                            copyBtn.copyBtnText = "copied";
+                            copyState.label = "copied";
                             copyReset.restart();
                         }
                     }
@@ -219,7 +228,7 @@ Item {
                         id: copyReset
                         interval: 1500
                         repeat: false
-                        onTriggered: copyBtn.copyBtnText = "copy"
+                        onTriggered: copyState.label = "copy"
                     }
                 }
             }
