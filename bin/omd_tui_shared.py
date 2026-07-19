@@ -24,6 +24,29 @@ C_BORDER, C_SUBTLE, C_PANEL = 8, 9, 10
 # Extended pairs for theme swatches (11..30 allocated at runtime)
 C_THEME_START = 11
 
+# Theme accent color cache (loaded from quickshell.json)
+_THEME_ACCENT = None  # (r, g, b) or None
+
+
+def _load_theme_accent():
+    """Try to load the primary accent color from the active theme.
+    Returns (r,g,b) on success, None on failure (file missing, parse error, etc.).
+    """
+    try:
+        import json
+        path = os.path.join(OMD_ROOT, "current", "theme", "quickshell.json")
+        with open(path) as f:
+            data = json.load(f)
+        primary = data.get("primary", "")
+        if primary and primary.startswith("#") and len(primary) == 7:
+            r = int(primary[1:3], 16)
+            g = int(primary[3:5], 16)
+            b = int(primary[5:7], 16)
+            return (r, g, b)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, KeyError, OSError):
+        pass
+    return None
+
 _callback_queue = queue.SimpleQueue()
 
 def init_colors():
@@ -39,7 +62,19 @@ def init_colors():
         pass
     bg = -1
     curses.init_pair(C_FG,      curses.COLOR_WHITE,  bg)
-    curses.init_pair(C_ACCENT,  curses.COLOR_CYAN,   bg)
+    # Accent: try theme primary, fall back to CYAN
+    theme_rgb = _load_theme_accent()
+    colors = getattr(curses, "COLORS", 8)
+    if theme_rgb and colors > 240:
+        r, g, b = theme_rgb
+        # Use color 16 (first user-alterable slot in 256-color mode)
+        try:
+            curses.init_color(16, r * 1000 // 255, g * 1000 // 255, b * 1000 // 255)
+            curses.init_pair(C_ACCENT, 16, bg)
+        except curses.error:
+            curses.init_pair(C_ACCENT, curses.COLOR_CYAN, bg)
+    else:
+        curses.init_pair(C_ACCENT, curses.COLOR_CYAN, bg)
     curses.init_pair(C_MUTED,   curses.COLOR_WHITE,  bg)
     curses.init_pair(C_OK,      curses.COLOR_GREEN,  bg)
     curses.init_pair(C_WARN,    curses.COLOR_YELLOW, bg)
