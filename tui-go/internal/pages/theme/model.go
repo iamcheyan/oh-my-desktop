@@ -155,10 +155,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						key  string
 					}
 					buttons := []btn{
-						{"Image (i)", "f"},
+						{"File (f)", "f"},
+						{"Folder (d)", "d"},
 						{"Color (c)", "c"},
-						{"Pick File (f)", "f"},
-						{"Pick Folder (d)", "d"},
 						{"Next (w)", "w"},
 						{"Perf (1)", "1"},
 						{"Bal (2)", "2"},
@@ -319,8 +318,8 @@ func (m Model) View() string {
 		helpItems = []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
-			ui.HelpItem("f", "pick file"),
-			ui.HelpItem("d", "pick folder"),
+			ui.HelpItem("f", "file"),
+			ui.HelpItem("d", "folder"),
 			ui.HelpItem("r", "refresh"),
 			ui.HelpItem("q", "quit"),
 		}
@@ -328,8 +327,8 @@ func (m Model) View() string {
 		helpItems = []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
-			ui.HelpItem("c", "color mode"),
-			ui.HelpItem("f", "pick file"),
+			ui.HelpItem("f", "file"),
+			ui.HelpItem("c", "color"),
 			ui.HelpItem("d", "pick folder"),
 			ui.HelpItem("w", "next"),
 			ui.HelpItem("x", "stop"),
@@ -342,9 +341,9 @@ func (m Model) View() string {
 		helpItems = []string{
 			ui.HelpItem("arrows", "theme"),
 			ui.HelpItem("enter", "apply"),
-			ui.HelpItem("c", "color mode"),
+			ui.HelpItem("d", "folder"),
+			ui.HelpItem("c", "color"),
 			ui.HelpItem("f", "pick file"),
-			ui.HelpItem("d", "pick folder"),
 			ui.HelpItem("1/2/3", "effects"),
 			ui.HelpItem("r", "refresh"),
 			ui.HelpItem("q", "quit"),
@@ -421,14 +420,22 @@ func (m Model) wallpaperControls(width int) string {
 	mode := m.value("wallpaper.mode", "file")
 	effect := m.value("effects.mode", "balanced")
 
-	// 1. Mode selector line: Image (i) vs Color (c)
-	imageIndicator := "○"
-	imageStyle := lipgloss.NewStyle().Foreground(pal.muted)
-	if mode == "file" || mode == "folder" {
-		imageIndicator = "◉"
-		imageStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	// 1. Mode selector line: File (f) vs Folder (d) vs Color (c)
+	fileIndicator := "○"
+	fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "file" {
+		fileIndicator = "◉"
+		fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
 	}
-	imageLabel := imageStyle.Render(imageIndicator + " Image (i)")
+	fileLabel := fileStyle.Render(fileIndicator + " File (f)")
+
+	folderIndicator := "○"
+	folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
+	if mode == "folder" {
+		folderIndicator = "◉"
+		folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
+	}
+	folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
 
 	colorIndicator := "○"
 	colorStyle := lipgloss.NewStyle().Foreground(pal.muted)
@@ -438,23 +445,16 @@ func (m Model) wallpaperControls(width int) string {
 	}
 	colorLabel := colorStyle.Render(colorIndicator + " Color (c)")
 
-	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + imageLabel + "     " + colorLabel
+	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + fileLabel + "     " + folderLabel + "     " + colorLabel
 
-	// 2. Source selection line (only shown if Image mode is active)
-	var typeLine string
-	if mode == "file" || mode == "folder" {
-		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") +
-			lipgloss.NewStyle().Foreground(pal.muted).Render("○ Pick File (f)     ○ Pick Folder (d)")
-	}
-
-	// 3. Action selector line (only shown if Folder type is active)
+	// 2. Action selector line (only shown if Folder type is active)
 	var actionLine string
 	if mode == "folder" {
 		nextLabel := lipgloss.NewStyle().Foreground(pal.muted).Render("○ Next (w)")
 		actionLine = lipgloss.NewStyle().Foreground(pal.text).Render("Action: ") + nextLabel
 	}
 
-	// 4. Effect selector line
+	// 3. Effect selector line
 	perfIndicator := "○"
 	perfStyle := lipgloss.NewStyle().Foreground(pal.muted)
 	if effect == "performance" {
@@ -481,7 +481,7 @@ func (m Model) wallpaperControls(width int) string {
 
 	effectLine := lipgloss.NewStyle().Foreground(pal.text).Render("Effect: ") + perfLabel + "     " + balLabel + "     " + visLabel
 
-	// 5. Active background details line
+	// 4. Active background details line
 	var activeLine, valLine string
 	if mode == "color" {
 		activeLine = lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("Active Background:")
@@ -505,9 +505,6 @@ func (m Model) wallpaperControls(width int) string {
 	var lines []string
 	lines = append(lines, lipgloss.NewStyle().Foreground(pal.accent).Bold(true).Render("SETTINGS & STATUS"))
 	lines = append(lines, modeLine)
-	if typeLine != "" {
-		lines = append(lines, typeLine)
-	}
 	if actionLine != "" {
 		lines = append(lines, actionLine)
 	}
@@ -1086,11 +1083,7 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("Applying %s…", slug)
 			return m, m.apply(slug)
 		}
-	case "i":
-		if !m.busy {
-			m.busy = true
-			return m, m.runAction("wallpaper-pick-file")
-		}
+
 	case "c":
 		if !m.busy && m.value("wallpaper.mode", "file") != "color" {
 			m.busy = true
