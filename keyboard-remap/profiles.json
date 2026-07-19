@@ -5,7 +5,7 @@
       "displayName": "apple spi keyboard",
       "hyprName": "apple-spi-keyboard",
       "keydId": "05ac:0342",
-      "enabled": false,
+      "enabled": true,
       "enabledPresets": [
         "rightalt-down"
       ],

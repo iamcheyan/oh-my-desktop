@@ -657,12 +657,11 @@ def view(stdscr, model):
     left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
 
-    # Focusable areas: left keyboard list, right profile, right presets
+    # Focusable areas:
+    #   Left:   only Keyboards (device list) — Health/Actions are info/buttons only
+    #   Right:  Profile + Presets both interactive; Activity is read-only log
     left_on = model.focus_area == 0
     right_on = model.focus_area == 1
-    _pf_rows = 2 if model.fnmode_available else 1
-    on_profile = right_on and model.selected_preset < _pf_rows
-    on_presets = right_on and model.selected_preset >= _pf_rows
 
     # ── Left: three stacked boxes ──
     # Box 1: Keyboards (focusable)
@@ -713,7 +712,7 @@ def view(stdscr, model):
         profile_lines.append(("muted", "(view only — connect to edit)"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
-        S.draw_focus_border(stdscr, on_profile, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
+        S.draw_focus_border(stdscr, right_on, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
         S.draw_lines_in_area(stdscr, hero_h, margin + left_w, profile_box_h, right_w, profile_lines)
     else:
         profile_box_h = 0
@@ -745,7 +744,7 @@ def view(stdscr, model):
     presets_title = f"Presets  {on_count} on"
     presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
     if presets_box_h >= 3 and len(presets_lines) > 0:
-        S.draw_focus_border(stdscr, on_presets, presets_y, margin + left_w, presets_box_h, right_w, presets_title)
+        S.draw_focus_border(stdscr, right_on, presets_y, margin + left_w, presets_box_h, right_w, presets_title)
         S.draw_lines_in_area(stdscr, presets_y, margin + left_w, presets_box_h, right_w, presets_lines)
     else:
         presets_box_h = 0
