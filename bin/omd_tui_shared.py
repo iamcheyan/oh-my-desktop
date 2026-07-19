@@ -27,6 +27,41 @@ C_THEME_START = 11
 # Theme accent color cache (loaded from quickshell.json)
 _THEME_ACCENT = None  # (r, g, b) or None
 
+# xterm-256 extended color palette levels (for colors 16-231)
+_XTERM_LEVELS = (0, 95, 135, 175, 215, 255)
+
+
+def _xterm_rgb(index):
+    """Return the standard RGB value for an xterm-256 extended color index."""
+    if 16 <= index <= 231:
+        value = index - 16
+        return (
+            _XTERM_LEVELS[value // 36],
+            _XTERM_LEVELS[(value // 6) % 6],
+            _XTERM_LEVELS[value % 6],
+        )
+    if 232 <= index <= 255:
+        level = 8 + (index - 232) * 10
+        return (level, level, level)
+    return (0, 0, 0)
+
+
+def _nearest_xterm_index(r, g, b):
+    """Find the nearest xterm-256 color index (16-255) for an RGB value.
+
+    Uses perceptual (redmean) weighting so saturated colors are not mistakenly
+    mapped to the grey ramp.  Never calls init_color(), so the terminal's
+    global color table is never modified.
+    """
+    def dist(idx):
+        cr, cg, cb = _xterm_rgb(idx)
+        dr, dg, db = r - cr, g - cg, b - cb
+        r_mean = (r + cr) >> 1
+        wr = 2 + (r_mean >> 7)
+        return wr * dr * dr + 4 * dg * dg + 3 * db * db
+
+    return min(range(16, 256), key=dist)
+
 
 def _load_theme_accent():
     """Try to load the primary accent color from the active theme.
@@ -62,18 +97,21 @@ def init_colors():
         pass
     bg = -1
     curses.init_pair(C_FG,      curses.COLOR_WHITE,  bg)
-    # Accent: try theme primary, fall back to CYAN
+    # Accent: try theme primary mapped to nearest xterm-256 fixed color.
+    # We never call init_color() — that would mutate the terminal's global
+    # color table and corrupt colors in every other TUI in the session.
     theme_rgb = _load_theme_accent()
     colors = getattr(curses, "COLORS", 8)
-    if theme_rgb and colors > 240:
+    accent_set = False
+    if theme_rgb and colors >= 256:
         r, g, b = theme_rgb
-        # Use color 16 (first user-alterable slot in 256-color mode)
         try:
-            curses.init_color(16, r * 1000 // 255, g * 1000 // 255, b * 1000 // 255)
-            curses.init_pair(C_ACCENT, 16, bg)
+            xterm_idx = _nearest_xterm_index(r, g, b)
+            curses.init_pair(C_ACCENT, xterm_idx, bg)
+            accent_set = True
         except curses.error:
-            curses.init_pair(C_ACCENT, curses.COLOR_CYAN, bg)
-    else:
+            pass
+    if not accent_set:
         curses.init_pair(C_ACCENT, curses.COLOR_CYAN, bg)
     curses.init_pair(C_MUTED,   curses.COLOR_WHITE,  bg)
     curses.init_pair(C_OK,      curses.COLOR_GREEN,  bg)

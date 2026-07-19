@@ -9,7 +9,6 @@ import curses
 import json
 import os
 import platform
-import signal
 import subprocess
 import sys
 import threading
@@ -481,28 +480,6 @@ class Model:
         threading.Thread(target=_cb, daemon=True).start()
 
 
-_terminal_proc = None  # Popen handle for the NAS browse terminal
-
-
-def _close_terminal():
-    """Close the NAS browse terminal if it's still running."""
-    global _terminal_proc
-    if _terminal_proc is None:
-        return
-    try:
-        pgid = os.getpgid(_terminal_proc.pid)
-        os.killpg(pgid, signal.SIGTERM)
-        _terminal_proc.wait(timeout=2)
-    except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-        except Exception:
-            pass
-    except Exception:
-        pass
-    _terminal_proc = None
-
-
 def view_remote_files(model):
     """Open a terminal at the host-specific backup directory for interactive browsing."""
     mnt = os.path.expanduser("~/NAS")
@@ -535,8 +512,7 @@ def view_remote_files(model):
         'else exec kitty --class=org.omd.list-file-share-backup --title="' + title + '" -- bash -c ' + repr(inner) + '; fi'
     )
     try:
-        global _terminal_proc
-        _terminal_proc = subprocess.Popen(
+        subprocess.Popen(
             ["bash", "-c", cmd],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -890,24 +866,12 @@ def view(stdscr, model):
 # ── input handling ──
 
 def handle_key(stdscr, model, key):
-    if key == ord('q'):
+    if key == ord('q') or key == 27:
         if model.editing_field:
             model.editing_field = False
             model.dirty = True
             return True
         return False
-
-    if key == 27:  # ESC
-        if model.editing_field:
-            model.editing_field = False
-            model.dirty = True
-            return True
-        if _terminal_proc is not None:
-            _close_terminal()
-            model.message = "NAS browse terminal closed"
-            model.dirty = True
-            return True
-        return False  # No terminal open — quit
 
     if model.editing_field:
         return handle_edit_key(model, key)
