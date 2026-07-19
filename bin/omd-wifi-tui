@@ -508,22 +508,7 @@ class WiFiTUI:
         curses.noecho()
         curses.cbreak()
         self.stdscr.keypad(True)
-        curses.start_color()
-        try:
-            curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_GREEN, -1)
-            curses.init_pair(2, curses.COLOR_YELLOW, -1)
-            curses.init_pair(3, curses.COLOR_CYAN, -1)
-            curses.init_pair(4, curses.COLOR_RED, -1)
-            curses.init_pair(5, curses.COLOR_BLUE, -1)
-            curses.init_pair(6, curses.COLOR_GREEN, -1)
-            curses.init_pair(7, curses.COLOR_YELLOW, -1)
-            if curses.COLORS >= 256:
-                curses.init_pair(8, 15, 238)
-            else:
-                curses.init_pair(8, curses.COLOR_WHITE, curses.COLOR_BLACK)
-        except curses.error:
-            pass
+        S.init_colors()
         self.stdscr.timeout(200)
 
     def _cleanup(self):
@@ -722,7 +707,7 @@ class WiFiTUI:
         # Always keep an Available panel so first-run machines aren't a blank slab
         has_avail = self._show_available
         adapter_h = 1 + 4
-        help_h = 0
+        help_h = 2
         usable = h - margin * 2
 
         if has_avail:
@@ -786,21 +771,14 @@ class WiFiTUI:
                 (self.status_msg and not self.status_msg.startswith("Press")):
             try:
                 msg = self.status_msg[:box_w]
-                attr = curses.color_pair(2) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
                 self.stdscr.addnstr(h - 3, margin + max(0, (box_w - len(msg)) // 2),
-                                    msg, box_w, attr)
+                                    msg, box_w, S.ATTR_PRIMARY)
             except curses.error:
                 pass
 
         self.stdscr.refresh()
 
-    def _put_ch(self, y, x, ch, attr=curses.A_NORMAL):
-        try:
-            self.stdscr.addstr(y, x, ch, attr)
-        except curses.error:
-            pass
-
-
+    @staticmethod
     def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
         n = len(col_widths)
         if n == 0:
@@ -837,15 +815,11 @@ class WiFiTUI:
         return s.ljust(width)
 
     def _header_attr(self, focused: bool):
-        if focused and curses.has_colors():
-            return curses.color_pair(2) | curses.A_BOLD
-        return curses.A_BOLD
+        return S.ATTR_SECTION
 
     def _sel_attr(self, selected: bool, focused_section: bool):
         if selected and focused_section:
-            if curses.has_colors():
-                return curses.color_pair(8)
-            return curses.A_REVERSE
+            return S.ATTR_FOCUS
         return curses.A_NORMAL
 
     def _draw_saved_table(self, y, x, h, w, saved: list[dict]):
@@ -933,7 +907,7 @@ class WiFiTUI:
             "┃  Enter password, Esc to cancel    ┃",
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
         ]
-        attr = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
+        attr = S.ATTR_ACCENT_BOLD
         box_h = len(lines)
         box_w = max(len(l) for l in lines)
         top = (h - box_h) // 2
