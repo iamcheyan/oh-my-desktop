@@ -152,16 +152,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					gridStartY += 1
 				}
 
-				// Right column x-offset: screenPaddingX(1) + leftW + columnGap(2)
-				contentW := max(14, m.width-10)
-				leftW := min(54, max(28, contentW/3))
-				rightColX := 1 + leftW + 2
-
 				if clickY >= gridStartY && clickY < gridStartY+themeRows*5 {
 					clickRow := (clickY - gridStartY) / 5
 					clickCol := -1
 					for c := 0; c < cols; c++ {
-						x1 := rightColX + c*(tileW+4)
+						x1 := 1 + c*(tileW+4)
 						x2 := x1 + tileW + 2
 						if clickX >= x1 && clickX < x2 {
 							clickCol = c
@@ -247,7 +242,7 @@ func (m Model) View() string {
 		}),
 		Left:  m.leftColumn(),
 		Right: m.rightColumn(),
-		Wide:  m.width >= 90,
+		Wide:  false,
 		Help:  m.helpItems(),
 	})
 }
@@ -312,8 +307,9 @@ func (m Model) leftColumn() string {
 	if m.status == nil {
 		return ""
 	}
-	preview := m.wallpaperPreview(28, 10)
-	controls := m.wallpaperControls(36)
+	w := max(40, m.width-10)
+	preview := m.wallpaperPreview(w, 8)
+	controls := m.wallpaperControls(w)
 	return preview + "\n\n" + controls
 }
 
@@ -321,7 +317,8 @@ func (m Model) rightColumn() string {
 	if m.status == nil {
 		return "Loading…"
 	}
-	return m.themeGridView(54, 6)
+	w := max(40, m.width-10)
+	return m.themeGridView(w, 6)
 }
 
 func (m Model) wallpaperControls(width int) string {

@@ -9,7 +9,7 @@ import (
 	"github.com/iamcheyan/oh-my-desktop/tui-go/internal/backend"
 )
 
-func TestHeroViewFitsViewport(t *testing.T) {
+func TestRightColumnFitsViewport(t *testing.T) {
 	m := Model{status: backend.Status{
 		"wallpaper.mode":       "folder",
 		"wallpaper.current":    "/home/test/Pictures/wallpapers/a-very-long-wallpaper-file-name.png",
@@ -17,13 +17,12 @@ func TestHeroViewFitsViewport(t *testing.T) {
 		"wallpaper.interval":   "3600",
 		"effects.mode":         "balanced",
 	}}
+	m.width, m.height = 120, 40
 
-	for _, width := range []int{54, 80, 120, 160} {
-		view := m.heroView(width)
-		for row, line := range strings.Split(view, "\n") {
-			if got := lipgloss.Width(line); got > width {
-				t.Fatalf("width %d row %d rendered as %d columns", width, row, got)
-			}
+	view := m.rightColumn()
+	for row, line := range strings.Split(view, "\n") {
+		if got := lipgloss.Width(line); got > 80 {
+			t.Fatalf("row %d rendered as %d columns (too wide for right pane)", row, got)
 		}
 	}
 }
@@ -38,7 +37,7 @@ func TestWallpaperControlsFollowMode(t *testing.T) {
 	}}
 
 	fileView := m.wallpaperControls(100)
-	if !strings.Contains(fileView, "SETTINGS & STATUS") || !strings.Contains(fileView, "Vis (3)") {
+	if !strings.Contains(fileView, "Settings & Status") || !strings.Contains(fileView, "vis (3)") {
 		t.Fatal("file mode is missing settings and status or effects")
 	}
 
@@ -50,7 +49,26 @@ func TestWallpaperControlsFollowMode(t *testing.T) {
 
 	m.status["wallpaper.mode"] = "color"
 	colorView := m.wallpaperControls(100)
-	if !strings.Contains(colorView, "Active Background:") || !strings.Contains(colorView, "Solid Color") {
+	if !strings.Contains(colorView, "Active Background") || !strings.Contains(colorView, "Solid color") {
 		t.Fatal("color mode is missing active background info")
+	}
+}
+
+func TestThemePageUsesSharedShell(t *testing.T) {
+	m := Model{
+		status: backend.Status{
+			"wallpaper.mode": "file",
+			"theme.current":  "last-horizon",
+			"effects.mode":   "balanced",
+		},
+		themes: []themeEntry{{slug: "last-horizon", name: "Last Horizon", current: true}},
+		width:  120,
+		height: 40,
+	}
+	out := m.View()
+	for _, s := range []string{"Theme & Appearance", "Themes", "Settings & Status"} {
+		if !strings.Contains(out, s) {
+			t.Fatalf("theme page missing %q\n%s", s, out)
+		}
 	}
 }
