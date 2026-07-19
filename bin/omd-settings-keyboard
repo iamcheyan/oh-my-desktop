@@ -37,8 +37,11 @@ case "${1:-status}" in
     # Redirect stdin to dev null to prevent raw-mode terminal hangs
     "${OMD_ROOT}/share/bin/omarchy-keyboard-apply" < /dev/null
     ;;
+  key-test)
+    "${OMD_ROOT}/scripts/key-test-launcher" < /dev/null
+    ;;
   *)
-    echo "usage: omd-settings-keyboard status|setup|apply" >&2
+    echo "usage: omd-settings-keyboard status|setup|apply|key-test" >&2
     exit 2
     ;;
 esac

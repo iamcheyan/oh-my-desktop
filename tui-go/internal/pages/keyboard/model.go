@@ -317,6 +317,8 @@ func keyboardActionMessage(action string) string {
 		return "keyd setup completed"
 	case "apply":
 		return "Key remaps applied successfully"
+	case "key-test":
+		return "Key tester finished"
 	default:
 		return "Done"
 	}
@@ -414,6 +416,11 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 		if !m.busy {
 			m.busy = true
 			return m, m.runAction("setup")
+		}
+	case "t":
+		if !m.busy {
+			m.busy = true
+			return m, m.runAction("key-test")
 		}
 	case "r":
 		return m, tea.Batch(m.fetchStatus(), m.fetchDevices())
@@ -660,6 +667,7 @@ func (m Model) View() string {
 		ui.HelpItem("space", "toggle"),
 		ui.HelpItem("enter", "edit custom key"),
 		ui.HelpItem("s", "setup keyd"),
+		ui.HelpItem("t", "key tester"),
 		ui.HelpItem("r", "refresh"),
 		ui.HelpItem("q", "quit"),
 	}
@@ -762,6 +770,14 @@ func (m Model) renderLeftColumn(w, h int) string {
 
 		b.WriteString(fmt.Sprintf("%s %s\n", bullet, style.Render(dev.DisplayName+offlineText)))
 	}
+
+	b.WriteString("\n")
+	b.WriteString(ui.Section.Render("ACTIONS"))
+	b.WriteString("\n")
+	b.WriteString(ui.ActionButton("", "s", "Setup keyd", m.busy))
+	b.WriteString("\n")
+	b.WriteString(ui.ActionButton("", "t", "Key Tester", m.busy))
+	b.WriteString("\n")
 
 	return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
 }
