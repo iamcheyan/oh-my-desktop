@@ -159,7 +159,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             color: #dcdccc;
         }
         .main-box {
-            padding: 28px 32px;
+            padding: 0;
         }
         .title-label {
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -173,9 +173,11 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         }
         .tab-button {
             background: transparent;
+            background-image: none;
             border: none;
             border-bottom: 2px solid transparent;
             border-radius: 0;
+            box-shadow: none;
             padding: 8px 28px;
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
             font-size: 14px;
@@ -189,16 +191,24 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             color: #00bcd4;
             border-bottom: 2px solid #00bcd4;
             background: transparent;
+            background-image: none;
+            box-shadow: none;
         }
         .tab-button:hover {
             color: #dcdccc;
             background: transparent;
+            background-image: none;
+            box-shadow: none;
+        }
+        .tab-button:focus-visible {
+            outline: none;
+            box-shadow: none;
         }
         .content-card {
             background-color: #16181d;
             border: 1px solid #2d3139;
             border-radius: 10px;
-            padding: 28px 32px;
+            padding: 32px 36px;
         }
         .hint-label {
             font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -288,6 +298,10 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         # ── layout ──
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main_box.add_css_class("main-box")
+        main_box.set_margin_start(40)
+        main_box.set_margin_end(40)
+        main_box.set_margin_top(32)
+        main_box.set_margin_bottom(32)
         self.set_child(main_box)
 
         # title
