@@ -464,25 +464,18 @@ def hero_info(model):
 
 
 def help_items(model):
-    items = [
-        ("arrows", "navigate"),
-        ("tab", "area"),
-    ]
     if model.editing_field:
-        items = [("type", "edit value"), ("enter", "confirm"), ("esc", "cancel")]
+        items = [("enter", "confirm"), ("esc", "cancel")]
         if model.edit_field_key == "localPath":
             items.append(("comma", "separate paths"))
     else:
-        items += [
+        items = [
             ("enter", "edit config"),
-            ("t", "test connection"),
-            ("s", "sync now"),
-            ("c", "compare changes"),
+            ("t", "test conn"),
+            ("s", "sync"),
+            ("c", "compare"),
             ("e", "edit file"),
-            ("l", "remote files"),
-            ("r", "refresh"),
-            ("pgup/pgdn", "scroll"),
-            ("q", "quit"),
+            ("l", "remote browse"),
         ]
     return items
 

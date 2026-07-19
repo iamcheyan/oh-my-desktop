@@ -603,18 +603,14 @@ def hero_info(model):
 
 def help_items(model):
     if model.show_picker:
-        return [("arrows", "navigate"), ("enter/space", "select"), ("esc", "cancel")]
+        return [("enter/space", "select"), ("esc", "cancel")]
     items = [
-        ("arrows", "navigate"),
-        ("tab", "column"),
         ("space", "toggle"),
         ("enter", "edit key"),
         ("a", "apply"),
         ("s", "setup"),
         ("t", "tester"),
         ("pgup/pgdn", "logs"),
-        ("r", "refresh"),
-        ("q", "quit"),
     ]
     return items
 

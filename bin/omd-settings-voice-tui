@@ -475,15 +475,14 @@ def state_label(model):
 
 def help_items(model):
     if model.trial_transcribing:
-        return [("…", "transcribing"), ("q", "quit")]
+        return [("…", "transcribing")]
     if model.trial_listening or model.recording():
-        return [("space", "stop & transcribe"), ("esc", "cancel"), ("q", "quit")]
+        return [("space", "stop & transcribe")]
     items = [("enter", "record" if model.state() == "idle" else ("setup" if model.state() == "nomodel" else "cancel"))]
     if model.model_ready():
         items.append(("space", "trial record"))
     if model.state() not in ("nomodel", "downloading", "recording"):
         items += [("e", "bindings"), ("d", "diagnose")]
-    items += [("r", "refresh"), ("q", "quit")]
     return items
 
 

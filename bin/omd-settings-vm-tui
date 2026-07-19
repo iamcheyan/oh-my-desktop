@@ -373,7 +373,6 @@ def help_items(model):
     elif ps == "repair":
         if model.configured():
             items += [("d", "remove")]
-    items += [("r", "refresh"), ("q", "quit")]
     return items
 
 

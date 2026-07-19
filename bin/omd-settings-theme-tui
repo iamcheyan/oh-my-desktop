@@ -419,16 +419,13 @@ def _hero(model):
 def _help(model):
     mode = model.val("wallpaper.mode", "file")
     if mode == "color":
-        return [("arrows", "theme"), ("enter", "apply"), ("f", "file"),
-                ("d", "folder"), ("r", "refresh"), ("q", "quit")]
+        return [("enter", "apply"), ("f", "file"), ("d", "folder")]
     if mode == "folder":
-        return [("arrows", "theme"), ("enter", "apply"), ("f", "file"),
-                ("c", "color"), ("d", "pick folder"), ("w", "next"),
-                ("x", "stop"), ("[/]", "interval"), ("1/2/3", "effects"),
-                ("r", "refresh"), ("q", "quit")]
-    return [("arrows", "theme"), ("enter", "apply"), ("d", "folder"),
-            ("c", "color"), ("f", "pick file"), ("1/2/3", "effects"),
-            ("r", "refresh"), ("q", "quit")]
+        return [("enter", "apply"), ("f", "file"), ("c", "color"),
+                ("d", "pick folder"), ("w", "next"),
+                ("x", "stop"), ("[/]", "interval"), ("1/2/3", "effects")]
+    return [("enter", "apply"), ("d", "folder"), ("c", "color"),
+            ("f", "pick file"), ("1/2/3", "effects")]
 
 
 def _render_preview(model, width, height):
