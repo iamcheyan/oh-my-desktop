@@ -346,8 +346,13 @@ def hero(model):
         msg = model.err
     elif model.message and not model.busy:
         msg = model.message
+    status_labels = {
+        "blocked": "Blocked", "install": "Not installed", "booting": "Booting",
+        "ready": "Ready", "stopped": "Stopped", "repair": "Repair",
+    }
     return S.hero_line("Windows VM", subtitles.get(ps, "Loading…"),
-                       tones.get(ps, "muted"), model.busy, msg)
+                       tones.get(ps, "muted"), model.busy, msg,
+                       status_labels.get(ps, ""))
 
 
 def help_items(model):

@@ -592,12 +592,13 @@ def hero_info(model):
         parts.append("pending")
     subtitle = " · ".join(parts)
     tone = "ok" if model.boo("keydRunning") else "danger"
+    status_text = "keyd active" if model.boo("keydRunning") else "keyd inactive"
     msg = ""
     if model.busy:
         msg = "working…"
     elif model.message:
         msg = model.message
-    return S.hero_line("Keyboard Remap", subtitle, tone, model.busy, msg)
+    return S.hero_line("Keyboard Remap", subtitle, tone, model.busy, msg, status_text)
 
 
 def help_items(model):

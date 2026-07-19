@@ -413,7 +413,7 @@ def _hero(model):
         msg = model.message
     elif model.applying:
         msg = f"applying {model.applying}…"
-    return S.hero_line("Theme & Appearance", subtitle, "ok", model.busy, msg)
+    return S.hero_line("Theme & Appearance", subtitle, "ok", model.busy, msg, "")
 
 
 def _help(model):

@@ -491,22 +491,24 @@ def draw_focus_border(stdscr, focused, y, x, h, w, title=""):
 
 # ── visual primitives (port of Go ui/*.go) ────────────────────────────────
 
-def status_dot(tone):
-    """● health indicator. tone: 'ok', 'warn', 'danger', 'muted'."""
-    mapping = {
+def status_attr(tone):
+    """Return text attribute based on tone."""
+    return {
         "ok": ATTR_OK_BOLD,
         "warn": ATTR_WARN,
         "danger": ATTR_DANGER,
         "muted": ATTR_MUTED,
-    }
-    return ("●", mapping.get(tone, ATTR_MUTED))
+    }.get(tone, ATTR_MUTED)
 
 def section_title(text):
     return ("section", text)
 
-def hero_line(title, subtitle, tone="ok", busy=False, message=""):
-    """Build hero block: ● Title [working…|message]\\nsubtitle"""
-    dot, dot_attr = status_dot(tone)
+def hero_line(title, subtitle, tone="ok", busy=False, message="", status_text=""):
+    """Build hero block: Title [working…|message]\nsubtitle  [status]
+
+    status_text: right-aligned status label (empty = no status shown)
+    tone: color for status_text
+    """
     title_attr = ATTR_TEXT | curses.A_BOLD
     msg = ""
     msg_attr = 0
@@ -518,8 +520,32 @@ def hero_line(title, subtitle, tone="ok", busy=False, message=""):
             "ok": ATTR_OK, "warn": ATTR_WARN, "danger": ATTR_DANGER,
         }.get(tone, ATTR_ACCENT_BOLD)
         msg = f" {message}"
-    return (dot, dot_attr, title, title_attr, msg, msg_attr, subtitle)
+    st_attr = status_attr(tone)
+    return (title, title_attr, msg, msg_attr, subtitle, status_text, st_attr)
 
+
+def draw_hero(stdscr, hero_tuple):
+    """Render the standard 2-row hero block produced by hero_line().
+
+    Layout (rows 0-1):
+        Title [message]                                  Status
+        subtitle
+    """
+    title, ta, msg, ma, sub, status_text, sa = hero_tuple
+    # Title + message on the left
+    x = 1
+    safe_addstr(stdscr, 0, x, title, ta)
+    x += text_width(title)
+    if msg:
+        safe_addstr(stdscr, 0, x, msg, ma)
+        x += text_width(msg)
+    # Status text on the right
+    if status_text:
+        _, w = stdscr.getmaxyx()
+        right_x = w - 2 - text_width(status_text)
+        if right_x > x + 1:
+            safe_addstr(stdscr, 0, right_x, status_text, sa)
+    safe_addstr(stdscr, 1, 2, sub, ATTR_MUTED)
 def primary_line(label, key="enter", enabled=True):
     """→ Label (key) — main CTA."""
     if enabled:

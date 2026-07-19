@@ -376,13 +376,36 @@ def hero_info(model):
         if model.last_sync_ok is True:
             subtitle_parts.append(f"last sync {model.last_sync_time}")
         subtitle = " · ".join(subtitle_parts) if subtitle_parts else "File share backup"
-        tone = "ok" if model.test_result == "ok" else ("danger" if model.test_result == "error" else "muted")
+        tone = "muted"
+    status_text = ""
+    if not model.has_config:
+        status_text = ""
+    elif model.busy:
+        status_text = "Backing up…"
+        tone = "ok"
+    elif model.test_result == "error":
+        status_text = "Disconnected"
+        tone = "danger"
+    elif model.test_result != "ok":
+        status_text = "Not tested"
+        tone = "muted"
+    elif model.compare_result:
+        ns = model.compare_result.get("needs_sync", 0)
+        if ns > 0:
+            status_text = "Needs sync"
+            tone = "warn"
+        else:
+            status_text = "Synced"
+            tone = "ok"
+    else:
+        status_text = "Connected"
+        tone = "ok"
     msg = ""
     if model.busy:
         msg = "working…"
     elif model.message:
         msg = model.message
-    return S.hero_line("File Share / Backup", subtitle, tone, model.busy, msg)
+    return S.hero_line("File Share / Backup", subtitle, tone, model.busy, msg, status_text)
 
 
 def help_items(model):

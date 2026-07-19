@@ -440,8 +440,21 @@ def hero_info(model):
     elif model.message and not model.busy:
         msg = model.message
 
-    return S.hero_line("Voice Input", subtitle, tones.get(st, "muted"),
-                       model.busy and not model.trial_listening and not model.trial_transcribing, msg)
+    # Status text based on state
+    st_for_status = st
+    status_text = state_label(model) if model.model_ready() else st_for_status
+    if not model.model_ready():
+        st_tone = "warn"
+    elif st == "recording":
+        st_tone = "danger"
+    elif st == "downloading" or st == "nomodel":
+        st_tone = "warn"
+    elif model.boo("daemonRunning"):
+        st_tone = "ok"
+    else:
+        st_tone = "muted"
+    return S.hero_line("Voice Input", subtitle, st_tone,
+                       model.busy and not model.trial_listening and not model.trial_transcribing, msg, status_text)
 
 
 def state_label(model):
