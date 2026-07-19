@@ -28,6 +28,9 @@ import threading
 import time
 from shutil import which
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import omd_tui_shared as S
+
 # ── helpers ───────────────────────────────────────────────────────────
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -719,7 +722,7 @@ class WiFiTUI:
         # Always keep an Available panel so first-run machines aren't a blank slab
         has_avail = self._show_available
         adapter_h = 1 + 4
-        help_h = 2
+        help_h = 0
         usable = h - margin * 2
 
         if has_avail:
@@ -744,9 +747,7 @@ class WiFiTUI:
         box_w = w - margin * 2
 
         # ── Saved Networks ──
-        self._draw_box(y, margin, saved_h, box_w,
-                       title="Saved Networks",
-                       focused=self.focus == F_SAVED)
+        S.draw_thick_border(self.stdscr, y, margin, saved_h, box_w, "Saved Networks")
         self._draw_saved_table(y + 1, margin + 1, saved_h - 2, box_w - 2, self.saved)
         y += saved_h
 
@@ -755,21 +756,26 @@ class WiFiTUI:
             title = "Available Networks"
             if self._scan_deadline:
                 title = "Scanning…"
-            self._draw_box(y, margin, avail_h, box_w,
-                           title=title,
-                           focused=self.focus == F_AVAILABLE)
+            S.draw_thick_border(self.stdscr, y, margin, avail_h, box_w, title)
             self._draw_available_table(y + 1, margin + 1, avail_h - 2, box_w - 2, self.available)
             y += avail_h
 
         # ── Status ──
-        self._draw_box(y, margin, adapter_h, box_w,
-                       title="Status",
-                       focused=self.focus == F_STATUS)
+        S.draw_thick_border(self.stdscr, y, margin, adapter_h, box_w, "Status")
         self._draw_status_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
         y += adapter_h
 
         # ── Help bar ──
-        self._draw_help(h - help_h, margin, help_h, box_w)
+        if self.focus == F_SAVED:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("enter", "dis/connect"), ("s", "scan"), ("d", "disconnect"), ("f", "forget"), ("t", "wifi on/off")]
+        elif self.focus == F_AVAILABLE:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("enter", "connect"), ("s", "scan"), ("t", "wifi on/off")]
+        else:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("s", "scan"), ("t", "wifi on/off")]
+        S.draw_help_bar(self.stdscr, gen, tool)
 
         # ── Password prompt overlay ──
         if self.password_prompt is not None:
@@ -781,7 +787,7 @@ class WiFiTUI:
             try:
                 msg = self.status_msg[:box_w]
                 attr = curses.color_pair(2) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
-                self.stdscr.addnstr(h - help_h - 1, margin + max(0, (box_w - len(msg)) // 2),
+                self.stdscr.addnstr(h - 3, margin + max(0, (box_w - len(msg)) // 2),
                                     msg, box_w, attr)
             except curses.error:
                 pass
@@ -794,44 +800,7 @@ class WiFiTUI:
         except curses.error:
             pass
 
-    def _draw_box(self, y, x, h, w, title="", focused=False):
-        if w < 2 or h < 2:
-            return
-        if focused:
-            tl, tr, bl, br, hz, vt = "┏", "┓", "┗", "┛", "━", "┃"
-            attr = curses.color_pair(1) if curses.has_colors() else curses.A_BOLD
-            title_attr = attr | curses.A_BOLD
-        else:
-            tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
-            attr = curses.A_NORMAL
-            title_attr = attr
 
-        self._put_ch(y, x, tl, attr)
-        for i in range(1, w - 1):
-            self._put_ch(y, x + i, hz, attr)
-        self._put_ch(y, x + w - 1, tr, attr)
-
-        if title:
-            t = f" {title} "
-            tx = x + 1
-            max_t = max(0, w - 2)
-            t = t[:max_t]
-            try:
-                self.stdscr.addstr(y, tx, t, title_attr)
-            except curses.error:
-                pass
-
-        for row in range(1, h - 1):
-            self._put_ch(y + row, x, vt, attr)
-            self._put_ch(y + row, x + w - 1, vt, attr)
-
-        by = y + h - 1
-        self._put_ch(by, x, bl, attr)
-        for i in range(1, w - 1):
-            self._put_ch(by, x + i, hz, attr)
-        self._put_ch(by, x + w - 1, br, attr)
-
-    @staticmethod
     def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
         n = len(col_widths)
         if n == 0:
@@ -954,73 +923,6 @@ class WiFiTUI:
             attr = self._sel_attr(True, focused) if focused else curses.A_NORMAL
             self._put_row_cells(y + 2, x, w, cells, widths, attr)
 
-    def _draw_help(self, y, x, h, w):
-        if self.focus == F_SAVED:
-            if w > 120:
-                segments = [
-                    ("k,↑", " Up"), (" | ", None),
-                    ("j,↓", " Down"), (" | ", None),
-                    ("s", " Scan"), (" | ", None),
-                    ("d", " Disconnect"), (" | ", None),
-                    ("f", " Forget"), (" | ", None),
-                    ("↵ ", " Dis/Connect"), (" | ", None),
-                    ("t", " WiFi on/off"), (" | ", None),
-                    ("⇄", " Nav"),
-                ]
-                lines = [segments]
-            else:
-                lines = [
-                    [
-                        ("↵ ", " Dis/Connect"), (" | ", None),
-                        ("s", " Scan"), (" | ", None),
-                        ("d", " Disconnect"), (" | ", None),
-                        ("f", " Forget"),
-                    ],
-                    [
-                        ("t", " WiFi on/off"), (" | ", None),
-                        ("k,↑", " Up"), (" | ", None),
-                        ("j,↓", " Down"), (" | ", None),
-                        ("⇄", " Nav"),
-                    ],
-                ]
-        elif self.focus == F_AVAILABLE:
-            lines = [[
-                ("k,↑", " Up"), (" | ", None),
-                ("j,↓", " Down"), (" | ", None),
-                ("↵ ", " Connect"), (" | ", None),
-                ("s", " Scan"), (" | ", None),
-                ("⇄", " Nav"),
-            ]]
-        else:
-            lines = [[
-                ("s", " Scan"), (" | ", None),
-                ("t", " WiFi on/off"), (" | ", None),
-                ("⇄", " Nav"),
-            ]]
-
-        base = curses.color_pair(5) if curses.has_colors() else curses.A_NORMAL
-        bold = base | curses.A_BOLD
-
-        for li, segs in enumerate(lines[:h]):
-            plain_parts = []
-            for key, label in segs:
-                plain_parts.append(key)
-                if label is not None:
-                    plain_parts.append(label)
-            plain = "".join(plain_parts)
-            col = x + max(0, (w - len(plain)) // 2)
-            for key, label in segs:
-                try:
-                    if label is None:
-                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), base)
-                        col += len(key)
-                    else:
-                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), bold)
-                        col += len(key)
-                        self.stdscr.addnstr(y + li, col, label, max(0, x + w - col), base)
-                        col += len(label)
-                except curses.error:
-                    pass
 
     def _draw_password_prompt(self, h: int, w: int):
         masked = "*" * len(self.password_buf)

@@ -31,6 +31,9 @@ import sys
 import time
 from shutil import which
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import omd_tui_shared as S
+
 # English output from bluetoothctl across locales
 _SUBPROC_ENV = {
     **os.environ,
@@ -1000,7 +1003,7 @@ class BluetoothTUI:
 
         # Heights match bluetui: adapters = len+4, paired = len+4 when scanning else Fill
         adapter_h = 1 + 4  # one adapter row + header/margin/borders ≈ controllers.len + 4
-        help_h = 2
+        help_h = 0
         usable = h - margin * 2
 
         if has_disc:
@@ -1026,9 +1029,7 @@ class BluetoothTUI:
         box_w = w - margin * 2
 
         # ── Paired Devices (fills most of the screen when not scanning) ──
-        self._draw_box(y, margin, paired_h, box_w,
-                       title="Paired Devices",
-                       focused=self.focus == F_PAIRED)
+        S.draw_thick_border(self.stdscr, y, margin, paired_h, box_w, "Paired Devices")
         self._draw_paired_table(y + 1, margin + 1, paired_h - 2, box_w - 2, paired)
         y += paired_h
 
@@ -1036,21 +1037,26 @@ class BluetoothTUI:
         if has_disc and disc_h >= 4:
             spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[self._tick % 10]
             title = f"Scanning {spin}" if self.scanning else "Discovered devices"
-            self._draw_box(y, margin, disc_h, box_w,
-                           title=title,
-                           focused=self.focus == F_DISCOVERED)
+            S.draw_thick_border(self.stdscr, y, margin, disc_h, box_w, title)
             self._draw_discovered_table(y + 1, margin + 1, disc_h - 2, box_w - 2, discovered)
             y += disc_h
 
         # ── Adapter (fixed at bottom, above help) ──
-        self._draw_box(y, margin, adapter_h, box_w,
-                       title="Adapter",
-                       focused=self.focus == F_ADAPTER)
+        S.draw_thick_border(self.stdscr, y, margin, adapter_h, box_w, "Adapter")
         self._draw_adapter_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
         y += adapter_h
 
-        # ── Help bar (blue, centered, bold keys — bluetui style) ──
-        self._draw_help(h - help_h, margin, help_h, box_w)
+        # ── Help bar ──
+        if self.focus == F_PAIRED:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("enter", "dis/connect"), ("s", "scan on/off"), ("u", "unpair"), ("t", "un/trust"), ("f", "forget")]
+        elif self.focus == F_DISCOVERED:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("enter", "pair"), ("s", "scan on/off")]
+        else:
+            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+            tool = [("s", "scan on/off")]
+        S.draw_help_bar(self.stdscr, gen, tool)
 
         # ── PIN / confirm overlay ──
         if self.pin_prompt or self.confirm_prompt:
@@ -1061,7 +1067,7 @@ class BluetoothTUI:
             try:
                 msg = self.status_msg[: box_w]
                 attr = curses.color_pair(2) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
-                self.stdscr.addnstr(h - help_h - 1, margin + max(0, (box_w - len(msg)) // 2),
+                self.stdscr.addnstr(h - 3, margin + max(0, (box_w - len(msg)) // 2),
                                     msg, box_w, attr)
             except curses.error:
                 pass
@@ -1075,47 +1081,7 @@ class BluetoothTUI:
         except curses.error:
             pass
 
-    def _draw_box(self, y, x, h, w, title="", focused=False):
-        """Draw a bordered box — thick green when focused, thin default when not (bluetui)."""
-        if w < 2 or h < 2:
-            return
-        if focused:
-            tl, tr, bl, br, hz, vt = "┏", "┓", "┗", "┛", "━", "┃"
-            attr = curses.color_pair(1) if curses.has_colors() else curses.A_BOLD
-            title_attr = attr | curses.A_BOLD
-        else:
-            tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
-            attr = curses.A_NORMAL
-            title_attr = attr
 
-        # Draw char-by-char so Unicode box glyphs always span full width
-        # (bulk addnstr often clips multi-byte borders on some ncurses builds).
-        self._put_ch(y, x, tl, attr)
-        for i in range(1, w - 1):
-            self._put_ch(y, x + i, hz, attr)
-        self._put_ch(y, x + w - 1, tr, attr)
-
-        if title:
-            t = f" {title} "
-            tx = x + 1
-            max_t = max(0, w - 2)
-            t = t[:max_t]
-            try:
-                self.stdscr.addstr(y, tx, t, title_attr)
-            except curses.error:
-                pass
-
-        for row in range(1, h - 1):
-            self._put_ch(y + row, x, vt, attr)
-            self._put_ch(y + row, x + w - 1, vt, attr)
-
-        by = y + h - 1
-        self._put_ch(by, x, bl, attr)
-        for i in range(1, w - 1):
-            self._put_ch(by, x + i, hz, attr)
-        self._put_ch(by, x + w - 1, br, attr)
-
-    @staticmethod
     def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
         """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
         n = len(col_widths)
@@ -1251,80 +1217,6 @@ class BluetoothTUI:
             attr = self._sel_attr(True, focused) if focused else curses.A_NORMAL
             self._put_row_cells(y + 2, x, w, cells, widths, attr)
 
-    def _draw_help(self, y, x, h, w):
-        """Blue centered help with bold keys, context-sensitive like bluetui."""
-        if self.focus == F_PAIRED:
-            if w > 120:
-                segments = [
-                    ("k,↑", " Up"), (" | ", None),
-                    ("j,↓", " Down"), (" | ", None),
-                    ("s", " Scan on/off"), (" | ", None),
-                    ("u", " Unpair"), (" | ", None),
-                    ("↵ ", " Dis/Connect"), (" | ", None),
-                    ("t", " Un/Trust"), (" | ", None),
-                    ("f", " Forget"), (" | ", None),
-                    ("⇄", " Nav"),
-                ]
-                lines = [segments]
-            else:
-                lines = [
-                    [
-                        ("↵ ", " Dis/Connect"), (" | ", None),
-                        ("s", " Scan on/off"), (" | ", None),
-                        ("u", " Unpair"), (" | ", None),
-                        ("f", " Forget"),
-                    ],
-                    [
-                        ("t", " Un/Trust"), (" | ", None),
-                        ("k,↑", " Up"), (" | ", None),
-                        ("j,↓", " Down"), (" | ", None),
-                        ("⇄", " Nav"),
-                    ],
-                ]
-        elif self.focus == F_DISCOVERED:
-            lines = [[
-                ("k,↑", " Up"), (" | ", None),
-                ("j,↓", " Down"), (" | ", None),
-                ("↵ ", " Pair"), (" | ", None),
-                ("s", " Scan on/off"), (" | ", None),
-                ("⇄", " Nav"),
-            ]]
-        else:  # Adapter
-            if w > 80:
-                lines = [[
-                    ("s", " Scan on/off"), (" | ", None),
-                    ("⇄", " Nav"),
-                ]]
-            else:
-                lines = [[
-                    ("s", " Scan on/off"), (" | ", None),
-                    ("⇄", " Nav"),
-                ]]
-
-        base = curses.color_pair(5) if curses.has_colors() else curses.A_NORMAL
-        bold = base | curses.A_BOLD
-
-        for li, segs in enumerate(lines[:h]):
-            # segments: (key_or_sep, label|None) — label None means separator-only text in key
-            plain_parts = []
-            for key, label in segs:
-                plain_parts.append(key)
-                if label is not None:
-                    plain_parts.append(label)
-            plain = "".join(plain_parts)
-            col = x + max(0, (w - len(plain)) // 2)
-            for key, label in segs:
-                try:
-                    if label is None:
-                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), base)
-                        col += len(key)
-                    else:
-                        self.stdscr.addnstr(y + li, col, key, max(0, x + w - col), bold)
-                        col += len(key)
-                        self.stdscr.addnstr(y + li, col, label, max(0, x + w - col), base)
-                        col += len(label)
-                except curses.error:
-                    pass
 
     def _draw_prompt(self, h: int, w: int):
         if self.pin_prompt:
