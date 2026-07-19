@@ -55,7 +55,7 @@ def init_colors():
     ATTR_SECTION = attr(C_SECTION, True)
     ATTR_FOCUS   = attr(C_ACCENT, True)
     ATTR_OK      = attr(C_OK)
-    ATTR_WARN    = attr(C_WARN)
+    ATTR_WARN    = attr(C_WARN, True)
     ATTR_DANGER  = attr(C_DANGER)
     ATTR_ACTION  = attr(C_FG)
     ATTR_MUTED   = attr(C_MUTED, False) | curses.A_DIM
