@@ -88,9 +88,8 @@ func ActionText(key, label string) string {
 }
 
 // IconButton renders an optional Nerd Font glyph followed by an ActionText
-// mnemonic. Pass icon="" to render a plain mnemonic button. This is the
-// single entry point used by all settings pages so button styling stays
-// consistent (background preservation, padding, accent).
+// mnemonic. Prefer ActionLine / PrimaryLine for ordinary page actions
+// (docs/settings-tui-visual-system.md).
 func IconButton(icon, key, label string) string {
 	text := ActionText(key, label)
 	if icon == "" {
@@ -99,19 +98,23 @@ func IconButton(icon, key, label string) string {
 	return icon + "  " + text
 }
 
-// ActionButton renders a normal button with an optional icon + mnemonic.
+// ActionButton is a legacy alias for ActionLine (no border).
+// Prefer ActionLine in new code.
 func ActionButton(icon, key, label string, active bool) string {
-	return ButtonView(IconButton(icon, key, label), active)
+	_ = icon
+	return ActionLine(key, label, !active)
 }
 
-// PrimaryActionButton renders the primary button variant.
+// PrimaryActionButton is a legacy alias for PrimaryLine.
 func PrimaryActionButton(icon, key, label string) string {
-	return PrimaryButtonView(IconButton(icon, key, label))
+	_ = icon
+	return PrimaryLine(label, key, true)
 }
 
-// DisabledActionButton renders the disabled variant.
+// DisabledActionButton is a legacy alias for a disabled ActionLine.
 func DisabledActionButton(icon, key, label string) string {
-	return DisabledButtonView(IconButton(icon, key, label))
+	_ = icon
+	return ActionLine(key, label, false)
 }
 
 func HelpText(items ...string) string {
@@ -134,6 +137,9 @@ func StatusPill(label string, ok bool) string {
 	return style.Render(label)
 }
 
+// ButtonView / PrimaryButtonView / DisabledButtonView keep bordered chips for
+// rare modal chrome only. Ordinary settings actions must use PrimaryLine /
+// ActionLine (no border). See docs/settings-tui-visual-system.md.
 func ButtonView(text string, active bool) string {
 	style := Button.Copy().Padding(0, 1)
 	if active {
