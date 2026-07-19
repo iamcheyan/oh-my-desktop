@@ -202,14 +202,14 @@ Singleton {
     rounding: QtObject {
         property int unsharpen: 0
         property int unsharpenmore: 0
-        property int verysmall: 0
-        property int small: 0
-        property int normal: 0
-        property int large: 0
-        property int verylarge: 0
-        property int full: 0
+        property int verysmall: 4
+        property int small: 6
+        property int normal: 8
+        property int large: 12
+        property int verylarge: 16
+        property int full: 999
         property int screenRounding: 0
-        property int windowRounding: 0
+        property int windowRounding: 12
     }
 
     font: QtObject {

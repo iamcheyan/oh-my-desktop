@@ -37,6 +37,7 @@ Item {
     CircleUtilButton {
         id: displayButton
         anchors.centerIn: parent
+        toggled: GlobalStates.barPopupType === "display"
 
         onClicked: {
             if (root.isFirstClick) {

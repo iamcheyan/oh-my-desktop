@@ -166,3 +166,36 @@ In `quickshell/config.json`:
 | `quickshell/modules/bar/ClockWidget.qml` | 57 |
 | `quickshell/GlobalStates.qml` | — |
 | `apps/omd-bar/shell.qml` | 120 |
+
+---
+
+## 8. Troubleshooting & Incident Log
+
+### Incident: `kded6` Crash Loop & DBus Notification Hijack (2026-07-20)
+
+#### Symptom
+1. System continuously displayed top-right blue error cards: `kded6 意外关闭 请报告此错误，帮助改进这款软件。`
+2. Desktop notifications (screenshots, `notify-send`) rendered as KDE Plasma blue cards instead of OMD's Quickshell notification cards.
+
+#### Root Cause Analysis
+1. **`killall kded6` Crash Loop**:
+   - `quickshell/services/ConflictKiller.qml` executed `killall kded6` during startup to clear conflicting tray services.
+   - `kded6` is KDE's core background daemon. Forcibly terminating it with `killall` triggered `KCrash` / `systemd-coredump`, prompting KDE DrKonqi to post a crash error notification.
+   - Systemd automatically restarted `kded6`. Upon restart, `kded6` registered DBus service `org.freedesktop.Notifications`.
+   - On the next reload, `ConflictKiller.qml` ran `killall kded6` again, creating an endless **Kill → Crash Notification → Respawn → Kill** loop.
+
+2. **DBus Notification Service Hijack**:
+   - Because `kded6` claimed `org.freedesktop.Notifications` on DBus first during its auto-restart, Quickshell's `NotificationServer` failed to bind the name (`WARN: Could not register notification server at org.freedesktop.Notifications`).
+   - Consequently, all notifications fell back to KDE's built-in blue notification cards.
+
+3. **Missing QML Import**:
+   - `quickshell/modules/common/widgets/NotificationItem.qml` lacked `import Quickshell.Services.Notifications`, causing `ReferenceError: NotificationUrgency is not defined` when rendering urgent notification cards.
+
+#### Solution & Fixes
+1. **[ConflictKiller.qml](file:///home/tetsuya/development/OMD/quickshell/services/ConflictKiller.qml)**:
+   - Removed `killall kded6`.
+   - Updated conflict check to target only standalone notification daemons (`mako`, `dunst`, `swaync`, `fnott`) via `killall -9`.
+2. **[NotificationItem.qml](file:///home/tetsuya/development/OMD/quickshell/modules/common/widgets/NotificationItem.qml)**:
+   - Added `import Quickshell.Services.Notifications`.
+3. **DBus Recovery**:
+   - Released DBus name `org.freedesktop.Notifications` to ensure Quickshell's `NotificationServer` binds the service exclusively.

@@ -47,12 +47,11 @@ DEFAULT_CONFIG = {
     "excludeExt": "",
 }
 
-FIELD_KEYS = ["address", "share", "user", "password", "remotePath", "localPath", "includeExt", "excludeExt"]
+FIELD_KEYS = ["address", "share", "user", "remotePath", "localPath", "includeExt", "excludeExt"]
 FIELD_LABELS = {
     "address": "Address",
     "share": "Share",
     "user": "User",
-    "password": "Password",
     "remotePath": "Remote path",
     "localPath": "Local paths",
     "includeExt": "Include ext",
@@ -690,21 +689,6 @@ def render_schedule(model, width):
     return lines
 
 
-def render_actions(model):
-    lines = []
-    enabled = not model.busy
-    has_config = bool(model.config.get("address") and model.config.get("localPath"))
-    lines.append(S.action_line("t", "Test connection", enabled))
-    lines.append(S.action_line("r", "Compare quick", enabled and has_config))
-    lines.append(S.action_line("c", "Compare detail", enabled and has_config))
-    # Sync keys are always available even if only shown conditionally in help bar
-    lines.append(S.action_line("s", "Sync inc", enabled and has_config))
-    lines.append(S.action_line("S", "Sync full --delete", enabled and has_config))
-    lines.append(S.action_line("e", "Edit config file", enabled))
-    lines.append(S.action_line("l", "NAS shell", enabled and has_config))
-    return lines
-
-
 def render_item_table(model, width):
     """Render the managed items table: name | type | files | changes | backed | status."""
     rows = model.item_rows
@@ -806,36 +790,11 @@ def view(stdscr, model):
     left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
     content_h = avail_h
 
-    # Left: Status (info-only) + Connection (config) + Actions
-    conn_lines = render_connection_status(model, left_w - 4)
-    conn_box_h = min(content_h, len(conn_lines) + 3)
-    if conn_box_h >= 3:
-        S.draw_border(stdscr, hero_h, margin, conn_box_h, left_w, "Status")
-        S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
-    else:
-        conn_box_h = 0
-
-    field_y = hero_h + conn_box_h
-    field_lines = render_field_list(model, left_w - 4)
-    field_box_h = min(content_h - field_y + hero_h, len(field_lines) + 3)
-    if field_box_h >= 3:
-        S.draw_border(stdscr, field_y, margin, field_box_h, left_w, "Connection")
-        S.draw_lines_in_area(stdscr, field_y, margin, field_box_h, left_w, field_lines)
-    else:
-        field_box_h = 0
-
-    actions_y = field_y + field_box_h
-    actions_h = hero_h + content_h - actions_y
-    if actions_h >= 4:
-        S.draw_border(stdscr, actions_y, margin, actions_h, left_w, "Actions")
-        S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
-
-    # Right: Managed Items table + Activity log
+    # Right side first: compute Managed Items height for Status box alignment
     table_lines = render_item_table(model, right_w - 4)
     table_h = len(table_lines) + 3 if table_lines else 0
     if table_h < 3:
         table_h = 0
-    # Table takes as much as it needs, activity fills the rest
     avail_right = content_h
     act_min = 4
     table_box_h = min(table_h, avail_right - act_min)
@@ -844,13 +803,31 @@ def view(stdscr, model):
     if table_box_h >= 3:
         S.draw_border(stdscr, hero_h, margin + left_w, table_box_h, right_w, "Managed Items")
         S.draw_lines_in_area(stdscr, hero_h, margin + left_w, table_box_h, right_w, table_lines)
-    # Activity log below table
+    # Activity log below Managed Items
     act_y = hero_h + table_box_h
     act_h = hero_h + content_h - act_y
     if act_h >= 4:
         S.draw_border(stdscr, act_y, margin + left_w, act_h, right_w, "Activity")
         S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
+
+    # Left: Status (height = Managed Items height) + Connection (fills remaining)
+    conn_lines = render_connection_status(model, left_w - 4)
+    conn_box_h = table_box_h
+    if conn_box_h >= 3:
+        S.draw_border(stdscr, hero_h, margin, conn_box_h, left_w, "Status")
+        S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
+    else:
+        conn_box_h = 0
+
+    field_y = hero_h + conn_box_h
+    field_lines = render_field_list(model, left_w - 4)
+    field_box_h = max(0, content_h - conn_box_h)
+    if field_box_h >= 3:
+        S.draw_border(stdscr, field_y, margin, field_box_h, left_w, "Connection")
+        S.draw_lines_in_area(stdscr, field_y, margin, field_box_h, left_w, field_lines)
+    else:
+        field_box_h = 0
 
     S.draw_help_bar(stdscr, *help_items(model))
     S.finish_frame(stdscr)
@@ -976,10 +953,13 @@ def handle_key(stdscr, model, key):
 def start_edit(model):
     if model.focus_area != 0:
         return
-    sel_field = model.selected_left
-    if sel_field >= len(FIELD_KEYS):
+    sel = model.selected_left
+    if sel < 4:
         return
-    key = FIELD_KEYS[sel_field]
+    idx = sel - 4
+    if idx >= len(FIELD_KEYS):
+        return
+    key = FIELD_KEYS[idx]
     model.editing_field = True
     model.edit_field_key = key
     val = model.config.get(key, "")

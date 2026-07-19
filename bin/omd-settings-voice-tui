@@ -546,7 +546,7 @@ def view(stdscr, m):
         for i, (tag, text) in enumerate(right_lines):
             if i >= content_h - 3:
                 break
-            S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+            S.safe_addstr(stdscr, inner_y + i, left_w + 3, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
         log_h = content_h - 2 - len(right_lines)
         if log_h > 0:
             S.draw_log_in_area(stdscr, inner_y + len(right_lines) - 1,

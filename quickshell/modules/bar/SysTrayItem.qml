@@ -79,6 +79,19 @@ MouseArea {
         }
     }
 
+    Rectangle {
+        id: hoverBg
+        anchors.centerIn: parent
+        width: Config.options.bar.rightIconSlotWidth
+        height: Config.options.bar.rightIconSlotWidth
+        radius: width / 2
+        color: (root.containsMouse || menu.active) ? (menu.active ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.10)) : "transparent"
+
+        Behavior on color {
+            ColorAnimation { duration: 150 }
+        }
+    }
+
     IconImage {
         id: trayIcon
         visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !Config.options.tray.monochromeIcons

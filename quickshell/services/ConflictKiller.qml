@@ -24,23 +24,17 @@ Singleton {
 
     Process {
         id: checkConflictsProc
-        command: ["bash", "-c", "pidof kded6 || true; printf '\\n'; pidof mako dunst || true"]
+        command: ["bash", "-c", "pidof mako dunst swaync fnott || true"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = this.text.split("\n");
-                const conflictingTrays = (lines[0] ?? "").trim().length > 0;
-                const conflictingNotifications = (lines[1] ?? "").trim().length > 0;
+                const conflictingNotifications = (this.text ?? "").trim().length > 0;
                 var openDialog = false;
-                if (conflictingTrays) {
-                    if (!Config.options.conflictKiller.autoKillTrays) openDialog = true;
-                    else Quickshell.execDetached(["killall", "kded6"])
-                }
                 if (conflictingNotifications) {
                     if (!Config.options.conflictKiller.autoKillNotificationDaemons) openDialog = true;
-                    else Quickshell.execDetached(["killall", "mako", "dunst"])
+                    else Quickshell.execDetached(["killall", "-9", "mako", "dunst", "swaync", "fnott"]);
                 }
                 if (openDialog) {
-                    Quickshell.execDetached(["qs", "-p", root.killDialogQmlPath])
+                    Quickshell.execDetached(["qs", "-p", root.killDialogQmlPath]);
                 }
             }
         }

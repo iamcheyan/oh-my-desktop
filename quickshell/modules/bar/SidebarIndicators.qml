@@ -37,13 +37,13 @@ Item {
 
         Layout.preferredWidth: Config.options.bar.rightIconSlotWidth
         Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
-        buttonRadius: Appearance.rounding.full
+        buttonRadius: Config.options.bar.rightIconSlotWidth / 2
         colBackground: "transparent"
-        colBackgroundHover: "#18ffffff"
-        colBackgroundToggled: "#30ffffff"
-        colBackgroundToggledHover: "#40ffffff"
-        colRipple: "transparent"
-        colRippleToggled: "transparent"
+        colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
+        colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)
+        colBackgroundToggledHover: Qt.rgba(1, 1, 1, 0.26)
+        colRipple: Qt.rgba(1, 1, 1, 0.12)
+        colRippleToggled: Qt.rgba(1, 1, 1, 0.18)
         toggled: GlobalStates.barPopupType === iconButton.popupType
 
         onPressed: {

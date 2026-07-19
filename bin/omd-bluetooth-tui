@@ -1097,19 +1097,20 @@ class BluetoothTUI:
 
     @staticmethod
     def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
-        """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
-        n = len(col_widths)
-        if n == 0:
+        """Return x-offsets for columns: left-padded consecutively.
+
+        All free space goes to left and right margins (evenly split),
+        avoiding the rounding asymmetry of per-column SpaceAround.
+        """
+        if not col_widths:
             return []
         total = sum(col_widths)
-        free = max(0, inner_w - total)
-        # Each column gets free/n as surrounding space; half on each side.
-        unit = free / n
+        left_pad = max(0, inner_w - total) // 2
         offsets = []
-        x = unit / 2.0
+        x = left_pad
         for cw in col_widths:
-            offsets.append(int(round(x)))
-            x += cw + unit
+            offsets.append(x)
+            x += cw
         return offsets
 
     def _put_row_cells(self, y, x, inner_w, cells: list[str], widths: list[int], attr):
@@ -1146,21 +1147,34 @@ class BluetoothTUI:
         return curses.A_NORMAL
 
     def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
-        """Render Paired Devices table like bluetui (fav | name | trusted | connected | battery)."""
+        """Render Paired Devices table (fav | name | address | trusted | connected | battery)."""
         if h < 1 or w < 8:
             return
-        show_battery = any(d.get("battery_pct") is not None for d in paired)
-        # Column widths mirror bluetui Constraints: Length(1), Max(25), Length(7), Length(9), Length(10)
-        if show_battery:
-            headers = ["", "Name", "Trusted", "Connected", "Battery"]
-            widths = [1, min(25, max(10, w // 3)), 7, 9, 10]
-        else:
-            headers = ["", "Name", "Trusted", "Connected"]
-            widths = [1, min(25, max(10, w // 3)), 7, 9]
+        # 6 columns: star, name, address, trusted, connected, battery
+        star_w = 1
+        addr_w = 17       # XX:XX:XX:XX:XX:XX
+        trusted_w = 7
+        connected_w = 9
+        battery_w = 10
+        fixed = star_w + addr_w + trusted_w + connected_w + battery_w
+        name_w = min(25, max(8, w - fixed))
+        headers = ["", "Name", "Address", "Trusted", "Connected", "Battery"]
+        widths = [star_w, name_w, addr_w, trusted_w, connected_w, battery_w]
 
-        # Shrink name if total exceeds interior (SpaceAround still works with leftover=0)
-        while sum(widths) > w and widths[1] > 8:
-            widths[1] -= 1
+        # Shrink columns on narrow terminals; name first, then address, then battery
+        while sum(widths) > w:
+            if widths[1] > 6:
+                widths[1] -= 1
+            elif widths[2] > 10:
+                widths[2] -= 1
+            elif widths[5] > 4:
+                widths[5] -= 1
+            elif widths[3] > 4:
+                widths[3] -= 1
+            elif widths[4] > 4:
+                widths[4] -= 1
+            else:
+                break
 
         focused = self.focus == F_PAIRED
         # Header row
@@ -1174,12 +1188,11 @@ class BluetoothTUI:
             attr = self._sel_attr(is_sel, focused)
             fav = "★" if d.get("favorite") else ""
             name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
+            addr = d["addr"]
             trusted = "true" if d.get("trusted") else "false"
             connected = "true" if d["status"] == "connected" else "false"
-            if show_battery:
-                cells = [fav, name, trusted, connected, d.get("battery", "")]
-            else:
-                cells = [fav, name, trusted, connected]
+            battery = d.get("battery", "")
+            cells = [fav, name, addr, trusted, connected, battery]
             self._put_row_cells(row_start + i, x, w, cells, widths, attr)
 
     def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):

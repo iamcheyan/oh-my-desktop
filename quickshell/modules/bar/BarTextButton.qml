@@ -8,8 +8,8 @@ MouseArea {
     property alias text: label.text
     signal triggered()
 
-    property int leadingPadding: 0
-    property int trailingPadding: 2
+    property int leadingPadding: 10
+    property int trailingPadding: 10
     readonly property int buttonHeight: 28
 
     implicitWidth: label.implicitWidth + leadingPadding + trailingPadding
@@ -19,18 +19,27 @@ MouseArea {
 
     onClicked: root.triggered()
 
+    Rectangle {
+        id: hoverBg
+        anchors.fill: parent
+        radius: height / 2
+        color: root.containsMouse ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+
+        Behavior on color {
+            ColorAnimation { duration: 150 }
+        }
+    }
+
     StyledText {
         id: label
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left
-        anchors.leftMargin: root.leadingPadding
+        anchors.centerIn: parent
         font.pixelSize: 12
         font.variableAxes: ({
             "wght": 500,
             "wdth": 100,
         })
         color: Appearance.colors.colBarText
-        opacity: root.containsMouse ? 1 : 0.75
+        opacity: root.containsMouse ? 1 : 0.85
 
         Behavior on opacity {
             NumberAnimation {

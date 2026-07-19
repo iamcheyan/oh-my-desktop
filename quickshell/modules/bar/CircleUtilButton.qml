@@ -15,10 +15,12 @@ RippleButton {
     implicitWidth: slotSize
     contentItem: content
 
+    buttonRadius: slotSize / 2
+
     colBackground: "transparent"
-    colBackgroundHover: "#18ffffff"
-    colRipple: "transparent"
-    colBackgroundToggled: "#30ffffff"
-    colBackgroundToggledHover: "#40ffffff"
-    colRippleToggled: "transparent"
+    colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
+    colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)
+    colBackgroundToggledHover: Qt.rgba(1, 1, 1, 0.26)
+    colRipple: Qt.rgba(1, 1, 1, 0.12)
+    colRippleToggled: Qt.rgba(1, 1, 1, 0.18)
 }

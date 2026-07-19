@@ -29,6 +29,19 @@ Item {
         precision: SystemClock.Minutes
     }
 
+    Rectangle {
+        id: hoverBg
+        anchors.fill: parent
+        anchors.topMargin: 2
+        anchors.bottomMargin: 2
+        radius: height / 2
+        color: (mouseArea.containsMouse || GlobalStates.barPopupType === "notifications") ? (GlobalStates.barPopupType === "notifications" ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.10)) : "transparent"
+
+        Behavior on color {
+            ColorAnimation { duration: 150 }
+        }
+    }
+
     StyledText {
         id: clockText
         anchors.centerIn: parent
