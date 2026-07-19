@@ -1036,7 +1036,7 @@ class BluetoothTUI:
             disc_h = max(4, remaining)
         else:
             disc_h = 0
-            paired_h = max(4, usable - adapter_h - help_h)
+            paired_h = max(4, usable - adapter_h - help_h - 1)
 
         # Clamp so nothing overflows
         total = paired_h + disc_h + adapter_h + help_h
