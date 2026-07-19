@@ -63,11 +63,11 @@ start_timer() {
 pick_image_file() {
   local title="Select wallpaper image"
   focus_picker "$title"
-  if command -v zenity >/dev/null 2>&1; then
+  if command -v kdialog >/dev/null 2>&1; then
+    kdialog --title "$title" --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null < /dev/null
+  elif command -v zenity >/dev/null 2>&1; then
     zenity --file-selection --title="$title" --modal \
       --file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.gif' 2>/dev/null < /dev/null
-  elif command -v kdialog >/dev/null 2>&1; then
-    kdialog --title "$title" --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null < /dev/null
   else
     return 1
   fi
@@ -76,10 +76,10 @@ pick_image_file() {
 pick_image_dir() {
   local title="Select wallpaper folder"
   focus_picker "$title"
-  if command -v zenity >/dev/null 2>&1; then
-    zenity --file-selection --directory --title="$title" --modal 2>/dev/null < /dev/null
-  elif command -v kdialog >/dev/null 2>&1; then
+  if command -v kdialog >/dev/null 2>&1; then
     kdialog --title "$title" --getexistingdirectory "$HOME/Pictures" 2>/dev/null < /dev/null
+  elif command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --directory --title="$title" --modal 2>/dev/null < /dev/null
   else
     return 1
   fi
