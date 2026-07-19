@@ -40,8 +40,14 @@ case "${1:-status}" in
   key-test)
     "${OMD_ROOT}/scripts/key-test-launcher" < /dev/null
     ;;
+  fnmode-status)
+    "${OMD_ROOT}/bin/omd-keyboard-function-row" status
+    ;;
+  fnmode-set)
+    "${OMD_ROOT}/bin/omd-keyboard-function-row" set "$2" < /dev/null
+    ;;
   *)
-    echo "usage: omd-settings-keyboard status|setup|apply|key-test" >&2
+    echo "usage: omd-settings-keyboard status|setup|apply|key-test|fnmode-status|fnmode-set" >&2
     exit 2
     ;;
 esac

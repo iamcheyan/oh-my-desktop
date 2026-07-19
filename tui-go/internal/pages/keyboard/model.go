@@ -164,6 +164,9 @@ type Model struct {
 	profiles           Profiles
 	width              int
 	height             int
+	fnmodeAvailable    bool
+	fnmode             string
+	fnmodeValue        int
 }
 
 func New(b backend.Backend) Model {
@@ -193,8 +196,14 @@ func (m *Model) saveProfiles() {
 	}
 }
 
+type fnmodeMsg struct {
+	Available bool
+	Mode      string
+	Value     int
+}
+
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.fetchStatus(), m.fetchDevices())
+	return tea.Batch(m.fetchStatus(), m.fetchDevices(), m.fetchFnmode())
 }
 
 func (m Model) fetchStatus() tea.Cmd {
@@ -212,6 +221,28 @@ func (m Model) fetchDevices() tea.Cmd {
 			_ = json.Unmarshal([]byte(strings.Join(res.Lines, "\n")), &dev)
 		}
 		return devMsg{devices: dev}
+	}
+}
+
+func (m Model) fetchFnmode() tea.Cmd {
+	return func() tea.Msg {
+		res := m.backend.Run("omd-settings-keyboard", "fnmode-status")
+		var status struct {
+			Available bool   `json:"available"`
+			Mode      string `json:"mode"`
+			Value     int    `json:"value"`
+		}
+		if len(res.Lines) > 0 {
+			_ = json.Unmarshal([]byte(strings.Join(res.Lines, "\n")), &status)
+		}
+		return fnmodeMsg{Available: status.Available, Mode: status.Mode, Value: status.Value}
+	}
+}
+
+func (m Model) setFnmode(mode string) tea.Cmd {
+	return func() tea.Msg {
+		res := m.backend.Run("omd-settings-keyboard", "fnmode-set", mode)
+		return backend.ActionMsg{Action: "fnmode-set", Err: res.Err}
 	}
 }
 
@@ -252,6 +283,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = msg.Values
 		return m, nil
 
+	case fnmodeMsg:
+		m.fnmodeAvailable = msg.Available
+		m.fnmode = msg.Mode
+		m.fnmodeValue = msg.Value
+		return m, nil
+
 	case devMsg:
 		m.busy = false
 		m.mergeDevices(msg.devices)
@@ -260,11 +297,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backend.ActionMsg:
 		m.busy = false
 		if msg.Err == nil {
-			m.message = keyboardActionMessage(msg.Action)
+			if msg.Action == "fnmode-set" {
+				m.message = "Fn key mode updated"
+			} else {
+				m.message = keyboardActionMessage(msg.Action)
+			}
 		} else {
 			m.message = "Failed: " + msg.Err.Error()
 		}
-		return m, m.fetchStatus()
+		return m, tea.Batch(m.fetchStatus(), m.fetchFnmode())
 
 	case tea.KeyMsg:
 		if m.showPicker {
@@ -422,8 +463,22 @@ func (m Model) handleMainKey(key string) (tea.Model, tea.Cmd) {
 			m.busy = true
 			return m, m.runAction("key-test")
 		}
+	case "f":
+		if m.fnmodeAvailable && !m.busy {
+			next := "media"
+			switch m.fnmode {
+			case "media":
+				next = "function"
+			case "function":
+				next = "auto"
+			case "auto":
+				next = "media"
+			}
+			m.busy = true
+			return m, m.setFnmode(next)
+		}
 	case "r":
-		return m, tea.Batch(m.fetchStatus(), m.fetchDevices())
+		return m, tea.Batch(m.fetchStatus(), m.fetchDevices(), m.fetchFnmode())
 	}
 	return m, nil
 }
@@ -568,6 +623,8 @@ func (m Model) handleMainClick(clickX, clickY int) (tea.Model, tea.Cmd) {
 		{"Setup keyd (s)", "s"},
 		{"Apply (a)", "a"},
 		{"Discard (x)", "r"},
+		{"Key Tester (t)", "t"},
+		{"Fn Row Mode:", "f"},
 	}
 	for _, b := range buttons {
 		idx := strings.Index(plain, b.text)
@@ -778,6 +835,13 @@ func (m Model) renderLeftColumn(w, h int) string {
 	b.WriteString("\n")
 	b.WriteString(ui.ActionButton("", "t", "Key Tester", m.busy))
 	b.WriteString("\n")
+
+	if m.fnmodeAvailable {
+		b.WriteString("\n")
+		b.WriteString(ui.Section.Render("APPLE KEYBOARD"))
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("Fn Row Mode: %s\n", ui.ActionButton("", "f", "< "+m.fnmode+" >", m.busy)))
+	}
 
 	return lipgloss.NewStyle().Width(w).Height(h).Render(b.String())
 }
