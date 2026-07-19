@@ -19,7 +19,7 @@ CONFIG_FILE="$CONFIG_DIR/config.json"
 
 mkdir -p "$CONFIG_DIR" "$STATE_DIR"
 
-usage() { echo "Usage: omd-backup {status|test|backup|list|save-config|load-config}" >&2; exit 2; }
+usage() { echo "Usage: omd-backup {status|test|backup|compare|list|save-config|load-config}" >&2; exit 2; }
 cmd="${1:-}"; shift || true
 
 load_config() {
@@ -175,9 +175,104 @@ case "$cmd" in
     items_json+="]"
     echo "$items_json" > "$STATE_DIR/items.json"
 
+    # Update MD5 cache with current hashes
+    md5_json="{ "
+    first_md5=true
+    while read -r item_path; do
+      if [[ -z "$item_path" ]]; then continue; fi
+      if [[ -f "$item_path" ]]; then
+        h=$(md5sum "$item_path" | cut -d' ' -f1)
+        if [[ "$first_md5" == true ]]; then first_md5=false; else md5_json+=", "; fi
+        md5_json+="\"$item_path\":\"$h\""
+      elif [[ -d "$item_path" ]]; then
+        while read -r f; do
+          h=$(md5sum "$f" | cut -d' ' -f1)
+          if [[ "$first_md5" == true ]]; then first_md5=false; else md5_json+=", "; fi
+          md5_json+="\"$f\":\"$h\""
+        done < <(find "$item_path" -maxdepth 1 -type f)
+      fi
+    done <<< "$local_paths"
+    md5_json+=" }"
+    echo "$md5_json" > "$STATE_DIR/md5-cache.json"
+
     echo "Backup complete in ${elapsed}s, ${total_files} files"
     echo "{\"ok\":true,\"elapsed\":$elapsed}" > "$STATE_DIR/last-result.json"
     echo "{\"ok\":true,\"elapsed\":$elapsed}"
+    ;;
+  compare)
+    data=$(load_config)
+    local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')
+    CACHE_FILE="$STATE_DIR/md5-cache.json"
+
+    # Load cache once
+    cache_json=$(cat "$CACHE_FILE" 2>/dev/null || echo '{}')
+
+    echo "Comparing local files against last backup..."
+
+    # Walk all files, compute MD5 per-path for later
+    CUR_FILE=$(mktemp)
+    trap "rm -f $CUR_FILE" EXIT
+
+    while read -r local_path; do
+      [[ -z "$local_path" ]] && continue
+      if [[ -f "$local_path" ]]; then
+        md5sum "$local_path" | awk -v p="$local_path" -v pp="$local_path" '{print p "\t" $1 "\t" pp}' >> "$CUR_FILE"
+      elif [[ -d "$local_path" ]]; then
+        path_name=$(basename "$local_path")
+        echo "  Scanning $path_name/ ..."
+        while read -r f; do
+          md5sum "$f" | awk -v p="$f" -v pp="$local_path" '{print p "\t" $1 "\t" pp}' >> "$CUR_FILE"
+        done < <(find "$local_path" -maxdepth 1 -type f)
+      fi
+    done <<< "$local_paths"
+
+    total=0; new=0; modified=0; unchanged=0
+    declare -A p_total p_new p_modified p_unchanged
+
+    while IFS=$'\t' read -r file_path file_hash parent_path; do
+      old_hash=$(echo "$cache_json" | jq -r --arg p "$file_path" '.[$p] // ""')
+      p_total["$parent_path"]=$(( ${p_total["$parent_path"]:-0} + 1 ))
+      if [[ -z "$old_hash" ]]; then
+        echo "  NEW: $(basename "$file_path")"
+        new=$((new + 1))
+        p_new["$parent_path"]=$(( ${p_new["$parent_path"]:-0} + 1 ))
+      elif [[ "$file_hash" != "$old_hash" ]]; then
+        echo "  MODIFIED: $(basename "$file_path")"
+        modified=$((modified + 1))
+        p_modified["$parent_path"]=$(( ${p_modified["$parent_path"]:-0} + 1 ))
+      else
+        unchanged=$((unchanged + 1))
+        p_unchanged["$parent_path"]=$(( ${p_unchanged["$parent_path"]:-0} + 1 ))
+      fi
+      total=$((total + 1))
+    done < "$CUR_FILE"
+
+    needs_sync=$((new + modified))
+    echo ""
+    echo "Summary: $total files ($new new, $modified modified, $unchanged unchanged)"
+    if [[ $needs_sync -gt 0 ]]; then
+      echo "→ $needs_sync file(s) need backup (press b to sync)"
+    else
+      echo "→ All files up to date ✓"
+    fi
+
+    # Build per-path JSON
+    paths_json="["
+    first_path=true
+    while read -r local_path; do
+      [[ -z "$local_path" ]] && continue
+      t=${p_total["$local_path"]:-0}
+      n=${p_new["$local_path"]:-0}
+      m=${p_modified["$local_path"]:-0}
+      u=${p_unchanged["$local_path"]:-0}
+      if [[ "$first_path" == true ]]; then first_path=false; else paths_json+=","; fi
+      paths_json+="{\"path\":\"$local_path\",\"total\":$t,\"new\":$n,\"modified\":$m,\"unchanged\":$u}"
+    done <<< "$local_paths"
+    paths_json+="]"
+
+    result_json="{\"ok\":true,\"total\":$total,\"new\":$new,\"modified\":$modified,\"unchanged\":$unchanged,\"needs_sync\":$needs_sync,\"paths\":$paths_json}"
+    echo "$result_json" > "$STATE_DIR/last-compare.json"
+    echo "$result_json"
     ;;
   list)
     data=$(load_config)

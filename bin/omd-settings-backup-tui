@@ -82,6 +82,7 @@ class Model:
         self.test_error = ""
         self.last_sync_ok = None
         self.last_sync_time = ""
+        self.compare_result = None  # dict from last-compare.json
         self.item_rows = []  # list of {path, type, exists, last_backup}
         self.editing_field = False
         self.edit_buffer = ""
@@ -124,6 +125,7 @@ class Model:
         self.has_config = bool(self.config.get("address"))
         self._sync_schedule_idx()
         self._refresh_item_rows()
+        self._run_compare()
 
     def save_config(self):
         os.makedirs(CONFIG_DIR, exist_ok=True)
@@ -239,6 +241,7 @@ class Model:
                     for l in lines:
                         self.append_log(f"  {l}")
             self._refresh_item_rows()
+            self._run_compare()
 
         threading.Thread(target=_cb, daemon=True).start()
 
@@ -264,6 +267,16 @@ class Model:
         except (FileNotFoundError, json.JSONDecodeError):
             pass
         rows = []
+        # Load per-path compare stats from last-compare.json
+        path_stats = {}
+        try:
+            with open(os.path.join(STATE_DIR, "last-compare.json")) as f:
+                cdata = json.load(f)
+            for pdata in cdata.get("paths", []):
+                path_stats[pdata["path"]] = pdata
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
         for p in paths:
             if not p:
                 continue
@@ -274,15 +287,54 @@ class Model:
                 typ = "file"
             else:
                 typ = "—"
+            stat = path_stats.get(p, {})
             rows.append({
                 "path": p,
                 "name": os.path.basename(p) or p,
                 "type": typ,
                 "exists": exists,
                 "last_backup": item_times.get(p, ""),
+                "total_files": stat.get("total", 0),
+                "new_files": stat.get("new", 0),
+                "modified_files": stat.get("modified", 0),
             })
         self.item_rows = rows
         self.dirty = True
+
+    def _run_compare(self):
+        """Run omd-backup compare in a background thread and update logs + item_rows."""
+        if self.busy:
+            return
+
+        def _cb():
+            lines, err = self.run_backend("compare")
+            if err:
+                self.append_log(f"  error: {err}")
+                self.dirty = True
+                return
+            # Append human-readable lines (all except last JSON line)
+            if lines:
+                for l in lines[:-1]:
+                    if l.strip():
+                        self.append_log(f"  {l}")
+                # Parse last line as JSON
+                try:
+                    data = json.loads(lines[-1])
+                    if data.get("ok"):
+                        self.compare_result = data
+                        self._refresh_item_rows()
+                        ns = data.get("needs_sync", 0)
+                        if ns > 0:
+                            self.append_log(f"→ {ns} file(s) need backup — press b to sync")
+                            self.message = f"{ns} file(s) changed"
+                        else:
+                            self.append_log("→ All files up to date ✓")
+                            self.message = "All up to date"
+                except (json.JSONDecodeError, IndexError):
+                    pass
+            self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
 
 
 def view_remote_files(model):
@@ -357,6 +409,7 @@ def help_items(model):
             ("enter", "edit field"),
             ("t", "test conn"),
             ("b", "backup now"),
+            ("c", "compare"),
             ("s", "save config"),
             ("e", "edit config file"),
             ("r", "refresh"),
@@ -454,35 +507,48 @@ def render_actions(model):
 
 
 def render_item_table(model, width):
-    """Render the managed items table: name | type | last backup | status."""
+    """Render the managed items table: name | type | files | changes | backed | status."""
     rows = model.item_rows
     if not rows:
         return [("muted", "  (no items configured)")]
     # Column widths
-    avail = width - 6  # 2 padding on each side + gaps
-    name_w = max(15, avail - 5 - 10 - 16)  # type(5) + backed(10) + status(16) = 31
+    avail = width - 8  # 2 padding on each side + 4 gaps
+    name_w = max(12, avail - 5 - 7 - 8 - 10 - 14)  # type(5)+files(7)+changes(8)+backed(10)+status(14)=44
     if name_w < 10:
         name_w = 10
     lines = []
-    # Header
-    hdr = f"  {'Name'.ljust(name_w)} {'Type':<6} {'Backed':<10} Status"
+    # Header — use short labels
+    hdr = f"  {'Name'.ljust(name_w)} {'Type':<5} {'Files':>6} {'Changes':>7} {'Backed':<8} Status"
     lines.append(("muted", hdr))
-    # Table separator
-    lines.append(("muted", "  " + "─" * len(hdr.strip())))
-    for i, row in enumerate(rows):
+    lines.append(("muted", "  " + "─" * (len(hdr.strip()))))
+    for row in rows:
         name = S.truncate(row["name"], name_w)
         typ = row["type"]
         backed = row["last_backup"] if row["last_backup"] else "—"
+        # Files and changes counts
+        total_f = row.get("total_files", 0)
+        new_f = row.get("new_files", 0)
+        mod_f = row.get("modified_files", 0)
+        changes = new_f + mod_f
+        files_str = str(total_f) if total_f > 0 else "—"
+        if changes > 0:
+            ch_str = f"+{changes}"
+        else:
+            ch_str = "✓" if total_f > 0 else "—"
+        # Status
         if not row["exists"]:
             status = "⚠ Missing"
             st_tag = "danger"
+        elif changes > 0:
+            status = f"🔄 {changes} pending"
+            st_tag = "warn"
         elif backed != "—":
             status = "✅ Synced"
             st_tag = "ok"
         else:
             status = "○ Pending"
             st_tag = "muted"
-        line = f"  {name:<{name_w}} {typ:<6} {backed:<10} {status}"
+        line = f"  {name:<{name_w}} {typ:<5} {files_str:>6} {ch_str:>7} {backed:<8} {status}"
         lines.append((st_tag, line))
     return lines
 
@@ -665,6 +731,10 @@ def handle_key(stdscr, model, key):
     if key == ord('b'):
         model.run_backup()
         return True
+    if key == ord('c'):
+        model.message = ""
+        model._run_compare()
+        return True
     if key == ord('l'):
         view_remote_files(model)
         return True
@@ -675,6 +745,7 @@ def handle_key(stdscr, model, key):
     if key == ord('r'):
         model.message = ""
         model._refresh_item_rows()
+        model._run_compare()
         model.dirty = True
         return True
     if key in (ord('e'), ord('E')):
