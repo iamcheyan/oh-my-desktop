@@ -29,17 +29,20 @@ Item { // App icon
         id: materialSymbolLoader
         active: root.resolvedAppIcon == "" && root.resolvedImage == ""
         anchors.fill: parent
+        sourceComponent: Item {
+            anchors.fill: parent
 
-        MaterialSymbol {
-            anchors.centerIn: parent
-            text: {
-                const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
-                const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
-                return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
-                    "priority_high" : guessedIcon
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: {
+                    const defaultIcon = NotificationUtils.findSuitableMaterialSymbol("")
+                    const guessedIcon = NotificationUtils.findSuitableMaterialSymbol(root.summary)
+                    return (root.urgency == NotificationUrgency.Critical && guessedIcon === defaultIcon) ?
+                        "priority_high" : guessedIcon
+                }
+                iconSize: root.materialIconSize
+                color: isUrgent ? Appearance.colors.colError : Qt.rgba(0.5, 0.5, 0.5, 0.6)
             }
-            iconSize: root.materialIconSize
-            color: isUrgent ? Appearance.colors.colError : Qt.rgba(0.5, 0.5, 0.5, 0.6)
         }
     }
     Loader {

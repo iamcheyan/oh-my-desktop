@@ -21,8 +21,8 @@ socat -U - "UNIX-CONNECT:$SOCKET" | while read -r event; do
       refresh_wallpaper_outputs
       ;;
     monitorremoved\>\>*|monitorremovedv2\>\>*)
-      omarchy-hyprland-monitor-internal recover
-      omarchy-hyprland-monitor-internal-mirror recover
+      "$HOME/.config/omd/bin/omd-hyprland-monitor-internal" recover
+      "$HOME/.config/omd/bin/omd-hyprland-monitor-internal-mirror" recover
       refresh_wallpaper_outputs
       ;;
   esac
