@@ -430,10 +430,11 @@ def draw_help_bar(stdscr, generic_items, tool_items):
     Line 2 (row h-1): tool-specific operations.
     """
     h, _ = stdscr.getmaxyx()
+    pad = 3
     if generic_items:
-        safe_addstr(stdscr, h - 2, 1, help_text(generic_items), ATTR_SUBTLE)
+        safe_addstr(stdscr, h - 2, pad, help_text(generic_items), ATTR_SUBTLE)
     if tool_items:
-        safe_addstr(stdscr, h - 1, 1, help_text(tool_items), ATTR_SUBTLE)
+        safe_addstr(stdscr, h - 1, pad, help_text(tool_items), ATTR_SUBTLE)
 
 
 # ── model ────────────────────────────────────────────────────────────────
@@ -608,8 +609,9 @@ def draw_hero(stdscr, hero_tuple):
         subtitle
     """
     title, ta, msg, ma, sub, status_text, sa = hero_tuple
+    pad = 3
     # Title + message on the left
-    x = 1
+    x = pad
     safe_addstr(stdscr, 0, x, title, ta)
     x += text_width(title)
     if msg:
@@ -618,10 +620,10 @@ def draw_hero(stdscr, hero_tuple):
     # Status text on the right
     if status_text:
         _, w = stdscr.getmaxyx()
-        right_x = w - 1 - text_width(status_text)
+        right_x = w - pad - text_width(status_text)
         if right_x > x + 1:
             safe_addstr(stdscr, 0, right_x, status_text, sa)
-    safe_addstr(stdscr, 1, 1, sub, ATTR_MUTED)
+    safe_addstr(stdscr, 1, pad, sub, ATTR_MUTED)
 def primary_line(label, key="enter", enabled=True):
     """→ Label (key) — main CTA."""
     if enabled:
