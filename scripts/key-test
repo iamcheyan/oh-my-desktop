@@ -392,10 +392,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             border: none;
             box-shadow: none;
             color: alpha({colors['foreground']}, 0.65);
-            min-width: 30px;
-            min-height: 30px;
             border-radius: 6px;
-            padding: 0;
             margin-left: 6px;
         }}
         .inspector-icon-button:hover {{
@@ -508,8 +505,6 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             border: 1px solid alpha({colors['foreground']}, 0.14);
             border-radius: 6px;
             box-shadow: none;
-            min-height: 28px;
-            padding: 0 22px;
             font-size: 12px;
             font-weight: 700;
             transition: all 150ms ease-in-out;
