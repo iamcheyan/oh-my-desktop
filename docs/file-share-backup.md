@@ -68,9 +68,9 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 ├────────────├──────────────────────────────┤
 │ Actions    │  Activity                     │
 │  t Test    │  $ backup started             │
-│  s Sync    │  upload photo.jpg             │
-│  c Compare │  completed in 5s              │
-│  e Config  │  │ scrollbar │               │
+│  s Sync    │  completed in 5s              │
+│  c Compare │  │ scrollbar │               │
+│  e Config  │                               │
 └────────────┴──────────────────────────────┘
 ```
 
@@ -83,10 +83,9 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 | `Enter` | 编辑字段 / 选择计划（确认后自动保存并刷新比对） |
 | `t` | 测试 SMB 连接 |
 | `s` | 执行同步 / 备份 |
-| `c` | 比对差异 |
+| `c` | 详细比对差异（彩色显示新增/修改/删除/无变化） |
 | `e` | 在新终端窗口中用 vi 打开配置文件 |
 | `l` | 查看远程备份文件列表 |
-| `u` | 卸载 SMB 共享挂载 |
 | `r` | 刷新状态（重新加载配置和比对） |
 | `q` | 退出 |
 
@@ -101,18 +100,21 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 ## 后端 omd-backup
 
 ```bash
-omd-backup test          # 测试 SMB 连接
-omd-backup backup        # 执行备份（读取 config.json）
+omd-backup test          # 测试 SMB 连接并挂载
+omd-backup backup        # 执行 rsync 备份
+omd-backup compare       # 基于 MD5 缓存的差异比对
+omd-backup compare -v    # 详细比对（每文件彩色输出）
+omd-backup list          # 浏览远程已备份文件
+omd-backup status        # 显示挂载/配置状态
 omd-backup load-config   # 输出当前配置 JSON
-omd-backup save-config   # 从标准输入写入配置
 ```
 
 备份流程：
 1. 读取 `config.json` 获取 SMB 凭据和路径
-2. 遍历 `localPath` 中的每个本地目录
-3. 按 `includeExt` / `excludeExt` 过滤文件
-4. 用 `smbclient put` 上传到远程 `//address/share/remotePath/`
-5. 每个本地目录会在远程创建同名子目录
+2. 通过 `mount.cifs` 挂载 SMB 共享到本地（`~/NAS/`）
+3. 用 `rsync -a` 增量同步本地文件到远程
+4. 备份完成后保存 MD5 哈希缓存供下次比对使用
+5. 挂载保持在线，可供文件管理器直接浏览
 
 ## 入口
 
