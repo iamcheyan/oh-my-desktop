@@ -603,16 +603,21 @@ def hero_info(model):
 
 def help_items(model):
     if model.show_picker:
-        return [("enter/space", "select"), ("esc", "cancel")]
-    items = [
+        return ([("arrows", "navigate"), ("enter/space", "select"), ("esc", "cancel")], [])
+    generic = [
+        ("arrows", "navigate"),
+        ("tab", "column"),
+        ("pgup/pgdn", "logs"),
+        ("q", "quit"),
+    ]
+    tool = [
         ("space", "toggle"),
         ("enter", "edit key"),
         ("a", "apply"),
         ("s", "setup"),
         ("t", "tester"),
-        ("pgup/pgdn", "logs"),
     ]
-    return items
+    return (generic, tool)
 
 
 # ── view ─────────────────────────────────────────────────────────────────
@@ -635,7 +640,7 @@ def view(stdscr, model):
     S.draw_hero(stdscr, hero_info(model))
 
     # ── geometry ──
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
     pending_h = 1 if model.pending_changes else 0
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h - pending_h
@@ -734,8 +739,15 @@ def view(stdscr, model):
         S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset)
 
     # ── help bar (shifted up when a pending-changes bar is showing) ──
-    help_y = h - 1 - pending_h
-    S.safe_addstr(stdscr, help_y, 1, S.help_text(help_items(model)), S.ATTR_SUBTLE)
+    gen, tool = help_items(model)
+    if pending_h:
+        help_y = h - 3
+    else:
+        help_y = h - 2
+    if gen:
+        S.safe_addstr(stdscr, help_y, 1, S.help_text(gen), S.ATTR_SUBTLE)
+    if tool:
+        S.safe_addstr(stdscr, help_y + 1, 1, S.help_text(tool), S.ATTR_SUBTLE)
 
     # ── pending bar ──
     if model.pending_changes:

@@ -378,12 +378,24 @@ def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0, empty_text="(no act
         for i in range(inner_h):
             ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
             safe_addstr(win, inner_y + i, x + w - 2, ch, ATTR_SUBTLE)
-
 def help_text(items):
     parts = []
     for k, l in items:
         parts.append(f"{k}: {l}")
     return "  ".join(parts)
+
+
+def draw_help_bar(stdscr, generic_items, tool_items):
+    """Render a two-line context-sensitive help bar.
+
+    Line 1 (row h-2): generic/navigation keys.
+    Line 2 (row h-1): tool-specific operations.
+    """
+    h, _ = stdscr.getmaxyx()
+    if generic_items:
+        safe_addstr(stdscr, h - 2, 1, help_text(generic_items), ATTR_SUBTLE)
+    if tool_items:
+        safe_addstr(stdscr, h - 1, 1, help_text(tool_items), ATTR_SUBTLE)
 
 
 # ── model ────────────────────────────────────────────────────────────────
@@ -423,10 +435,6 @@ class StatusModel:
         self.dirty = True
 
 
-def draw_help_bar(stdscr, items):
-    """Render the context-sensitive help line at the bottom row."""
-    h, _ = stdscr.getmaxyx()
-    safe_addstr(stdscr, h - 1, 1, help_text(items), ATTR_SUBTLE)
 
 
 def finish_frame(stdscr):

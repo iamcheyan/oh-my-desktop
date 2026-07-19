@@ -358,22 +358,26 @@ def hero(model):
 def help_items(model):
     ps = model.primary_state()
     if model.confirm_remove:
-        return [("y", "confirm remove"), ("n/esc", "cancel")]
-    items = [("enter", {
+        return ([("y", "confirm remove"), ("n/esc", "cancel")], [])
+    generic = [
+        ("q", "quit"),
+        ("r", "refresh"),
+    ]
+    tool = [("enter", {
         "blocked": "fix", "install": "install", "ready": "connect",
         "booting": "console", "stopped": "start", "repair": "repair",
     }.get(ps, "action"))]
     if ps == "ready":
-        items += [("w", "console"), ("x", "stop"), ("d", "remove")]
+        tool += [("w", "console"), ("x", "stop"), ("d", "remove")]
     elif ps == "stopped":
-        items += [("s", "start only"), ("d", "remove")]
+        tool += [("s", "start only"), ("d", "remove")]
     elif ps == "booting":
         if model.running():
-            items += [("w", "console"), ("x", "stop")]
+            tool += [("w", "console"), ("x", "stop")]
     elif ps == "repair":
         if model.configured():
-            items += [("d", "remove")]
-    return items
+            tool += [("d", "remove")]
+    return (generic, tool)
 
 
 # ── view ─────────────────────────────────────────────────────────────────
@@ -387,7 +391,7 @@ def view(stdscr, m):
 
     S.draw_hero(stdscr, hero(m))
 
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -423,7 +427,7 @@ def view(stdscr, m):
             S.draw_log_in_area(stdscr, log_start_y - 1, left_w,
                                log_h + 2, right_w, m.logs, m.scroll_offset)
 
-    S.draw_help_bar(stdscr, help_items(m))
+    S.draw_help_bar(stdscr, *help_items(m))
     S.finish_frame(stdscr)
 
 

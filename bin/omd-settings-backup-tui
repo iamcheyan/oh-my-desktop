@@ -571,25 +571,31 @@ def hero_info(model):
 
 def help_items(model):
     if model.editing_field:
-        items = [("enter", "confirm"), ("esc", "cancel")]
+        generic = [("enter", "confirm"), ("esc", "cancel")]
         if model.edit_field_key == "localPath":
-            items.append(("comma", "separate paths"))
-    else:
-        items = [
-            ("enter", "edit config"),
-            ("t", "test conn"),
-            ("r", "compare"),
-            ("e", "edit file"),
-            ("l", "NAS browse"),
-        ]
-        # Only show sync keys when changes are detected
-        if model.compare_result:
-            ns = model.compare_result.get("needs_sync", 0)
-            if ns > 0:
-                items.append(("s", "sync inc"))
-                items.append(("S", "sync full"))
-        items.append(("c", "detail diff"))
-    return items
+            generic.append(("comma", "separate paths"))
+        return (generic, [])
+    generic = [
+        ("arrows", "navigate"),
+        ("tab", "panel"),
+        ("pgup/pgdn", "scroll"),
+        ("r", "refresh"),
+        ("q", "quit"),
+    ]
+    tool = [
+        ("enter", "edit config"),
+        ("t", "test conn"),
+        ("r", "compare"),
+        ("e", "edit file"),
+        ("l", "NAS browse"),
+    ]
+    if model.compare_result:
+        ns = model.compare_result.get("needs_sync", 0)
+        if ns > 0:
+            tool.append(("s", "sync inc"))
+            tool.append(("S", "sync full"))
+    tool.append(("c", "detail diff"))
+    return (generic, tool)
 
 
 # ── render helpers ──
@@ -783,7 +789,7 @@ def view(stdscr, model):
     S.draw_hero(stdscr, hero_info(model))
 
     # geometry
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -838,7 +844,7 @@ def view(stdscr, model):
         S.draw_log_in_area(stdscr, act_y, left_w, act_h, right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
-    S.draw_help_bar(stdscr, help_items(model))
+    S.draw_help_bar(stdscr, *help_items(model))
     S.finish_frame(stdscr)
 
 

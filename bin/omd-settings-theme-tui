@@ -418,14 +418,15 @@ def _hero(model):
 
 def _help(model):
     mode = model.val("wallpaper.mode", "file")
+    generic = [("arrows", "navigate"), ("q", "quit"), ("r", "refresh")]
     if mode == "color":
-        return [("enter", "apply"), ("f", "file"), ("d", "folder")]
+        return (generic, [("enter", "apply"), ("f", "file"), ("d", "folder")])
     if mode == "folder":
-        return [("enter", "apply"), ("f", "file"), ("c", "color"),
+        return (generic, [("enter", "apply"), ("f", "file"), ("c", "color"),
                 ("d", "pick folder"), ("w", "next"),
-                ("x", "stop"), ("[/]", "interval"), ("1/2/3", "effects")]
-    return [("enter", "apply"), ("d", "folder"), ("c", "color"),
-            ("f", "pick file"), ("1/2/3", "effects")]
+                ("x", "stop"), ("[/]", "interval"), ("1/2/3", "effects")])
+    return (generic, [("enter", "apply"), ("d", "folder"), ("c", "color"),
+            ("f", "pick file"), ("1/2/3", "effects")])
 
 
 def _render_preview(model, width, height):
@@ -665,7 +666,7 @@ def _view(stdscr, m):
     # geometry
     pad_x, pad_y = 2, 2
     hero_h = 2
-    help_h = 1
+    help_h = 0
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
@@ -730,7 +731,7 @@ def _view(stdscr, m):
                          content_w - 4, grid_h - 4,
                          _render_theme_grid(m, content_w - 4, grid_h - 4))
 
-    S.draw_help_bar(stdscr, _help(m))
+    S.draw_help_bar(stdscr, *_help(m))
     S.finish_frame(stdscr)
 
 
