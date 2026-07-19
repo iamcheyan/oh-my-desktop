@@ -32,7 +32,16 @@ mode is `folder`. Restoring only the timer is insufficient: previews can still
 read the image file while the real desktop remains unpainted.
 
 All image and solid-color renderer launches go through `bin/omd-wallpaper`.
-The renderer is a directly detached `swaybg` process rather than an
+The renderer is a dedicated transient user service named
+`omd-wallpaper-renderer.service` running `swaybg`, rather than a child of the
+short-lived wallpaper rotation service. This ownership is important: a
+detached process still remains in its caller's systemd cgroup and would be
+killed when `omd-wallpaper-random.service` exits. That failure updates the
+managed image used by overview while leaving the real desktop black.
+
+The renderer service is restarted for each image change and configured to
+restart on failure. On systems without a usable user systemd manager, the
+script falls back to a directly detached `swaybg` process rather than an
 `uwsm-app` scope, so wallpaper restoration does not depend on user D-Bus being
 ready during early Hyprland startup. Renderer stderr is retained in
 `~/.local/state/omd/wallpaper/renderer.log` instead of being discarded.

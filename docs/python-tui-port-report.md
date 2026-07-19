@@ -27,7 +27,7 @@ the time of this audit the complete Python implementation is 3,634 lines:
 
 | File | Lines |
 |---|---:|
-| `bin/omd-tui-shared.py` | 559 |
+| `bin/omd_tui_shared.py` | 559 |
 | `bin/omd-settings-keyboard-tui` | 946 |
 | `bin/omd-settings-theme-tui` | 763 |
 | `bin/omd-settings-vm-tui` | 610 |
@@ -39,7 +39,7 @@ tested through the real launcher.
 
 ## Shared runtime
 
-`bin/omd-tui-shared.py` provides the Python equivalent of the Go UI and backend
+`bin/omd_tui_shared.py` provides the Python equivalent of the Go UI and backend
 helpers:
 
 - centralized colors, text styles, borders, controls, Hero and help rows;
@@ -142,7 +142,7 @@ Static and regression tests:
 
 ```sh
 python3 -m py_compile \
-  bin/omd-tui-shared.py \
+  bin/omd_tui_shared.py \
   bin/omd-settings-keyboard-tui \
   bin/omd-settings-theme-tui \
   bin/omd-settings-vm-tui \

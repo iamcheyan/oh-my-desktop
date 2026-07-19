@@ -14,7 +14,7 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 
 ## 配置
 
-配置文件：`~/.config/omd/backup/config.json`
+配置文件：`~/.config/omd/file-share-backup/config.json`
 
 ```json
 {
@@ -70,7 +70,7 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 │  t Test    │  $ backup started             │
 │  b Backup  │  upload photo.jpg             │
 │  s Save    │  completed in 5s              │
-│  E Config  │  │ scrollbar │               │
+│  e Config  │  │ scrollbar │               │
 └────────────┴──────────────────────────────┘
 ```
 
@@ -84,15 +84,15 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 | `t` | 测试 SMB 连接 |
 | `b` | 执行备份 |
 | `s` | 保存配置 |
-| `E` | 在新终端窗口中用 vi 打开配置文件 |
+| `e` | 在新终端窗口中用 vi 打开配置文件 |
 | `r` | 刷新（编辑配置后重新加载） |
 | `q` | 退出 |
 
 ## 编辑配置
 
-按 `E` 键会：
+按 `e` 键会：
 1. 自动保存当前配置
-2. 在新终端窗口中用 `vi` 打开 `~/.config/omd/backup/config.json`
+2. 在新终端窗口中用 `vi` 打开 `~/.config/omd/file-share-backup/config.json`
 3. 编辑完关闭终端后，按 `r` 重新加载
 
 ## 后端 omd-backup

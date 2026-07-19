@@ -3,14 +3,24 @@
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/backup"
+OLD_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/backup"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/file-share-backup"
+OLD_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/backup"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/file-share-backup"
+
+if [[ -d "$OLD_CONFIG_DIR" && ! -d "$CONFIG_DIR" ]]; then
+  mv "$OLD_CONFIG_DIR" "$CONFIG_DIR"
+fi
+if [[ -d "$OLD_STATE_DIR" && ! -d "$STATE_DIR" ]]; then
+  mv "$OLD_STATE_DIR" "$STATE_DIR"
+fi
+
 CONFIG_FILE="$CONFIG_DIR/config.json"
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/backup"
+
+mkdir -p "$CONFIG_DIR" "$STATE_DIR"
 
 usage() { echo "Usage: omd-backup {status|test|backup|save-config|load-config}" >&2; exit 2; }
 cmd="${1:-}"; shift || true
-
-mkdir -p "$CONFIG_DIR" "$STATE_DIR"
 
 load_config() {
   if [[ -f "$CONFIG_FILE" ]]; then

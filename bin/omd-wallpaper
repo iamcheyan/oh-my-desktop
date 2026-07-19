@@ -7,6 +7,7 @@ MODE_FILE="$STATE_DIR/mode"
 INTERVAL_FILE="$STATE_DIR/interval"
 INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-$(cat "$INTERVAL_FILE" 2>/dev/null || printf '3600')}"
 UNIT_NAME="omd-wallpaper-random"
+RENDER_UNIT_NAME="omd-wallpaper-renderer"
 RENDER_LOG="$STATE_DIR/renderer.log"
 
 if [[ ! "$INTERVAL_SEC" =~ ^[0-9]+$ ]] || (( INTERVAL_SEC < 1 )); then
@@ -29,6 +30,10 @@ ensure_state_dir() {
 }
 
 stop_renderer() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user stop "$RENDER_UNIT_NAME.service" >/dev/null 2>&1 || true
+    systemctl --user reset-failed "$RENDER_UNIT_NAME.service" >/dev/null 2>&1 || true
+  fi
   pkill -x swaybg >/dev/null 2>&1 || true
 
   # Do not race a retiring renderer when changing images quickly.
@@ -57,10 +62,26 @@ start_renderer() {
     fi
   fi
 
-  # Launch swaybg directly in a detached session. Routing this through
-  # uwsm-app made renderer startup depend on the user D-Bus scope and could
-  # silently leave the desktop without a wallpaper after login.
-  setsid -f swaybg "$@" >>"$render_log" 2>&1
+  # Rotation runs in a short-lived transient service. A detached child still
+  # belongs to that service's cgroup and is killed when the rotation command
+  # exits, leaving previews updated but the real desktop black. Keep swaybg in
+  # its own service so every caller publishes to the same persistent renderer.
+  if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
+    for _ in {1..20}; do
+      [[ "$(systemctl --user show "$RENDER_UNIT_NAME.service" -p LoadState --value 2>/dev/null || true)" == "not-found" ]] && break
+      sleep 0.025
+    done
+    systemd-run --user --quiet --collect \
+      --unit="$RENDER_UNIT_NAME" \
+      --description="OMD wallpaper renderer" \
+      --property=Restart=on-failure \
+      --property=RestartSec=1s \
+      --property="StandardOutput=append:$render_log" \
+      --property="StandardError=append:$render_log" \
+      swaybg "$@"
+  else
+    setsid -f swaybg "$@" >>"$render_log" 2>&1
+  fi
 }
 
 render_image() {

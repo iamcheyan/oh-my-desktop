@@ -231,7 +231,7 @@ for i, item in enumerate(grid_lines):
 4. **不要修改 `_render_image_preview()` 和 `_render_image_view()`** — 这两个函数逻辑正确，
    只需在 `_view()` 里正确调用它们。
 
-5. **共享库 `omd-tui-shared.py`** 不需要修改。
+5. **共享库 `omd_tui_shared.py`** 不需要修改。
 
 ---
 
