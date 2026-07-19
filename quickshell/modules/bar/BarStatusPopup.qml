@@ -2442,7 +2442,10 @@ Scope {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Notifications.openMutedAppsEditor()
+                            onClicked: {
+                                root.close();
+                                Notifications.openMutedAppsEditor();
+                            }
                         }
                     }
 

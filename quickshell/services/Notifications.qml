@@ -314,7 +314,7 @@ Singleton {
             root.openMutedEditorAfterWrite = false;
             editMutedAppsProc.command = [
                 "bash", "-c",
-                `terminal=""; for t in foot kitty alacritty ghostty; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done; if [ -n "$terminal" ]; then exec "$terminal" -e vi "$1"; else exec xdg-terminal-exec -e vi "$1"; fi`,
+                `if command -v xdg-terminal-exec >/dev/null 2>&1; then exec xdg-terminal-exec --app-id=org.omd.edit-muted-apps --title="Muted notification apps" -- vi "$1"; elif command -v foot >/dev/null 2>&1; then exec foot --app-id=org.omd.edit-muted-apps --title="Muted notification apps" -e vi "$1"; else exec kitty --class=org.omd.edit-muted-apps --title="Muted notification apps" -- vi "$1"; fi`,
                 "omd-muted-apps-editor", root.mutedAppsFilePath
             ];
             editMutedAppsProc.running = true;

@@ -125,7 +125,10 @@ Item {
             IconButton {
                 symbol: "settings"
                 tooltip: "Muted apps"
-                onClicked: Notifications.openMutedAppsEditor()
+                onClicked: {
+                    GlobalStates.barPopupType = "";
+                    Notifications.openMutedAppsEditor();
+                }
             }
         }
     }
@@ -280,10 +283,6 @@ Item {
     }
 
     } // column
-
-    function openMutedEditor() {
-        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-edit-muted-apps`]);
-    }
 
     component TuiToggle: Rectangle {
         id: toggle
@@ -541,7 +540,7 @@ Item {
                         }
 
                         IconButton {
-                            symbol: "close"
+                            symbol: "delete"
                             tooltip: "Dismiss"
                             danger: true
                             onClicked: row.discard()

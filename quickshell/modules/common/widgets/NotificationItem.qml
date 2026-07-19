@@ -216,7 +216,7 @@ Item {
 
                         MaterialSymbol {
                             anchors.centerIn: parent
-                            text: "close"
+                            text: "delete"
                             iconSize: 18
                             color: TuiStyle.danger
                         }
