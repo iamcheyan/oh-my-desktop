@@ -157,8 +157,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					buttons := []btn{
 						{"Image (i)", "i"},
 						{"Color (c)", "c"},
-						{"Image File (f)", "f"},
-						{"Folder (d)", "d"},
+						{"Choose Path (p)", "p"},
 						{"Next (w)", "w"},
 						{"Perf (1)", "1"},
 						{"Bal (2)", "2"},
@@ -439,26 +438,10 @@ func (m Model) wallpaperControls(width int) string {
 
 	modeLine := lipgloss.NewStyle().Foreground(pal.text).Render("Mode:   ") + imageLabel + "     " + colorLabel
 
-	// 2. Type selector line (only shown if Image mode is active)
+	// 2. Choose Path line (only shown if Image mode is active)
 	var typeLine string
 	if mode == "file" || mode == "folder" {
-		fileIndicator := "○"
-		fileStyle := lipgloss.NewStyle().Foreground(pal.muted)
-		if mode == "file" {
-			fileIndicator = "◉"
-			fileStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-		}
-		fileLabel := fileStyle.Render(fileIndicator + " Image File (f)")
-
-		folderIndicator := "○"
-		folderStyle := lipgloss.NewStyle().Foreground(pal.muted)
-		if mode == "folder" {
-			folderIndicator = "◉"
-			folderStyle = lipgloss.NewStyle().Foreground(pal.accent).Bold(true)
-		}
-		folderLabel := folderStyle.Render(folderIndicator + " Folder (d)")
-
-		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") + fileLabel + "     " + folderLabel
+		typeLine = lipgloss.NewStyle().Foreground(pal.text).Render("Source: ") + lipgloss.NewStyle().Foreground(pal.muted).Render("○ Choose Path (p)")
 	}
 
 	// 3. Action selector line (only shown if Folder type is active)
@@ -1048,6 +1031,8 @@ func themeActionMessage(action string) string {
 		return "Wallpaper selected"
 	case action == "wallpaper-pick-folder":
 		return "Wallpaper folder selected"
+	case action == "wallpaper-pick-path":
+		return "Wallpaper path selected"
 	case strings.HasPrefix(action, "wallpaper-interval "):
 		return "Wallpaper interval updated"
 	case strings.HasPrefix(action, "effects "):
@@ -1098,10 +1083,10 @@ func (m Model) handleKey(key string) (tea.Model, tea.Cmd) {
 			m.message = fmt.Sprintf("Applying %s…", slug)
 			return m, m.apply(slug)
 		}
-	case "i":
-		if !m.busy && m.value("wallpaper.mode", "file") == "color" {
+	case "i", "p":
+		if !m.busy {
 			m.busy = true
-			return m, m.runAction("wallpaper-pick-file")
+			return m, m.runAction("wallpaper-pick-path")
 		}
 	case "c":
 		if !m.busy && m.value("wallpaper.mode", "file") != "color" {

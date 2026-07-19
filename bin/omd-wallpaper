@@ -63,11 +63,11 @@ start_timer() {
 pick_image_file() {
   local title="Select wallpaper image"
   focus_picker "$title"
-  if command -v kdialog >/dev/null 2>&1; then
-    kdialog --title "$title" --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null
-  elif command -v zenity >/dev/null 2>&1; then
+  if command -v zenity >/dev/null 2>&1; then
     zenity --file-selection --title="$title" --modal \
-      --file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.gif' 2>/dev/null
+      --file-filter='Images | *.jpg *.jpeg *.png *.webp *.bmp *.gif' 2>/dev/null < /dev/null
+  elif command -v kdialog >/dev/null 2>&1; then
+    kdialog --title "$title" --getopenfilename "$HOME/Pictures" "Images (*.jpg *.jpeg *.png *.webp *.bmp *.gif)" 2>/dev/null < /dev/null
   else
     return 1
   fi
@@ -76,12 +76,33 @@ pick_image_file() {
 pick_image_dir() {
   local title="Select wallpaper folder"
   focus_picker "$title"
-  if command -v kdialog >/dev/null 2>&1; then
-    kdialog --title "$title" --getexistingdirectory "$HOME/Pictures" 2>/dev/null
-  elif command -v zenity >/dev/null 2>&1; then
-    zenity --file-selection --directory --title="$title" --modal 2>/dev/null
+  if command -v zenity >/dev/null 2>&1; then
+    zenity --file-selection --directory --title="$title" --modal 2>/dev/null < /dev/null
+  elif command -v kdialog >/dev/null 2>&1; then
+    kdialog --title "$title" --getexistingdirectory "$HOME/Pictures" 2>/dev/null < /dev/null
   else
     return 1
+  fi
+}
+
+pick_path() {
+  local title="Select Image or Folder"
+  local choice=""
+
+  if command -v zenity >/dev/null 2>&1; then
+    choice="$(zenity --list --radiolist --title="$title" --column="" --column="Select Type" TRUE "Image File" FALSE "Folder" --modal 2>/dev/null < /dev/null || true)"
+  elif command -v kdialog >/dev/null 2>&1; then
+    choice="$(kdialog --title "$title" --radiolist "Select Type" "file" "Image File" on "folder" "Folder" off 2>/dev/null < /dev/null || true)"
+  fi
+
+  if [[ "$choice" == "Image File" || "$choice" == "file" ]]; then
+    local path
+    path="$(pick_image_file || true)"
+    [[ -n "${path:-}" ]] && set_image "$path"
+  elif [[ "$choice" == "Folder" || "$choice" == "folder" ]]; then
+    local path
+    path="$(pick_image_dir || true)"
+    [[ -n "${path:-}" ]] && set_folder "$path"
   fi
 }
 
@@ -283,6 +304,9 @@ case "${1:-}" in
     echo "file" > "$MODE_FILE"
     notify "Wallpaper rotation stopped"
     ;;
+  pick-path)
+    pick_path
+    ;;
   set-color)
     set_color
     ;;
@@ -290,7 +314,7 @@ case "${1:-}" in
     status
     ;;
   *)
-    echo "usage: omd-wallpaper pick-file|pick-folder|set-file <image>|set-folder <folder>|set-color|random|restore|restart|stop|status" >&2
+    echo "usage: omd-wallpaper pick-file|pick-folder|pick-path|set-file <image>|set-folder <folder>|set-color|random|restore|restart|stop|status" >&2
     exit 2
     ;;
 esac

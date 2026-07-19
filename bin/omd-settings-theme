@@ -536,6 +536,7 @@ case "${1:-list}" in
   appearance-status) appearance_status ;;
   wallpaper-status) wallpaper_status ;;
   wallpaper-set-color) "$OMD_ROOT/bin/omd-wallpaper" set-color; wallpaper_status ;;
+  wallpaper-pick-path) "$OMD_ROOT/bin/omd-wallpaper" pick-path; wallpaper_status ;;
   wallpaper-next) "$OMD_ROOT/bin/omd-wallpaper" random; wallpaper_status ;;
   wallpaper-stop) "$OMD_ROOT/bin/omd-wallpaper" stop; wallpaper_status ;;
   wallpaper-pick-file) "$OMD_ROOT/bin/omd-wallpaper" pick-file; wallpaper_status ;;
