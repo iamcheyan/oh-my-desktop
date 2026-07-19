@@ -19,7 +19,7 @@ CONFIG_FILE="$CONFIG_DIR/config.json"
 
 mkdir -p "$CONFIG_DIR" "$STATE_DIR"
 
-usage() { echo "Usage: omd-backup {status|test|backup|save-config|load-config}" >&2; exit 2; }
+usage() { echo "Usage: omd-backup {status|test|backup|list|save-config|load-config}" >&2; exit 2; }
 cmd="${1:-}"; shift || true
 
 load_config() {
@@ -153,6 +153,31 @@ case "$cmd" in
     echo "Backup complete in ${elapsed}s, ${total_files} files"
     echo "{\"ok\":true,\"elapsed\":$elapsed}" > "$STATE_DIR/last-result.json"
     echo "{\"ok\":true,\"elapsed\":$elapsed}"
+    ;;
+  list)
+    data=$(load_config)
+    read -r smb_url smb_user smb_pass <<< "$(smb_prefix "$data")"
+    remote_path=$(echo "$data" | jq -r '.remotePath // ""')
+    if [[ -z "$smb_url" || "$smb_url" == "//" ]]; then
+      echo '{"ok":false,"error":"Server not configured"}'
+      exit 0
+    fi
+    remote_dir="$(echo "$remote_path" | sed 's|^/*||')"
+    host_prefix="$(uname -s)-$(hostname)"
+    echo "Remote: //$(echo "$data" | jq -r '.address // ""')/$(echo "$data" | jq -r '.share // ""')/${remote_dir}/"
+    echo ""
+    echo "=== ${remote_dir}/${host_prefix}/ ==="
+    smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
+      --option='client min protocol=SMB2' \
+      -c "cd ${remote_dir}; cd \"${host_prefix}\"; ls" 2>/dev/null
+    echo ""
+    echo "=== ${remote_dir}/ (top-level) ==="
+    smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
+      --option='client min protocol=SMB2' \
+      -c "cd ${remote_dir}; ls" 2>/dev/null
+    echo ""
+    echo "(Press any key to close)"
+    read -r -n 1 2>/dev/null || true
     ;;
   save-config)
     save_config

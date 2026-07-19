@@ -246,6 +246,34 @@ class Model:
             pass
 
 
+def view_remote_files(model):
+    """Open a terminal window showing the remote backup directory listing."""
+    backup_script = os.path.join(S.OMD_ROOT, "bin", "omd-backup")
+    if not os.path.exists(backup_script):
+        model.message = "Backend script not found"
+        model.dirty = True
+        return
+    cmd = (
+        'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
+        'exec xdg-terminal-exec --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -- bash -c "' + backup_script + ' list"; '
+        'elif command -v foot >/dev/null 2>&1; then '
+        'exec foot --app-id=org.omd.list-file-share-backup --title="Remote Backup Files" -e ' + backup_script + ' list; '
+        'else exec kitty --class=org.omd.list-file-share-backup --title="Remote Backup Files" -- ' + backup_script + ' list; fi'
+    )
+    try:
+        subprocess.Popen(
+            ["bash", "-c", cmd],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        model.message = "Remote files opened in terminal"
+    except Exception as e:
+        model.message = f"Failed to open terminal: {e}"
+    model.dirty = True
+
+
 def load_model():
     return Model()
 
@@ -379,6 +407,7 @@ def render_actions(model):
     has_config = bool(model.config.get("address") and model.config.get("localPath"))
     lines.append(S.action_line("t", "Test connection", enabled))
     lines.append(S.action_line("b", "Backup now", enabled and has_config))
+    lines.append(S.action_line("l", "View remote files", enabled and has_config))
     lines.append(S.action_line("s", "Save config", enabled))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("r", "Refresh", enabled))
@@ -550,6 +579,9 @@ def handle_key(stdscr, model, key):
         return True
     if key == ord('b'):
         model.run_backup()
+        return True
+    if key == ord('l'):
+        view_remote_files(model)
         return True
     if key == ord('s'):
         model.save_config()
