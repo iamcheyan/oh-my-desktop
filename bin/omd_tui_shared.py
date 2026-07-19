@@ -111,6 +111,7 @@ def init_colors():
     global ATTR_SECTION, ATTR_FOCUS, ATTR_OK, ATTR_WARN, ATTR_DANGER
     global ATTR_ACTION, ATTR_MUTED, ATTR_SUBTLE, ATTR_TEXT, ATTR_BORDER, TAG_STYLE
     global ATTR_PRIMARY, ATTR_DANGER_ACTION, ATTR_OK_BOLD, ATTR_ACCENT_BOLD, ATTR_FOCUS_BORDER
+    global C_FOCUS_BORDER
     if not curses.has_colors():
         return
     curses.start_color()
@@ -175,7 +176,7 @@ def init_colors():
             pass
     if not border_set:
         # Share C_ACCENT's pair index so the pair is already initialized
-        C_FOCUS_BORDER = C_ACCENT
+        C_FOCUS_BORDER = C_ACCENT  # type: ignore
     ATTR_FOCUS_BORDER = attr(C_FOCUS_BORDER, True)
     TAG_STYLE = {
         "section": ATTR_SECTION,
