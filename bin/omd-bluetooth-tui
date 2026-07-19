@@ -1097,20 +1097,19 @@ class BluetoothTUI:
 
     @staticmethod
     def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
-        """Return x-offsets for columns: left-padded consecutively.
-
-        All free space goes to left and right margins (evenly split),
-        avoiding the rounding asymmetry of per-column SpaceAround.
-        """
-        if not col_widths:
+        """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
+        n = len(col_widths)
+        if n == 0:
             return []
         total = sum(col_widths)
-        left_pad = max(0, inner_w - total) // 2
+        free = max(0, inner_w - total)
+        # Each column gets free/n as surrounding space; half on each side.
+        unit = free / n
         offsets = []
-        x = left_pad
+        x = unit / 2.0
         for cw in col_widths:
-            offsets.append(x)
-            x += cw
+            offsets.append(int(round(x)))
+            x += cw + unit
         return offsets
 
     def _put_row_cells(self, y, x, inner_w, cells: list[str], widths: list[int], attr):
@@ -1146,39 +1145,58 @@ class BluetoothTUI:
             return S.ATTR_FOCUS
         return curses.A_NORMAL
 
+    def _draw_row(self, y, x, inner_w, cells, widths, offsets, attr):
+        """Fill row background then place cells at given offsets (compact layout)."""
+        try:
+            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
+        except curses.error:
+            pass
+        for cell, off, cw in zip(cells, offsets, widths):
+            text = self._clip(cell, cw)
+            try:
+                self.stdscr.addnstr(y, x + off, text, cw, attr)
+            except curses.error:
+                pass
+
     def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
         """Render Paired Devices table (fav | name | address | trusted | connected | battery)."""
         if h < 1 or w < 8:
             return
-        # 6 columns: star, name, address, trusted, connected, battery
+        # Columns fill entire width; left/right margins come from rounding (at most 1 diff)
         star_w = 1
         addr_w = 17       # XX:XX:XX:XX:XX:XX
-        trusted_w = 7
-        connected_w = 9
+        trusted_w = 8
+        connected_w = 10
         battery_w = 10
-        fixed = star_w + addr_w + trusted_w + connected_w + battery_w
-        name_w = min(25, max(8, w - fixed))
+        fixed = star_w + addr_w + trusted_w + connected_w + battery_w  # = 46
+        name_w = max(10, w - fixed)  # no margin reservation, no cap — name fills everything
         headers = ["", "Name", "Address", "Trusted", "Connected", "Battery"]
         widths = [star_w, name_w, addr_w, trusted_w, connected_w, battery_w]
 
-        # Shrink columns on narrow terminals; name first, then address, then battery
+        # Shrink columns on narrow terminals
         while sum(widths) > w:
-            if widths[1] > 6:
+            if widths[1] > 8:
                 widths[1] -= 1
-            elif widths[2] > 10:
+            elif widths[2] > 12:
                 widths[2] -= 1
-            elif widths[5] > 4:
-                widths[5] -= 1
-            elif widths[3] > 4:
+            elif widths[3] > 5:
                 widths[3] -= 1
-            elif widths[4] > 4:
+            elif widths[4] > 5:
                 widths[4] -= 1
+            elif widths[5] > 5:
+                widths[5] -= 1
             else:
                 break
 
+        # Equal margins: (w - total) // 2 (typically 0 when total fills the width)
+        total_w = sum(widths)
+        margin = (w - total_w) // 2
+        offsets = [margin]
+        for cw in widths[:-1]:
+            offsets.append(offsets[-1] + cw)
+
         focused = self.focus == F_PAIRED
-        # Header row
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
         # bluetui header.bottom_margin(1) — blank line under headers
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
@@ -1193,7 +1211,7 @@ class BluetoothTUI:
             connected = "true" if d["status"] == "connected" else "false"
             battery = d.get("battery", "")
             cells = [fav, name, addr, trusted, connected, battery]
-            self._put_row_cells(row_start + i, x, w, cells, widths, attr)
+            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):
         if h < 1 or w < 8:
