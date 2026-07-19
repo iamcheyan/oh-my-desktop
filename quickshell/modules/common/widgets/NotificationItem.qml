@@ -57,8 +57,7 @@ Item {
             anchors {
                 left: parent.left
                 right: parent.right
-                top: parent.top
-                topMargin: root.verticalPadding
+                verticalCenter: parent.verticalCenter
                 leftMargin: root.horizontalPadding
                 rightMargin: root.horizontalPadding
             }
@@ -131,8 +130,8 @@ Item {
 
                     Rectangle {
                         id: closeBtn
-                        implicitWidth: 28
-                        implicitHeight: 24
+                        implicitWidth: 44
+                        implicitHeight: 26
                         radius: TuiStyle.miniRadius
                         color: "transparent"
                         border.width: 1
@@ -155,8 +154,8 @@ Item {
 
                     Rectangle {
                         id: copyBtn
-                        implicitWidth: 28
-                        implicitHeight: 24
+                        implicitWidth: 44
+                        implicitHeight: 26
                         radius: TuiStyle.miniRadius
                         visible: root.hasBody || (root.notificationObject?.summary || "").length > 0
                         color: "transparent"
