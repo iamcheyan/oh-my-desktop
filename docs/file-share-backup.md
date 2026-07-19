@@ -68,8 +68,8 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 ├────────────├──────────────────────────────┤
 │ Actions    │  Activity                     │
 │  t Test    │  $ backup started             │
-│  b Backup  │  upload photo.jpg             │
-│  s Save    │  completed in 5s              │
+│  s Sync    │  upload photo.jpg             │
+│  c Compare │  completed in 5s              │
 │  e Config  │  │ scrollbar │               │
 └────────────┴──────────────────────────────┘
 ```
@@ -80,19 +80,22 @@ SMB 文件共享与定时备份工具。通过 Python curses TUI 配置和管理
 |---|---|
 | `Tab` | 切换左/右区域 |
 | `↑ ↓` | 导航 |
-| `Enter` | 编辑字段 / 选择计划 |
+| `Enter` | 编辑字段 / 选择计划（确认后自动保存并刷新比对） |
 | `t` | 测试 SMB 连接 |
-| `b` | 执行备份 |
-| `s` | 保存配置 |
+| `s` | 执行同步 / 备份 |
+| `c` | 比对差异 |
 | `e` | 在新终端窗口中用 vi 打开配置文件 |
-| `r` | 刷新（编辑配置后重新加载） |
+| `l` | 查看远程备份文件列表 |
+| `u` | 卸载 SMB 共享挂载 |
+| `r` | 刷新状态（重新加载配置和比对） |
 | `q` | 退出 |
 
 ## 编辑配置
 
-按 `e` 键会：
-1. 自动保存当前配置
-2. 在新终端窗口中用 `vi` 打开 `~/.config/omd/file-share-backup/config.json`
+配置进行了**自动保存（Auto-Save）**设计：
+1. 在 TUI 中直接编辑字段并回车确认后，会自动保存并触发后台文件比对，无需手动保存。
+2. 按 `e` 键会：
+   * 在新终端窗口中用 `vi` 打开 `~/.config/omd/file-share-backup/config.json`
 3. 编辑完关闭终端后，按 `r` 重新加载
 
 ## 后端 omd-backup

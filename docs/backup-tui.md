@@ -23,7 +23,7 @@ Or press the backup button in the system bar.
 
 2. **Press `t` to test** — mounts the share via `pkexec` polkit dialog. Once mounted, the share stays accessible at `~/<ShareName>/` (e.g. `~/NAS/`).
 
-3. **Press `b` to back up** — runs `rsync -a` to sync local files to `Backups/<System>-<Hostname>/` on the share.
+3. **Press `s` to sync** — runs `rsync -a` to sync local files to `Backups/<System>-<Hostname>/` on the share.
 
 ---
 
@@ -32,14 +32,11 @@ Or press the backup button in the system bar.
 | Key | Action | Description |
 |-----|--------|-------------|
 | `t` | Test connection | Mount share (polkit popup if needed) |
-| `b` | Backup now | Rsync local files to remote share |
-| `r` | Compare verbose | Per-file diff with color (new/modified/deleted/unchanged) |
-| `c` | Compare summary | Per-path summary counts |
-| `l` | Browse remote | Open floating terminal with remote file listing |
-| `u` | Unmount share | Safely disconnect the SMB mount |
-| `s` | Save config | Write current config to `config.json` |
+| `s` | Sync / Backup now | Rsync local files to remote share |
+| `c` | Compare changes | Per-file diff with color (new/modified/deleted/unchanged) |
 | `e` | Edit config file | Open config in `vi` via floating terminal |
-| `R` | Refresh | Reload item table + run quick compare |
+| `l` | Browse remote | Open floating terminal with remote file listing |
+| `r` | Refresh status | Reload config + item table + run quick compare |
 | Tab | Switch panel | Toggle focus between left (config) and right (items/log) |
 | ↑↓/jk | Navigate / scroll | Move through config fields or scroll log |
 | Enter / Space | Edit / select | Edit the focused field or select schedule type |
@@ -51,12 +48,12 @@ Or press the backup button in the system bar.
 
 ### First time
 ```
-Fill config → t (test/mount) → b (backup) → r (verify)
+Fill config → t (test/mount) → s (sync) → c (verify diff)
 ```
 
 ### Daily use
 ```
-t (mount if not already) → b (sync) → r (check diff)
+t (mount if not already) → s (sync) → c (check diff)
 ```
 
 ### Browse backed-up files
@@ -66,7 +63,7 @@ l → floating terminal shows file tree on the remote share
 
 ### Check what would change without syncing
 ```
-r → shows each file with color prefix:
+c → shows each file with color prefix:
    + filename  (green)  — new, not yet backed up
    ~ filename  (yellow) — modified since last backup
    - filename  (red)    — deleted locally, still in cache
@@ -141,16 +138,14 @@ A Python curses TUI with two-panel layout:
 │  Local paths: ...    │                          │
 │  ┌Actions──────────┐ │                          │
 │  │ Test conn (t)   │ │                          │
-│  │ Backup now (b)  │ │                          │
-│  │ Compare ver(r)  │ │                          │
+│  │ Sync now (s)   │ │                          │
+│  │ Compare chg (c) │ │                          │
 │  │ Browse rem (l)  │ │                          │
-│  │ Save conf (s)   │ │                          │
 │  │ Edit file (e)   │ │                          │
-│  │ Unmount (u)     │ │                          │
-│  │ Refresh (R)     │ │                          │
+│  │ Refresh (r)     │ │                          │
 │  └─────────────────┘ │                          │
 ├──────────────────────┴──────────────────────────┤
-│ arrows:navigate tab:area c:compare r:verbose ... │
+│ arrows:navigate tab:area s:sync c:compare r:refresh ... │
 └─────────────────────────────────────────────────┘
 ```
 

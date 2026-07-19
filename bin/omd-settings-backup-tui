@@ -475,15 +475,12 @@ def help_items(model):
     else:
         items += [
             ("enter", "edit config"),
-            ("t", "test"),
-            ("b", "backup"),
-            ("c", "compare summary"),
-            ("r", "compare verbose"),
-            ("l", "browse remote"),
-            ("s", "save"),
+            ("t", "test connection"),
+            ("s", "sync now"),
+            ("c", "compare changes"),
             ("e", "edit file"),
-            ("u", "unmount"),
-            ("R", "refresh"),
+            ("l", "remote files"),
+            ("r", "refresh"),
             ("pgup/pgdn", "scroll"),
             ("q", "quit"),
         ]
@@ -578,14 +575,11 @@ def render_actions(model):
     enabled = not model.busy
     has_config = bool(model.config.get("address") and model.config.get("localPath"))
     lines.append(S.action_line("t", "Test connection", enabled))
-    lines.append(S.action_line("b", "Backup now", enabled and has_config))
-    lines.append(S.action_line("c", "Compare summary", enabled and has_config))
-    lines.append(S.action_line("r", "Compare verbose", enabled and has_config))
-    lines.append(S.action_line("l", "View remote files", enabled and has_config))
-    lines.append(S.action_line("s", "Save config", enabled))
+    lines.append(S.action_line("s", "Sync / Backup now", enabled and has_config))
+    lines.append(S.action_line("c", "Compare changes", enabled and has_config))
     lines.append(S.action_line("e", "Edit config file", enabled))
-    lines.append(S.action_line("u", "Unmount share", enabled and has_config))
-    lines.append(S.action_line("R", "Refresh", enabled))
+    lines.append(S.action_line("l", "View remote files", enabled and has_config))
+    lines.append(S.action_line("r", "Refresh status", enabled))
     return lines
 
 
@@ -815,6 +809,7 @@ def handle_key(stdscr, model, key):
         if model.focus_area == 0:
             if model.selected_left < len(SCHEDULE_TYPES):
                 model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
+                model.save_config()
                 model.dirty = True
             else:
                 start_edit(model)
@@ -824,48 +819,28 @@ def handle_key(stdscr, model, key):
         if model.focus_area == 0:
             if model.selected_left < len(SCHEDULE_TYPES):
                 model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
+                model.save_config()
                 model.dirty = True
             else:
                 start_edit(model)
         return True
 
     # Action keys
-    if key == ord('t'):
+    if key in (ord('t'), ord('T')):
         model.test_connection()
         return True
-    if key == ord('b'):
+    if key in (ord('s'), ord('S'), ord('b'), ord('B')):
         model.run_backup()
         return True
-    if key == ord('c'):
+    if key in (ord('c'), ord('C')):
         model.message = ""
-        model._run_compare()
-        return True
-    if key == ord('r'):
-        model.append_log("$ compare — verbose per-file diff")
+        model.append_log("$ compare — per-file diff")
         model._run_compare_verbose()
         return True
-    if key == ord('l'):
+    if key in (ord('l'), ord('L')):
         view_remote_files(model)
         return True
-    if key == ord('u'):
-        model.append_log("$ unmount share")
-        model.dirty = True
-        def _cb():
-            lines, err = model.run_backend("unmount")
-            if err:
-                model.append_log(f"  error: {err}")
-            else:
-                for l in lines:
-                    if l.strip():
-                        model.append_log(f"  {l}")
-            model.dirty = True
-        threading.Thread(target=_cb, daemon=True).start()
-        return True
-    if key == ord('s'):
-        model.save_config()
-        model.dirty = True
-        return True
-    if key == ord('R'):
+    if key in (ord('r'), ord('R')):
         model.message = ""
         model._refresh_item_rows()
         model._run_compare()
@@ -937,9 +912,11 @@ def handle_edit_key(model, key):
             model.config[model.edit_field_key] = [p.strip() for p in model.edit_buffer.split(",") if p.strip()]
         else:
             model.config[model.edit_field_key] = model.edit_buffer
+        model.save_config()
         model.editing_field = False
-        model.message = f"{FIELD_LABELS.get(model.edit_field_key, model.edit_field_key)} updated"
+        model.message = f"{FIELD_LABELS.get(model.edit_field_key, model.edit_field_key)} updated & saved"
         model.dirty = True
+        model._run_compare()
         return True
     if key == 27:  # esc
         model.editing_field = False
