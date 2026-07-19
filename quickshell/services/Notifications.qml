@@ -75,6 +75,7 @@ Singleton {
 
     readonly property bool silent: Config.options?.notifications?.silent ?? false
     property var mutedApps: Config.options?.notifications?.mutedApps ?? []
+    property string mutedAppsFilePath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
@@ -230,7 +231,25 @@ Singleton {
             list.push(appName);
         root.mutedApps = list;
         Config.options.notifications.mutedApps = list;
+        root.writeMutedAppsFile();
+        root.mutedAppsChanged();
     }
+
+    function writeMutedAppsFile() {
+        const text = root.mutedApps.join("\n") + "\n";
+        writeMutedFile.command = [
+            "bash", "-c",
+            `mkdir -p "$(dirname '${root.mutedAppsFilePath}')" && cat > '${root.mutedAppsFilePath}' <<'EOF'\n${text}\nEOF`
+        ];
+        writeMutedFile.running = true;
+    }
+
+    Process {
+        id: writeMutedFile
+        running: false
+    }
+
+    signal mutedAppsChanged();
 
     function discardLatestNotification() {
         if (root.list.length === 0)
@@ -316,6 +335,7 @@ Singleton {
     }
 
     Component.onCompleted: {
+        root.writeMutedAppsFile();
         refresh()
     }
 

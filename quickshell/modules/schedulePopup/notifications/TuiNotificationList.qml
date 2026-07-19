@@ -281,32 +281,18 @@ Item {
 
     } // column
 
-    property string mutedAppsPath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.txt`
+    property string mutedAppsPath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
 
     function openMutedEditor() {
-        writeMutedFileProc.command = ["bash", "-c",
-            `dir="\$(dirname '${root.mutedAppsPath}')" && mkdir -p "\$dir" && cat > '${root.mutedAppsPath}' <<'FILEEOF'
-${Notifications.mutedApps.join("\n")}
-FILEEOF`];
-        writeMutedFileProc.running = true;
-    }
-
-    Process {
-        id: writeMutedFileProc
-        running: false
-        onExited: {
-            // Now open vi in terminal
-            editMutedProc.command = ["bash", "-c",
-                `terminal="" && for t in foot kitty ghostty alacritty xfce4-terminal gnome-terminal; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done && if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsPath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsPath}'; fi`];
-            editMutedProc.running = true;
-        }
+        editMutedProc.command = ["bash", "-c",
+            `terminal="" && for t in foot kitty ghostty alacritty xfce4-terminal gnome-terminal; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done && if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsPath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsPath}'; fi`];
+        editMutedProc.running = true;
     }
 
     Process {
         id: editMutedProc
         running: false
         onExited: {
-            // Read back the file and update muted apps
             readMutedProc.running = true;
         }
     }
@@ -320,8 +306,6 @@ FILEEOF`];
             onStreamFinished: {
                 const text = readMutedCollector.text.trim();
                 const apps = text.length > 0 ? text.split("\n").map(l => l.trim()).filter(l => l.length > 0) : [];
-                // Update both the local mutedApps and the Config
-                const oldList = [...Notifications.mutedApps];
                 Notifications.mutedApps = apps;
                 if (Config.options && Config.options.notifications) {
                     Config.options.notifications.mutedApps = apps;
