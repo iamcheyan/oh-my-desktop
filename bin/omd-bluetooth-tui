@@ -1019,7 +1019,7 @@ class BluetoothTUI:
         # Heights match bluetui: adapters = len+4, paired = len+4 when scanning else Fill
         adapter_h = 1 + 4  # one adapter row + header/margin/borders ≈ controllers.len + 4
         help_h = 0
-        usable = h - hero_h - margin * 2
+        usable = h - hero_h - margin * 2 + 1
 
         if has_disc:
             paired_h = min(len(paired) + 4, max(4, usable // 3))
@@ -1045,6 +1045,15 @@ class BluetoothTUI:
 
         # ── Hero ──
         S.draw_hero(self.stdscr, self._hero_info())
+
+        # ── Status message ──
+        if self.status_msg and not self.status_msg.startswith("Press"):
+            try:
+                msg = self.status_msg[:box_w]
+                self.stdscr.addnstr(margin + hero_h - 1, margin + max(0, (box_w - len(msg)) // 2),
+                                    msg, box_w, S.ATTR_PRIMARY)
+            except curses.error:
+                pass
 
         # ── Paired Devices (fills most of the screen when not scanning) ──
         S.draw_thick_border(self.stdscr, y, margin, paired_h, box_w, "Paired Devices")
@@ -1080,14 +1089,7 @@ class BluetoothTUI:
         if self.pin_prompt or self.confirm_prompt:
             self._draw_prompt(h, w)
 
-        # Status message as a tiny overlay above help when busy/error
-        if self.busy or self.pin_prompt or (self.status_msg and not self.status_msg.startswith("Press")):
-            try:
-                msg = self.status_msg[: box_w]
-                self.stdscr.addnstr(h - 3, margin + max(0, (box_w - len(msg)) // 2),
-                                    msg, box_w, S.ATTR_PRIMARY)
-            except curses.error:
-                pass
+
 
         self.stdscr.refresh()
 

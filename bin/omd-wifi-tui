@@ -743,7 +743,7 @@ class WiFiTUI:
         has_avail = self._show_available
         adapter_h = 1 + 4
         help_h = 0
-        usable = h - hero_h - margin * 2
+        usable = h - hero_h - margin * 2 + 1
 
         if has_avail:
             saved_h = min(max(len(self.saved), 1) + 4, max(4, usable // 3))
@@ -768,6 +768,15 @@ class WiFiTUI:
 
         # ── Hero ──
         S.draw_hero(self.stdscr, self._hero_info())
+
+        # ── Status message ──
+        if self.status_msg and not self.status_msg.startswith("Press"):
+            try:
+                msg = self.status_msg[:box_w]
+                self.stdscr.addnstr(margin + hero_h - 1, margin + max(0, (box_w - len(msg)) // 2),
+                                    msg, box_w, S.ATTR_PRIMARY)
+            except curses.error:
+                pass
 
         # ── Saved Networks ──
         S.draw_thick_border(self.stdscr, y, margin, saved_h, box_w, "Saved Networks")
@@ -804,15 +813,7 @@ class WiFiTUI:
         if self.password_prompt is not None:
             self._draw_password_prompt(h, w)
 
-        # ── Status message ──
-        if self.busy or self.password_prompt is not None or \
-                (self.status_msg and not self.status_msg.startswith("Press")):
-            try:
-                msg = self.status_msg[:box_w]
-                self.stdscr.addnstr(h - 3, margin + max(0, (box_w - len(msg)) // 2),
-                                    msg, box_w, S.ATTR_PRIMARY)
-            except curses.error:
-                pass
+
 
         self.stdscr.refresh()
 
