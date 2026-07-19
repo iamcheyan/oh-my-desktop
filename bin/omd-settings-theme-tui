@@ -641,9 +641,9 @@ def _render_controls(model, width):
     lines.append(("text", "Mode:"))
     for i, label in enumerate(mode_labels):
         if i == mode_idx:
-            lines.append(("focus", f"[{label}] ({mode_keys[i]})"))
+            lines.append(("ok", f"● {label} ({mode_keys[i]})"))
         else:
-            lines.append(("muted", f"{label} ({mode_keys[i]})"))
+            lines.append(("muted", f"○ {label} ({mode_keys[i]})"))
 
     # Effect selector — vertical layout
     eff_labels = ["perf", "bal", "vis"]
@@ -653,9 +653,9 @@ def _render_controls(model, width):
     lines.append(("text", "Effect:"))
     for i, label in enumerate(eff_labels):
         if i == eff_idx:
-            lines.append(("focus", f"[{label}] ({eff_keys[i]})"))
+            lines.append(("ok", f"● {label} ({eff_keys[i]})"))
         else:
-            lines.append(("muted", f"{label} ({eff_keys[i]})"))
+            lines.append(("muted", f"○ {label} ({eff_keys[i]})"))
 
     lines.append(("text", ""))
 
@@ -742,7 +742,7 @@ def _render_theme_grid(model, width, max_rows):
                 elif sub_row == 1:
                     # Header: accent 背景，fg 前景
                     if is_selected:
-                        marker = "►"
+                        marker = "▸"
                         fg_rgb = _hex_to_rgb(fg) or (238, 238, 238)
                         # fg text on accent background
                         pair = _get_tile_color_pair(fg_rgb, accent_rgb)

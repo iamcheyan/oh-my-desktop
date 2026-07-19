@@ -683,16 +683,14 @@ def render_schedule(model, width):
         label = {"manual": "Manual only", "every_h": "Every N hours",
                  "every_d": "Every N days", "at_time": "At specific time"}.get(st, st)
         sel = model.config.get("scheduleType", "manual") == st
-        prefix = "▸" if sel else " "
-        box = "[X]" if sel else "[ ]"
         val = model.config.get("scheduleValue", "")
         trail = f" ({val})" if val and sel else ""
         if focused:
-            lines.append(("focus", f"{box} {label}{trail}"))
+            lines.append(("focus", f"▸ {label}{trail}"))
         elif sel:
-            lines.append(("ok", f"{box} {label}{trail}"))
+            lines.append(("ok", f"● {label}{trail}"))
         else:
-            lines.append(("muted", f"{box} {label}{trail}"))
+            lines.append(("muted", f"○ {label}{trail}"))
     return lines
 
 
