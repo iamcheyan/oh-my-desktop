@@ -29,12 +29,12 @@ func TestSetupViewHidesDayToDaySettings(t *testing.T) {
 	})
 
 	out := m.View()
-	for _, s := range []string{"GET STARTED", "Setup voice input", "SenseVoice model", "Python virtual environment"} {
+	for _, s := range []string{"Get Started", "Setup voice input", "SenseVoice", "Python virtual environment"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("setup view missing %q\n%s", s, out)
 		}
 	}
-	for _, s := range []string{"TRIAL RECORD", "BINDINGS", "RECENT", "Record (enter)"} {
+	for _, s := range []string{"Voice Triggers", "Trial record", "Edit bindings"} {
 		if strings.Contains(out, s) {
 			t.Errorf("setup view should not show day-to-day %q", s)
 		}
@@ -57,12 +57,12 @@ func TestReadyViewShowsSettings(t *testing.T) {
 	m.bindings = []string{"ALT + A", "XF86Tools"}
 
 	out := m.View()
-	for _, s := range []string{"VOICE TRIGGERS", "trial record", "Alt + A", "F13 / Tools", "MODEL SPECIFICATIONS", "Delete model"} {
+	for _, s := range []string{"Voice Triggers", "trial record", "Alt + A", "F13 / Tools", "Model Specifications", "Delete model"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("ready view missing %q\n%s", s, out)
 		}
 	}
-	if strings.Contains(out, "GET STARTED") {
+	if strings.Contains(out, "Get Started") {
 		t.Error("ready view should not show setup guide")
 	}
 }
@@ -147,7 +147,7 @@ func TestDownloadingViewShowsProgress(t *testing.T) {
 	})
 
 	out := m.View()
-	for _, s := range []string{"PROGRESS", "Downloading", "Cancel setup", "42%"} {
+	for _, s := range []string{"Progress", "Downloading", "Cancel setup", "42%"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("downloading view missing %q\n%s", s, out)
 		}

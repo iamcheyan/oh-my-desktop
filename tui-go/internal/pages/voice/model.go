@@ -509,84 +509,78 @@ func (m *Model) logTrialProgress() {
 }
 
 func (m Model) View() string {
-	if m.width <= 0 || m.height <= 0 {
-		return "Initializing..."
-	}
-
-	contentW := max(16, m.width-2)
-	fixedRows := 1 // help
-	if m.statusLine() != "" {
-		fixedRows++
-	}
-	contentH := max(12, m.height-fixedRows-2)
-
-	content := ui.PreserveBackground(ui.FitBlock(m.mainPanel(contentW, contentH), contentW, contentH), ui.Background)
-
-	var helpText string
+	help := m.helpItems()
 	if m.confirmRemove {
-		helpText = ui.HelpText(ui.HelpItem("y", "confirm delete"), ui.HelpItem("n/esc", "cancel"))
-	} else {
-		helpText = ui.HelpText(m.helpItems()...)
-	}
-
-	parts := []string{content, helpText}
-	if status := m.statusLine(); status != "" {
-		parts = append([]string{status}, parts...)
-	}
-
-	return ui.Screen.Padding(1, 1).Render(lipgloss.JoinVertical(lipgloss.Left, parts...))
-}
-
-func (m Model) mainPanel(width, height int) string {
-	if m.status == nil {
-		return "Loading..."
-	}
-
-	if width >= 90 {
-		leftW := min(54, max(38, width/3))
-		rightW := width - leftW - 2
-		if rightW < 40 {
-			rightW = 40
-			leftW = max(28, width-2-rightW)
+		help = []string{
+			ui.HelpItem("y", "confirm delete"),
+			ui.HelpItem("n/esc", "cancel"),
 		}
-		left := ui.PreserveBackground(ui.FitBlock(m.controlView(leftW), leftW, height), ui.Background)
-		right := ui.PreserveBackground(ui.FitBlock(m.rightPaneView(rightW, height), rightW, height), ui.Panel)
-		return lipgloss.JoinHorizontal(lipgloss.Top, left, "  ", right)
 	}
 
-	left := m.controlView(width)
-	right := m.rightPaneView(width, max(8, height/2))
-	return left + "\n\n" + right
+	// Live trial feedback folds into the hero message so we keep one chrome.
+	msg := m.statusLinePlain()
+	hero := ui.Hero("Voice Input", m.heroSubtitle(), ui.HeroOpts{
+		Tone:    m.heroTone(),
+		Busy:    m.busy && !m.trialListening && !m.trialTranscribing,
+		Message: msg,
+	})
+
+	return ui.RenderPage(ui.Page{
+		Width:  m.width,
+		Height: m.height,
+		Hero:   hero,
+		Left:   m.controlView(),
+		Right:  m.rightPaneView(),
+		Wide:   m.width >= 90,
+		Help:   help,
+	})
 }
 
-func (m Model) controlView(width int) string {
-	health := m.stateLabel()
-	title := m.statusLight() + " " + ui.Title.Render("Voice Input")
-	if m.busy {
-		title += " " + ui.OKText.Render("working…")
+func (m Model) heroSubtitle() string {
+	if m.status == nil {
+		return "Loading…"
 	}
-
+	health := m.stateLabel()
 	daemon := "idle"
 	if m.bool("daemonRunning") {
 		daemon = "running"
 	}
 	size := m.value("modelSizeMB", "0")
-	subtitle := fmt.Sprintf("%s · SenseVoice · %s MB · daemon %s", health, size, daemon)
 	if !m.bool("modelReady") {
-		subtitle = fmt.Sprintf("%s · SenseVoice · Model missing", health)
+		return fmt.Sprintf("%s · SenseVoice · Model missing", health)
+	}
+	return fmt.Sprintf("%s · SenseVoice · %s MB · daemon %s", health, size, daemon)
+}
+
+func (m Model) heroTone() ui.Tone {
+	if m.trialListening || m.recording() {
+		return ui.ToneDanger
+	}
+	if m.trialTranscribing || m.state() == "downloading" {
+		return ui.ToneWarn
+	}
+	if m.bool("modelReady") {
+		return ui.ToneOK
+	}
+	if m.err != "" {
+		return ui.ToneDanger
+	}
+	return ui.ToneIdle
+}
+
+func (m Model) controlView() string {
+	if m.status == nil {
+		return "Loading…"
 	}
 
 	lines := []string{
-		title,
-		ui.MutedText.Render(ui.TruncateStyled(subtitle, width)),
-		"",
-		m.modelBox(width),
+		m.modelBox(),
 		"",
 	}
 
 	if m.bool("modelReady") {
 		lines = append(lines,
-			m.sectionTitle("VOICE TRIGGERS"),
+			ui.SectionTitle("Voice Triggers"),
 			ui.MutedText.Render("Configured shortcuts"),
 			"",
 		)
@@ -594,53 +588,41 @@ func (m Model) controlView(width int) string {
 		if len(binds) == 0 {
 			binds = []string{m.value("defaultTrigger", "ALT + A")}
 		}
-		// Render keycaps in a flowing row
-		keycapLine := m.keycapRow(binds)
-		lines = append(lines, keycapLine)
+		lines = append(lines, m.keycapRow(binds))
 		lines = append(lines,
 			"",
-			ui.SubtleText.Render(ui.TruncateStyled("space: test recording  ·  esc: cancel", width)),
+			ui.SubtleText.Render("space: test recording  ·  esc: cancel"),
 			"",
+			ui.PrimaryLine("Trial record", "space", !m.busy),
+			ui.ActionLine("e", "Edit bindings", !m.busy),
+			ui.ActionLine("d", "Diagnose", !m.busy),
+		)
+	} else {
+		lines = append(lines,
+			ui.PrimaryLine("Setup voice input", "enter", !m.busy),
+			ui.ActionLine("d", "Diagnose", !m.busy),
 		)
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-type palette struct {
-	background lipgloss.Color
-	line       lipgloss.Color
-}
-
-func (m Model) palette() palette {
-	return palette{
-		background: ui.Panel,
-		line:       ui.Accent,
-	}
-}
-
-func (m Model) modelBox(width int) string {
-	pal := m.palette()
-	boxW := width - 2
-	if boxW < 18 {
-		boxW = 18
-	}
-	innerW := boxW - 4
-
+func (m Model) modelBox() string {
+	innerW := 40
 	var statusLines []string
-	statusLines = append(statusLines, m.sectionTitle("MODEL SPECIFICATIONS"))
-	statusLines = append(statusLines, m.kvLine("Engine", "SenseVoice Small INT8", innerW))
-	statusLines = append(statusLines, m.kvLine("Size", m.value("modelSizeMB", "0")+" MB", innerW))
-	statusLines = append(statusLines, m.kvLine("Venv", boolReady(m.bool("venvReady")), innerW))
-	statusLines = append(statusLines, m.kvLine("Daemon", boolRunning(m.bool("daemonRunning")), innerW))
+	statusLines = append(statusLines, ui.SectionTitle("Model Specifications"))
+	statusLines = append(statusLines, ui.KVLine("Engine", "SenseVoice Small INT8", innerW))
+	statusLines = append(statusLines, ui.KVLine("Size", m.value("modelSizeMB", "0")+" MB", innerW))
+	statusLines = append(statusLines, ui.KVLine("Venv", boolReady(m.bool("venvReady")), innerW))
+	statusLines = append(statusLines, ui.KVLine("Daemon", boolRunning(m.bool("daemonRunning")), innerW))
 
 	var actionText string
 	if m.confirmRemove {
-		actionText = lipgloss.NewStyle().Foreground(ui.Danger).Bold(true).Render("  Confirm delete? y (yes) / n (no)")
+		actionText = ui.DangerText.Bold(true).Render("Confirm delete? y / n")
 	} else if m.bool("modelReady") {
-		actionText = m.actionSecondary("x", "Delete model", true)
+		actionText = ui.DangerActionLine("x", "Delete model", !m.busy)
 	} else {
-		actionText = m.actionPrimary("Setup voice input", true, innerW)
+		actionText = ui.PrimaryLine("Setup voice input", "enter", !m.busy)
 	}
 	statusLines = append(statusLines, "", actionText)
 
@@ -648,18 +630,17 @@ func (m Model) modelBox(width int) string {
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.ThickBorder()).
-		BorderForeground(pal.line).
-		Background(pal.background).
+		BorderForeground(ui.Accent).
+		Background(ui.Panel).
 		Padding(1, 2).
-		Width(boxW).
-		Render(boxContent)
+		Render(ui.PreserveBackground(boxContent, ui.Panel))
 }
 
-func (m Model) rightPaneView(width, height int) string {
+func (m Model) rightPaneView() string {
+	if m.status == nil {
+		return ""
+	}
 	state := m.state()
-	innerW := max(8, width-4)
-	innerH := max(4, height-2)
-	paneStyle := lipgloss.NewStyle().Padding(1, 2)
 
 	if state == "downloading" {
 		percent := ui.ParseInt(m.value("download.percent", "0"))
@@ -669,60 +650,40 @@ func (m Model) rightPaneView(width, height int) string {
 		}
 		speed := speedLabel(m.value("download.speedBps", "0"))
 		eta := etaLabel(m.value("download.etaSec", "0"))
-		barW := max(10, min(40, innerW-8))
+		barW := 28
 
 		progressBlock := strings.Join([]string{
-			m.sectionTitle("PROGRESS"),
+			ui.SectionTitle("Progress"),
 			ui.WarnText.Render("Downloading " + label),
 			ui.ProgressBar(percent, barW) + " " + fmt.Sprintf("%d%%", percent),
-			m.kvLine("Speed", speed, innerW),
-			m.kvLine("Remaining", eta, innerW),
-			m.actionPrimary("Cancel setup", true, innerW),
+			ui.KVLine("Speed", speed, 40),
+			ui.KVLine("Remaining", eta, 40),
+			ui.PrimaryLine("Cancel setup", "enter", true),
 		}, "\n")
 
-		progH := strings.Count(progressBlock, "\n") + 1
-		logH := innerH - progH - 2
-		if logH < 3 {
-			logH = 3
-		}
-
-		logHeader := m.sectionTitle("SETUP LOG OUTPUT")
-		logBody := m.logBody(innerW, logH)
-
-		return paneStyle.Render(progressBlock + "\n\n" + logHeader + "\n" + logBody)
+		return progressBlock + "\n\n" + ui.SectionTitle("Setup Log") + "\n" + m.logBody(48, 10)
 	}
 
 	if !m.bool("modelReady") {
 		welcomeLines := []string{
-			m.sectionTitle("GET STARTED"),
-			ui.MutedText.Render(ui.TruncatePlain("Welcome to Voice Input setup.", innerW)),
+			ui.SectionTitle("Get Started"),
+			ui.MutedText.Render("Welcome to Voice Input setup."),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("This feature enables you to dictate text using local", innerW)),
-			ui.MutedText.Render(ui.TruncatePlain("speech recognition. All audio processing is done entirely", innerW)),
-			ui.MutedText.Render(ui.TruncatePlain("on your device — no external network requests are made.", innerW)),
+			ui.MutedText.Render("Dictate text with local speech recognition."),
+			ui.MutedText.Render("Audio stays on this device."),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("Setup will download the SenseVoice model (~229 MB) and", innerW)),
-			ui.MutedText.Render(ui.TruncatePlain("prepare the Python virtual environment.", innerW)),
+			ui.MutedText.Render("Setup downloads SenseVoice (~229 MB) and"),
+			ui.MutedText.Render("prepares the Python virtual environment."),
 			"",
-			ui.MutedText.Render(ui.TruncatePlain("To begin, select 'Setup voice input' on the left.", innerW)),
+			ui.MutedText.Render("Use Setup voice input on the left to begin."),
+			"",
+			ui.SectionTitle("Console Logs"),
+			m.logBody(48, 8),
 		}
-
-		welcomeBlock := strings.Join(welcomeLines, "\n")
-		welcomeH := strings.Count(welcomeBlock, "\n") + 1
-		logH := innerH - welcomeH - 2
-		if logH < 3 {
-			logH = 3
-		}
-
-		logHeader := m.sectionTitle("CONSOLE LOGS")
-		logBody := m.logBody(innerW, logH)
-
-		return paneStyle.Render(welcomeBlock + "\n\n" + logHeader + "\n" + logBody)
+		return strings.Join(welcomeLines, "\n")
 	}
 
-	logHeader := m.sectionTitle("DETAILED LOGS")
-	logBody := m.logBody(innerW, innerH-1)
-	return paneStyle.Render(logHeader + "\n" + logBody)
+	return ui.SectionTitle("Detailed Logs") + "\n" + m.logBody(48, 16)
 }
 
 func (m Model) logBody(width, logCount int) string {
@@ -788,50 +749,12 @@ func (m Model) logBody(width, logCount int) string {
 	return strings.Join(displayedLogs, "\n")
 }
 
-func (m Model) sectionTitle(text string) string {
-	return lipgloss.NewStyle().Foreground(ui.Accent).Bold(true).Render(text)
-}
-
-func (m Model) heroLines(width int, subtitle string) []string {
-	title := m.statusLight() + " " + ui.Title.Render("Voice Input")
-	if m.busy {
-		title += " " + ui.OKText.Render("working…")
-	}
-	lines := []string{title}
-	if subtitle != "" {
-		lines = append(lines, ui.MutedText.Render(ui.TruncateStyled(subtitle, width)))
-	}
-	return lines
-}
-
-func (m Model) statusLight() string {
-	style := lipgloss.NewStyle().Foreground(m.tone())
-	return style.Render("●")
-}
-
-func (m Model) actionPrimary(label string, enabled bool, width int) string {
-	style := lipgloss.NewStyle().Foreground(ui.Muted)
-	prefix := "  "
-	if enabled && !m.busy {
-		style = lipgloss.NewStyle().Foreground(ui.Accent).Bold(true)
-		prefix = "→ "
-	}
-	return style.Render(ui.TruncatePlain(prefix+label+" (enter)", width))
-}
-
-func (m Model) actionSecondary(key, label string, enabled bool) string {
-	style := lipgloss.NewStyle().Foreground(ui.Muted)
-	if enabled && !m.busy {
-		style = lipgloss.NewStyle().Foreground(ui.Danger)
-	}
-	return style.Render(label + " (" + key + ")")
-}
-
-func (m Model) statusLine() string {
-	parts := []string{}
+// statusLinePlain is unstyled live feedback for the hero message slot.
+func (m Model) statusLinePlain() string {
 	if m.trialTranscribing {
-		parts = append(parts, ui.OKText.Render("transcribing…"))
-	} else if m.trialListening || m.recording() {
+		return "transcribing…"
+	}
+	if m.trialListening || m.recording() {
 		elapsed := 0
 		if !m.recStart.IsZero() {
 			elapsed = int(time.Since(m.recStart).Seconds())
@@ -841,17 +764,15 @@ func (m Model) statusLine() string {
 		if level >= 12 {
 			label = "hearing you"
 		}
-		parts = append(parts, ui.DangerText.Render(fmt.Sprintf("%s %s · level %d", label, ui.FormatDuration(elapsed), level)))
-	} else if m.busy {
-		parts = append(parts, ui.OKText.Render("working..."))
+		return fmt.Sprintf("%s %s · level %d", label, ui.FormatDuration(elapsed), level)
 	}
 	if m.err != "" {
-		parts = append(parts, ui.DangerText.Render(m.err))
+		return m.err
 	}
-	if m.message != "" && !m.busy && !m.trialListening && !m.trialTranscribing {
-		parts = append(parts, ui.OKText.Render(m.message))
+	if m.message != "" && !m.busy {
+		return m.message
 	}
-	return strings.Join(parts, " ")
+	return ""
 }
 
 func (m Model) helpItems() []string {
@@ -889,18 +810,6 @@ func (m Model) helpItems() []string {
 	}
 	items = append(items, ui.HelpItem("r", "refresh"), ui.HelpItem("q", "quit"))
 	return items
-}
-
-func (m Model) kvLine(label, value string, width int) string {
-	labelStyle := lipgloss.NewStyle().Foreground(ui.Text)
-	valueStyle := lipgloss.NewStyle().Foreground(ui.Muted)
-	left := labelStyle.Render(label)
-	gap := 2
-	remain := width - lipgloss.Width(label) - gap
-	if remain < 8 {
-		remain = 8
-	}
-	return left + strings.Repeat(" ", gap) + valueStyle.Render(ui.TruncatePlain(value, remain))
 }
 
 // keycapRow renders unique trigger bindings as a compact keyboard shortcut list.
