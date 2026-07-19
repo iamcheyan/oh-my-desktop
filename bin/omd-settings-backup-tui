@@ -357,7 +357,7 @@ class Model:
                         self._refresh_item_rows()
                         ns = data.get("needs_sync", 0)
                         if ns > 0:
-                            self.append_log(f"→ {ns} file(s) need backup — press b to sync", "warn")
+                            self.append_log(f"→ {ns} file(s) need backup — press s to sync", "warn")
                             self.message = f"{ns} file(s) changed"
                         else:
                             self.append_log("→ All files up to date ✓", "ok")
@@ -512,9 +512,6 @@ def help_items(model):
             if ns > 0:
                 items.append(("s", "sync inc"))
                 items.append(("S", "sync full"))
-                # b/B aliases for backward compatibility
-                items.append(("b", "also sync"))
-                items.append(("B", "also full"))
         items.append(("c", "detail diff"))
     return items
 
@@ -612,8 +609,6 @@ def render_actions(model):
     # Sync keys are always available even if only shown conditionally in help bar
     lines.append(S.action_line("s", "Sync inc", enabled and has_config))
     lines.append(S.action_line("S", "Sync full --delete", enabled and has_config))
-    lines.append(S.action_line("b", "Sync inc (alt)", enabled and has_config))
-    lines.append(S.action_line("B", "Sync full (alt)", enabled and has_config))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
     return lines
@@ -865,10 +860,10 @@ def handle_key(stdscr, model, key):
     if key in (ord('t'), ord('T')):
         model.test_connection()
         return True
-    if key == ord('s') or key == ord('b'):
+    if key == ord('s'):
         model.run_backup(delete_remote=False)
         return True
-    if key == ord('S') or key == ord('B'):
+    if key == ord('S'):
         model.run_backup(delete_remote=True)
         return True
     if key in (ord('c'), ord('C')):

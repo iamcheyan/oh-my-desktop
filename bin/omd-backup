@@ -536,7 +536,7 @@ case "$cmd" in
     echo ""
     echo "Summary: $total files ($new new, $modified modified, $unchanged unchanged)"
     if [[ $needs_sync -gt 0 ]]; then
-      echo "→ $needs_sync file(s) need backup (press b to sync)"
+      echo "→ $needs_sync file(s) need backup (press s to sync)"
     else
       echo "→ All files up to date ✓"
     fi
