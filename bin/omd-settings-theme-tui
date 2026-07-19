@@ -1,0 +1,922 @@
+#!/usr/bin/env python3
+"""Theme & Appearance settings TUI — Python curses port with full feature parity.
+
+Features:
+  - Mouse support (click controls, click theme grid tiles)
+  - Image preview (ASCII art from actual image file)
+  - Theme palette integration (reads theme colors)
+  - Segmented mode/effect selectors
+  - Theme grid with color swatch tiles
+  - Wallpaper stop action
+  - Context-sensitive help per mode
+  - Palette caching
+  - Blend function for derived colors
+"""
+
+import curses
+import importlib
+import importlib.util
+import json
+import math
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_shared_spec = importlib.util.spec_from_file_location(
+    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
+_shared = importlib.util.module_from_spec(_shared_spec)
+_shared_spec.loader.exec_module(_shared)
+S = _shared
+
+# ── image preview cache ──────────────────────────────────────────────────
+_image_preview_cache = {"path": "", "width": 0, "height": 0, "mtime": 0, "size": 0, "view": ""}
+
+
+def _hex_to_rgb(hex6):
+    h = hex6.lstrip("#")
+    if len(h) != 6:
+        return None
+    try:
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except ValueError:
+        return None
+
+
+def _rgb_to_hex(r, g, b):
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _blend(hex_a, hex_b, amount):
+    """Blend two hex colors: result = a*(1-amount) + b*amount"""
+    a = _hex_to_rgb(hex_a)
+    b = _hex_to_rgb(hex_b)
+    if not a or not b:
+        return hex_a
+    r = int(a[0] * (1 - amount) + b[0] * amount)
+    g = int(a[1] * (1 - amount) + b[1] * amount)
+    bl = int(a[2] * (1 - amount) + b[2] * amount)
+    return _rgb_to_hex(min(255, r), min(255, g), min(255, bl))
+
+
+def _render_image_preview(path, width, height):
+    """Render an image file as curses half-block characters.
+
+    Returns a list of rows, where each row is a list of (pair_index, fg_r, fg_g, fg_b, bg_r, bg_g, bg_b)
+    tuples for each column. Returns empty list on failure.
+    """
+    global _image_preview_cache
+    if not path or width <= 0 or height <= 0:
+        return []
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+
+    # Check cache (same path/size/time/dimensions)
+    if (_image_preview_cache["path"] == path and
+            _image_preview_cache["width"] == width and
+            _image_preview_cache["height"] == height and
+            _image_preview_cache["mtime"] == mtime and
+            _image_preview_cache["size"] == fsize):
+        return _image_preview_cache["view"]
+
+    try:
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        src_w, src_h = img.size
+        if src_w <= 0 or src_h <= 0:
+            return []
+
+        sample_w = width
+        sample_h = height * 2
+        scale = max(sample_w / src_w, sample_h / src_h)
+        crop_w = sample_w / scale
+        crop_h = sample_h / scale
+        offset_x = (src_w - crop_w) / 2
+        offset_y = (src_h - crop_h) / 2
+
+        rows = []
+        for row in range(height):
+            cols_data = []
+            for col in range(width):
+                sx = int(offset_x + (col + 0.5) * crop_w / sample_w)
+                sy_top = int(offset_y + (row * 2 + 0.5) * crop_h / sample_h)
+                sy_bot = int(offset_y + (row * 2 + 1.5) * crop_h / sample_h)
+                sx = max(0, min(src_w - 1, sx))
+                sy_top = max(0, min(src_h - 1, sy_top))
+                sy_bot = max(0, min(src_h - 1, sy_bot))
+                r_top, g_top, b_top = img.getpixel((sx, sy_top))
+                r_bot, g_bot, b_bot = img.getpixel((sx, sy_bot))
+                cols_data.append((r_top, g_top, b_top, r_bot, g_bot, b_bot))
+            rows.append(cols_data)
+
+        _image_preview_cache = {"path": path, "width": width, "height": height,
+                                "mtime": mtime, "size": fsize, "view": rows}
+        return rows
+    except ImportError:
+        return []
+    except Exception:
+        return []
+
+
+# Dynamic color pair allocator for image preview
+# We use pairs starting from C_THEME_START (11) up to 255 max (curses limit)
+_color_pair_map = {}  # (r5, g5, b5, r5_bg, g5_bg, b5_bg) -> pair_index
+_next_pair_idx = [S.C_THEME_START if hasattr(S, 'C_THEME_START') else 11]
+_MAX_COLOR_PAIRS = 200
+
+
+def _quantize5(v):
+    """Quantize 0-255 to 0-4 (5 levels per channel)."""
+    return max(0, min(4, v * 5 // 256))
+
+
+def _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    """Get or allocate a curses color pair for the given fg/bg color combo."""
+    # Quantize to reduce the total number of unique pairs needed
+    key = (_quantize5(r_fg), _quantize5(g_fg), _quantize5(b_fg),
+           _quantize5(r_bg), _quantize5(g_bg), _quantize5(b_bg))
+    if key in _color_pair_map:
+        return _color_pair_map[key]
+
+    pair_limit = min(
+        S.C_THEME_START + _MAX_COLOR_PAIRS,
+        max(S.C_THEME_START, getattr(curses, "COLOR_PAIRS", 0)),
+    )
+    if getattr(curses, "COLORS", 0) < 256 or _next_pair_idx[0] >= pair_limit:
+        # Fallback to closest existing pair or default subtle
+        return S.C_SUBTLE if hasattr(S, 'C_SUBTLE') else 9
+
+    pair_idx = _next_pair_idx[0]
+    _next_pair_idx[0] += 1
+
+    # Use the terminal's standard 6x6x6 xterm cube. This avoids rewriting
+    # terminal palette entries and keeps all color indices below 256.
+    def xterm_index(r5, g5, b5):
+        r6 = round(r5 * 5 / 4)
+        g6 = round(g5 * 5 / 4)
+        b6 = round(b5 * 5 / 4)
+        return 16 + 36 * r6 + 6 * g6 + b6
+
+    try:
+        fg_color_idx = xterm_index(key[0], key[1], key[2])
+        bg_color_idx = xterm_index(key[3], key[4], key[5])
+        curses.init_pair(pair_idx, fg_color_idx, bg_color_idx)
+    except curses.error:
+        # Terminal doesn't support custom colors — fall back
+        _color_pair_map[key] = 0  # default pair
+        return 0
+
+    _color_pair_map[key] = pair_idx
+    return pair_idx
+
+
+def _get_theme_tile_pair(accent_hex, bg_hex, fg_hex, role):
+    """
+    为主题 tile 的某个角色（'header' or 'sample'）分配 curses color pair。
+    role='header': fg=fg_hex on bg=accent_hex
+    role='sample': fg=fg_hex on bg=bg_hex
+    返回 curses color pair index，失败返回 0。
+    """
+    if role == "header":
+        fg_h, bg_h = fg_hex, accent_hex
+    else:
+        fg_h, bg_h = fg_hex, bg_hex
+
+    fg_rgb = _hex_to_rgb(fg_h)
+    bg_rgb = _hex_to_rgb(bg_h)
+    if not fg_rgb or not bg_rgb:
+        return 0
+    return _get_image_color_pair(fg_rgb[0], fg_rgb[1], fg_rgb[2],
+                                  bg_rgb[0], bg_rgb[1], bg_rgb[2])
+
+
+def _render_image_view(stdscr, y, x, rows):
+    """Render a previously computed image (list of rows) at (y, x) using curses color pairs."""
+    if not rows:
+        return
+    for row_idx, row_pixels in enumerate(rows):
+        for col_idx, pixel in enumerate(row_pixels):
+            if len(pixel) != 6:
+                continue
+            r_fg, g_fg, b_fg, r_bg, g_bg, b_bg = pixel
+            pair_idx = _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg)
+            attr = curses.color_pair(pair_idx)
+            S.safe_addstr(stdscr, y + row_idx, x + col_idx, "▀", attr)
+
+
+# ── palette cache ───────────────────────────────────────────────────────
+_palette_cache = {"bg": "", "fg": "", "accent": "", "pal": {}}
+
+
+def _get_palette(model):
+    bg = model.val("background", "")
+    fg = model.val("foreground", "")
+    accent = model.val("accent", "")
+    if (_palette_cache["bg"] == bg and _palette_cache["fg"] == fg and
+            _palette_cache["accent"] == accent):
+        return _palette_cache["pal"]
+    bg_c = bg if bg else "#050505"
+    fg_c = fg if fg else "#eeeeee"
+    accent_c = accent if accent else "#20d6c7"
+    pal = {
+        "background": bg_c,
+        "panel": _blend(bg_c, fg_c, 0.08),
+        "panel_soft": _blend(bg_c, fg_c, 0.14),
+        "line": _blend(bg_c, fg_c, 0.28),
+        "text": fg_c,
+        "muted": _blend(bg_c, fg_c, 0.68),
+        "accent": accent_c,
+        "color_wallpaper": _blend(bg_c, accent_c, 0.08),
+    }
+    _palette_cache["bg"] = bg
+    _palette_cache["fg"] = fg
+    _palette_cache["accent"] = accent
+    _palette_cache["pal"] = pal
+    return pal
+
+
+# ── theme entry ──────────────────────────────────────────────────────────
+class ThemeEntry:
+    __slots__ = ("slug", "name", "current", "accent", "background", "foreground")
+    def __init__(self, slug, name, current=False, accent="", background="", foreground=""):
+        self.slug = slug
+        self.name = name
+        self.current = current
+        self.accent = accent
+        self.background = background
+        self.foreground = foreground
+
+
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.status = {}
+        self.themes = []
+        self.selected = 0
+        self.busy = False
+        self.refreshing = False
+        self.applying = ""
+        self.err = ""
+        self.message = ""
+        self.scroll_offset = 0
+        self.dirty = True
+        self.loaded = False
+        self.refresh()
+
+    def val(self, key, fallback=""):
+        return self.status.get(key, fallback)
+
+    def boo(self, key):
+        return self.status.get(key) == "true"
+
+    def refresh(self):
+        if self.refreshing:
+            return
+        self.refreshing = True
+        self.dirty = True
+        pending = [2]
+        def complete():
+            pending[0] -= 1
+            if pending[0] == 0:
+                self.refreshing = False
+            self.dirty = True
+        def on_status(lines, err):
+            if err:
+                self.err = f"Status refresh failed: {err}"
+            else:
+                self.status = S.parse_kv(lines)
+            complete()
+        def on_themes(lines, err):
+            self.themes = []
+            for l in lines if not err else []:
+                parts = l.split("\t")
+                if len(parts) < 2:
+                    continue
+                slug = parts[0]
+                name = parts[1]
+                current = len(parts) > 3 and parts[3] == "current"
+                accent = parts[4] if len(parts) > 4 else ""
+                bg = parts[5] if len(parts) > 5 else ""
+                fg = parts[6] if len(parts) > 6 else ""
+                self.themes.append(ThemeEntry(slug, name, current, accent, bg, fg))
+            if not self.loaded:
+                for i, t in enumerate(self.themes):
+                    if t.current:
+                        self.selected = i
+                        break
+                self.loaded = True
+            self.selected = max(0, min(self.selected, len(self.themes) - 1))
+            if err:
+                self.err = f"Theme list failed: {err}"
+            complete()
+        S.run_cmd_bg("omd-settings-theme", "appearance-status", callback=on_status)
+        S.run_cmd_bg("omd-settings-theme", "list", callback=on_themes)
+
+    def apply_theme(self, slug):
+        self.busy = True
+        self.applying = slug
+        self.message = f"Applying {slug}…"
+        self.dirty = True
+        def cb(lines, err):
+            self.busy = False
+            self.applying = ""
+            if err:
+                self.err = "Theme apply failed"
+                self.message = ""
+            else:
+                self.message = "Theme applied"
+                self.err = ""
+            self.dirty = True
+            self.refresh()
+        S.run_cmd_bg("omd-settings-theme", "apply", slug, callback=cb)
+
+    def run_action(self, action, *extra):
+        self.busy = True
+        self.message = f"{action}…"
+        self.dirty = True
+        def cb(lines, err):
+            self.busy = False
+            if err:
+                self.message = "Done"
+                self.err = str(err) if err else ""
+            else:
+                self.message = theme_action_message(action)
+                self.err = ""
+            self.dirty = True
+            self.refresh()
+        S.run_cmd_bg("omd-settings-theme", action, *extra, callback=cb)
+
+    def effects(self, mode):
+        self.run_action("effects", mode)
+
+    def interval(self, delta):
+        current = S.parse_int(self.val("wallpaper.interval", "3600"))
+        if current == 0:
+            current = 3600
+        next_val = current + delta
+        if next_val < 300:
+            next_val = 300
+        if next_val > 7200:
+            next_val = 7200
+        self.run_action("wallpaper-interval", str(next_val))
+
+    def move_selection(self, delta):
+        if not self.themes:
+            self.selected = 0
+            return
+        self.selected += delta
+        self.selected = max(0, min(self.selected, len(self.themes) - 1))
+
+    def grid_columns(self, width):
+        if not self.themes:
+            return 1
+        longest = max(len(t.name) for t in self.themes)
+        tile_w = max(12, longest + 2)
+        gap = 2
+        cols = max(1, (width + gap) // (tile_w + 2 + gap))
+        return min(cols, len(self.themes), 6)
+
+    def tile_width(self, width, cols):
+        if cols < 1:
+            cols = 1
+        gap = 2
+        border = 2  # 1 left + 1 right border char
+        available = width - (cols - 1) * gap - cols * border
+        return max(10, available // cols)
+
+
+def theme_action_message(action):
+    if action.startswith("apply "):
+        return "Theme applied"
+    mapping = {
+        "wallpaper-next": "Wallpaper changed",
+        "wallpaper-stop": "Wallpaper rotation stopped",
+        "wallpaper-pick-file": "Wallpaper selected",
+        "wallpaper-pick-folder": "Wallpaper folder selected",
+        "wallpaper-set-color": "Solid color set",
+    }
+    if action.startswith("wallpaper-interval"):
+        return "Wallpaper interval updated"
+    if action.startswith("effects"):
+        return "Window effects updated"
+    return mapping.get(action, "Done")
+
+
+def interval_label(s):
+    sec = S.parse_int(s)
+    if sec == 0:
+        sec = 3600
+    if sec >= 3600:
+        return f"{sec//3600}h"
+    if sec >= 60:
+        return f"{sec//60}m"
+    return f"{sec}s"
+
+
+# ── rendering ───────────────────────────────────────────────────────────
+def _hero(model):
+    st = model.val("theme.current", "Default")
+    count = len(model.themes)
+    mode = model.val("wallpaper.mode", "file")
+    if mode == "folder":
+        interval = interval_label(model.val("wallpaper.interval", "3600"))
+        wp = f"rotating every {interval}"
+    elif mode == "color":
+        wp = "solid color"
+    else:
+        wp = "single image"
+    subtitle = f"{st} · {count} themes · {wp}"
+    msg = ""
+    if model.err:
+        msg = model.err
+    elif model.message and not model.busy:
+        msg = model.message
+    elif model.applying:
+        msg = f"applying {model.applying}…"
+    return S.hero_line("Theme & Appearance", subtitle, "ok", model.busy, msg)
+
+
+def _help(model):
+    mode = model.val("wallpaper.mode", "file")
+    if mode == "color":
+        return [("arrows", "theme"), ("enter", "apply"), ("f", "file"),
+                ("d", "folder"), ("r", "refresh"), ("q", "quit")]
+    if mode == "folder":
+        return [("arrows", "theme"), ("enter", "apply"), ("f", "file"),
+                ("c", "color"), ("d", "pick folder"), ("w", "next"),
+                ("x", "stop"), ("[/]", "interval"), ("1/2/3", "effects"),
+                ("r", "refresh"), ("q", "quit")]
+    return [("arrows", "theme"), ("enter", "apply"), ("d", "folder"),
+            ("c", "color"), ("f", "pick file"), ("1/2/3", "effects"),
+            ("r", "refresh"), ("q", "quit")]
+
+
+def _render_preview(model, width, height):
+    """Return list of (tag, text) lines for the preview area."""
+    width = max(14, width)
+    height = max(4, height)
+    mode = model.val("wallpaper.mode", "file")
+    lines = []
+    if mode == "color":
+        bg_hex = model.val("accent", "000000")
+        for i in range(height):
+            lines.append(("muted", " " * (width - 2)))
+    else:
+        wp = model.val("wallpaper.current", "")
+        fname = os.path.basename(wp) if wp else "No wallpaper"
+        if mode == "folder":
+            interval = interval_label(model.val("wallpaper.interval", "3600"))
+            fname = f"{fname} ({interval})"
+        lines.append(("section", f" {S.truncate(fname, width-3)}"))
+        for _ in range(height - 2):
+            lines.append(("muted", " " * (width - 2)))
+        lines.append(("border", "─" * (width - 2)))
+    return lines
+
+
+def _render_controls(model, width):
+    mode = model.val("wallpaper.mode", "file")
+    effect = model.val("effects.mode", "balanced")
+    lines = []
+
+    lines.append(("section", "Settings"))
+
+    # Mode selector — vertical layout
+    mode_labels = ["file", "folder", "color"]
+    mode_vals = ["file", "folder", "color"]
+    mode_idx = mode_vals.index(mode) if mode in mode_vals else 0
+    mode_keys = ["f", "d", "c"]
+    lines.append(("text", "Mode:"))
+    for i, label in enumerate(mode_labels):
+        if i == mode_idx:
+            lines.append(("focus", f"  [{label}] ({mode_keys[i]})"))
+        else:
+            lines.append(("muted", f"  {label} ({mode_keys[i]})"))
+
+    # Effect selector — vertical layout
+    eff_labels = ["perf", "bal", "vis"]
+    eff_vals = ["performance", "balanced", "visuals"]
+    eff_idx = eff_vals.index(effect) if effect in eff_vals else 1
+    eff_keys = ["1", "2", "3"]
+    lines.append(("text", "Effect:"))
+    for i, label in enumerate(eff_labels):
+        if i == eff_idx:
+            lines.append(("focus", f"  [{label}] ({eff_keys[i]})"))
+        else:
+            lines.append(("muted", f"  {label} ({eff_keys[i]})"))
+
+    lines.append(("text", ""))
+
+    # Action buttons
+    if mode == "file":
+        lines.append(S.action_line("f", "Pick file", not model.busy))
+    elif mode == "folder":
+        lines.append(S.action_line("d", "Pick folder", not model.busy))
+        lines.append(S.action_line("w", "Next", not model.busy))
+        lines.append(S.action_line("x", "Stop", not model.busy))
+        lines.append(S.cycle_line("Interval", interval_label(model.val("wallpaper.interval", "3600")), "[/]", False))
+    else:
+        lines.append(S.action_line("c", "Solid color", not model.busy))
+
+    lines.append(("text", ""))
+    if mode == "color":
+        lines.append(("section", "Active Background"))
+        bg_hex = model.val("accent", "000000")
+        lines.append(("muted", f"  Solid color (#{bg_hex})"))
+    else:
+        lines.append(("section", "Active Wallpaper"))
+        wp = model.val("wallpaper.current", "")
+        wp_name = os.path.basename(wp) if wp else "No wallpaper set"
+        if mode == "folder":
+            interval = interval_label(model.val("wallpaper.interval", "3600"))
+            wp_name = f"{wp_name} ({interval})"
+        lines.append(("muted", f"  {S.truncate(wp_name, max(8, width-2))}"))
+
+    return lines
+
+
+def _render_theme_grid(model, width, max_rows):
+    if not model.themes:
+        return [("section", "Themes"), ("muted", "  No themes available")]
+
+    cols = model.grid_columns(width)
+    tw = model.tile_width(width, cols)
+    total_rows = (len(model.themes) + cols - 1) // cols
+    selected_row = model.selected // cols
+    start_row = max(0, selected_row - max_rows + 1) if selected_row >= max_rows else 0
+    end_row = min(total_rows, start_row + max_rows)
+
+    lines = []
+    lines.append(("section", "Themes"))
+    lines.append(("muted", "  Choose a theme. Enter applies the selected theme."))
+    lines.append(("text", ""))
+
+    if start_row > 0:
+        lines.append(("muted", f"  … {start_row} rows above"))
+
+    for row in range(start_row, end_row):
+        # 每行 5 个 sub_row，拼成 cells 列表
+        # 每个 tile 结构：左框(1) + 内容(tw) + 右框(1) + 间隔(2)
+        for sub_row in range(5):
+            cells = []
+            for col in range(cols):
+                idx = row * cols + col
+                if idx >= len(model.themes):
+                    cells.append({"text": " " * (tw + 4), "pair": 0, "width": tw + 4, "bold": False})
+                    continue
+                theme = model.themes[idx]
+                is_selected = (idx == model.selected)
+
+                accent = theme.accent or "#444444"
+                bg     = theme.background or "#111111"
+                fg     = theme.foreground or "#eeeeee"
+                accent_rgb = _hex_to_rgb(accent) or (32, 214, 199)
+                border_pair = _get_image_color_pair(
+                    accent_rgb[0], accent_rgb[1], accent_rgb[2], 0, 0, 0)
+
+                if sub_row == 0:
+                    # 顶边框
+                    if is_selected:
+                        left_b = "┌"
+                        right_b = "┐"
+                        content = "─" * tw
+                        b_pair = border_pair
+                    else:
+                        left_b = " "
+                        right_b = " "
+                        content = " " * tw
+                        b_pair = 0
+                    pair = 0
+                    bold = False
+                elif sub_row == 1:
+                    # Header: accent 背景，fg 前景
+                    if is_selected:
+                        marker = "►"
+                        fg_rgb = _hex_to_rgb(fg) or (238, 238, 238)
+                        pair = _get_image_color_pair(
+                            accent_rgb[0], accent_rgb[1], accent_rgb[2],
+                            fg_rgb[0], fg_rgb[1], fg_rgb[2])
+                        left_b = "│"
+                        right_b = "│"
+                        b_pair = border_pair
+                    else:
+                        marker = "●" if theme.current else " "
+                        pair = _get_theme_tile_pair(accent, bg, fg, "header")
+                        left_b = " "
+                        right_b = " "
+                        b_pair = 0
+                    content = (marker + " " + " " * tw)[:tw]
+                    bold = is_selected
+                elif sub_row == 2:
+                    # Sample: bg 背景，fg 前景
+                    content = ("Ag" + " " * tw)[:tw]
+                    pair = _get_theme_tile_pair(accent, bg, fg, "sample")
+                    if is_selected:
+                        left_b = "│"
+                        right_b = "│"
+                        b_pair = border_pair
+                    else:
+                        left_b = " "
+                        right_b = " "
+                        b_pair = 0
+                    bold = False
+                elif sub_row == 3:
+                    # 主题名：选中用 accent 色 + 加粗，当前用加粗
+                    content = S.truncate(theme.name, tw).ljust(tw)
+                    if is_selected:
+                        pair = _get_theme_tile_pair(accent, bg, fg, "header")
+                        left_b = "│"
+                        right_b = "│"
+                        b_pair = border_pair
+                        bold = True
+                    elif theme.current:
+                        pair = 0
+                        left_b = " "
+                        right_b = " "
+                        b_pair = 0
+                        bold = True
+                    else:
+                        pair = 0
+                        left_b = " "
+                        right_b = " "
+                        b_pair = 0
+                        bold = False
+                else:
+                    # 底边框
+                    if is_selected:
+                        left_b = "└"
+                        right_b = "┘"
+                        content = "─" * tw
+                        b_pair = border_pair
+                    else:
+                        left_b = " "
+                        right_b = " "
+                        content = " " * tw
+                        b_pair = 0
+                    pair = 0
+                    bold = False
+
+                # 左框
+                cells.append({"text": left_b, "pair": b_pair, "width": 1, "bold": False})
+                # 内容
+                cells.append({"text": content, "pair": pair, "width": tw, "bold": bold})
+                # 右框
+                cells.append({"text": right_b, "pair": b_pair, "width": 1, "bold": False})
+                # 间隔
+                if col < cols - 1:
+                    cells.append({"text": "  ", "pair": 0, "width": 2, "bold": False})
+
+            lines.append(("tile_row", cells))
+
+    if end_row < total_rows:
+        lines.append(("muted", f"  … {total_rows - end_row} rows below"))
+
+    return lines
+
+
+# ── main view ───────────────────────────────────────────────────────────
+def _view(stdscr, m):
+    h, w = stdscr.getmaxyx()
+    m.width, m.height = w, h
+    stdscr.erase()
+
+    if not S.require_terminal_size(stdscr, 68, 18):
+        return
+
+    hd = _hero(m)
+    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
+    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
+    if hd[4]:
+        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
+    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+
+    # geometry
+    pad_x, pad_y = 2, 2
+    hero_h = 2
+    help_h = 1
+    content_w = w - pad_x
+    avail_h = h - pad_y - hero_h - help_h
+
+    show_right = w >= 108
+    if show_right:
+        preview_w = 34
+        grid_w = content_w
+        grid_h = avail_h
+        left_h = min(avail_h, 20)
+    else:
+        preview_w = content_w
+        left_h = avail_h
+        grid_w = content_w
+
+    # Left column — preview + controls stacked
+    if show_right:
+        # Preview at top
+        preview_h = 10
+        S.draw_border(stdscr, hero_h, 0, preview_h, preview_w, "Preview")
+        mode = m.val("wallpaper.mode", "file")
+        if mode == "color":
+            # color mode: keep text rendering
+            prev_lines = _render_preview(m, preview_w - 4, preview_h - 3)
+            for i, (tag, text) in enumerate(prev_lines):
+                S.safe_addstr(stdscr, hero_h + 1 + i, 2, S.truncate(text, preview_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+        else:
+            # file/folder mode: try pixel preview
+            inner_y = hero_h + 1
+            inner_x = 2
+            inner_w = preview_w - 4
+            inner_h = preview_h - 3
+
+            wp_path = m.val("wallpaper.current", "")
+            if wp_path.startswith("~/"):
+                wp_path = os.path.expanduser(wp_path)
+
+            rows = _render_image_preview(wp_path, inner_w, inner_h)
+            if rows:
+                _render_image_view(stdscr, inner_y, inner_x, rows)
+            else:
+                # fallback: show filename placeholder
+                fname = os.path.basename(wp_path) if wp_path else "No wallpaper"
+                S.safe_addstr(stdscr, inner_y, inner_x, S.truncate(fname, inner_w), S.ATTR_MUTED)
+
+        # Controls below preview
+        ctrl_y = hero_h + preview_h
+        ctrl_h = avail_h - preview_h
+        S.draw_border(stdscr, ctrl_y, 0, ctrl_h, preview_w, "")
+        ctrl_lines = _render_controls(m, preview_w - 4)
+        inner_h = ctrl_h - 2
+        for i, (tag, text) in enumerate(ctrl_lines):
+            if i >= inner_h:
+                break
+            S.safe_addstr(stdscr, ctrl_y + 1 + i, 2, S.truncate(text, preview_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+        # Right column — theme grid
+        S.draw_border(stdscr, hero_h, preview_w + 1, avail_h, grid_w - preview_w - 1, "Themes")
+        grid_lines = _render_theme_grid(m, grid_w - preview_w - 4, avail_h - 4)
+        grid_start_x = preview_w + 3
+        grid_w_available = grid_w - preview_w - 4
+        for i, item in enumerate(grid_lines):
+            if i >= avail_h - 4:
+                break
+            tag = item[0]
+            if tag == "tile_row":
+                cells = item[1]
+                cur_x = grid_start_x
+                for cell in cells:
+                    attr = curses.color_pair(cell["pair"])
+                    if cell["bold"]:
+                        attr |= curses.A_BOLD
+                    S.safe_addstr(stdscr, hero_h + 1 + i, cur_x, cell["text"], attr)
+                    cur_x += cell["width"]
+            else:
+                text = item[1]
+                S.safe_addstr(stdscr, hero_h + 1 + i, grid_start_x,
+                              S.truncate(text, grid_w_available), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+    else:
+        # Single column: controls then grid
+        ctrl_h = min(avail_h // 2, 14)
+        S.draw_border(stdscr, hero_h, 0, ctrl_h, content_w, "")
+        ctrl_lines = _render_controls(m, content_w - 4)
+        inner_h = ctrl_h - 2
+        for i, (tag, text) in enumerate(ctrl_lines):
+            if i >= inner_h:
+                break
+            S.safe_addstr(stdscr, hero_h + 1 + i, 2, S.truncate(text, content_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+        grid_y = hero_h + ctrl_h
+        grid_h = avail_h - ctrl_h
+        S.draw_border(stdscr, grid_y, 0, grid_h, content_w, "Themes")
+        grid_lines = _render_theme_grid(m, content_w - 4, grid_h - 4)
+        grid_start_x = 2
+        grid_w_available = content_w - 4
+        for i, item in enumerate(grid_lines):
+            if i >= grid_h - 4:
+                break
+            tag = item[0]
+            if tag == "tile_row":
+                cells = item[1]
+                cur_x = grid_start_x
+                for cell in cells:
+                    attr = curses.color_pair(cell["pair"])
+                    if cell["bold"]:
+                        attr |= curses.A_BOLD
+                    S.safe_addstr(stdscr, grid_y + 1 + i, cur_x, cell["text"], attr)
+                    cur_x += cell["width"]
+            else:
+                text = item[1]
+                S.safe_addstr(stdscr, grid_y + 1 + i, grid_start_x,
+                              S.truncate(text, grid_w_available), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+    # help bar
+    S.safe_addstr(stdscr, h - 1, 1, S.help_text(_help(m)), S.ATTR_SUBTLE)
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+def _handle_key(stdscr, m, key):
+    if key == ord('q') or key == 27:
+        return False
+
+    if m.busy:
+        return True
+
+    # Mouse handling
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                cols = m.grid_columns(m.width - 10) if m.themes else 1
+                # wheel > 0 = scroll up = move selection back (negative delta)
+                # wheel < 0 = scroll down = move selection forward (positive delta)
+                m.move_selection(-cols if wheel > 0 else cols)
+                m.dirty = True
+                return True
+            mx, my, button, kind = me
+            if kind in ("click", "release", "press") or button == "left":
+                plain = S.get_plain_lines(stdscr)
+                buttons = [
+                    ("File (f)", "f"), ("Folder (d)", "d"), ("Color (c)", "c"),
+                    ("Next (w)", "w"), ("Perf (1)", "1"), ("Bal (2)", "2"), ("Vis (3)", "3"),
+                ]
+                for label, k in buttons:
+                    if S.hit_test(plain, mx, my, label):
+                        return _handle_key(stdscr, m, ord(k))
+        return True
+
+    cols = m.grid_columns(m.width - 10) if m.themes else 1
+
+    if key in (curses.KEY_UP, ord('k')):
+        m.move_selection(-cols)
+    elif key in (curses.KEY_DOWN, ord('j')):
+        m.move_selection(cols)
+    elif key in (curses.KEY_LEFT, ord('h')):
+        m.move_selection(-1)
+    elif key in (curses.KEY_RIGHT, ord('l')):
+        m.move_selection(1)
+    elif key == curses.KEY_PPAGE:
+        m.move_selection(-cols * 3)
+    elif key == curses.KEY_NPAGE:
+        m.move_selection(cols * 3)
+    elif key == curses.KEY_HOME:
+        m.selected = 0
+    elif key == curses.KEY_END:
+        m.selected = max(0, len(m.themes) - 1)
+    elif key in (ord('\n'), ord('a')):
+        if m.selected < len(m.themes):
+            m.apply_theme(m.themes[m.selected].slug)
+    elif key == ord('r'):
+        m.refresh()
+    elif key == ord('f') and not m.busy:
+        m.run_action("wallpaper-pick-file")
+    elif key == ord('d') and not m.busy:
+        m.run_action("wallpaper-pick-folder")
+    elif key == ord('c') and not m.busy:
+        m.run_action("wallpaper-set-color")
+    elif key == ord('w') and not m.busy:
+        m.run_action("wallpaper-next")
+    elif key == ord('x') and not m.busy:
+        m.run_action("wallpaper-stop")
+    elif key in (ord('['), ord('-')) and not m.busy:
+        m.interval(-300)
+    elif key in (ord(']'), ord('=')) and not m.busy:
+        m.interval(300)
+    elif key == ord('1') and not m.busy:
+        m.effects("performance")
+    elif key == ord('2') and not m.busy:
+        m.effects("balanced")
+    elif key == ord('3') and not m.busy:
+        m.effects("visuals")
+
+    m.dirty = True
+    return True
+
+
+def main(stdscr):
+    S.init_colors()
+    S.enable_mouse()
+    curses.curs_set(0)
+    curses.set_escdelay(1)
+    m = Model()
+    try:
+        while True:
+            S.drain_callbacks()
+            if m.dirty:
+                _view(stdscr, m)
+                m.dirty = False
+            stdscr.timeout(200)
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not _handle_key(stdscr, m, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        S.disable_mouse()
+
+if __name__ == "__main__":
+    curses.wrapper(main)

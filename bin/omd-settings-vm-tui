@@ -1,0 +1,610 @@
+#!/usr/bin/env python3
+"""Windows VM settings TUI — Python curses port with full feature parity.
+
+Features:
+  - Mouse support (click buttons, scroll logs)
+  - Auto-refresh tick (3s)
+  - Detailed status views per state (blocked, install, booting, ready, stopped, repair)
+  - Requirement checks with detailed error messages
+  - Start only (no RDP), Connect, Web console, Stop VM actions
+  - Side panel with connection details
+  - Context-sensitive help per state
+  - Log scrollbar with thumb
+"""
+
+import curses
+import sys
+import os
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import importlib
+import importlib.util
+_shared_spec = importlib.util.spec_from_file_location(
+    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
+_shared = importlib.util.module_from_spec(_shared_spec)
+_shared_spec.loader.exec_module(_shared)
+S = _shared
+
+
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.status = {}
+        self.logs = []
+        self.selected = 0
+        self.scroll_offset = 0
+        self.busy = False
+        self.refreshing = False
+        self.err = ""
+        self.message = ""
+        self.confirm_remove = False
+        self.dirty = True
+        self.last_tick = 0
+        self.refresh()
+
+    def val(self, key, fallback=""):
+        return self.status.get(key, fallback)
+
+    def boo(self, key):
+        return self.status.get(key) == "true"
+
+    def disk_available(self):
+        try:
+            return int(self.val("diskAvailable", "0"))
+        except ValueError:
+            return 0
+
+    def storage_used_bytes(self):
+        try:
+            return int(self.val("storageUsedBytes", "0"))
+        except ValueError:
+            return 0
+
+    def has_system_blocker(self):
+        return (not self.boo("kvm") or not self.boo("dockerCli") or
+                not self.boo("dockerAccess") or not self.boo("compose") or
+                self.disk_available() < 74)
+
+    def configured(self):
+        return self.boo("configured")
+
+    def partial(self):
+        return self.configured() and self.val("container", "missing") == "missing" and self.storage_used_bytes() <= 1048576
+
+    def stopped(self):
+        return self.configured() and self.val("container", "missing") != "missing" and not self.running()
+
+    def ready(self):
+        return self.boo("ready") or (self.boo("rdpReachable") and self.boo("webReachable"))
+
+    def running(self):
+        return self.val("container", "") == "running"
+
+    def primary_state(self):
+        if self.has_system_blocker():
+            return "blocked"
+        if not self.configured() or self.partial():
+            return "install"
+        if self.ready():
+            return "ready"
+        if self.running() and not self.ready():
+            return "booting"
+        if self.stopped():
+            return "stopped"
+        return "repair"
+
+    def primary_action(self):
+        if self.busy:
+            return ("Working...", "", "")
+        table = {
+            "blocked": ("Fix requirements", "auto-fix", "Resolve host requirements before install or start."),
+            "install": ("Install Windows", "install-defaults", "Installs Dockurr Windows 11 with sensible defaults (can take a while)."),
+            "ready":   ("Connect", "connect", "Open a FreeRDP session to the running VM."),
+            "booting": ("Open console", "web", "Windows is still setting up — use the web console to watch progress."),
+            "stopped": ("Start", "launch", "Start the Windows VM and open RDP when ready."),
+            "repair":  ("Repair / start", "install-defaults", "Repair or start the VM stack."),
+        }
+        return table.get(self.primary_state(), ("", "", ""))
+
+    def refresh(self):
+        if self.refreshing or self.busy:
+            return
+        self.refreshing = True
+        self.dirty = True
+        pending = [2]
+        def complete():
+            pending[0] -= 1
+            if pending[0] == 0:
+                self.refreshing = False
+            self.dirty = True
+        def on_status(lines, err):
+            if err:
+                self.err = f"status failed: {err}"
+            else:
+                self.status = S.parse_kv(lines)
+                self.err = ""
+            complete()
+        def on_logs(lines, err):
+            if not err:
+                self.logs = S.clip_lines(lines, 200) if lines else []
+            complete()
+        S.run_cmd_bg("omd-settings-windows-vm", "status", callback=on_status)
+        S.run_cmd_bg("omd-settings-windows-vm", "logs", callback=on_logs)
+
+    def run_action(self, action, *extra):
+        self.busy = True
+        self.message = f"{action}…"
+        self.dirty = True
+        self.logs.append("$ " + " ".join((action, *extra)))
+        # connect and launch should be detached (no wait for output)
+        detach_actions = ("connect", "launch")
+        def cb(lines, err):
+            for l in (lines or []):
+                self.logs.append(f"  {l}")
+            self.logs = S.clip_lines(self.logs, 200)
+            self.busy = False
+            if err:
+                self.message = "action failed"
+                self.err = str(err) if err else ""
+            else:
+                self.message = ""
+                self.err = ""
+            self.dirty = True
+            self.refresh()
+        if action in detach_actions:
+            import subprocess
+            path = os.path.join(S.OMD_ROOT, "bin", "omd-settings-windows-vm")
+            try:
+                subprocess.Popen(
+                    ["setsid", path, action],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    cwd=S.OMD_ROOT, close_fds=True,
+                )
+            except Exception as e:
+                self.logs.append(f"  detach error: {e}")
+            self.busy = False
+            self.message = f"{action} launched"
+            self.dirty = True
+            self.refresh()
+        else:
+            S.run_cmd_bg("omd-settings-windows-vm", action, *extra, callback=cb)
+
+
+# ── requirement checks ──────────────────────────────────────────────────
+def all_requirement_checks(model):
+    disk_ok = model.disk_available() >= 74
+    disk_detail = f"{model.disk_available()} GB free (need ≥ 74 GB)" if not disk_ok else f"{model.disk_available()} GB free"
+    docker_detail = "Docker daemon reachable"
+    if not model.boo("dockerAccess"):
+        docker_err = model.val("dockerError", "")
+        if docker_err:
+            docker_detail = docker_err
+        elif not model.boo("dockerDaemon"):
+            docker_detail = "Docker daemon is not running"
+        elif not model.boo("dockerGroupMember"):
+            docker_detail = "User is not in the docker group (re-login after usermod)"
+        else:
+            docker_detail = "Cannot access Docker socket"
+    return [
+        (model.boo("kvm"), "KVM virtualization", "Hardware virtualization (/dev/kvm)"),
+        (model.boo("dockerCli"), "Docker CLI", "docker command available"),
+        (model.boo("dockerAccess"), "Docker access", docker_detail),
+        (model.boo("compose"), "Docker Compose", "compose plugin or docker-compose"),
+        (model.boo("freerdp"), "FreeRDP client", model.val("freerdpBin", "xfreerdp not found")),
+        (disk_ok, "Free disk space", disk_detail),
+    ]
+
+
+# ── content renderers ────────────────────────────────────────────────────
+def render_left(model, w):
+    ps = model.primary_state()
+    lines = []
+
+    if model.confirm_remove:
+        lines.append(("danger", "⚠  Remove Windows VM"))
+        lines.append(("text", ""))
+        lines.append(("text", "  This will delete the VM container and all"))
+        lines.append(("text", "  stored data. This cannot be undone."))
+        lines.append(("text", ""))
+        lines.append(("muted", f"  Storage: {model.val('storageDir', '?')}"))
+        lines.append(("text", ""))
+        lines.append(("danger", "  Confirm remove? (y / n)"))
+        return lines
+
+    if ps == "blocked":
+        lines.append(("section", "What's Blocking"))
+        lines.append(("muted", "  Only failed checks are listed. Fix these, then install."))
+        lines.append(("text", ""))
+        for ok, label, detail in all_requirement_checks(model):
+            if not ok:
+                lines.append(("danger", f"  ✗ {label}"))
+                lines.append(("muted", f"    {S.truncate(detail, w-8)}"))
+        lines.append(("text", ""))
+        lines.append(("section", "Next Step"))
+        lines.append(S.primary_line(model.primary_action()[0], "enter", not model.busy))
+        lines.append(S.action_line("r", "Refresh status", True))
+        return lines
+
+    if ps == "install":
+        lines.append(("section", "Get Started"))
+        lines.append(("muted", "  Installs a Dockurr Windows 11 VM with sensible defaults."))
+        lines.append(("muted", "  First run downloads an image and can take a while."))
+        lines.append(("text", ""))
+        lines.append(("section", "Defaults"))
+        lines.append(S.kv_line("Shared folder", model.val("sharedDir", "~/Windows"), w-4))
+        lines.append(S.kv_line("Web console", model.val("web", "http://127.0.0.1:8006"), w-4))
+        lines.append(S.kv_line("RDP", model.val("rdpEndpoint", "127.0.0.1:3389"), w-4))
+        lines.append(S.kv_line("Host free disk", f"{model.disk_available()} GB available", w-4))
+        lines.append(("text", ""))
+        lines.append(("section", "Next Step"))
+        lines.append(S.primary_line(model.primary_action()[0], "enter", not model.busy))
+        lines.append(S.action_line("r", "Refresh status", True))
+        return lines
+
+    if ps == "ready":
+        lines.append(("section", "Connection"))
+        rdp = model.val("rdpEndpoint", "—")
+        web = model.val("web", "—")
+        lines.append(S.kv_line("RDP", rdp, w-4))
+        lines.append(S.kv_line("Web", web, w-4))
+        lines.append(("text", ""))
+        lines.append(("section", "Actions"))
+        lines.append(S.primary_line("Connect", "enter", not model.busy and model.boo("freerdp")))
+        lines.append(S.action_line("w", "Open web console", not model.busy))
+        lines.append(S.action_line("x", "Stop VM", not model.busy))
+        lines.append(S.action_line("r", "Refresh status", not model.busy))
+        lines.append(("text", ""))
+        lines.append(("section", "Danger"))
+        lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
+        lines.append(("muted", "  Deletes container and local VM storage."))
+        return lines
+
+    if ps == "booting":
+        pct = model.val("progressPercent", "?")
+        phase = model.val("phase", "starting")
+        lines.append(("section", "While You Wait"))
+        lines.append(("muted", "  Use the web console to watch install/boot progress."))
+        lines.append(("text", f"  Phase: {phase}"))
+        if pct != "?":
+            lines.append(("text", f"  Progress: {pct}%"))
+        lines.append(("text", ""))
+        lines.append(("section", "Actions"))
+        lines.append(S.primary_line("Open console", "enter", not model.busy))
+        if model.running():
+            lines.append(S.action_line("w", "Open web console", not model.busy))
+            lines.append(S.action_line("x", "Stop VM", not model.busy))
+        lines.append(S.action_line("r", "Refresh status", not model.busy))
+        return lines
+
+    if ps == "stopped":
+        lines.append(("section", "Specs"))
+        for k, label in [("ram","RAM"), ("cpu","CPU"), ("disk","Disk"), ("user","User")]:
+            v = model.val(k, "—")
+            lines.append(S.kv_line(label, v, w-4))
+        shared_dir = model.val("sharedDir", "—")
+        lines.append(S.kv_line("Shared", shared_dir, w-4))
+        lines.append(("text", ""))
+        lines.append(("section", "Actions"))
+        lines.append(S.primary_line("Start", "enter", not model.busy))
+        lines.append(S.action_line("s", "Start only (no RDP)", not model.busy))
+        lines.append(S.action_line("r", "Refresh status", not model.busy))
+        lines.append(("text", ""))
+        lines.append(("section", "Danger"))
+        lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
+        lines.append(("muted", "  Deletes container and local VM storage."))
+        return lines
+
+    # repair
+    lines.append(("section", "Status"))
+    lines.append(S.kv_line("Phase", model.val("phase", "—"), w-4))
+    lines.append(S.kv_line("Container", model.val("container", "—"), w-4))
+    lines.append(S.kv_line("Docker", "ok" if model.boo("dockerAccess") else "no", w-4))
+    lines.append(S.kv_line("KVM", "ok" if model.boo("kvm") else "no", w-4))
+    lines.append(("text", ""))
+    lines.append(("section", "Actions"))
+    lines.append(S.primary_line("Repair / start", "enter", not model.busy))
+    lines.append(S.action_line("r", "Refresh status", not model.busy))
+    if model.configured():
+        lines.append(("text", ""))
+        lines.append(("section", "Danger"))
+        lines.append(S.danger_action_line("d", "Remove VM", not model.busy))
+        lines.append(("muted", "  Deletes container and local VM storage."))
+    return lines
+
+
+def render_right(model, w):
+    ps = model.primary_state()
+    lines = []
+
+    if ps in ("booting", "ready", "stopped", "repair") or model.busy:
+        lines.append(("section", "Container Logs"))
+    else:
+        return lines
+
+    # Connection details for ready/stopped
+    if ps in ("ready", "stopped"):
+        lines.append(("muted", f"  {vm_state_label(model)} · {model.val('phase', '—')}"))
+        lines.append(("text", ""))
+        lines.append(("section", "Connection"))
+        lines.append(S.kv_line("Web", f"{model.val('web', '—')}  {'ok' if model.boo('webReachable') else 'no'}", w-4))
+        lines.append(S.kv_line("RDP", f"{model.val('rdpEndpoint', '—')}  {'ok' if model.boo('rdpReachable') else 'no'}", w-4))
+        lines.append(S.kv_line("Container", model.val("container", "—"), w-4))
+        lines.append(("text", ""))
+        lines.append(("section", "Logs"))
+
+    return lines
+
+
+def vm_state_label(model):
+    phase = model.val("phase", "").lower()
+    container = model.val("container", "").lower()
+    if model.has_system_blocker() or phase == "error":
+        return "Fault"
+    if container == "running":
+        return "Running" if model.ready() else "Starting"
+    if not model.configured() or container in ("missing", "exited", "stopped"):
+        return "Not installed" if not model.configured() else "Stopped"
+    return "Unknown"
+
+
+# ── hero ─────────────────────────────────────────────────────────────────
+def hero(model):
+    ps = model.primary_state()
+    tones = {"blocked": "danger", "install": "warn", "booting": "warn",
+             "ready": "ok", "stopped": "muted", "repair": "warn"}
+    subtitles = {
+        "blocked": "Host requirements need attention before install.",
+        "install": "Windows is not installed on this machine yet.",
+        "booting": f"{model.val('phase', 'starting')} · {model.val('progressPercent', '')}%",
+        "ready":   "Ready · RDP and web console are reachable.",
+        "stopped": "VM is installed but not running.",
+        "repair":  "VM stack looks partial or broken.",
+    }
+    if model.confirm_remove:
+        subtitles["blocked"] = "Confirm destructive action."
+    msg = ""
+    if model.err:
+        msg = model.err
+    elif model.message and not model.busy:
+        msg = model.message
+    return S.hero_line("Windows VM", subtitles.get(ps, "Loading…"),
+                       tones.get(ps, "muted"), model.busy, msg)
+
+
+def help_items(model):
+    ps = model.primary_state()
+    if model.confirm_remove:
+        return [("y", "confirm remove"), ("n/esc", "cancel")]
+    items = [("enter", {
+        "blocked": "fix", "install": "install", "ready": "connect",
+        "booting": "console", "stopped": "start", "repair": "repair",
+    }.get(ps, "action"))]
+    if ps == "ready":
+        items += [("w", "console"), ("x", "stop"), ("d", "remove")]
+    elif ps == "stopped":
+        items += [("s", "start only"), ("d", "remove")]
+    elif ps == "booting":
+        if model.running():
+            items += [("w", "console"), ("x", "stop")]
+    elif ps == "repair":
+        if model.configured():
+            items += [("d", "remove")]
+    items += [("r", "refresh"), ("q", "quit")]
+    return items
+
+
+# ── view ─────────────────────────────────────────────────────────────────
+def view(stdscr, m):
+    h, w = stdscr.getmaxyx()
+    m.width, m.height = w, h
+    stdscr.erase()
+
+    if not S.require_terminal_size(stdscr, 68, 18):
+        return
+
+    # hero
+    hd = hero(m)
+    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
+    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
+    if hd[4]:
+        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
+    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+
+    # geometry
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    content_w = w - pad_x
+    avail_h = h - pad_y - hero_h - help_h
+
+    ps = m.primary_state()
+    show_right = w >= 92 and (ps in ("booting", "ready", "stopped", "repair") or m.busy)
+
+    if show_right:
+        left_w = 34
+        right_w = content_w - left_w
+        if right_w < 30:
+            right_w = 30
+            left_w = max(24, content_w - right_w)
+        top_h = avail_h
+    else:
+        left_w = content_w
+        right_w = 0
+        top_h = avail_h
+
+    left_lines = render_left(m, left_w - 4)
+    S.draw_border(stdscr, hero_h, 0, top_h, left_w, "")
+    S.draw_lines_in_area(stdscr, hero_h, 0, top_h, left_w, left_lines)
+
+    if show_right:
+        right_lines = render_right(m, right_w - 4)
+        S.draw_border(stdscr, hero_h, left_w, top_h, right_w, "Container Logs")
+        # Draw right panel content
+        inner_y = hero_h + 1
+        for i, (tag, text) in enumerate(right_lines):
+            if i >= top_h - 2:
+                break
+            S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+        # Log body in right panel
+        log_start_y = inner_y + len(right_lines)
+        log_h = top_h - 2 - len(right_lines)
+        if log_h > 0:
+            log_inner_w = right_w - 4
+            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
+            total = len(visible_logs)
+            start = max(0, total - log_h - m.scroll_offset)
+            end = min(total, start + log_h)
+            for i, line in enumerate(visible_logs[start:end]):
+                if log_start_y + i < hero_h + top_h - 1:
+                    S.safe_addstr(stdscr, log_start_y + i, left_w + 2, line, S.ATTR_MUTED)
+            # scrollbar
+            if total > log_h:
+                bar_h = max(1, log_h * log_h // total)
+                if m.scroll_offset == 0:
+                    bar_pos = log_h - bar_h
+                else:
+                    bar_pos = max(0, log_h - bar_h - m.scroll_offset * log_h // total)
+                for i in range(log_h):
+                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
+                    S.safe_addstr(stdscr, log_start_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+
+    # help bar
+    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(m)), S.ATTR_SUBTLE)
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+# ── input ────────────────────────────────────────────────────────────────
+def handle_key(stdscr, m, key):
+    if key == ord('q') or key == 27:
+        if m.confirm_remove:
+            m.confirm_remove = False
+            m.dirty = True
+            return True
+        return False
+
+    if m.confirm_remove:
+        if key == ord('y'):
+            m.confirm_remove = False
+            m.run_action("remove", "--yes")
+        elif key in (ord('n'), 27):
+            m.confirm_remove = False
+            m.dirty = True
+        return True
+
+    if m.busy and key not in (ord('r'), ord('q')):
+        return True
+
+    # Mouse handling
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                m.scroll_offset = max(0, m.scroll_offset + wheel)
+                m.dirty = True
+                return True
+            mx, my, button, kind = me
+            if kind in ("click", "release", "press") or button == "left":
+                plain = S.get_plain_lines(stdscr)
+                ps = m.primary_state()
+                buttons = [
+                    ("Refresh status", "r"),
+                    ("Start only", "s"),
+                    ("Open web console", "w"),
+                    ("Stop VM", "x"),
+                    ("Remove VM", "d"),
+                    ("Confirm remove", "y"),
+                    ("Cancel", "n"),
+                    ("Install Windows", "enter"),
+                    ("Fix requirements", "enter"),
+                    ("Connect", "enter"),
+                    ("Start", "enter"),
+                    ("Open console", "enter"),
+                    ("Repair / start", "enter"),
+                ]
+                for label, k in buttons:
+                    if S.hit_test(plain, mx, my, label):
+                        if k == "enter":
+                            return handle_key(stdscr, m, ord('\n'))
+                        return handle_key(stdscr, m, ord(k))
+        return True
+
+    ps = m.primary_state()
+    if key == ord('r'):
+        m.refresh()
+    elif key in (curses.KEY_UP, ord('k')):
+        m.scroll_offset += 3
+        m.dirty = True
+    elif key in (curses.KEY_DOWN, ord('j')):
+        m.scroll_offset = max(0, m.scroll_offset - 3)
+        m.dirty = True
+    elif key == curses.KEY_PPAGE:
+        m.scroll_offset += 10
+        m.dirty = True
+    elif key == curses.KEY_NPAGE:
+        m.scroll_offset = max(0, m.scroll_offset - 10)
+        m.dirty = True
+    elif key == curses.KEY_HOME:
+        m.scroll_offset = 999999
+        m.dirty = True
+    elif key == curses.KEY_END:
+        m.scroll_offset = 0
+        m.dirty = True
+    elif key == ord('\n'):
+        actions = {
+            "blocked": "auto-fix", "install": "install-defaults",
+            "ready": "connect", "booting": "web",
+            "stopped": "launch", "repair": "install-defaults",
+        }
+        if ps in actions:
+            m.run_action(actions[ps])
+    elif key == ord('d') and ps in ("ready", "stopped", "repair"):
+        m.confirm_remove = True
+        m.dirty = True
+    elif key == ord('w') and ps in ("ready", "booting") and m.running():
+        m.run_action("web")
+    elif key == ord('x') and ps in ("ready", "booting") and m.running():
+        m.run_action("stop")
+    elif key == ord('c') and m.primary_state() == "ready" and not m.busy:
+        m.run_action("connect")
+    elif key == ord('s') and ps == "stopped":
+        m.run_action("start")
+    m.dirty = True
+    return True
+
+
+def main(stdscr):
+    S.init_colors()
+    S.enable_mouse()
+    curses.curs_set(0)
+    curses.set_escdelay(1)
+    m = Model()
+    m.last_tick = time.time()
+    try:
+        while True:
+            S.drain_callbacks()
+            if m.dirty:
+                view(stdscr, m)
+                m.dirty = False
+
+            # Auto-refresh every 3 seconds
+            now = time.time()
+            if now - m.last_tick >= 3.0:
+                m.last_tick = now
+                m.refresh()
+
+            stdscr.timeout(500)
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not handle_key(stdscr, m, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        S.disable_mouse()
+
+if __name__ == "__main__":
+    curses.wrapper(main)

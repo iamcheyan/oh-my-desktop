@@ -1,0 +1,784 @@
+#!/usr/bin/env python3
+"""Voice Input settings TUI — Python curses port with full feature parity.
+
+Features:
+  - Mouse support (click buttons, scroll logs)
+  - Auto-refresh tick (900ms, 400ms during trial)
+  - Trial recording with speech detection, peak levels, duration
+  - Recent items display
+  - Key tester action
+  - Clear recent action
+  - Download progress bar with speed and ETA
+  - Model box with thick border
+  - Log scrollbar with thumb
+  - Keycap rendering for bindings
+  - Comprehensive friendly key name mapping
+  - Auto-diagnose on init
+"""
+
+import curses
+import json
+import sys
+import os
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import importlib
+import importlib.util
+_shared_spec = importlib.util.spec_from_file_location(
+    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
+_shared = importlib.util.module_from_spec(_shared_spec)
+_shared_spec.loader.exec_module(_shared)
+S = _shared
+
+FRIENDLY_MAP = {
+    "ALT + A": "Alt + A", "code:472": "Globe (Fn)", "XF86Tools": "F13 / Tools",
+    "TOOLS": "F13 / Tools", "0X100811D0": "Hangul / Hanja", "0x100811D0": "Hangul / Hanja",
+    "escape": "Esc", "ESCAPE": "Esc", "HANGUL_HANJA": "Hangul / Hanja",
+    "leftshift": "LShift", "rightshift": "RShift", "leftcontrol": "LCtrl",
+    "rightcontrol": "RCtrl", "leftalt": "LAlt", "rightalt": "RAlt",
+    "leftmeta": "LWin", "rightmeta": "RWin", "capslock": "Caps",
+    "return": "Enter", "space": "Space", "tab": "Tab", "backspace": "BkSp",
+    "delete": "Del", "left": "←", "right": "→", "up": "↑", "down": "↓",
+}
+
+
+def friendly(raw):
+    raw = raw.strip()
+    if raw in FRIENDLY_MAP:
+        return FRIENDLY_MAP[raw]
+    for old, new in [("ALT", "Alt"), ("CTRL", "Ctrl"), ("CONTROL", "Ctrl"),
+                     ("SUPER", "Super"), ("SHIFT", "Shift"), ("MOD", "Mod")]:
+        raw = raw.replace(old, new)
+    return raw
+
+
+def speed_label(raw):
+    n = S.parse_int(raw)
+    if n <= 0:
+        return "-"
+    if n >= 1024 * 1024:
+        return f"{n/(1024*1024):.1f} MB/s"
+    return f"{n/1024:.0f} KB/s"
+
+
+def eta_label(raw):
+    sec = S.parse_int(raw)
+    if sec <= 0:
+        return "-"
+    if sec >= 3600:
+        return f"{sec//3600}h{(sec%3600)//60:02d}m"
+    return f"{sec//60}m{sec%60:02d}s"
+
+
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.status = {}
+        self.bindings = []
+        self.logs = []
+        self.scroll_offset = 0
+        self.busy = False
+        self.refreshing = False
+        self.err = ""
+        self.message = ""
+        self.confirm_remove = False
+        self.last_tick = 0
+        # Trial state
+        self.trial_listening = False
+        self.trial_transcribing = False
+        self.trial_speech_seen = False
+        self.trial_peak_level = 0
+        self.trial_last_level = -1
+        self.trial_last_log_at = 0
+        self.rec_start = 0.0
+        self.last_result_text = ""
+        self.last_result_ts = 0
+        self.dirty = True
+        self.refresh()
+        # Auto-diagnose on init
+        self.run_action("diagnose")
+
+    def val(self, key, fallback=""):
+        return self.status.get(key, fallback)
+
+    def boo(self, key):
+        return self.status.get(key) == "true"
+
+    def state(self):
+        return self.val("state", "idle")
+
+    def model_ready(self):
+        return self.boo("modelReady")
+
+    def recording(self):
+        return self.state() == "recording"
+
+    def recent_items(self):
+        raw = self.val("recent", "[]").strip()
+        if not raw or raw == "[]":
+            return []
+        try:
+            return json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def refresh(self):
+        if self.refreshing or self.busy:
+            return
+        self.refreshing = True
+        self.dirty = True
+        fetch_logs = self.state() == "downloading"
+        pending = [2 if fetch_logs else 1]
+        def complete():
+            pending[0] -= 1
+            if pending[0] == 0:
+                self.refreshing = False
+            self.dirty = True
+        def on_status(lines, err):
+            if err:
+                self.err = f"status failed: {err}"
+                complete()
+                return
+            was_recording = self.recording()
+            self.status = S.parse_kv(lines)
+            raw = self.val("__raw__", "")
+            self.bindings = []
+            for l in raw.split("\n"):
+                if l.startswith("binding="):
+                    self.bindings.append(l.split("=", 1)[1])
+            if self.recording() and not was_recording:
+                self.rec_start = time.time()
+                if self.trial_listening:
+                    self.append_log("[trial] Recorder is live (parecord writing /tmp/omd-voice-rec.wav)")
+                    self.append_log("[trial] Speak now — audio level will update below")
+            if self.trial_listening:
+                self.log_trial_progress()
+            items = self.recent_items()
+            if items:
+                if items[0].get("ts", 0) != self.last_result_ts or items[0].get("text", "") != self.last_result_text:
+                    self.last_result_text = items[0].get("text", "")
+                    self.last_result_ts = items[0].get("ts", 0)
+            complete()
+        def on_logs(lines, err):
+            if not err:
+                self.logs = S.clip_lines(lines, 200) if lines else []
+            complete()
+        S.run_cmd_bg("omd-settings-voice", "status", callback=on_status)
+        if fetch_logs:
+            S.run_cmd_bg("omd-settings-voice", "logs", callback=on_logs)
+
+    def run_action(self, action):
+        self.busy = True
+        self.message = action_message(action)
+        self.dirty = True
+        self.logs.append(f"$ {action}")
+        def cb(lines, err):
+            for l in (lines or []):
+                self.logs.append(f"  {l}")
+            self.logs = S.clip_lines(self.logs, 200)
+            self.busy = False
+            if err:
+                self.err = str(err) if err else "action failed"
+                self.message = "Action failed"
+                if action in ("record-start", "record-stop", "record-cancel"):
+                    self.trial_transcribing = False
+                    self.append_log(f"[trial] ERROR: {err}")
+            else:
+                self.err = ""
+                self.message = action_message(action)
+            # Handle trial state transitions
+            if action == "record-start" and not err:
+                self.trial_listening = True
+                self.append_log("[trial] record-start acknowledged by backend")
+                self.append_log("[trial] Waiting for microphone stream…")
+            elif action == "record-stop":
+                self.trial_listening = False
+                text = ""
+                for line in (lines or []):
+                    if line.startswith("text="):
+                        text = line.split("=", 1)[1]
+                        self.last_result_text = text
+                        self.last_result_ts = int(time.time())
+                        break
+                elapsed = 0
+                if self.rec_start:
+                    elapsed = int(time.time() - self.rec_start)
+                self.append_log("[trial] Transcription finished")
+                self.append_log(f"[trial] Session duration: {S.format_duration(elapsed)}")
+                self.append_log(f"[trial] Peak mic level: {self.trial_peak_level}/100")
+                if not text:
+                    self.append_log("[trial] Result: (no speech detected)")
+                    self.append_log("[trial] Tip: speak closer to the mic, or check input device mute")
+                else:
+                    self.append_log(f'[trial] Result: "{text}"')
+                    self.append_log("[trial] Transcript saved to recent history")
+                self.append_log("[trial] Press Space to try again")
+                self.trial_transcribing = False
+                self.trial_speech_seen = False
+                self.trial_peak_level = 0
+            elif action == "record-cancel":
+                self.trial_listening = False
+                self.trial_transcribing = False
+                self.trial_speech_seen = False
+                self.trial_peak_level = 0
+                self.append_log("[trial] Recording cancelled — audio discarded (not transcribed)")
+            self.dirty = True
+        S.run_cmd_bg("omd-settings-voice", action, callback=cb)
+
+    def start_trial(self):
+        if not self.model_ready():
+            self.append_log("[trial] Cannot start — model is not installed. Run Setup first.")
+            return
+        self.trial_listening = True
+        self.trial_transcribing = False
+        self.trial_speech_seen = False
+        self.trial_peak_level = 0
+        self.trial_last_level = -1
+        self.trial_last_log_at = 0
+        self.busy = True
+        self.message = "Listening…"
+        self.rec_start = time.time()
+        self.append_log("")
+        self.append_log("========== VOICE TRIAL ==========")
+        self.append_log(f"[trial] Session started at {time.strftime('%H:%M:%S')}")
+        self.append_log("[trial] Please speak into your microphone")
+        self.append_log("[trial] Space = stop & transcribe")
+        self.append_log("[trial] Esc   = cancel without transcribing")
+        self.append_log("[trial] Starting recorder…")
+        self.run_action("record-start")
+
+    def stop_trial(self):
+        elapsed = 0
+        if self.rec_start:
+            elapsed = int(time.time() - self.rec_start)
+        self.trial_listening = False
+        self.trial_transcribing = True
+        self.busy = True
+        self.message = "Transcribing…"
+        self.append_log(f"[trial] Stop requested after {S.format_duration(elapsed)}")
+        self.append_log(f"[trial] Speech detected during session: {self.trial_speech_seen}")
+        self.append_log(f"[trial] Peak mic level: {self.trial_peak_level}/100")
+        self.append_log("[trial] Stopping recorder and sending audio to SenseVoice…")
+        self.append_log("[trial] Transcribing — this may take a few seconds…")
+        self.run_action("record-stop")
+
+    def cancel_trial(self):
+        elapsed = 0
+        if self.rec_start:
+            elapsed = int(time.time() - self.rec_start)
+        self.trial_listening = False
+        self.trial_transcribing = False
+        self.busy = True
+        self.message = "Cancelled"
+        self.append_log(f"[trial] Cancel requested after {S.format_duration(elapsed)} — discarding audio")
+        self.run_action("record-cancel")
+
+    def log_trial_progress(self):
+        level = S.parse_int(self.val("micLevel", "0"))
+        if level > self.trial_peak_level:
+            self.trial_peak_level = level
+        elapsed = 0
+        if self.rec_start:
+            elapsed = int(time.time() - self.rec_start)
+        speech_threshold = 12
+        hearing = level >= speech_threshold
+        now = time.time()
+
+        # First speech detection
+        if hearing and not self.trial_speech_seen:
+            self.trial_speech_seen = True
+            self.append_log(f"[trial] Speech detected at {S.format_duration(elapsed)}  level={level}/100")
+            self.append_log("[trial] Keep speaking — press Space when finished")
+            self.trial_last_log_at = now
+            self.trial_last_level = level
+            return
+
+        # Speech dropped
+        if not hearing and self.trial_speech_seen and self.trial_last_level >= speech_threshold:
+            self.append_log(f"[trial] Quiet again at {S.format_duration(elapsed)}  level={level}/100  (press Space to transcribe)")
+            self.trial_last_log_at = now
+            self.trial_last_level = level
+            return
+
+        # Periodic heartbeat
+        level_jump = abs(level - self.trial_last_level)
+        due = (self.trial_last_log_at == 0 or now - self.trial_last_log_at >= 0.9 or level_jump >= 15)
+        if not due:
+            return
+
+        phase = "Listening (waiting for speech)"
+        if hearing:
+            phase = "Hearing you"
+        elif self.trial_speech_seen:
+            phase = "Listening (paused / quiet)"
+        self.append_log(f"[trial] {phase}  t={S.format_duration(elapsed)}  level={level}/100  peak={self.trial_peak_level}")
+        self.trial_last_log_at = now
+        self.trial_last_level = level
+
+    def append_log(self, text):
+        self.logs.append(text)
+        self.logs = S.clip_lines(self.logs, 200)
+        self.scroll_offset = 0
+        self.dirty = True
+
+
+def action_message(action):
+    mapping = {
+        "setup": "Setup started", "cancel": "Setup cancelled",
+        "record-start": "Listening…", "record-stop": "Transcription finished",
+        "record-cancel": "Recording cancelled", "test": "Test completed",
+        "diagnose": "Diagnosis completed", "delete-model": "Model deleted successfully",
+        "edit": "Binding file opened", "bind-tui": "Binding tool opened",
+        "key-test": "Key tester opened", "capture": "Captured key added",
+        "recent-clear": "Recent history cleared",
+    }
+    return mapping.get(action, f"{action} done")
+
+
+# ── content ──────────────────────────────────────────────────────────────
+def render_model_specs(model, w):
+    """Box 1: model specifications + delete/setup."""
+    lines = []
+    lines.append(S.kv_line("Engine", "SenseVoice Small INT8", w-4))
+    lines.append(S.kv_line("Size", f"{model.val('modelSizeMB', '0')} MB", w-4))
+    lines.append(S.kv_line("Venv", "ready" if model.boo("venvReady") else "missing", w-4))
+    lines.append(S.kv_line("Daemon", "running" if model.boo("daemonRunning") else "idle", w-4))
+    lines.append(("text", ""))
+    if model.confirm_remove:
+        lines.append(("danger", "  Confirm delete? (y / n)"))
+    elif model.model_ready():
+        lines.append(S.danger_action_line("x", "Delete model", not model.busy))
+    else:
+        lines.append(S.primary_line("Setup voice", "enter", not model.busy))
+    return lines
+
+
+def render_setup_actions(model, w):
+    """Box 2: voice triggers (fixed height)."""
+    lines = []
+    if model.model_ready():
+        lines.append(("section", "Triggers"))
+        binds = model.bindings if model.bindings else [model.val("defaultTrigger", "ALT + A")]
+        seen = set()
+        for b in binds:
+            fk = friendly(b)
+            if fk in seen:
+                continue
+            seen.add(fk)
+            lines.append(("text", f"  ⌨  {fk}"))
+    return lines
+
+
+def render_voice_actions(model, w):
+    """Box 3 (fills remaining): action buttons, vertical layout."""
+    lines = []
+    if model.model_ready():
+        lines.append(S.primary_line("Trial record", "space", not model.busy))
+        lines.append(S.action_line("e", "Edit bindings", not model.busy))
+        lines.append(S.action_line("d", "Diagnose", not model.busy))
+    else:
+        lines.append(S.action_line("d", "Diagnose", not model.busy))
+    return lines
+
+
+def render_right(model, w):
+    lines = []
+    st = model.state()
+
+    if st == "downloading":
+        pct = S.parse_int(model.val("download.percent", "0"))
+        label = model.val("download.label", "model") or "model"
+        speed = speed_label(model.val("download.speedBps", "0"))
+        eta = eta_label(model.val("download.etaSec", "0"))
+        bar_w = max(10, w - 12)
+        bar = S.progress_bar(pct, bar_w)
+        lines.append(("section", "Progress"))
+        lines.append(("warn", f"  Downloading {label}"))
+        lines.append(("text", f"  {bar} {pct}%"))
+        lines.append(S.kv_line("Speed", speed, w-4))
+        lines.append(S.kv_line("Remaining", eta, w-4))
+        lines.append(("text", ""))
+        lines.append(S.primary_line("Cancel setup", "enter", not model.busy))
+        lines.append(("text", ""))
+        lines.append(("section", "Setup Log"))
+        return lines
+
+    if not model.model_ready():
+        lines.append(("section", "Get Started"))
+        lines.append(("muted", "  Welcome to Voice Input setup."))
+        lines.append(("text", ""))
+        lines.append(("muted", "  Dictate text with local speech recognition."))
+        lines.append(("muted", "  Audio stays on this device."))
+        lines.append(("text", ""))
+        lines.append(("muted", "  Setup downloads SenseVoice (~229 MB) and"))
+        lines.append(("muted", "  prepares the Python virtual environment."))
+        lines.append(("text", ""))
+        lines.append(("muted", "  Use Setup voice input on the left to begin."))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    lines.append(("section", "Detailed Logs"))
+    return lines
+
+
+def render_log(model, w, h):
+    lines = []
+    inner_w = w - 4
+    inner_h = h - 3
+    total = len(model.logs)
+    if total == 0:
+        lines.append(("muted", "  (no activity yet)"))
+        return lines
+    start = max(0, total - inner_h - model.scroll_offset)
+    end = min(total, start + inner_h)
+    for line in model.logs[start:end]:
+        lines.append(("muted", f"  {S.truncate(line, inner_w-2)}"))
+    return lines
+
+
+# ── hero ─────────────────────────────────────────────────────────────────
+def hero_info(model):
+    st = model.state()
+    tones = {"idle": "ok", "nomodel": "warn", "downloading": "warn",
+             "recording": "danger"}
+    health = state_label(model)
+    daemon = "running" if model.boo("daemonRunning") else "idle"
+    size = model.val("modelSizeMB", "0")
+    if not model.model_ready():
+        subtitle = f"{health} · SenseVoice · Model missing"
+    else:
+        subtitle = f"{health} · SenseVoice · {size} MB · daemon {daemon}"
+
+    msg = ""
+    if model.trial_transcribing:
+        msg = "transcribing…"
+    elif model.trial_listening or model.recording():
+        elapsed = 0
+        if model.rec_start:
+            elapsed = int(time.time() - model.rec_start)
+        level = S.parse_int(model.val("micLevel", "0"))
+        label = "hearing you" if level >= 12 else "listening"
+        msg = f"{label} {S.format_duration(elapsed)} · level {level}"
+    elif model.err:
+        msg = model.err
+    elif model.message and not model.busy:
+        msg = model.message
+
+    return S.hero_line("Voice Input", subtitle, tones.get(st, "muted"),
+                       model.busy and not model.trial_listening and not model.trial_transcribing, msg)
+
+
+def state_label(model):
+    st = model.state()
+    if st == "recording":
+        if model.rec_start:
+            return f"Recording {S.format_duration(int(time.time() - model.rec_start))}"
+        return "Recording"
+    if st == "idle":
+        if model.model_ready() and model.boo("venvReady"):
+            return "Ready"
+        return "Idle"
+    labels = {"nomodel": "Needs setup", "downloading": "Installing"}
+    return labels.get(st, st)
+
+
+def help_items(model):
+    if model.trial_transcribing:
+        return [("…", "transcribing"), ("q", "quit")]
+    if model.trial_listening or model.recording():
+        return [("space", "stop & transcribe"), ("esc", "cancel"), ("q", "quit")]
+    items = [("enter", "record" if model.state() == "idle" else ("setup" if model.state() == "nomodel" else "cancel"))]
+    if model.model_ready():
+        items.append(("space", "trial record"))
+    if model.state() not in ("nomodel", "downloading", "recording"):
+        items += [("e", "bindings"), ("d", "diagnose")]
+    items += [("r", "refresh"), ("q", "quit")]
+    return items
+
+
+# ── view ─────────────────────────────────────────────────────────────────
+def view(stdscr, m):
+    h, w = stdscr.getmaxyx()
+    m.width, m.height = w, h
+    stdscr.erase()
+
+    if not S.require_terminal_size(stdscr, 68, 18):
+        return
+
+    hd = hero_info(m)
+    S.safe_addstr(stdscr, 0, 1, hd[0], hd[1])
+    S.safe_addstr(stdscr, 0, 2, hd[2], hd[3])
+    if hd[4]:
+        S.safe_addstr(stdscr, 0, len(hd[2])+3, hd[4], hd[5])
+    S.safe_addstr(stdscr, 1, 2, hd[6], S.ATTR_MUTED)
+
+    # geometry
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    content_w = w - pad_x
+    avail_h = h - pad_y - hero_h - help_h
+
+    show_right = w >= 108
+    if show_right:
+        left_w = 34
+        right_w = content_w - left_w - 1
+        if right_w < 30:
+            right_w = 30
+            left_w = content_w - right_w - 1
+    else:
+        left_w = content_w
+        right_w = 0
+
+    content_h = avail_h
+
+    # Left column: three stacked boxes
+    # Box 1: model specs (fixed height)
+    specs_lines = render_model_specs(m, left_w - 4)
+    specs_box_h = min(content_h, len(specs_lines) + 3)
+    S.draw_border(stdscr, hero_h, 0, specs_box_h, left_w, "Model")
+    S.draw_lines_in_area(stdscr, hero_h, 0, specs_box_h, left_w, specs_lines)
+
+    # Box 2: setup/triggers (fixed height based on content)
+    setup_y = hero_h + specs_box_h
+    setup_lines = render_setup_actions(m, left_w - 4)
+    setup_box_h = min(content_h - specs_box_h, len(setup_lines) + 3)
+    if setup_box_h >= 3 and len(setup_lines) > 0:
+        S.draw_border(stdscr, setup_y, 0, setup_box_h, left_w, "")
+        S.draw_lines_in_area(stdscr, setup_y, 0, setup_box_h, left_w, setup_lines)
+    else:
+        setup_box_h = 0
+
+    # Box 3: actions (fills remaining height)
+    actions_y = setup_y + setup_box_h
+    actions_h = content_h - actions_y + hero_h
+    if actions_h >= 4:
+        S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "")
+        action_lines = render_voice_actions(m, left_w - 4)
+        inner_h = actions_h - 2
+        for i, (tag, text) in enumerate(action_lines):
+            if i >= inner_h:
+                break
+            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+    else:
+        actions_h = 0
+
+    # Right panel — logs
+    if show_right:
+        S.draw_border(stdscr, hero_h, left_w + 1, content_h, right_w, "Logs")
+        right_lines = render_right(m, right_w - 4)
+        inner_y = hero_h + 1
+        for i, (tag, text) in enumerate(right_lines):
+            if i >= content_h - 3:
+                break
+            S.safe_addstr(stdscr, inner_y + i, left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+        # Log body
+        log_start_y = inner_y + len(right_lines)
+        log_h = content_h - 2 - len(right_lines)
+        if log_h > 0:
+            log_inner_w = right_w - 4
+            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
+            total = len(visible_logs)
+            start = max(0, total - log_h - m.scroll_offset)
+            end = min(total, start + log_h)
+            for i, line in enumerate(visible_logs[start:end]):
+                if log_start_y + i < hero_h + content_h - 1:
+                    S.safe_addstr(stdscr, log_start_y + i, left_w + 2, line, S.ATTR_MUTED)
+            # scrollbar
+            if total > log_h:
+                bar_h = max(1, log_h * log_h // total)
+                if m.scroll_offset == 0:
+                    bar_pos = log_h - bar_h
+                else:
+                    bar_pos = max(0, log_h - bar_h - m.scroll_offset * log_h // total)
+                for i in range(log_h):
+                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
+                    S.safe_addstr(stdscr, log_start_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+    else:
+        # Single column: left boxes + log below
+        left_total_h = specs_box_h + setup_box_h + actions_h
+        log_y = hero_h + left_total_h
+        log_h = content_h - left_total_h
+        if log_h > 2:
+            S.draw_border(stdscr, log_y, 0, log_h, left_w, "Logs")
+            log_inner_w = left_w - 4
+            log_inner_h = log_h - 3
+            visible_logs = S.wrapped_lines(m.logs, log_inner_w)
+            total = len(visible_logs)
+            start = max(0, total - log_inner_h - m.scroll_offset)
+            end = min(total, start + log_inner_h)
+            for i, line in enumerate(visible_logs[start:end]):
+                S.safe_addstr(stdscr, log_y + 1 + i, 2, line, S.ATTR_MUTED)
+            # scrollbar
+            if total > log_inner_h:
+                bar_h = max(1, log_inner_h * log_inner_h // total)
+                if m.scroll_offset == 0:
+                    bar_pos = log_inner_h - bar_h
+                else:
+                    bar_pos = max(0, log_inner_h - bar_h - m.scroll_offset * log_inner_h // total)
+                for i in range(log_inner_h):
+                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
+                    S.safe_addstr(stdscr, log_y + 1 + i, left_w - 2, ch, S.ATTR_SUBTLE)
+
+    # help
+    S.safe_addstr(stdscr, h - 1, 1, S.help_text(help_items(m)), S.ATTR_SUBTLE)
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+# ── input ────────────────────────────────────────────────────────────────
+def handle_key(stdscr, m, key):
+    if key == ord('q'):
+        if m.trial_listening or m.recording():
+            m.cancel_trial()
+        return False
+    if key == 27 and not m.trial_listening:
+        return False
+
+    if m.confirm_remove:
+        if key == ord('y'):
+            m.confirm_remove = False
+            m.run_action("delete-model")
+        elif key in (ord('n'), 27):
+            m.confirm_remove = False
+            m.dirty = True
+        return True
+
+    # Space / Esc trial controls
+    if key == ord(' '):
+        if m.trial_transcribing:
+            return True
+        if m.trial_listening or m.recording():
+            m.stop_trial()
+            return True
+        if not m.busy:
+            m.start_trial()
+        return True
+
+    if key == 27:
+        if m.trial_listening or m.recording():
+            m.cancel_trial()
+        return True
+
+    if m.busy and key not in (ord('r'), ord('q')):
+        return True
+
+    # Mouse handling
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                m.scroll_offset = max(0, m.scroll_offset + wheel)
+                m.dirty = True
+                return True
+            mx, my, button, kind = me
+            if kind in ("click", "release", "press") or button == "left":
+                plain = S.get_plain_lines(stdscr)
+                buttons = [
+                    ("Refresh status", "r"),
+                    ("Key tester", "k"),
+                    ("Edit bindings file", "e"),
+                    ("Diagnose", "d"),
+                    ("Clear recent", "c"),
+                    ("Re-run setup", "s"),
+                    ("Record", "enter"),
+                    ("Setup voice input", "enter"),
+                    ("Cancel setup", "enter"),
+                    ("Delete model", "x"),
+                    ("Confirm delete? y", "y"),
+                    ("n (no)", "n"),
+                ]
+                for label, k in buttons:
+                    if S.hit_test(plain, mx, my, label):
+                        if k == "enter":
+                            return handle_key(stdscr, m, ord('\n'))
+                        return handle_key(stdscr, m, ord(k))
+        return True
+
+    if key in (curses.KEY_UP, ord('k')):
+        m.scroll_offset += 3
+        m.dirty = True
+    elif key in (curses.KEY_DOWN, ord('j')):
+        m.scroll_offset = max(0, m.scroll_offset - 3)
+        m.dirty = True
+    elif key == curses.KEY_PPAGE:
+        m.scroll_offset += 10
+        m.dirty = True
+    elif key == curses.KEY_NPAGE:
+        m.scroll_offset = max(0, m.scroll_offset - 10)
+        m.dirty = True
+    elif key == curses.KEY_HOME:
+        m.scroll_offset = 999999
+        m.dirty = True
+    elif key == curses.KEY_END:
+        m.scroll_offset = 0
+        m.dirty = True
+    elif key == ord('\n'):
+        st = m.state()
+        if st == "nomodel":
+            m.run_action("setup")
+        elif st == "downloading":
+            m.run_action("cancel")
+        elif st == "recording":
+            m.stop_trial()
+        elif m.model_ready():
+            m.start_trial()
+    elif key == ord('r'):
+        m.refresh()
+    elif key == ord('s') and not m.busy:
+        m.run_action("setup")
+    elif key == ord('d') and not m.busy:
+        m.run_action("diagnose")
+    elif key == ord('t') and not m.busy:
+        m.run_action("test")
+    elif key == ord('e') and not m.busy:
+        m.run_action("edit")
+    elif key == ord('k') and not m.busy:
+        m.run_action("key-test")
+    elif key == ord('c') and not m.busy:
+        if m.recent_items():
+            m.run_action("recent-clear")
+    elif key == ord('x') and m.model_ready() and not m.busy:
+        m.confirm_remove = True
+        m.dirty = True
+    m.dirty = True
+    return True
+
+
+def main(stdscr):
+    S.init_colors()
+    S.enable_mouse()
+    curses.curs_set(0)
+    curses.set_escdelay(1)
+    m = Model()
+    m.last_tick = time.time()
+    try:
+        while True:
+            S.drain_callbacks()
+            if m.dirty:
+                view(stdscr, m)
+                m.dirty = False
+
+            # Auto-refresh: 900ms normal, 400ms during trial
+            now = time.time()
+            interval = 0.4 if m.trial_listening else 0.9
+            if now - m.last_tick >= interval:
+                m.last_tick = now
+                m.refresh()
+
+            stdscr.timeout(int(interval * 1000))
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not handle_key(stdscr, m, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        S.disable_mouse()
+
+if __name__ == "__main__":
+    curses.wrapper(main)

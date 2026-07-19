@@ -1,0 +1,1010 @@
+#!/usr/bin/env python3
+"""Keyboard Remap settings TUI — Python curses port of tui-go keyboard page.
+
+Three-panel bordered layout with full feature parity:
+  - Visual key picker for preset overrides
+  - Fn mode cycling (media/function/auto)
+  - Profile management (profiles.json persistence)
+  - Mouse support (click buttons, scroll logs)
+  - Log scrollbar with thumb
+  - Preset overrides with custom key targets
+  - Profile enable/disable toggle
+  - Copy profile from another device
+  - Last apply status tracking
+"""
+
+import curses
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import importlib
+import importlib.util
+_shared_spec = importlib.util.spec_from_file_location(
+    "omd_tui_shared", os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-tui-shared.py"))
+_shared = importlib.util.module_from_spec(_shared_spec)
+_shared_spec.loader.exec_module(_shared)
+S = _shared
+
+# ── keyboard layout for visual key picker ────────────────────────────────
+KEYBOARD_ROWS = [
+    [("Esc", "escape", 5), ("F1", "f1", 4), ("F2", "f2", 4), ("F3", "f3", 4), ("F4", "f4", 4),
+     ("F5", "f5", 4), ("F6", "f6", 4), ("F7", "f7", 4), ("F8", "f8", 4), ("F9", "f9", 4),
+     ("F10", "f10", 4), ("F11", "f11", 4), ("F12", "f12", 4)],
+    [("`", "grave", 3), ("1", "1", 3), ("2", "2", 3), ("3", "3", 3), ("4", "4", 3),
+     ("5", "5", 3), ("6", "6", 3), ("7", "7", 3), ("8", "8", 3), ("9", "9", 3),
+     ("0", "0", 3), ("-", "-", 3), ("=", "=", 3), ("BkSp", "backspace", 6)],
+    [("Tab", "tab", 5), ("Q", "q", 3), ("W", "w", 3), ("E", "e", 3), ("R", "r", 3),
+     ("T", "t", 3), ("Y", "y", 3), ("U", "u", 3), ("I", "i", 3), ("O", "o", 3),
+     ("P", "p", 3), ("[", "[", 3), ("]", "]", 3), ("\\", "\\", 4)],
+    [("Caps", "capslock", 6), ("A", "a", 3), ("S", "s", 3), ("D", "d", 3), ("F", "f", 3),
+     ("G", "g", 3), ("H", "h", 3), ("J", "j", 3), ("K", "k", 3), ("L", "l", 3),
+     (";", ";", 3), ("'", "'", 3), ("Enter", "enter", 7)],
+    [("Shift", "leftshift", 8), ("Z", "z", 3), ("X", "x", 3), ("C", "c", 3), ("V", "v", 3),
+     ("B", "b", 3), ("N", "n", 3), ("M", "m", 3), (",", ",", 3), (".", ".", 3),
+     ("/", "/", 3), ("Shift", "rightshift", 8)],
+    [("Ctrl", "leftcontrol", 6), ("Win", "leftmeta", 5), ("Alt", "leftalt", 5),
+     ("Space", "space", 16), ("Alt", "rightalt", 5), ("Win", "rightmeta", 5),
+     ("Menu", "menu", 5), ("Ctrl", "rightcontrol", 6)],
+    [("F13", "f13", 5), ("F14", "f14", 5), ("F15", "f15", 5), ("F16", "f16", 5),
+     ("F17", "f17", 5), ("F18", "f18", 5), ("F19", "f19", 5), ("F20", "f20", 5),
+     ("F21", "f21", 5), ("F22", "f22", 5), ("F23", "f23", 5), ("F24", "f24", 5)],
+    [("Up", "up", 5), ("Down", "down", 6), ("Left", "left", 6), ("Right", "right", 7),
+     ("Delete", "delete", 8), ("Mute", "mute", 6), ("VolDn", "volumedown", 7),
+     ("VolUp", "volumeup", 7)],
+]
+
+GLOBAL_PRESETS = [
+    ("alt-win-swap",   "Swap Left Alt / Win", "swap", ""),
+    ("ctrl-caps-swap", "Swap Ctrl / Caps", "swap", ""),
+    ("grave-esc-swap", "Swap Grave / Esc", "swap", ""),
+    ("caps-esc",       "Caps to Esc", "remap", "escape"),
+    ("muhenkan-meta",  "Muhenkan → Custom", "remap", "leftmeta"),
+    ("kana-left",      "Katakana/Hiragana to Left", "remap", "left"),
+    ("rightalt-down",  "Right Alt to Down", "remap", "down"),
+    ("rightmeta-down", "Right Win to Down", "remap", "down"),
+    ("delete-right",   "Delete to Right", "remap", "right"),
+    ("rightctrl-up",   "Right Ctrl to Up", "remap", "up"),
+]
+
+FN_MODES = ["media", "function", "auto"]
+
+
+# ── data model ───────────────────────────────────────────────────────────
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.status = {}
+        self.devices = []
+        self.logs = [
+            "Keyboard Remap ready.",
+            "Toggle presets, then Apply (a) to write /etc/keyd/omd.conf.",
+        ]
+        self.selected = 0
+        self.selected_preset = 0
+        self.focus_area = 0  # 0=devices, 1=right panel
+        self.busy = False
+        self.refreshing = False
+        self.message = ""
+        self.pending_changes = False
+        self.dirty = True
+        self.scroll_offset = 0
+        self.last_apply_ok = None  # True/False/None
+        self.fnmode_available = False
+        self.fnmode = "media"
+        self.fnmode_value = 0
+        # Key picker state
+        self.show_picker = False
+        self.picker_preset_id = ""
+        self.picker_row = 0
+        self.picker_col = 0
+        # Profile management
+        self.profiles = {"version": 1, "devices": {}}
+        self.load_profiles()
+        self.refresh()
+
+    def val(self, key, fallback=""):
+        return self.status.get(key, fallback)
+
+    def boo(self, key):
+        return self.status.get(key) == "true"
+
+    def load_profiles(self):
+        profiles_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+        try:
+            with open(profiles_path) as f:
+                self.profiles = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.profiles = {"version": 1, "devices": {}}
+        if "devices" not in self.profiles:
+            self.profiles["devices"] = {}
+
+    def save_profiles(self):
+        profiles_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+        os.makedirs(os.path.dirname(profiles_path), exist_ok=True)
+        with open(profiles_path, "w") as f:
+            json.dump(self.profiles, f, indent=2)
+
+    def device_identity(self, name):
+        identity = name.lower().strip()
+        suffix = "-keyboard"
+        return identity[:-len(suffix)] if identity.endswith(suffix) else identity
+
+    def profile_for_device(self, dev):
+        identity = self.device_identity(dev.get("hyprName", ""))
+        best_key = None
+        best = None
+        best_weight = -1
+        for key, prof in self.profiles["devices"].items():
+            if prof is None:
+                continue
+            if self.device_identity(prof.get("hyprName", "")) != identity:
+                continue
+            weight = len(prof.get("enabledPresets", [])) * 10 + len(prof.get("presetOverrides", {}))
+            if best is None or weight > best_weight or (weight == best_weight and key == dev.get("hyprName", "")):
+                best_key = key
+                best = prof
+                best_weight = weight
+        return best_key, best
+
+    def merge_devices(self, connected):
+        self.devices = []
+        connected_map = set()
+        for dev in connected:
+            dev["connected"] = True
+            self.devices.append(dev)
+            connected_map.add(self.device_identity(dev.get("hyprName", "")))
+        for name, prof in self.profiles["devices"].items():
+            if prof is None:
+                continue
+            if self.device_identity(prof.get("hyprName", "")) in connected_map:
+                continue
+            self.devices.append({
+                "hyprName": prof.get("hyprName", name),
+                "rawName": prof.get("hyprName", name),
+                "displayName": prof.get("displayName", prof.get("hyprName", name)),
+                "keydId": prof.get("keydId", ""),
+                "connected": False,
+            })
+        self.devices.sort(key=lambda d: (not d.get("connected", False), d.get("displayName", "")))
+
+    def refresh(self):
+        if self.refreshing:
+            return
+        self.refreshing = True
+        self.dirty = True
+        pending = [3]
+        def complete():
+            pending[0] -= 1
+            if pending[0] == 0:
+                self.refreshing = False
+            self.dirty = True
+        def on_status(lines, err):
+            if not err:
+                self.status = S.parse_kv(lines)
+                self.pending_changes = self.boo("pendingChanges")
+            else:
+                self.append_log(f"  status failed: {err}")
+            complete()
+        def on_devices(lines, err):
+            try:
+                connected = json.loads("\n".join(lines)) if lines and not err else []
+                self.merge_devices(connected)
+            except Exception:
+                pass
+            complete()
+        def on_fnmode(lines, err):
+            try:
+                data = json.loads("\n".join(lines)) if lines and not err else {}
+                self.fnmode_available = data.get("available", False)
+                self.fnmode = data.get("mode", "media")
+                self.fnmode_value = data.get("value", 0)
+            except Exception:
+                self.fnmode_available = False
+            complete()
+        S.run_cmd_bg("omd-settings-keyboard", "status", callback=on_status)
+        S.run_cmd_bg(os.path.join(S.OMD_ROOT, "share", "bin", "omarchy-keyboard-list"), callback=on_devices)
+        S.run_cmd_bg("omd-settings-keyboard", "fnmode-status", callback=on_fnmode)
+        self.append_log("$ refresh")
+
+    def run_action(self, action):
+        self.busy = True
+        self.message = f"{action}…"
+        self.dirty = True
+        self.append_log(f"$ {action}")
+        def _cb(lines, err):
+            for l in lines:
+                self.append_log(f"  {l}")
+            self.busy = False
+            if err:
+                self.message = "action failed"
+                if action == "apply":
+                    self.last_apply_ok = False
+            else:
+                self.message = action_message(action)
+                if action == "apply":
+                    self.last_apply_ok = True
+                elif action == "fnmode-set":
+                    self.append_log("fn mode updated")
+            self.dirty = True
+            self.refresh()
+        S.run_cmd_bg("omd-settings-keyboard", action, callback=_cb)
+
+    def set_fnmode(self, mode):
+        """Cycle fn key mode by calling omd-settings-keyboard fnmode-set <mode>."""
+        self.busy = True
+        self.message = f"fnmode-set {mode}…"
+        self.dirty = True
+        self.append_log(f"$ fnmode-set {mode}")
+        def _cb(lines, err):
+            for l in lines:
+                self.append_log(f"  {l}")
+            self.busy = False
+            if err:
+                self.message = "fnmode-set failed"
+            else:
+                self.message = "Fn key mode updated"
+                self.append_log("fn mode updated")
+                # Re-fetch fnmode status to update self.fnmode
+                def on_fnmode(flines, ferr):
+                    try:
+                        data = json.loads("\n".join(flines)) if flines else {}
+                        self.fnmode_available = data.get("available", False)
+                        self.fnmode = data.get("mode", "media")
+                        self.fnmode_value = data.get("value", 0)
+                    except Exception:
+                        pass
+                    self.dirty = True
+                S.run_cmd_bg("omd-settings-keyboard", "fnmode-status", callback=on_fnmode)
+            self.dirty = True
+        S.run_cmd_bg("omd-settings-keyboard", "fnmode-set", mode, callback=_cb)
+
+    def cycle_fnmode(self):
+        next_mode = "media"
+        if self.fnmode == "media":
+            next_mode = "function"
+        elif self.fnmode == "function":
+            next_mode = "auto"
+        self.busy = True
+        self.set_fnmode(next_mode)
+
+    def append_log(self, text):
+        self.logs.append(text)
+        if len(self.logs) > 200:
+            self.logs = self.logs[-200:]
+        self.scroll_offset = 0  # pin to bottom on new output
+        self.dirty = True
+
+    def toggle_profile_enabled(self):
+        if not self.devices or self.selected >= len(self.devices):
+            return
+        dev = self.devices[self.selected]
+        key, prof = self.profile_for_device(dev)
+        if prof is None:
+            prof = {
+                "displayName": dev.get("displayName", ""),
+                "hyprName": dev.get("hyprName", ""),
+                "keydId": dev.get("keydId", ""),
+                "enabled": True,
+                "enabledPresets": [],
+                "presetOverrides": {},
+            }
+            self.profiles["devices"][dev.get("hyprName", "")] = prof
+            self.save_profiles()
+            self.append_log(f"created profile for {dev.get('displayName', '?')} (enabled)")
+            return
+        prof["enabled"] = not prof.get("enabled", True)
+        self.save_profiles()
+        state = "enabled" if prof["enabled"] else "disabled"
+        self.append_log(f"profile {dev.get('displayName', '?')} {state}")
+
+    def toggle_preset(self):
+        if not self.devices or self.selected >= len(self.devices):
+            return
+        dev = self.devices[self.selected]
+        key, prof = self.profile_for_device(dev)
+        if prof is None:
+            prof = {
+                "displayName": dev.get("displayName", ""),
+                "hyprName": dev.get("hyprName", ""),
+                "keydId": dev.get("keydId", ""),
+                "enabled": True,
+                "enabledPresets": [],
+                "presetOverrides": {},
+            }
+            self.profiles["devices"][dev.get("hyprName", "")] = prof
+
+        preset_idx = self.selected_preset - 1
+        if self.fnmode_available:
+            preset_idx = self.selected_preset - 2
+        if preset_idx < 0 or preset_idx >= len(GLOBAL_PRESETS):
+            return
+        preset_id = GLOBAL_PRESETS[preset_idx][0]
+        enabled = prof.get("enabledPresets", [])
+        if preset_id in enabled:
+            enabled.remove(preset_id)
+            self.append_log(f"preset off: {preset_id}")
+        else:
+            enabled.append(preset_id)
+            self.append_log(f"preset on: {preset_id}")
+        prof["enabledPresets"] = enabled
+        self.save_profiles()
+
+    def trigger_override_picker(self):
+        if not self.devices or self.selected >= len(self.devices):
+            return
+        preset_idx = self.selected_preset - 1
+        if self.fnmode_available:
+            preset_idx = self.selected_preset - 2
+        if preset_idx < 0 or preset_idx >= len(GLOBAL_PRESETS):
+            return
+        preset = GLOBAL_PRESETS[preset_idx]
+        if preset[2] != "remap":
+            return
+        self.picker_preset_id = preset[0]
+        self.show_picker = True
+        self.picker_row = 0
+        self.picker_col = 0
+
+    def confirm_picker_selection(self):
+        if self.selected >= len(self.devices):
+            self.show_picker = False
+            return
+        dev = self.devices[self.selected]
+        key, prof = self.profile_for_device(dev)
+        if prof is None:
+            self.show_picker = False
+            return
+        target_key = KEYBOARD_ROWS[self.picker_row][self.picker_col][1]
+        if target_key:
+            if "presetOverrides" not in prof:
+                prof["presetOverrides"] = {}
+            prof["presetOverrides"][self.picker_preset_id] = target_key
+            self.save_profiles()
+        self.show_picker = False
+
+    def find_copy_source(self):
+        if self.selected >= len(self.devices):
+            return None
+        dev = self.devices[self.selected]
+        key, prof = self.profile_for_device(dev)
+        if prof and len(prof.get("enabledPresets", [])) > 0:
+            return None
+        for name, other in self.profiles["devices"].items():
+            if other and self.device_identity(other.get("hyprName", "")) != self.device_identity(dev.get("hyprName", "")) and len(other.get("enabledPresets", [])) > 0:
+                return name
+        return None
+
+    def copy_profile_from(self, source_name):
+        if self.selected >= len(self.devices) or not source_name:
+            return
+        dev = self.devices[self.selected]
+        source = self.profiles["devices"].get(source_name)
+        if not source:
+            return
+        dest_key, dest = self.profile_for_device(dev)
+        if dest is None:
+            dest_key = dev.get("hyprName", "")
+            dest = {
+                "displayName": dev.get("displayName", ""),
+                "hyprName": dev.get("hyprName", ""),
+                "keydId": dev.get("keydId", ""),
+                "enabled": True,
+                "enabledPresets": [],
+                "presetOverrides": {},
+            }
+            self.profiles["devices"][dest_key] = dest
+        dest["enabledPresets"] = list(source.get("enabledPresets", []))
+        dest["presetOverrides"] = dict(source.get("presetOverrides", {}))
+        self.save_profiles()
+        self.message = f"Copied presets from {source.get('displayName', '?')}"
+
+    def apply_remaps(self):
+        self.run_action("apply")
+
+    def setup_keyd(self):
+        self.run_action("setup")
+
+    def key_tester(self):
+        self.run_action("key-test")
+
+    def online_count(self):
+        return sum(1 for d in self.devices if d.get("connected"))
+
+    def selected_preset_count(self):
+        if self.selected >= len(self.devices):
+            return 0
+        dev = self.devices[self.selected]
+        key, prof = self.profile_for_device(dev)
+        if prof is None or not prof.get("enabled", True):
+            return 0
+        return len(prof.get("enabledPresets", []))
+
+    def right_col_rows(self):
+        rows = 1 + len(GLOBAL_PRESETS)  # profile toggle + presets
+        if self.fnmode_available:
+            rows += 1  # fn mode row
+        return rows
+
+
+def action_message(action):
+    mapping = {
+        "setup": "keyd setup completed",
+        "apply": "Key remaps applied successfully",
+        "key-test": "Key tester finished",
+    }
+    return mapping.get(action, "Done")
+
+
+# ── rendering ────────────────────────────────────────────────────────────
+def render_key(k, is_selected):
+    label, code, w = k
+    inner_w = w - 2
+    if inner_w < 1:
+        inner_w = 1
+    content = label[:inner_w] if len(label) > inner_w else label
+    left_pad = (inner_w - len(content)) // 2
+    right_pad = inner_w - len(content) - left_pad
+    padded = " " * left_pad + content + " " * right_pad
+    if is_selected:
+        return f"[{padded}]"
+    return f"[{padded}]"
+
+
+def render_picker_view(model, stdscr):
+    h, w = stdscr.getmaxyx()
+    # Calculate picker dimensions
+    picker_h = len(KEYBOARD_ROWS) + 4  # title + rows + help
+    picker_w = min(w - 4, 80)
+    start_y = max(0, (h - picker_h) // 2)
+    start_x = max(0, (w - picker_w) // 2)
+
+    # Draw picker box
+    S.draw_thick_border(stdscr, start_y, start_x, picker_h, picker_w, "Select Target Key Override")
+
+    inner_y = start_y + 1
+    inner_x = start_x + 2
+
+    for row_idx, row in enumerate(KEYBOARD_ROWS):
+        line = "  "
+        for col_idx, key in enumerate(row):
+            is_sel = model.picker_row == row_idx and model.picker_col == col_idx
+            rendered = render_key(key, is_sel)
+            if is_sel:
+                S.safe_addstr(stdscr, inner_y + row_idx, inner_x + len(line), rendered, S.ATTR_ACCENT_BOLD)
+            else:
+                S.safe_addstr(stdscr, inner_y + row_idx, inner_x + len(line), rendered, S.ATTR_TEXT)
+            line += rendered
+
+    help_y = inner_y + len(KEYBOARD_ROWS) + 1
+    S.safe_addstr(stdscr, help_y, inner_x,
+                  "arrows: navigate  |  Enter/Space: select  |  Esc: cancel",
+                  S.ATTR_MUTED)
+
+
+def render_device_list(model, width):
+    lines = []
+    online = model.online_count()
+    offline = len(model.devices) - online
+    lines.append(("section", f"Keyboards  {online} online · {offline} offline"))
+    for i, dev in enumerate(model.devices):
+        name = dev.get("displayName", dev.get("hyprName", "?"))
+        connected = dev.get("connected", False)
+        did = dev.get("keydId", "") or "no id"
+        if i > 0:
+            lines.append(("subtle", " " + "─" * max(2, width - 2)))
+        if i == model.selected and model.focus_area == 0:
+            lines.append(("focus", f"▸ {S.truncate(name, width - 2)}"))
+        elif connected:
+            lines.append(("ok", f"● {S.truncate(name, width - 2)}"))
+        else:
+            lines.append(("muted", f"○ {S.truncate(name, width - 2)}"))
+        status = "online" if connected else "saved, offline"
+        lines.append(("subtle", f"  {status}  ·  {did}"))
+    if not model.devices:
+        lines.append(("muted", "  No keyboards detected"))
+    return lines
+
+
+def render_health(model, width):
+    lines = []
+    lines.append(("section", "Health"))
+    keyd_status = "inactive"
+    keyd_tone = "danger"
+    if model.boo("keydRunning"):
+        keyd_status = "active"
+        keyd_tone = "ok"
+    elif model.boo("keydInstalled"):
+        keyd_status = "installed"
+        keyd_tone = "warn"
+    lines.append((keyd_tone, f"  keyd      {keyd_status}"))
+    lines.append(("muted",  f"  conf      omd.conf"))
+    apply_status = "—"
+    if model.last_apply_ok is True:
+        apply_status = "ok"
+    elif model.last_apply_ok is False:
+        apply_status = "error"
+    elif model.pending_changes:
+        apply_status = "pending"
+    lines.append(("muted",  f"  apply     {apply_status}"))
+    if model.pending_changes:
+        lines.append(("warn", "  draft differs from installed"))
+    return lines
+
+
+def render_actions(model):
+    lines = []
+    lines.append(("section", "Actions"))
+    enabled = not model.busy
+    lines.append(S.action_line("s", "Setup keyd", enabled))
+    lines.append(S.action_line("t", "Key Tester", enabled))
+    can_apply = enabled and model.pending_changes
+    lines.append(S.action_line("a", "Apply remaps", can_apply))
+    lines.append(S.action_line("r", "Refresh", enabled))
+    return lines
+
+
+def render_profile(model, width):
+    lines = []
+    if not model.devices or model.selected >= len(model.devices):
+        lines.append(("muted", "  Select a keyboard device to configure…"))
+        return lines
+    dev = model.devices[model.selected]
+    key, prof = model.profile_for_device(dev)
+    exists = prof is not None
+    is_enabled = exists and prof.get("enabled", True)
+    name = dev.get("displayName", dev.get("hyprName", "?"))
+
+    lines.append(("section", f"Profile · {S.truncate(name, width-12)}"))
+    lines.append(("text",   f"  Device    {name}"))
+    did = dev.get("keydId") or "—"
+    lines.append(("muted",  f"  ID        {did}"))
+    lines.append(S.profile_enabled_line(is_enabled, model.focus_area == 1 and model.selected_preset == 0))
+    lines.append(("text", ""))
+
+    # Fn mode
+    if model.fnmode_available:
+        lines.append(("section", "Function Row"))
+        lines.append(S.cycle_line("Fn Row Mode", model.fnmode, "f", model.focus_area == 1 and model.selected_preset == 1))
+        lines.append(("text", ""))
+
+    # Presets
+    on_count = 0
+    if is_enabled and exists:
+        on_count = len(prof.get("enabledPresets", []))
+    lines.append(("section", f"Presets  {on_count} on"))
+    for i, (pid, plabel, ptype, pdefault) in enumerate(GLOBAL_PRESETS):
+        active = False
+        if is_enabled and exists:
+            active = pid in prof.get("enabledPresets", [])
+        preset_row = i + 1
+        if model.fnmode_available:
+            preset_row += 1
+        focused = model.focus_area == 1 and model.selected_preset == preset_row
+        trailing = ""
+        if ptype == "remap":
+            target = pdefault
+            if exists and prof.get("presetOverrides"):
+                target = prof["presetOverrides"].get(pid, pdefault)
+            trailing = target
+        lines.append(S.toggle_line(active, plabel, focused, not is_enabled, trailing))
+    return lines
+
+
+def render_log(model, width):
+    lines = []
+    lines.append(("section", "Activity"))
+    if not model.logs:
+        lines.append(("muted", "  (no activity yet)"))
+        return lines
+    inner_h = 30
+    total = len(model.logs)
+    start = max(0, total - inner_h - model.scroll_offset)
+    end = min(total, start + inner_h)
+    for l in model.logs[start:end]:
+        lines.append(("muted", f"  {S.truncate(l, width-4)}"))
+    return lines
+
+
+def hero_info(model):
+    keyd = "keyd inactive"
+    if model.boo("keydRunning"):
+        keyd = "keyd active"
+    parts = [keyd, f"{len(model.devices)} devices", f"{model.selected_preset_count()} presets on"]
+    if model.pending_changes:
+        parts.append("pending")
+    subtitle = " · ".join(parts)
+    tone = "ok" if model.boo("keydRunning") else "danger"
+    msg = ""
+    if model.busy:
+        msg = "working…"
+    elif model.message:
+        msg = model.message
+    return S.hero_line("Keyboard Remap", subtitle, tone, model.busy, msg)
+
+
+def help_items(model):
+    if model.show_picker:
+        return [("arrows", "navigate"), ("enter/space", "select"), ("esc", "cancel")]
+    items = [
+        ("arrows", "navigate"),
+        ("tab", "column"),
+        ("space", "toggle"),
+        ("enter", "edit key"),
+        ("a", "apply"),
+        ("s", "setup"),
+        ("t", "tester"),
+        ("pgup/pgdn", "logs"),
+        ("r", "refresh"),
+        ("q", "quit"),
+    ]
+    return items
+
+
+# ── view ─────────────────────────────────────────────────────────────────
+def view(stdscr, model):
+    curses.curs_set(0)
+    h, w = stdscr.getmaxyx()
+    model.width = w
+    model.height = h
+
+    if not S.require_terminal_size(stdscr, 72, 20):
+        return
+
+    if model.show_picker:
+        stdscr.erase()
+        render_picker_view(model, stdscr)
+        stdscr.noutrefresh()
+        curses.doupdate()
+        return
+
+    stdscr.erase()
+
+    # ── hero ──
+    dot, da, title, ta, msg, ma, sub = hero_info(model)
+    S.safe_addstr(stdscr, 0, 1, dot, da)
+    S.safe_addstr(stdscr, 0, 2, title, ta)
+    if msg:
+        S.safe_addstr(stdscr, 0, len(title)+3, msg, ma)
+    S.safe_addstr(stdscr, 1, 2, sub, S.ATTR_MUTED)
+
+    # ── geometry ──
+    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 1
+    pending_h = 1 if model.pending_changes else 0
+    content_w = w - pad_x
+    avail_h = h - pad_y - hero_h - help_h - pending_h
+
+    left_w = 34
+    right_w = content_w - left_w
+    if right_w < 28:
+        right_w = 28
+        left_w = max(22, content_w - right_w)
+
+    content_h = avail_h
+
+    # ── Left: three stacked boxes ──
+    # Box 1: Keyboards
+    device_lines = render_device_list(model, left_w - 4)
+    device_box_h = min(content_h, len(device_lines) + 3)
+    if device_box_h >= 3:
+        S.draw_border(stdscr, hero_h, 0, device_box_h, left_w, "Keyboards")
+        S.draw_lines_in_area(stdscr, hero_h, 0, device_box_h, left_w, device_lines)
+    else:
+        device_box_h = 0
+
+    # Box 2: Health
+    health_y = hero_h + device_box_h
+    health_lines = render_health(model, left_w - 4)
+    health_box_h = min(content_h - device_box_h, len(health_lines) + 3)
+    if health_box_h >= 3 and len(health_lines) > 0:
+        S.draw_border(stdscr, health_y, 0, health_box_h, left_w, "")
+        S.draw_lines_in_area(stdscr, health_y, 0, health_box_h, left_w, health_lines)
+    else:
+        health_box_h = 0
+
+    # Box 3: Actions (fills remaining)
+    actions_y = health_y + health_box_h
+    actions_h = content_h - actions_y + hero_h
+    if actions_h >= 4:
+        S.draw_border(stdscr, actions_y, 0, actions_h, left_w, "")
+        action_lines = render_actions(model)
+        inner_h = actions_h - 2
+        for i, (tag, text) in enumerate(action_lines):
+            if i >= inner_h:
+                break
+            S.safe_addstr(stdscr, actions_y + 1 + i, 2, S.truncate(text, left_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+
+    # ── Right: Profile (with Fn Row) + Presets + Activity (stacked boxes) ──
+    # Box 1: Profile & Function Row (merged)
+    profile_lines = []
+    if model.devices and model.selected < len(model.devices):
+        dev = model.devices[model.selected]
+        key, prof = model.profile_for_device(dev)
+        exists = prof is not None
+        is_enabled = exists and prof.get("enabled", True)
+        did = dev.get("keydId") or "—"
+        profile_lines.append(("text",   f"  Device    {dev.get('displayName', dev.get('hyprName', '?'))}"))
+        profile_lines.append(("muted",  f"  ID        {did}"))
+        profile_lines.append(S.profile_enabled_line(is_enabled, model.focus_area == 1 and model.selected_preset == 0))
+        if model.fnmode_available:
+            profile_lines.append(("", ""))
+            profile_lines.append(S.cycle_line("Fn Row Mode", model.fnmode, "f", model.focus_area == 1 and model.selected_preset == (1 if model.fnmode_available else 0)))
+    else:
+        profile_lines.append(("muted", "  Select a device…"))
+    profile_box_h = min(content_h, len(profile_lines) + 3)
+    if profile_box_h >= 3:
+        S.draw_border(stdscr, hero_h, left_w, profile_box_h, right_w, "Profile")
+        S.draw_lines_in_area(stdscr, hero_h, left_w, profile_box_h, right_w, profile_lines)
+    else:
+        profile_box_h = 0
+
+    # Box 2: Presets
+    presets_y = hero_h + profile_box_h
+    presets_lines = []
+    if model.devices and model.selected < len(model.devices):
+        dev = model.devices[model.selected]
+        key, prof = model.profile_for_device(dev)
+        exists = prof is not None
+        is_enabled = exists and prof.get("enabled", True)
+        for i, (pid, plabel, ptype, pdefault) in enumerate(GLOBAL_PRESETS):
+            active = False
+            if is_enabled and exists:
+                active = pid in prof.get("enabledPresets", [])
+            preset_row = i + 1
+            if model.fnmode_available:
+                preset_row += 1
+            focused = model.focus_area == 1 and model.selected_preset == preset_row
+            trailing = ""
+            if ptype == "remap":
+                target = pdefault
+                if exists and prof.get("presetOverrides"):
+                    target = prof["presetOverrides"].get(pid, pdefault)
+                trailing = target
+            presets_lines.append(S.toggle_line(active, plabel, focused, not is_enabled, trailing))
+    on_count = sum(1 for l in presets_lines if l[1].startswith("[X]"))
+    presets_title = f"Presets  {on_count} on"
+    presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
+    if presets_box_h >= 3 and len(presets_lines) > 0:
+        S.draw_border(stdscr, presets_y, left_w, presets_box_h, right_w, presets_title)
+        S.draw_lines_in_area(stdscr, presets_y, left_w, presets_box_h, right_w, presets_lines)
+    else:
+        presets_box_h = 0
+
+    # Box 4: Activity (fills remaining)
+    act_y = presets_y + presets_box_h
+    act_h = content_h - act_y + hero_h
+    if act_h >= 4:
+        S.draw_border(stdscr, act_y, left_w, act_h, right_w, "Activity")
+        log_inner_y = act_y + 1
+        log_inner_h = act_h - 2
+        log_inner_w = right_w - 4
+        visible_logs = S.wrapped_lines(model.logs, log_inner_w)
+        total = len(visible_logs)
+        if total == 0:
+            S.safe_addstr(stdscr, log_inner_y, left_w + 2, "(no activity yet)", S.ATTR_MUTED)
+        else:
+            start = max(0, total - log_inner_h - model.scroll_offset)
+            end = min(total, start + log_inner_h)
+            for i, line in enumerate(visible_logs[start:end]):
+                if log_inner_y + i < act_y + act_h - 1:
+                    S.safe_addstr(stdscr, log_inner_y + i, left_w + 2, line, S.ATTR_MUTED)
+            if total > log_inner_h:
+                bar_h = max(1, log_inner_h * log_inner_h // total)
+                if model.scroll_offset == 0:
+                    bar_pos = log_inner_h - bar_h
+                else:
+                    bar_pos = max(0, log_inner_h - bar_h - model.scroll_offset * log_inner_h // total)
+                for i in range(log_inner_h):
+                    ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
+                    S.safe_addstr(stdscr, log_inner_y + i, left_w + right_w - 2, ch, S.ATTR_SUBTLE)
+
+    # ── help bar ──
+    help_y = h - 1 - pending_h
+    S.safe_addstr(stdscr, help_y, 1, S.help_text(help_items(model)), S.ATTR_SUBTLE)
+
+    # ── pending bar ──
+    if model.pending_changes:
+        pending_y = h - 1
+        S.safe_addstr(stdscr, pending_y, 1,
+                     "Pending changes · Apply (a) · Discard (r)",
+                     S.ATTR_OK_BOLD)
+
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+# ── input handling ───────────────────────────────────────────────────────
+def handle_key(stdscr, model, key):
+    if key == ord('q') or key == 27:  # q or Esc
+        if model.show_picker:
+            model.show_picker = False
+            model.dirty = True
+            return True
+        return False
+
+    # Key picker mode
+    if model.show_picker:
+        if key == curses.KEY_UP or key == ord('k'):
+            model.picker_row = max(0, model.picker_row - 1)
+            model.picker_col = min(model.picker_col, len(KEYBOARD_ROWS[model.picker_row]) - 1)
+        elif key == curses.KEY_DOWN or key == ord('j'):
+            model.picker_row = min(len(KEYBOARD_ROWS) - 1, model.picker_row + 1)
+            model.picker_col = min(model.picker_col, len(KEYBOARD_ROWS[model.picker_row]) - 1)
+        elif key == curses.KEY_LEFT or key == ord('h'):
+            model.picker_col = max(0, model.picker_col - 1)
+        elif key == curses.KEY_RIGHT or key == ord('l'):
+            model.picker_col = min(len(KEYBOARD_ROWS[model.picker_row]) - 1, model.picker_col + 1)
+        elif key == ord('\n') or key == ord(' '):
+            model.confirm_picker_selection()
+        model.dirty = True
+        return True
+
+    if model.busy and key not in (ord('r'), ord('q')):
+        return True
+
+    # Mouse handling
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                model.scroll_offset = max(0, model.scroll_offset + wheel)
+                model.dirty = True
+                return True
+            mx, my, button, kind = me
+            if kind in ("click", "release", "press") or button == "left":
+                # Get plain text lines for hit testing
+                plain = S.get_plain_lines(stdscr)
+                # Check device list clicks
+                for i, dev in enumerate(model.devices):
+                    name = dev.get("displayName", "")
+                    if S.hit_test(plain, mx, my, name):
+                        model.selected = i
+                        model.focus_area = 0
+                        model.dirty = True
+                        return True
+                # Check preset clicks
+                for i, (pid, plabel, ptype, _) in enumerate(GLOBAL_PRESETS):
+                    if S.hit_test(plain, mx, my, plabel):
+                        preset_row = i + 1
+                        if model.fnmode_available:
+                            preset_row += 1
+                        model.selected_preset = preset_row
+                        model.focus_area = 1
+                        if ptype == "remap":
+                            # Check if click is past the label (on trailing target)
+                            label_end = plain[my].find(plabel) + len(plabel) if my < len(plain) else 0
+                            if mx >= label_end:
+                                model.trigger_override_picker()
+                            else:
+                                model.toggle_preset()
+                        else:
+                            model.toggle_preset()
+                        model.dirty = True
+                        return True
+                # Check action buttons
+                actions = [
+                    ("Setup keyd", "s"), ("Key Tester", "t"),
+                    ("Apply remaps", "a"), ("Refresh", "r"),
+                ]
+                for label, k in actions:
+                    if S.hit_test(plain, mx, my, label):
+                        return handle_key(stdscr, model, ord(k))
+                # Check profile toggle
+                if S.hit_test(plain, mx, my, "Profile:"):
+                    model.selected_preset = 0
+                    model.focus_area = 1
+                    model.toggle_profile_enabled()
+                    model.dirty = True
+                    return True
+        return True
+
+    if model.focus_area == 0:  # device list
+        if key == curses.KEY_UP or key == ord('k'):
+            model.selected = max(0, model.selected - 1)
+        elif key == curses.KEY_DOWN or key == ord('j'):
+            model.selected = min(max(0, len(model.devices) - 1), model.selected + 1)
+        elif key == ord('\t') or key == 9:  # Tab
+            model.focus_area = 1
+        elif key == ord(' '):
+            model.toggle_profile_enabled()
+        elif key == ord('s'):
+            model.setup_keyd()
+        elif key == ord('t'):
+            model.key_tester()
+        elif key == ord('a') and model.pending_changes:
+            model.apply_remaps()
+        elif key == ord('r'):
+            model.refresh()
+        elif key == ord('c'):
+            src = model.find_copy_source()
+            if src:
+                model.copy_profile_from(src)
+        elif key == ord('\n') or key == 10:  # Enter
+            model.focus_area = 1
+    else:  # right panel (presets)
+        if key == curses.KEY_UP or key == ord('k'):
+            model.selected_preset = max(0, model.selected_preset - 1)
+        elif key == curses.KEY_DOWN or key == ord('j'):
+            model.selected_preset = min(model.right_col_rows() - 1, model.selected_preset + 1)
+        elif key == ord('\t') or key == 9:
+            model.focus_area = 0
+        elif key == ord('\n') or key == 10:
+            if model.selected_preset == 0:
+                model.toggle_profile_enabled()
+            elif model.fnmode_available and model.selected_preset == 1:
+                model.busy = True
+                model.cycle_fnmode()
+            else:
+                model.trigger_override_picker()
+        elif key == ord(' '):
+            if model.selected_preset == 0:
+                model.toggle_profile_enabled()
+            elif model.fnmode_available and model.selected_preset == 1:
+                model.busy = True
+                model.cycle_fnmode()
+            else:
+                model.toggle_preset()
+        elif key == ord('s'):
+            model.setup_keyd()
+        elif key == ord('t'):
+            model.key_tester()
+        elif key == ord('a') and model.pending_changes:
+            model.apply_remaps()
+        elif key == ord('r'):
+            model.refresh()
+        elif key == ord('f') and model.fnmode_available:
+            model.busy = True
+            model.cycle_fnmode()
+        elif key == ord('c'):
+            src = model.find_copy_source()
+            if src:
+                model.copy_profile_from(src)
+
+    # Global scroll keys
+    if key == curses.KEY_PPAGE:
+        model.scroll_offset += 3
+    elif key == curses.KEY_NPAGE:
+        model.scroll_offset = max(0, model.scroll_offset - 3)
+    elif key == curses.KEY_HOME:
+        model.scroll_offset = 9999
+    elif key == curses.KEY_END:
+        model.scroll_offset = 0
+
+    model.dirty = True
+    return True
+
+
+# ── main ─────────────────────────────────────────────────────────────────
+def main(stdscr):
+    S.init_colors()
+    S.enable_mouse()
+    model = Model()
+    model.dirty = True
+    curses.set_escdelay(1)
+
+    try:
+        while True:
+            S.drain_callbacks()
+            if model.dirty:
+                view(stdscr, model)
+                model.dirty = False
+
+            stdscr.timeout(200)
+            key = stdscr.getch()
+            if key == -1:
+                continue
+            if not handle_key(stdscr, model, key):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        S.disable_mouse()
+
+if __name__ == "__main__":
+    curses.wrapper(main)
