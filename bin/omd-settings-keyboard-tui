@@ -90,8 +90,8 @@ KEYBOARD_ROWS = [
     # Row 6: Ctrl/Space row, Left/Down/Right arrows, Numpad 0 . (98 characters total)
     [
         ("Ctrl", "leftcontrol", 7), ("Win", "leftmeta", 6), ("Alt", "leftalt", 6),
-        ("Space", "space", 20), ("Alt", "rightalt", 6), ("Win", "rightmeta", 6),
-        ("Ctrl", "rightcontrol", 7), ("", "", 4),
+        ("Space", "space", 24), ("Alt", "rightalt", 6), ("Win", "rightmeta", 6),
+        ("Ctrl", "rightcontrol", 7),
         ("", "", 2),
         ("Lft", "left", 5), ("Dwn", "down", 5), ("Rgt", "right", 5),
         ("", "", 2),
