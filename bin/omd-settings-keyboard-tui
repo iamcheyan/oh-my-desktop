@@ -660,7 +660,13 @@ def view(stdscr, model):
     # Focusable areas – Tab cycles 0 (Keyboards) → 1 (Profile) → 2 (Presets) → 0
     on_keyboards = model.focus_area == 0
     on_profile    = model.focus_area == 1
-    on_presets    = model.focus_area == 2
+    # Presets only focusable when the master toggle (profile enabled) is on
+    _prof_enabled = False
+    if model.devices and model.selected < len(model.devices):
+        _dev = model.devices[model.selected]
+        _key, _prof = model.profile_for_device(_dev)
+        _prof_enabled = _prof is not None and _prof.get("enabled", True)
+    on_presets = model.focus_area == 2 and _prof_enabled
 
     # ── Left: three stacked boxes ──
     # Box 1: Keyboards (focusable)
@@ -868,13 +874,18 @@ def handle_key(stdscr, model, key):
         return True
 
     pf_rows = 2 if model.fnmode_available else 1
+    _prof_enabled = False
+    if model.devices and model.selected < len(model.devices):
+        _dev = model.devices[model.selected]
+        _key, _prof = model.profile_for_device(_dev)
+        _prof_enabled = _prof is not None and _prof.get("enabled", True)
     if model.focus_area == 0:  # device list
         if key == curses.KEY_UP or key == ord('k'):
             model.selected = max(0, model.selected - 1)
         elif key == curses.KEY_DOWN or key == ord('j'):
             model.selected = min(max(0, len(model.devices) - 1), model.selected + 1)
-        elif key == curses.KEY_BTAB:  # Shift+Tab → Presets (reverse)
-            if model.right_col_rows() > pf_rows:
+        elif key == curses.KEY_BTAB:  # Shift+Tab → Presets (only if master toggle on)
+            if _prof_enabled and model.right_col_rows() > pf_rows:
                 model.focus_area = 2
                 model.selected_preset = pf_rows
             else:
@@ -907,8 +918,8 @@ def handle_key(stdscr, model, key):
             model.selected_preset = min(pf_rows - 1, model.selected_preset + 1)
         elif key == curses.KEY_BTAB:  # Shift+Tab → Keyboards
             model.focus_area = 0
-        elif key == ord('\t') or key == 9:  # Tab → Presets (or back to left if none)
-            if model.right_col_rows() > pf_rows:
+        elif key == ord('\t') or key == 9:  # Tab → Presets (only if master toggle on)
+            if _prof_enabled and model.right_col_rows() > pf_rows:
                 model.focus_area = 2
                 model.selected_preset = pf_rows
             else:
