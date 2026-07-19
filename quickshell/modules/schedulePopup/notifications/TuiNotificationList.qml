@@ -7,6 +7,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Notifications
 
 Item {
@@ -120,6 +121,12 @@ Item {
                 danger: true
                 onClicked: Notifications.discardAllNotifications()
             }
+
+            IconButton {
+                symbol: "settings"
+                tooltip: "Muted apps"
+                onClicked: root.openMutedEditor()
+            }
         }
     }
 
@@ -203,31 +210,6 @@ Item {
         }
     }
 
-    // Muted apps section
-    ColumnLayout {
-        Layout.fillWidth: true
-        Layout.topMargin: 8
-        visible: Notifications.mutedApps.length > 0 && !root.hubStyle
-        spacing: 4
-
-        StyledText {
-            Layout.leftMargin: 4
-            text: "Muted apps"
-            font.family: Appearance.font.family.main
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            font.weight: Font.DemiBold
-            color: TuiStyle.dim
-        }
-
-        Repeater {
-            model: Notifications.mutedApps
-            delegate: MutedAppRow {
-                required property var modelData
-                appName: modelData
-            }
-        }
-    }
-
     Item {
         id: footer
         Layout.fillWidth: true
@@ -298,6 +280,55 @@ Item {
     }
 
     } // column
+
+    property string mutedAppsPath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.txt`
+
+    function openMutedEditor() {
+        writeMutedFileProc.command = ["bash", "-c",
+            `dir="\$(dirname '${root.mutedAppsPath}')" && mkdir -p "\$dir" && cat > '${root.mutedAppsPath}' <<'FILEEOF'
+${Notifications.mutedApps.join("\n")}
+FILEEOF`];
+        writeMutedFileProc.running = true;
+    }
+
+    Process {
+        id: writeMutedFileProc
+        running: false
+        onExited: {
+            // Now open vi in terminal
+            editMutedProc.command = ["bash", "-c",
+                `terminal="" && for t in foot kitty ghostty alacritty xfce4-terminal gnome-terminal; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done && if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsPath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsPath}'; fi`];
+            editMutedProc.running = true;
+        }
+    }
+
+    Process {
+        id: editMutedProc
+        running: false
+        onExited: {
+            // Read back the file and update muted apps
+            readMutedProc.running = true;
+        }
+    }
+
+    Process {
+        id: readMutedProc
+        command: ["bash", "-c", `cat '${root.mutedAppsPath}' 2>/dev/null || true`]
+        running: false
+        stdout: StdioCollector {
+            id: readMutedCollector
+            onStreamFinished: {
+                const text = readMutedCollector.text.trim();
+                const apps = text.length > 0 ? text.split("\n").map(l => l.trim()).filter(l => l.length > 0) : [];
+                // Update both the local mutedApps and the Config
+                const oldList = [...Notifications.mutedApps];
+                Notifications.mutedApps = apps;
+                if (Config.options && Config.options.notifications) {
+                    Config.options.notifications.mutedApps = apps;
+                }
+            }
+        }
+    }
 
     component TuiToggle: Rectangle {
         id: toggle
@@ -564,65 +595,6 @@ Item {
                 }
 
                 Item { Layout.fillHeight: true }
-            }
-        }
-    }
-
-    component MutedAppRow: Item {
-        id: muteRow
-        required property string appName
-        implicitHeight: 36
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 8
-            spacing: 8
-
-            MaterialSymbol {
-                text: "notifications_off"
-                iconSize: 18
-                color: TuiStyle.danger
-            }
-
-            StyledText {
-                Layout.fillWidth: true
-                text: muteRow.appName
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: TuiStyle.dim
-            }
-
-            StyledText {
-                text: "muted"
-                font.family: Appearance.font.family.main
-                font.pixelSize: Appearance.font.pixelSize.smaller
-                color: TuiStyle.danger
-            }
-
-            Rectangle {
-                implicitWidth: 52
-                implicitHeight: 26
-                radius: TuiStyle.miniRadius
-                color: unmuteMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-                border.width: 1
-                border.color: TuiStyle.line
-
-                StyledText {
-                    anchors.centerIn: parent
-                    text: "unmute"
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: TuiStyle.dim
-                }
-
-                MouseArea {
-                    id: unmuteMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Notifications.toggleMuteApp(muteRow.appName)
-                }
             }
         }
     }
