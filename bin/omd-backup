@@ -310,7 +310,7 @@ case "$cmd" in
     data=$(load_config)
     # Check for delete flag
     delete_flag=0
-    if [[ "$1" == "--delete" ]]; then
+    if [[ "${1:-}" == "--delete" ]]; then
       delete_flag=1
     fi
     local_paths=$(echo "$data" | jq -r 'if .localPath | type == "array" then .localPath[] else .localPath end // ""')

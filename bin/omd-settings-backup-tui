@@ -44,11 +44,7 @@ DEFAULT_CONFIG = {
     "localPath": [],
     "includeExt": "",
     "excludeExt": "",
-    "scheduleType": "manual",
-    "scheduleValue": "",
 }
-
-SCHEDULE_TYPES = ["manual", "every_h", "every_d", "at_time"]
 
 FIELD_KEYS = ["address", "share", "user", "password", "remotePath", "localPath", "includeExt", "excludeExt"]
 FIELD_LABELS = {
@@ -74,8 +70,8 @@ class Model:
         self.message = ""
         self.dirty = True
         self.scroll_offset = 0
-        self.focus_area = 0  # 0=left (schedule+fields), 1=right (table+log)
-        self.selected_left = 0  # 0-3 schedule, 4-11 fields
+        self.focus_area = 0  # 0=left (fields), 1=right (table+log)
+        self.selected_left = 0  # 0-7 fields
         self.test_result = None  # None / "ok" / "error"
         self.test_error = ""
         self.last_sync_ok = None
@@ -665,9 +661,9 @@ def render_item_table(model, width):
         
         files_str = str(total_f) if total_f > 0 else "—"
         if changes > 0:
-            ch_str = f"+{changes}"
+            ch_str = str(changes)
         else:
-            ch_str = "✓" if total_f > 0 else "—"
+            ch_str = "0" if total_f > 0 else "—"
             
         files_col = format_col_right(files_str, 6)
         changes_col = format_col_right(ch_str, 7)
@@ -677,16 +673,16 @@ def render_item_table(model, width):
         
         # Status
         if not row["exists"]:
-            status = "⚠ Missing"
+            status = "Missing"
             st_tag = "danger"
         elif changes > 0:
-            status = f"🔄 {changes} pending"
+            status = f"~{changes} pending"
             st_tag = "warn"
         elif backed_time != "—":
-            status = "✅ Synced"
+            status = "Synced"
             st_tag = "ok"
         else:
-            status = "○ Pending"
+            status = "Pending"
             st_tag = "muted"
             
         line = f"  {name} {typ} {files_col} {changes_col} {backed_col} {status}"
@@ -719,7 +715,7 @@ def view(stdscr, model):
     left_focused = (model.focus_area == 0)
     right_focused = (model.focus_area == 1)
 
-    # Left: Status + Schedule + Connection (config) + Actions
+    # Left: Status + Connection (config) + Actions
     conn_lines = render_connection_status(model, left_w - 4)
     conn_box_h = min(content_h, len(conn_lines) + 3)
     if conn_box_h >= 3:
@@ -728,16 +724,7 @@ def view(stdscr, model):
     else:
         conn_box_h = 0
 
-    schedule_y = hero_h + conn_box_h
-    sched_lines = render_schedule(model, left_w - 4)
-    sched_box_h = min(content_h - conn_box_h, len(sched_lines) + 3)
-    if sched_box_h >= 3:
-        S.draw_focus_border(stdscr, left_focused, schedule_y, 0, sched_box_h, left_w, "Schedule")
-        S.draw_lines_in_area(stdscr, schedule_y, 0, sched_box_h, left_w, sched_lines)
-    else:
-        sched_box_h = 0
-
-    field_y = schedule_y + sched_box_h
+    field_y = hero_h + conn_box_h
     field_lines = render_field_list(model, left_w - 4)
     field_box_h = min(content_h - field_y + hero_h, len(field_lines) + 3)
     if field_box_h >= 3:
@@ -812,9 +799,9 @@ def handle_key(stdscr, model, key):
 
     if key == curses.KEY_UP or key == ord('k'):
         if model.focus_area == 0:
-            # Left: move through schedule (0-3) then fields (4-11)
-            if model.selected_left > 11:
-                model.selected_left = 11
+            # Left: move through fields (0-7)
+            if model.selected_left > 7:
+                model.selected_left = 7
             elif model.selected_left > 0:
                 model.selected_left -= 1
         else:
@@ -827,7 +814,7 @@ def handle_key(stdscr, model, key):
 
     if key == curses.KEY_DOWN or key == ord('j'):
         if model.focus_area == 0:
-            if model.selected_left >= 11:
+            if model.selected_left >= 7:
                 pass  # already at bottom
             else:
                 model.selected_left += 1
@@ -840,22 +827,12 @@ def handle_key(stdscr, model, key):
 
     if key == ord('\n') or key == 10:
         if model.focus_area == 0:
-            if model.selected_left < len(SCHEDULE_TYPES):
-                model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
-                model.save_config()
-                model.dirty = True
-            else:
-                start_edit(model)
+            start_edit(model)
         return True
 
     if key == ord(' '):
         if model.focus_area == 0:
-            if model.selected_left < len(SCHEDULE_TYPES):
-                model.config["scheduleType"] = SCHEDULE_TYPES[model.selected_left]
-                model.save_config()
-                model.dirty = True
-            else:
-                start_edit(model)
+            start_edit(model)
         return True
 
     # Action keys
@@ -925,9 +902,9 @@ def handle_key(stdscr, model, key):
 
 
 def start_edit(model):
-    if model.focus_area != 0 or model.selected_left < len(SCHEDULE_TYPES):
+    if model.focus_area != 0:
         return
-    sel_field = model.selected_left - len(SCHEDULE_TYPES)
+    sel_field = model.selected_left
     if sel_field >= len(FIELD_KEYS):
         return
     key = FIELD_KEYS[sel_field]
