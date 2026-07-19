@@ -83,56 +83,70 @@ case "$cmd" in
     fi
 
     log_file="$STATE_DIR/last-sync.log"
-    remote_share="${smb_url%%/*}"
-    remote_dir="${smb_url#*/}"
-    remote_dir="${remote_dir}/$(echo "$remote_path" | sed 's|^/*||')"
+    # remote_dir is the path WITHIN the SMB share (relative to share root)
+    remote_dir="$(echo "$remote_path" | sed 's|^/*||')"
     remote_dir="${remote_dir//\/\///}"
 
     echo "Backup starting"
     start=$(date +%s)
     total_files=0
 
-    echo "$local_paths" | while read -r local_path; do
-      if [[ -z "$local_path" || ! -d "$local_path" ]]; then
-        echo "  SKIP (not a dir): $local_path"
+    host_prefix="$(uname -s)-$(hostname)"
+
+    while read -r local_path; do
+      if [[ -z "$local_path" ]]; then
+        echo "  SKIP (empty): $local_path"
         continue
       fi
-      echo "  from: $local_path"
 
-      find "$local_path" -maxdepth 1 -type f | while read -r f; do
-        base=$(basename "$f")
-        ok=true
-        if [[ -n "$include_ext" ]]; then
-          ok=false
-          IFS=',' read -ra exts <<< "$include_ext"
-          for ext in "${exts[@]}"; do
-            ext=$(echo "$ext" | xargs)
-            if [[ "$base" == *${ext} ]]; then
-              ok=true
-              break
-            fi
-          done
-        fi
-        if [[ -n "$exclude_ext" ]]; then
-          IFS=',' read -ra exts <<< "$exclude_ext"
-          for ext in "${exts[@]}"; do
-            ext=$(echo "$ext" | xargs)
-            if [[ "$base" == *${ext} ]]; then
-              ok=false
-              break
-            fi
-          done
-        fi
-        if $ok; then
-          echo "  upload $base"
-          total_files=$((total_files + 1))
-          parent_dir=$(basename "$local_path")
-          smbclient "//$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
-            --option='client min protocol=SMB2' \
-            -c "cd ${remote_dir}; mkdir \"$parent_dir\"; cd \"$parent_dir\"; put \"$f\" \"$base\"" 2>/dev/null || echo "  FAILED: $base"
-        fi
-      done
-    done
+      if [[ -f "$local_path" ]]; then
+        # Single file upload
+        base=$(basename "$local_path")
+        echo "  upload file $base"
+        total_files=$((total_files + 1))
+        smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
+          --option='client min protocol=SMB2' \
+          -c "cd ${remote_dir}; mkdir \"$host_prefix\"; cd \"$host_prefix\"; put \"$local_path\" \"$base\"" 2>/dev/null 1>/dev/null || echo "  FAILED: $base"
+      elif [[ -d "$local_path" ]]; then
+        # Directory: upload all files into host_prefix/parent_dir/
+        echo "  from: $local_path"
+        parent_dir=$(basename "$local_path")
+        while read -r f; do
+          base=$(basename "$f")
+          ok=true
+          if [[ -n "$include_ext" ]]; then
+            ok=false
+            IFS=',' read -ra exts <<< "$include_ext"
+            for ext in "${exts[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              if [[ "$base" == *${ext} ]]; then
+                ok=true
+                break
+              fi
+            done
+          fi
+          if [[ -n "$exclude_ext" ]]; then
+            IFS=',' read -ra exts <<< "$exclude_ext"
+            for ext in "${exts[@]}"; do
+              ext=$(echo "$ext" | xargs)
+              if [[ "$base" == *${ext} ]]; then
+                ok=false
+                break
+              fi
+            done
+          fi
+          if $ok; then
+            echo "  upload $base"
+            total_files=$((total_files + 1))
+            smbclient "$smb_url" -U "${smb_user}%${smb_pass}" -m SMB3 \
+              --option='client min protocol=SMB2' \
+              -c "cd ${remote_dir}; mkdir \"$host_prefix\"; cd \"$host_prefix\"; mkdir \"$parent_dir\"; cd \"$parent_dir\"; put \"$f\" \"$base\"" 2>/dev/null 1>/dev/null || echo "  FAILED: $base"
+          fi
+        done < <(find "$local_path" -maxdepth 1 -type f)
+      else
+        echo "  SKIP (not found): $local_path"
+      fi
+    done <<< "$local_paths"
 
     end=$(date +%s)
     elapsed=$((end - start))
