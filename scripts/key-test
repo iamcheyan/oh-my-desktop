@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 OMD Advanced Key Capture — GTK4 Edition
-原生 Wayland 窗口，可捕获包括 Globe/Fn 在内的所有硬件按键与组合键，
-并自动格式化为 OMD 绑定字符串写入系统剪贴板。
+Native Wayland window that captures all hardware keys (including Globe/Fn)
+and formats them as OMD bind strings to the system clipboard.
 """
+
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -24,7 +25,7 @@ CAPTURE_STATE = os.path.expanduser("~/.local/state/omd/key-capture.json")
 CAPTURE_LOCK = os.path.expanduser("~/.local/state/omd/key-capture.lock")
 KEYD_BYPASSED_FOR_CAPTURE = False
 
-# ── 自动还原热键 ──
+# ── auto-restore hotkeys ──
 def restore_hotkeys():
     subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -65,7 +66,7 @@ def restore_keyd_after_capture():
 
 atexit.register(restore_keyd_after_capture)
 
-# ── 运行锁文件 ──
+# ── run lock file ──
 def write_lock():
     try:
         os.makedirs(os.path.dirname(CAPTURE_LOCK), exist_ok=True)
@@ -101,7 +102,7 @@ def _signal_handler(signum, frame):
 signal.signal(signal.SIGTERM, _signal_handler)
 signal.signal(signal.SIGINT, _signal_handler)
 
-# ── 写入 remap 捕捉状态 ──
+# ── write capture state ──
 def write_capture_state(raw, keycode, keyval, keyname, keyd_name="", evdev_code=None):
     try:
         if not keyd_name:
@@ -122,7 +123,7 @@ def write_capture_state(raw, keycode, keyval, keyname, keyd_name="", evdev_code=
     except Exception:
         return False
 
-# ── 复制到剪贴板 ──
+# ── clipboard ──
 def copy_to_clipboard(text):
     try:
         process = subprocess.Popen(['wl-copy'], stdin=subprocess.PIPE)
@@ -131,128 +132,127 @@ def copy_to_clipboard(text):
     except Exception:
         return False
 
-# ── 主窗口 ──
+# ── main window ──
 class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app, initial_mode="current", mode_locked=False):
         super().__init__(
             application=app,
-            title="OMD 键盘重映射 — 按键捕捉" if initial_mode == "original" else "OMD 高级按键捕获",
+            title="OMD Advanced Key Capture — Debug",
         )
         self.capture_mode = initial_mode
         self.initial_mode = initial_mode
         self.mode_locked = mode_locked
         self.auto_return = mode_locked and initial_mode == "original"
         self._updating_mode = False
-        self.set_default_size(700, 480)
+        self.set_default_size(640, 420)
         
-        # 绑定系统事件
+        # bind system events
         self.connect("realize", self.on_realize)
         self.connect("notify::is-active", self.on_is_active_changed)
         self.connect("destroy", self.on_destroy)
 
-        # ── CSS 样式 ──
+        # ── CSS styles ──
         css_provider = Gtk.CssProvider()
         css = b"""
         window {
             background-color: #0d0e11;
-            color: #f4f4f4;
+            color: #dcdccc;
         }
         .main-box {
-            padding: 24px;
+            padding: 14px;
         }
         .title-label {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 800;
             color: #00bcd4;
         }
         .hint-label {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 13px;
+            font-size: 12px;
             color: #a8a8a8;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         .display-box {
             background-color: #16181d;
             border: 1px solid #2d3139;
-            border-radius: 12px;
-            padding: 28px;
-            margin-top: 20px;
-            margin-bottom: 20px;
+            padding: 14px;
+            margin-top: 10px;
+            margin-bottom: 10px;
         }
         .key-display {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 34px;
+            font-size: 28px;
             font-weight: 800;
             color: #f5c542;
         }
         .keyd-display {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 16px;
+            font-size: 12px;
             font-weight: 700;
             color: #4caf50;
         }
         .bind-display {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 14px;
+            font-size: 12px;
             color: #a8a8a8;
         }
         .status-label {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 700;
             color: #4caf50;
         }
         .detail-title {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 700;
             color: #00bcd4;
         }
         .detail-value {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 13px;
+            font-size: 11px;
             color: #dcdccc;
         }
         .divider {
             background-color: #2d3139;
             min-height: 1px;
-            margin-top: 16px;
-            margin-bottom: 16px;
+            margin-top: 10px;
+            margin-bottom: 10px;
         }
         .info-box {
             background-color: #101216;
-            border-left: 4px solid #f5c542;
-            padding: 12px 16px;
-            margin-top: 10px;
+            border-left: 3px solid #2d3139;
+            padding: 8px 10px;
+            margin-top: 6px;
         }
         .info-text {
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
-            font-size: 12px;
-            color: #b5bd68;
-            line-height: 1.5;
+            font-size: 11px;
+            color: #a8a8a8;
         }
         button.quit-btn {
             background-color: #21252b;
-            color: #f4f4f4;
+            color: #dcdccc;
             border: 1px solid #2d3139;
-            border-radius: 8px;
-            padding: 8px 16px;
+            padding: 5px 14px;
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
             font-weight: bold;
+            font-size: 12px;
         }
         button.quit-btn:hover {
             background-color: #2c313c;
         }
         .mode-switch {
-            margin-top: 14px;
-            margin-bottom: 4px;
+            margin-top: 8px;
+            margin-bottom: 2px;
         }
         .mode-switch button {
-            min-width: 160px;
-            padding: 7px 14px;
+            min-width: 130px;
+            padding: 4px 10px;
             font-family: 'JetBrains Mono', 'Fira Code', 'Monospace', monospace;
             font-weight: 700;
+            font-size: 12px;
         }
         """
         css_provider.load_from_data(css)
@@ -262,13 +262,13 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-        # ── 页面布局 ──
+        # ── layout ──
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main_box.add_css_class("main-box")
         self.set_child(main_box)
 
-        # 标题与副标题
-        title = Gtk.Label(label=" OMD Advanced Key Capture — 键盘捕获 ")
+        # title
+        title = Gtk.Label(label=" OMD Advanced Key Capture ")
         title.set_halign(Gtk.Align.CENTER)
         title.add_css_class("title-label")
         main_box.append(title)
@@ -284,8 +284,8 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         mode_box.add_css_class("mode-switch")
         main_box.append(mode_box)
 
-        self.current_mode_btn = Gtk.ToggleButton(label="当前按键值")
-        self.original_mode_btn = Gtk.ToggleButton(label="原始按键值")
+        self.current_mode_btn = Gtk.ToggleButton(label="Current Key")
+        self.original_mode_btn = Gtk.ToggleButton(label="Raw Source")
         self.original_mode_btn.set_group(self.current_mode_btn)
         mode_box.append(self.current_mode_btn)
         mode_box.append(self.original_mode_btn)
@@ -297,12 +297,12 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.current_mode_btn.connect("toggled", self.on_mode_toggled, "current")
         self.original_mode_btn.connect("toggled", self.on_mode_toggled, "original")
 
-        # 核心键位展示区
+        # key display area
         display_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         display_box.add_css_class("display-box")
         main_box.append(display_box)
 
-        self.key_display = Gtk.Label(label="( 等待输入 )")
+        self.key_display = Gtk.Label(label="( waiting for input )")
         self.key_display.add_css_class("key-display")
         display_box.append(self.key_display)
 
@@ -318,7 +318,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.status_label.add_css_class("status-label")
         display_box.append(self.status_label)
 
-        # 详细参数区
+        # detail params
         details_grid = Gtk.Grid()
         details_grid.set_column_spacing(24)
         details_grid.set_row_spacing(8)
@@ -348,12 +348,12 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             self.val_code, self.val_bind, self.val_clipboard,
         )
 
-        # 分割线
+        # divider
         divider = Gtk.Box()
         divider.add_css_class("divider")
         main_box.append(divider)
 
-        # 说明文字区
+        # info box
         info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         info_box.add_css_class("info-box")
         main_box.append(info_box)
@@ -364,19 +364,19 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         self.info_lbl.add_css_class("info-text")
         info_box.append(self.info_lbl)
 
-        # 垫片
+        # spacer
         spacer = Gtk.Box()
         spacer.set_vexpand(True)
         main_box.append(spacer)
 
-        # 退出按钮
-        quit_btn = Gtk.Button(label="退出 (Q)")
+        # quit button
+        quit_btn = Gtk.Button(label="Exit (Q)")
         quit_btn.add_css_class("quit-btn")
         quit_btn.set_halign(Gtk.Align.CENTER)
         quit_btn.connect("clicked", lambda _: app.quit())
         main_box.append(quit_btn)
 
-        # ── 键盘事件绑定 ──
+        # ── key events ──
         key_ctrl = Gtk.EventControllerKey()
         key_ctrl.connect("key-pressed", self.on_key_pressed)
         self.add_controller(key_ctrl)
@@ -388,30 +388,30 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def update_mode_text(self):
         if self.is_original_mode():
             self.hint.set_label(
-                "原始按键值：临时暂停 keyd，显示键盘实际发出的物理按键\n"
-                "适合检查或设置重映射来源"
+                "Raw Source — pauses keyd, shows the physical key as sent by hardware\n"
+                "Use to inspect or configure remap sources"
             )
             self.info_lbl.set_label(
-                "提示:\n"
-                "• 大字是原始 keyd 物理键名，可作为重映射的来源键。\n"
-                "• 此模式会暂停 keyd，所以不会受到现有映射影响。\n"
-                "• Escape 和 Q 也是可检测按键，请使用底部按钮退出。"
+                "Info:\n"
+                "• Large text is the raw keyd physical key name — use as remap source.\n"
+                "• keyd is paused so existing remaps won't affect capture.\n"
+                "• Escape and Q are also capturable — use Ctrl+W or button to exit."
             )
         else:
             self.hint.set_label(
-                "当前按键值：保持 keyd 运行，显示应用程序实际收到的按键\n"
-                "适合检查快捷键和重映射结果"
+                "Current Key — keeps keyd running, shows what apps actually receive\n"
+                "Use to inspect shortcuts and remap results"
             )
             self.info_lbl.set_label(
-                "提示:\n"
-                "• 大字是 keyd 处理后的当前键值，不一定是原始物理按键。\n"
-                "• Hypr bind 是应用和 Hyprland 实际使用的快捷键名称。\n"
-                "• 按 Q、Escape 或底部按钮退出。"
+                "Info:\n"
+                "• Large text shows the current keyd-mapped value, not the raw key.\n"
+                "• Hypr bind is the key name used by Hyprland and applications.\n"
+                "• Press Q, Escape or the exit button to close."
             )
 
     def reset_capture_display(self):
         clear_capture_state()
-        self.key_display.set_label("( 等待输入 )")
+        self.key_display.set_label("( waiting for input )")
         self.keyd_display.set_label("")
         self.bind_display.set_label("")
         self.status_label.set_label("")
@@ -426,7 +426,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             self._updating_mode = True
             self.current_mode_btn.set_active(True)
             self._updating_mode = False
-            self.status_label.set_label("✗ 无法暂停 keyd，仍在检测当前按键值")
+            self.status_label.set_label("✗ cannot pause keyd, using current key values")
             return
 
         if mode == "current":
@@ -439,7 +439,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def can_export_capture(self):
         return not self.mode_locked or self.capture_mode == self.initial_mode
 
-    # ── 窗口事件回调 ──
+    # ── window callbacks ──
     def on_realize(self, widget):
         surface = widget.get_surface()
         if surface and hasattr(surface, "inhibit_system_shortcuts"):
@@ -447,15 +447,15 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
     def on_is_active_changed(self, window, param):
         if window.get_property("is-active"):
-            # 窗口获得焦点：解绑所有 Hyprland 绑定，让事件能传递到窗口。
-            # 用 hyprctl binds 列出当前所有 bind，逐个 unbind，避免硬编码。
+            # window gained focus: unbind Hyprland binds so events reach us
+            # uses hyprctl binds to list all binds, then unbinds each
             self.unbind_all_hypr_binds()
         else:
-            # 窗口失去焦点：恢复所有全局快捷键
+            # window lost focus: restore global shortcuts
             self.restore_hypr_binds()
 
     def on_destroy(self, window):
-        # 窗口关闭/销毁：确保恢复全局快捷键并清除运行锁
+        # window closed: restore binds, keyd, remove lock
         self.restore_hypr_binds()
         restore_keyd_after_capture()
         remove_lock()
@@ -493,7 +493,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         """Reload Hyprland config to restore all global binds."""
         subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # ── 键盘捕获处理 ──
+    # ── key capture ──
     def preferred_bind_name(self, keyname, keycode):
         xf86_short_names = {
             "Tools": "XF86Tools",
@@ -510,7 +510,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def on_key_pressed(self, ctrl, keyval, keycode, state):
         keyname = Gdk.keyval_name(keyval) or ""
         
-        # 排除单独按修饰键的情况
+        # exclude solitary modifier presses
         is_modifier = keyval in (
             Gdk.KEY_Control_L, Gdk.KEY_Control_R,
             Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
@@ -525,7 +525,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             self.get_application().quit()
             return True
 
-        # 解析修饰键
+        # parse modifiers
         mods = []
         if state & Gdk.ModifierType.SUPER_MASK:
             mods.append("SUPER")
@@ -534,7 +534,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
         if state & Gdk.ModifierType.ALT_MASK:
             mods.append("ALT")
         if state & Gdk.ModifierType.SHIFT_MASK:
-            # 只有在有其他修饰键，或者是特殊非字母键时，才添加 SHIFT 标识，避免普通大写字母被写成 SHIFT + A
+            # only add SHIFT when other mods or key is non-alpha (avoid 'SHIFT + A')
             if mods or len(keyname) > 1:
                 mods.append("SHIFT")
 
@@ -544,13 +544,13 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             if keyd_name:
                 self.key_display.set_label(keyd_name)
                 self.keyd_display.set_label(
-                    "原始 keyd 物理键名"
+                    "original keyd physical key name"
                     if self.is_original_mode()
-                    else "keyd 处理后的当前键值"
+                    else "keyd-mapped current key value"
                 )
             else:
                 self.key_display.set_label(f"[ {final_key} ]")
-                self.keyd_display.set_label("未识别的物理键")
+                self.keyd_display.set_label("unrecognized physical key")
             self.bind_display.set_label(
                 f"Hypr/GDK: {final_key}" if final_key else ""
             )
@@ -559,9 +559,9 @@ class KeyTestWindow(Gtk.ApplicationWindow):
             )
             self.val_clipboard.set_label(clipboard_text.replace("\n", " / "))
             if not self.can_export_capture():
-                expected = "原始按键值" if self.initial_mode == "original" else "当前按键值"
+                expected = "Raw Source" if self.initial_mode == "original" else "Current Key"
                 self.status_label.set_label(
-                    f"仅检测：此入口需要 {expected}，切回后再捕获即可返回"
+                    f"Monitor only: switch to {expected} mode and capture to export"
                 )
                 return
             if copy_to_clipboard(clipboard_text):
@@ -571,28 +571,28 @@ class KeyTestWindow(Gtk.ApplicationWindow):
                 if self.auto_return:
                     if keyd_name:
                         self.status_label.set_label(
-                            f"✓ keyd-name:{keyd_name}（evdev {evdev_code}）已捕获，正在返回设置"
+                            f"✓ keyd-name:{keyd_name} (evdev {evdev_code}) captured, returning"
                         )
                     else:
                         self.status_label.set_label(
-                            f"✓ 已捕获，但无 keyd 映射（XKB {keycode}），正在返回设置"
+                            f"✓ captured, no keyd mapping (XKB {keycode}), returning"
                         )
                     GLib.timeout_add(180, lambda: (self.get_application().quit(), False)[1])
                 else:
                     self.status_label.set_label(
-                        f"✓ 已复制 keyd-name:{keyd_name or final_key}"
+                        f"✓ copied keyd-name:{keyd_name or final_key}"
                     )
             else:
-                self.status_label.set_label("✗ 复制失败 (请检查剪贴板服务)")
+                self.status_label.set_label("✗ copy failed (check clipboard service)")
 
-        # 格式化输出键名
+        # format output key name
         if is_modifier and not self.is_original_mode():
-            # 单独按下修饰键只显示，不触发复制
+            # solitary modifier: show only, don't copy
             display_name = " + ".join(mods) or keyname.upper()
             keyd_name = gtk_keycode_to_keyd(keycode) or ""
             self.key_display.set_label(keyd_name or f"[ {display_name} ]")
             self.keyd_display.set_label(
-                "keyd 处理后的当前键值" if keyd_name else ""
+                "keyd-mapped current key value" if keyd_name else ""
             )
             self.bind_display.set_label(
                 f"Hypr/GDK: {display_name}" if display_name else ""
@@ -607,7 +607,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
 
             finalize_capture(final_key)
 
-        # 更新详细参数面板
+        # update detail panel
         keyd_name = gtk_keycode_to_keyd(keycode) or "—"
         evdev_code = gtk_keycode_to_evdev(keycode)
         self.val_keyd.set_label(keyd_name)
