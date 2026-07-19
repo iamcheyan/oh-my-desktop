@@ -1030,8 +1030,9 @@ class BluetoothTUI:
         usable = h - hero_h - margin * 2 + 1
 
         if has_disc:
-            paired_h = min(len(paired) + 4, max(4, usable // 3))
-            remaining = usable - paired_h - adapter_h - help_h
+            paired_raw = min(len(paired) + 4, max(4, usable // 3))
+            paired_h = max(4, paired_raw - 1)
+            remaining = usable - paired_raw - adapter_h - help_h
             disc_h = max(4, remaining)
         else:
             disc_h = 0

@@ -756,7 +756,7 @@ class WiFiTUI:
         if has_avail:
             saved_h = min(max(len(self.saved), 1) + 4, max(4, usable // 3))
             remaining = usable - saved_h - adapter_h - help_h
-            avail_h = max(4, remaining)
+            avail_h = max(4, remaining - 1)
         else:
             avail_h = 0
             saved_h = max(4, usable - adapter_h - help_h)
