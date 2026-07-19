@@ -478,12 +478,17 @@ def help_items(model):
         items = [
             ("enter", "edit config"),
             ("t", "test conn"),
-            ("s", "sync inc"),
-            ("S", "sync full"),
-            ("c", "compare"),
+            ("r", "compare"),
             ("e", "edit file"),
             ("l", "remote browse"),
         ]
+        # Only show sync keys when changes are detected
+        if model.compare_result:
+            ns = model.compare_result.get("needs_sync", 0)
+            if ns > 0:
+                items.append(("s", "sync inc"))
+                items.append(("S", "sync full"))
+        items.append(("c", "detail diff"))
     return items
 
 
@@ -575,12 +580,13 @@ def render_actions(model):
     enabled = not model.busy
     has_config = bool(model.config.get("address") and model.config.get("localPath"))
     lines.append(S.action_line("t", "Test connection", enabled))
-    lines.append(S.action_line("s", "Sync (incremental)", enabled and has_config))
-    lines.append(S.action_line("S", "Sync (full, --delete)", enabled and has_config))
-    lines.append(S.action_line("c", "Compare changes", enabled and has_config))
+    lines.append(S.action_line("r", "Compare quick", enabled and has_config))
+    lines.append(S.action_line("c", "Compare detail", enabled and has_config))
+    # Sync keys are always available even if only shown conditionally in help bar
+    lines.append(S.action_line("s", "Sync inc", enabled and has_config))
+    lines.append(S.action_line("S", "Sync full --delete", enabled and has_config))
     lines.append(S.action_line("e", "Edit config file", enabled))
     lines.append(S.action_line("l", "View remote files", enabled and has_config))
-    lines.append(S.action_line("r", "Refresh status", enabled))
     return lines
 
 
@@ -846,7 +852,6 @@ def handle_key(stdscr, model, key):
         return True
     if key in (ord('r'), ord('R')):
         model.message = ""
-        model._refresh_item_rows()
         model._run_compare()
         model.dirty = True
         return True
