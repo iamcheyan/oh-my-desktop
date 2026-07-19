@@ -640,15 +640,15 @@ def render_picker_view(model, stdscr):
 def render_tester_view(model, stdscr):
     """Render the visual key tester overlay."""
     h, w = stdscr.getmaxyx()
-    picker_h = len(KEYBOARD_ROWS) * 2 - 1 + 4
+    picker_h = len(KEYBOARD_ROWS) * 2 - 1 + 5
     picker_w = min(w - 4, 104)
     start_y = max(0, (h - picker_h) // 2)
     start_x = max(0, (w - picker_w) // 2)
 
     S.draw_thick_border(stdscr, start_y, start_x, picker_h, picker_w,
-                        "Key Tester \u2014 Press any key (Esc to exit)")
+                        "Key Tester \u2014 Press any key (Ctrl+W to exit)")
 
-    inner_y = start_y + 1
+    inner_y = start_y + 2
     inner_x = start_x + 2
 
     for row_idx, row in enumerate(KEYBOARD_ROWS):
@@ -673,11 +673,11 @@ def render_tester_view(model, stdscr):
     if model.tester_last_key:
         last_display = model.tester_highlight or model.tester_last_key
         S.safe_addstr(stdscr, help_y, inner_x,
-                      f"Last key: {last_display}  |  Esc: exit",
+                      f"Last key: {last_display}  |  Ctrl+W: exit",
                       S.ATTR_MUTED)
     else:
         S.safe_addstr(stdscr, help_y, inner_x,
-                      "Press any key to test  |  Esc: exit",
+                      "Press any key to test  |  Ctrl+W: exit",
                       S.ATTR_MUTED)
 
 
@@ -1013,7 +1013,7 @@ def view(stdscr, model):
 def handle_key(stdscr, model, key):
     # Tester mode: intercept all keys for visual feedback
     if model.show_tester:
-        if key == 27 or key == ord('q'):  # Esc / q → exit tester
+        if key == 23:  # Ctrl+W → exit tester
             model.show_tester = False
             model.tester_highlight = ""
             model.tester_last_key = ""
