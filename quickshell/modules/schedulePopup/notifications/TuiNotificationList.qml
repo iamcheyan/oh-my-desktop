@@ -530,10 +530,10 @@ Item {
                         }
 
                         IconButton {
-                            symbol: Notifications.isMuted(row.displayApp) ? "notifications_off" : "notifications"
-                            tooltip: Notifications.isMuted(row.displayApp) ? "Unmute app" : "Mute app"
-                            danger: Notifications.isMuted(row.displayApp)
-                            onClicked: Notifications.toggleMuteApp(row.displayApp)
+                            symbol: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
+                            tooltip: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "Unmute app" : "Mute app"
+                            danger: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body)
+                            onClicked: Notifications.toggleMuteApp(row.displayApp, notificationObject?.summary)
                         }
 
                         IconButton {

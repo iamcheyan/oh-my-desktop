@@ -86,6 +86,10 @@ ShellRoot {
         function toggleSilent(): void {
             Notifications.toggleSilent()
         }
+
+        function editMuted(): void {
+            Notifications.openMutedAppsEditor()
+        }
     }
 
     // Session actions requested by independent Quickshell processes (for

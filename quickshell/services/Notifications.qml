@@ -81,7 +81,7 @@ Singleton {
     property int unread: 0
     property var filePath: Directories.notificationsPath
     property list<Notif> list: []
-    property var popupList: list.filter((notif) => notif.popup && !root.isMuted(notif.appName));
+    property var popupList: list.filter((notif) => notif.popup && !root.isMuted(notif.appName, notif.summary, notif.body));
     property bool popupInhibited: silent
     property var latestTimeForApp: ({})
     Component {
@@ -192,7 +192,7 @@ Singleton {
             root.trackLatestTime(newNotifObject);
 
             // Popup
-            if (!root.popupInhibited) {
+            if (!root.popupInhibited && !root.isMuted(newNotifObject.appName, newNotifObject.summary, newNotifObject.body)) {
                 newNotifObject.popup = true;
                 if (notification.expireTimeout != 0) {
                     newNotifObject.timer = notifTimerComponent.createObject(root, {
@@ -218,19 +218,65 @@ Singleton {
         }
     }
 
-    function isMuted(appName) {
-        return root.mutedApps.indexOf(appName) >= 0;
+    function isMuted(appName, summary, body) {
+        if (!appName) appName = "";
+        if (!summary) summary = "";
+        if (!body) body = "";
+
+        for (let i = 0; i < root.mutedApps.length; i++) {
+            const rule = root.mutedApps[i];
+            if (!rule) continue;
+
+            const firstColon = rule.indexOf(":");
+            if (firstColon === -1) {
+                // Form 0: Simple appName match
+                if (rule === appName) {
+                    return true;
+                }
+            } else {
+                const secondColon = rule.indexOf(":", firstColon + 1);
+                if (secondColon === -1) {
+                    // Form 1: appName:summary
+                    const ruleApp = rule.substring(0, firstColon);
+                    const ruleSummary = rule.substring(firstColon + 1);
+                    
+                    const appMatch = (ruleApp === "" || ruleApp === "*" || ruleApp === appName);
+                    const summaryMatch = summary.toLowerCase().includes(ruleSummary.toLowerCase());
+                    
+                    if (appMatch && summaryMatch) {
+                        return true;
+                    }
+                } else if (secondColon === firstColon + 1) {
+                    // Form 2: appName::body
+                    const ruleApp = rule.substring(0, firstColon);
+                    const ruleBody = rule.substring(secondColon + 1);
+                    
+                    const appMatch = (ruleApp === "" || ruleApp === "*" || ruleApp === appName);
+                    const bodyMatch = body.toLowerCase().includes(ruleBody.toLowerCase());
+                    
+                    if (appMatch && bodyMatch) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
-    function toggleMuteApp(appName) {
+    function toggleMuteApp(appName, summary) {
         if (!Config.options || !Config.options.notifications)
             return;
+        const genericApps = ["notify-send", "swaync", "dunstify", "mako", "notification", ""];
+        let rule = appName || "";
+        if (summary && genericApps.indexOf(rule) >= 0) {
+            rule = rule + ":" + summary.trim();
+        }
         const list = [...root.mutedApps];
-        const idx = list.indexOf(appName);
+        const idx = list.indexOf(rule);
         if (idx >= 0)
             list.splice(idx, 1);
         else
-            list.push(appName);
+            list.push(rule);
         root.mutedApps = list;
         Config.options.notifications.mutedApps = list;
         root.writeMutedAppsFile();
@@ -250,10 +296,11 @@ Singleton {
     }
 
     function writeMutedAppsFile() {
-        const text = root.mutedApps.join("\n") + "\n";
+        const text = root.mutedApps.length > 0 ? root.mutedApps.join("\n") + "\n" : "";
         writeMutedFile.command = [
             "bash", "-c",
-            `mkdir -p "$(dirname '${root.mutedAppsFilePath}')" && cat > '${root.mutedAppsFilePath}' <<'EOF'\n${text}\nEOF`
+            `mkdir -p "$(dirname "$2")" && printf '%s' "$1" > "$2"`,
+            "omd-muted-apps-write", text, root.mutedAppsFilePath
         ];
         writeMutedFile.running = true;
     }
@@ -267,7 +314,8 @@ Singleton {
             root.openMutedEditorAfterWrite = false;
             editMutedAppsProc.command = [
                 "bash", "-c",
-                `terminal=""; for t in foot kitty alacritty ghostty; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done; if [ -n "$terminal" ]; then exec "$terminal" -e vi '${root.mutedAppsFilePath}'; else exec xdg-terminal-exec -e vi '${root.mutedAppsFilePath}'; fi`
+                `terminal=""; for t in foot kitty alacritty ghostty; do command -v "$t" >/dev/null 2>&1 && terminal="$t" && break; done; if [ -n "$terminal" ]; then exec "$terminal" -e vi "$1"; else exec xdg-terminal-exec -e vi "$1"; fi`,
+                "omd-muted-apps-editor", root.mutedAppsFilePath
             ];
             editMutedAppsProc.running = true;
         }
@@ -281,7 +329,7 @@ Singleton {
 
     Process {
         id: readMutedAppsProc
-        command: ["bash", "-c", `cat '${root.mutedAppsFilePath}' 2>/dev/null || true`]
+        command: ["bash", "-c", `cat "$1" 2>/dev/null || true`, "omd-muted-apps-read", root.mutedAppsFilePath]
         running: false
         stdout: StdioCollector {
             id: mutedAppsCollector

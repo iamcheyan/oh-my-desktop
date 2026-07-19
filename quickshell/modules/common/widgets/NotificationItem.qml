@@ -191,9 +191,9 @@ Item {
 
                         MaterialSymbol {
                             anchors.centerIn: parent
-                            text: Notifications.isMuted(root.displayApp) ? "notifications_off" : "notifications"
+                            text: Notifications.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
                             iconSize: 18
-                            color: Notifications.isMuted(root.displayApp) ? TuiStyle.danger : TuiStyle.dim
+                            color: Notifications.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? TuiStyle.danger : TuiStyle.dim
                         }
 
                         MouseArea {
@@ -201,7 +201,7 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Notifications.toggleMuteApp(root.displayApp)
+                            onClicked: Notifications.toggleMuteApp(root.displayApp, notificationObject?.summary)
                         }
                     }
 
