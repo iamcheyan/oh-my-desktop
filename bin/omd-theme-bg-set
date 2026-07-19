@@ -45,5 +45,4 @@ if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
   rm -f "$tmp"
 fi
 
-pkill -x swaybg >/dev/null 2>&1 || true
-setsid uwsm-app -- swaybg -i "$current_background" -m fill >/dev/null 2>&1 &
+"$(dirname "$0")/omd-wallpaper" render-image "$current_background"

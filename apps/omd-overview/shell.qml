@@ -9,6 +9,7 @@ import "services"
 
 import qs.modules.overview
 
+import QtQuick
 import Quickshell
 import Quickshell.Wayland
 
@@ -28,6 +29,27 @@ ShellRoot {
         anchors {
             top: true
             left: true
+        }
+
+        // Keep one real scene-graph image alive so the wallpaper is decoded
+        // before the on-demand overview widget is created. A hidden Image in
+        // a singleton is not guaranteed to load because it has no window.
+        Image {
+            anchors.fill: parent
+            visible: true
+            opacity: 0
+            source: Wallpaper.requestedUrl
+            asynchronous: Wallpaper.readyUrl != ""
+            cache: true
+
+            onSourceChanged: {
+                if (source == "")
+                    Wallpaper.readyUrl = "";
+            }
+            onStatusChanged: {
+                if (status === Image.Ready)
+                    Wallpaper.readyUrl = source;
+            }
         }
     }
 

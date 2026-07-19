@@ -7,6 +7,7 @@ MODE_FILE="$STATE_DIR/mode"
 INTERVAL_FILE="$STATE_DIR/interval"
 INTERVAL_SEC="${OMD_WALLPAPER_INTERVAL_SEC:-$(cat "$INTERVAL_FILE" 2>/dev/null || printf '3600')}"
 UNIT_NAME="omd-wallpaper-random"
+RENDER_LOG="$STATE_DIR/renderer.log"
 
 if [[ ! "$INTERVAL_SEC" =~ ^[0-9]+$ ]] || (( INTERVAL_SEC < 1 )); then
   INTERVAL_SEC=3600
@@ -25,6 +26,54 @@ notify() {
 
 ensure_state_dir() {
   mkdir -p "$STATE_DIR"
+}
+
+stop_renderer() {
+  pkill -x swaybg >/dev/null 2>&1 || true
+
+  # Do not race a retiring renderer when changing images quickly.
+  for _ in {1..20}; do
+    pgrep -x swaybg >/dev/null 2>&1 || return 0
+    sleep 0.025
+  done
+}
+
+start_renderer() {
+  local render_log="$RENDER_LOG"
+  ensure_state_dir
+
+  if ! command -v swaybg >/dev/null 2>&1; then
+    echo "swaybg is required to render the desktop wallpaper" >&2
+    return 1
+  fi
+
+  stop_renderer
+  if touch "$render_log" >/dev/null 2>&1; then
+    : > "$render_log"
+  else
+    render_log="${XDG_RUNTIME_DIR:-/tmp}/omd-wallpaper-renderer.log"
+    if ! touch "$render_log" >/dev/null 2>&1; then
+      render_log="/dev/null"
+    fi
+  fi
+
+  # Launch swaybg directly in a detached session. Routing this through
+  # uwsm-app made renderer startup depend on the user D-Bus scope and could
+  # silently leave the desktop without a wallpaper after login.
+  setsid -f swaybg "$@" >>"$render_log" 2>&1
+}
+
+render_image() {
+  local image="$1"
+  [[ -f "$image" ]] || {
+    echo "Wallpaper not found: $image" >&2
+    return 1
+  }
+  start_renderer -i "$image" -m fill
+}
+
+render_color() {
+  start_renderer -c "$1"
 }
 
 stop_timer() {
@@ -201,8 +250,7 @@ PY
     [[ -n "$bg_color" ]] || bg_color="#000000"
   fi
 
-  pkill -x swaybg >/dev/null 2>&1 || true
-  setsid uwsm-app -- swaybg -c "$bg_color" >/dev/null 2>&1 &
+  render_color "$bg_color"
 
   local quickshell_config="$HOME/.config/quickshell/config.json"
   if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
@@ -217,10 +265,18 @@ PY
 }
 
 restore() {
-  local mode source
+  local mode source current_background
   mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
+  current_background="$HOME/.config/omd/current/background"
   if [[ "$mode" == "folder" && -n "$source" ]]; then
+    # Folder mode previously restored only its timer. The preview still read
+    # the managed image, but no swaybg process existed to paint the desktop.
+    if [[ -f "$current_background" ]]; then
+      render_image "$current_background"
+    else
+      random_from_folder "$source"
+    fi
     start_timer
   elif [[ "$mode" == "color" ]]; then
     set_color
@@ -286,6 +342,14 @@ case "${1:-}" in
     ;;
   set-color)
     set_color
+    ;;
+  render-image)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-wallpaper render-image <image>" >&2; exit 2; }
+    render_image "$2"
+    ;;
+  render-color)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-wallpaper render-color <color>" >&2; exit 2; }
+    render_color "$2"
     ;;
   status)
     status

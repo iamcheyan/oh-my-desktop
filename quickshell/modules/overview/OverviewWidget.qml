@@ -17,12 +17,11 @@ Item {
     property string searchQuery: ""
     property real wheelAccum: 0
     readonly property string configuredWallpaperPath: FileUtils.expandHomePath(Config.options.background.wallpaperPath)
-    readonly property string fallbackWallpaperPath: ""
-    readonly property url versionedWallpaperUrl: Wallpaper.versionedUrl(root.configuredWallpaperPath)
-    // Keep showing the last decoded wallpaper while a new revision loads.
-    // Falling back during Image.Loading causes a visible default-wallpaper
-    // flash every time folder rotation or the picker changes the image.
-    property url displayedWallpaperUrl: root.fallbackWallpaperPath
+    // The overview process's keepalive window owns the preloader. readyUrl
+    // changes only after the requested revision has decoded.
+    readonly property url displayedWallpaperUrl: Wallpaper.readyUrl != ""
+        ? Wallpaper.readyUrl
+        : Wallpaper.requestedUrl
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(screen)
     // Re-evaluate the model only when the HyprlandData dirty-flag, an
     // explicit overview refresh, or the toplevel count changes. The
@@ -95,25 +94,6 @@ Item {
     }
     property var windowByAddress: HyprlandData.windowByAddress
     property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
-
-    // Keep one decoded copy warm while the overview process is idle. Every
-    // workspace preview then reuses Qt's image cache instead of independently
-    // decoding the managed wallpaper when the overview becomes visible.
-    Image {
-        id: wallpaperPreloader
-        width: 1
-        height: 1
-        opacity: 0
-        source: root.versionedWallpaperUrl
-        asynchronous: true
-        cache: true
-        visible: true
-
-        onStatusChanged: {
-            if (status === Image.Ready)
-                root.displayedWallpaperUrl = root.versionedWallpaperUrl;
-        }
-    }
 
     // ── Adaptive scaling ──
     // Overview (工作区概览): full-screen grid, auto-select optimal columns
@@ -640,7 +620,9 @@ Item {
                         anchors.fill: parent
                         source: root.displayedWallpaperUrl
                         fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
+                        // Wallpaper has already decoded this exact versioned
+                        // URL; take it synchronously from Qt's shared cache.
+                        asynchronous: false
                         cache: true
                         mipmap: true
                     }

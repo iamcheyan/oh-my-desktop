@@ -1,5 +1,6 @@
 pragma Singleton
 
+import qs.modules.common
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -9,6 +10,16 @@ Singleton {
 
     readonly property string revisionPath: `${Quickshell.env("HOME")}/.config/omd/current/wallpaper.revision`
     property int revision: 0
+    readonly property string configuredPath: {
+        const path = Config.options?.background?.wallpaperPath ?? "";
+        if (path === "~")
+            return Quickshell.env("HOME");
+        if (path.startsWith("~/"))
+            return `${Quickshell.env("HOME")}/${path.slice(2)}`;
+        return path;
+    }
+    readonly property url requestedUrl: root.versionedUrl(root.configuredPath)
+    property url readyUrl: ""
 
     function versionedUrl(path) {
         if (!path)

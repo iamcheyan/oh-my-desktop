@@ -26,8 +26,16 @@ deleting it after selection must not affect the active desktop.
 Folder rotation uses the same import function for every selected image. Its
 mode, source folder, and interval are stored under
 `~/.local/state/omd/wallpaper/`. Hyprland autostart runs
-`omd-wallpaper restore`, which recreates the transient user-systemd timer when
-the persisted mode is `folder`.
+`omd-wallpaper restore`, which first starts `swaybg` with the existing managed
+image and then recreates the transient user-systemd timer when the persisted
+mode is `folder`. Restoring only the timer is insufficient: previews can still
+read the image file while the real desktop remains unpainted.
+
+All image and solid-color renderer launches go through `bin/omd-wallpaper`.
+The renderer is a directly detached `swaybg` process rather than an
+`uwsm-app` scope, so wallpaper restoration does not depend on user D-Bus being
+ready during early Hyprland startup. Renderer stderr is retained in
+`~/.local/state/omd/wallpaper/renderer.log` instead of being discarded.
 
 The interval file is read directly whenever the timer is created. Changing the
 interval uses `omd-wallpaper restart`; it must not use `stop`, because `stop`
@@ -48,13 +56,19 @@ successful wallpaper import, forcing Qt to decode the new contents instead of
 returning a cached image for the unchanged path. This runtime value must not be
 stored in the tracked `quickshell/config.json`.
 
-Overview naturally falls back to the active theme's background color when the managed file cannot be
-decoded or when solid color mode is active. `Init.sh` seeds the managed file from the default theme's
-wallpaper during first setup or runtime repair. The always-running overview process preloads the versioned
-wallpaper and workspace previews share Qt's decoded image cache. When the
-wallpaper revision changes, previews retain the last successfully decoded
-wallpaper until the new image is ready. This avoids both a black frame and a
-default-wallpaper flash.
+Overview naturally falls back to the active theme's background color when the
+managed file cannot be decoded or when solid color mode is active. `Init.sh`
+seeds the managed file from the default theme's wallpaper during first setup
+or runtime repair. The overview process's 1x1 keepalive `PanelWindow` owns a
+transparent `Image` that decodes the versioned wallpaper independently of the
+on-demand workspace widget. The `Wallpaper` singleton publishes the requested
+and last-ready URLs, while workspace previews reuse Qt's decoded image cache.
+When the revision changes, `Wallpaper.readyUrl` retains the last successfully
+decoded revision until the replacement is ready. The preloader must remain in
+a real window: an `Image` owned only by a singleton may never enter a scene
+graph and therefore may never load. This avoids both a black frame and a
+default-wallpaper flash without retaining window screencopy resources while
+overview is closed.
 
 ## Repository Rule
 
