@@ -151,7 +151,7 @@
       "enable": false,
       "name": ""
     },
-    "silent": true,
+    "silent": false,
     "timeout": 7000
   },
   "osd": {

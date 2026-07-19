@@ -536,8 +536,9 @@ case "${1:-list}" in
     [[ -n "${2:-}" ]] || { echo "usage: omd-settings-theme wallpaper-interval <seconds>" >&2; exit 2; }
     mkdir -p "$(dirname "$WALLPAPER_INTERVAL_FILE")"
     printf '%s\n' "$2" >"$WALLPAPER_INTERVAL_FILE"
-    "$OMD_ROOT/bin/omd-wallpaper" stop >/dev/null 2>&1 || true
-    "$OMD_ROOT/bin/omd-wallpaper" random >/dev/null 2>&1 || true
+    # Restart the folder timer without using `stop`: stop intentionally
+    # changes the persistent mode to file and used to disable rotation here.
+    "$OMD_ROOT/bin/omd-wallpaper" restart >/dev/null 2>&1 || true
     wallpaper_status
     ;;
   effects) apply_effect_mode "${2:-}" ;;

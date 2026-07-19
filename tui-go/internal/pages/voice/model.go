@@ -599,7 +599,7 @@ func (m Model) controlView(width int) string {
 		lines = append(lines, keycapLine)
 		lines = append(lines,
 			"",
-			ui.SubtleText.Render(ui.TruncateStyled("Space: test recording  ·  Esc: cancel", width)),
+			ui.SubtleText.Render(ui.TruncateStyled("space: test recording  ·  esc: cancel", width)),
 			"",
 		)
 	}

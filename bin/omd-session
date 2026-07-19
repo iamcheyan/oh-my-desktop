@@ -247,10 +247,15 @@ def parse_tmux_session(argv):
         if not arg.startswith("-"):
             name = arg
             break
+    command = argv[command_index]
     return {
         "type": "tmux",
         "name": name,
         "argvPrefix": argv[:command_index],
+        # Preserve attach-or-create semantics. After a reboot there is no tmux
+        # server to attach to; `new-session -A` starts it, which also lets
+        # tmux-continuum restore the latest tmux-resurrect snapshot.
+        "attachOrCreate": command in ("new-session", "new") and "-A" in argv,
     }
 
 
@@ -477,6 +482,8 @@ def terminal_attach_command(session):
     session_type = session.get("type")
     name = session.get("name", "")
     if session_type == "tmux":
+        if session.get("attachOrCreate"):
+            return [*prefix, "new-session", "-A", "-s", name] if name else [*prefix, "new-session", "-A"]
         return [*prefix, "attach-session", "-t", name] if name else [*prefix, "attach"]
     if session_type == "zellij":
         return [*prefix, "attach", name] if name else [*prefix, "attach"]
@@ -531,6 +538,30 @@ def terminal_launch_argv(executable, terminal, cwd, session, program=None):
             argv += ["--cwd", child_cwd]
         return [*argv, "--", *child_command]
     return [executable, *child_command]
+
+
+def restore_record_argv(record):
+    """Return a launch argv, upgrading old kitty/tmux snapshot records.
+
+    Older OMD snapshots flattened `tmux new-session -A` into
+    `tmux attach-session`. The raw kitty JSON still contains the original
+    command, so recover it at restore time. This makes an already-saved
+    snapshot boot-safe without requiring the user to save it again.
+    """
+    command = record.get("command") or {}
+    argv = command.get("argv") or []
+    session = command.get("session") or {}
+    if not argv or not command.get("terminal") or session.get("type") != "kitty":
+        return argv
+
+    multiplexer = kitty_json_multiplexer(session)
+    if not multiplexer:
+        return argv
+
+    executable = argv[0]
+    terminal = Path(executable).name.lower()
+    cwd = command.get("cwd") or ""
+    return terminal_launch_argv(executable, terminal, cwd, multiplexer, None)
 
 
 def launch_command(client):
@@ -657,7 +688,28 @@ def save():
         "clients": clients,
     }
     LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({"saved": True, "count": len(data["clients"]), "path": str(LAST_FILE)}))
+    workspace_keys = {
+        (
+            client.get("monitorName") or str(client.get("monitor", -1)),
+            (client.get("workspace") or {}).get("id", 0),
+        )
+        for client in clients
+    }
+    monitor_workspaces = (data.get("focus") or {}).get("monitorWorkspaces") or []
+    terminal_clients = [client for client in clients if (client.get("command") or {}).get("terminal")]
+    terminal_sessions = [
+        client for client in terminal_clients
+        if (client.get("command") or {}).get("session")
+    ]
+    print(json.dumps({
+        "saved": True,
+        "count": len(data["clients"]),
+        "workspaceCount": len(workspace_keys),
+        "monitorCount": len(monitor_workspaces),
+        "terminalCount": len(terminal_clients),
+        "terminalSessionCount": len(terminal_sessions),
+        "path": str(LAST_FILE),
+    }))
     return data
 
 
@@ -852,15 +904,13 @@ def client_matches(client, record):
     if not cls_match:
         return False
 
-    # Terminal windows: use initialTitle for a lightweight disambiguation.
-    # Terminals set initialTitle to the terminal name (e.g. "kitty", "foot")
-    # and title to the dynamic shell/program title. Two kitty windows share
-    # the same initialTitle, so we fall through to the full title check below
-    # which uses the dynamic title (e.g. "tetsuya@asahi: ~/dev" vs "nvim").
-    rec_title = (record.get("initialTitle") or record.get("title") or "").strip()
+    # Dynamic titles distinguish terminal windows. Their initialTitle is
+    # normally just "kitty"/"foot", so preferring it makes every window of
+    # the same terminal class match every saved record.
+    rec_title = (record.get("title") or record.get("initialTitle") or "").strip()
     if not rec_title:
         return True
-    cli_title = (client.get("initialTitle") or client.get("title") or "").strip()
+    cli_title = (client.get("title") or client.get("initialTitle") or "").strip()
     if not cli_title:
         # New window hasn't set its title yet — accept on class match alone,
         # but only if no other record with the same class has a stronger
@@ -869,6 +919,33 @@ def client_matches(client, record):
     # Substring match in both directions to handle title changes during
     # application startup (e.g. "Mozilla Firefox" -> "Page — Mozilla Firefox").
     return rec_title.lower() in cli_title.lower() or cli_title.lower() in rec_title.lower()
+
+
+def process_belongs_to(pid, launched_pid):
+    """Return True when pid is the launched process or one of its children."""
+    try:
+        pid = int(pid or 0)
+        launched_pid = int(launched_pid or 0)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0 or launched_pid <= 0:
+        return False
+    if pid == launched_pid:
+        return True
+
+    seen = set()
+    current = pid
+    while current > 1 and current not in seen:
+        seen.add(current)
+        try:
+            status = Path(f"/proc/{current}/status").read_text(encoding="utf-8")
+            parent_line = next(line for line in status.splitlines() if line.startswith("PPid:"))
+            current = int(parent_line.split(":", 1)[1].strip())
+        except (OSError, StopIteration, ValueError):
+            return False
+        if current == launched_pid:
+            return True
+    return False
 
 
 def title_match_score(client, record):
@@ -1046,8 +1123,10 @@ def restore_firefox_records(records, known_addresses, ws_to_monitor, restored_ad
     return restored
 
 
-def wait_for_client(record, known_addresses, timeout=5.0):
+def wait_for_client(record, known_addresses, launched_pid=0, timeout=5.0):
     deadline = time.time() + timeout
+    fallback = None
+    fallback_since = 0.0
     while time.time() < deadline:
         try:
             clients = run_json("hyprctl", "-j", "clients")
@@ -1058,9 +1137,20 @@ def wait_for_client(record, known_addresses, timeout=5.0):
             address = client.get("address")
             if not address or address in known_addresses:
                 continue
-            if client_matches(client, record):
+            if process_belongs_to(client.get("pid"), launched_pid):
                 known_addresses.add(address)
                 return client
+            if client_matches(client, record):
+                if fallback is None or fallback.get("address") != address:
+                    fallback = client
+                    fallback_since = time.time()
+        # Give the compositor and application a short window to expose the
+        # PID belonging to this exact launch. Falling back immediately to a
+        # same-class terminal can assign one Kitty window to another record.
+        if fallback is not None and time.time() - fallback_since >= 0.6:
+            address = fallback.get("address")
+            known_addresses.add(address)
+            return fallback
         time.sleep(0.12)
     return None
 
@@ -1317,7 +1407,7 @@ def _restore_impl():
             time.sleep(0.12)
 
         for record in records:
-            argv = record.get("command", {}).get("argv") or []
+            argv = restore_record_argv(record)
             if not argv:
                 continue
             if "__OMD_KITTY_SESSION__" in argv:
@@ -1327,11 +1417,15 @@ def _restore_impl():
                     argv = [session_path if arg == "__OMD_KITTY_SESSION__" else arg for arg in argv]
             cwd = record.get("command", {}).get("cwd") or None
             try:
-                subprocess.Popen(argv, cwd=cwd if cwd and Path(cwd).is_dir() else None, start_new_session=True)
+                process = subprocess.Popen(
+                    argv,
+                    cwd=cwd if cwd and Path(cwd).is_dir() else None,
+                    start_new_session=True,
+                )
             except Exception as err:
                 print(f"Failed to launch {shlex.join(argv)}: {err}", file=sys.stderr)
                 continue
-            client = wait_for_client(record, known)
+            client = wait_for_client(record, known, launched_pid=process.pid)
             if client:
                 restored_addresses[record.get("address", "")] = client.get("address", "")
                 place_client(client, record)

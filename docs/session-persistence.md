@@ -120,6 +120,21 @@ kitty --directory /repo tmux attach-session -t Work
 This preserves the terminal session only because tmux/zellij keep the session
 alive after the terminal window closes.
 
+For tmux windows originally launched with `tmux new-session -A -s NAME`, OMD
+preserves that attach-or-create form instead of reducing it to
+`attach-session`. This distinction matters after a reboot: no tmux server
+exists yet, so `new-session -A` starts one and allows `tmux-continuum` to load
+the latest `tmux-resurrect` snapshot. Existing snapshots are also upgraded at
+restore time from the raw Kitty remote-control JSON, so they do not need to be
+saved again.
+
+During restore, OMD associates each new window with the process PID started
+for that specific snapshot record (including child processes) before moving
+it to the saved workspace. Class and title matching are fallback mechanisms
+only. This matters for multiple Kitty windows because their `initialTitle` is
+usually the same generic `kitty` value; matching that field alone can place a
+terminal on another terminal's workspace.
+
 If no multiplexer is detected, OMD falls back to the best working directory
 and the foreground terminal program from the terminal process descendants.
 

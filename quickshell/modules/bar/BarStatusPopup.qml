@@ -23,6 +23,8 @@ import qs.modules.bar
 Scope {
     id: root
 
+    readonly property string omdSessionCommand: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
+    property string sessionSaveOutput: ""
     readonly property string activeType: GlobalStates.barPopupType || ""
     readonly property bool open: activeType.length > 0 && !GlobalStates.screenLocked
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
@@ -45,6 +47,65 @@ Scope {
     function openDialog(dialogType) {
         root.close();
         Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", dialogType]);
+    }
+
+    function saveSessionSnapshot() {
+        if (sessionSaveProcess.running)
+            return;
+        root.sessionSaveOutput = "";
+        sessionSaveProcess.running = true;
+        root.close();
+    }
+
+    function sessionSaveNotification(data) {
+        const windows = data.count ?? 0;
+        const workspaces = data.workspaceCount ?? 0;
+        const monitors = data.monitorCount ?? 0;
+        const terminalSessions = data.terminalSessionCount ?? 0;
+        const summary = `Saved ${windows} window${windows === 1 ? "" : "s"} across ${workspaces} workspace${workspaces === 1 ? "" : "s"} on ${monitors} display${monitors === 1 ? "" : "s"}.`;
+        let details = "Includes app launch commands, workspace/display placement, window geometry and state, and focus.";
+        if (terminalSessions > 0)
+            details += ` Captured ${terminalSessions} restorable terminal session${terminalSessions === 1 ? "" : "s"}.`;
+        Quickshell.execDetached([
+            "notify-send", "-a", "OMD Session", "-i", "document-save",
+            "Session snapshot saved", `${summary}\n${details}`
+        ]);
+    }
+
+    Process {
+        id: sessionSaveProcess
+        command: [root.omdSessionCommand, "save"]
+
+        stdout: StdioCollector {
+            id: sessionSaveStdout
+            onStreamFinished: root.sessionSaveOutput = sessionSaveStdout.text.trim()
+        }
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                Quickshell.execDetached([
+                    "notify-send", "-u", "critical", "-a", "OMD Session",
+                    "Session snapshot failed", "The current workspace state could not be saved."
+                ]);
+                return;
+            }
+            try {
+                const data = JSON.parse(root.sessionSaveOutput);
+                if (data.saved) {
+                    root.sessionSaveNotification(data);
+                } else if (data.skipped && data.reason === "empty") {
+                    Quickshell.execDetached([
+                        "notify-send", "-a", "OMD Session", "Session snapshot unchanged",
+                        "No windows are open, so the last usable snapshot was kept."
+                    ]);
+                }
+            } catch (error) {
+                Quickshell.execDetached([
+                    "notify-send", "-u", "critical", "-a", "OMD Session",
+                    "Session snapshot failed", "The save command returned an unreadable result."
+                ]);
+            }
+        }
     }
 
     IpcHandler {
@@ -607,7 +668,7 @@ Scope {
         id: sessionContent
         PopupColumn {
             id: sessionPanel
-            readonly property string omdSession: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
+            readonly property string omdSession: root.omdSessionCommand
             readonly property string snapshotFile: `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/omd/session/last.json`
             property bool hasSnapshot: false
             property int snapshotCount: 0
@@ -654,7 +715,7 @@ Scope {
                     label: "Save"
                     accent: TuiStyle.info
                     enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
-                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "save"]); }
+                    onClicked: root.saveSessionSnapshot()
                 }
                 PopupIconButton {
                     icon: NerdIconMap.close

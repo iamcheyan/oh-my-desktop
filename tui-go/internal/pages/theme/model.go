@@ -454,7 +454,7 @@ func (m Model) View() string {
 		ui.HelpItem("r", "refresh"),
 		ui.HelpItem("q", "quit"),
 	)
-	help := lipgloss.NewStyle().Foreground(pal.muted).Render(strings.Join(helpItems, "  "))
+	help := ui.HelpText(helpItems...)
 	if m.applying != "" {
 		help = lipgloss.NewStyle().Foreground(pal.accent).Render("applying " + m.applying + "…")
 	}
@@ -468,13 +468,39 @@ func (m Model) View() string {
 	)
 }
 
+func (m Model) statusLight() string {
+	style := lipgloss.NewStyle().Foreground(m.palette().accent)
+	return style.Render("●")
+}
+
 func (m Model) contentView(width, height int) string {
 	if m.status == nil {
 		return "Loading..."
 	}
 
-	themeRows := max(1, (height-15)/5)
-	lines := []string{m.heroView(width)}
+	title := m.statusLight() + " " + ui.Title.Render("Theme & Appearance")
+	if m.busy {
+		title += " " + ui.OKText.Render("working…")
+	}
+	currentTheme := m.value("theme.current", "Default")
+	count := len(m.themes)
+	mode := m.value("wallpaper.mode", "file")
+
+	daemon := "single image"
+	if mode == "folder" {
+		interval := intervalLabel(m.value("wallpaper.interval", "3600"))
+		daemon = fmt.Sprintf("rotating every %s", interval)
+	}
+	subtitle := fmt.Sprintf("%s · %d themes · %s", currentTheme, count, daemon)
+
+	titleLines := []string{
+		title,
+		ui.MutedText.Render(ui.TruncateStyled(subtitle, width)),
+		"",
+	}
+
+	themeRows := max(1, (height-len(titleLines)-15)/5)
+	lines := append(titleLines, m.heroView(width))
 	lines = append(lines, "")
 	lines = append(lines, m.themeGridView(width, themeRows))
 	return strings.Join(lines, "\n")
@@ -682,7 +708,7 @@ func (m Model) themeTile(t themeEntry, idx, width int) string {
 	tile := strings.Join([]string{top, sample, label}, "\n")
 	style := lipgloss.NewStyle().Width(width)
 	if idx == m.selected {
-		style = style.Border(lipgloss.NormalBorder()).BorderForeground(m.palette().accent)
+		style = style.Border(lipgloss.ThickBorder()).BorderForeground(m.palette().accent)
 	} else {
 		style = style.Border(lipgloss.HiddenBorder())
 	}
