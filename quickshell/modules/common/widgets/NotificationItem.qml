@@ -127,6 +127,7 @@ Item {
 
                 RowLayout {
                     Layout.alignment: Qt.AlignRight
+                    visible: root.hovered
                     spacing: 4
 
                     Rectangle {
