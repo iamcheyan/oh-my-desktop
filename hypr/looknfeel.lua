@@ -43,6 +43,7 @@ o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 118
 o.window("org.omd.edit-muted-apps", { float = true, center = true, size = { 880, 620 } })
 o.window("org.omd.omarchy-edit-muted-apps", { float = true, center = true, size = { 880, 620 } })
 o.window("org.omd.edit-file-share-backup", { float = true, center = true, size = { 880, 620 } })
+o.window("org.omd.list-file-share-backup", { float = true, center = true, size = { 880, 620 } })
 
 -- Native wallpaper pickers are separate Wayland clients rather than true
 -- children of the settings terminal. Keep these specifically titled dialogs

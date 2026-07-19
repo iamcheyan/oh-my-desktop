@@ -258,6 +258,42 @@ Additional manual symlinks (not created by Init.sh):
 - Autostart lives in `hypr/autostart.lua`.
 - Use `hyprctl reload` to reload Hyprland Lua config.
 
+## TUI Terminal Action Pattern
+
+When a TUI needs to open a new terminal window for a subtask (editing a config
+file, viewing remote files, running a diagnostic, etc.):
+
+1. **Use this launcher cascade** (try each in order):
+   - `xdg-terminal-exec --app-id=org.omd.<purpose> --title="<Human title>" -- $COMMAND`
+   - `foot --app-id=org.omd.<purpose> --title="<Human title>" -e $COMMAND`
+   - `kitty --class=org.omd.<purpose> --title="<Human title>" -- $COMMAND`
+
+2. **Always use a unique `app-id` / `class`** so Hyprland can target the window
+   with a floating rule. Example from `looknfeel.lua`:
+   ```lua
+   o.window("org.omd.edit-file-share-backup", { float = true, center = true, size = { 880, 620 } })
+   ```
+
+3. **Follow the `org.omd.<purpose>` naming convention** — lower-case,
+   dash-separated purpose, scoped under `org.omd.`.
+
+4. **Launch as a detached process** — use `start_new_session=True` and pipe
+   stdin/stdout/stderr to `/dev/null` so the terminal survives the TUI:
+   ```python
+   subprocess.Popen(
+       ["bash", "-c", cmd],
+       stdin=subprocess.DEVNULL,
+       stdout=subprocess.DEVNULL,
+       stderr=subprocess.DEVNULL,
+       start_new_session=True
+   )
+   ```
+
+5. **Add the matching Hyprland window rule** in `hypr/looknfeel.lua`:
+   ```lua
+   o.window("org.omd.<purpose>", { float = true, center = true, size = { 880, 620 } })
+   ```
+
 ## Git
 
 - Treat `~/development/OMD` as the project root for oh-my-desktop.
