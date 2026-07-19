@@ -626,38 +626,46 @@ def _render_preview(model, width, height):
     return lines
 
 
-def _render_controls(model, width):
+def _render_settings(model, width):
     mode = model.val("wallpaper.mode", "file")
     effect = model.val("effects.mode", "balanced")
     lines = []
 
-    lines.append(("section", "Settings"))
+    lines.append(("section", "Mode"))
 
     # Mode selector — vertical layout
     mode_labels = ["file", "folder", "color"]
     mode_vals = ["file", "folder", "color"]
     mode_idx = mode_vals.index(mode) if mode in mode_vals else 0
     mode_keys = ["f", "d", "c"]
-    lines.append(("text", "Mode:"))
     for i, label in enumerate(mode_labels):
         if i == mode_idx:
             lines.append(("ok", f"● {label} ({mode_keys[i]})"))
         else:
             lines.append(("muted", f"○ {label} ({mode_keys[i]})"))
 
+    # Separator
+    lines.append(("subtle", " " + "─" * max(2, width - 2)))
+
+    lines.append(("section", "Effect"))
+
     # Effect selector — vertical layout
     eff_labels = ["perf", "bal", "vis"]
     eff_vals = ["performance", "balanced", "visuals"]
     eff_idx = eff_vals.index(effect) if effect in eff_vals else 1
     eff_keys = ["1", "2", "3"]
-    lines.append(("text", "Effect:"))
     for i, label in enumerate(eff_labels):
         if i == eff_idx:
             lines.append(("ok", f"● {label} ({eff_keys[i]})"))
         else:
             lines.append(("muted", f"○ {label} ({eff_keys[i]})"))
 
-    lines.append(("text", ""))
+    return lines
+
+
+def _render_actions(model, width):
+    mode = model.val("wallpaper.mode", "file")
+    lines = []
 
     # Action buttons
     if mode == "file":
@@ -886,12 +894,21 @@ def _view(stdscr, m):
                 fname = os.path.basename(wp_path) if wp_path else "No wallpaper"
                 S.safe_addstr(stdscr, inner_y, inner_x, S.truncate(fname, inner_w), S.ATTR_MUTED)
 
-        # Controls below preview
+        # Controls below preview — two boxes stacked
         ctrl_y = hero_h + preview_h
         ctrl_h = avail_h - preview_h
-        S.draw_thick_border(stdscr, ctrl_y, margin, ctrl_h, preview_w, "")
-        S.draw_lines_in_area(stdscr, ctrl_y, margin, ctrl_h, preview_w,
-                             _render_controls(m, preview_w - 4))
+
+        settings_lines = _render_settings(m, preview_w - 4)
+        settings_h = min(len(settings_lines) + 2, ctrl_h - 3)
+        settings_h = max(settings_h, 3)
+        S.draw_thick_border(stdscr, ctrl_y, margin, settings_h, preview_w, "Settings")
+        S.draw_lines_in_area(stdscr, ctrl_y, margin, settings_h, preview_w, settings_lines)
+
+        actions_lines = _render_actions(m, preview_w - 4)
+        actions_y = ctrl_y + settings_h
+        actions_h = ctrl_h - settings_h
+        S.draw_thick_border(stdscr, actions_y, margin, actions_h, preview_w, "")
+        S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, preview_w, actions_lines)
 
         # Right column — theme grid
         grid_w_total = grid_w - preview_w - 1
@@ -901,9 +918,17 @@ def _view(stdscr, m):
                          _render_theme_grid(m, grid_w_total - 4, avail_h - 4))
     else:
         ctrl_h = min(avail_h // 2, 14)
-        S.draw_thick_border(stdscr, hero_h, margin, ctrl_h, content_w, "")
-        S.draw_lines_in_area(stdscr, hero_h, margin, ctrl_h, content_w,
-                             _render_controls(m, content_w - 4))
+
+        settings_lines = _render_settings(m, content_w - 4)
+        settings_h = min(len(settings_lines) + 2, ctrl_h - 3)
+        settings_h = max(settings_h, 3)
+        S.draw_thick_border(stdscr, hero_h, margin, settings_h, content_w, "Settings")
+        S.draw_lines_in_area(stdscr, hero_h, margin, settings_h, content_w, settings_lines)
+
+        actions_lines = _render_actions(m, content_w - 4)
+        actions_h = ctrl_h - settings_h
+        S.draw_thick_border(stdscr, hero_h + settings_h, margin, actions_h, content_w, "")
+        S.draw_lines_in_area(stdscr, hero_h + settings_h, margin, actions_h, content_w, actions_lines)
 
         grid_y = hero_h + ctrl_h
         grid_h = avail_h - ctrl_h
