@@ -38,6 +38,7 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 SIGNAL_ICONS = ["󰤟", "󰤢", "󰤥", "󰤨"]
 LOCK_ICON = ""
 UNLOCK_ICON = ""
+CONNECTED_ICON = ""
 
 # Force English field values from nmcli across locales (zh_CN, ja_JP, …).
 _SUBPROC_ENV = {
@@ -172,6 +173,19 @@ def signal_icon(pct: int) -> str:
     return SIGNAL_ICONS[0]
 
 
+def signal_rating(pct: int) -> str:
+    """Convert 0-100%% to 1/5 – 5/5 numeric rating."""
+    if pct >= 80:
+        return "5/5"
+    elif pct >= 60:
+        return "4/5"
+    elif pct >= 40:
+        return "3/5"
+    elif pct >= 20:
+        return "2/5"
+    return "1/5"
+
+
 def security_icon(sec: str) -> str:
     s = sec.strip().lower()
     if not s or s == "" or s == "--":
@@ -270,6 +284,26 @@ def get_saved_networks() -> list[dict]:
             "connected": connected,
             "autoconnect": autoconnect,
         })
+    # Build signal & security lookup from visible APs
+    signal_map: dict[str, int] = {}
+    security_map: dict[str, str] = {}
+    rc2, out2 = nmcli("-t", "-f", "SSID,SECURITY,SIGNAL", "device", "wifi", "list", timeout=5)
+    if rc2 == 0:
+        for line in out2.splitlines():
+            parts = nmcli_split(line)
+            if len(parts) >= 1 and parts[0].strip():
+                ssid = parts[0].strip()
+                sec = parts[1].strip() if len(parts) > 1 else ""
+                if sec and sec != "--":
+                    security_map[ssid] = sec
+                if len(parts) >= 3:
+                    try:
+                        signal_map[ssid] = int(parts[2].strip())
+                    except ValueError:
+                        pass
+    for d in result:
+        d["signal"] = signal_map.get(d["ssid"], -1)
+        d["security"] = security_map.get(d["ssid"], "")
     result.sort(key=lambda d: (0 if d["connected"] else 1, d["ssid"].lower()))
     return result
 
@@ -293,7 +327,7 @@ def get_available_networks() -> list[dict]:
     networks are skipped — connecting to them needs a separate flow.
     """
     rc, out = nmcli(
-        "-t", "-f", "SSID,SECURITY,SIGNAL,BARS,IN-USE",
+        "-t", "-f", "SSID,SECURITY,SIGNAL,BARS,IN-USE,CHAN",
         "device", "wifi", "list",
         timeout=10,
     )
@@ -304,7 +338,7 @@ def get_available_networks() -> list[dict]:
         if not line.strip():
             continue
         parts = nmcli_split(line)
-        # SSID:SECURITY:SIGNAL:BARS:IN-USE  — BARS may be empty
+        # SSID:SECURITY:SIGNAL:BARS:IN-USE:CHAN
         if len(parts) < 3:
             continue
         ssid = parts[0].strip()
@@ -318,12 +352,14 @@ def get_available_networks() -> list[dict]:
         bars = parts[3].strip() if len(parts) > 3 else ""
         in_use_field = parts[4].strip() if len(parts) > 4 else ""
         in_use = in_use_field == "*" or in_use_field.endswith("*")
+        chan = parts[5].strip() if len(parts) > 5 else ""
         entry = {
             "ssid": ssid,
             "security": sec if sec and sec != "--" else "",
             "signal": sig,
             "bars": bars,
             "in_use": in_use,
+            "chan": chan,
         }
         prev = best.get(ssid)
         if prev is None or entry["signal"] > prev["signal"] or (entry["in_use"] and not prev["in_use"]):
@@ -860,39 +896,97 @@ class WiFiTUI:
             return S.ATTR_FOCUS
         return curses.A_NORMAL
 
+    def _draw_row(self, y, x, inner_w, cells, widths, offsets, attr):
+        """Fill row background then place cells at given offsets (compact layout)."""
+        try:
+            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
+        except curses.error:
+            pass
+        for cell, off, cw in zip(cells, offsets, widths):
+            text = self._clip(cell, cw)
+            try:
+                self.stdscr.addnstr(y, x + off, text, cw, attr)
+            except curses.error:
+                pass
+
+    @staticmethod
+    def _calc_network_columns(w: int) -> tuple[list[int], list[int]]:
+        """Calculate unified 5-column widths and offsets for network tables.
+
+        Columns: [SSID, Security, Signal, AutoConnect, Status]
+        Guarantees exact vertical alignment across Saved Networks and Available Networks.
+        """
+        base = [16, 14, 8, 12, 12]  # sum = 62
+        extra = w - 62
+        if extra > 0:
+            add_ssid = extra * 5 // 10       # SSID 50%
+            add_sec = extra * 2 // 10        # Security 20%
+            add_auto = extra * 1 // 10       # AutoConnect 10%
+            add_stat = extra - add_ssid - add_sec - add_auto  # Status 20%
+            widths = [
+                base[0] + add_ssid,
+                base[1] + add_sec,
+                base[2],
+                base[3] + add_auto,
+                base[4] + add_stat,
+            ]
+        else:
+            widths = base[:]
+            while sum(widths) > w:
+                if widths[0] > 8:
+                    widths[0] -= 1
+                elif widths[1] > 8:
+                    widths[1] -= 1
+                elif widths[3] > 6:
+                    widths[3] -= 1
+                elif widths[4] > 6:
+                    widths[4] -= 1
+                elif widths[2] > 4:
+                    widths[2] -= 1
+                else:
+                    break
+
+        total_w = sum(widths)
+        margin = max(0, (w - total_w) // 2)
+        offsets = [margin]
+        for cw in widths[:-1]:
+            offsets.append(offsets[-1] + cw)
+        return widths, offsets
+
     def _draw_saved_table(self, y, x, h, w, saved: list[dict]):
         if h < 1 or w < 8:
             return
-        headers = ["", "SSID", "AutoConnect", "Status"]
-        widths = [1, min(25, max(10, w // 3)), 11, 10]
-
-        while sum(widths) > w and widths[1] > 8:
-            widths[1] -= 1
+        widths, offsets = self._calc_network_columns(w)
+        headers = ["SSID", "Security", "Signal", "AutoConnect", "Status"]
 
         focused = self.focus == F_SAVED
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
         for i, d in enumerate(saved[:max_rows]):
             is_sel = focused and i == self.selected
             attr = self._sel_attr(is_sel, focused)
-            icon = "󰤨" if d["connected"] else "󰤥"
             status = "connected" if d["connected"] else "saved"
-            cells = [icon, d["ssid"], d.get("autoconnect", "yes"), status]
-            self._put_row_cells(row_start + i, x, w, cells, widths, attr)
+            sig_val = d.get("signal", -1)
+            signal_str = signal_rating(sig_val) if sig_val >= 0 else "--"
+            sec_str = d.get("security", "") or "WPA2"
+            if d["connected"]:
+                ssid = f"{CONNECTED_ICON} {d['ssid']}"
+            else:
+                ssid = f"{UNLOCK_ICON} {d['ssid']}"
+            auto_str = d.get("autoconnect", "yes")
+            cells = [ssid, sec_str, signal_str, auto_str, status]
+            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_available_table(self, y, x, h, w, available: list[dict]):
         if h < 1 or w < 8:
             return
-        headers = ["SSID", "Security", "Signal"]
-        widths = [min(25, max(10, w // 3)), 10, 10]
-
-        while sum(widths) > w and widths[0] > 8:
-            widths[0] -= 1
+        widths, offsets = self._calc_network_columns(w)
+        headers = ["SSID", "Security", "Signal", "AutoConnect", "Status"]
 
         focused = self.focus == F_AVAILABLE
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
@@ -902,10 +996,13 @@ class WiFiTUI:
             lock = security_icon(d["security"])
             ssid = f"{lock} {d['ssid']}"
             sec = d["security"] if d["security"] else "Open"
-            sig_icon = signal_icon(d["signal"])
-            signal = f"{sig_icon} {d['signal']}%"
-            cells = [ssid, sec, signal]
-            self._put_row_cells(row_start + i, x, w, cells, widths, attr)
+            signal = signal_rating(d["signal"])
+            chan = d.get("chan", "")
+            in_use_str = "*" if d.get("in_use") else ""
+            stat_str = f"ch {chan} {in_use_str}".strip() if chan else ("connected" if d.get("in_use") else "--")
+            auto_str = "--"
+            cells = [ssid, sec, signal, auto_str, stat_str]
+            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_status_table(self, y, x, h, w):
         if h < 1 or w < 8:
