@@ -107,7 +107,6 @@ WindowDialog {
         if (page === "bluetooth") return bluetoothPage;
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
-        if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
         // Check module-registered pages
         const modPage = modulePages.find(p => p.id === page);
@@ -182,8 +181,6 @@ WindowDialog {
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
 
-    Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
-    Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
 
     Component {
         id: networkPage
