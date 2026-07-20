@@ -5,12 +5,12 @@
 --   1. SUMIKA_SHELL_ROOT env var (set by updated session wrapper)
 --   2. OMD_ROOT env var, with symlinks resolved
 --   3. This file's own location (works even if both env vars are stale)
---   4. ~/.config/omd fallback (removed in Phase 6)
+--   4. ~/.config/sumika-shell fallback
 local function resolve_root()
   -- Try env vars first
   local env_root = os.getenv("SUMIKA_SHELL_ROOT")
   if not env_root or env_root == "" then
-    env_root = os.getenv("OMD_ROOT") or (os.getenv("HOME") .. "/.config/omd")
+    env_root = os.getenv("OMD_ROOT") or (os.getenv("HOME") .. "/.config/sumika-shell")
   end
   -- Resolve symlinks (works when the symlink still exists)
   if env_root and env_root ~= "" then
@@ -38,7 +38,7 @@ local function resolve_root()
     end
   end
   -- Last resort: raw env var even if unresolvable
-  return env_root or (os.getenv("HOME") .. "/.config/omd")
+  return env_root or (os.getenv("HOME") .. "/.config/sumika-shell")
 end
 
 local omd_root = resolve_root()

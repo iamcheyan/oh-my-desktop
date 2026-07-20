@@ -76,9 +76,9 @@ section() {
 }
 
 section "runtime symlinks"
+check_link "$HOME/.config/sumika-shell" "$repo"
 check_link "$HOME/.config/quickshell" "$repo/quickshell"
 check_link "$HOME/.config/omd" "$repo"
-
 section "terminal configs"
 for tc in foot kitty alacritty ghostty; do
   if [[ -d "$HOME/.config/$tc" ]]; then
@@ -209,7 +209,7 @@ _wp_bg="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-
 if [[ -f "$_wp_bg" ]]; then
   ok "Sumika Shell wallpaper background resolves to an image"
 else
-  # Legacy fallback (Phase 7: remove)
+  # Legacy fallback (remove when current/ dir is fully migrated)
   if [[ -f "$repo/current/background" ]]; then
     ok "current OMD background resolves to an image (legacy path)"
   else

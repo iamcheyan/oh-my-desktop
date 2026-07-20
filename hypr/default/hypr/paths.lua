@@ -8,11 +8,10 @@ local state_home = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
 local data_home = os.getenv("XDG_DATA_HOME") or (home .. "/.local/share")
 local runtime_dir = os.getenv("XDG_RUNTIME_DIR") or ("/run/user/" .. tostring(os.getenv("UID") or "1000"))
 
--- Repository root: SUMIKA_SHELL_ROOT > OMD_ROOT > ~/.config/omd fallback.
--- The ~/.config/omd fallback is temporary and will be removed in Phase 6.
+-- Repository root: SUMIKA_SHELL_ROOT > OMD_ROOT > ~/.config/sumika-shell fallback.
 local root = os.getenv("SUMIKA_SHELL_ROOT")
 if not root or root == "" then
-  root = os.getenv("OMD_ROOT") or (config_home .. "/omd")
+  root = os.getenv("OMD_ROOT") or (config_home .. "/sumika-shell")
 end
 
 -- Resolve symlinks so that IPC paths match regardless of whether the session

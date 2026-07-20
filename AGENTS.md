@@ -140,10 +140,17 @@ symlink targets.
 
 ## Runtime Symlinks
 
+`Init.sh` creates these symlinks from the home directory into the repo:
+
 ```
-~/.config/quickshell     -> ~/development/OMD/quickshell
-~/.config/omd            -> ~/development/OMD
+~/.config/quickshell    -> ~/development/OMD/quickshell
+~/.config/omd           -> ~/development/OMD
 ```
+
+`~/.config/omd` is the primary runtime path for finding the repo's `bin/` scripts
+and `apps/` directories from QML and shell scripts. It coexists with the real
+`~/.config/sumika-shell/` directory (which holds user-authored config like
+Quickshell overrides, launchers, and notification mute lists).
 
 Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD's Init.sh — they are personal preferences managed via [chezmoi](https://www.chezmoi.io/) or directly. OMD provides theme files that your terminal config can include. The active theme snapshot lives at `~/.local/state/sumika-shell/theme/current/{foot,kitty,alacritty,ghostty}.*`.
 
@@ -153,12 +160,10 @@ Additional manual symlinks (not created by Init.sh):
 ~/.config/walker         -> ~/development/OMD/config/walker     # (if walker is used)
 ```
 
-`~/.config/hypr` is legacy and not part of the current session.
-
 ## Runtime
 - `hyprland.lua` loads default modules from `hypr/default/`, then user
   modules from `hypr/` (monitors, input, bindings, looknfeel, autostart).
-- Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
+- Autostart launches Quickshell via `~/.config/sumika-shell/bin/omd-restart`.
 - Quickshell runs as independent app processes: `omd-bar`, `omd-overview`,
   `omd-applauncher`, and `omd-clipboard`.
 - Desktop wallpaper is handled by `swaybg` through Hyprland autostart and
@@ -166,7 +171,8 @@ Additional manual symlinks (not created by Init.sh):
   `omd-desktop` wallpaper process.
 - Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
-- Quickshell reads options from `~/.config/quickshell/config.json`.
+- Quickshell reads options from `~/.config/sumika-shell/quickshell/config.json`
+  (user override) with `defaults/config/quickshell/config.json` as baseline.
 - Themes are stored in `~/.local/share/omd/themes/`. The active theme snapshot is
   copied to `~/.local/state/sumika-shell/theme/current/` by `omd-settings-theme`.
 - Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD — they are personal preferences managed separately. OMD provides theme files under `~/.local/state/sumika-shell/theme/current/{foot,kitty,alacritty,ghostty}.*` that your terminal config can include via the `include`/`import`/`config-file` directive.
@@ -176,11 +182,11 @@ Additional manual symlinks (not created by Init.sh):
   Neovim config.
 
 ## Planning Docs
-
 > **Rule**: All planning and design documents MUST be written to `docs/` inside this repo.
 > Never save docs to `/tmp`, agent scratch dirs, or any path outside the project.
-
 - Module split plan: `docs/module-split-plan.md`
+- Go settings TUI: `docs/settings-tui-go.md`
+- Go settings TUI visual system: `docs/settings-tui-visual-system.md`
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
@@ -214,7 +220,7 @@ Additional manual symlinks (not created by Init.sh):
   `quickshell/modules/common/TuiStyle.qml`; follow `docs/tui-style-system.md`
   and add new style tokens there before hard-coding colors in feature modules.
 - The shell hot-reloads on QML/config file changes. To force restart:
-  `~/.config/omd/bin/omd-restart`.
+  `~/.config/sumika-shell/bin/omd-restart` (or legacy `~/.config/omd/bin/omd-restart`).
 - `quickshell/scripts/quickshell` accepts an optional config directory for
   split apps, but defaults to `~/.config/quickshell`.
 - Bar status popups are unified through `quickshell/modules/bar/BarStatusPopup.qml`.
@@ -228,11 +234,12 @@ Additional manual symlinks (not created by Init.sh):
   `VoiceInput` singleton service for state machine: nomodel → venv → downloading
   → idle → recording → transcribing → paste (wl-copy + ydotool Ctrl+V). Python
   inference via sherpa-onnx over Unix socket. Hotkey: ALT+A. Use
-  `qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle` to trigger.
+  `qs -p $HOME/.config/sumika-shell/apps/omd-bar ipc call voice toggle` to trigger
+  (or `~/.config/omd/apps/omd-bar` for legacy).
   Setup scripts: `share/bin/omarchy-voice-{setup,download,transcribe}`.
   Full docs: `docs/voice-input.md`.
 - Wallpaper selection lives in DisplayCTL and calls
-  `~/.config/omd/bin/omd-wallpaper`. Single-image changes call
+  `~/.config/sumika-shell/bin/omd-wallpaper` (or legacy `~/.config/omd/bin/omd-wallpaper`). Single-image changes call
   `omarchy-theme-bg-set`; folder rotation stores machine-local state in
   `~/.local/state/omd/wallpaper/` and rotates every 30 minutes.
 
@@ -282,7 +289,5 @@ file, viewing remote files, running a diagnostic, etc.):
 
 - Treat `~/development/OMD` as the project root for oh-my-desktop.
 - Do not commit `.migration-backups/`, Quickshell `.state/`, or nested `.git`
-  directories from copied upstream configs.
-- Run `~/.config/omd/bin/omd-doctor` and the privacy checks in
-  `docs/agent-working-agreement.md` before pushing.
+- Run `~/.config/sumika-shell/bin/omd-doctor` (or legacy `~/.config/omd/bin/omd-doctor`) and the privacy checks in
 - No test framework; verify by reloading Hyprland and restarting Quickshell.

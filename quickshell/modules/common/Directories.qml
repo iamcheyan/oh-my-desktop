@@ -21,6 +21,12 @@ Singleton {
     readonly property string videos: StandardPaths.standardLocations(StandardPaths.MoviesLocation)[0]
 
     // Other dirs used by the shell, without "file://"
+    // Repository root: resolved from SUMIKA_SHELL_ROOT env var (set by session wrapper
+    // or lib/paths.sh), falling back to the ~/.config/omd -> repo symlink.
+    readonly property string root: FileUtils.trimFileProtocol(
+        Quickshell.env("SUMIKA_SHELL_ROOT")
+        ?? `${Directories.config}/omd`
+    )
     property string assetsPath: Quickshell.shellPath("assets")
     property string scriptPath: Quickshell.shellPath("scripts")
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)

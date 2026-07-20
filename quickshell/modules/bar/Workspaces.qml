@@ -9,7 +9,7 @@ Item {
 
     property bool vertical: false
     property int widgetPadding: 0
-    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.config)}/omd/apps/omd-overview`
+    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.root)}/apps/omd-overview`
 
     function toggleOverview() {
         Quickshell.execDetached([

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+omd_root="${OMD_ROOT:-$HOME/.config/sumika-shell}"
 quickshell_only=0
 
 case "${1:-}" in

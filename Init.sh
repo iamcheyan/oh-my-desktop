@@ -1389,18 +1389,15 @@ print_summary() {
     echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
     echo
     echo "Next steps:"
-    echo "  1. Log out"
+    echo "  1. Log out"                                                                             
     echo "  2. In ${login_manager}, choose \"Oh My Desktop\" from the session menu"
-    echo "  3. Log in; Hyprland will load ~/.config/omd/hypr and autostart Quickshell"
+    echo "  3. Log in; Hyprland will load hypr/hyprland.lua and autostart Quickshell"
     echo
     echo "Useful commands:"
-    echo "  hyprctl reload            # Reload Hyprland config"
-    echo "  ~/.config/omd/bin/omd-restart   # (Re)start Quickshell apps"
-    echo "  ~/.config/omd/bin/omd-doctor    # Check runtime dependencies"
+    echo "  hyprctl reload                              # Reload Hyprland config"
+    echo "  ~/.config/omd/bin/omd-restart               # (Re)start Quickshell apps"
+    echo "  ~/.config/omd/bin/omd-doctor                # Check runtime dependencies"
     echo "  journalctl --user -b | rg 'omd|quickshell|Hyprland|hyprland'  # Runtime logs"
-    echo
-}
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
     local runtime_only=0
