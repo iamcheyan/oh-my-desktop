@@ -153,36 +153,34 @@ fall back to the synthetic-key path. It must not issue a synthetic fallback
 paste after an accepted remote send, because that would create a real second
 insertion.
 
-### omp appends the Wayland clipboard to every bracketed paste
+### omp 下剪贴板内容双贴的原因和修复
 
-**This is the root cause of the original "voice and clipboard paste twice in
-omp" report.** omp's smart-paste path pulls text/images/paths from the Wayland
-clipboard on *every* bracketed paste it receives — independent of the paste
-content and independent of tmux. Confirmed by experiment: with the Wayland
-clipboard holding `CLIPONLY_ZZZ`, a bracketed paste of `FILEONLY_AAA` lands in
-omp as `FILEONLY_AAA`+`CLIPONLY_ZZZ` (both inside AND outside tmux, so tmux is
-not the cause).
+**问题：** kitty 有个叫 OSC 5522 enhanced paste 的协议。用 `kitty @ send-text` 发带
+bracketed paste 标记的内容时，kitty 会把**当前 Wayland 剪贴板里的内容也附加上**再发给
+程序。omp 正好用了这个协议，所以一次粘贴 omp 收到两份：`send-text` 的真实内容 + 剪贴板
+内容。
 
-OMD's callers deliberately run `wl-copy < payload` before the helper to keep
-the Wayland clipboard synced with the paste. With omp's behavior that means a
-single paste inserts the payload **twice**: once as the bracketed content and
-once as omp's clipboard read. One `omd-paste-at-cursor` invocation, one
-`inject` line in `events.log`, two visible insertions.
+我们的 helper 为了让 omp 能读剪贴板拿到 payload（omp 的做法），会先 `wl-copy < payload`
+再把剪贴板设成 payload，然后 `send-text` 发同样一份。结果 omp 收到两遍同样的内容。
 
-The fix lives in the helper's kitty-remote path, not in the callers: clear the
-Wayland clipboard (`wl-copy -c`) immediately before `send-text` so omp's
-clipboard read yields nothing, then restore `wl-copy < payload` immediately
-after so the clipboard stays synced. omp reads the clipboard during the paste
-delivery (synchronously with `send-text`) and has no clipboard-change watcher,
-so the clear-before / restore-after window is safe; a tiny `sleep 0.05` before
-the restore guards against an async `wl-paste` read that finishes just after
-`send-text` returns. The restore always runs, even if the send fails, so
-callers are never left with an empty clipboard.
+**修复（双路决策）：**
 
-Because this only touches the Wayland clipboard around the `send-text`, it is
-harmless for non-omp kitty targets (plain shells do not read the clipboard on a
-bracketed paste) and for image-as-path paste (the caller already replaced the
-image with the path text before calling the helper).
+- **主线（~95% 场景）**：payload 是纯文本、路径等不带控制字符的内容 → `--bracketed-paste disable`
+  发原始字节，不发 bracketed paste 标记 → kitty 不触发 OSC 5522 → omp 不去读剪贴板 →
+  完全不碰剪贴板，零副作用，对 omp/bash/任何 TUI 都安全。
+- **回退（~5% 场景）**：payload 含 `ESC` / `Ctrl+C` 等控制字符（用 bracket 包裹安全） →
+  `--bracketed-paste auto` + 发前 `wl-copy -c` 清空剪贴板 + 发后 `wl-copy < payload` 恢复。
+  这样 omp 读剪贴板时读到空，不会多插一遍。
+
+**如何判断 "含控制字符"：** `is_control_char_free()` 用 POSIX `od` 扫描 payload 每个字节，
+放行 `\t\n\r`，只要有其他 C0 控制符（`\x00-\x08\x0b\x0c\x0e-\x1f`）或 `\x7f`(DEL) 就算。
+
+---
+
+**技术背景（供深度排查参考）：** omp 启用 kitty OSC 5522 enhanced paste 协议
+（`\x1b[?5522h`），`EnhancedPasteController` 解析 OSC 5522 包携带的 MIME 数据，
+作为一次独立 `pasteText` 插入。触发链和上游 issue 见
+`docs/omp-bracketed-paste-double-investigation.md` 第 11 节。
 
 ### Socket naming
 
@@ -226,8 +224,9 @@ Runtime checks:
    lands in exactly one window. Count the marker with
    `kitty @ --to $SOCK get-text --match id:$ID | grep -c MARKER` for every
    window id; the sum across all windows must equal 1.
-6. **omp clipboard-append regression:** with the Wayland clipboard set to a
-   known string that differs from the paste payload, trigger one paste into
-   omp and verify omp's input contains only the payload, not the clipboard
-   string. If the clipboard string appears, the clear-before-send guard in the
-   helper regressed.
+6. **原始字节路径（主线）：** 剪贴板设 `CLIP_A`，payload 为 `FILE_B`，触发一次
+   paste 进 omp 并确认只收到 `FILE_B`。验证 `wl-paste` 仍返回 `CLIP_A`
+   （剪贴板未被动过）。重复 10 次确认 0 双贴。
+7. **控制字符回退路径：** payload 含 ESC（如 `printf 'ab\x1bcd'`），确认走
+   `--bracketed-paste auto` + 清空/恢复，无双贴。
+8. **多行 payload：** 三行文本，确认在 omp 中多行插入不提交。
