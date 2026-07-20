@@ -9,11 +9,17 @@ if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
 fi
 
-RDP_HOST="${RDP_HOST:-192.168.3.65}"
+RDP_HOST="${RDP_HOST:-}"
 RDP_PORT="${RDP_PORT:-3389}"
-RDP_USER="${RDP_USER:-tetsuya}"
-RDP_PASS="${RDP_PASS:-cccccc}"
+RDP_USER="${RDP_USER:-}"
+RDP_PASS="${RDP_PASS:-}"
 RDP_TITLE="${RDP_TITLE:-Remote Desktop}"
+
+if [[ -z "$RDP_HOST" || -z "$RDP_USER" || -z "$RDP_PASS" ]]; then
+  echo "Error: RDP_HOST, RDP_USER, and RDP_PASS must be set." >&2
+  echo "Set them via environment variables or in: $CONFIG_FILE" >&2
+  exit 1
+fi
 
 have() {
   command -v "$1" >/dev/null 2>&1

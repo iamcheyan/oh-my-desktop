@@ -113,14 +113,10 @@
     }
   },
   "language": {
-    "ui": "zh_CN"
+    "ui": "auto"
   },
   "launcher": {
-    "pinnedApps": [
-      "org.kde.dolphin",
-      "kitty",
-      "cmake-gui"
-    ]
+    "pinnedApps": []
   },
   "light": {
     "antiFlashbang": {
@@ -159,9 +155,7 @@
       "enable": false,
       "name": ""
     },
-    "mutedApps": [
-      "notify-send:📋 已粘贴图片路径"
-    ],
+    "mutedApps": [],
     "silent": true,
     "timeout": 7000
   },
