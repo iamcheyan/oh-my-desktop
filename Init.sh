@@ -1454,6 +1454,8 @@ main() {
     build_go_tools 1
     create_symlinks
     repair_runtime_config
+    # Migrate user data to Sumika Shell config/state directories (idempotent)
+    sh "$REPO/scripts/sumika-migrate.sh" || warn "Sumika migration had issues (non-fatal)"
     install_custom_launchers
     if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
         install_nixos_session_files
