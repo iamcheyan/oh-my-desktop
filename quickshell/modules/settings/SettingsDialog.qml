@@ -48,7 +48,12 @@ WindowDialog {
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
     ]
 
-    readonly property var pages: primaryPages
+    readonly property var pages: primaryPages.concat(
+        ModuleLoader.settingsPages.map(p => ({
+            key: p.id, icon: p.icon ?? "extension", title: p.title ?? p.id,
+            keywords: p.id
+        }))
+    )
 
 
     backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
@@ -98,7 +103,11 @@ WindowDialog {
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
         if (page === "power") return powerPageComponent;
-        if (page === "system") return systemPageComponent;
+        // Module-registered pages
+        for (let i = 0; i < ModuleLoader.settingsPages.length; i++) {
+            if (ModuleLoader.settingsPages[i].id === page)
+                return modulePageLoader;
+        }
         return overviewPageComponent;
     }
 
@@ -189,5 +198,19 @@ WindowDialog {
     Component { id: bluetoothPage; BluetoothPage { settingsRoot: root } }
 
     Component { id: keyremapPage; KeyboardRemapPage { settingsRoot: root } }
+
+    // Loader for module-registered settings pages
+    Component {
+        id: modulePageLoader
+        Loader {
+            source: {
+                const page = ModuleLoader.settingsPages.find(p => p.id === root.currentPage)
+                return page ? page.component : ""
+            }
+            onStatusChanged: if (status === Loader.Error) {
+                console.warn("[Module] Settings page load failed for:", root.currentPage)
+            }
+        }
+    }
 
 }
