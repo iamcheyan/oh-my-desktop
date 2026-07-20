@@ -1,8 +1,10 @@
 #!/bin/bash
 set -eu
 
-# shellcheck source=../scripts/omd-path.sh
-. "$HOME/.config/omd/scripts/omd-path.sh"
+_omd_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+. "$_omd_root/lib/paths.sh"
+unset _omd_root
+. "$OMD_ROOT/scripts/omd-path.sh"
 
 # wl-paste --watch only fires for the default MIME type (text/plain).
 # Images use image/png etc, so we need a separate watcher for each type.
@@ -20,7 +22,7 @@ wl-paste --watch bash -c '
     fi
     # Store it
     echo -n "$data" | cliphist store
-    qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$OMD_ROOT/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
 ' &
 
 wl-paste -t image/png --watch sh -c '
@@ -30,7 +32,7 @@ wl-paste -t image/png --watch sh -c '
     [ -s "$tmp" ] || exit 0
     file -b --mime-type "$tmp" | grep -q "^image/" || exit 0
     cliphist store < "$tmp"
-    qs -p "$HOME/.config/omd/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$OMD_ROOT/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
 '
 
 wait

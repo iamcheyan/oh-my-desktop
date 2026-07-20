@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/lib/paths.sh"
+unset _omd_root
+
 # On-demand App Launcher process.
 # Usage:
 #   omd-applauncher              # toggle: open if not running, close if running
@@ -11,9 +15,9 @@ set -eu
 # When started fresh, exports OMD_APP_ON_DEMAND=1 so shell.qml auto-opens the
 # launcher and quits the process when the panel closes.
 
-app_dir="$HOME/.config/omd/apps/omd-applauncher"
-qs_launcher="$HOME/.config/omd/quickshell/scripts/quickshell"
-cache_script="$HOME/.config/omd/bin/omd-applauncher-cache"
+app_dir="$OMD_ROOT/apps/omd-applauncher"
+qs_launcher="$OMD_ROOT/quickshell/scripts/quickshell"
+cache_script="$OMD_ROOT/bin/omd-applauncher-cache"
 
 # Refresh desktop entry cache in background only if it is missing. Avoid date
 # checks on the hot path; the QML process can rebuild a corrupt cache itself.

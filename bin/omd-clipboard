@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/lib/paths.sh"
+unset _omd_root
+
 # On-demand Clipboard process.
 # Usage:
 #   omd-clipboard                 # toggle: open if not running, close if running
@@ -15,7 +19,7 @@ set -eu
 # OMD_CLIPBOARD_POSITION=bar  anchors the dialog to the bar instead of the cursor.
 # OMD_CLIPBOARD_BAR_HEIGHT=n  supplies the bar height for the anchored offset.
 
-app_dir="$HOME/.config/omd/apps/omd-clipboard"
+app_dir="$OMD_ROOT/apps/omd-clipboard"
 
 # Detect a running omd-clipboard Quickshell instance. Match the -p path
 # (config dir) to avoid collisions with other omd-* processes.

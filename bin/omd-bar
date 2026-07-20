@@ -1,4 +1,8 @@
 #!/bin/sh
 set -eu
 
-exec "$HOME/.config/omd/quickshell/scripts/quickshell" "$HOME/.config/omd/apps/omd-bar"
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/lib/paths.sh"
+unset _omd_root
+
+exec "$OMD_ROOT/quickshell/scripts/quickshell" "$OMD_ROOT/apps/omd-bar"

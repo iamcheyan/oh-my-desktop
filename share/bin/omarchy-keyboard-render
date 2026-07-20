@@ -2,7 +2,7 @@
 # Render keyd config from OMD keyboard-remap profiles.
 set -eu
 
-OMD_ROOT="${HOME}/.config/omd"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
 PROFILES="${OMD_ROOT}/keyboard-remap/profiles.json"
 LIST_KEYBOARDS="${OMD_ROOT}/share/bin/omarchy-keyboard-list"
 

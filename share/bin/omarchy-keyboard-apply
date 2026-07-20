@@ -9,7 +9,7 @@ if [[ "${USER:-}" == "root" && -n "${SUDO_USER:-}" ]]; then
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 fi
 
-OMD_ROOT="${REAL_HOME}/.config/omd"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
 PROFILES="${OMD_ROOT}/keyboard-remap/profiles.json"
 GENERATED="${OMD_ROOT}/keyboard-remap/keyd.generated.conf"
 KEYD_DEST="/etc/keyd/omd.conf"

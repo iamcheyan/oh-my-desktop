@@ -11,7 +11,7 @@
 
 set -eu
 
-OMD_ROOT="${HOME}/.config/omd"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
 if [ -f "$OMD_ROOT/scripts/omd-path.sh" ]; then
     # shellcheck source=/dev/null
     . "$OMD_ROOT/scripts/omd-path.sh"

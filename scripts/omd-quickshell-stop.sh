@@ -6,7 +6,7 @@
 # the unit main process and rely on targeted pkill for the quickshell binary.
 
 omd_stop_quickshell() {
-    omd_root="${OMD_ROOT:-$HOME/.config/omd}"
+    omd_root="${OMD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
     runtime_dir="/run/user/$(id -u)"
     apps="omd-notification omd-bar omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
     legacy_apps="omd-desktop"

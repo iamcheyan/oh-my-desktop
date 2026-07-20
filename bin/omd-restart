@@ -1,10 +1,15 @@
 #!/bin/sh
 set -eu
 
+# Resolve repo root from this script's location (works without ~/.config/omd symlink).
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/lib/paths.sh"
+unset _omd_root
+
 # shellcheck source=../scripts/omd-path.sh
-. "$HOME/.config/omd/scripts/omd-path.sh"
+. "$OMD_ROOT/scripts/omd-path.sh"
 # shellcheck source=../scripts/omd-quickshell-stop.sh
-. "$HOME/.config/omd/scripts/omd-quickshell-stop.sh"
+. "$OMD_ROOT/scripts/omd-quickshell-stop.sh"
 
 # Skip stop if already called by caller (e.g. reload-quickshell) to avoid
 # double-stop race that kills freshly started processes.
@@ -21,9 +26,13 @@ start_app() {
         systemd-run --user --unit="$app" --collect \
             --property=KillMode=process \
             --setenv=PATH="$PATH" \
-            /bin/sh -c "exec \"\$HOME/.config/omd/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
+            --setenv=OMD_ROOT="$OMD_ROOT" \
+            --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
+            --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
+            --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
+            /bin/sh -c "exec \"\$OMD_ROOT/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
     else
-        setsid "$HOME/.config/omd/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
+        setsid "$OMD_ROOT/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
     fi
 }
 

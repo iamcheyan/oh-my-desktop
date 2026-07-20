@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OMD_ROOT="${OMD_ROOT:-$HOME/.config/omd}"
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 OMD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omd"
 USER_THEMES_DIR="$OMD_CONFIG/themes"
 SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
