@@ -295,7 +295,7 @@ class Model:
                         else:
                             self.append_log(f"{l}")
 
-                proc.wait(timeout=30)
+                proc.wait(timeout=600)
                 err = proc.stderr.read().strip() if proc.stderr else ""
                 if proc.returncode != 0 and not err:
                     err = f"exit {proc.returncode}"
@@ -903,11 +903,12 @@ def handle_key(stdscr, model, key):
     if key in (ord('t'), ord('T')):
         model.test_connection()
         return True
-    if key == ord('s'):
-        model.run_backup(delete_remote=False)
-        return True
-    if key == ord('S'):
-        model.run_backup(delete_remote=True)
+    if key in (ord('s'), ord('S')):
+        if model.busy:
+            model.message = "Backup already running… please wait"
+            model.dirty = True
+            return True
+        model.run_backup(delete_remote=(key == ord('S')))
         return True
     if key in (ord('c'), ord('C')):
         model.message = ""
