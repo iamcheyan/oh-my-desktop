@@ -93,6 +93,14 @@
     "screensaverTimeout": 150,
     "suspendTimeout": 0
   },
+  "inputMethod": {
+    "enabled": false,
+    "backend": "auto",
+    "autostart": false,
+    "switchKey": "SUPER + SPACE",
+    "switchSchemaKey": "SUPER + SHIFT + SPACE",
+    "schemasFile": "input-method/schemas.json"
+  },
   "interactions": {
     "deadPixelWorkaround": {
       "enable": false

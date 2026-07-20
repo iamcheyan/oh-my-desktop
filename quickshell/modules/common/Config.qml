@@ -191,6 +191,15 @@ Singleton {
                 property bool lockBeforeSuspend: true
             }
 
+            property JsonObject inputMethod: JsonObject {
+                property bool enabled: false
+                property string backend: "auto" // "auto" | "fcitx5" | "ibus" | "none"
+                property bool autostart: false
+                property string switchKey: "SUPER + SPACE"
+                property string switchSchemaKey: "SUPER + SHIFT + SPACE"
+                property string schemasFile: "input-method/schemas.json"
+            }
+
             property JsonObject language: JsonObject {
                 property string ui: "auto" // UI language. "auto" for system locale, or specific language code like "zh_CN", "en_US"
             }

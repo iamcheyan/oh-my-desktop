@@ -24,12 +24,7 @@ Singleton {
     property string queuedSchema: ""
     property string queuedWindowAddress: ""
 
-    readonly property var schemas: [
-        { id: "sbzr", badge: "中", title: "Chinese", variant: "Natural input" },
-        { id: "sbzr_mix", badge: "混", title: "Chinese", variant: "Mixed input" },
-        { id: "easy_en", badge: "A", title: "English", variant: "Easy English" },
-        { id: "jaroomaji", badge: "あ", title: "Japanese", variant: "Romaji" }
-    ]
+    property var schemas: []
 
     signal osdRequested()
 
@@ -99,6 +94,7 @@ Singleton {
             root.language = data.language || "unknown";
             root.displayName = data.displayName || "Input method";
             root.variant = data.variant || "";
+            root.schemas = data.schemas || [];
             root.lastError = "";
         } catch (error) {
             root.available = false;

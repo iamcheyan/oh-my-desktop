@@ -45,13 +45,11 @@ hl.unbind("SUPER + mouse:273")
 o.bind("ALT + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
--- Input language switching cycles Rime schemas rather than Fcitx input-method
--- groups. The latter only contains keyboard-us and rime on this setup.
-hl.unbind("SUPER + SPACE")
-hl.unbind("SUPER + SHIFT + SPACE")
+-- Input method schema cycling (SUPER+SPACE) is personal.
+-- Add in your user override if you use Rime/fcitx:
+--   o.bind("SUPER + SPACE", "Next input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle 1")
+--   o.bind("SUPER + SHIFT + SPACE", "Previous input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle -1")
 hl.unbind("SUPER + CTRL + SPACE")
-o.bind("SUPER + SPACE", "Next input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle 1")
-o.bind("SUPER + SHIFT + SPACE", "Previous input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle -1")
 o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call bar toggle")
 
 hl.unbind("SUPER + TAB")

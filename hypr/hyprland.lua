@@ -63,6 +63,20 @@ require("bindings")
 require("looknfeel")
 require("autostart")
 
+-- Load personal overrides from user config (~/.config/sumika-shell/hypr/).
+-- These load AFTER the repo's hypr/*.lua, so they can override or add.
+local _config_home = os.getenv("SUMIKA_SHELL_CONFIG_HOME")
+  or ((os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")) .. "/sumika-shell")
+local _user_hypr = _config_home .. "/hypr"
+for _, _name in ipairs({ "input", "bindings", "looknfeel", "autostart" }) do
+  local _path = _user_hypr .. "/" .. _name .. ".lua"
+  local _f = io.open(_path, "r")
+  if _f then
+    _f:close()
+    dofile(_path)
+  end
+end
+
 -- Toggle config flags dynamically.
 require("default.hypr.toggles")
 

@@ -10,7 +10,6 @@ omarchy/.git/
 omarchy/.deployed
 omarchy/chromium/Default/
 omarchy/current/background
-omarchy/fcitx5/conf/cached_layouts
 omarchy/opencode/
 quickshell/*.conf
 __pycache__/

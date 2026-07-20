@@ -13,6 +13,8 @@ Item {
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
+    // Hide when neither voice nor input method is active.
+    visible: root.usingVoiceUi || (Config.options.inputMethod.enabled && Services.InputMethod.available)
 
     // Voice input state
     readonly property string voiceState: VoiceInput.state
