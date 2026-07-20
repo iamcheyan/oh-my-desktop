@@ -1,0 +1,344 @@
+#!/bin/bash
+# omd-modules — Sumika Shell module lifecycle management.
+#
+# Usage: omd-modules <command> [args]
+#
+# Commands:
+#   list              List installed modules and their status
+#   info <id>         Show module details
+#   enable <id>       Enable a module
+#   disable <id>      Disable a module
+#   path              Print the modules directory path
+#   doctor            Health check all modules
+#   install <url>     Install a module from git URL
+#   update [id]       Update module(s) via git pull
+#   remove <id>       Remove a module
+
+set -euo pipefail
+
+# ── Path resolution ──
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+SUMIKA_CONFIG="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+CONFIG_FILE="$SUMIKA_CONFIG/quickshell/config.json"
+
+# ── Helpers ──
+
+modules_dir() { echo "$SUMIKA_MODULES_HOME"; }
+
+config_disabled_list() {
+    if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null 2>&1; then
+        jq -r '.modules.disabled // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
+    fi
+}
+
+is_disabled() {
+    local id="$1"
+    local disabled
+    disabled=$(config_disabled_list)
+    echo "$disabled" | grep -qx "$id"
+}
+
+is_enabled() {
+    ! is_disabled "$1"
+}
+
+module_exists() {
+    [ -f "$SUMIKA_MODULES_HOME/$1/module.json" ]
+}
+
+module_field() {
+    local id="$1" field="$2"
+    jq -r ".$field // empty" "$SUMIKA_MODULES_HOME/$id/module.json" 2>/dev/null || true
+}
+
+module_capabilities() {
+    local id="$1"
+    local caps=""
+    local json="$SUMIKA_MODULES_HOME/$id/module.json"
+    [ -f "$json" ] || { echo "—"; return; }
+    local bb ps sp
+    bb=$(jq -r '.capabilities.barButtons // [] | length' "$json" 2>/dev/null || echo 0)
+    ps=$(jq -r '.capabilities.popupSections // [] | length' "$json" 2>/dev/null || echo 0)
+    sp=$(jq -r '.capabilities.settingsPages // [] | length' "$json" 2>/dev/null || echo 0)
+    local parts=()
+    [ "$bb" -gt 0 ] 2>/dev/null && parts+=("bar($bb)")
+    [ "$ps" -gt 0 ] 2>/dev/null && parts+=("popup($ps)")
+    [ "$sp" -gt 0 ] 2>/dev/null && parts+=("settings($sp)")
+    if [ "${#parts[@]}" -eq 0 ]; then
+        # Check if it's a shared module (no capabilities)
+        local id_field
+        id_field=$(jq -r '.id // empty' "$json" 2>/dev/null)
+        [ "$id_field" = "popup-components" ] && { echo "shared"; return; }
+        echo "—"
+    else
+        echo "${parts[*]}"
+    fi
+}
+
+module_file_count() {
+    find "$SUMIKA_MODULES_HOME/$1" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+modify_disabled() {
+    # modify_disabled <add|remove> <id>
+    local action="$1" id="$2"
+    [ -f "$CONFIG_FILE" ] || { echo "Config file not found: $CONFIG_FILE" >&2; return 1; }
+    command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; return 1; }
+
+    local tmp
+    tmp=$(mktemp)
+    if [ "$action" = "add" ]; then
+        jq --arg id "$id" '.modules.disabled = ((.modules.disabled // []) + [$id] | unique)' "$CONFIG_FILE" > "$tmp"
+    else
+        jq --arg id "$id" '.modules.disabled = ((.modules.disabled // []) - [$id])' "$CONFIG_FILE" > "$tmp"
+    fi
+    if jq empty "$tmp" 2>/dev/null; then
+        mv "$tmp" "$CONFIG_FILE"
+    else
+        rm -f "$tmp"
+        echo "Failed to update config" >&2
+        return 1
+    fi
+}
+
+# ── Commands ──
+
+cmd_list() {
+    printf "%-22s %-10s %-6s %s\n" "MODULE" "STATUS" "FILES" "CAPABILITIES"
+    printf "%-22s %-10s %-6s %s\n" "──────" "──────" "─────" "───────────"
+    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        local id name status caps fcount
+        id=$(basename "$(dirname "$module_json")")
+        name=$(module_field "$id" "name")
+        [ -n "$name" ] || name="$id"
+        if is_enabled "$id"; then status="enabled"; else status="disabled"; fi
+        caps=$(module_capabilities "$id")
+        fcount=$(module_file_count "$id")
+        printf "%-22s %-10s %-6s %s\n" "$id" "$status" "$fcount" "$caps"
+    done
+}
+
+cmd_info() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "Usage: omd-modules info <id>" >&2; return 2; }
+    module_exists "$id" || { echo "Module not found: $id" >&2; return 1; }
+
+    local name desc version status caps
+    name=$(module_field "$id" "name")
+    desc=$(module_field "$id" "description")
+    version=$(module_field "$id" "version")
+    [ -n "$name" ] || name="$id"
+    if is_enabled "$id"; then status="enabled"; else status="disabled"; fi
+
+    echo "Module: $name"
+    echo "  ID:          $id"
+    echo "  Version:     ${version:-unspecified}"
+    echo "  Description: ${desc:-—}"
+    echo "  Directory:   $SUMIKA_MODULES_HOME/$id"
+    echo "  Status:      $status"
+    echo "  Files:       $(module_file_count "$id")"
+    echo "  Capabilities:"
+
+    local json="$SUMIKA_MODULES_HOME/$id/module.json"
+    local bb ps sp
+    bb=$(jq -r '.capabilities.barButtons // [] | length' "$json" 2>/dev/null || echo 0)
+    ps=$(jq -r '.capabilities.popupSections // [] | length' "$json" 2>/dev/null || echo 0)
+    sp=$(jq -r '.capabilities.settingsPages // [] | length' "$json" 2>/dev/null || echo 0)
+    [ "$bb" -gt 0 ] 2>/dev/null && echo "    barButtons:    $bb"
+    [ "$ps" -gt 0 ] 2>/dev/null && echo "    popupSections: $ps"
+    [ "$sp" -gt 0 ] 2>/dev/null && echo "    settingsPages: $sp"
+    [ "$bb" -eq 0 ] && [ "$ps" -eq 0 ] && [ "$sp" -eq 0 ] 2>/dev/null && echo "    (none)"
+
+    # Health
+    local health_issues=0
+    echo "  Health:"
+    [ -f "$json" ] && echo "    ✅ module.json valid" || { echo "    ❌ module.json missing"; health_issues=1; }
+    [ -f "$SUMIKA_MODULES_HOME/$id/qmldir" ] && echo "    ✅ qmldir present" || echo "    ⚠️  no qmldir"
+    # Check component files exist
+    for comp in $(jq -r '.capabilities.popupSections[].component' "$json" 2>/dev/null); do
+        [ -f "$SUMIKA_MODULES_HOME/$id/$comp" ] && echo "    ✅ $comp" || { echo "    ❌ $comp missing"; health_issues=1; }
+    done
+    for comp in $(jq -r '.capabilities.settingsPages[].component' "$json" 2>/dev/null); do
+        [ -f "$SUMIKA_MODULES_HOME/$id/$comp" ] && echo "    ✅ $comp" || { echo "    ❌ $comp missing"; health_issues=1; }
+    done
+    [ "$health_issues" -eq 0 ] && echo "    ✅ all checks passed" || echo "    ❌ issues found"
+}
+
+cmd_enable() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "Usage: omd-modules enable <id>" >&2; return 2; }
+    module_exists "$id" || { echo "Module not found: $id" >&2; return 1; }
+    modify_disabled "remove" "$id"
+    echo "Module '$id' enabled."
+    echo "  Run 'omd-restart' to apply."
+}
+
+cmd_disable() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "Usage: omd-modules disable <id>" >&2; return 2; }
+    module_exists "$id" || { echo "Module not found: $id" >&2; return 1; }
+    modify_disabled "add" "$id"
+    echo "Module '$id' disabled."
+    echo "  Bar buttons, popup sections, and settings pages will not load."
+    echo "  Run 'omd-restart' to apply."
+}
+
+cmd_path() {
+    echo "$SUMIKA_MODULES_HOME"
+}
+
+cmd_doctor() {
+    local quiet="${1:-}"
+    [ "$quiet" = "--quiet" ] && quiet=1 || quiet=0
+
+    [ -d "$SUMIKA_MODULES_HOME" ] || { echo "Module directory not found: $SUMIKA_MODULES_HOME" >&2; return 1; }
+
+    local total=0 ok=0 warn=0 err=0
+    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        total=$((total + 1))
+        local id issues
+        id=$(basename "$(dirname "$module_json")")
+        issues=0
+
+        # Check module.json
+        jq empty "$module_json" 2>/dev/null || { issues=1; }
+        # Check qmldir
+        [ -f "$SUMIKA_MODULES_HOME/$id/qmldir" ] || issues=$((issues + 1))
+        # Check component files
+        for comp in $(jq -r '.capabilities.popupSections[].component, .capabilities.settingsPages[].component, .capabilities.barButtons[].component' "$module_json" 2>/dev/null); do
+            [ -f "$SUMIKA_MODULES_HOME/$id/$comp" ] || issues=$((issues + 1))
+        done
+
+        if [ "$issues" -eq 0 ]; then
+            ok=$((ok + 1))
+            [ "$quiet" -eq 0 ] && printf "  %-22s ✅ OK\n" "$id"
+        elif [ "$issues" -le 2 ]; then
+            warn=$((warn + 1))
+            [ "$quiet" -eq 0 ] && printf "  %-22s ⚠️  %d issue(s)\n" "$id" "$issues"
+        else
+            err=$((err + 1))
+            [ "$quiet" -eq 0 ] && printf "  %-22s ❌ %d issue(s)\n" "$id" "$issues"
+        fi
+    done
+
+    [ "$quiet" -eq 0 ] && echo "" && echo "Summary: $ok OK, $warn warnings, $err errors ($total modules)"
+    [ "$err" -gt 0 ] && return 1 || return 0
+}
+
+cmd_install() {
+    local url="${1:-}"
+    [ -n "$url" ] || { echo "Usage: omd-modules install <git-url>" >&2; return 2; }
+
+    # Extract module ID from URL
+    local id
+    id=$(basename "$url" .git)
+    # Handle sumika-module-<name> convention
+    id="${id#sumika-module-}"
+
+    local target="$SUMIKA_MODULES_HOME/$id"
+    [ -d "$target" ] && { echo "Module '$id' already exists at $target" >&2; return 1; }
+
+    mkdir -p "$SUMIKA_MODULES_HOME"
+    echo "Cloning $url..."
+    git clone "$url" "$target" || { echo "Clone failed" >&2; return 1; }
+
+    # Validate module.json
+    if [ ! -f "$target/module.json" ]; then
+        echo "Warning: No module.json found in $target" >&2
+    fi
+
+    # Run install.sh if present
+    if [ -f "$target/scripts/install.sh" ]; then
+        echo "Installing dependencies..."
+        bash "$target/scripts/install.sh" || echo "Warning: install.sh failed" >&2
+    fi
+
+    echo "  ✅ Module '$id' installed"
+    local caps
+    caps=$(module_capabilities "$id")
+    [ "$caps" != "—" ] && echo "  Capabilities: $caps"
+    echo "  Run 'omd-restart' to activate."
+}
+
+cmd_update() {
+    local id="${1:-}"
+
+    if [ -n "$id" ]; then
+        module_exists "$id" || { echo "Module not found: $id" >&2; return 1; }
+        echo "Updating $id..."
+        (cd "$SUMIKA_MODULES_HOME/$id" && git pull --ff-only) || { echo "Update failed for $id" >&2; return 1; }
+        echo "  ✅ $id updated"
+    else
+        echo "Updating all modules..."
+        for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+            [ -f "$module_json" ] || continue
+            id=$(basename "$(dirname "$module_json")")
+            (cd "$SUMIKA_MODULES_HOME/$id" && git pull --ff-only 2>/dev/null) && echo "  ✅ $id: up to date" || echo "  ⚠️  $id: update failed"
+        done
+    fi
+    echo "Done. Run 'omd-restart' to apply changes."
+}
+
+cmd_remove() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "Usage: omd-modules remove <id>" >&2; return 2; }
+    module_exists "$id" || { echo "Module not found: $id" >&2; return 1; }
+
+    echo "Remove module '$id'?"
+    echo "  Directory: $SUMIKA_MODULES_HOME/$id"
+    echo "  This will delete the module and all its files."
+    printf "Type 'yes' to confirm: "
+    read -r confirm
+    [ "$confirm" = "yes" ] || { echo "Cancelled"; return 0; }
+
+    rm -rf "$SUMIKA_MODULES_HOME/$id"
+    modify_disabled "remove" "$id" 2>/dev/null || true
+    echo "  ✅ Module '$id' removed."
+    echo "  Run 'omd-restart' to apply."
+}
+
+cmd_help() {
+    cat <<'EOF'
+Usage: omd-modules <command> [args]
+
+Commands:
+  list              List installed modules and their status
+  info <id>         Show module details
+  enable <id>       Enable a module
+  disable <id>      Disable a module
+  path              Print the modules directory path
+  doctor            Health check all modules
+  install <url>     Install a module from git URL
+  update [id]       Update module(s) via git pull
+  remove <id>       Remove a module (with confirmation)
+  help              Show this help
+
+Module directory: ~/development/sumika-modules/
+Config file: ~/.config/sumika-shell/quickshell/config.json
+EOF
+}
+
+# ── Main ──
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+    case "$cmd" in
+        list)     cmd_list "$@" ;;
+        info)     cmd_info "$@" ;;
+        enable)   cmd_enable "$@" ;;
+        disable)  cmd_disable "$@" ;;
+        path)     cmd_path "$@" ;;
+        doctor)   cmd_doctor "$@" ;;
+        install)  cmd_install "$@" ;;
+        update)   cmd_update "$@" ;;
+        remove)   cmd_remove "$@" ;;
+        help|-h|--help) cmd_help ;;
+        *)        echo "Unknown command: $cmd" >&2; cmd_help >&2; return 2 ;;
+    esac
+}
+
+main "$@"
