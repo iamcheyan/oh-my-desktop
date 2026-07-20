@@ -23,8 +23,6 @@ import qs.modules.bar
 Scope {
     id: root
 
-    readonly property string omdSessionCommand: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
-    property string sessionSaveOutput: ""
     readonly property string activeType: GlobalStates.barPopupType || ""
     readonly property bool open: activeType.length > 0 && !GlobalStates.screenLocked
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
@@ -49,64 +47,7 @@ Scope {
         Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", dialogType]);
     }
 
-    function saveSessionSnapshot() {
-        if (sessionSaveProcess.running)
-            return;
-        root.sessionSaveOutput = "";
-        sessionSaveProcess.running = true;
-        root.close();
-    }
 
-    function sessionSaveNotification(data) {
-        const windows = data.count ?? 0;
-        const workspaces = data.workspaceCount ?? 0;
-        const monitors = data.monitorCount ?? 0;
-        const terminalSessions = data.terminalSessionCount ?? 0;
-        const summary = `Saved ${windows} window${windows === 1 ? "" : "s"} across ${workspaces} workspace${workspaces === 1 ? "" : "s"} on ${monitors} display${monitors === 1 ? "" : "s"}.`;
-        let details = "Includes app launch commands, workspace/display placement, window geometry and state, and focus.";
-        if (terminalSessions > 0)
-            details += ` Captured ${terminalSessions} restorable terminal session${terminalSessions === 1 ? "" : "s"}.`;
-        Quickshell.execDetached([
-            "notify-send", "-a", "OMD Session", "-i", "document-save",
-            "Session snapshot saved", `${summary}\n${details}`
-        ]);
-    }
-
-    Process {
-        id: sessionSaveProcess
-        command: [root.omdSessionCommand, "save"]
-
-        stdout: StdioCollector {
-            id: sessionSaveStdout
-            onStreamFinished: root.sessionSaveOutput = sessionSaveStdout.text.trim()
-        }
-
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
-                Quickshell.execDetached([
-                    "notify-send", "-u", "critical", "-a", "OMD Session",
-                    "Session snapshot failed", "The current workspace state could not be saved."
-                ]);
-                return;
-            }
-            try {
-                const data = JSON.parse(root.sessionSaveOutput);
-                if (data.saved) {
-                    root.sessionSaveNotification(data);
-                } else if (data.skipped && data.reason === "empty") {
-                    Quickshell.execDetached([
-                        "notify-send", "-a", "OMD Session", "Session snapshot unchanged",
-                        "No windows are open, so the last usable snapshot was kept."
-                    ]);
-                }
-            } catch (error) {
-                Quickshell.execDetached([
-                    "notify-send", "-u", "critical", "-a", "OMD Session",
-                    "Session snapshot failed", "The save command returned an unreadable result."
-                ]);
-            }
-        }
-    }
 
     IpcHandler {
         target: "barPopup"
@@ -238,9 +179,7 @@ Scope {
 
 
 
-                        if (root.activeType === "session") return sessionContent;
                         if (root.activeType === "xkb") return xkbContent;
-                        if (root.activeType === "tools") return toolsContent;
                         return emptyContent;
                     }
                 }
@@ -464,118 +403,8 @@ Scope {
         Item { implicitHeight: 1 }
     }
 
-    Component {
-        id: toolsContent
-        PopupColumn {
-            PopupHeader {
-                Layout.fillWidth: true
-                icon: NerdIconMap.wrench
-                title: "OMD Tools"
-                subtitle: "Advanced desktop tools"
-            }
-
-            ToolLauncherRow {
-                icon: "keyboard_voice"
-                title: "Voice Input"
-                subtitle: "Speech engine, model and shortcuts"
-                onClicked: {
-                    root.close();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-voice-tui`]);
-                }
-            }
 
 
-            ToolLauncherRow {
-                icon: "keyboard"
-                title: "Keyboard Remap"
-                subtitle: "Devices, profiles and key mappings"
-                onClicked: root.openDialog("keyremap")
-            }
-
-            ToolLauncherRow {
-                icon: "desktop_windows"
-                title: "Windows VM"
-                subtitle: "Install, run and manage Windows"
-                onClicked: {
-                    root.close();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
-                }
-            }
-
-        }
-    }
-
-
-    Component {
-        id: sessionContent
-        PopupColumn {
-            id: sessionPanel
-            readonly property string omdSession: root.omdSessionCommand
-            readonly property string snapshotFile: `${Directories.sumikaStateHome}/session/last.json`
-            property bool hasSnapshot: false
-            property int snapshotCount: 0
-            property bool canvasEmpty: ToplevelManager.toplevels.values.length === 0
-
-            FileView {
-                path: sessionPanel.snapshotFile
-                onLoaded: {
-                    try {
-                        const data = JSON.parse(text());
-                        const count = Array.isArray(data.clients) ? data.clients.length : 0;
-                        sessionPanel.hasSnapshot = count > 0;
-                        sessionPanel.snapshotCount = count;
-                    } catch (e) {
-                        sessionPanel.hasSnapshot = false;
-                        sessionPanel.snapshotCount = 0;
-                    }
-                }
-                onLoadFailed: {
-                    sessionPanel.hasSnapshot = false;
-                    sessionPanel.snapshotCount = 0;
-                }
-            }
-
-            PopupHeader {
-                Layout.fillWidth: true
-                icon: NerdIconMap.workspaceSnapshot
-                title: "Session"
-                subtitle: sessionPanel.canvasEmpty ? "No windows open"
-                    : `${ToplevelManager.toplevels.values.length} window${ToplevelManager.toplevels.values.length === 1 ? "" : "s"} open`
-                tone: sessionPanel.canvasEmpty ? TuiStyle.muted : TuiStyle.success
-            }
-
-            PopupInfoRow {
-                label: "Saved snapshot"
-                value: sessionPanel.hasSnapshot ? `${sessionPanel.snapshotCount} windows` : "None"
-                valueColor: sessionPanel.hasSnapshot ? TuiStyle.accent : TuiStyle.dim
-                showDivider: false
-            }
-
-            IconActionRow {
-                PopupIconButton {
-                    icon: NerdIconMap.workspaceSnapshot
-                    label: "Save"
-                    accent: TuiStyle.info
-                    enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
-                    onClicked: root.saveSessionSnapshot()
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.close
-                    label: "Save & Close"
-                    accent: TuiStyle.warning
-                    enabledState: !sessionPanel.canvasEmpty || sessionPanel.hasSnapshot
-                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "save-close"]); }
-                }
-                PopupIconButton {
-                    icon: NerdIconMap.refresh
-                    label: "Restore"
-                    accent: TuiStyle.accent
-                    enabledState: sessionPanel.hasSnapshot
-                    onClicked: { root.close(); Quickshell.execDetached([sessionPanel.omdSession, "restore"]); }
-                }
-            }
-        }
-    }
 
     Component {
         id: xkbContent
