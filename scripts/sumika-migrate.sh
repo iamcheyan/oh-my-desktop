@@ -119,6 +119,7 @@ create_directories() {
         "$NEW_CONFIG/file-share-backup" \
         "$NEW_CONFIG/launchers" \
         "$NEW_CONFIG/launchers/icons" \
+        "$NEW_CONFIG/scripts" \
         "$NEW_CONFIG/quickshell" \
         "$NEW_STATE" \
         "$NEW_STATE/theme" \
@@ -165,7 +166,21 @@ migrate_config() {
     copy_glob "$OLD_CONFIG/launchers/icons/*" \
               "$NEW_CONFIG/launchers/icons"
 
-    # Quickshell user config (will be split into defaults + overrides in Phase 4)
+    # personal launch scripts (keepassxc, wechat, wps, remote-desktop, flatpak-launch)
+    copy_glob "$OLD_CONFIG/scripts/keepassxc" \
+              "$NEW_CONFIG/scripts/"
+    copy_glob "$OLD_CONFIG/scripts/wechat" \
+              "$NEW_CONFIG/scripts/"
+    copy_glob "$OLD_CONFIG/scripts/wps" \
+              "$NEW_CONFIG/scripts/"
+    copy_glob "$OLD_CONFIG/scripts/remote-desktop" \
+              "$NEW_CONFIG/scripts/"
+    copy_glob "$OLD_CONFIG/scripts/remote-desktop.conf" \
+              "$NEW_CONFIG/scripts/"
+    copy_glob "$OLD_CONFIG/scripts/flatpak-launch" \
+              "$NEW_CONFIG/scripts/"
+
+    # Quickshell user config (defaults in repo defaults/config/quickshell/, overrides here)
     copy_file "$OLD_CONFIG/quickshell/config.json" \
               "$NEW_CONFIG/quickshell/config.json"
 }

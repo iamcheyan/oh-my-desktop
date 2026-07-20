@@ -37,7 +37,11 @@ export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
 repair_config_json() {
-    config_file="$repo_root/quickshell/config.json"
+    # User config path (new Sumika Shell location)
+    local sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+    local config_file="$sumika_config/quickshell/config.json"
+    # Legacy fallback
+    [ -f "$config_file" ] || config_file="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/config.json"
     [ -f "$config_file" ] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 

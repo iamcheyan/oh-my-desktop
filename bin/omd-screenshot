@@ -165,8 +165,11 @@ fast_capture() {
     restore_cursor
 
     save_dir=""
-    if command -v jq >/dev/null 2>&1 && [ -r "$HOME/.config/quickshell/config.json" ]; then
-        save_dir="$(jq -r '.screenSnip.savePath // empty' "$HOME/.config/quickshell/config.json" 2>/dev/null || true)"
+    _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+    _cfg_file="$_sumika_cfg/quickshell/config.json"
+    [ -f "$_cfg_file" ] || _cfg_file="$HOME/.config/quickshell/config.json"
+    if command -v jq >/dev/null 2>&1 && [ -r "$_cfg_file" ]; then
+        save_dir="$(jq -r '.screenSnip.savePath // empty' "$_cfg_file" 2>/dev/null || true)"
     fi
     if [ -n "$save_dir" ]; then
         mkdir -p "$save_dir"

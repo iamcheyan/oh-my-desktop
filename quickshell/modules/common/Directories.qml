@@ -24,7 +24,7 @@ Singleton {
     property string assetsPath: Quickshell.shellPath("assets")
     property string scriptPath: Quickshell.shellPath("scripts")
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)
-    property string shellConfig: FileUtils.trimFileProtocol(`${Directories.config}/quickshell`)
+    property string shellConfig: FileUtils.trimFileProtocol(`${Directories.config}/sumika-shell/quickshell`)
     property string shellConfigName: "config.json"
     property string shellConfigPath: `${Directories.shellConfig}/${Directories.shellConfigName}`
     property string notificationsPath: FileUtils.trimFileProtocol(`${Directories.cache}/notifications/notifications.json`)

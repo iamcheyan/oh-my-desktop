@@ -191,7 +191,10 @@ else
 fi
 
 section "wallpaper"
-wallpaper="$(jq -r '.background.wallpaperPath // ""' "$repo/quickshell/config.json" 2>/dev/null || true)"
+_sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+_cfg_file="$_sumika_cfg/quickshell/config.json"
+[ -f "$_cfg_file" ] || _cfg_file="$repo/quickshell/config.json"
+wallpaper="$(jq -r '.background.wallpaperPath // ""' "$_cfg_file" 2>/dev/null || true)"
 if [[ -n "$wallpaper" ]]; then
   expanded="${wallpaper/#\~/$HOME}"
   if [[ -f "$expanded" ]]; then

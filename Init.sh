@@ -1165,7 +1165,7 @@ repair_runtime_config() {
     echo
     info "Repairing runtime config..."
 
-    local config_file="$REPO/quickshell/config.json"
+    local config_file="$REPO/defaults/config/quickshell/config.json"
     if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
         local tmp_file
         tmp_file="$(mktemp)"
@@ -1319,16 +1319,35 @@ EOF
     ok "  Oh My Desktop session is managed by NixOS services.displayManager.sessionPackages"
 }
 
-# ── Custom OMD launchers ──────────────────────────────────────────────────────
+# ── Custom launcher installation ────────────────────────────────────────────────────
 install_custom_launchers() {
     echo
-    info "Installing custom OMD launchers..."
-    if [[ -x "$REPO/scripts/install-launchers" ]]; then
-        "$REPO/scripts/install-launchers" || warn "custom launchers install failed"
-    else
-        warn "scripts/install-launchers not found; skipping"
+    info "Installing custom launchers..."
+
+    local src_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+    local src_launchers="$src_config/launchers"
+    local dst_apps="$HOME/.local/share/applications"
+
+    if [[ ! -d "$src_launchers" ]]; then
+        warn "Launcher source not found: $src_launchers; skipping"
+        return 0
     fi
-}
+
+    mkdir -p "$dst_apps/icons"
+
+    local count=0
+    for desktop in "$src_launchers"/*.desktop; do
+        [[ -f "$desktop" ]] || continue
+        # Copy desktop file, expanding $HOME to the real home directory
+        sed "s|\$HOME|$HOME|g" "$desktop" > "$dst_apps/$(basename "$desktop")"
+        count=$((count + 1))
+    done
+
+    # Copy icons
+    if [[ -d "$src_launchers/icons" ]]; then
+        cp -r "$src_launchers/icons/"* "$dst_apps/icons/" 2>/dev/null || true
+    fi
+    ok "Installed $count launcher(s)."
 
 # ── Go tools ─────────────────────────────────────────────────────────────────
 build_go_tools() {
