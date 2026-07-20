@@ -1,8 +1,8 @@
 local paths = require("default.hypr.paths")
 
 -- Application bindings.
-o.bind("SUPER + RETURN", "Application launcher", "$HOME/.config/omd/bin/omd-applauncher")
-o.bind("SUPER + A", "Toggle application launcher", "$HOME/.config/omd/bin/omd-applauncher")
+o.bind("SUPER + RETURN", "Application launcher", paths.omd_root .. "/bin/omd-applauncher")
+o.bind("SUPER + A", "Toggle application launcher", paths.omd_root .. "/bin/omd-applauncher")
 o.bind("SUPER + Q", "Terminal", { omd = "terminal" })
 o.bind("SUPER + ALT + RETURN", "Tmux", { omd = "terminal-tmux" })
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omd = "browser" })
@@ -34,10 +34,10 @@ o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
 o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 
 -- Bluetooth pairing TUI
-o.bind("SUPER + CTRL + B", "Bluetooth", "$HOME/.config/omd/bin/omd-launch-bluetooth")
+o.bind("SUPER + CTRL + B", "Bluetooth", paths.omd_root .. "/bin/omd-launch-bluetooth")
 
 -- WiFi manager TUI
-o.bind("SUPER + CTRL + W", "WiFi", "$HOME/.config/omd/bin/omd-launch-wifi")
+o.bind("SUPER + CTRL + W", "WiFi", paths.omd_root .. "/bin/omd-launch-wifi")
 
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
@@ -50,9 +50,9 @@ o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = tru
 hl.unbind("SUPER + SPACE")
 hl.unbind("SUPER + SHIFT + SPACE")
 hl.unbind("SUPER + CTRL + SPACE")
-o.bind("SUPER + SPACE", "Next input language", "qs -p $HOME/.config/omd/apps/omd-bar ipc call inputMethod cycle 1")
-o.bind("SUPER + SHIFT + SPACE", "Previous input language", "qs -p $HOME/.config/omd/apps/omd-bar ipc call inputMethod cycle -1")
-o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", "qs -p $HOME/.config/omd/apps/omd-bar ipc call bar toggle")
+o.bind("SUPER + SPACE", "Next input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle 1")
+o.bind("SUPER + SHIFT + SPACE", "Previous input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle -1")
+o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call bar toggle")
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
@@ -69,7 +69,7 @@ hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
 -- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
-hl.bind("ESCAPE", hl.dsp.exec_cmd('qs -p "$HOME/.config/omd/apps/omd-bar" ipc call menus close 2>/dev/null'), {
+hl.bind("ESCAPE", hl.dsp.exec_cmd('qs -p "' .. paths.omd_root .. '/apps/omd-bar" ipc call menus close 2>/dev/null'), {
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
 })
 
@@ -106,13 +106,13 @@ local function read_voice_bindings(filepath)
   return list
 end
 
-local voice_bindings = read_voice_bindings(paths.omd_root .. "/config/voice_bindings.txt")
+local voice_bindings = read_voice_bindings(paths.home .. "/.config/voice_bindings.txt")
 if #voice_bindings == 0 then
   voice_bindings = { "ALT + A", "code:472" }
 end
 
 for _, key in ipairs(voice_bindings) do
-  o.bind(key, "Voice input toggle", "qs -p $HOME/.config/omd/apps/omd-bar ipc call voice toggle")
+    o.bind(key, "Voice input toggle", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call voice toggle")
 end
 -- Prefer absolute path (same tool as PrintScreen). Re-press cancels if open.
 o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-screenshot screenshot")
@@ -121,5 +121,5 @@ o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/om
 -- Logitech MX Keys examples:
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + V")
-o.bind("ALT + V", "Clipboard manager", "$HOME/.config/omd/bin/omd-clipboard")
+o.bind("ALT + V", "Clipboard manager", paths.omd_root .. "/bin/omd-clipboard")
 hl.unbind("SUPER + CTRL + V")

@@ -5,7 +5,7 @@ set -eu
 # Installs dependencies and creates runtime symlinks from ~ into this repo.
 # Run after cloning:  git clone ... ~/development/OMD && cd ~/development/OMD && ./Init.sh
 
-REPO="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$(dirname "$0")" && pwd -P)"
 
 # ── Color helpers ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -630,7 +630,8 @@ EOF
       installPhase = ''
         mkdir -p $out/bin $out/share/wayland-sessions
         cp ${pkgs.writeShellScript "omd-hyprland-session" ''
-          export OMD_ROOT="''${HOME}/.config/omd"
+          export OMD_ROOT="__REPO_ROOT__"
+          export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
           export OMD_FORCE_NO_UWSM=1
           export XDG_CURRENT_DESKTOP=Hyprland
           export XDG_SESSION_DESKTOP=oh-my-desktop
@@ -667,6 +668,7 @@ EOF
 }
 EOF
 
+    sudo sed -i "s|__REPO_ROOT__|$REPO|g" "$tmp_file"
     sudo install -m 0644 "$tmp_file" "$config_file"
     rm -f "$tmp_file" "$packages_file"
 
@@ -1237,7 +1239,8 @@ EOF
 #!/bin/bash
 set -e
 
-export OMD_ROOT="${HOME}/.config/omd"
+export OMD_ROOT="__REPO_ROOT__"
+export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
 export OMD_FORCE_NO_UWSM=1
 export XDG_CURRENT_DESKTOP=Hyprland
 export XDG_SESSION_DESKTOP=oh-my-desktop
@@ -1269,6 +1272,7 @@ fi
 echo "Hyprland is not installed or not in PATH." >&2
 exit 127
 EOF
+    sudo sed -i "s|__REPO_ROOT__|$REPO|g" /usr/local/bin/omd-hyprland-session
     sudo chmod +x /usr/local/bin/omd-hyprland-session
     ok "  /usr/local/bin/omd-hyprland-session"
 

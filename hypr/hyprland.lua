@@ -1,7 +1,48 @@
 -- Learn how to configure Hyprland: https://wiki.hypr.land/Configuring/Start/
 
--- Load OMD Hyprland modules from the repo linked at ~/.config/omd.
-local omd_root = os.getenv("OMD_ROOT") or (os.getenv("HOME") .. "/.config/omd")
+-- Load OMD / Sumika Shell Hyprland modules from the repository.
+-- Repository root resolution order:
+--   1. SUMIKA_SHELL_ROOT env var (set by updated session wrapper)
+--   2. OMD_ROOT env var, with symlinks resolved
+--   3. This file's own location (works even if both env vars are stale)
+--   4. ~/.config/omd fallback (removed in Phase 6)
+local function resolve_root()
+  -- Try env vars first
+  local env_root = os.getenv("SUMIKA_SHELL_ROOT")
+  if not env_root or env_root == "" then
+    env_root = os.getenv("OMD_ROOT") or (os.getenv("HOME") .. "/.config/omd")
+  end
+  -- Resolve symlinks (works when the symlink still exists)
+  if env_root and env_root ~= "" then
+    local pipe = io.popen("readlink -f '" .. env_root .. "' 2>/dev/null")
+    if pipe then
+      local resolved = pipe:read("*l")
+      pipe:close()
+      if resolved and resolved ~= "" and os.getenv("HOME") and
+         io.open(resolved .. "/Init.sh", "r") then
+        return resolved
+      end
+    end
+  end
+  -- Fallback: derive from this file's location via debug.getinfo
+  -- source is like "@/path/to/repo/hypr/hyprland.lua"
+  local info = debug.getinfo(1, "S")
+  if info and info.source then
+    local src = info.source
+    -- Strip leading @
+    if src:sub(1, 1) == "@" then src = src:sub(2) end
+    -- This file is at repo/hypr/hyprland.lua → repo = dirname(dirname(src))
+    local hypr_dir = src:match("^(.*)/hypr/")
+    if hypr_dir and io.open(hypr_dir .. "/Init.sh", "r") then
+      return hypr_dir
+    end
+  end
+  -- Last resort: raw env var even if unresolvable
+  return env_root or (os.getenv("HOME") .. "/.config/omd")
+end
+
+local omd_root = resolve_root()
+
 package.path = omd_root
   .. "/hypr/?.lua;"
   .. omd_root
@@ -9,7 +50,7 @@ package.path = omd_root
   .. package.path
 
 -- OMD's current base layer is copied from the old Omarchy Hyprland defaults
--- and is trimmed/migrated in this repo instead of loaded from ~/.local/share.
+-- and is trimmed/migrated in this repo instead of being loaded from ~/.local/share.
 require("default.hypr.base")
 
 -- Change your own setup in these files and override defaults.

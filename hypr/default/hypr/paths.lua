@@ -15,6 +15,20 @@ if not root or root == "" then
   root = os.getenv("OMD_ROOT") or (config_home .. "/omd")
 end
 
+-- Resolve symlinks so that IPC paths match regardless of whether the session
+-- wrapper set OMD_ROOT to the symlink (~/.config/omd) or the real path.
+-- This is a one-time readlink call during config load.
+if root and root ~= "" then
+  local pipe = io.popen("readlink -f '" .. root .. "' 2>/dev/null")
+  if pipe then
+    local resolved = pipe:read("*l")
+    pipe:close()
+    if resolved and resolved ~= "" and resolved ~= root then
+      root = resolved
+    end
+  end
+end
+
 return {
   -- Sumika Shell path contract (canonical)
   root = root,

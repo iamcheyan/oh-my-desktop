@@ -1,5 +1,6 @@
 -- Control your input devices.
 -- See https://wiki.hypr.land/Configuring/Basics/Variables/#input
+local paths = require("default.hypr.paths")
 hl.config({
   input = {
     -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt.
@@ -59,7 +60,7 @@ hl.gesture({
   fingers = 4,
   direction = "up",
   action = function()
-    hl.dispatch(hl.dsp.exec_cmd("qs -p $HOME/.config/omd/apps/omd-overview ipc call overview open"))
+    hl.dispatch(hl.dsp.exec_cmd("qs -p " .. paths.omd_root .. "/apps/omd-overview ipc call overview open"))
   end,
 })
 
@@ -67,7 +68,7 @@ hl.gesture({
   fingers = 4,
   direction = "pinchin",
   action = function()
-    hl.dispatch(hl.dsp.exec_cmd("$HOME/.config/omd/bin/omd-applauncher open"))
+    hl.dispatch(hl.dsp.exec_cmd(paths.omd_root .. "/bin/omd-applauncher open"))
   end,
 })
 
