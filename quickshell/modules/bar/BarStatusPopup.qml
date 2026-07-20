@@ -689,7 +689,7 @@ Scope {
         PopupColumn {
             id: sessionPanel
             readonly property string omdSession: root.omdSessionCommand
-            readonly property string snapshotFile: `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/omd/session/last.json`
+            readonly property string snapshotFile: `${Directories.sumikaStateHome}/session/last.json`
             property bool hasSnapshot: false
             property int snapshotCount: 0
             property bool canvasEmpty: ToplevelManager.toplevels.values.length === 0

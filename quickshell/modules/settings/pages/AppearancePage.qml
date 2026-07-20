@@ -283,7 +283,7 @@ ColumnLayout {
                             iconName: "open_in_new"
                             onClicked: Quickshell.execDetached([
                                 "xdg-open",
-                                `${Directories.stateHome}/sumika-shell/theme/current`
+                                `${Directories.sumikaStateHome}/theme/current`
                             ])
                         }
                     }
@@ -626,7 +626,8 @@ ColumnLayout {
                         onMoved: {
                             Quickshell.execDetached([
                                 "bash", "-c",
-                                'echo "' + Math.round(value) + '" > "$HOME/.local/state/omd/wallpaper/interval" && ' +
+                                's="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}" && ' +
+                                'echo "' + Math.round(value) + '" > "$s/wallpaper/interval" && ' +
                                 '$HOME/.config/omd/bin/omd-wallpaper restart'
                             ])
                             wpRefreshTimer.restart()

@@ -735,7 +735,8 @@ ColumnLayout {
             "python3", "-c",
             "import json, os, subprocess\n" +
             "raw = ''\n" +
-            "state = os.path.expanduser('~/.local/state/omd/key-capture.json')\n" +
+            "state_home = os.environ.get('SUMIKA_SHELL_STATE_HOME') or os.path.join(os.environ.get('XDG_STATE_HOME', os.path.expanduser('~/.local/state')), 'sumika-shell')\n" +
+            "state = os.path.join(state_home, 'key-capture.json')\n" +
             "try:\n" +
             "    with open(state, encoding='utf-8') as f:\n" +
             "        data = json.load(f)\n" +
