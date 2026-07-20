@@ -720,8 +720,19 @@ PanelWindow {
 
         // Action bar (on top, buttons intercept clicks)
         Item {
-            x: root.regionX + root.regionWidth - width
-            y: root.regionY + root.regionHeight + 12
+            x: {
+                const rightEdge = root.regionX + root.regionWidth;
+                const barW = width;
+                const clampedX = Math.max(0, rightEdge - barW);
+                return Math.min(clampedX, root.width - barW);
+            }
+            y: {
+                const barH = height;
+                const yBelow = root.regionY + root.regionHeight + 12;
+                if (yBelow + barH > root.height)
+                    return Math.max(0, root.regionY - 12 - barH);
+                return yBelow;
+            }
             width: actionBar.implicitWidth
             height: actionBar.implicitHeight
 
