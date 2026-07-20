@@ -33,7 +33,6 @@ PageBody {
                     Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-voice-tui`]);
                 }
             }
-            SettingsButton { label: "Keyboard Remap"; iconName: "keyboard"; onClicked: settingsRoot.currentPage = "keyremap" }
         }
     }
 }

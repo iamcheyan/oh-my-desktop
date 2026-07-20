@@ -16,6 +16,7 @@ import "wallpaper" as WallpaperSettings
 import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.modules.settings.pages
+import qs.modules.keyboard-remap
 
 WindowDialog {
     id: root
