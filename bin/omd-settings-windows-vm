@@ -496,8 +496,8 @@ install_defaults() {
   [[ -n "$ram" ]] || ram="$(default_ram)"
   [[ -n "$cpu" ]] || cpu="$(default_cpu)"
   [[ -n "$disk" ]] || disk="$(default_disk)"
-  [[ -n "$user" ]] || user="win11"
-  [[ -n "$pass" ]] || pass="admin"
+  [[ -n "$user" ]] || user=""
+  [[ -n "$pass" ]] || pass=""
   install "$ram" "$cpu" "$disk" "$user" "$pass"
 }
 

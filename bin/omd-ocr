@@ -16,22 +16,21 @@ warnings.filterwarnings("ignore")
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "1"
 os.environ["GLOG_minloglevel"] = "2"
 
-try:
-    from paddleocr import PaddleOCR
-except ImportError:
-    print("PaddleOCR is not installed. Run: pip install paddleocr onnxruntime", file=sys.stderr)
-    sys.exit(1)
+def _ocr_config():
+    import json
+    cfg_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or os.path.join(
+        os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"
+    )
+    cfg_path = os.path.join(cfg_home, "ocr.json")
+    try:
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+        return cfg.get("lang", "ch"), cfg.get("engine", "onnxruntime")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "ch", "onnxruntime"
 
-if len(sys.argv) < 2:
-    print(f"Usage: {sys.argv[0]} <image_path>", file=sys.stderr)
-    sys.exit(1)
-
-image_path = sys.argv[1]
-if not os.path.isfile(image_path):
-    print(f"File not found: {image_path}", file=sys.stderr)
-    sys.exit(1)
-
-ocr = PaddleOCR(lang="ch", engine="onnxruntime")
+ocr_lang, ocr_engine = _ocr_config()
+ocr = PaddleOCR(lang=ocr_lang, engine=ocr_engine)
 result = ocr.predict(image_path)
 
 for page in result:

@@ -139,16 +139,15 @@ EOF
   # Re-check prerequisites with selected disk size
   check_prerequisites "$DISK_SIZE_NUM"
 
-  # Prompt for username and password
-  USERNAME=$(gum input --placeholder="Username (Press enter to use default: docker)" --header="Enter Windows username:")
+  # Prompt for username and password (empty defaults force user input)
+  USERNAME=$(gum input --placeholder="Username (e.g. docker)" --header="Enter Windows username:")
   if [[ -z $USERNAME ]]; then
-    USERNAME="docker"
+    USERNAME=""
   fi
 
-  PASSWORD=$(gum input --placeholder="Password (Press enter to use default: admin)" --password --header="Enter Windows password:")
+  PASSWORD=$(gum input --placeholder="Password" --password --header="Enter Windows password:")
   if [[ -z $PASSWORD ]]; then
-    PASSWORD="admin"
-    PASSWORD_DISPLAY="(default)"
+    PASSWORD=""
   else
     PASSWORD_DISPLAY="(user-defined)"
   fi

@@ -186,12 +186,26 @@ PY
       echo "Downloading PP-OCRv6 models (~50 MB)..." >>"$LOG_FILE"
       python3 -c "
 import sys, os
-os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = '1'
 os.environ['GLOG_minloglevel'] = '2'
 import warnings
 warnings.filterwarnings('ignore')
+
+import json
+_cfg_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"
+)
+_ocr_lang = 'ch'
+_ocr_engine = 'onnxruntime'
+try:
+    with open(os.path.join(_cfg_home, 'ocr.json')) as _f:
+        _cfg = json.load(_f)
+    _ocr_lang = _cfg.get('lang', _ocr_lang)
+    _ocr_engine = _cfg.get('engine', _ocr_engine)
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
 from paddleocr import PaddleOCR
-ocr = PaddleOCR(lang='ch', engine='onnxruntime')
+ocr = PaddleOCR(lang=_ocr_lang, engine=_ocr_engine)
 # Create a blank test image and run prediction to trigger model download
 from PIL import Image
 img = Image.new('RGB', (100, 30), 'white')
