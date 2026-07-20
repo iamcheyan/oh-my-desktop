@@ -23,7 +23,7 @@ PanelWindow {
 
     readonly property string stateDir: Quickshell.shellDir + "/.state"
     readonly property string stateFile: stateDir + "/pinned-apps"
-    readonly property string cacheFile: (Quickshell.env("HOME") ?? "") + "/.local/state/omd/applauncher/apps.json"
+    readonly property string cacheFile: `${Quickshell.env("SUMIKA_SHELL_STATE_HOME") ?? Quickshell.env("HOME") + "/.local/state/sumika-shell"}/applauncher/apps.json`
     readonly property string cacheScript: (Quickshell.env("HOME") ?? "") + "/.config/omd/bin/omd-applauncher-cache"
 
     property bool open: false

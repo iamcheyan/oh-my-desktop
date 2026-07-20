@@ -15,7 +15,8 @@ import time
 from pathlib import Path
 
 
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omd/display"
+_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
+STATE_DIR = Path(_state_home) / "display"
 LAYOUT_FILE = STATE_DIR / "layout.lua"
 LAYOUT_METADATA_FILE = STATE_DIR / "layout.json"
 TRANSFORM_NAMES = {

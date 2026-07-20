@@ -21,7 +21,7 @@ cache_script="$OMD_ROOT/bin/omd-applauncher-cache"
 
 # Refresh desktop entry cache in background only if it is missing. Avoid date
 # checks on the hot path; the QML process can rebuild a corrupt cache itself.
-cache_file="$HOME/.local/state/omd/applauncher/apps.json"
+cache_file="$SUMIKA_SHELL_STATE_HOME/applauncher/apps.json"
 if [ ! -s "$cache_file" ]; then
     "$cache_script" >/dev/null 2>&1 &
 fi

@@ -8,10 +8,21 @@ local state_home = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
 local data_home = os.getenv("XDG_DATA_HOME") or (home .. "/.local/share")
 local runtime_dir = os.getenv("XDG_RUNTIME_DIR") or ("/run/user/" .. tostring(os.getenv("UID") or "1000"))
 
--- Repository root: SUMIKA_SHELL_ROOT > OMD_ROOT > ~/.config/sumika-shell fallback.
+-- Repository root: SUMIKA_SHELL_ROOT > OMD_ROOT > readlink ~/.config/omd > fail.
 local root = os.getenv("SUMIKA_SHELL_ROOT")
 if not root or root == "" then
-  root = os.getenv("OMD_ROOT") or (config_home .. "/sumika-shell")
+  root = os.getenv("OMD_ROOT")
+end
+if not root or root == "" then
+  -- ~/.config/omd is a repo symlink created by Init.sh; resolve it.
+  local pipe = io.popen("readlink -f " .. os.getenv("HOME") .. "/.config/omd 2>/dev/null")
+  if pipe then
+    root = pipe:read("*l")
+    pipe:close()
+  end
+end
+if not root or root == "" then
+  root = "/dev/null/SUMIKA_SHELL_ROOT_UNSET"
 end
 
 -- Resolve symlinks so that IPC paths match regardless of whether the session

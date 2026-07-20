@@ -20,7 +20,8 @@ KEY_TEST_LAUNCHER = os.path.join(SCRIPT_DIR, "key-test-launcher")
 sys.path.insert(0, SCRIPT_DIR)
 
 DEFAULT_BINDINGS = ["ALT + A", "code:472"]
-CAPTURE_STATE = os.path.expanduser("~/.local/state/omd/key-capture.json")
+_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
+CAPTURE_STATE = os.path.join(_state_home, "key-capture.json")
 
 # ── Load/Save ──
 def load_bindings():

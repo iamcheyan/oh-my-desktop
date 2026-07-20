@@ -9,7 +9,8 @@ import time
 from pathlib import Path
 
 
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "omd/session"
+_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
+STATE_DIR = Path(_state_home) / "session"
 LAST_FILE = STATE_DIR / "last.json"
 AUTO_RESTORE_FILE = STATE_DIR / "restore-on-next-start"
 RESTORE_LOCK = STATE_DIR / "restore.lock"

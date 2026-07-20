@@ -76,8 +76,14 @@ section() {
 }
 
 section "runtime symlinks"
-check_link "$HOME/.config/sumika-shell" "$repo"
-check_link "$HOME/.config/quickshell" "$repo/quickshell"
+# ~/.config/sumika-shell is a real config directory managed by chezmoi, not a
+# repo symlink. Check it exists and has at least one managed config file.
+_sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+if [[ -d "$_sumika_cfg" && -f "$_sumika_cfg/quickshell/config.json" ]]; then
+  ok "$_sumika_cfg (real config dir)"
+else
+  fail "$_sumika_cfg is missing or incomplete"
+fi
 check_link "$HOME/.config/omd" "$repo"
 section "terminal configs"
 for tc in foot kitty alacritty ghostty; do

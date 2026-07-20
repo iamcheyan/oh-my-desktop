@@ -5,7 +5,10 @@ set -eu
 # Reads .desktop files and outputs minimal fields needed by the launcher.
 # Used to avoid the ~200ms synchronous DesktopEntries scan on cold start.
 
-cache_dir="$HOME/.local/state/omd/applauncher"
+# State directory: use env var if set, else XDG fallback
+: "${SUMIKA_SHELL_STATE_HOME:=${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+
+cache_dir="$SUMIKA_SHELL_STATE_HOME/applauncher"
 cache_file="$cache_dir/apps.json"
 mkdir -p "$cache_dir"
 

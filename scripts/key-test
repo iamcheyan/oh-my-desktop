@@ -21,8 +21,9 @@ sys.path.insert(0, SCRIPT_DIR)
 from key_capture_clipboard import build_clipboard_text  # noqa: E402
 from key_evdev_names import gtk_keycode_to_evdev, gtk_keycode_to_keyd  # noqa: E402
 
-CAPTURE_STATE = os.path.expanduser("~/.local/state/omd/key-capture.json")
-CAPTURE_LOCK = os.path.expanduser("~/.local/state/omd/key-capture.lock")
+_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
+CAPTURE_STATE = os.path.join(_state_home, "key-capture.json")
+CAPTURE_LOCK = os.path.join(_state_home, "key-capture.lock")
 KEYD_BYPASSED_FOR_CAPTURE = False
 
 # ── auto-restore hotkeys ──

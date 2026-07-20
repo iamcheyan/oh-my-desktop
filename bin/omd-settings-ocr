@@ -5,7 +5,7 @@ set -euo pipefail
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/ocr"
+STATE_DIR="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/ocr"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omd-ocr"
 MODEL_CACHE="$HOME/.paddlex/official_models"
 LOG_FILE="$STATE_DIR/install.log"

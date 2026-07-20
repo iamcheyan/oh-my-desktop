@@ -64,7 +64,8 @@ local function same_monitor_set(saved, current)
   return true
 end
 
-local saved_layout_path = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/omd/display/layout.lua"
+local saved_layout_state = os.getenv("SUMIKA_SHELL_STATE_HOME") or ((os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/sumika-shell")
+local saved_layout_path = saved_layout_state .. "/display/layout.lua"
 local ok, saved_layout = pcall(dofile, saved_layout_path)
 if ok and same_monitor_set(saved_layout, connected) then
   -- Hyprland resolves monitor rules from newest to oldest. Register the

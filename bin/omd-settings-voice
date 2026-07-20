@@ -21,7 +21,7 @@ VOICE_DOWNLOAD="$OMD_ROOT/share/bin/omarchy-voice-download"
 
 # Runtime state directory. Holds state.json (ephemeral phase + progress) and
 # recent.json (last N transcription results). The TUI polls `status` to read.
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/voice"
+STATE_DIR="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/voice"
 STATE_FILE="$STATE_DIR/state.json"
 RECENT_FILE="$STATE_DIR/recent.json"
 MODEL_BYTES_TOTAL=240000000  # ~229 MB SenseVoice Small INT8, used for progress estimate
@@ -430,11 +430,12 @@ launch_gui() {
 
 read_capture() {
   local since="${1:-0}"
-  python3 - "$since" <<'PY'
+  local state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+  python3 - "$since" "$state_home" <<'PY'
 import json, os, sys
 raw = ""
 since = float(sys.argv[1] or 0)
-state = os.path.expanduser("~/.local/state/omd/key-capture.json")
+state = os.path.join(sys.argv[2], "key-capture.json")
 try:
     if since > 0 and os.path.getmtime(state) < since:
         raise RuntimeError("stale capture")
@@ -451,7 +452,7 @@ PY
 
 capture_binding() {
   [[ -x "$KEY_CAPTURE" ]] || { echo "ERROR: key capture tool missing" >&2; exit 1; }
-  local state_file="${XDG_STATE_HOME:-$HOME/.local/state}/omd/key-capture.json"
+  local state_file="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/key-capture.json"
   local started_at
   started_at="$(python3 - <<'PY'
 import time
