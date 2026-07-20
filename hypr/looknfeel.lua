@@ -114,7 +114,3 @@ o.window("org.pulseaudio.pavucontrol", { float = true, center = true, size = { 9
 --   },
 -- })
 
--- Force standard cursor theme (Adwaita) and bypass Hyprland's bibata waterdrop fallback
-hl.env("XCURSOR_THEME", "Adwaita")
-hl.env("HYPRCURSOR_THEME", "Adwaita")
-o.exec_on_start("hyprctl setcursor Adwaita 24")
