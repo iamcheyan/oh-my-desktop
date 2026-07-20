@@ -13,7 +13,7 @@ import atexit
 import time
 
 # ── Paths ──
-CONFIG_DIR = os.path.expanduser("~/.config/omd/config")
+CONFIG_DIR = os.path.expanduser("~/.config")
 BINDINGS_FILE = os.path.join(CONFIG_DIR, "voice_bindings.txt")
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 KEY_TEST_LAUNCHER = os.path.join(SCRIPT_DIR, "key-test-launcher")

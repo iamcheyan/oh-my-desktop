@@ -16,7 +16,7 @@ ColumnLayout {
 
     required property var settingsRoot
     readonly property string omdRoot: `${FileUtils.trimFileProtocol(Directories.config)}/omd`
-    readonly property string bindingsPath: `${pageRoot.omdRoot}/config/voice_bindings.txt`
+    readonly property string bindingsPath: `${FileUtils.trimFileProtocol(StandardPaths.home)}/.config/voice_bindings.txt`
     readonly property bool wideLayout: width >= 980
 
     property var voiceBindings: []

@@ -91,25 +91,18 @@ class Model(S.StatusModel):
             return
         self.refreshing = True
         self.dirty = True
-        pending = [2]
-        def complete():
-            pending[0] -= 1
-            if pending[0] == 0:
-                self.refreshing = False
-            self.dirty = True
+        rc = S.RefreshCounter(2, self, on_done=lambda: setattr(self, 'refreshing', False))
         def on_status(lines, err):
             if err:
                 self.err = f"status failed: {err}"
             else:
                 self.status = S.parse_kv(lines)
                 self.err = ""
-            complete()
         def on_logs(lines, err):
             if not err:
                 self.logs = S.clip_lines(lines, 200) if lines else []
-            complete()
-        S.run_cmd_bg("omd-settings-windows-vm", "status", callback=on_status)
-        S.run_cmd_bg("omd-settings-windows-vm", "logs", callback=on_logs)
+        S.run_cmd_bg("omd-settings-windows-vm", "status", callback=rc.cb(on_status))
+        S.run_cmd_bg("omd-settings-windows-vm", "logs", callback=rc.cb(on_logs))
 
     def run_action(self, action, *extra):
         self.busy = True
@@ -389,46 +382,37 @@ def view(stdscr, m):
     if not S.require_terminal_size(stdscr, 68, 18):
         return
 
-    S.draw_hero(stdscr, hero(m))
+    ly = S.Layout(stdscr)
+    ly.pad = 1          # match current margin=1 convention
+    ly.left_w = 34
+    ly.right_min = 30
+    ly.split_threshold = 92
+    ly.compute()
 
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
-    margin = 1
-    content_w = w - pad_x
-    avail_h = h - pad_y - hero_h - help_h
+    ly.draw_hero(stdscr, hero(m))
 
     ps = m.primary_state()
-    show_right = w >= 92 and (ps in ("booting", "ready", "stopped", "repair") or m.busy)
+    show_right = ly.show_right and (ps in ("booting", "ready", "stopped", "repair") or m.busy)
+
+    left_lines = render_left(m, ly.left_w - 4)
+    ly.draw_panel("left", "", left_lines, focus=True)
 
     if show_right:
-        left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=30)
-        top_h = avail_h
-    else:
-        left_w, right_w = content_w, 0
-        top_h = avail_h
-
-    left_lines = render_left(m, left_w - 4)
-    S.draw_thick_border(stdscr, hero_h, margin, top_h, left_w, "")
-    S.draw_lines_in_area(stdscr, hero_h, margin, top_h, left_w, left_lines)
-
-    if show_right:
-        right_lines = render_right(m, right_w - 4)
-        S.draw_thick_border(stdscr, hero_h, margin + left_w, top_h, right_w, "Container Logs")
-        inner_y = hero_h + 1
+        S.draw_thick_border(stdscr, ly.content_top, ly.right_x, ly.content_h, ly.right_w, "Container Logs")
+        right_lines = render_right(m, ly.right_w - 4)
+        inner_y = ly.content_top + 1
         for i, (tag, text) in enumerate(right_lines):
-            if i >= top_h - 2:
+            if i >= ly.content_h - 2:
                 break
-            S.safe_addstr(stdscr, inner_y + i, margin + left_w + 2, S.truncate(text, right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
+            S.safe_addstr(stdscr, inner_y + i, ly.right_x + 2, S.truncate(text, ly.right_w - 4), S.TAG_STYLE.get(tag, S.ATTR_TEXT))
 
         log_start_y = inner_y + len(right_lines)
-        log_h = top_h - 2 - len(right_lines)
+        log_h = ly.content_h - 2 - len(right_lines)
         if log_h > 0:
-            # draw_log_in_area expects (y, x, h, w) to be the box bounds
-            # (content begins one row down); we want content to start at
-            # log_start_y, so pass y = log_start_y - 1, h = log_h + 2.
-            S.draw_log_in_area(stdscr, log_start_y - 1, margin + left_w,
-                               log_h + 2, right_w, m.logs, m.scroll_offset)
+            S.draw_log_in_area(stdscr, log_start_y - 1, ly.right_x,
+                               log_h + 2, ly.right_w, m.logs, m.scroll_offset)
 
-    S.draw_help_bar(stdscr, *help_items(m))
+    ly.draw_help(stdscr, *help_items(m))
     S.finish_frame(stdscr)
 
 
@@ -491,23 +475,8 @@ def handle_key(stdscr, m, key):
     ps = m.primary_state()
     if key == ord('r'):
         m.refresh()
-    elif key in (curses.KEY_UP, ord('k')):
-        m.scroll_offset += 3
-        m.dirty = True
-    elif key in (curses.KEY_DOWN, ord('j')):
-        m.scroll_offset = max(0, m.scroll_offset - 3)
-        m.dirty = True
-    elif key == curses.KEY_PPAGE:
-        m.scroll_offset += 10
-        m.dirty = True
-    elif key == curses.KEY_NPAGE:
-        m.scroll_offset = max(0, m.scroll_offset - 10)
-        m.dirty = True
-    elif key == curses.KEY_HOME:
-        m.scroll_offset = 999999
-        m.dirty = True
-    elif key == curses.KEY_END:
-        m.scroll_offset = 0
+    elif (sr := S.scroll_key(key, m.scroll_offset, page_size=3)) is not None:
+        delta, m.scroll_offset = sr
         m.dirty = True
     elif key == ord('\n'):
         actions = {
@@ -543,4 +512,5 @@ def main(stdscr):
     )
 
 if __name__ == "__main__":
+    S.setup_locale()
     curses.wrapper(main)

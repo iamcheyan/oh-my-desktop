@@ -46,25 +46,15 @@ class Model(S.StatusModel):
             return
         self.refreshing = True
         self.dirty = True
-        pending = [1]
-
-        def complete():
-            pending[0] -= 1
-            if pending[0] == 0:
-                self.refreshing = False
-            self.dirty = True
-
+        rc = S.RefreshCounter(1, self, on_done=lambda: setattr(self, 'refreshing', False))
         def on_status(lines, err):
             if err:
                 self.err = f"status failed: {err}"
-                complete()
                 return
             self.status = S.parse_kv(lines)
             self.setup_phase = self.val("setup.phase", "")
             self.setup_message = self.val("setup.message", "")
-            complete()
-
-        S.run_cmd_bg("omd-settings-ocr", "status", callback=on_status)
+        S.run_cmd_bg("omd-settings-ocr", "status", callback=rc.cb(on_status))
 
     def run_action(self, action):
         if action == "setup":
@@ -306,83 +296,68 @@ def help_items(model):
 # ── layout ───────────────────────────────────────────────────────────────
 
 def view(stdscr, model):
-    stdscr.erase()
     h, w = stdscr.getmaxyx()
     model.width = w
     model.height = h
+    stdscr.erase()
 
     if not S.require_terminal_size(stdscr, 64, 18):
         return
 
-    hero = hero_info(model)
-    S.draw_hero(stdscr, hero)
-    used_rows = 3
+    ly = S.Layout(stdscr)
+    ly.pad = 2
+    ly.left_w = 36
+    ly.split_threshold = 84   # min width for two columns (left_w + gap + right_min)
+    ly.compute()
 
-    # Split: left column (package status + actions) ~34ch, right fills rest
-    left_w = 36
-    right_w = w - left_w - 3
-    if right_w < 24:
-        right_w = 24
-        left_w = w - right_w - 3
+    ly.draw_hero(stdscr, hero_info(model))
 
-    left_x = 2
-    right_x = left_x + left_w + 1
+    l_lines = render_package_status(model, ly.left_w)
+    r_lines = render_right_panel(model, ly.right_w) if ly.show_right else []
 
-    l_lines = render_package_status(model, left_w)
-    r_lines = render_right_panel(model, right_w)
-
-    # Determine how many rows each side has
     l_h = len(l_lines)
     r_h = len(r_lines)
 
-    # Log area: remaining rows
-    log_h = h - used_rows - max(l_h, r_h) - 2
+    # Log area: remaining rows after content boxes
+    log_h = ly.content_h - max(l_h, r_h) - 2
     if log_h < 4:
         log_h = 4
-    if h - used_rows - log_h - 4 < 1:
-        log_h = h - used_rows - 5
+    if ly.content_h - log_h - 4 < 1:
+        log_h = ly.content_h - 5
 
-    # Draw left box
-    box_h = h - used_rows - log_h - 2
+    # Content boxes (both same height)
+    box_h = ly.content_h - log_h - 2
     if box_h < 1:
         box_h = 1
-    S.draw_border(stdscr, used_rows + 1, left_x, box_h, left_w, "Status")
 
-    # Draw right box (same height as left)
-    S.draw_border(stdscr, used_rows + 1, right_x, box_h, right_w, "Details")
-
-    # Draw content inside boxes
-    visible_l = min(len(l_lines), box_h - 2)
-    visible_r = min(len(r_lines), box_h - 2)
-
+    S.draw_border(stdscr, ly.content_top, ly.left_x, box_h, ly.left_w, "Status")
+    visible_l = min(l_h, box_h - 2)
     for i in range(visible_l):
         tag, text = l_lines[i]
-        y = used_rows + 2 + i
-        attr = S.TAG_STYLE.get(tag, S.TAG_STYLE["text"])
-        S.safe_addstr(stdscr, y, left_x + 2, S.truncate(text, left_w - 2), attr)
+        attr = S.TAG_STYLE.get(tag, S.ATTR_TEXT)
+        S.safe_addstr(stdscr, ly.content_top + 1 + i, ly.left_x + 2, S.truncate(text, ly.left_w - 2), attr)
 
-    for i in range(visible_r):
-        tag, text = r_lines[i]
-        y = used_rows + 2 + i
-        attr = S.TAG_STYLE.get(tag, S.TAG_STYLE["text"])
-        S.safe_addstr(stdscr, y, right_x + 2, S.truncate(text, right_w - 2), attr)
+    if ly.show_right:
+        S.draw_border(stdscr, ly.content_top, ly.right_x, box_h, ly.right_w, "Details")
+        visible_r = min(r_h, box_h - 2)
+        for i in range(visible_r):
+            tag, text = r_lines[i]
+            attr = S.TAG_STYLE.get(tag, S.ATTR_TEXT)
+            S.safe_addstr(stdscr, ly.content_top + 1 + i, ly.right_x + 2, S.truncate(text, ly.right_w - 2), attr)
 
-    # Log area
-    log_y = used_rows + box_h + 2
+    # Log area spans full width
+    log_y = ly.content_top + box_h + 2
     if log_y + log_h < h:
-        S.draw_border(stdscr, log_y, left_x, log_h, w - 4, "Console Logs")
-        log_lines = render_log(model, w - 4, log_h)
-        S.draw_log_in_area(stdscr, log_y, left_x, log_h, w - 4, log_lines,
+        full_w = w - 2 * ly.pad
+        S.draw_border(stdscr, log_y, ly.pad, log_h, full_w, "Console Logs")
+        log_lines = render_log(model, full_w, log_h)
+        S.draw_log_in_area(stdscr, log_y, ly.pad, log_h, full_w, log_lines,
                            scroll_offset=model.scroll_offset)
-        # Scroll hint
         if len(model.logs) > log_h - 2:
             hint = f"({model.scroll_offset + 1}/{len(model.logs)})"
-            S.safe_addstr(stdscr, log_y + 1, w - len(hint) - 4, hint, S.ATTR_MUTED)
+            S.safe_addstr(stdscr, log_y + 1, w - len(hint) - ly.pad - 2, hint, S.ATTR_MUTED)
 
-    # Help bar
-    generic, tool = help_items(model)
-    S.draw_help_bar(stdscr, generic, tool)
-
+    ly.draw_help(stdscr, *help_items(model))
     S.finish_frame(stdscr)
 
 
@@ -416,32 +391,17 @@ def handle_key(stdscr, model, key):
         return True
 
     # Scrolling
-    elif key == curses.KEY_UP:
-        model.scroll_offset = min(model.scroll_offset + 1, max_offset)
+    elif (sr := S.scroll_key(key, model.scroll_offset, page_size=1, max_offset=len(model.logs))) is not None:
+        _, model.scroll_offset = sr
         model.dirty = True
-    elif key == curses.KEY_DOWN:
-        model.scroll_offset = max(model.scroll_offset - 1, 0)
-        model.dirty = True
-    elif key == curses.KEY_PPAGE:
-        model.scroll_offset = min(model.scroll_offset + 10, max_offset)
-        model.dirty = True
-    elif key == curses.KEY_NPAGE:
-        model.scroll_offset = max(model.scroll_offset - 10, 0)
-        model.dirty = True
-
     # Mouse
     elif key == curses.KEY_MOUSE:
         me = S.get_mouse_event()
         if me:
             dx, dy = S.mouse_wheel_delta(me)
-            if dy < 0:
-                model.scroll_offset = min(model.scroll_offset + 3, max_offset)
+            if dy is not None:
+                model.scroll_offset = max(0, min(model.scroll_offset + dy, max_offset))
                 model.dirty = True
-            elif dy > 0:
-                model.scroll_offset = max(model.scroll_offset - 3, 0)
-                model.dirty = True
-
-    return True
 
 
 def main(stdscr):
@@ -459,4 +419,5 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
+    S.setup_locale()
     curses.wrapper(main)

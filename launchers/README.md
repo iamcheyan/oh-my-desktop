@@ -1,65 +1,66 @@
-# Custom Launchers
-
-This directory holds custom desktop entries that show up in the OMD App
-Launcher. Each entry is a standard `.desktop` file; the install script copies
-them into `~/.local/share/applications/`, which the launcher's cache already
-scans — no QML changes needed.
+# Sumika Shell — Custom Launchers
+#
+# This directory holds personal desktop entries.  The .desktop files reference
+# scripts from ~/.config/sumika-shell/scripts/ and icons from
+# ~/.config/sumika-shell/launchers/icons/.
+#
+# Init.sh's install_custom_launchers() copies these to
+# ~/.local/share/applications/ on each setup or --runtime-only run.
+#
+# Personal scripts are managed through chezmoi at ~/.config/sumika-shell/scripts/
+# and are NOT tracked in the Sumika Shell repository.
 
 ## Layout
 
 ```
 launchers/
 ├── README.md                 This file
+├── keepassxc.desktop         Example entry
 ├── remote-desktop.desktop    Example entry
+├── wechat.desktop            Example entry
+├── wps.desktop               Example entry
 └── icons/
-    └── remote-desktop.png    Icons referenced by entries (use $HOME paths)
+    ├── keepassxc.png
+    ├── remote-desktop.png
+    ├── wechat.png
+    └── wps.png
 ```
 
 ## Adding a new launcher
 
-1. Drop a `.desktop` file in this directory. Reference repo paths with
-   `$HOME/.config/omd/...` — the install script expands `$HOME` to the real
-   home directory.
+1. Drop a `.desktop` file in this directory with these paths (Init.sh expands $HOME):
 
    ```desktop
    [Desktop Entry]
    Name=My App
    Comment=Short description
-   Exec=$HOME/.config/omd/scripts/my-app
-   Icon=$HOME/.config/omd/launchers/icons/my-app.png
+   Exec=$HOME/.config/sumika-shell/scripts/my-app
+   Icon=$HOME/.config/sumika-shell/launchers/icons/my-app.png
    Terminal=false
    Type=Application
    Categories=System;Utility;
    ```
 
-2. Put the icon in `launchers/icons/` and point `Icon=` at it.
+2. Put the icon in `icons/` and the launch script in `~/.config/sumika-shell/scripts/`.
 
-3. Install it:
+3. Run `Init.sh --runtime-only` to install to `~/.local/share/applications/`.
 
-   ```sh
-   ./scripts/install-launchers
-   ```
-
-   Use `--dry` to preview without writing:
-
-   ```sh
-   ./scripts/install-launchers --dry
-   ```
-
-The App Launcher refreshes its cache on next open (or in the background shortly
-after opening), so new entries appear automatically.
+The App Launcher refreshes its cache on next open, so new entries appear
+automatically.
 
 ## How it works
 
-- `scripts/install-launchers` copies every `launchers/*.desktop` into
-  `~/.local/share/applications/`, expanding `$HOME`, and copies
-  `launchers/icons/*` into `~/.local/share/applications/icons/`.
-- `Init.sh` calls `install_custom_launchers` on first setup and on
-  `--runtime-only` re-runs, so re-running `./Init.sh --runtime-only` refreshes
-  all entries after you add or edit them.
+- `Init.sh`'s install_custom_launchers() copies every `launchers/*.desktop`
+  into `~/.local/share/applications/`, expanding `$HOME`, and copies icons
+  into `~/.local/share/applications/icons/`.
+- Personal scripts must be placed in `~/.config/sumika-shell/scripts/` by the
+  user or via chezmoi.  The repository only ships the .desktop source definitions.
 
-## Example
+## Existing launchers
 
-`remote-desktop.desktop` launches `scripts/remote-desktop` (RDP to
-192.168.3.65). After `./scripts/install-launchers` it appears in the App
-Launcher as "Remote Desktop".
+| .desktop | Script | Purpose |
+|----------|--------|---------|
+| `keepassxc.desktop` | `~/.config/sumika-shell/scripts/keepassxc` | KeePassXC via Flatpak |
+| `remote-desktop.desktop` | `~/.config/sumika-shell/scripts/remote-desktop` | RDP to 192.168.3.65 |
+| `wechat.desktop` | `~/.config/sumika-shell/scripts/wechat` | WeChat via Flatpak |
+| `wps.desktop` | `~/.config/sumika-shell/scripts/wps` | WPS 365 via Flatpak |

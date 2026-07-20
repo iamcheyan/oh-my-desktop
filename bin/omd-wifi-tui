@@ -540,7 +540,10 @@ class WiFiTUI:
                 self.status_msg = f"{n} network{'s' if n != 1 else ''} found"
 
     def _init_curses(self):
-        curses.curs_set(0)
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
         curses.noecho()
         curses.cbreak()
         self.stdscr.keypad(True)
@@ -853,63 +856,6 @@ class WiFiTUI:
         self.stdscr.refresh()
 
     @staticmethod
-    def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
-        n = len(col_widths)
-        if n == 0:
-            return []
-        total = sum(col_widths)
-        free = max(0, inner_w - total)
-        unit = free / n
-        offsets = []
-        x = unit / 2.0
-        for cw in col_widths:
-            offsets.append(int(round(x)))
-            x += cw + unit
-        return offsets
-
-    def _put_row_cells(self, y, x, inner_w, cells: list[str], widths: list[int], attr):
-        try:
-            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
-        except curses.error:
-            pass
-        offsets = self._space_around(inner_w, widths)
-        for cell, off, cw in zip(cells, offsets, widths):
-            text = self._clip(cell, cw)
-            try:
-                self.stdscr.addnstr(y, x + off, text, cw, attr)
-            except curses.error:
-                pass
-
-    @staticmethod
-    def _clip(s: str, width: int) -> str:
-        if width <= 0:
-            return ""
-        if len(s) > width:
-            return s[: max(0, width - 1)] + "…" if width > 1 else s[:width]
-        return s.ljust(width)
-
-    def _header_attr(self, focused: bool):
-        return S.ATTR_SECTION
-
-    def _sel_attr(self, selected: bool, focused_section: bool):
-        if selected and focused_section:
-            return S.ATTR_FOCUS
-        return curses.A_NORMAL
-
-    def _draw_row(self, y, x, inner_w, cells, widths, offsets, attr):
-        """Fill row background then place cells at given offsets (compact layout)."""
-        try:
-            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
-        except curses.error:
-            pass
-        for cell, off, cw in zip(cells, offsets, widths):
-            text = self._clip(cell, cw)
-            try:
-                self.stdscr.addnstr(y, x + off, text, cw, attr)
-            except curses.error:
-                pass
-
-    @staticmethod
     def _calc_network_columns(w: int) -> tuple[list[int], list[int]]:
         """Calculate unified 5-column widths and offsets for network tables.
 
@@ -960,13 +906,13 @@ class WiFiTUI:
         headers = ["SSID", "Security", "Signal", "AutoConnect", "Status"]
 
         focused = self.focus == F_SAVED
-        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
+        S.draw_row(self.stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
         for i, d in enumerate(saved[:max_rows]):
             is_sel = focused and i == self.selected
-            attr = self._sel_attr(is_sel, focused)
+            attr = S.sel_attr(is_sel, focused)
             status = "connected" if d["connected"] else "saved"
             sig_val = d.get("signal", -1)
             signal_str = signal_rating(sig_val) if sig_val >= 0 else "--"
@@ -977,7 +923,7 @@ class WiFiTUI:
                 ssid = f"{UNLOCK_ICON} {d['ssid']}"
             auto_str = d.get("autoconnect", "yes")
             cells = [ssid, sec_str, signal_str, auto_str, status]
-            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
+            S.draw_row(self.stdscr, row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_available_table(self, y, x, h, w, available: list[dict]):
         if h < 1 or w < 8:
@@ -986,13 +932,13 @@ class WiFiTUI:
         headers = ["SSID", "Security", "Signal", "AutoConnect", "Status"]
 
         focused = self.focus == F_AVAILABLE
-        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
+        S.draw_row(self.stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
         for i, d in enumerate(available[:max_rows]):
             is_sel = focused and i == self.selected
-            attr = self._sel_attr(is_sel, focused)
+            attr = S.sel_attr(is_sel, focused)
             lock = security_icon(d["security"])
             ssid = f"{lock} {d['ssid']}"
             sec = d["security"] if d["security"] else "Open"
@@ -1002,7 +948,7 @@ class WiFiTUI:
             stat_str = f"ch {chan} {in_use_str}".strip() if chan else ("connected" if d.get("in_use") else "--")
             auto_str = "--"
             cells = [ssid, sec, signal, auto_str, stat_str]
-            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
+            S.draw_row(self.stdscr, row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_status_table(self, y, x, h, w):
         if h < 1 or w < 8:
@@ -1018,7 +964,7 @@ class WiFiTUI:
                         break
 
         focused = self.focus == F_STATUS
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        S.put_row_cells(self.stdscr, y, x, w, headers, widths, S.header_attr(focused))
         if h < 3:
             return
         if self.status:
@@ -1029,8 +975,8 @@ class WiFiTUI:
                 s["active"],
                 s["ip"],
             ]
-            attr = self._sel_attr(True, focused) if focused else curses.A_NORMAL
-            self._put_row_cells(y + 2, x, w, cells, widths, attr)
+            attr = S.sel_attr(True, focused) if focused else curses.A_NORMAL
+            S.put_row_cells(self.stdscr, y + 2, x, w, cells, widths, attr)
 
 
     def _draw_password_prompt(self, h: int, w: int):
@@ -1042,27 +988,13 @@ class WiFiTUI:
             "┃  Enter password, Esc to cancel    ┃",
             "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
         ]
-        attr = S.ATTR_ACCENT_BOLD
-        box_h = len(lines)
-        box_w = max(len(l) for l in lines)
-        top = (h - box_h) // 2
-        left = max(0, (w - box_w) // 2)
-        for i, line in enumerate(lines):
-            try:
-                self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), attr)
-            except curses.error:
-                pass
+        S.draw_dialog(self.stdscr, lines)
 
 
 # ── main ──────────────────────────────────────────────────────────────
 
 def _force_narrow_ambiguous_locale():
-    for loc in ("C.UTF-8", "en_US.UTF-8", "C"):
-        try:
-            locale.setlocale(locale.LC_CTYPE, loc)
-            return
-        except locale.Error:
-            continue
+    S.setup_locale()
 
 
 def main():

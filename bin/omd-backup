@@ -4,16 +4,24 @@
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-OLD_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/backup"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/file-share-backup"
-OLD_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/backup"
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/file-share-backup"
+. "$OMD_ROOT/lib/paths.sh"
 
-if [[ -d "$OLD_CONFIG_DIR" && ! -d "$CONFIG_DIR" ]]; then
-  mv "$OLD_CONFIG_DIR" "$CONFIG_DIR" 2>/dev/null || true
+# Canonical paths (Sumika Shell)
+CONFIG_DIR="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/file-share-backup"
+STATE_DIR="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/file-share-backup"
+
+# Legacy fallback paths for reads (removed in Phase 7)
+_LEGACY_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omd/file-share-backup"
+_LEGACY_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/file-share-backup"
+
+# Migrate legacy data to new location if not yet migrated
+if [[ -d "$_LEGACY_CONFIG_DIR" && ! -d "$CONFIG_DIR" ]]; then
+  mkdir -p "$(dirname "$CONFIG_DIR")"
+  mv "$_LEGACY_CONFIG_DIR" "$CONFIG_DIR" 2>/dev/null || true
 fi
-if [[ -d "$OLD_STATE_DIR" && ! -d "$STATE_DIR" ]]; then
-  mv "$OLD_STATE_DIR" "$STATE_DIR" 2>/dev/null || true
+if [[ -d "$_LEGACY_STATE_DIR" && ! -d "$STATE_DIR" ]]; then
+  mkdir -p "$(dirname "$STATE_DIR")"
+  mv "$_LEGACY_STATE_DIR" "$STATE_DIR" 2>/dev/null || true
 fi
 
 CONFIG_FILE="$CONFIG_DIR/config.json"
@@ -45,6 +53,8 @@ cmd="${1:-}"; shift || true
 load_config() {
   if [[ -f "$CONFIG_FILE" ]]; then
     cat "$CONFIG_FILE"
+  elif [[ -f "$_LEGACY_CONFIG_DIR/config.json" ]]; then
+    cat "$_LEGACY_CONFIG_DIR/config.json"
   else
     echo '{"address":"","share":"","user":"","password":"","remotePath":"","localPath":"","includeExt":"","excludeExt":"","scheduleType":"manual","scheduleValue":""}'
   fi

@@ -104,10 +104,10 @@ Do not show separate “Engine state: idle” rows once the hero covers it.
 File of record remains:
 
 ```text
-~/.config/omd/config/voice_bindings.txt
+~/.config/voice_bindings.txt
 ```
 
-(Hyprland loads the same path via `hypr/bindings.lua`.)
+(Hyprland loads the same path via `hypr/bindings.lua` from `~/.config/voice_bindings.txt`.)
 
 UI requirements:
 
@@ -205,7 +205,7 @@ Windows VM styling; no fake status pills.
 | --- | --- |
 | `quickshell/modules/settings/pages/VoicePage.qml` | Main UI rewrite |
 | `quickshell/services/VoiceInput.qml` | Existing state machine (extend only if setup/checklist need it) |
-| `~/.config/omd/config/voice_bindings.txt` | Bindings storage |
+| `~/.config/voice_bindings.txt` | Bindings storage |
 | `hypr/bindings.lua` | Loads bindings after reload |
 | `scripts/voice-bind-tui` | Advanced bindings editor |
 | `scripts/key-test-launcher` / `key-test` | Capture path |

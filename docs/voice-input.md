@@ -167,7 +167,7 @@ Design rationale for separate recording vs transcribing icons:
 Additional bindings are read from:
 
 ```sh
-~/.config/omd/config/voice_bindings.txt
+~/.config/voice_bindings.txt
 ```
 
 Edit them in Settings Center (Voice page) or through `scripts/voice-bind-tui`. The capture tool uses `scripts/key-test --hotkey`, so it captures the final key after keyd remaps rather than the physical source key.
@@ -225,7 +225,7 @@ Correct workflow:
 Do not manually save `TOOLS`; Hyprland reports `Unknown keysym: "TOOLS"`. If this happens, replace it with `XF86Tools` and reload:
 
 ```sh
-sed -i 's/^TOOLS$/XF86Tools/' ~/.config/omd/config/voice_bindings.txt
+sed -i 's/^TOOLS$/XF86Tools/' ~/.config/voice_bindings.txt
 hyprctl reload
 ```
 
@@ -304,7 +304,7 @@ Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
 
 ## Related Files
 
-- `hypr/bindings.lua` — key bindings definitions (reads `config/voice_bindings.txt`)
+- `hypr/bindings.lua` — key bindings definitions (reads `~/.config/voice_bindings.txt`)
 - `hypr/looknfeel.lua` — window floating rules
 - `quickshell/services/VoiceInput.qml` — voice service state machine
 - `quickshell/modules/bar/modules/AudioButton.qml` — combined bar audio/voice button

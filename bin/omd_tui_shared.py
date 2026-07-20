@@ -8,6 +8,7 @@ render identically to the Go version.
 """
 
 import curses
+import locale
 import os
 import queue
 import subprocess
@@ -213,6 +214,7 @@ ATTR_PRIMARY = 0
 ATTR_DANGER_ACTION = 0
 ATTR_OK_BOLD = 0
 ATTR_ACCENT_BOLD = 0
+ATTR_FOCUS_BORDER = 0
 TAG_STYLE    = {}
 
 # ── backend ──────────────────────────────────────────────────────────────
@@ -412,6 +414,65 @@ def draw_thick_border(win, y, x, h, w, title=""):
         safe_addstr(win, y+i, x+w-1, "│", ATTR_FOCUS_BORDER)
     safe_addstr(win, y+h-1, x, "╰" + "─"*(w-2) + "╯", ATTR_FOCUS_BORDER)
 
+# ── table rendering (shared by wifi-tui, bluetooth-tui) ─────────────────
+def space_around(inner_w: int, col_widths: list[int]) -> list[int]:
+    """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
+    n = len(col_widths)
+    if n == 0:
+        return []
+    total = sum(col_widths)
+    free = max(0, inner_w - total)
+    unit = free / n
+    offsets = []
+    x = unit / 2.0
+    for cw in col_widths:
+        offsets.append(int(round(x)))
+        x += cw + unit
+    return offsets
+
+
+def clip_cell(s: str, width: int) -> str:
+    """Pad/truncate string to display width, best-effort for wide glyphs."""
+    if width <= 0:
+        return ""
+    if len(s) > width:
+        return s[: max(0, width - 1)] + "\u2026" if width > 1 else s[:width]
+    return s.ljust(width)
+
+
+def draw_row(win, y: int, x: int, inner_w: int, cells: list[str],
+             widths: list[int], offsets: list[int], attr: int):
+    """Paint a full-width row: fill bg then place cells at given offsets."""
+    try:
+        win.addnstr(y, x, " " * inner_w, inner_w, attr)
+    except curses.error:
+        pass
+    for cell, off, cw in zip(cells, offsets, widths):
+        text = clip_cell(cell, cw)
+        try:
+            win.addnstr(y, x + off, text, cw, attr)
+        except curses.error:
+            pass
+
+
+def put_row_cells(win, y: int, x: int, inner_w: int, cells: list[str],
+                  widths: list[int], attr: int):
+    """Same as draw_row but auto-computes SpaceAround offsets."""
+    offsets = space_around(inner_w, widths)
+    draw_row(win, y, x, inner_w, cells, widths, offsets, attr)
+
+
+def header_attr(focused: bool) -> int:
+    """Table header attribute — section-style regardless of focus."""
+    return ATTR_SECTION
+
+
+def sel_attr(selected: bool, focused_section: bool) -> int:
+    """Row selection attribute."""
+    if selected and focused_section:
+        return ATTR_FOCUS
+    return ATTR_TEXT
+
 def draw_lines_in_area(win, y, x, h, w, tagged_lines):
     inner_y = y + 1
     inner_h = h - 2
@@ -420,6 +481,26 @@ def draw_lines_in_area(win, y, x, h, w, tagged_lines):
         if i >= inner_h:
             break
         safe_addstr(win, inner_y + i, x + 2, truncate(text, inner_w), TAG_STYLE.get(tag, ATTR_TEXT))
+
+def draw_dialog(stdscr, lines, attr=None):
+    """Draw a centered overlay dialog.
+
+    *lines* is a list of strings forming the dialog box (including box-drawing
+    characters).  The box is centred horizontally and vertically inside the
+    terminal; *attr* defaults to ``ATTR_ACCENT_BOLD``.
+    """
+    if attr is None:
+        attr = ATTR_ACCENT_BOLD
+    h, w = stdscr.getmaxyx()
+    box_h = len(lines)
+    box_w = max(text_width(l) for l in lines)
+    top = (h - box_h) // 2
+    left = max(0, (w - box_w) // 2)
+    for i, line in enumerate(lines):
+        try:
+            stdscr.addnstr(top + i, left, line, min(len(line), w - left), attr)
+        except curses.error:
+            pass
 
 def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0, empty_text="(no activity yet)"):
     inner_y = y + 1
@@ -455,6 +536,7 @@ def draw_log_in_area(win, y, x, h, w, logs, scroll_offset=0, empty_text="(no act
         for i in range(inner_h):
             ch = "┃" if bar_pos <= i < bar_pos + bar_h else "│"
             safe_addstr(win, inner_y + i, x + w - 2, ch, ATTR_SUBTLE)
+
 def help_text(items):
     parts = []
     for k, l in items:
@@ -511,6 +593,50 @@ class StatusModel:
             self.logs = self.logs[-200:]
         self.scroll_offset = 0
         self.dirty = True
+
+class RefreshCounter:
+    """Simplifies the pending-fetch-counter pattern in StatusModel.refresh().
+
+    Usage::
+
+        rc = RefreshCounter(3, model, on_done=lambda: setattr(model, 'refreshing', False))
+        S.run_cmd_bg("cmd1", callback=rc.cb(on_status))
+        S.run_cmd_bg("cmd2", callback=rc.cb(on_devices))
+        S.run_cmd_bg("cmd3", callback=rc.cb(on_fnmode))
+
+    Each ``.cb(handler)`` returns a ``(lines, err)`` callback that calls
+    *handler* (if given), decrements the counter, invokes *on_done* when
+    exhausted, and sets ``model.dirty = True``.
+
+    .. note::
+        The callback **does not** call ``model.append_log()`` — the handler
+        is responsible for any log/error recording.
+    """
+
+    def __init__(self, count, model, *, on_done=None):
+        self._remaining = count
+        self._model = model
+        self._on_done = on_done
+
+    def cb(self, handler=None):
+        """Return a ``(lines, err)`` callback that matches ``run_cmd_bg``.
+
+        If *handler* is provided it is called **before** the counter is
+        decremented so it can read fields set by the handler.
+        """
+        _remaining = self
+        _model = self._model
+        _on_done = self._on_done
+
+        def _cb(lines, err):
+            if handler:
+                handler(lines, err)
+            _remaining._remaining -= 1
+            if _remaining._remaining <= 0 and _on_done:
+                _on_done()
+            _model.dirty = True
+
+        return _cb
 
 
 
@@ -763,6 +889,22 @@ def expand_path(path):
         return ""
     return os.path.expanduser(os.path.expandvars(path))
 
+def setup_locale():
+    """Set LC_ALL/LANG defaults and narrow ambiguous-width handling.
+
+    Call near the top of ``main()`` in every TUI that uses box-drawing
+    characters — prevents CJK locales from treating them as double-width.
+    Must run before ``curses.initscr()``.
+    """
+    for loc in ("C.UTF-8", "en_US.UTF-8", "C"):
+        try:
+            locale.setlocale(locale.LC_CTYPE, loc)
+            break
+        except locale.Error:
+            continue
+    os.environ.setdefault("LC_ALL", "C.UTF-8")
+    os.environ.setdefault("LANG", "C.UTF-8")
+
 # ── mouse helpers ─────────────────────────────────────────────────────────
 def enable_mouse():
     try:
@@ -817,6 +959,46 @@ def mouse_wheel_delta(me, step=3):
         return -step
     return None
 
+def scroll_key(key, scroll_offset, *, page_size=10, max_offset=None):
+    """Process scroll-related key presses and return ``(delta, new_offset)``.
+
+    Handles ``KEY_UP`` (increase offset), ``KEY_DOWN`` (decrease),
+    ``KEY_PPAGE`` (page up), ``KEY_NPAGE`` (page down), ``KEY_HOME`` (max),
+    and ``KEY_END`` (zero).  Returns ``(delta, new_offset)`` on match or
+    ``None`` if *key* is not a scroll key.
+
+    Usage::
+
+        r = S.scroll_key(key, model.scroll_offset)
+        if r is not None:
+            delta, model.scroll_offset = r
+            model.dirty = True
+            return True
+    """
+    if key in (curses.KEY_UP, ord('k')):
+        delta = page_size
+        new_val = scroll_offset + delta
+    elif key in (curses.KEY_DOWN, ord('j')):
+        delta = -page_size
+        new_val = max(0, scroll_offset - page_size)
+    elif key == curses.KEY_PPAGE:
+        delta = page_size * 3
+        new_val = scroll_offset + page_size * 3
+    elif key == curses.KEY_NPAGE:
+        delta = -(page_size * 3)
+        new_val = max(0, scroll_offset - page_size * 3)
+    elif key == curses.KEY_HOME:
+        delta = 999999
+        new_val = delta
+    elif key == curses.KEY_END:
+        delta = -scroll_offset
+        new_val = 0
+    else:
+        return None
+    if max_offset is not None:
+        new_val = min(new_val, max_offset)
+    return delta, new_val
+
 def hit_test(plain_lines, click_x, click_y, text):
     """Check if click_x,click_y falls within text in plain_lines at click_y."""
     if click_y < 0 or click_y >= len(plain_lines):
@@ -848,3 +1030,149 @@ def get_plain_lines(stdscr):
         except curses.error:
             lines.append("")
     return lines
+
+# ── layout template ─────────────────────────────────────────────────────
+
+class Layout:
+    """Standard two-panel layout for OMD settings TUIs.
+
+    Creates a consistent screen partition every TUI follows:
+    hero header -> left/right content panels -> help bar.
+
+    Customize by overriding these attributes before ``compute()``:
+
+    * ``pad`` (2) — horizontal & vertical screen margin
+    * ``hero_h`` (2) — hero banner height
+    * ``help_h`` (1) — help bar height
+    * ``gap`` (1) — gap between left/right panels
+    * ``left_w`` (34) — left panel width
+    * ``right_min`` (28) — minimum right panel width
+    * ``split_threshold`` (80) — minimum terminal width to show two panels
+    * ``force_single`` (False) — force single-column even when wide enough
+
+    After ``compute()`` the following are populated:
+
+    * ``content_top``, ``content_h``, ``content_w`` — content area
+    * ``show_right`` — whether right panel is visible
+    * ``left_x/y/h/w``, ``right_x/y/h/w`` — panel rectangles
+
+    Usage in ``_view()``::
+
+        ly = S.Layout(stdscr)
+        ly.force_single = True    # single-column mode
+        ly.compute()
+        ly.draw_hero(stdscr, hero_lines)
+        ly.draw_panel("left", "Settings", settings_lines, focus=True)
+        ...
+        ly.draw_help(stdscr, *help_items(m))
+    """
+
+    __slots__ = (
+        "stdscr", "h", "w",
+        "pad", "hero_h", "help_h", "gap",
+        "left_w", "right_min", "split_threshold", "force_single",
+        "content_top", "content_h", "content_w",
+        "show_right",
+        "left_x", "left_y", "left_h", "left_right_x",
+        "right_x", "right_y", "right_w", "right_h",
+    )
+
+    def __init__(self, stdscr):
+        self.stdscr = stdscr
+        self.h, self.w = stdscr.getmaxyx()
+        # defaults (override before calling compute())
+        self.pad = 2
+        self.hero_h = 2
+        self.help_h = 1
+        self.gap = 1
+        self.left_w = 34
+        self.right_min = 28
+        self.split_threshold = 80
+        self.force_single = False
+
+    def compute(self):
+        """Calculate all geometry from current terminal size and parameters."""
+        h, w = self.h, self.w
+        self.content_top = self.hero_h + self.pad
+        self.content_w = w - 2 * self.pad
+        self.content_h = h - self.content_top - self.help_h
+
+        if self.force_single or self.content_w < self.left_w + self.gap + self.right_min:
+            self.show_right = False
+            self.left_w = self.content_w      # expand to fill
+        else:
+            self.show_right = True
+            rw = self.content_w - self.left_w - self.gap
+            self.right_w = max(self.right_min, rw)
+            self.right_x = self.pad + self.left_w + self.gap
+            self.right_y = self.content_top
+            self.right_h = self.content_h
+
+        self.left_y = self.content_top
+        self.left_x = self.pad
+        self.left_h = self.content_h
+
+    # -- drawing helpers --------------------------------------------------
+
+    @staticmethod
+    def draw_hero(stdscr, hero_data):
+        """Draw hero header at the top of the screen."""
+        import omd_tui_shared as _S
+        _S.draw_hero(stdscr, hero_data)
+
+    @staticmethod
+    def draw_help(stdscr, generic, tool):
+        """Draw help bar at the bottom of the screen."""
+        draw_help_bar(stdscr, generic, tool)
+
+    def _draw_box(self, y, x, h, w, title, focus):
+        if focus:
+            draw_thick_border(self.stdscr, y, x, h, w, title)
+        else:
+            draw_border(self.stdscr, y, x, h, w, title)
+
+    def draw_panel(self, side, title, tagged_lines, *, focus=False):
+        """Draw a bordered panel with tagged content lines.
+
+        *side* is ``"left"`` or ``"right"``.  Does nothing for ``"right"``
+        when *show_right* is False.
+        """
+        if side == "left":
+            y, x, h, w = self.left_y, self.left_x, self.left_h, self.left_w
+        elif side == "right":
+            if not self.show_right:
+                return
+            y, x, h, w = self.right_y, self.right_x, self.right_h, self.right_w
+        else:
+            raise ValueError(f"Layout.draw_panel: unknown side {side!r}")
+
+        self._draw_box(y, x, h, w, title, focus)
+        draw_lines_in_area(self.stdscr, y, x, h, w, tagged_lines)
+
+    def inner_rect(self, side):
+        """Return ``(y, x, h, w)`` of the *text area* inside a panel."""
+        if side == "left":
+            y, x, h, w = self.left_y, self.left_x, self.left_h, self.left_w
+        elif side == "right":
+            if not self.show_right:
+                return (0, 0, 0, 0)
+            y, x, h, w = self.right_y, self.right_x, self.right_h, self.right_w
+        else:
+            raise ValueError(f"Layout.inner_rect: unknown side {side!r}")
+        return (y + 1, x + 2, h - 2, w - 4)
+
+
+def handle_tab(key, model, field="focus", count=2):
+    """Process Tab key -> cycle *field* on *model* between 0 .. *count*-1.
+
+    Returns ``True`` when Tab was consumed.  Typical usage in ``handle_key``::
+
+        if S.handle_tab(key, m):
+            return True
+    """
+    if key == ord("\t"):
+        cur = getattr(model, field, 0)
+        setattr(model, field, (cur + 1) % count)
+        model.dirty = True
+        return True
+    return False

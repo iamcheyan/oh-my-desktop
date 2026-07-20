@@ -80,12 +80,7 @@ symlink targets.
 │   ├── default/                Default Omarchy Hyprland modules (loaded by hyprland.lua)
 │   └── xdph.conf               XDG portal config
 │
-├── config/                   Terminal/app configs (→ ~/.config/{foot,kitty,…})
-│   ├── alacritty/             Alacritty config
-│   ├── foot/                  Foot terminal config
-│   ├── ghostty/               Ghostty config
-│   ├── kitty/                 Kitty config
-│   ├── fcitx5/                Fcitx5 input method
+├── config/                   Theme integration helpers
 │   └── nvim/                  Neovim theme drop-in for LazyVim
 │
 ├── current/                  Active theme snapshot
@@ -145,29 +140,22 @@ symlink targets.
 
 ## Runtime Symlinks
 
-`Init.sh` creates these symlinks from the home directory into the repo:
-
 ```
 ~/.config/quickshell     -> ~/development/OMD/quickshell
-~/.config/foot           -> ~/development/OMD/config/foot
-~/.config/kitty          -> ~/development/OMD/config/kitty
-~/.config/alacritty      -> ~/development/OMD/config/alacritty
-~/.config/ghostty        -> ~/development/OMD/config/ghostty
 ~/.config/omd            -> ~/development/OMD
 ```
+
+Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD's Init.sh — they are personal preferences managed via [chezmoi](https://www.chezmoi.io/) or directly. OMD provides theme files (`~/.config/omd/current/theme/{foot,kitty,alacritty,ghostty}.*`) that your terminal config can include.
 
 Additional manual symlinks (not created by Init.sh):
 
 ```
 ~/.config/walker         -> ~/development/OMD/config/walker     # (if walker is used)
-~/.config/fcitx5         -> ~/development/OMD/config/fcitx5     # (if fcitx5 is used)
 ```
 
 `~/.config/hypr` is legacy and not part of the current session.
 
 ## Runtime
-
-- Hyprland loads config from `~/.config/omd/hypr/hyprland.lua`.
 - `hyprland.lua` loads default modules from `hypr/default/`, then user
   modules from `hypr/` (monitors, input, bindings, looknfeel, autostart).
 - Autostart launches Quickshell via `~/.config/omd/bin/omd-restart`.
@@ -181,9 +169,7 @@ Additional manual symlinks (not created by Init.sh):
 - Quickshell reads options from `~/.config/quickshell/config.json`.
 - Themes are stored in `~/.local/share/omd/themes/`. The active theme is
   copied to `~/.config/omd/current/` by `omarchy-theme-set`.
-- Terminal configs are managed by OMD symlinks under `~/.config/{foot,kitty,alacritty,ghostty}`.
-  They import theme files from `~/.config/omd/current/theme/`, so theme
-  changes apply to new terminal windows and to supported live-reload paths.
+- Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD — they are personal preferences managed separately. OMD provides theme files under `~/.config/omd/current/theme/{foot,kitty,alacritty,ghostty}.*` that your terminal config can include via the `include`/`import`/`config-file` directive.
 - Neovim theme integration is opt-in. Run the Neovim setup helper to link
   OMD's LazyVim drop-in into `~/.config/nvim/lua/plugins/` so Neovim reads
   `~/.config/omd/current/theme/neovim.lua` without OMD taking over the whole
@@ -198,8 +184,6 @@ Additional manual symlinks (not created by Init.sh):
 - Agent working agreement: `docs/agent-working-agreement.md`
 - TUI style system: `docs/tui-style-system.md`
 - Settings center: `docs/settings-center.md`
-- Go settings TUI: `docs/settings-tui-go.md`
-- Go settings TUI visual system: `docs/settings-tui-visual-system.md`
 - Settings panel layout: `docs/settings-layout-system.md`
 - Voice settings redesign: `docs/voice-settings-redesign.md`
 - Windows VM settings layout: `docs/windows-vm-settings-layout.md`

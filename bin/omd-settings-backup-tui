@@ -17,20 +17,39 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import omd_tui_shared as S
 
-_OLD_CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
-CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "file-share-backup")
-_OLD_STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "backup")
-STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "file-share-backup")
+import os
+
+# Legacy fallback paths for reads (removed in Phase 7)
+_LEGACY_CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "file-share-backup")
+_LEGACY_STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "file-share-backup")
+
+# Canonical paths (Sumika Shell)
+_sumika_config_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME",
+    os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"))
+CONFIG_DIR = os.path.join(_sumika_config_home, "file-share-backup")
+_sumika_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME",
+    os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell"))
+STATE_DIR = os.path.join(_sumika_state_home, "file-share-backup")
 
 import shutil
-if os.path.exists(_OLD_CONFIG_DIR) and not os.path.exists(CONFIG_DIR):
+# Historical: omd/backup → omd/file-share-backup (old code, keep for safety)
+_old_backup_config = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
+if os.path.exists(_old_backup_config) and not os.path.exists(_LEGACY_CONFIG_DIR):
     try:
-        shutil.move(_OLD_CONFIG_DIR, CONFIG_DIR)
+        shutil.move(_old_backup_config, _LEGACY_CONFIG_DIR)
     except Exception:
         pass
-if os.path.exists(_OLD_STATE_DIR) and not os.path.exists(STATE_DIR):
+# Current: omd/file-share-backup → sumika-shell/file-share-backup
+if os.path.exists(_LEGACY_CONFIG_DIR) and not os.path.exists(CONFIG_DIR):
     try:
-        shutil.move(_OLD_STATE_DIR, STATE_DIR)
+        os.makedirs(os.path.dirname(CONFIG_DIR), exist_ok=True)
+        shutil.move(_LEGACY_CONFIG_DIR, CONFIG_DIR)
+    except Exception:
+        pass
+if os.path.exists(_LEGACY_STATE_DIR) and not os.path.exists(STATE_DIR):
+    try:
+        os.makedirs(os.path.dirname(STATE_DIR), exist_ok=True)
+        shutil.move(_LEGACY_STATE_DIR, STATE_DIR)
     except Exception:
         pass
 
@@ -84,8 +103,10 @@ class Model:
         self._refresh_item_rows()
 
     def load_config(self):
+        # Try new Sumika Shell path first, fall back to legacy
+        config_path = CONFIG_FILE if os.path.exists(CONFIG_FILE) else os.path.join(_LEGACY_CONFIG_DIR, "config.json")
         try:
-            with open(CONFIG_FILE) as f:
+            with open(config_path) as f:
                 data = json.load(f)
             # Keep all keys from file, fill missing with defaults
             for k in DEFAULT_CONFIG:
@@ -114,13 +135,12 @@ class Model:
                 "",
                 "Press e to edit config file directly in vi.",
             ]
-        # Load last compare result from cache
+        # Load last compare result from state cache
         try:
             with open(os.path.join(STATE_DIR, "last-compare.json")) as f:
                 self.compare_result = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             self.compare_result = None
-
         self.has_config = bool(self.config.get("address"))
         self._refresh_item_rows()
         # Auto-connect on startup instead of auto-compare
@@ -779,57 +799,52 @@ def view(stdscr, model):
 
     stdscr.erase()
 
-    S.draw_hero(stdscr, hero_info(model))
+    ly = S.Layout(stdscr)
+    ly.pad = 1
+    ly.left_w = 34
+    ly.right_min = 28
+    ly.compute()
 
-    # geometry
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
-    margin = 1
-    content_w = w - pad_x
-    avail_h = h - pad_y - hero_h - help_h
-
-    left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
-    content_h = avail_h
+    ly.draw_hero(stdscr, hero_info(model))
 
     # Right side first: compute Managed Items height for Status box alignment
-    table_lines = render_item_table(model, right_w - 4)
+    table_lines = render_item_table(model, ly.right_w - 4)
     table_h = len(table_lines) + 3 if table_lines else 0
     if table_h < 3:
         table_h = 0
-    avail_right = content_h
+    avail_right = ly.content_h
     act_min = 4
     table_box_h = min(table_h, avail_right - act_min)
     if table_box_h < 3:
         table_box_h = 0
     if table_box_h >= 3:
-        S.draw_border(stdscr, hero_h, margin + left_w, table_box_h, right_w, "Managed Items")
-        S.draw_lines_in_area(stdscr, hero_h, margin + left_w, table_box_h, right_w, table_lines)
+        S.draw_border(stdscr, ly.content_top, ly.right_x, table_box_h, ly.right_w, "Managed Items")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.right_x, table_box_h, ly.right_w, table_lines)
     # Activity log below Managed Items
-    act_y = hero_h + table_box_h
-    act_h = hero_h + content_h - act_y
+    act_y = ly.content_top + table_box_h
+    act_h = ly.content_h + ly.content_top - act_y
     if act_h >= 4:
-        S.draw_border(stdscr, act_y, margin + left_w, act_h, right_w, "Activity")
-        S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset,
+        S.draw_border(stdscr, act_y, ly.right_x, act_h, ly.right_w, "Activity")
+        S.draw_log_in_area(stdscr, act_y, ly.right_x, act_h, ly.right_w, model.logs, model.scroll_offset,
                            empty_text="(no activity)")
 
     # Left: Status (height = Managed Items height) + Connection (fills remaining)
-    conn_lines = render_connection_status(model, left_w - 4)
+    conn_lines = render_connection_status(model, ly.left_w - 4)
     conn_box_h = table_box_h
     if conn_box_h >= 3:
-        S.draw_border(stdscr, hero_h, margin, conn_box_h, left_w, "Status")
-        S.draw_lines_in_area(stdscr, hero_h, margin, conn_box_h, left_w, conn_lines)
+        S.draw_border(stdscr, ly.content_top, ly.pad, conn_box_h, ly.left_w, "Status")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.pad, conn_box_h, ly.left_w, conn_lines)
     else:
         conn_box_h = 0
 
-    field_y = hero_h + conn_box_h
-    field_lines = render_field_list(model, left_w - 4)
-    field_box_h = max(0, content_h - conn_box_h)
+    field_y = ly.content_top + conn_box_h
+    field_lines = render_field_list(model, ly.left_w - 4)
+    field_box_h = max(0, ly.content_h - conn_box_h)
     if field_box_h >= 3:
-        S.draw_border(stdscr, field_y, margin, field_box_h, left_w, "Connection")
-        S.draw_lines_in_area(stdscr, field_y, margin, field_box_h, left_w, field_lines)
-    else:
-        field_box_h = 0
+        S.draw_border(stdscr, field_y, ly.pad, field_box_h, ly.left_w, "Connection")
+        S.draw_lines_in_area(stdscr, field_y, ly.pad, field_box_h, ly.left_w, field_lines)
 
-    S.draw_help_bar(stdscr, *help_items(model))
+    ly.draw_help(stdscr, *help_items(model))
     S.finish_frame(stdscr)
 
 
@@ -930,20 +945,9 @@ def handle_key(stdscr, model, key):
         return True
 
     # Scroll
-    if key == curses.KEY_PPAGE:
-        model.scroll_offset += 3
-        model.dirty = True
-        return True
-    if key == curses.KEY_NPAGE:
-        model.scroll_offset = max(0, model.scroll_offset - 3)
-        model.dirty = True
-        return True
-    if key == curses.KEY_HOME:
-        model.scroll_offset = 9999
-        model.dirty = True
-        return True
-    if key == curses.KEY_END:
-        model.scroll_offset = 0
+    r = S.scroll_key(key, model.scroll_offset, page_size=1)
+    if r is not None:
+        delta, model.scroll_offset = r
         model.dirty = True
         return True
 
@@ -1004,4 +1008,5 @@ def main(stdscr):
 
 
 if __name__ == "__main__":
+    S.setup_locale()
     curses.wrapper(main)

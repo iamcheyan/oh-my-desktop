@@ -113,11 +113,15 @@ def _quadrant_cell(pixels):
 
 
 def _render_image_preview(path, width, height):
-    """Render an image file as two-color Unicode quadrant characters.
+    """Render an image file as half-block Unicode characters.
 
-    Each terminal cell represents a 2x2 source sample. Returns rows containing
-    (character, fg_r, fg_g, fg_b, bg_r, bg_g, bg_b) tuples, or an empty list on
-    failure.
+    Each terminal cell represents 2 vertical source pixels: the foreground
+    colour is the top pixel, the background is the bottom pixel.  This gives a
+    crisp preview whenever the wallpaper has any vertical colour variation,
+    unlike the old 2×2→2-colour quadrant approach which could produce
+    near-identical fg/bg and render the glyph invisible.
+
+    Falls back to the quadrant approach when PIL is unavailable.
     """
     global _image_preview_cache
     if not path or width <= 0 or height <= 0:
@@ -128,13 +132,18 @@ def _render_image_preview(path, width, height):
     except OSError:
         return []
 
-    # Check cache (same path/size/time/dimensions)
     if (_image_preview_cache["path"] == path and
             _image_preview_cache["width"] == width and
             _image_preview_cache["height"] == height and
             _image_preview_cache["mtime"] == mtime and
             _image_preview_cache["size"] == fsize):
         return _image_preview_cache["view"]
+
+    # Wallpaper changed: clear the image color-pair pool so stale pairs from
+    # the previous wallpaper don't bleed into the new preview (color leak fix).
+    if _image_preview_cache["path"] != path:
+        _color_pair_map.clear()
+        _next_pair_idx[0] = _C_IMG_BASE
 
     try:
         from PIL import Image
@@ -143,15 +152,11 @@ def _render_image_preview(path, width, height):
         if src_w <= 0 or src_h <= 0:
             return []
 
-        sample_w = width * 2
+        sample_w = width
         sample_h = height * 2
 
-        # Crop to target aspect ratio and resize using high-quality downsampling to prevent aliasing
+        target_aspect = sample_w / sample_h
         img_aspect = src_w / src_h
-        # Terminal cells are roughly twice as tall as they are wide. The 2x2
-        # samples are packed into one such cell, so crop for the displayed cell
-        # geometry rather than the square-pixel sample buffer geometry.
-        target_aspect = width / (height * 2)
         if img_aspect > target_aspect:
             new_w = int(src_h * target_aspect)
             offset_x = (src_w - new_w) // 2
@@ -167,31 +172,68 @@ def _render_image_preview(path, width, height):
             resample_filter = Image.ANTIALIAS
         else:
             resample_filter = Image.BICUBIC
-
         img_resized = img_cropped.resize((sample_w, sample_h), resample_filter)
 
+        glyph = "▀"
         rows = []
         for row in range(height):
             cols_data = []
+            top_y = row * 2
+            bot_y = row * 2 + 1
             for col in range(width):
-                sample_x = col * 2
-                sample_y = row * 2
-                pixels = (
-                    img_resized.getpixel((sample_x, sample_y)),
-                    img_resized.getpixel((sample_x + 1, sample_y)),
-                    img_resized.getpixel((sample_x, sample_y + 1)),
-                    img_resized.getpixel((sample_x + 1, sample_y + 1)),
-                )
-                cols_data.append(_quadrant_cell(pixels))
+                top_px = img_resized.getpixel((col, top_y))
+                bot_px = img_resized.getpixel((col, bot_y))
+                cols_data.append((glyph, *top_px, *bot_px))
             rows.append(cols_data)
 
         _image_preview_cache = {"path": path, "width": width, "height": height,
                                 "mtime": mtime, "size": fsize, "view": rows}
         return rows
     except ImportError:
-        return []
+        return _render_image_preview_via_magick(path, width, height)
     except Exception:
         return []
+
+def _render_image_preview_via_magick(path, width, height):
+    """Fallback: use ImageMagick + quadrant chars when PIL is unavailable."""
+    global _image_preview_cache
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+    try:
+        sample_w = width * 2
+        sample_h = height * 2
+        raw = subprocess.check_output(
+            ["magick", path, "-resize", f"{sample_w}x{sample_h}!", "-depth", "8", "rgb:-"],
+            timeout=10,
+        )
+    except Exception:
+        return []
+    expected = sample_w * sample_h * 3
+    if len(raw) < expected:
+        return []
+    pixels = struct.unpack(f"{sample_w*sample_h*3}B", raw[:expected])
+    rows = []
+    for row_idx in range(height):
+        cols_data = []
+        for col_idx in range(width):
+            sx = col_idx * 2
+            sy = row_idx * 2
+            quad = []
+            for dy in range(2):
+                for dx in range(2):
+                    pi = ((sy + dy) * sample_w + (sx + dx)) * 3
+                    if pi + 2 < len(pixels):
+                        quad.append((pixels[pi], pixels[pi + 1], pixels[pi + 2]))
+            if len(quad) == 4:
+                cols_data.append(_quadrant_cell(quad))
+        if len(cols_data) == width:
+            rows.append(cols_data)
+    _image_preview_cache = {"path": path, "width": width, "height": height,
+                            "mtime": mtime, "size": fsize, "view": rows}
+    return rows
 
 
 # ── color pair pools ──────────────────────────────────────────────────────
@@ -234,27 +276,45 @@ def _xterm_rgb(index):
     return (0, 0, 0)
 
 
-def _chroma(r, g, b):
-    """RGB chroma (max - min). A simple measure of colorfulness.
-    Zero for grayscale (R=G=B), higher for saturated colors.
-    """
-    return max(r, g, b) - min(r, g, b)
-
-
 def _rgb_to_xterm_index(r, g, b):
-    """Strategy C: Chroma-sensitive xterm-256 color mapping.
+    """Hue-preserving xterm-256 color mapping.
 
-    Truly achromatic pixels (chroma <= 12) map to the 24-level grayscale ramp
-    (indices 232-255) for smooth, accurate gray rendering.
-    Chromatic pixels map to the 6x6x6 color cube (indices 16-231) to prevent
-    the dense grayscale ramp from pulling colors into gray.
+    Low-chroma pixels (chroma <= 12) map to the 24-level grayscale ramp
+    (indices 232-255) for smooth gray rendering.  Chromatic pixels map to
+    the 6x6x6 color cube (indices 16-231) with hue preservation: if a
+    channel is dominant in the input but round() collapsed it to the same
+    cube level as a non-dominant channel, it is bumped up one level.
+
+    This fixes the green-to-gray bug where muted greens like (80,110,90)
+    rounded to (135,135,135) -- a perfect gray -- because all three channels
+    happened to land on cube level 2.
     """
-    if _chroma(r, g, b) <= 12:
+    ch = max(r, g, b) - min(r, g, b)
+    if ch <= 12:
         gray = round((r + g + b) / 3 * 23 / 255)
         return 232 + min(23, max(0, gray))
     r6 = round(r * 5 / 255)
     g6 = round(g * 5 / 255)
     b6 = round(b * 5 / 255)
+    # Preserve hue: bump the dominant channel if quantization flattened it.
+    if g > r and g > b:
+        if g6 <= r6 and g6 < 5:
+            g6 += 1
+        if g6 <= b6 and g6 < 5:
+            g6 += 1
+    if r > g and r > b:
+        if r6 <= g6 and r6 < 5:
+            r6 += 1
+        if r6 <= b6 and r6 < 5:
+            r6 += 1
+    if b > r and b > g:
+        if b6 <= r6 and b6 < 5:
+            b6 += 1
+        if b6 <= g6 and b6 < 5:
+            b6 += 1
+    r6 = min(5, max(0, r6))
+    g6 = min(5, max(0, g6))
+    b6 = min(5, max(0, b6))
     return 16 + 36 * r6 + 6 * g6 + b6
 
 
@@ -860,14 +920,14 @@ def _view(stdscr, m):
     content_w = w - pad_x
     avail_h = h - pad_y - hero_h - help_h
 
-    show_right = w >= 108
+    show_right = w >= 78
     if show_right:
         left_w_desired = 34
         if content_w >= 120:
             left_w_desired = 44
         elif content_w >= 108:
             left_w_desired = 38
-        preview_w, _ = S.two_column_widths(content_w, left_w=left_w_desired, right_min=70, gap=1)
+        preview_w, _ = S.two_column_widths(content_w, left_w=left_w_desired, right_min=38, gap=1)
         grid_w = content_w
     else:
         preview_w = content_w

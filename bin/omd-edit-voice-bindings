@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-bindings_file="$OMD_ROOT/config/voice_bindings.txt"
-editor="vi"
+: "${EDITOR:=vi}"
+bindings_file="$HOME/.config/voice_bindings.txt"
 
 mkdir -p "$(dirname "$bindings_file")"
 if [[ ! -f "$bindings_file" ]]; then
@@ -14,4 +12,4 @@ if [[ ! -f "$bindings_file" ]]; then
 EOF
 fi
 
-exec "$editor" "$bindings_file"
+exec "$EDITOR" "$bindings_file"

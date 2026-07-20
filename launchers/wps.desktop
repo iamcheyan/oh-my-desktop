@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=WPS 365
 Comment=Launch WPS 365 (installs via Flatpak if missing)
-Exec=$HOME/.config/omd/scripts/wps
-Icon=$HOME/.config/omd/launchers/icons/wps.png
+Exec=$HOME/.config/sumika-shell/scripts/wps
+Icon=$HOME/.config/sumika-shell/launchers/icons/wps.png
 Terminal=false
 Type=Application
 Categories=Office;

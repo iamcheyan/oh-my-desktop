@@ -4,7 +4,7 @@ set -euo pipefail
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
-BINDINGS_FILE="$OMD_ROOT/config/voice_bindings.txt"
+BINDINGS_FILE="$HOME/.config/voice_bindings.txt"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omd-voice"
 VENV_DIR="${OMD_VOICE_VENV:-$CACHE_DIR/venv}"
 MODEL_DIR="$CACHE_DIR/sense-voice-small-int8"

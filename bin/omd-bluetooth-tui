@@ -560,7 +560,10 @@ class BluetoothTUI:
         self._cleanup()
 
     def _init_curses(self):
-        curses.curs_set(0)
+        try:
+            curses.curs_set(0)
+        except curses.error:
+            pass
         curses.noecho()
         curses.cbreak()
         self.stdscr.keypad(True)
@@ -1153,68 +1156,6 @@ class BluetoothTUI:
 
 
 
-    @staticmethod
-    def _space_around(inner_w: int, col_widths: list[int]) -> list[int]:
-        """Return x-offsets for columns using CSS/ratatui SpaceAround distribution."""
-        n = len(col_widths)
-        if n == 0:
-            return []
-        total = sum(col_widths)
-        free = max(0, inner_w - total)
-        # Each column gets free/n as surrounding space; half on each side.
-        unit = free / n
-        offsets = []
-        x = unit / 2.0
-        for cw in col_widths:
-            offsets.append(int(round(x)))
-            x += cw + unit
-        return offsets
-
-    def _put_row_cells(self, y, x, inner_w, cells: list[str], widths: list[int], attr):
-        """Paint a full-width row: fill bg then place cells with SpaceAround."""
-        # Clear/fill the whole row so selection highlight spans the panel.
-        try:
-            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
-        except curses.error:
-            pass
-        offsets = self._space_around(inner_w, widths)
-        for cell, off, cw in zip(cells, offsets, widths):
-            text = self._clip(cell, cw)
-            try:
-                self.stdscr.addnstr(y, x + off, text, cw, attr)
-            except curses.error:
-                pass
-
-    @staticmethod
-    def _clip(s: str, width: int) -> str:
-        """Pad/truncate string to display width, best-effort for wide glyphs."""
-        if width <= 0:
-            return ""
-        # Approximate: treat each codepoint as width 1 (good enough for our columns).
-        if len(s) > width:
-            return s[: max(0, width - 1)] + "…" if width > 1 else s[:width]
-        return s.ljust(width)
-
-    def _header_attr(self, focused: bool):
-        return S.ATTR_SECTION
-
-    def _sel_attr(self, selected: bool, focused_section: bool):
-        if selected and focused_section:
-            return S.ATTR_FOCUS
-        return curses.A_NORMAL
-
-    def _draw_row(self, y, x, inner_w, cells, widths, offsets, attr):
-        """Fill row background then place cells at given offsets (compact layout)."""
-        try:
-            self.stdscr.addnstr(y, x, " " * inner_w, inner_w, attr)
-        except curses.error:
-            pass
-        for cell, off, cw in zip(cells, offsets, widths):
-            text = self._clip(cell, cw)
-            try:
-                self.stdscr.addnstr(y, x + off, text, cw, attr)
-            except curses.error:
-                pass
 
     def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
         """Render Paired Devices table (10 cols: fav | name | addr | trusted | conn | batt | type | blocked | rssi | hci)."""
@@ -1281,13 +1222,13 @@ class BluetoothTUI:
             offsets.append(offsets[-1] + cw)
 
         focused = self.focus == F_PAIRED
-        self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
+        S.draw_row(self.stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
         for i, d in enumerate(paired[:max_rows]):
             is_sel = focused and i == self.selected
-            attr = self._sel_attr(is_sel, focused)
+            attr = S.sel_attr(is_sel, focused)
             fav = "★" if d.get("favorite") else ""
             name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
             cells = [
@@ -1302,7 +1243,7 @@ class BluetoothTUI:
                 d.get("rssi", ""),
                 d.get("adapter", ""),
             ]
-            self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
+            S.draw_row(self.stdscr, row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):
         if h < 1 or w < 8:
@@ -1313,15 +1254,15 @@ class BluetoothTUI:
             widths[1] -= 1
 
         focused = self.focus == F_DISCOVERED
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        S.put_row_cells(self.stdscr, y, x, w, headers, widths, S.header_attr(focused))
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
         for i, d in enumerate(discovered[:max_rows]):
             is_sel = focused and i == self.selected
-            attr = self._sel_attr(is_sel, focused)
+            attr = S.sel_attr(is_sel, focused)
             name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
-            self._put_row_cells(row_start + i, x, w, [d["addr"], name], widths, attr)
+            S.put_row_cells(self.stdscr, row_start + i, x, w, [d["addr"], name], widths, attr)
 
     def _draw_adapter_table(self, y, x, h, w):
         if h < 1 or w < 8:
@@ -1333,7 +1274,7 @@ class BluetoothTUI:
             widths[1] -= 1
 
         focused = self.focus == F_ADAPTER
-        self._put_row_cells(y, x, w, headers, widths, self._header_attr(focused))
+        S.put_row_cells(self.stdscr, y, x, w, headers, widths, S.header_attr(focused))
         if h < 3:
             return
         # blank line under header (bottom_margin 1)
@@ -1346,8 +1287,8 @@ class BluetoothTUI:
                 a.get("pairable", ""),
                 a.get("discoverable", ""),
             ]
-            attr = self._sel_attr(True, focused) if focused else curses.A_NORMAL
-            self._put_row_cells(y + 2, x, w, cells, widths, attr)
+            attr = S.sel_attr(True, focused) if focused else curses.A_NORMAL
+            S.put_row_cells(self.stdscr, y + 2, x, w, cells, widths, attr)
 
 
     def _draw_prompt(self, h: int, w: int):
@@ -1359,7 +1300,6 @@ class BluetoothTUI:
                 "┃ Type this on your keyboard + Enter┃",
                 "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
             ]
-            attr = S.ATTR_ACCENT_BOLD
         else:
             lines = [
                 "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
@@ -1368,33 +1308,14 @@ class BluetoothTUI:
                 "┃     Auto-confirming...           ┃",
                 "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
             ]
-            attr = S.ATTR_ACCENT_BOLD
-        box_h = len(lines)
-        box_w = max(len(l) for l in lines)
-        top = (h - box_h) // 2
-        left = max(0, (w - box_w) // 2)
-        for i, line in enumerate(lines):
-            try:
-                self.stdscr.addnstr(top + i, left, line, min(len(line), w - left), attr)
-            except curses.error:
-                pass
+        S.draw_dialog(self.stdscr, lines)
 
 
 # ── main ──────────────────────────────────────────────────────────────
 
 def _force_narrow_ambiguous_locale():
-    """Make ncurses treat Ambiguous-width glyphs as single-cell.
-
-    CJK locales (e.g. zh_CN.UTF-8) make libc wcwidth() return 2 for box-drawing
-    and many Nerd Font icons. Ratatui/bluetui treat Ambiguous as width 1; without
-    this, borders collapse and columns drift. Must run before curses.initscr().
-    """
-    for loc in ("C.UTF-8", "en_US.UTF-8", "C"):
-        try:
-            locale.setlocale(locale.LC_CTYPE, loc)
-            return
-        except locale.Error:
-            continue
+    """Must run before curses.initscr(). Delegates to shared setup."""
+    S.setup_locale()
 
 
 def main():
