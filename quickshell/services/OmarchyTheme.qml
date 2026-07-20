@@ -2,12 +2,13 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import qs.modules.common
 import Quickshell.Io
 
 Singleton {
     id: root
 
-    readonly property string themePath: `${Quickshell.env("HOME")}/.config/omd/current/theme/quickshell.json`
+    readonly property string themePath: `${Directories.state}/sumika-shell/theme/current/quickshell.json`
     readonly property color accent: themeJson.primary || "#eeeeee"
     readonly property color background: themeJson.background || "#050505"
     readonly property color foreground: themeJson.backgroundText || "#f4f4f4"

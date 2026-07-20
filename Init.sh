@@ -1185,21 +1185,22 @@ repair_runtime_config() {
         warn "  jq unavailable or config missing; skipped config repair"
     fi
 
-    mkdir -p "$REPO/current"
-    if [[ ! -f "$REPO/current/wallpaper" ]]; then
-        cp "$REPO/share/themes/last-horizon/backgrounds/4-new-horizons.jpg" "$REPO/current/wallpaper"
-        chmod 0644 "$REPO/current/wallpaper"
-        ok "  seeded current/wallpaper from the default theme"
+    local wp_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/wallpaper"
+    mkdir -p "$wp_dir"
+    if [[ ! -f "$wp_dir/wallpaper" ]]; then
+        cp "$REPO/share/themes/last-horizon/backgrounds/4-new-horizons.jpg" "$wp_dir/wallpaper"
+        chmod 0644 "$wp_dir/wallpaper"
+        ok "  seeded wallpaper from the default theme"
     fi
-    ln -sfn "wallpaper" "$REPO/current/background"
-    ok "  current/background -> wallpaper"
+    ln -sfn "wallpaper" "$wp_dir/background"
+    ok "  wallpaper/background -> wallpaper"
 
-    date +%s%N >"$REPO/current/wallpaper.revision"
+    date +%s%N >"$wp_dir/revision"
 
     if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
         local wallpaper_tmp
         wallpaper_tmp="$(mktemp)"
-        if jq '.background.wallpaperPath = "~/.config/omd/current/background" | .background.thumbnailPath = ""' \
+        if jq '.background.wallpaperPath = "~/.local/state/sumika-shell/wallpaper/background" | .background.thumbnailPath = ""' \
             "$config_file" >"$wallpaper_tmp"; then
             mv "$wallpaper_tmp" "$config_file"
             ok "  configured stable wallpaper path"
@@ -1207,7 +1208,6 @@ repair_runtime_config() {
             rm -f "$wallpaper_tmp"
             warn "  could not configure the stable wallpaper path"
         fi
-    fi
 }
 
 # ── Session registration ──────────────────────────────────────────────────────

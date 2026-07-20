@@ -1,4 +1,4 @@
-local theme_path = vim.fn.expand("~/.config/omd/current/theme/neovim.lua")
+local theme_path = vim.fn.expand("~/.local/state/sumika-shell/theme/current/neovim.lua")
 local omd_nvim_path = vim.fn.expand("~/.config/omd/config/nvim")
 
 if vim.fn.isdirectory(omd_nvim_path) == 1 then

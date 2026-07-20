@@ -145,7 +145,7 @@ symlink targets.
 ~/.config/omd            -> ~/development/OMD
 ```
 
-Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD's Init.sh — they are personal preferences managed via [chezmoi](https://www.chezmoi.io/) or directly. OMD provides theme files (`~/.config/omd/current/theme/{foot,kitty,alacritty,ghostty}.*`) that your terminal config can include.
+Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD's Init.sh — they are personal preferences managed via [chezmoi](https://www.chezmoi.io/) or directly. OMD provides theme files that your terminal config can include. The active theme snapshot lives at `~/.local/state/sumika-shell/theme/current/{foot,kitty,alacritty,ghostty}.*`.
 
 Additional manual symlinks (not created by Init.sh):
 
@@ -167,12 +167,12 @@ Additional manual symlinks (not created by Init.sh):
 - Clipboard UI is a QML dialog (`CTRL+SHIFT+V` → `omd-clipboard` process);
   clipboard storage is watched by `omd-clipboard-store`.
 - Quickshell reads options from `~/.config/quickshell/config.json`.
-- Themes are stored in `~/.local/share/omd/themes/`. The active theme is
-  copied to `~/.config/omd/current/` by `omarchy-theme-set`.
-- Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD — they are personal preferences managed separately. OMD provides theme files under `~/.config/omd/current/theme/{foot,kitty,alacritty,ghostty}.*` that your terminal config can include via the `include`/`import`/`config-file` directive.
+- Themes are stored in `~/.local/share/omd/themes/`. The active theme snapshot is
+  copied to `~/.local/state/sumika-shell/theme/current/` by `omd-settings-theme`.
+- Terminal configs (`foot`, `kitty`, `alacritty`, `ghostty`) are **not** managed by OMD — they are personal preferences managed separately. OMD provides theme files under `~/.local/state/sumika-shell/theme/current/{foot,kitty,alacritty,ghostty}.*` that your terminal config can include via the `include`/`import`/`config-file` directive.
 - Neovim theme integration is opt-in. Run the Neovim setup helper to link
   OMD's LazyVim drop-in into `~/.config/nvim/lua/plugins/` so Neovim reads
-  `~/.config/omd/current/theme/neovim.lua` without OMD taking over the whole
+  `~/.local/state/sumika-shell/theme/current/neovim.lua` without OMD taking over the whole
   Neovim config.
 
 ## Planning Docs

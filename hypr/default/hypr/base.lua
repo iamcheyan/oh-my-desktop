@@ -16,9 +16,10 @@ require("default.hypr.windows")
 -- Current theme overrides.
 do
   local paths = require("default.hypr.paths")
-  local theme = io.open(paths.omd_root .. "/current/theme/hyprland.lua", "r")
+  local theme_path = paths.state_home .. "/theme/current/hyprland.lua"
+  local theme = io.open(theme_path, "r")
   if theme then
     theme:close()
-    require("current.theme.hyprland")
+    dofile(theme_path)
   end
 end

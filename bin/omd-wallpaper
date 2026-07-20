@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper"
+STATE_DIR="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/wallpaper"
 SOURCE_FILE="$STATE_DIR/source"
 MODE_FILE="$STATE_DIR/mode"
 INTERVAL_FILE="$STATE_DIR/interval"
@@ -98,8 +98,7 @@ render_color() {
 }
 
 theme_background_color() {
-  local omd_root="${OMD_ROOT:-$HOME/.config/omd}"
-  local colors_file="$omd_root/current/theme/colors.toml"
+  local colors_file="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/theme/current/colors.toml"
 
   if [[ ! -f "$colors_file" ]]; then
     printf '#000000\n'
@@ -171,7 +170,7 @@ start_timer() {
       --unit="$UNIT_NAME" \
       --on-active="${INTERVAL_SEC}s" \
       --on-unit-active="${INTERVAL_SEC}s" \
-      "$HOME/.config/omd/bin/omd-wallpaper" random >/dev/null
+      "$(dirname "$0")/omd-wallpaper" random >/dev/null
   fi
 }
 
@@ -292,7 +291,7 @@ set_color() {
 refresh_outputs() {
   local mode current_background
   mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
-  current_background="$HOME/.config/omd/current/background"
+  current_background="$STATE_DIR/background"
 
   # Recreate swaybg after the output topology changes without changing the
   # selected source, rotation mode, interval, or timer deadline.
@@ -309,7 +308,7 @@ restore() {
   local mode source current_background
   mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
-  current_background="$HOME/.config/omd/current/background"
+  current_background="$STATE_DIR/background"
   if [[ "$mode" == "folder" && -n "$source" ]]; then
     # Folder mode previously restored only its timer. The preview still read
     # the managed image, but no swaybg process existed to paint the desktop.
@@ -345,7 +344,7 @@ status() {
   local mode source current
   mode="$(cat "$MODE_FILE" 2>/dev/null || echo "file")"
   source="$(cat "$SOURCE_FILE" 2>/dev/null || true)"
-  current="$(readlink -f "$HOME/.config/omd/current/background" 2>/dev/null || true)"
+  current="$(readlink -f "$STATE_DIR/background" 2>/dev/null || true)"
   printf 'mode=%s\nsource=%s\ncurrent=%s\ninterval=%s\n' "$mode" "$source" "$current" "$INTERVAL_SEC"
 }
 

@@ -1,8 +1,7 @@
 #!/bin/sh
 set -eu
 
-omd_root="${OMD_ROOT:-$HOME/.config/omd}"
-current_theme_dir="$omd_root/current/theme"
+current_theme_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/theme/current"
 
 have() {
     command -v "$1" >/dev/null 2>&1

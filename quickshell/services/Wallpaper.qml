@@ -8,7 +8,7 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    readonly property string revisionPath: `${Quickshell.env("HOME")}/.config/omd/current/wallpaper.revision`
+    readonly property string revisionPath: `${Directories.state}/sumika-shell/wallpaper/revision`
     property int revision: 0
     readonly property string configuredPath: {
         const path = Config.options?.background?.wallpaperPath ?? "";

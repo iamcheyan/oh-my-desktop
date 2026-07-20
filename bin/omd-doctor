@@ -205,10 +205,16 @@ if [[ -n "$wallpaper" ]]; then
 else
   warn "no configured wallpaperPath"
 fi
-if [[ -f "$repo/current/background" ]]; then
-  ok "current OMD background resolves to an image"
+_wp_bg="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/wallpaper/background"
+if [[ -f "$_wp_bg" ]]; then
+  ok "Sumika Shell wallpaper background resolves to an image"
 else
-  fail "current OMD background is missing or broken; run omd-theme-bg-set or choose a wallpaper"
+  # Legacy fallback (Phase 7: remove)
+  if [[ -f "$repo/current/background" ]]; then
+    ok "current OMD background resolves to an image (legacy path)"
+  else
+    fail "Sumika Shell wallpaper background is missing or broken; run omd-theme-bg-set or choose a wallpaper"
+  fi
 fi
 
 section "privacy scan"

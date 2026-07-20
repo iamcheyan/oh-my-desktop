@@ -1,15 +1,15 @@
 local paths = require("default.hypr.paths")
 
-local function require_file_if_exists(path, module)
+local function require_file_if_exists(path, _)
   local file = io.open(path, "r")
   if file then
     file:close()
-    require(module)
+    dofile(path)
   end
 end
 
 -- GUM environment variables for styling purposes.
-require_file_if_exists(paths.omd_root .. "/current/theme/gum_env.lua", "current.theme.gum_env")
+require_file_if_exists(paths.state_home .. "/theme/current/gum_env.lua", "sumika.theme.gum_env")
 
 -- Cursor size.
 hl.env("XCURSOR_SIZE", "24")

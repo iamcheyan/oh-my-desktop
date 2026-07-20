@@ -140,7 +140,7 @@ def load_ui_colors():
         "background": "#0b0c16",
         "foreground": "#ddf7ff",
     }
-    theme_path = os.path.expanduser("~/.config/omd/current/theme/quickshell.json")
+    theme_path = os.path.expanduser("~/.local/state/sumika-shell/theme/current/quickshell.json")
     try:
         with open(theme_path, "r", encoding="utf-8") as handle:
             theme = json.load(handle)

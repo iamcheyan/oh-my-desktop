@@ -195,11 +195,9 @@ migrate_state() {
     copy_dir  "$OLD_CONFIG/current/theme" \
               "$NEW_STATE/theme/current"
 
-    # Wallpaper (large file — use symlink-safe copy)
-    copy_file "$OLD_CONFIG/current/background" \
-              "$NEW_STATE/wallpaper/current"
     copy_file "$OLD_CONFIG/current/wallpaper" \
-              "$NEW_STATE/wallpaper/current-file"
+              "$NEW_STATE/wallpaper/wallpaper"
+    # Wallpaper revision for cache invalidation
     copy_file "$OLD_CONFIG/current/wallpaper.revision" \
               "$NEW_STATE/wallpaper/revision"
 

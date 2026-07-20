@@ -5,11 +5,13 @@ OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 OMD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omd"
 USER_THEMES_DIR="$OMD_CONFIG/themes"
 SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
-CURRENT_DIR="$OMD_ROOT/current"
-CURRENT_THEME_DIR="$CURRENT_DIR/theme"
-CURRENT_NAME_FILE="$CURRENT_DIR/theme.name"
+STATE_BASE="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+CURRENT_DIR="$STATE_BASE/theme"
+CURRENT_THEME_DIR="$CURRENT_DIR/current"
+CURRENT_NAME_FILE="$CURRENT_DIR/current-name"
+WALLPAPER_STATE_DIR="$STATE_BASE/wallpaper"
 QS_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/states.json"
-WALLPAPER_INTERVAL_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper/interval"
+WALLPAPER_INTERVAL_FILE="$WALLPAPER_STATE_DIR/interval"
 
 slug_to_title() {
   sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$1"
@@ -469,10 +471,8 @@ refresh_running_apps() {
     [[ -d "$OMD_ROOT/apps/$app" ]] || continue
     "$qs_cmd" -p "$OMD_ROOT/apps/$app" ipc call theme reload >/dev/null 2>&1 || true
   done
-
-  # If wallpaper mode is color, refresh the solid color background to match the new theme colors
   local wallpaper_mode
-  wallpaper_mode="$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/omd/wallpaper/mode" 2>/dev/null || echo "file")"
+  wallpaper_mode="$(cat "$WALLPAPER_STATE_DIR/mode" 2>/dev/null || echo "file")"
   if [[ "$wallpaper_mode" == "color" ]]; then
     "$OMD_ROOT/bin/omd-wallpaper" set-color >/dev/null 2>&1 || true
   fi
