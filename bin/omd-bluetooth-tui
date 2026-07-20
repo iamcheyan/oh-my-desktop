@@ -239,6 +239,53 @@ def device_icon(info_text: str, name: str = "") -> str:
     return ICON_UNKNOWN
 
 
+# ── device type label (human-readable, from same sources as icon) ──
+
+TYPE_LABELS = {
+    "input-keyboard": "Keyboard",
+    "input-mouse": "Mouse",
+    "input-tablet": "Tablet",
+    "input-gaming": "Controller",
+    "audio-headset": "Headset",
+    "audio-card": "Audio",
+    "audio-speaker": "Speaker",
+    "audio-input-microphone": "Mic",
+    "video-display": "Display",
+    "video-camera": "Camera",
+    "camera": "Camera",
+    "computer": "Computer",
+    "phone": "Phone",
+    "printer": "Printer",
+    "scanner": "Scanner",
+    "network-wireless": "Network",
+    "multimedia-player": "Media",
+    "wearable": "Wearable",
+}
+
+
+def device_type_label(info_text: str, name: str = "") -> str:
+    """Return human-readable device type label from bluetoothctl info."""
+    m = re.search(r"^\s*Appearance:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
+    if m:
+        key = _icon_from_appearance(int(m.group(1), 16))
+        if key:
+            return TYPE_LABELS.get(key, "")
+    m = re.search(r"^\s*Class:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
+    if m:
+        key = _icon_from_class(int(m.group(1), 16))
+        if key:
+            return TYPE_LABELS.get(key, "")
+    m = re.search(r"^\s*Icon:\s*(\S+)", info_text, re.MULTILINE)
+    if m:
+        return TYPE_LABELS.get(m.group(1), "")
+    if name:
+        n = name.lower()
+        for keyword, icon_key in NAME_GUESS_MAP.items():
+            if keyword in n:
+                return TYPE_LABELS.get(icon_key, "")
+    return ""
+
+
 def pty_spawn(argv):
     pid, fd = os.forkpty()
     if pid == 0:
@@ -409,6 +456,13 @@ def get_devices_info() -> list[dict]:
         paired = bool(re.search(r"Paired:\s*yes", info, re.I))
         connected = bool(re.search(r"Connected:\s*yes", info, re.I))
         trusted = bool(re.search(r"Trusted:\s*yes", info, re.I))
+        blocked_raw = re.search(r"Blocked:\s*(yes|no)", info, re.I)
+        blocked = blocked_raw.group(1) if blocked_raw else ""
+        rssi_m = re.search(r"RSSI:\s*(-?\d+)", info, re.I)
+        rssi = f"{rssi_m.group(1)} dBm" if rssi_m else ""
+        adapter_m = re.search(r"Adapter:.*?hci(\d+)", info, re.I)
+        adapter = f"hci{adapter_m.group(1)}" if adapter_m else ""
+        type_label = device_type_label(info, name)
         battery_pct = parse_battery_pct(info)
         if connected:
             status = "connected"
@@ -422,6 +476,10 @@ def get_devices_info() -> list[dict]:
             "status": status,
             "icon": icon,
             "trusted": trusted,
+            "blocked": blocked,
+            "rssi": rssi,
+            "adapter": adapter,
+            "type_label": type_label,
             "battery": format_battery(battery_pct),
             "battery_pct": battery_pct,
             "favorite": False,
@@ -1159,36 +1217,63 @@ class BluetoothTUI:
                 pass
 
     def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
-        """Render Paired Devices table (fav | name | address | trusted | connected | battery)."""
+        """Render Paired Devices table (10 cols: fav | name | addr | trusted | conn | batt | type | blocked | rssi | hci)."""
         if h < 1 or w < 8:
             return
-        # Columns fill entire width; left/right margins come from rounding (at most 1 diff)
+        # Balanced column distribution: base widths that work well together
         star_w = 1
-        addr_w = 17       # XX:XX:XX:XX:XX:XX
-        trusted_w = 8
-        connected_w = 10
-        battery_w = 10
-        fixed = star_w + addr_w + trusted_w + connected_w + battery_w  # = 46
-        name_w = max(10, w - fixed)  # no margin reservation, no cap — name fills everything
-        headers = ["", "Name", "Address", "Trusted", "Connected", "Battery"]
-        widths = [star_w, name_w, addr_w, trusted_w, connected_w, battery_w]
+        name_base = 10
+        addr_base = 13      # truncated MAC still unique
+        trusted_w = 7
+        connected_w = 8
+        battery_w = 7
+        type_base = 9
+        blocked_w = 7
+        rssi_w = 7
+        adapter_w = 5
+        base_total = (star_w + name_base + addr_base + trusted_w + connected_w
+                      + battery_w + type_base + blocked_w + rssi_w + adapter_w)  # 74
 
-        # Shrink columns on narrow terminals
-        while sum(widths) > w:
-            if widths[1] > 8:
-                widths[1] -= 1
-            elif widths[2] > 12:
-                widths[2] -= 1
-            elif widths[3] > 5:
-                widths[3] -= 1
-            elif widths[4] > 5:
-                widths[4] -= 1
-            elif widths[5] > 5:
-                widths[5] -= 1
-            else:
-                break
+        extra = w - base_total
+        if extra >= 0:
+            # Distribute proportionally: name 50%, address 30%, type 20%
+            add_name = extra * 5 // 10
+            add_addr = extra * 3 // 10
+            add_type = extra - add_name - add_addr
+            widths = [star_w, name_base + add_name, addr_base + add_addr,
+                      trusted_w, connected_w, battery_w, type_base + add_type,
+                      blocked_w, rssi_w, adapter_w]
+            # Adjust rounding: add/subtract leftover from name
+            diff = w - sum(widths)
+            if diff:
+                widths[1] += diff
+        else:
+            # Shrink from base on narrow terminals
+            widths = [star_w, name_base, addr_base, trusted_w, connected_w,
+                      battery_w, type_base, blocked_w, rssi_w, adapter_w]
+            while sum(widths) > w:
+                if widths[1] > 6:         # Name
+                    widths[1] -= 1
+                elif widths[6] > 5:       # Type
+                    widths[6] -= 1
+                elif widths[2] > 8:       # Address
+                    widths[2] -= 1
+                elif widths[4] > 5:       # Connected
+                    widths[4] -= 1
+                elif widths[5] > 4:       # Battery
+                    widths[5] -= 1
+                elif widths[7] > 4:       # Blocked
+                    widths[7] -= 1
+                elif widths[8] > 4:       # RSSI
+                    widths[8] -= 1
+                elif widths[3] > 4:       # Trusted
+                    widths[3] -= 1
+                elif widths[9] > 3:       # HCI
+                    widths[9] -= 1
+                else:
+                    break
 
-        # Equal margins: (w - total) // 2 (typically 0 when total fills the width)
+        headers = ["", "Name", "Address", "Trustd", "Conn.", "Batt.", "Type", "Blockd", "RSSI", "HCI"]
         total_w = sum(widths)
         margin = (w - total_w) // 2
         offsets = [margin]
@@ -1197,7 +1282,6 @@ class BluetoothTUI:
 
         focused = self.focus == F_PAIRED
         self._draw_row(y, x, w, headers, widths, offsets, self._header_attr(focused))
-        # bluetui header.bottom_margin(1) — blank line under headers
         row_start = y + 2 if h >= 3 else y + 1
         max_rows = max(0, (y + h) - row_start)
 
@@ -1206,11 +1290,18 @@ class BluetoothTUI:
             attr = self._sel_attr(is_sel, focused)
             fav = "★" if d.get("favorite") else ""
             name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
-            addr = d["addr"]
-            trusted = "true" if d.get("trusted") else "false"
-            connected = "true" if d["status"] == "connected" else "false"
-            battery = d.get("battery", "")
-            cells = [fav, name, addr, trusted, connected, battery]
+            cells = [
+                fav,
+                name,
+                d["addr"],
+                "true" if d.get("trusted") else "false",
+                "true" if d["status"] == "connected" else "false",
+                d.get("battery", ""),
+                d.get("type_label", ""),
+                d.get("blocked", ""),
+                d.get("rssi", ""),
+                d.get("adapter", ""),
+            ]
             self._draw_row(row_start + i, x, w, cells, widths, offsets, attr)
 
     def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):
