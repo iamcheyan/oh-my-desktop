@@ -1094,10 +1094,6 @@ install_all_dependencies() {
 create_symlinks() {
     local LINKS=(
         "$HOME/.config/quickshell|$REPO/quickshell"
-        "$HOME/.config/foot|$REPO/config/foot"
-        "$HOME/.config/kitty|$REPO/config/kitty"
-        "$HOME/.config/alacritty|$REPO/config/alacritty"
-        "$HOME/.config/ghostty|$REPO/config/ghostty"
         "$HOME/.config/omd|$REPO"
     )
 
