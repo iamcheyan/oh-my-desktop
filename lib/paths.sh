@@ -68,6 +68,10 @@ unset _xdg_config _xdg_state _xdg_data _xdg_runtime
 
 # ── Compatibility alias ──────────────────────────────────────────────────
 # OMD_ROOT must always mean repository root, never the user config directory.
-# Resolve to the real path (not through a symlink) so it survives symlink removal.
-OMD_ROOT=$(cd -P "$SUMIKA_SHELL_ROOT" && pwd -P)
+# If the session already set OMD_ROOT, keep it so IPC callers and processes
+# use the same path string for Quickshell instance discovery.  If not set,
+# resolve from SUMIKA_SHELL_ROOT (which is already the physical path).
+if [ -z "${OMD_ROOT:-}" ] || [ ! -d "$OMD_ROOT" ]; then
+    OMD_ROOT=$(cd -P "$SUMIKA_SHELL_ROOT" && pwd -P)
+fi
 export OMD_ROOT
