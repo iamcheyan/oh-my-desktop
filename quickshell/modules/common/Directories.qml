@@ -21,6 +21,10 @@ Singleton {
     readonly property string videos: StandardPaths.standardLocations(StandardPaths.MoviesLocation)[0]
 
     // Other dirs used by the shell, without "file://"
+    // XDG state home (~/.local/state/) — NOT Quickshell's app-specific state dir
+    // Directories.state is ~/.local/state/quickshell/ (app-specific), so we
+    // construct the real XDG state home from HOME for Sumika Shell state.
+    readonly property string stateHome: FileUtils.trimFileProtocol(`${Directories.home}/.local/state`)
     // Repository root: resolved from SUMIKA_SHELL_ROOT env var (set by session wrapper
     // or lib/paths.sh), falling back to the ~/.config/omd -> repo symlink.
     readonly property string root: FileUtils.trimFileProtocol(

@@ -283,7 +283,7 @@ ColumnLayout {
                             iconName: "open_in_new"
                             onClicked: Quickshell.execDetached([
                                 "xdg-open",
-                                `${Directories.state}/sumika-shell/theme/current`
+                                `${Directories.stateHome}/sumika-shell/theme/current`
                             ])
                         }
                     }

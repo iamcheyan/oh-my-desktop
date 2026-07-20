@@ -1208,6 +1208,9 @@ repair_runtime_config() {
             rm -f "$wallpaper_tmp"
             warn "  could not configure the stable wallpaper path"
         fi
+    else
+        warn "  jq unavailable or config missing; skipped wallpaper path config"
+    fi
 }
 
 # ── Session registration ──────────────────────────────────────────────────────
@@ -1348,6 +1351,7 @@ install_custom_launchers() {
         cp -r "$src_launchers/icons/"* "$dst_apps/icons/" 2>/dev/null || true
     fi
     ok "Installed $count launcher(s)."
+}
 
 # ── Go tools ─────────────────────────────────────────────────────────────────
 build_go_tools() {
@@ -1398,6 +1402,8 @@ print_summary() {
     echo "  ~/.config/omd/bin/omd-restart               # (Re)start Quickshell apps"
     echo "  ~/.config/omd/bin/omd-doctor                # Check runtime dependencies"
     echo "  journalctl --user -b | rg 'omd|quickshell|Hyprland|hyprland'  # Runtime logs"
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
     local runtime_only=0
