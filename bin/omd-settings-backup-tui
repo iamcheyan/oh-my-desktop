@@ -1,0 +1,1013 @@
+#!/usr/bin/env python3
+"""File Share / Backup settings TUI — Python curses program.
+
+Two-column layout matching voice/theme TUIs. Manages SMB backup config,
+tests connections, and runs manual backups.
+"""
+
+import curses
+import json
+import os
+import platform
+import subprocess
+import sys
+import threading
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import omd_tui_shared as S
+
+import os
+
+# Legacy fallback paths for reads (removed in Phase 7)
+_LEGACY_CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "file-share-backup")
+_LEGACY_STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "omd", "file-share-backup")
+
+# Canonical paths (Sumika Shell)
+_sumika_config_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME",
+    os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"))
+CONFIG_DIR = os.path.join(_sumika_config_home, "file-share-backup")
+_sumika_state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME",
+    os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell"))
+STATE_DIR = os.path.join(_sumika_state_home, "file-share-backup")
+
+import shutil
+# Historical: omd/backup → omd/file-share-backup (old code, keep for safety)
+_old_backup_config = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "omd", "backup")
+if os.path.exists(_old_backup_config) and not os.path.exists(_LEGACY_CONFIG_DIR):
+    try:
+        shutil.move(_old_backup_config, _LEGACY_CONFIG_DIR)
+    except Exception:
+        pass
+# Current: omd/file-share-backup → sumika-shell/file-share-backup
+if os.path.exists(_LEGACY_CONFIG_DIR) and not os.path.exists(CONFIG_DIR):
+    try:
+        os.makedirs(os.path.dirname(CONFIG_DIR), exist_ok=True)
+        shutil.move(_LEGACY_CONFIG_DIR, CONFIG_DIR)
+    except Exception:
+        pass
+if os.path.exists(_LEGACY_STATE_DIR) and not os.path.exists(STATE_DIR):
+    try:
+        os.makedirs(os.path.dirname(STATE_DIR), exist_ok=True)
+        shutil.move(_LEGACY_STATE_DIR, STATE_DIR)
+    except Exception:
+        pass
+
+CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
+
+DEFAULT_CONFIG = {
+    "address": "",
+    "share": "",
+    "user": "",
+    "password": "",
+    "remotePath": "",
+    "localPath": [],
+    "includeExt": "",
+    "excludeExt": "",
+}
+
+FIELD_KEYS = ["address", "share", "user", "remotePath", "localPath", "includeExt", "excludeExt"]
+FIELD_LABELS = {
+    "address": "Address",
+    "share": "Share",
+    "user": "User",
+    "remotePath": "Remote path",
+    "localPath": "Local paths",
+    "includeExt": "Include ext",
+    "excludeExt": "Exclude ext",
+}
+
+
+class Model:
+    def __init__(self):
+        self.width = 0
+        self.height = 0
+        self.config = dict(DEFAULT_CONFIG)
+        self.logs = []
+        self.has_config = False
+        self.busy = False
+        self.message = ""
+        self.dirty = True
+        self.scroll_offset = 0
+        self.selected_left = 0  # 0-7 fields
+        self.test_result = None  # None / "ok" / "error"
+        self.test_error = ""
+        self.last_sync_ok = None
+        self.last_sync_time = ""
+        self.compare_result = None  # dict from last-compare.json
+        self.item_rows = []  # list of {path, type, exists, last_backup}
+        self.editing_field = False
+        self.edit_buffer = ""
+        self.edit_field_key = ""
+        self.load_config()
+        self._refresh_item_rows()
+
+    def load_config(self):
+        # Try new Sumika Shell path first, fall back to legacy
+        config_path = CONFIG_FILE if os.path.exists(CONFIG_FILE) else os.path.join(_LEGACY_CONFIG_DIR, "config.json")
+        try:
+            with open(config_path) as f:
+                data = json.load(f)
+            # Keep all keys from file, fill missing with defaults
+            for k in DEFAULT_CONFIG:
+                if k in data:
+                    self.config[k] = data.get(k, DEFAULT_CONFIG[k])
+                elif k not in self.config:
+                    self.config[k] = DEFAULT_CONFIG[k]
+            for k in data:
+                if k not in self.config:
+                    self.config[k] = data[k]
+            # Migrate string localPath to array
+            if isinstance(self.config.get("localPath"), str):
+                val = self.config["localPath"].strip()
+                self.config["localPath"] = [val] if val else []
+            self.logs = ["Config loaded from file."]
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.logs = [
+                "Welcome to File Share / Backup.",
+                "",
+                "To get started:",
+                "  1. Press Enter on a field to edit it",
+                "  3. Fill in Address, Share, User, Password",
+                "  4. Set Local path and Remote path",
+                "  5. Press t to test the connection",
+                "  6. Press b to run a backup",
+                "",
+                "Press e to edit config file directly in vi.",
+            ]
+        # Load last compare result from state cache
+        try:
+            with open(os.path.join(STATE_DIR, "last-compare.json")) as f:
+                self.compare_result = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            self.compare_result = None
+        self.has_config = bool(self.config.get("address"))
+        self._refresh_item_rows()
+        # Auto-connect on startup instead of auto-compare
+        self.test_connection()
+
+    def save_config(self):
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(self.config, f, indent=2)
+        self.has_config = bool(self.config.get("address"))
+        self._refresh_item_rows()
+        self.append_log("Config saved", "ok")
+        self.message = "Config saved"
+
+    def append_log(self, text, tag=None):
+        entry = (tag, text) if tag else text
+        self.logs.append(entry)
+        if len(self.logs) > 200:
+            self.logs = self.logs[-200:]
+        self.scroll_offset = 0
+        self.dirty = True
+
+    def run_backend(self, action, *args):
+        cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), action] + list(args)
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            lines = res.stdout.strip().split("\n") if res.stdout.strip() else []
+            err = res.stderr.strip() if res.stderr.strip() else ""
+            if res.returncode != 0 and not err:
+                err = f"exit {res.returncode}"
+            return lines, err
+        except subprocess.TimeoutExpired:
+            return [], "Timeout"
+        except FileNotFoundError as e:
+            return [], str(e)
+
+    def _parse_json_line(self, lines):
+        """Find and parse the last JSON line from output lines."""
+        for l in reversed(lines):
+            l = l.strip()
+            if l.startswith("{"):
+                try:
+                    return json.loads(l), l
+                except json.JSONDecodeError:
+                    pass
+        return None, None
+
+    def test_connection(self):
+        if self.busy:
+            return
+        self.busy = True
+        self.message = "Testing\u2026"
+        self.dirty = True
+        self.append_log("$ test connection", "primary")
+        self._save_temp_config()
+
+        def _cb():
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "test"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
+                    if l and not l.startswith("{"):
+                        if "Connected" in l or "mounted" in l or "Already" in l:
+                            self.append_log(f"{l}", "ok")
+                        elif "error" in l.lower() or "fail" in l.lower() or "SKIP" in l or "cannot" in l.lower():
+                            self.append_log(f"{l}", "danger")
+                        elif "Attempting" in l or "Testing" in l or "Target" in l or "Mount" in l or "Credential" in l:
+                            self.append_log(f"{l}", "muted")
+                        else:
+                            self.append_log(f"{l}")
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                self.busy = False
+                if err:
+                    self.test_result = "error"
+                    self.test_error = err
+                    self.message = "Test failed"
+                    self.append_log(f"error: {err}", "danger")
+                else:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.test_result = "ok"
+                        self.test_error = ""
+                        self.message = "Connection OK"
+                    else:
+                        self.test_result = "error"
+                        self.test_error = (data or {}).get("error", "unknown")
+                        self.message = "Connection failed"
+                        self.append_log(f"error: {self.test_error}", "danger")
+                self.dirty = True
+            except FileNotFoundError:
+                self.busy = False
+                self.test_result = "error"
+                self.test_error = "Backend script not found"
+                self.message = "Test failed \u2014 script not found"
+                self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+    def run_backup(self, delete_remote=False):
+        if self.busy:
+            return
+        if not self.config.get("address") or not self.config.get("localPath"):
+            self.message = "Configure address and local path first"
+            self.dirty = True
+            return
+        self.busy = True
+        label = "Full sync" if delete_remote else "Incremental sync"
+        self.message = f"{label}…"
+        self.dirty = True
+        self.append_log(f"$ {label} started", "primary")
+        self._save_temp_config()
+
+        def _cb():
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "backup"]
+            if delete_remote:
+                cmd.append("--delete")
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
+                    if l and not l.startswith("{"):
+                        if "Backup complete" in l or "Backup done" in l:
+                            self.append_log(f"{l}", "ok")
+                        elif "FAILED" in l or "error" in l.lower() or "fail" in l.lower() or "SKIP" in l:
+                            self.append_log(f"{l}", "danger")
+                        elif "sync" in l or "Starting" in l or "Full sync" in l:
+                            self.append_log(f"{l}", "muted")
+                        else:
+                            self.append_log(f"{l}")
+
+                proc.wait(timeout=600)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                self.busy = False
+                self.last_sync_time = time.strftime("%H:%M")
+                if err:
+                    self.last_sync_ok = False
+                    self.message = "Backup failed"
+                    self.append_log(f"error: {err}", "danger")
+                else:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.last_sync_ok = True
+                        elapsed = data.get("elapsed", 0)
+                        self.message = f"Backup done ({elapsed}s)"
+                    else:
+                        self.last_sync_ok = False
+                        err_msg = (data or {}).get("error", "unknown")
+                        self.message = "Backup failed"
+                        self.append_log(f"error: {err_msg}", "danger")
+                self._refresh_item_rows()
+                self._run_compare()
+                self.dirty = True
+            except FileNotFoundError:
+                self.busy = False
+                self.last_sync_ok = False
+                self.message = "Backup failed \u2014 script not found"
+                self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+    def _save_temp_config(self):
+        try:
+            os.makedirs(CONFIG_DIR, exist_ok=True)
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(self.config, f, indent=2)
+        except OSError:
+            pass
+
+    def _refresh_item_rows(self):
+        """Rebuild item_rows from config localPath + state items.json + disk check."""
+        paths = self.config.get("localPath", [])
+        if isinstance(paths, str):
+            paths = [p.strip() for p in paths.split(",") if p.strip()]
+        # Load per-item backup times from state
+        item_times = {}
+        try:
+            with open(os.path.join(STATE_DIR, "items.json")) as f:
+                for entry in json.load(f):
+                    item_times[entry.get("path", "")] = entry.get("last_backup", "")
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        rows = []
+        # Load per-path compare stats from last-compare.json
+        path_stats = {}
+        try:
+            with open(os.path.join(STATE_DIR, "last-compare.json")) as f:
+                cdata = json.load(f)
+            for pdata in cdata.get("paths", []):
+                path_stats[pdata["path"]] = pdata
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+
+        for p in paths:
+            if not p:
+                continue
+            exists = os.path.exists(p)
+            if os.path.isdir(p):
+                typ = "dir"
+            elif os.path.isfile(p):
+                typ = "file"
+            else:
+                typ = "—"
+            stat = path_stats.get(p, {})
+            rows.append({
+                "path": p,
+                "name": os.path.basename(p) or p,
+                "type": typ,
+                "exists": exists,
+                "last_backup": item_times.get(p, ""),
+                "total_files": stat.get("total", 0),
+                "new_files": stat.get("new", 0),
+                "modified_files": stat.get("modified", 0),
+            })
+        self.item_rows = rows
+        self.dirty = True
+
+    def _run_compare(self):
+        """Run omd-backup compare in a background thread and update logs + item_rows."""
+        if self.busy:
+            return
+
+        def _cb():
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "compare"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    l = line.strip()
+                    if l:
+                        if "→ All files up to date" in l:
+                            self.append_log(f"{l}", "ok")
+                        elif "→" in l or "need backup" in l:
+                            self.append_log(f"{l}", "warn")
+                        elif "Summary" in l:
+                            self.append_log(f"{l}", "text")
+                        else:
+                            self.append_log(f"{l}")
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                if err:
+                    self.append_log(f"error: {err}", "danger")
+                    self.dirty = True
+                    return
+                if all_lines:
+                    try:
+                        data = json.loads(all_lines[-1])
+                        if data.get("ok"):
+                            self.compare_result = data
+                            self._refresh_item_rows()
+                            ns = data.get("needs_sync", 0)
+                            if ns > 0:
+                                self.append_log(f"→ {ns} file(s) need backup — press s to sync", "warn")
+                                self.message = f"{ns} file(s) changed"
+                            else:
+                                self.append_log("→ All files up to date ✓", "ok")
+                                self.message = "All up to date"
+                    except (json.JSONDecodeError, IndexError):
+                        pass
+                self.dirty = True
+            except FileNotFoundError:
+                self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+    def _run_compare_verbose(self):
+        """Run omd-backup compare --verbose for per-file colored diffs."""
+        if self.busy:
+            return
+
+        def _cb():
+            cmd = [os.path.join(S.OMD_ROOT, "bin", "omd-backup"), "compare", "--verbose"]
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                tag_map = {"+ ": "ok", "~ ": "warn", "- ": "danger", "= ": "muted"}
+                all_lines = []
+                for raw_line in proc.stdout:
+                    line = raw_line.rstrip('\n\r')
+                    all_lines.append(line)
+                    if line.startswith("{"):
+                        continue  # skip JSON result line
+                    prefix = line[:2] if len(line) >= 2 else ""
+                    tag = tag_map.get(prefix)
+                    if tag:
+                        self.logs.append((tag, line[2:].strip()))
+                        self.dirty = True
+                    else:
+                        self.logs.append(line)
+                        self.dirty = True
+
+                proc.wait(timeout=30)
+                err = proc.stderr.read().strip() if proc.stderr else ""
+                if proc.returncode != 0 and not err:
+                    err = f"exit {proc.returncode}"
+
+                if err:
+                    self.append_log(f"error: {err}", "danger")
+                    self.dirty = True
+                    return
+                if all_lines:
+                    data, _ = self._parse_json_line(all_lines)
+                    if data and data.get("ok"):
+                        self.compare_result = data
+                        self._refresh_item_rows()
+                self.logs = S.clip_lines(self.logs, 200)
+                self.dirty = True
+            except FileNotFoundError:
+                self.dirty = True
+
+        threading.Thread(target=_cb, daemon=True).start()
+
+
+def view_remote_files(model):
+    """Open a terminal at the host-specific backup directory for interactive browsing."""
+    mnt = os.path.expanduser("~/NAS")
+    if not os.path.isdir(mnt):
+        model.message = "NAS not mounted — test connection first"
+        model.dirty = True
+        return
+
+    # Compute host-specific backup directory
+    remote_path = model.config.get("remotePath", "Backups")
+    host_prefix = f"{platform.system()}-{platform.node().split('.')[0]}"
+    target = os.path.join(mnt, remote_path, host_prefix, "")
+
+    # Ensure the target directory exists
+    if not os.path.isdir(target):
+        try:
+            os.makedirs(target, exist_ok=True)
+        except OSError:
+            model.message = f"Failed to create {target}"
+            model.dirty = True
+            return
+
+    title = "NAS - Backup Directory"
+    inner = f"cd {target} && exec bash"
+    cmd = (
+        'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
+        'exec xdg-terminal-exec --app-id=org.omd.list-file-share-backup --title="' + title + '" -- bash -c ' + repr(inner) + '; '
+        'elif command -v foot >/dev/null 2>&1; then '
+        'exec foot --app-id=org.omd.list-file-share-backup --title="' + title + '" -e bash -c ' + repr(inner) + '; '
+        'else exec kitty --class=org.omd.list-file-share-backup --title="' + title + '" -- bash -c ' + repr(inner) + '; fi'
+    )
+    try:
+        subprocess.Popen(
+            ["bash", "-c", cmd],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        model.message = f"Opened terminal at {target}"
+    except Exception as e:
+        model.message = f"Failed to open terminal: {e}"
+    model.dirty = True
+
+
+def load_model():
+    return Model()
+
+
+def hero_info(model):
+    subtitle_parts = []
+    if not model.has_config:
+        subtitle = "Set up your SMB server to begin"
+        tone = "muted"
+    else:
+        if model.config.get("address"):
+            subtitle_parts.append(model.config["address"])
+        if model.test_result == "ok":
+            subtitle_parts.append("connected")
+        elif model.test_result == "error":
+            subtitle_parts.append("disconnected")
+        else:
+            subtitle_parts.append("not tested")
+        if model.last_sync_ok is True:
+            subtitle_parts.append(f"last sync {model.last_sync_time}")
+        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "File share backup"
+        tone = "muted"
+
+    status_text = ""
+    # Sync status has precedence for top-right status indicator and overall tone
+    if not model.has_config:
+        status_text = ""
+        tone = "muted"
+    elif model.busy:
+        status_text = "Syncing..."
+        tone = "warn"
+    elif model.compare_result:
+        ns = model.compare_result.get("needs_sync", 0)
+        if ns > 0:
+            status_text = "Needs sync"
+            tone = "warn"
+        else:
+            status_text = "Synced"
+            tone = "ok"
+    else:
+        # Fallback to test connection result
+        if model.test_result == "ok":
+            status_text = "Connected"
+            tone = "ok"
+        elif model.test_result == "error":
+            status_text = "Disconnected"
+            tone = "danger"
+        else:
+            status_text = "Not checked"
+            tone = "muted"
+
+    msg = ""
+    if model.busy:
+        msg = "working…"
+    elif model.message:
+        msg = model.message
+    return S.hero_line("File Share / Backup", subtitle, tone, model.busy, msg, status_text)
+
+
+def help_items(model):
+    if model.editing_field:
+        generic = [("enter", "confirm"), ("esc", "cancel")]
+        if model.edit_field_key == "localPath":
+            generic.append(("comma", "separate paths"))
+        return (generic, [])
+    generic = [
+        ("arrows", "navigate"),
+        ("pgup/pgdn", "scroll log"),
+        ("r", "refresh"),
+        ("q", "quit"),
+    ]
+    tool = [
+        ("enter", "edit config"),
+        ("t", "test conn"),
+        ("r", "compare"),
+        ("e", "edit file"),
+        ("l", "NAS browse"),
+    ]
+    if model.compare_result:
+        ns = model.compare_result.get("needs_sync", 0)
+        if ns > 0:
+            tool.append(("s", "sync inc"))
+            tool.append(("S", "sync full"))
+    tool.append(("c", "detail diff"))
+    return (generic, tool)
+
+
+# ── render helpers ──
+
+def config_value_display(model, key):
+    val = model.config.get(key, "")
+    if key == "password" and val:
+        return "*" * len(val)
+    if key == "localPath" and isinstance(val, list):
+        if not val:
+            return "—"
+        if len(val) == 1:
+            return val[0]
+        return f"{len(val)} paths"
+    return val if val else "—"
+
+
+def render_field_list(model, width):
+    lines = []
+    sel_field = model.selected_left - 4 if model.selected_left >= 4 else 0
+    for i, key in enumerate(FIELD_KEYS):
+        label = FIELD_LABELS.get(key, key)
+        val = config_value_display(model, key)
+        focused = sel_field == i
+        if focused and model.editing_field and model.edit_field_key == key:
+            display = model.edit_buffer if key != "password" else "*" * len(model.edit_buffer)
+            lines.append(("focus", f"{label}: {display}█"))
+        elif focused:
+            lines.append(("focus", f"{label}: {S.truncate(val, width - len(label) - 5)}"))
+        else:
+            lines.append(("text", f"{label}: {S.truncate(val, width - len(label) - 5)}"))
+    return lines
+
+
+def render_connection_status(model, width):
+    lines = []
+    if not model.has_config:
+        lines.append(("primary", "→ Configure server below"))
+        lines.append(("muted", "Enter to edit fields"))
+        lines.append(("muted", "t to test connection"))
+        return lines
+    if model.test_result == "ok":
+        lines.append(("ok", "● Connected"))
+    elif model.test_result == "error":
+        lines.append(("danger", f"✗ {S.truncate(model.test_error, width - 4)}"))
+    else:
+        lines.append(("muted", "○ Not tested"))
+    addr = model.config.get("address", "")
+    share = model.config.get("share", "")
+    if addr and share:
+        lines.append(("muted", f"//{addr}/{share}"))
+    elif addr:
+        lines.append(("muted", f"{addr}"))
+    # Last sync status
+    if model.last_sync_ok is True:
+        lines.append(("ok", f"Last sync: {model.last_sync_time}  ✅"))
+    elif model.last_sync_ok is False:
+        lines.append(("danger", "Last sync: failed"))
+    else:
+        lines.append(("muted", "No sync yet"))
+    return lines
+
+
+def render_schedule(model, width):
+    lines = []
+    sel_sched = model.selected_left if model.selected_left < 4 else model.selected_left  # persist
+    for i, st in enumerate(SCHEDULE_TYPES):
+        focused = model.selected_left == i
+        label = {"manual": "Manual only", "every_h": "Every N hours",
+                 "every_d": "Every N days", "at_time": "At specific time"}.get(st, st)
+        sel = model.config.get("scheduleType", "manual") == st
+        val = model.config.get("scheduleValue", "")
+        trail = f" ({val})" if val and sel else ""
+        if focused:
+            lines.append(("focus", f"● {label}{trail}"))
+        elif sel:
+            lines.append(("ok", f"● {label}{trail}"))
+        else:
+            lines.append(("muted", f"○ {label}{trail}"))
+    return lines
+
+
+def render_item_table(model, width):
+    """Render the managed items table: name | type | files | changes | backed | status."""
+    rows = model.item_rows
+    if not rows:
+        return [("muted", "  (no items configured)")]
+    
+    # Column widths
+    avail = width - 8  # padding and spacing
+    name_w = max(12, avail - 5 - 6 - 7 - 8 - 10)  # Type(5) + Files(6) + Changes(7) + Backed(8) + margin
+    if name_w < 10:
+        name_w = 10
+        
+    def format_col_left(text, col_w):
+        text = str(text)
+        w = S.text_width(text)
+        if w > col_w:
+            return S.truncate(text, col_w)
+        return text + " " * (col_w - w)
+
+    def format_col_right(text, col_w):
+        text = str(text)
+        w = S.text_width(text)
+        if w > col_w:
+            return S.truncate(text, col_w)
+        return " " * (col_w - w) + text
+
+    lines = []
+    # Header — align type, files, changes, backed, status
+    hdr_name = format_col_left("Name", name_w)
+    hdr_type = format_col_left("Type", 5)
+    hdr_files = format_col_right("Files", 6)
+    hdr_changes = format_col_right("Changes", 7)
+    hdr_backed = format_col_left("Backed", 8)
+    hdr = f"  {hdr_name} {hdr_type} {hdr_files} {hdr_changes} {hdr_backed} Status"
+    lines.append(("muted", hdr))
+    lines.append(("muted", "" + "─" * (S.text_width(hdr.strip()))))
+
+    for row in rows:
+        name = format_col_left(row["name"], name_w)
+        typ = format_col_left(row["type"], 5)
+        
+        # Files and changes counts
+        total_f = row.get("total_files", 0)
+        new_f = row.get("new_files", 0)
+        mod_f = row.get("modified_files", 0)
+        changes = new_f + mod_f
+        
+        files_str = str(total_f) if total_f > 0 else "—"
+        if changes > 0:
+            ch_str = str(changes)
+        else:
+            ch_str = "0" if total_f > 0 else "—"
+            
+        files_col = format_col_right(files_str, 6)
+        changes_col = format_col_right(ch_str, 7)
+        
+        backed_time = row["last_backup"] if row["last_backup"] else "—"
+        backed_col = format_col_left(backed_time, 8)
+        
+        # Status
+        if not row["exists"]:
+            status = "Missing"
+            st_tag = "danger"
+        elif changes > 0:
+            status = f"~{changes} pending"
+            st_tag = "warn"
+        elif backed_time != "—":
+            status = "Synced"
+            st_tag = "ok"
+        else:
+            status = "Pending"
+            st_tag = "muted"
+            
+        line = f"  {name} {typ} {files_col} {changes_col} {backed_col} {status}"
+        lines.append((st_tag, line))
+    return lines
+
+
+# ── view ──
+
+def view(stdscr, model):
+    h, w = stdscr.getmaxyx()
+    model.width = w
+    model.height = h
+
+    if not S.require_terminal_size(stdscr, 72, 20):
+        return
+
+    stdscr.erase()
+
+    ly = S.Layout(stdscr)
+    ly.pad = 1
+    ly.left_w = 34
+    ly.right_min = 28
+    ly.compute()
+
+    ly.draw_hero(stdscr, hero_info(model))
+
+    # Right side first: compute Managed Items height for Status box alignment
+    table_lines = render_item_table(model, ly.right_w - 4)
+    table_h = len(table_lines) + 3 if table_lines else 0
+    if table_h < 3:
+        table_h = 0
+    avail_right = ly.content_h
+    act_min = 4
+    table_box_h = min(table_h, avail_right - act_min)
+    if table_box_h < 3:
+        table_box_h = 0
+    if table_box_h >= 3:
+        S.draw_border(stdscr, ly.content_top, ly.right_x, table_box_h, ly.right_w, "Managed Items")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.right_x, table_box_h, ly.right_w, table_lines)
+    # Activity log below Managed Items
+    act_y = ly.content_top + table_box_h
+    act_h = ly.content_h + ly.content_top - act_y
+    if act_h >= 4:
+        S.draw_border(stdscr, act_y, ly.right_x, act_h, ly.right_w, "Activity")
+        S.draw_log_in_area(stdscr, act_y, ly.right_x, act_h, ly.right_w, model.logs, model.scroll_offset,
+                           empty_text="(no activity)")
+
+    # Left: Status (height = Managed Items height) + Connection (fills remaining)
+    conn_lines = render_connection_status(model, ly.left_w - 4)
+    conn_box_h = table_box_h
+    if conn_box_h >= 3:
+        S.draw_border(stdscr, ly.content_top, ly.pad, conn_box_h, ly.left_w, "Status")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.pad, conn_box_h, ly.left_w, conn_lines)
+    else:
+        conn_box_h = 0
+
+    field_y = ly.content_top + conn_box_h
+    field_lines = render_field_list(model, ly.left_w - 4)
+    field_box_h = max(0, ly.content_h - conn_box_h)
+    if field_box_h >= 3:
+        S.draw_border(stdscr, field_y, ly.pad, field_box_h, ly.left_w, "Connection")
+        S.draw_lines_in_area(stdscr, field_y, ly.pad, field_box_h, ly.left_w, field_lines)
+
+    ly.draw_help(stdscr, *help_items(model))
+    S.finish_frame(stdscr)
+
+
+# ── input handling ──
+
+def handle_key(stdscr, model, key):
+    if key == ord('q') or key == 27:
+        if model.editing_field:
+            model.editing_field = False
+            model.dirty = True
+            return True
+        return False
+
+    if model.editing_field:
+        return handle_edit_key(model, key)
+
+    if model.busy and key not in (ord('q'),):
+        return True
+
+    if key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            wheel = S.mouse_wheel_delta(me)
+            if wheel is not None:
+                model.scroll_offset = max(0, model.scroll_offset + wheel)
+                model.dirty = True
+                return True
+        return True
+
+    if key == curses.KEY_UP or key == ord('k'):
+        # Left: move through fields (0-7)
+        if model.selected_left > 7:
+            model.selected_left = 7
+        elif model.selected_left > 0:
+            model.selected_left -= 1
+        model.dirty = True
+        return True
+
+    if key == curses.KEY_DOWN or key == ord('j'):
+        if model.selected_left >= 7:
+            pass  # already at bottom
+        else:
+            model.selected_left += 1
+        model.dirty = True
+        return True
+
+    if key == ord('\n') or key == 10:
+        start_edit(model)
+        return True
+
+    if key == ord(' '):
+        start_edit(model)
+        return True
+
+    # Action keys
+    if key in (ord('t'), ord('T')):
+        model.test_connection()
+        return True
+    if key in (ord('s'), ord('S')):
+        if model.busy:
+            model.message = "Backup already running… please wait"
+            model.dirty = True
+            return True
+        model.run_backup(delete_remote=(key == ord('S')))
+        return True
+    if key in (ord('c'), ord('C')):
+        model.message = ""
+        model.append_log("$ compare — per-file diff", "primary")
+        model._run_compare_verbose()
+        return True
+    if key in (ord('l'), ord('L')):
+        view_remote_files(model)
+        return True
+    if key in (ord('r'), ord('R')):
+        model.message = ""
+        model._run_compare()
+        model.dirty = True
+        return True
+    if key in (ord('e'), ord('E')):
+        model.save_config()
+        # Open vi in a new terminal window with specific app-id/class to trigger floating rules
+        cmd = (
+            'if command -v xdg-terminal-exec >/dev/null 2>&1; then '
+            'exec xdg-terminal-exec --app-id=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -- vi "$1"; '
+            'elif command -v foot >/dev/null 2>&1; then '
+            'exec foot --app-id=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -e vi "$1"; '
+            'else exec kitty --class=org.omd.edit-file-share-backup --title="Edit File Share & Backup Config" -- vi "$1"; fi'
+        )
+        subprocess.Popen(
+            ["bash", "-c", cmd, "omd-file-share-backup-editor", CONFIG_FILE],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+        # Don't reload immediately — wait for user to finish editing
+        model.message = "Opened in terminal — press r to reload after editing"
+        model.dirty = True
+        return True
+
+    # Scroll
+    r = S.scroll_key(key, model.scroll_offset, page_size=1)
+    if r is not None:
+        delta, model.scroll_offset = r
+        model.dirty = True
+        return True
+
+    return True
+
+
+def start_edit(model):
+    if model.focus_area != 0:
+        return
+    sel = model.selected_left
+    if sel < 4:
+        return
+    idx = sel - 4
+    if idx >= len(FIELD_KEYS):
+        return
+    key = FIELD_KEYS[idx]
+    model.editing_field = True
+    model.edit_field_key = key
+    val = model.config.get(key, "")
+    if key == "localPath" and isinstance(val, list):
+        model.edit_buffer = ",".join(val)
+    else:
+        model.edit_buffer = str(val) if val is not None else ""
+    model.dirty = True
+
+
+def handle_edit_key(model, key):
+    if key == ord('\n') or key == 10:
+        if model.edit_field_key == "localPath":
+            model.config[model.edit_field_key] = [p.strip() for p in model.edit_buffer.split(",") if p.strip()]
+        else:
+            model.config[model.edit_field_key] = model.edit_buffer
+        model.save_config()
+        model.editing_field = False
+        model.message = f"{FIELD_LABELS.get(model.edit_field_key, model.edit_field_key)} updated & saved"
+        model.dirty = True
+        model._run_compare()
+        return True
+    if key == 27:  # esc
+        model.editing_field = False
+        model.dirty = True
+        return True
+    if key == 127 or key == curses.KEY_BACKSPACE or key == 8:
+        model.edit_buffer = model.edit_buffer[:-1]
+        model.dirty = True
+        return True
+    if 32 <= key <= 126:
+        model.edit_buffer += chr(key)
+        model.dirty = True
+        return True
+    return True
+
+
+# ── main ──
+
+def main(stdscr):
+    S.run_tui_loop(stdscr, load_model(), view, handle_key, poll_timeout=200)
+
+
+if __name__ == "__main__":
+    S.setup_locale()
+    curses.wrapper(main)

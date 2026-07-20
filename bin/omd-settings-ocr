@@ -1,0 +1,328 @@
+#!/usr/bin/env bash
+# OCR Settings backend — detect status, install dependencies, test recognition.
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+
+STATE_DIR="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/ocr"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omd-ocr"
+MODEL_CACHE="$HOME/.paddlex/official_models"
+LOG_FILE="$STATE_DIR/install.log"
+
+kv() {
+  local key="$1" value="${2:-}"
+  value="${value//$'\n'/ }"
+  printf '%s=%s\n' "$key" "$value"
+}
+
+bool() {
+  if "$@" >/dev/null 2>&1; then printf true; else printf false; fi
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+ensure_state_dir() {
+  mkdir -p "$STATE_DIR"
+}
+
+# ── readiness checks ────────────────────────────────────────────────────
+
+paddleocr_installed() {
+  python3 -c "import paddleocr" >/dev/null 2>&1
+}
+
+onnxruntime_installed() {
+  python3 -c "import onnxruntime" >/dev/null 2>&1
+}
+
+models_cached() {
+  [[ -n "$(ls "$MODEL_CACHE"/PP-OCRv6*_onnx 2>/dev/null || true)" ]]
+}
+
+# Return total model cache size in MB
+model_cache_mb() {
+  if models_cached; then
+    du -sm "$MODEL_CACHE" 2>/dev/null | awk '{print $1}'
+  else
+    printf '0'
+  fi
+}
+
+# Count model directories
+model_count() {
+  if models_cached; then
+    ls -d "$MODEL_CACHE"/PP-OCRv6*_onnx 2>/dev/null | wc -l
+  else
+    printf '0'
+  fi
+}
+
+omd_ocr_script_ready() {
+  [[ -x "$OMD_ROOT/bin/omd-ocr" ]]
+}
+
+health_state() {
+  if ! paddleocr_installed || ! onnxruntime_installed; then
+    printf 'nomodel'
+    return
+  fi
+  if ! models_cached; then
+    printf 'nomodel'
+    return
+  fi
+  printf 'ready'
+}
+
+setup_in_progress() {
+  [[ -f "$STATE_FILE" ]] || return 1
+  python3 - "$STATE_FILE" <<'PY'
+import json, sys, time
+try:
+    with open(sys.argv[1]) as f:
+        s = json.load(f)
+except Exception:
+    sys.exit(1)
+if s.get("phase") != "installing":
+    sys.exit(1)
+hb = s.get("heartbeat", 0)
+if time.time() - hb > 30:
+    sys.exit(1)
+sys.exit(0)
+PY
+}
+
+# ── subcommands ─────────────────────────────────────────────────────────
+
+STATE_FILE="$STATE_DIR/state.json"
+
+status() {
+  local state size count
+  state="$(health_state)"
+  size="$(model_cache_mb)"
+  count="$(model_count)"
+  kv state "$state"
+  kv paddleocrInstalled "$(bool paddleocr_installed)"
+  kv onnxruntimeInstalled "$(bool onnxruntime_installed)"
+  kv modelsCached "$(bool models_cached)"
+  kv modelCacheMB "$size"
+  kv modelCount "$count"
+  kv modelCache "$MODEL_CACHE"
+  kv omdOcrReady "$(bool omd_ocr_script_ready)"
+  kv omdOcrPath "$OMD_ROOT/bin/omd-ocr"
+  if setup_in_progress; then
+    python3 - "$STATE_FILE" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        s = json.load(f)
+except Exception:
+    s = {}
+for k, v in s.items():
+    if k in ("phase", "message"):
+        print(f"setup.{k}={v}")
+PY
+  else
+    kv setup.phase ""
+    kv setup.message ""
+  fi
+}
+
+setup() {
+  ensure_state_dir
+  if paddleocr_installed && onnxruntime_installed && models_cached; then
+    kv result "already-ready"
+    return
+  fi
+
+  echo "=== OCR Setup Log ===" >"$LOG_FILE"
+  echo "Starting dependency installation..." >>"$LOG_FILE"
+
+  # Mark installing so the TUI can show progress
+  python3 - "$STATE_FILE" <<'PY'
+import json, os, sys, time
+path = sys.argv[1]
+d = {"phase": "installing", "message": "Installing Python packages…", "heartbeat": int(time.time())}
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, "w") as f:
+    json.dump(d, f)
+PY
+
+  # Install pip packages
+  (
+    echo "Installing paddleocr and onnxruntime..." >>"$LOG_FILE"
+    if ! paddleocr_installed || ! onnxruntime_installed; then
+      pip install paddleocr onnxruntime >>"$LOG_FILE" 2>&1 || {
+        echo "pip install failed" >>"$LOG_FILE"
+        python3 - "$STATE_FILE" <<'PY'
+import json, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+d["phase"] = "error"
+d["message"] = "pip install failed"
+d["heartbeat"] = int(time.time())
+with open(sys.argv[1], "w") as f:
+    json.dump(d, f)
+PY
+        exit 1
+      }
+    fi
+
+    # Update heartbeat
+    python3 - "$STATE_FILE" <<'PY'
+import json, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+d["message"] = "Warming up model cache…"
+d["heartbeat"] = int(time.time())
+with open(sys.argv[1], "w") as f:
+    json.dump(d, f)
+PY
+
+    # Pre-download models by running a quick inference on a blank image
+    if ! models_cached; then
+      echo "Downloading PP-OCRv6 models (~50 MB)..." >>"$LOG_FILE"
+      python3 -c "
+import sys, os
+os.environ['GLOG_minloglevel'] = '2'
+import warnings
+warnings.filterwarnings('ignore')
+
+import json
+_cfg_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"
+)
+_ocr_lang = 'ch'
+_ocr_engine = 'onnxruntime'
+try:
+    with open(os.path.join(_cfg_home, 'ocr.json')) as _f:
+        _cfg = json.load(_f)
+    _ocr_lang = _cfg.get('lang', _ocr_lang)
+    _ocr_engine = _cfg.get('engine', _ocr_engine)
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
+from paddleocr import PaddleOCR
+ocr = PaddleOCR(lang=_ocr_lang, engine=_ocr_engine)
+# Create a blank test image and run prediction to trigger model download
+from PIL import Image
+img = Image.new('RGB', (100, 30), 'white')
+import tempfile
+with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+    img.save(f.name)
+    ocr.predict(f.name)
+    os.unlink(f.name)
+" >>"$LOG_FILE" 2>&1 || {
+        echo "Model warmup failed" >>"$LOG_FILE"
+        python3 - "$STATE_FILE" <<'PY'
+import json, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+d["phase"] = "error"
+d["message"] = "Model download failed"
+d["heartbeat"] = int(time.time())
+with open(sys.argv[1], "w") as f:
+    json.dump(d, f)
+PY
+        exit 1
+      }
+    fi
+
+    # Mark complete
+    python3 - "$STATE_FILE" <<'PY'
+import json, time
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+d["phase"] = "done"
+d["message"] = "Setup complete"
+d["heartbeat"] = int(time.time())
+with open(sys.argv[1], "w") as f:
+    json.dump(d, f)
+PY
+    kv result "ok"
+  ) &
+  printf ''
+}
+
+cancel_setup() {
+  local pid
+  pid="$(pgrep -f "omd-settings-ocr setup" 2>/dev/null || true)"
+  if [[ -n "$pid" ]]; then
+    kill "$pid" 2>/dev/null || true
+  fi
+  rm -f "$STATE_FILE"
+  kv result "cancelled"
+}
+
+diagnose() {
+  status
+  kv -- "" ""
+  kv "--- paddleocr" "$(bool paddleocr_installed)"
+  kv "--- onnxruntime" "$(bool onnxruntime_installed)"
+  kv "--- models" "$(bool models_cached)"
+  kv "--- omd-ocr" "$(bool omd_ocr_script_ready)"
+  local pyv
+  pyv="$(python3 --version 2>/dev/null || echo "not found")"
+  kv python "$pyv"
+  kv bin "$OMD_ROOT/bin/omd-ocr"
+  kv cache "$MODEL_CACHE"
+}
+
+test() {
+  # Create a test image with mixed text and run OCR on it
+  local tmp_img
+  tmp_img="$(mktemp /tmp/omd-ocr-test-XXXXXX.png)"
+  python3 2>/dev/null << PYEOF
+from PIL import Image, ImageDraw, ImageFont
+img = Image.new('RGB', (600, 180), 'white')
+draw = ImageDraw.Draw(img)
+try:
+    font = ImageFont.truetype('/usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.ttc', 36)
+except Exception:
+    font = ImageFont.load_default()
+draw.text((30, 20), 'Hello 你好 おはよう', fill='black', font=font)
+draw.text((30, 80), 'PaddleOCR 文本识别测试', fill='black', font=font)
+draw.text((30, 140), 'OCR Test English Only', fill='black', font=font)
+img.save("$tmp_img")
+PYEOF
+
+  local result
+  result="$("$OMD_ROOT/bin/omd-ocr" "$tmp_img" 2>/dev/null || true)"
+  rm -f "$tmp_img"
+  if [[ -z "$result" ]]; then
+    kv testResult ""
+    kv testPassed "false"
+    kv testError "OCR returned no text"
+  else
+    kv testResult "$result"
+    kv testPassed "true"
+    kv testError ""
+  fi
+}
+
+logs() {
+  if [[ -f "$LOG_FILE" ]]; then
+    cat "$LOG_FILE"
+  fi
+}
+
+# ── dispatch ─────────────────────────────────────────────────────────────
+
+cmd="${1:-status}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+  status|setup|diagnose|test|logs|cancel-setup)
+    "$cmd" "$@"
+    ;;
+  cancel)
+    cancel_setup
+    ;;
+  *)
+    echo "unknown command: $cmd" >&2
+    echo "usage: omd-settings-ocr {status|setup|diagnose|test|logs|cancel-setup}" >&2
+    exit 1
+    ;;
+esac

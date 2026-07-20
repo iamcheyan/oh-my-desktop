@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""OCR Settings TUI — check PaddleOCR status, install, and test.
+
+Features:
+  - Self-diagnose on start
+  - Show PaddleOCR / ONNX Runtime / model cache status
+  - Setup button: install pip packages + pre-download models
+  - Test button: create sample image → OCR → show result
+  - Console log viewer
+"""
+
+import curses
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import omd_tui_shared as S
+
+FRIENDLY_MAP = {}
+
+
+def friendly(raw):
+    return raw
+
+
+class Model(S.StatusModel):
+    def __init__(self):
+        super().__init__()
+        self.last_tick = 0
+        self.confirm_setup = False
+        self.test_result = ""
+        self.test_passed = False
+        self.test_error = ""
+        self.setup_phase = ""
+        self.setup_message = ""
+        self.refresh()
+        self.run_action("diagnose")
+
+    def state(self):
+        return self.val("state", "nomodel")
+
+    def refresh(self):
+        if self.refreshing or self.busy:
+            return
+        self.refreshing = True
+        self.dirty = True
+        rc = S.RefreshCounter(1, self, on_done=lambda: setattr(self, 'refreshing', False))
+        def on_status(lines, err):
+            if err:
+                self.err = f"status failed: {err}"
+                return
+            self.status = S.parse_kv(lines)
+            self.setup_phase = self.val("setup.phase", "")
+            self.setup_message = self.val("setup.message", "")
+        S.run_cmd_bg("omd-settings-ocr", "status", callback=rc.cb(on_status))
+
+    def run_action(self, action):
+        if action == "setup":
+            self.confirm_setup = False
+            self.logs.append("$ Setup started")
+            self.logs.append("  Installing PaddleOCR + ONNX Runtime + models…")
+        elif action == "test":
+            self.test_result = ""
+            self.test_passed = False
+            self.test_error = ""
+            self.logs.append("$ Running OCR test…")
+        elif action == "diagnose":
+            self.logs.append("$ Diagnosing OCR environment…")
+
+        self.busy = True
+        self.dirty = True
+
+        def cb(lines, err):
+            for l in (lines or []):
+                self.logs.append(f"  {l}")
+            self.logs = S.clip_lines(self.logs, 200)
+            self.busy = False
+            if err:
+                self.err = str(err) if err else "action failed"
+            else:
+                self.err = ""
+                if action == "test":
+                    parsed = S.parse_kv(lines or [])
+                    self.test_result = parsed.get("testResult", "")
+                    self.test_passed = parsed.get("testPassed") == "true"
+                    self.test_error = parsed.get("testError", "")
+                    if self.test_passed:
+                        self.logs.append("  → PASSED")
+                    else:
+                        self.logs.append(f"  → FAILED: {self.test_error}")
+                elif action == "diagnose":
+                    parsed = S.parse_kv(lines or [])
+                    self.status = parsed
+                    self.logs.append("  → Diagnose complete")
+                elif action == "setup":
+                    self.logs.append("  → Setup complete")
+            self.dirty = True
+
+        S.run_cmd_bg("omd-settings-ocr", action, callback=cb)
+
+    def start_setup(self):
+        self.confirm_setup = False
+        self.logs.append("$ omd-settings-ocr setup")
+        self.run_action("setup")
+
+    def cancel_setup(self):
+        self.logs.append("$ omd-settings-ocr cancel-setup")
+        S.run_cmd_bg("omd-settings-ocr", "cancel-setup")
+
+
+def action_message(action):
+    mapping = {
+        "setup": "Setup started",
+        "test": "Test completed",
+        "diagnose": "Diagnosis completed",
+    }
+    return mapping.get(action, f"{action} done")
+
+
+# ── content ──────────────────────────────────────────────────────────────
+
+def render_package_status(model, w):
+    """Left column: package and model status."""
+    lines = []
+    lines.append(("section", "Packages"))
+    pi = "✓ installed" if model.boo("paddleocrInstalled") else "✗ missing"
+    lines.append(S.kv_line("PaddleOCR", pi, w - 4))
+    oi = "✓ installed" if model.boo("onnxruntimeInstalled") else "✗ missing"
+    lines.append(S.kv_line("ONNX Runtime", oi, w - 4))
+    lines.append(("text", ""))
+
+    lines.append(("section", "Models"))
+    mc = model.val("modelCount", "0")
+    mb = model.val("modelCacheMB", "0")
+    cached = "✓ cached" if model.boo("modelsCached") else "✗ not cached"
+    lines.append(S.kv_line("PP-OCRv6", cached, w - 4))
+    lines.append(S.kv_line("Model files", mc, w - 4))
+    lines.append(S.kv_line("Cache size", f"{mb} MB", w - 4))
+    lines.append(("text", ""))
+
+    lines.append(("section", "Script"))
+    ok = "✓ ready" if model.boo("omdOcrReady") else "✗ missing"
+    lines.append(S.kv_line("omd-ocr", ok, w - 4))
+    lines.append(("text", ""))
+
+    # Action buttons
+    st = model.state()
+    if st == "nomodel" and not model.setup_phase:
+        lines.append(S.primary_line("Install & setup OCR", "enter", not model.busy))
+    elif st == "ready" and not model.setup_phase:
+        lines.append(S.action_line("t", "Run OCR test", not model.busy))
+        lines.append(S.action_line("s", "Reinstall / update setup", not model.busy))
+    elif model.setup_phase == "installing":
+        lines.append(("warn", "Installing… please wait"))
+        lines.append(S.danger_action_line("x", "Cancel setup", not model.busy))
+
+    return lines
+
+
+def render_right_panel(model, w):
+    """Right column: status info, test results, or setup progress."""
+    lines = []
+
+    if model.setup_phase == "installing":
+        lines.append(("section", "Installation Progress"))
+        lines.append(("warn", msg_label(model.setup_message)))
+        lines.append(("text", ""))
+        lines.append(("muted", "Installing PaddleOCR & ONNX Runtime"))
+        lines.append(("muted", "then pre-downloading PP-OCRv6 models"))
+        lines.append(("muted", "This may take a few minutes."))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    if model.setup_phase == "error":
+        lines.append(("section", "Setup Failed"))
+        lines.append(("danger", model.setup_message))
+        lines.append(("text", ""))
+        lines.append(("muted", "Check logs below for details."))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    if model.setup_phase == "done":
+        lines.append(("section", "Setup Complete"))
+        lines.append(("ok", "All dependencies installed"))
+        lines.append(("text", ""))
+        lines.append(("muted", "OCR is ready to use."))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    if model.test_passed:
+        lines.append(("section", "OCR Test Result"))
+        lines.append(("ok", "Recognition successful!"))
+        lines.append(("text", ""))
+        lines.append(("section", "Recognized Text"))
+        for line in model.test_result.split(" "):
+            if line:
+                lines.append(("text", f"  {line}"))
+        lines.append(("text", ""))
+        lines.append(("muted", "Press t to test again"))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    if model.test_error:
+        lines.append(("section", "OCR Test Failed"))
+        lines.append(("danger", model.test_error))
+        lines.append(("text", ""))
+        lines.append(("muted", "Check logs below for details."))
+        lines.append(("text", ""))
+        lines.append(("section", "Console Logs"))
+        return lines
+
+    # Default: info panel
+    lines.append(("section", "About"))
+    lines.append(("muted", "Local OCR using PaddleOCR"))
+    lines.append(("muted", "PP-OCRv6 with ONNX Runtime"))
+    lines.append(("muted", "Support: Chinese, English,"))
+    lines.append(("muted", "Japanese, Korean, and more."))
+    lines.append(("text", ""))
+    lines.append(("muted", "Use from screenshot tool:"))
+    lines.append(("muted", "  Capture area → OCR button"))
+    lines.append(("text", ""))
+    lines.append(("muted", "Direct usage:"))
+    lines.append(("muted", "  omd-ocr image.png | wl-copy"))
+    lines.append(("text", ""))
+    lines.append(("section", "Console Logs"))
+    return lines
+
+
+def msg_label(msg):
+    if not msg:
+        return ""
+    m = msg.lower()
+    if "pip" in m:
+        return "Installing Python packages…"
+    if "model" in m or "warm" in m:
+        return "Downloading/loading OCR models…"
+    return msg
+
+
+def render_log(model, w, h):
+    inner_w = w - 4
+    inner_h = h - 3
+    total = len(model.logs)
+    if total == 0:
+        return [("muted", "(no activity yet)")]
+    start = max(0, total - inner_h - model.scroll_offset)
+    end = min(total, start + inner_h)
+    result = []
+    for line in model.logs[start:end]:
+        result.append(("muted", S.truncate(line, inner_w - 2)))
+    return result
+
+
+# ── hero ─────────────────────────────────────────────────────────────────
+
+def hero_info(model):
+    st = model.state()
+    tones = {"ready": "ok", "nomodel": "warn"}
+    tone = tones.get(st, "muted")
+
+    if st == "ready":
+        subtitle = "Ready · PaddleOCR PP-OCRv6"
+        status_text = "Ready"
+    elif st == "nomodel":
+        subtitle = "Needs setup"
+        status_text = "Not installed"
+    else:
+        subtitle = st
+        status_text = st
+
+    msg = ""
+    if model.setup_phase == "installing":
+        msg = "Installing…"
+    elif model.test_passed:
+        msg = "Test passed"
+    elif model.test_error:
+        msg = "Test failed"
+    elif model.err:
+        msg = model.err
+
+    return S.hero_line("OCR Recognition", subtitle, tone,
+                       model.busy and model.setup_phase != "installing",
+                       msg, status_text)
+
+
+def help_items(model):
+    return ([("q", "quit")], [("↑↓", "scroll logs")])
+
+
+# ── layout ───────────────────────────────────────────────────────────────
+
+def view(stdscr, model):
+    h, w = stdscr.getmaxyx()
+    model.width = w
+    model.height = h
+    stdscr.erase()
+
+    if not S.require_terminal_size(stdscr, 64, 18):
+        return
+
+    ly = S.Layout(stdscr)
+    ly.pad = 2
+    ly.left_w = 36
+    ly.split_threshold = 84   # min width for two columns (left_w + gap + right_min)
+    ly.compute()
+
+    ly.draw_hero(stdscr, hero_info(model))
+
+    l_lines = render_package_status(model, ly.left_w)
+    r_lines = render_right_panel(model, ly.right_w) if ly.show_right else []
+
+    l_h = len(l_lines)
+    r_h = len(r_lines)
+
+    # Log area: remaining rows after content boxes
+    log_h = ly.content_h - max(l_h, r_h) - 2
+    if log_h < 4:
+        log_h = 4
+    if ly.content_h - log_h - 4 < 1:
+        log_h = ly.content_h - 5
+
+    # Content boxes (both same height)
+    box_h = ly.content_h - log_h - 2
+    if box_h < 1:
+        box_h = 1
+
+    S.draw_border(stdscr, ly.content_top, ly.left_x, box_h, ly.left_w, "Status")
+    visible_l = min(l_h, box_h - 2)
+    for i in range(visible_l):
+        tag, text = l_lines[i]
+        attr = S.TAG_STYLE.get(tag, S.ATTR_TEXT)
+        S.safe_addstr(stdscr, ly.content_top + 1 + i, ly.left_x + 2, S.truncate(text, ly.left_w - 2), attr)
+
+    if ly.show_right:
+        S.draw_border(stdscr, ly.content_top, ly.right_x, box_h, ly.right_w, "Details")
+        visible_r = min(r_h, box_h - 2)
+        for i in range(visible_r):
+            tag, text = r_lines[i]
+            attr = S.TAG_STYLE.get(tag, S.ATTR_TEXT)
+            S.safe_addstr(stdscr, ly.content_top + 1 + i, ly.right_x + 2, S.truncate(text, ly.right_w - 2), attr)
+
+    # Log area spans full width
+    log_y = ly.content_top + box_h + 2
+    if log_y + log_h < h:
+        full_w = w - 2 * ly.pad
+        S.draw_border(stdscr, log_y, ly.pad, log_h, full_w, "Console Logs")
+        log_lines = render_log(model, full_w, log_h)
+        S.draw_log_in_area(stdscr, log_y, ly.pad, log_h, full_w, log_lines,
+                           scroll_offset=model.scroll_offset)
+        if len(model.logs) > log_h - 2:
+            hint = f"({model.scroll_offset + 1}/{len(model.logs)})"
+            S.safe_addstr(stdscr, log_y + 1, w - len(hint) - ly.pad - 2, hint, S.ATTR_MUTED)
+
+    ly.draw_help(stdscr, *help_items(model))
+    S.finish_frame(stdscr)
+
+
+def handle_key(stdscr, model, key):
+    max_offset = max(0, len(model.logs) - (model.height - 12))
+
+    if key == ord("q"):
+        return False
+
+    elif key == ord("\n") or key == 459:  # Enter or Key Enter
+        st = model.state()
+        if st == "nomodel" and not model.setup_phase and not model.busy:
+            model.start_setup()
+        elif model.setup_phase == "installing":
+            model.cancel_setup()
+        return True
+
+    elif key == ord("t") or key == ord("T"):
+        if model.state() == "ready" and not model.busy:
+            model.run_action("test")
+        return True
+
+    elif key == ord("s") or key == ord("S"):
+        if model.state() == "ready" and not model.busy:
+            model.start_setup()
+        return True
+
+    elif key == ord("x") or key == ord("X"):
+        if model.setup_phase == "installing":
+            model.cancel_setup()
+        return True
+
+    # Scrolling
+    elif (sr := S.scroll_key(key, model.scroll_offset, page_size=1, max_offset=len(model.logs))) is not None:
+        _, model.scroll_offset = sr
+        model.dirty = True
+    # Mouse
+    elif key == curses.KEY_MOUSE:
+        me = S.get_mouse_event()
+        if me:
+            dx, dy = S.mouse_wheel_delta(me)
+            if dy is not None:
+                model.scroll_offset = max(0, min(model.scroll_offset + dy, max_offset))
+                model.dirty = True
+
+
+def main(stdscr):
+    model = Model()
+
+    S.run_tui_loop(
+        stdscr,
+        model,
+        view,
+        handle_key,
+        poll_timeout=900,
+        refresh_interval=2,
+        refresh_callback=lambda mdl: mdl.refresh(),
+    )
+
+
+if __name__ == "__main__":
+    S.setup_locale()
+    curses.wrapper(main)
