@@ -24,7 +24,13 @@ if [ "${1:-}" = "--dry-run" ]; then
 fi
 
 # Old locations
-OLD_CONFIG="${OMD_ROOT:-$HOME/.config/omd}"        # repo (via symlink or direct)
+# Old user data: always read from the real ~/.config/omd path, not OMD_ROOT
+# (which is the repo root). On first run Init.sh runs migration before creating
+# the symlink, so ~/.config/omd is the real config directory. On re-runs the
+# symlink points to the repo, which is fine (data is already migrated).
+OLD_CONFIG="$HOME/.config/omd"
+
+# Old state directory — still needed for detection and migration of runtime state.
 OLD_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}/omd"
 
 # New locations (from path contract)
@@ -62,7 +68,9 @@ copy_file() {
     fi
 }
 
-# Copy a directory recursively, only if destination is absent.
+# Copy a directory recursively into destination.
+# If destination already exists, merge only missing entries. Existing Sumika
+# Shell data always wins over stale legacy data on subsequent runs.
 copy_dir() {
     src="$1"
     dst="$2"
@@ -70,7 +78,16 @@ copy_dir() {
         return 0
     fi
     if [ -d "$dst" ]; then
-        log_skip "$dst"
+        log "$dst (already exists — merging contents)"
+        if [ "$DRY_RUN" = 0 ]; then
+            # Pass dst as arg to avoid unbound in sub-shell with set -u.
+            find "$src" -mindepth 1 -maxdepth 1 -exec sh -c '
+                dst="$1"; shift
+                for item; do
+                    cp -an "$item" "$dst/"
+                done
+            ' sh "$dst" {} +
+        fi
         return 0
     fi
     log_copy "$src" "$dst"
@@ -109,7 +126,6 @@ detect_old_state() {
     fi
 }
 
-# ── Create new directories ───────────────────────────────────────────────
 create_directories() {
     printf '\n=== Creating Sumika Shell directories ===\n'
     for d in \
@@ -120,28 +136,43 @@ create_directories() {
         "$NEW_CONFIG/launchers" \
         "$NEW_CONFIG/launchers/icons" \
         "$NEW_CONFIG/scripts" \
-        "$NEW_CONFIG/quickshell" \
+        "$NEW_CONFIG/quickshell"; do
+        if [ -d "$d" ]; then
+            log_skip "$d"
+        else
+            log_mkdir "$d"
+        fi
+        if [ "$DRY_RUN" = 0 ]; then
+            mkdir -p "$d"
+            chmod 755 "$d"
+        fi
+    done
+
+    for d in \
         "$NEW_STATE" \
         "$NEW_STATE/theme" \
         "$NEW_STATE/wallpaper" \
         "$NEW_STATE/keyboard-remap" \
-        "$NEW_STATE/toggles" \
-        "$NEW_STATE/applauncher" \
-        "$NEW_STATE/display" \
-        "$NEW_STATE/session" \
-        "$NEW_STATE/voice" \
-        "$NEW_STATE/file-share-backup" \
         "$NEW_STATE/migration-backups"; do
         if [ -d "$d" ]; then
             log_skip "$d"
         else
             log_mkdir "$d"
-            if [ "$DRY_RUN" = 0 ]; then
-                mkdir -p "$d"
-                chmod 700 "$d" 2>/dev/null || true
-            fi
+        fi
+        if [ "$DRY_RUN" = 0 ]; then
+            mkdir -p "$d"
+            chmod 700 "$d"
         fi
     done
+}
+
+normalize_directory_permissions() {
+    [ "$DRY_RUN" = 0 ] || return 0
+
+    # Config is a normal chezmoi-managed tree. State remains private. Preserve
+    # file modes (including executable personal scripts); normalize dirs only.
+    find "$NEW_CONFIG" -type d -exec chmod 755 {} +
+    find "$NEW_STATE" -type d -exec chmod 700 {} +
 }
 
 # ── Migrate user-authored configuration ──────────────────────────────────
@@ -247,6 +278,7 @@ detect_old_state
 create_directories
 migrate_config
 migrate_state
+normalize_directory_permissions
 write_marker
 
 printf '\n=== Migration complete ===\n'

@@ -1404,6 +1404,14 @@ print_summary() {
     echo "  journalctl --user -b | rg 'omd|quickshell|Hyprland|hyprland'  # Runtime logs"
 }
 
+migrate_sumika_data() {
+    info "Migrating user data to Sumika Shell paths."
+    if ! sh "$REPO/scripts/sumika-migrate.sh"; then
+        err "Sumika migration failed; refusing to replace runtime symlinks."
+        return 1
+    fi
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
     local runtime_only=0
@@ -1439,6 +1447,7 @@ main() {
 
     if [[ "$runtime_only" == 1 ]]; then
         info "Runtime-only mode: repairing symlinks and runtime config."
+        migrate_sumika_data || exit 1
         create_symlinks
         repair_runtime_config
         install_custom_launchers
@@ -1474,10 +1483,13 @@ main() {
 
     install_all_dependencies
     build_go_tools 1
+    # Migrate user data to Sumika Shell config/state directories FIRST,
+    # before replacing ~/.config/omd with the repo symlink (if it's a real dir).
+    # FAILURE IS FATAL: if migration fails the old config data may be lost when
+    # the symlink is created.
+    migrate_sumika_data || exit 1
     create_symlinks
     repair_runtime_config
-    # Migrate user data to Sumika Shell config/state directories (idempotent)
-    sh "$REPO/scripts/sumika-migrate.sh" || warn "Sumika migration had issues (non-fatal)"
     install_custom_launchers
     if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
         install_nixos_session_files
