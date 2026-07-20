@@ -1,15 +1,21 @@
 > **更新日志**：
 > - ✅ 问题 1（inline component 依赖）— 创建 `popup-components` 共享模块（10 个组件提取为独立文件）
+> - ✅ 问题 2（bar qmldir 循环依赖）— 绕过（不为 bar/ 创建 qmldir）
+> - ✅ 问题 3（服务重复）— 删除 10 个模块服务副本，统一用核心 `qs.services` singleton
+> - ⬜ 问题 4（bin 脚本重复）— 不影响功能，后续清理
 > - ✅ 问题 5（bin 脚本缺失）— 7 个脚本恢复到核心作为 fallback
+> - ✅ 问题 6（module.json 格式）— 修复 barButtons 格式、移除重复 settingsPages、核对 type 值
+> - ✅ 问题 7（qmldir 手动维护）— 创建 `scripts/generate-qmldir.sh` 自动生成脚本
 > - ✅ BarStatusPopup 模块 Repeater — 动态加载模块弹窗 section
 > - ✅ SettingsDialog 模块支持 — 动态加载模块设置页
 > - ✅ ModuleLoader — 移到 services/，修复 Config import
-> - ✅ module.json barButtons 重复声明 — 从 clipboard/display 移除
 > - ✅ 启动脚本 jq bug + file:// 前缀 — 修复
-> - ⬜ 问题 2（bar qmldir 循环依赖）— 暂不需要（不为 bar/ 创建 qmldir）
-> - ⬜ 问题 3（服务重复）— 长期项，保持现状
+> - ✅ 3 个被误删的服务恢复（FirstRunExperience、ConflictKiller、Updates）
+> - ✅ display/ 设置目录恢复
+> - ✅ 模块 qmldir 修复（移除已删除服务的引用）
 > - ⬜ 模块 QML 运行时测试 — 需用户手动测试
 > - ⬜ BarContent 模块 Repeater — 待按钮从核心移到模块后添加
+> - ⬜ 问题 4（bin 脚本重复）— 不影响功能，后续清理
 
 # 模块拆分当前状态与问题报告（详细版）
 
