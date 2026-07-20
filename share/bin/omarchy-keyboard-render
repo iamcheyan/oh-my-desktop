@@ -3,9 +3,17 @@
 set -eu
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
-PROFILES="${OMD_ROOT}/keyboard-remap/profiles.json"
+SUMIKA_CONFIG="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+PROFILES="${SUMIKA_CONFIG}/keyboard-remap/profiles.json"
+PROFILES_LEGACY="${OMD_ROOT}/keyboard-remap/profiles.json"
 LIST_KEYBOARDS="${OMD_ROOT}/share/bin/omarchy-keyboard-list"
 
+# Fall back to legacy path
+if [[ ! -f "$PROFILES" && -f "$PROFILES_LEGACY" ]]; then
+    PROFILES="$PROFILES_LEGACY"
+fi
+
+mkdir -p "$(dirname "$PROFILES")"
 if [[ ! -f "$PROFILES" ]]; then
     echo '{"version":1,"devices":{}}' >"$PROFILES"
 fi

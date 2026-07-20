@@ -27,8 +27,14 @@ Singleton {
     property string functionRowError: ""
 
     readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin`)
-    readonly property string dataDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/keyboard-remap`)
+    // Sumika Shell config home (user-authored data lives here)
+    readonly property string sumikaConfigHome: `${FileUtils.trimFileProtocol(Directories.config)}/sumika-shell`
+    // Canonical write path (new location)
+    readonly property string dataDir: `${sumikaConfigHome}/keyboard-remap`
     readonly property string profilesPath: `${root.dataDir}/profiles.json`
+    // Legacy read fallback (old location, removed in Phase 7)
+    readonly property string dataDirLegacy: FileUtils.trimFileProtocol(`${Directories.config}/omd/keyboard-remap`)
+    readonly property string profilesPathLegacy: `${dataDirLegacy}/profiles.json`
     readonly property string functionRowHelper: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-keyboard-function-row`)
 
     function applyFunctionRowStatus(text) {
@@ -510,7 +516,7 @@ Singleton {
 
     Process {
         id: loadProc
-        command: ["bash", "-c", `if [ -f '${root.profilesPath}' ]; then cat '${root.profilesPath}'; else echo '{"version":1,"devices":{}}'; fi`]
+        command: ["bash", "-c", `if [ -f '${root.profilesPath}' ]; then cat '${root.profilesPath}'; elif [ -f '${root.profilesPathLegacy}' ]; then cat '${root.profilesPathLegacy}'; else echo '{"version":1,"devices":{}}'; fi`]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {

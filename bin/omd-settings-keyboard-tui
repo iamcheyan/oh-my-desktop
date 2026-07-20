@@ -182,18 +182,35 @@ class Model(S.StatusModel):
         self.profiles_snapshot = copy.deepcopy(self.profiles)
         self.refresh()
 
+    def _profiles_path(self):
+        """Return the profiles.json path, preferring Sumika config with legacy fallback."""
+        config_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or \
+            os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell")
+        new_path = os.path.join(config_home, "keyboard-remap", "profiles.json")
+        legacy_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+        # Read from new path if it exists, else fall back to legacy
+        if os.path.isfile(new_path):
+            return new_path
+        return new_path  # always write to new path
+
     def load_profiles(self):
-        profiles_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+        profiles_path = self._profiles_path()
+        # Try new path first, then legacy fallback
         try:
             with open(profiles_path) as f:
                 self.profiles = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            self.profiles = {"version": 1, "devices": {}}
+            legacy = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+            try:
+                with open(legacy) as f:
+                    self.profiles = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                self.profiles = {"version": 1, "devices": {}}
         if "devices" not in self.profiles:
             self.profiles["devices"] = {}
 
     def save_profiles(self):
-        profiles_path = os.path.join(S.OMD_ROOT, "keyboard-remap", "profiles.json")
+        profiles_path = self._profiles_path()
         os.makedirs(os.path.dirname(profiles_path), exist_ok=True)
         with open(profiles_path, "w") as f:
             json.dump(self.profiles, f, indent=2)
@@ -246,25 +263,18 @@ class Model(S.StatusModel):
             return
         self.refreshing = True
         self.dirty = True
-        pending = [3]
-        def complete():
-            pending[0] -= 1
-            if pending[0] == 0:
-                self.refreshing = False
-            self.dirty = True
+        rc = S.RefreshCounter(3, self, on_done=lambda: setattr(self, 'refreshing', False))
         def on_status(lines, err):
             if not err:
                 self.status = S.parse_kv(lines)
             else:
                 self.append_log(f"status failed: {err}")
-            complete()
         def on_devices(lines, err):
             try:
                 connected = json.loads("\n".join(lines)) if lines and not err else []
                 self.merge_devices(connected)
             except Exception:
                 pass
-            complete()
         def on_fnmode(lines, err):
             try:
                 data = json.loads("\n".join(lines)) if lines and not err else {}
@@ -273,10 +283,9 @@ class Model(S.StatusModel):
                 self.fnmode_value = data.get("value", 0)
             except Exception:
                 self.fnmode_available = False
-            complete()
-        S.run_cmd_bg("omd-settings-keyboard", "status", callback=on_status)
-        S.run_cmd_bg(os.path.join(S.OMD_ROOT, "share", "bin", "omarchy-keyboard-list"), callback=on_devices)
-        S.run_cmd_bg("omd-settings-keyboard", "fnmode-status", callback=on_fnmode)
+        S.run_cmd_bg("omd-settings-keyboard", "status", callback=rc.cb(on_status))
+        S.run_cmd_bg(os.path.join(S.OMD_ROOT, "share", "bin", "omarchy-keyboard-list"), callback=rc.cb(on_devices))
+        S.run_cmd_bg("omd-settings-keyboard", "fnmode-status", callback=rc.cb(on_fnmode))
         self.append_log("$ refresh")
 
     def run_action(self, action):
@@ -791,19 +800,6 @@ def render_profile(model, width):
     return lines
 
 
-def render_log(model, width):
-    lines = []
-    lines.append(("section", "Activity"))
-    if not model.logs:
-        lines.append(("muted", "(no activity yet)"))
-        return lines
-    inner_h = 30
-    total = len(model.logs)
-    start = max(0, total - inner_h - model.scroll_offset)
-    end = min(total, start + inner_h)
-    for l in model.logs[start:end]:
-        lines.append(("muted", f"{S.truncate(l, width-4)}"))
-    return lines
 
 
 def _can_edit_selected(model):
@@ -874,22 +870,21 @@ def view(stdscr, model):
 
     stdscr.erase()
 
-    S.draw_hero(stdscr, hero_info(model))
+    ly = S.Layout(stdscr)
+    ly.pad = 1
+    ly.gap = 0
+    ly.help_h = 0
+    ly.compute()
+
+    ly.draw_hero(stdscr, hero_info(model))
 
     # ── geometry ──
-    pad_x, pad_y, hero_h, help_h = 2, 2, 2, 0
-    margin = 1
     pending_h = 1 if model.pending_changes else 0
-    content_w = w - pad_x
-    avail_h = h - pad_y - hero_h - help_h - pending_h
-
-    left_w, right_w = S.two_column_widths(content_w, left_w=34, right_min=28)
-    content_h = avail_h
+    content_h = ly.content_h - pending_h
 
     # Focusable areas – Tab cycles 0 (Keyboards) → 1 (Profile) → 2 (Presets) → 0
     on_keyboards = model.focus_area == 0
     on_profile    = model.focus_area == 1
-    # Presets only focusable when the master toggle (profile enabled) is on
     _prof_enabled = False
     if model.devices and model.selected < len(model.devices):
         _dev = model.devices[model.selected]
@@ -898,35 +893,31 @@ def view(stdscr, model):
     on_presets = model.focus_area == 2 and _prof_enabled
 
     # ── Left: three stacked boxes ──
-    # Box 1: Keyboards (focusable)
-    device_lines = render_device_list(model, left_w - 4)
+    device_lines = render_device_list(model, ly.left_w - 4)
     device_box_h = min(content_h, len(device_lines) + 3)
     if device_box_h >= 3:
-        S.draw_focus_border(stdscr, on_keyboards, hero_h, margin, device_box_h, left_w, "Keyboards")
-        S.draw_lines_in_area(stdscr, hero_h, margin, device_box_h, left_w, device_lines)
+        S.draw_focus_border(stdscr, on_keyboards, ly.content_top, ly.left_x, device_box_h, ly.left_w, "Keyboards")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.left_x, device_box_h, ly.left_w, device_lines)
     else:
         device_box_h = 0
 
-    # Box 2: Health
-    health_y = hero_h + device_box_h
-    health_lines = render_health(model, left_w - 4)
+    health_y = ly.content_top + device_box_h
+    health_lines = render_health(model, ly.left_w - 4)
     health_box_h = min(content_h - device_box_h, len(health_lines) + 3)
     if health_box_h >= 3 and len(health_lines) > 0:
-        S.draw_focus_border(stdscr, False, health_y, margin, health_box_h, left_w, "")
-        S.draw_lines_in_area(stdscr, health_y, margin, health_box_h, left_w, health_lines)
+        S.draw_focus_border(stdscr, False, health_y, ly.left_x, health_box_h, ly.left_w, "")
+        S.draw_lines_in_area(stdscr, health_y, ly.left_x, health_box_h, ly.left_w, health_lines)
     else:
         health_box_h = 0
 
-    # Box 3: Actions (fills remaining)
     actions_y = health_y + health_box_h
-    actions_h = content_h - actions_y + hero_h
+    actions_h = content_h - actions_y + ly.content_top
     if actions_h >= 4:
-        S.draw_focus_border(stdscr, False, actions_y, margin, actions_h, left_w, "")
-        S.draw_lines_in_area(stdscr, actions_y, margin, actions_h, left_w, render_actions(model))
+        S.draw_focus_border(stdscr, False, actions_y, ly.left_x, actions_h, ly.left_w, "")
+        S.draw_lines_in_area(stdscr, actions_y, ly.left_x, actions_h, ly.left_w, render_actions(model))
 
-    # ── Right: Profile (with Fn Row) + Presets + Activity (stacked boxes) ──
+    # ── Right: Profile + Presets + Activity ──
     view_only = not _can_edit_selected(model)
-    # Box 1: Profile & Function Row (merged)
     profile_lines = []
     if model.devices and model.selected < len(model.devices):
         dev = model.devices[model.selected]
@@ -943,16 +934,15 @@ def view(stdscr, model):
     else:
         profile_lines.append(("muted", "Select a device…"))
     if view_only and len([l for l in profile_lines if l[0] != ""]) == 3:
-        profile_lines.append(("muted", "(view only — connect to edit)"))
+        profile_lines.append(("muted", "(view only -- connect to edit)"))
     profile_box_h = min(content_h, len(profile_lines) + 3)
     if profile_box_h >= 3:
-        S.draw_focus_border(stdscr, on_profile, hero_h, margin + left_w, profile_box_h, right_w, "Profile")
-        S.draw_lines_in_area(stdscr, hero_h, margin + left_w, profile_box_h, right_w, profile_lines)
+        S.draw_focus_border(stdscr, on_profile, ly.content_top, ly.right_x, profile_box_h, ly.right_w, "Profile")
+        S.draw_lines_in_area(stdscr, ly.content_top, ly.right_x, profile_box_h, ly.right_w, profile_lines)
     else:
         profile_box_h = 0
 
-    # Box 2: Presets
-    presets_y = hero_h + profile_box_h
+    presets_y = ly.content_top + profile_box_h
     presets_lines = []
     if model.devices and model.selected < len(model.devices):
         dev = model.devices[model.selected]
@@ -976,39 +966,36 @@ def view(stdscr, model):
             presets_lines.append(S.toggle_line(active, plabel, focused, view_only or not is_enabled, trailing))
     on_count = sum(1 for l in presets_lines if l[1].startswith("[X]"))
     presets_title = f"Presets  {on_count} on"
-    presets_box_h = min(content_h - presets_y + hero_h, len(presets_lines) + 3)
+    presets_box_h = min(content_h - presets_y + ly.content_top, len(presets_lines) + 3)
     if presets_box_h >= 3 and len(presets_lines) > 0:
-        S.draw_focus_border(stdscr, on_presets, presets_y, margin + left_w, presets_box_h, right_w, presets_title)
-        S.draw_lines_in_area(stdscr, presets_y, margin + left_w, presets_box_h, right_w, presets_lines)
+        S.draw_focus_border(stdscr, on_presets, presets_y, ly.right_x, presets_box_h, ly.right_w, presets_title)
+        S.draw_lines_in_area(stdscr, presets_y, ly.right_x, presets_box_h, ly.right_w, presets_lines)
     else:
         presets_box_h = 0
 
-    # Box 4: Activity (fills remaining)
     act_y = presets_y + presets_box_h
-    act_h = content_h - act_y + hero_h
+    act_h = content_h - act_y + ly.content_top
     if act_h >= 4:
-        S.draw_focus_border(stdscr, False, act_y, margin + left_w, act_h, right_w, "Activity")
-        S.draw_log_in_area(stdscr, act_y, margin + left_w, act_h, right_w, model.logs, model.scroll_offset)
+        S.draw_focus_border(stdscr, False, act_y, ly.right_x, act_h, ly.right_w, "Activity")
+        S.draw_log_in_area(stdscr, act_y, ly.right_x, act_h, ly.right_w, model.logs, model.scroll_offset)
 
-    # ── help bar (shifted up when a pending-changes bar is showing) ──
+    # ── help bar ──
     gen, tool = help_items(model)
     if pending_h:
         help_y = h - 3
     else:
         help_y = h - 2
     if gen:
-        S.safe_addstr(stdscr, help_y, 2, S.help_text(gen), S.ATTR_SUBTLE)
+        S.safe_addstr(stdscr, help_y, ly.pad, S.help_text(gen), S.ATTR_SUBTLE)
     if tool:
-        S.safe_addstr(stdscr, help_y + 1, 2, S.help_text(tool), S.ATTR_SUBTLE)
+        S.safe_addstr(stdscr, help_y + 1, ly.pad, S.help_text(tool), S.ATTR_SUBTLE)
 
-    # ── pending bar ──
     if model.pending_changes:
-        S.safe_addstr(stdscr, h - 1, 2,
+        S.safe_addstr(stdscr, h - 1, ly.pad,
                      "Pending changes · Apply (a) · Discard (r)",
                      S.ATTR_OK_BOLD)
 
     S.finish_frame(stdscr)
-
 
 # ── input handling ───────────────────────────────────────────────────────
 def handle_key(stdscr, model, key):
@@ -1229,17 +1216,11 @@ def handle_key(stdscr, model, key):
         model.cancel_changes()
 
     # Global scroll keys
-    if key == curses.KEY_PPAGE:
-        model.scroll_offset += 3
-    elif key == curses.KEY_NPAGE:
-        model.scroll_offset = max(0, model.scroll_offset - 3)
-    elif key == curses.KEY_HOME:
-        model.scroll_offset = 9999
-    elif key == curses.KEY_END:
-        model.scroll_offset = 0
-
-    model.dirty = True
-    return True
+    r = S.scroll_key(key, model.scroll_offset, page_size=1)
+    if r is not None:
+        delta, model.scroll_offset = r
+        model.dirty = True
+        return True
 
 
 # ── main ─────────────────────────────────────────────────────────────────
@@ -1247,4 +1228,5 @@ def main(stdscr):
     S.run_tui_loop(stdscr, Model(), view, handle_key, poll_timeout=200)
 
 if __name__ == "__main__":
+    S.setup_locale()
     curses.wrapper(main)
