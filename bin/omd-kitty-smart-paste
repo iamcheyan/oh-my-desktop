@@ -1,22 +1,18 @@
 #!/bin/sh
 set -eu
 
-# Smart paste for kitty, mapped to Ctrl+V in kitty.conf:
-#   map ctrl+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-paste
+# Smart paste for kitty — image→path in terminal.
+# Mapped to Ctrl+Shift+V in kitty.conf:
+#   map ctrl+shift+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-paste
 #
 # Terminals can't render image clipboard data. So when the Wayland clipboard
 # holds an image, save it to a temp file and type its PATH into the terminal
 # (most CLI tools accept a path argument). Otherwise paste the clipboard text
 # normally.
 #
-# Text is injected with `kitty @ send-text` (remote control), which writes
-# directly into the active kitty window. We NEVER re-send Ctrl+V, so this
-# keybind cannot retrigger itself — there is no recursion / freeze risk.
-# `--bracketed-paste auto` matches kitty's native paste_from_clipboard
-# behavior (wrap in bracketed-paste only when the running program enabled it).
-#
-# `launch --type=background` does NOT set KITTY_LISTEN_ON, but our parent (or
-# near ancestor) is the kitty process, whose socket is /tmp/mykitty-<pid>.
+# Injection is delegated to the same central helper used by voice input and
+# the clipboard menu. That gives all OMD paste paths one payload snapshot,
+# one target resolver and one duplicate-suppression gate.
 
 LOG=/tmp/omd-kitty-smart-paste.log
 log() { echo "$(date '+%H:%M:%S') $*" >> "$LOG" 2>/dev/null || true; }
@@ -63,7 +59,12 @@ if [ "${1:-}" = "--print-socket" ]; then
   exit 0
 fi
 
-send() { kitty @ --to "$KC" send-text --stdin --bracketed-paste auto; }
+PASTE_HELPER="${HOME}/.config/omd/bin/omd-paste-at-cursor"
+paste_payload() {
+  payload_file="$1"
+  OMD_PASTE_SOURCE=kitty-shortcut OMD_PASTE_DELAY=0 \
+    "$PASTE_HELPER" --file "$payload_file" auto kitty activewindow
+}
 
 # First image MIME type offered by the clipboard, if any.
 mime=$(wl-paste -l 2>/dev/null | grep -m1 '^image/' || true)
@@ -89,8 +90,11 @@ if [ -n "$mime" ]; then
     # Image-aware TUIs such as OpenCode inspect the clipboard when they receive
     # a paste event. Leaving the original image there makes them attach both
     # that image and the decoded path sent below.
-    printf '%s ' "$tmp" | wl-copy
-    printf '%s ' "$tmp" | send
+    payload=$(mktemp)
+    trap 'rm -f "$payload"' EXIT
+    printf '%s ' "$tmp" > "$payload"
+    wl-copy < "$payload"
+    paste_payload "$payload"
     log "image->path $tmp"
     notify-send -t 2000 '📋 已粘贴图片路径' "$tmp" 2>/dev/null || true
     exit 0
@@ -100,4 +104,8 @@ fi
 
 # No image (or image decode failed): paste the clipboard text normally.
 log "text paste"
-wl-paste 2>/dev/null | send
+payload=$(mktemp)
+trap 'rm -f "$payload"' EXIT
+wl-paste 2>/dev/null > "$payload"
+[ -s "$payload" ] || exit 0
+paste_payload "$payload"

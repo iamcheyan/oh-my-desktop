@@ -2,7 +2,7 @@
 
 ## Overview
 
-OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspired by [kazamo](https://github.com/iamcheyan/kazamo). It records audio via PulseAudio, transcribes using SenseVoice (sherpa-onnx), and auto-pastes text at the cursor via `wl-copy` + `ydotool`.
+OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspired by [kazamo](https://github.com/iamcheyan/kazamo). It records audio via PulseAudio, transcribes using SenseVoice (sherpa-onnx), and auto-pastes text through OMD's unified paste helper.
 
 **Key design goals:**
 - Zero-install for the user: first use triggers automatic dependency + model download
@@ -22,7 +22,7 @@ OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspire
 | Architecture | per-arch binaries (ARM vs x86) | single Python codebase via sherpa-onnx |
 | Model | ARM: SenseVoice ONNX INT8; x86: Whisper GGUF | single model: SenseVoice Small ONNX INT8 (works on both) |
 | Inference | direct Python call each time | long-lived Unix socket daemon |
-| Auto-paste | `wl-copy` + `ydotool` | same, but with clipboard fallback |
+| Auto-paste | `wl-copy` + synthetic paste key | immutable payload + unified helper; Kitty uses direct remote injection |
 | Feedback | terminal stdout | button colors + hover tooltip + history panel |
 | Integration | standalone binary | integrated into OMD bar module system |
 
@@ -72,7 +72,7 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
 │              System Layer (PulseAudio / PipeWire)            │
 │  parecord --format=s16le --rate=16000 --channels=1           │
 │  WAV → sherpa_onnx.OfflineRecognizer.from_sense_voice()      │
-│  → wl-copy + ydotool key Ctrl+V (auto-paste)                 │
+│  → immutable payload + omd-paste-at-cursor (auto-paste)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -329,9 +329,10 @@ qs -p $HOME/.config/omd/apps/omd-bar ipc call barPopup open voice
 
 ## Auto-Paste Mechanism
 
-Auto-paste adapts the keystroke to the focused window class so that both
-terminals (which bind paste to `Shift+Insert` / `Ctrl+Shift+V`) and GUI apps
-(which bind paste to `Ctrl+V`) get the right key.
+Auto-paste records the focused window when recording starts, snapshots the
+final transcription into an immutable temporary file, and sends it through the
+same central helper used by the clipboard UI. Only the first meaningful final
+result from a recording is accepted.
 
 ```javascript
 // 录音开始时记录焦点窗口 class
@@ -341,23 +342,30 @@ function startRecording() {
 }
 
 function onTranscriptionResult(text) {
-    // 1. Always copy to clipboard (reliable)
+    const target = root.pasteTargetForWindow()
     Quickshell.execDetached(["bash", "-c",
-        `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy`])
-    // 2. 按 class 选 paste 命令，延迟发送
-    const pasteCmds = root.resolvePasteCommands()
-    Quickshell.execDetached(["bash", "-c",
-        `sleep 0.3 && ${pasteCmds.primary} || true`])
+        `payload=$(mktemp); trap 'rm -f "$payload"' EXIT; ` +
+        `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' > "$payload" && ` +
+        `wl-copy < "$payload" && OMD_PASTE_SOURCE=voice ` +
+        `'${root.pasteScript}' --file "$payload" auto ` +
+        `'${root.focusedWindowClass}' '${target}'`])
 }
 ```
 
-`pasteCommandForClass` 映射（见 `VoiceInput.qml`）：
+Transport selection is owned by `omd-paste-at-cursor`, not by
+`VoiceInput.qml`:
 
 | 窗口 class                              | paste 命令               | 原因                    |
 |----------------------------------------|--------------------------|-------------------------|
 | `foot` / `kitty` / `alacritty` / `ghostty` / `wezterm` / `konsole` / `xterm` … | `wtype -M shift -k Insert` | 终端粘贴绑定 Shift+Insert |
 | `google-chrome` / `firefox` / `code` / `obsidian` / `telegram` / `discord` … | `wtype -M ctrl -k v`      | GUI 应用粘贴绑定 Ctrl+V  |
 | 未知 class                             | `wtype -M shift -k Insert` | 默认：终端+GUI 通用     |
+
+Kitty is the exception: it receives the exact payload through Kitty remote
+control, without a synthetic key. Other targets prefer one `wtype` chord;
+`ydotool` and Hyprland `send_key_state` are fallback transports only. See
+`docs/paste-kitty-conflicts.md` for the shared transaction and duplicate
+suppression rules.
 
 ### 为什么不用 ydotool
 

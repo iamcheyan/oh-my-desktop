@@ -1,10 +1,13 @@
 #!/bin/sh
 # Paste the current clipboard into a focused (or recorded) window.
-# Tries Hyprland key dispatch, then wtype, then ydotool — works across machines.
+# Uses one virtual-keyboard chord, with targeted Hyprland dispatch only as a
+# last fallback. Hyprland send_key_state can leave synthetic keys repeating.
 #
-# Usage: omarchy-paste-at-cursor [terminal|gui|auto] [window-class] [window-target]
+# Usage: omarchy-paste-at-cursor [--stdin|--file PATH] [terminal|gui|auto] [window-class] [window-target]
 #   window-target: "activewindow" (default) or "address:0x...."
 # Env: OMD_PASTE_DELAY — seconds to wait after wl-copy (default 0.15)
+#      OMD_PASTE_SOURCE — diagnostic source name (default: unknown)
+#      OMD_PASTE_DEDUPE_MS — duplicate suppression window (default: 500)
 
 set -eu
 
@@ -14,11 +17,46 @@ if [ -f "$OMD_ROOT/scripts/omd-path.sh" ]; then
     . "$OMD_ROOT/scripts/omd-path.sh"
 fi
 
+PAYLOAD_MODE="clipboard"
+PAYLOAD_SOURCE=""
+case "${1:-}" in
+    --stdin)
+        PAYLOAD_MODE="stdin"
+        shift
+        ;;
+    --file)
+        [ "$#" -ge 2 ] || { echo "omd-paste-at-cursor: --file requires a path" >&2; exit 2; }
+        PAYLOAD_MODE="file"
+        PAYLOAD_SOURCE="$2"
+        shift 2
+        ;;
+esac
+
 MODE="${1:-auto}"
 WIN_CLASS="${2:-}"
 WIN_TARGET="${3:-activewindow}"
 DELAY="${OMD_PASTE_DELAY:-0.15}"
+PASTE_SOURCE="${OMD_PASTE_SOURCE:-unknown}"
+DEDUPE_MS="${OMD_PASTE_DEDUPE_MS:-500}"
 YDOTOOL_SOCKET="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
+TRANSPORT="none"
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/omd-paste"
+mkdir -p "$RUNTIME_DIR"
+PAYLOAD_FILE="$(mktemp "$RUNTIME_DIR/payload.XXXXXX")"
+cleanup() { rm -f "$PAYLOAD_FILE"; }
+trap cleanup EXIT HUP INT TERM
+
+case "$PAYLOAD_MODE" in
+    stdin) cat > "$PAYLOAD_FILE" ;;
+    file) cat -- "$PAYLOAD_SOURCE" > "$PAYLOAD_FILE" ;;
+    clipboard)
+        command -v wl-paste >/dev/null 2>&1 || exit 1
+        wl-paste 2>/dev/null > "$PAYLOAD_FILE"
+        ;;
+esac
+
+[ -s "$PAYLOAD_FILE" ] || exit 0
 
 if [ -n "$DELAY" ] && [ "$DELAY" != "0" ]; then
     sleep "$DELAY"
@@ -125,7 +163,8 @@ send_hypr() {
     command -v hyprctl >/dev/null 2>&1 || return 1
     hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"down\", window = \"$target\" })" >/dev/null 2>&1 || return 1
     sleep 0.05
-    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"up\", window = \"$target\" })" >/dev/null 2>&1
+    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"up\", window = \"$target\" })" >/dev/null 2>&1 || return 1
+    TRANSPORT="hyprland"
 }
 
 send_wtype() {
@@ -133,7 +172,8 @@ send_wtype() {
     key="$2"
 
     command -v wtype >/dev/null 2>&1 || return 1
-    wtype -M "$mod" -k "$key" -m "$mod"
+    wtype -M "$mod" -k "$key" -m "$mod" || return 1
+    TRANSPORT="wtype"
 }
 
 send_ydotool() {
@@ -141,36 +181,36 @@ send_ydotool() {
 
     command -v ydotool >/dev/null 2>&1 || return 1
     [ -S "$YDOTOOL_SOCKET" ] || return 1
-    YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool key -d 1 $combo >/dev/null 2>&1
+    YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool key -d 1 $combo >/dev/null 2>&1 || return 1
+    TRANSPORT="ydotool"
 }
 
 paste_shift_insert() {
     target="$1"
-    send_hypr SHIFT Insert "$target" \
-        || send_wtype shift Insert \
-        || send_ydotool "42:1 110:1 110:0 42:0"
+    send_wtype shift Insert \
+        || send_ydotool "42:1 110:1 110:0 42:0" \
+        || send_hypr SHIFT Insert "$target"
 }
 
 paste_ctrl_shift_v() {
     target="$1"
-    send_hypr "CTRL SHIFT" V "$target" \
-        || { command -v wtype >/dev/null 2>&1 && wtype -M ctrl -M shift -k v -m shift -m ctrl; } \
-        || send_ydotool "29:1 42:1 47:1 47:0 42:0 29:0"
+    { command -v wtype >/dev/null 2>&1 && wtype -M ctrl -M shift -k v -m shift -m ctrl && TRANSPORT="wtype"; } \
+        || send_ydotool "29:1 42:1 47:1 47:0 42:0 29:0" \
+        || send_hypr "CTRL SHIFT" V "$target"
 }
 
 paste_ctrl_v() {
     target="$1"
-    send_hypr CTRL V "$target" \
-        || send_wtype ctrl v \
-        || send_ydotool "29:1 47:1 47:0 29:0"
+    send_wtype ctrl v \
+        || send_ydotool "29:1 47:1 47:0 29:0" \
+        || send_hypr CTRL V "$target"
 }
 
-# kitty remote control: inject clipboard text directly into the active kitty
+# kitty remote control: inject the immutable payload directly into the active kitty
 # window. This is more reliable than triggering paste_from_clipboard from a
 # separate process, and it does not depend on keybindings or ydotoold.
 paste_kitty_remote() {
     command -v kitty >/dev/null 2>&1 || return 1
-    command -v wl-paste >/dev/null 2>&1 || return 1
 
     kitty_pid=""
     if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
@@ -190,7 +230,12 @@ paste_kitty_remote() {
 
     send_to_kitty() {
         to_arg="$1"
-        wl-paste 2>/dev/null | kitty @ --to "$to_arg" send-text --stdin --bracketed-paste auto >/dev/null 2>&1
+        # `send-text` always exits successfully, even for a dead target. Check
+        # the socket with `ls` first so a failed send cannot trigger a second
+        # fallback paste.
+        kitty @ --to "$to_arg" ls >/dev/null 2>&1 || return 1
+        kitty @ --to "$to_arg" send-text --match state:focused --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || return 1
+        TRANSPORT="kitty-remote"
     }
 
     if [ -n "$kitty_pid" ] && [ -S "/tmp/mykitty-$kitty_pid" ]; then
@@ -209,7 +254,11 @@ paste_kitty_remote() {
         esac
     done
 
-    wl-paste 2>/dev/null | kitty @ send-text --stdin --bracketed-paste auto >/dev/null 2>&1 && return 0
+    if kitty @ ls >/dev/null 2>&1 \
+        && kitty @ send-text --match state:focused --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1; then
+        TRANSPORT="kitty-remote"
+        return 0
+    fi
 
     return 1
 }
@@ -248,14 +297,62 @@ resolve_window_class
 RESOLVED_MODE="$(resolve_mode)"
 TARGET="$(resolve_target)"
 
+payload_hash() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$PAYLOAD_FILE" | awk '{print $1}'
+    else
+        cksum "$PAYLOAD_FILE" | awk '{print $1 ":" $2}'
+    fi
+}
+
+now_ms() {
+    value="$(date +%s%3N 2>/dev/null || true)"
+    case "$value" in
+        *N*|"") printf '%s000' "$(date +%s)" ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+# QML signals, process output and terminal key handlers are asynchronous. A
+# single user action can therefore reach this helper twice. Focus restoration
+# can make those calls resolve to different classes or targets, so those
+# volatile values must not be part of the duplicate key. The immutable payload
+# is the transaction identity; deliberate later pastes remain possible.
+payload_digest="$(payload_hash)"
+fingerprint="$(printf '%s' "$payload_digest" | cksum | awk '{print $1}')"
+state_file="$RUNTIME_DIR/last-$fingerprint"
+lock_file="$RUNTIME_DIR/dedupe.lock"
+exec 9>"$lock_file"
+if command -v flock >/dev/null 2>&1; then flock -x 9; fi
+current_ms="$(now_ms)"
+previous_ms="$(cat "$state_file" 2>/dev/null || printf '0')"
+case "$previous_ms" in *[!0-9]*|"") previous_ms=0 ;; esac
+elapsed_ms=$((current_ms - previous_ms))
+if [ "$elapsed_ms" -ge 0 ] && [ "$elapsed_ms" -lt "$DEDUPE_MS" ]; then
+    printf '%s source=%s action=deduped class=%s target=%s transaction=%s payload=%s elapsed_ms=%s\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$PASTE_SOURCE" "$WIN_CLASS" "$TARGET" "$fingerprint" "$payload_digest" "$elapsed_ms" \
+        >> "$RUNTIME_DIR/events.log"
+    exit 0
+fi
+printf '%s' "$current_ms" > "$state_file"
+if command -v flock >/dev/null 2>&1; then flock -u 9; fi
+
+paste_status=0
 case "$RESOLVED_MODE" in
     gui)
-        paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET"
+        paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET" || paste_status=$?
         ;;
     terminal)
-        paste_for_terminal "$TARGET" "$WIN_CLASS"
+        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_status=$?
         ;;
     *)
-        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET"
+        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET" || paste_status=$?
         ;;
 esac
+
+printf '%s source=%s action=inject mode=%s transport=%s status=%s class=%s target=%s bytes=%s transaction=%s payload=%s\n' \
+    "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$PASTE_SOURCE" "$RESOLVED_MODE" "$TRANSPORT" "$paste_status" \
+    "$WIN_CLASS" "$TARGET" "$(wc -c < "$PAYLOAD_FILE" | tr -d ' ')" "$fingerprint" "$payload_digest" \
+    >> "$RUNTIME_DIR/events.log"
+
+exit "$paste_status"

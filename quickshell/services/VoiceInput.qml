@@ -24,6 +24,7 @@ Singleton {
     // ── 模型信息 ──
     property int modelSizeMB: 0
     property bool daemonRunning: false
+    property bool transcriptionDelivered: false
 
     readonly property string cacheDir: FileUtils.trimFileProtocol(`${Directories.genericCache}/omd-voice`)
     readonly property string modelDir: `${root.cacheDir}/sense-voice-small-int8`
@@ -264,6 +265,7 @@ Singleton {
 
     function startRecording() {
         root.testMode = false
+        root.transcriptionDelivered = false
         root.recordingDuration = 0
         root.lastTranscription = ""
         root.lastError = ""
@@ -319,6 +321,11 @@ Singleton {
                     var result = JSON.parse(line)
                     if (result.text !== undefined) {
                         if (root.isMeaningfulText(result.text)) {
+                            if (root.transcriptionDelivered) {
+                                console.warn("[VoiceInput] ignoring duplicate transcription result")
+                                return
+                            }
+                            root.transcriptionDelivered = true
                             root.lastTranscription = result.text
                             root.addToHistory(result.text)
                             if (root.testMode) {
@@ -358,8 +365,10 @@ Singleton {
         console.log("[VoiceInput] onTranscriptionResult text='" + text
             + "' class=" + root.focusedWindowClass + " target=" + target)
         Quickshell.execDetached(["bash", "-c",
-            `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' | wl-copy && ` +
-            `'${root.pasteScript}' auto '${StringUtils.shellSingleQuoteEscape(root.focusedWindowClass)}' '${StringUtils.shellSingleQuoteEscape(target)}'`])
+            `payload=$(mktemp); trap 'rm -f "$payload"' EXIT; ` +
+            `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' > "$payload" && ` +
+            `wl-copy < "$payload" && OMD_PASTE_SOURCE=voice ` +
+            `'${root.pasteScript}' --file "$payload" auto '${StringUtils.shellSingleQuoteEscape(root.focusedWindowClass)}' '${StringUtils.shellSingleQuoteEscape(target)}'`])
     }
 
     // ── 调试：不自动粘贴，只复制文本并打开设置面板展示结果 ──
@@ -394,6 +403,7 @@ Singleton {
             return
         }
         root.testMode = true
+        root.transcriptionDelivered = false
         root.recordingDuration = 0
         root.lastTranscription = ""
         root.lastError = ""

@@ -2688,8 +2688,10 @@ Scope {
                             enabledState: VoiceInput.lastTranscription.length > 0
                             onClicked: {
                                 Quickshell.execDetached(["bash", "-c",
-                                    `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' | wl-copy && ` +
-                                    `'${VoiceInput.shareDir}/omd-paste-at-cursor' auto`]);
+                                    `payload=$(mktemp); trap 'rm -f "$payload"' EXIT; ` +
+                                    `printf '%s' '${StringUtils.shellSingleQuoteEscape(VoiceInput.lastTranscription)}' > "$payload" && ` +
+                                    `wl-copy < "$payload" && OMD_PASTE_SOURCE=voice-manual ` +
+                                    `'${VoiceInput.shareDir}/omd-paste-at-cursor' --file "$payload" auto`]);
                             }
                         }
                     }
