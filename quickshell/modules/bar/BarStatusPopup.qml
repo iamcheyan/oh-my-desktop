@@ -173,6 +173,7 @@ Scope {
                         if (root.activeType === "wifi") return wifiContent;
                         if (root.activeType === "bluetooth") return bluetoothContent;
                         if (root.activeType === "audio") return audioContent;
+                        if (root.activeType === "tools") return toolsContent;
 
 
                         if (root.activeType === "notifications") return notificationsContent;
@@ -403,9 +404,74 @@ Scope {
         Item { implicitHeight: 1 }
     }
 
+    Component {
+        id: toolsContent
+        PopupColumn {
+            PopupHeader {
+                Layout.fillWidth: true
+                icon: NerdIconMap.wrench
+                title: "OMD Tools"
+                subtitle: "Advanced desktop tools"
+            }
 
+            ToolLauncherRow {
+                icon: "palette"
+                title: "Themes"
+                subtitle: "Colors, fonts and desktop appearance"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
+                }
+            }
 
+            ToolLauncherRow {
+                icon: "keyboard_voice"
+                title: "Voice Input"
+                subtitle: "Speech engine, model and shortcuts"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-voice-tui`]);
+                }
+            }
 
+            ToolLauncherRow {
+                icon: "text_snippet"
+                title: "OCR Recognition"
+                subtitle: "PaddleOCR engine, model and test"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-ocr-tui`]);
+                }
+            }
+
+            ToolLauncherRow {
+                icon: "keyboard"
+                title: "Keyboard Remap"
+                subtitle: "Devices, profiles and key mappings"
+                onClicked: root.openDialog("keyremap")
+            }
+
+            ToolLauncherRow {
+                icon: "desktop_windows"
+                title: "Windows VM"
+                subtitle: "Install, run and manage Windows"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
+                }
+            }
+
+            ToolLauncherRow {
+                icon: "cloud_upload"
+                title: "File Share / Backup"
+                subtitle: "SMB backup, sync and file sharing"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-backup-tui`]);
+                }
+            }
+        }
+    }
     Component {
         id: xkbContent
         PopupColumn {

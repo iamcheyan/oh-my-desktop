@@ -1,0 +1,10 @@
+module qs.modules.common.functions
+singleton ColorUtils 1.0 ColorUtils.qml
+singleton FileUtils 1.0 FileUtils.qml
+singleton Fuzzy 1.0 Fuzzy.qml
+singleton NotificationUtils 1.0 NotificationUtils.qml
+singleton OverviewSwitchingController 1.0 OverviewSwitchingController.qml
+singleton Session 1.0 Session.qml
+singleton StringUtils 1.0 StringUtils.qml
+singleton WheelUtils 1.0 WheelUtils.qml
+singleton WorkspaceNavigation 1.0 WorkspaceNavigation.qml

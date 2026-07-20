@@ -1,0 +1,35 @@
+module qs.modules.bar
+ActiveWindow 1.0 ActiveWindow.qml
+AppLauncherButton 1.0 AppLauncherButton.qml
+Bar 1.0 Bar.qml
+BarBatteryIcon 1.0 BarBatteryIcon.qml
+BarContent 1.0 BarContent.qml
+BarDismissLayer 1.0 BarDismissLayer.qml
+BarNerdIcon 1.0 BarNerdIcon.qml
+singleton BarRuntime 1.0 BarRuntime.qml
+BarStatusPopup 1.0 BarStatusPopup.qml
+BarTextButton 1.0 BarTextButton.qml
+CircleUtilButton 1.0 CircleUtilButton.qml
+ClockHoverPopup 1.0 ClockHoverPopup.qml
+ClockWidget 1.0 ClockWidget.qml
+HyprlandXkbIndicator 1.0 HyprlandXkbIndicator.qml
+PopupDeviceRow 1.0 PopupDeviceRow.qml
+PopupFooterLink 1.0 PopupFooterLink.qml
+PopupHeader 1.0 PopupHeader.qml
+PopupInfoRow 1.0 PopupInfoRow.qml
+PopupSliderRow 1.0 PopupSliderRow.qml
+PopupToggleRow 1.0 PopupToggleRow.qml
+PowerContextMenu 1.0 PowerContextMenu.qml
+SessionAutoRestore 1.0 SessionAutoRestore.qml
+SessionConfirmOverlay 1.0 SessionConfirmOverlay.qml
+SessionRestoreOverlay 1.0 SessionRestoreOverlay.qml
+SidebarIndicators 1.0 SidebarIndicators.qml
+StyledPopup 1.0 StyledPopup.qml
+StyledPopupContent 1.0 StyledPopupContent.qml
+StyledPopupHeaderRow 1.0 StyledPopupHeaderRow.qml
+StyledPopupValueRow 1.0 StyledPopupValueRow.qml
+SysTray 1.0 SysTray.qml
+SysTrayItem 1.0 SysTrayItem.qml
+SysTrayMenu 1.0 SysTrayMenu.qml
+SysTrayMenuEntry 1.0 SysTrayMenuEntry.qml
+Workspaces 1.0 Workspaces.qml

@@ -1,0 +1,6 @@
+module qs.modules.bar.modules
+AudioButton 1.0 AudioButton.qml
+InputMethodButton 1.0 InputMethodButton.qml
+SessionButton 1.0 SessionButton.qml
+ToolsButton 1.0 ToolsButton.qml
+WifiButton 1.0 WifiButton.qml
