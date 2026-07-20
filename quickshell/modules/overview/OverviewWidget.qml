@@ -86,7 +86,7 @@ Item {
         return root.monitorGroups[0] ?? null;
     }
     readonly property int highlightedWorkspaceId: {
-        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0)
+        if (GlobalStates.overviewFocusedWorkspaceId > 0)
             return GlobalStates.overviewFocusedWorkspaceId;
         const group = root.localMonitorGroup;
         const entry = group ? root.overviewEntries[group.start] : null;
@@ -600,6 +600,8 @@ Item {
                     property color hoveredBorderColor: Appearance.colors.colLayer2Hover
                     property bool hoveredWhileDragging: false
 
+                    readonly property bool isFocused: workspaceValue === root.highlightedWorkspaceId
+
                     x: root.entryX(index)
                     y: root.entryY(index)
                     width: root.entryWidth(index)
@@ -609,40 +611,54 @@ Item {
                     topRightRadius: root.largeWorkspaceRadius
                     bottomLeftRadius: root.largeWorkspaceRadius
                     bottomRightRadius: root.largeWorkspaceRadius
-                    border.width: 2
-                    border.color: hoveredWhileDragging ? hoveredBorderColor : "transparent"
+                    border.width: 0
                     clip: true
 
-                    // Wallpaper background for all workspaces (including trailing empty)
-                    Image {
-                        id: workspaceWallpaper
-
+                    // Inner content container clipped by OpacityMask
+                    Item {
+                        id: workspaceContent
                         anchors.fill: parent
-                        source: root.displayedWallpaperUrl
-                        fillMode: Image.PreserveAspectCrop
-                        // Wallpaper has already decoded this exact versioned
-                        // URL; take it synchronously from Qt's shared cache.
-                        asynchronous: false
-                        cache: true
-                        mipmap: true
-                    }
+                        layer.enabled: true
+                        layer.effect: OpacityMask {
+                            maskSource: Rectangle {
+                                width: workspaceContent.width
+                                height: workspaceContent.height
+                                topLeftRadius: workspace.topLeftRadius
+                                topRightRadius: workspace.topRightRadius
+                                bottomLeftRadius: workspace.bottomLeftRadius
+                                bottomRightRadius: workspace.bottomRightRadius
+                            }
+                        }
 
-                    StyledText {
-                        anchors {
-                            top: parent.top
-                            left: parent.left
-                            margins: 8
+                        // Wallpaper background for all workspaces (including trailing empty)
+                        Image {
+                            id: workspaceWallpaper
+
+                            anchors.fill: parent
+                            source: root.displayedWallpaperUrl
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: false
+                            cache: true
+                            mipmap: true
                         }
-                        text: workspace.isTrailingEmpty
-                            ? Translation.tr("New workspace")
-                            : workspace.isPendingOccupied
-                                ? Translation.tr("Moving…")
-                            : `${workspace.monitorName || Translation.tr("Hidden")} · ${workspace.workspaceValue}`
-                        font {
-                            pixelSize: Appearance.font.pixelSize.smaller
-                            weight: Font.Medium
+
+                        StyledText {
+                            anchors {
+                                top: parent.top
+                                left: parent.left
+                                margins: 8
+                            }
+                            text: workspace.isTrailingEmpty
+                                ? Translation.tr("New workspace")
+                                : workspace.isPendingOccupied
+                                    ? Translation.tr("Moving…")
+                                : `${workspace.monitorName || Translation.tr("Hidden")} · ${workspace.workspaceValue}`
+                            font {
+                                pixelSize: Appearance.font.pixelSize.smaller
+                                weight: Font.Medium
+                            }
+                            color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.22)
                         }
-                        color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.22)
                     }
 
                     MouseArea {
@@ -852,48 +868,26 @@ Item {
                 }
             }
 
-            Rectangle { // Focused workspace indicator
-                id: focusedWorkspaceIndicator
-                property int entryIndex: root.indexForWorkspaceId(root.highlightedWorkspaceId)
-                visible: entryIndex >= 0
-                x: root.entryX(Math.max(0, entryIndex))
-                y: root.entryY(Math.max(0, entryIndex))
-                z: root.windowZ
-                width: root.entryWidth(Math.max(0, entryIndex))
-                height: root.entryHeight(Math.max(0, entryIndex))
-                color: "transparent"
-                topLeftRadius: root.largeWorkspaceRadius
-                topRightRadius: root.largeWorkspaceRadius
-                bottomLeftRadius: root.largeWorkspaceRadius
-                bottomRightRadius: root.largeWorkspaceRadius
-                border.width: 2
-                border.color: root.activeBorderColor
-                // Skip the 6 Behavior animators in performance mode — the
-                // underlying animation duration is already 0, but the
-                // Behavior objects still track property changes.
-                Behavior on x {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on y {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on topLeftRadius {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on topRightRadius {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on bottomLeftRadius {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-                }
-                Behavior on bottomRightRadius {
-                    enabled: !root.perfMode
-                    animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
+            Repeater { // Workspace entry borders (on top of windows)
+                model: root.overviewEntries
+                delegate: Rectangle {
+                    required property var modelData
+                    required property int index
+                    readonly property int entryIndex: root.indexForWorkspaceId(modelData.id)
+                    readonly property bool isFocusedEntry: modelData.id === root.highlightedWorkspaceId
+                    visible: entryIndex >= 0
+                    x: root.entryX(entryIndex)
+                    y: root.entryY(entryIndex)
+                    z: root.windowZ
+                    width: root.entryWidth(entryIndex)
+                    height: root.entryHeight(entryIndex)
+                    color: "transparent"
+                    topLeftRadius: root.largeWorkspaceRadius
+                    topRightRadius: root.largeWorkspaceRadius
+                    bottomLeftRadius: root.largeWorkspaceRadius
+                    bottomRightRadius: root.largeWorkspaceRadius
+                    border.width: 2
+                    border.color: isFocusedEntry ? root.activeBorderColor : "#66AAAAAA"
                 }
             }
         }
@@ -997,4 +991,4 @@ Item {
             }
         }
     }
-    }
+}

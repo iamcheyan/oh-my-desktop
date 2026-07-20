@@ -66,6 +66,14 @@ Scope {
         } else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
             overviewScope.navigateOverviewGrid(1, 0);
             event.accepted = true;
+        } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+            const backward = (event.key === Qt.Key_Backtab) || ((event.modifiers & Qt.ShiftModifier) !== 0);
+            overviewScope.navigateOverviewByIndex(backward ? -1 : 1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+            WorkspaceNavigation.commitSelectedWorkspace(true);
+            GlobalStates.overviewOpen = false;
+            event.accepted = true;
         }
     }
 
@@ -231,9 +239,13 @@ Scope {
                         event.accepted = true;
                         return;
                     }
-                    if (OverviewSwitchingController.grabbed && event.key === Qt.Key_Tab) {
-                        const backward = (event.modifiers & Qt.ShiftModifier) !== 0;
-                        overviewScope.queueGrabbedCycle(backward ? -1 : 1);
+                    if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                        const backward = (event.key === Qt.Key_Backtab) || ((event.modifiers & Qt.ShiftModifier) !== 0);
+                        if (OverviewSwitchingController.grabbed) {
+                            overviewScope.queueGrabbedCycle(backward ? -1 : 1);
+                        } else {
+                            overviewScope.navigateOverviewByIndex(backward ? -1 : 1);
+                        }
                         event.accepted = true;
                         return;
                     }
