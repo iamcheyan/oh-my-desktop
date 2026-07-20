@@ -228,14 +228,57 @@ paste_kitty_remote() {
         esac
     fi
 
+    # Resolve a single kitty window id from a `kitty @ ls` JSON blob on stdin.
+    # `--match state:focused` is NOT a precise target: it can match several
+    # windows at once (divergent keyboard focus vs kitty-internal focus, or a
+    # second window/tmux pane in the focused OS window) and `send-text` then
+    # writes the payload into every match — one inject, two visible pastes.
+    # `send-text` always exits 0 even when it hits zero or the wrong window, so
+    # we must resolve the exact id ourselves and send with `--match id:$id`.
+    # Selection order: focused OS window -> active tab -> focused window, with
+    # first-item fallbacks at each level. Prints nothing if no window resolves.
+    resolve_kitty_window_id() {
+        jq -r '
+            . as $root |
+            ($root | map(select(.is_focused)) | .[0] // $root[0]) as $osw |
+            ($osw.tabs | map(select(.is_active)) | .[0] // $osw.tabs[0]) as $tab |
+            ($tab.windows | map(select(.is_focused)) | .[0] // $tab.windows[0]) as $w |
+            $w.id // empty
+        ' 2>/dev/null
+    }
+
     send_to_kitty() {
         to_arg="$1"
-        # `send-text` always exits successfully, even for a dead target. Check
-        # the socket with `ls` first so a failed send cannot trigger a second
-        # fallback paste.
-        kitty @ --to "$to_arg" ls >/dev/null 2>&1 || return 1
-        kitty @ --to "$to_arg" send-text --match state:focused --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || return 1
+        # `send-text` always exits successfully, even for a dead target or a
+        # multi-window match. Capture `ls` once to validate the socket AND
+        # resolve a single window id, so the payload can never land in two
+        # windows from one invocation and we never read a stale tree.
+        ls_out="$(kitty @ --to "$to_arg" ls 2>/dev/null)" || return 1
+        win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
+        [ -n "$win_id" ] || return 1
+        # omp (and similar smart-paste TUIs) append the Wayland clipboard to
+        # EVERY bracketed paste. Callers `wl-copy < payload` first to sync the
+        # clipboard, so omp would otherwise insert the payload twice (bracketed
+        # content + clipboard read). Clear the clipboard just before the send so
+        # omp's clipboard read yields nothing, then restore the payload right
+        # after. omp reads the clipboard during the paste delivery (synchronously
+        # with the send-text), and has no clipboard-change watcher, so the
+        # clear-before / restore-after window is safe; the tiny sleep guards
+        # against an async wl-paste read that finishes just after send-text.
+        send_rc=0
+        if command -v wl-copy >/dev/null 2>&1; then
+            wl-copy -c 2>/dev/null || true
+        fi
+        kitty @ --to "$to_arg" send-text --match "id:$win_id" --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
         TRANSPORT="kitty-remote"
+        # Always restore the clipboard (even on send failure) so callers that
+        # expect the clipboard to hold the payload are not left with an empty
+        # clipboard.
+        if command -v wl-copy >/dev/null 2>&1; then
+            sleep 0.05
+            wl-copy < "$PAYLOAD_FILE" 2>/dev/null || true
+        fi
+        return "$send_rc"
     }
 
     if [ -n "$kitty_pid" ] && [ -S "/tmp/mykitty-$kitty_pid" ]; then
@@ -254,10 +297,15 @@ paste_kitty_remote() {
         esac
     done
 
-    if kitty @ ls >/dev/null 2>&1 \
-        && kitty @ send-text --match state:focused --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1; then
-        TRANSPORT="kitty-remote"
-        return 0
+    # Last resort: default socket ($KITTY_PID / $XDG_RUNTIME_DIR). Still
+    # resolve a single window id — never bare `state:focused`.
+    if kitty @ ls >/dev/null 2>&1; then
+        win_id="$(kitty @ ls 2>/dev/null | resolve_kitty_window_id)"
+        if [ -n "$win_id" ] \
+            && kitty @ send-text --match "id:$win_id" --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1; then
+            TRANSPORT="kitty-remote"
+            return 0
+        fi
     fi
 
     return 1

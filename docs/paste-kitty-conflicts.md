@@ -106,10 +106,90 @@ map ctrl+shift+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-past
 `Ctrl+V` stays native. `Ctrl+Shift+V` provides OMD image-to-path behavior, but
 the helper script must delegate injection to `omd-paste-at-cursor`.
 
-Kitty `send-text` always reports success even if it did not reach a window.
-Therefore the central helper validates a candidate socket with `kitty @ ls`
-before sending. It must not issue a synthetic fallback paste after an accepted
-remote send, because that would create a real second insertion.
+### `send-text` exit status lies
+
+Kitty `send-text` **always reports success (`exit 0`) even when it delivers to
+the wrong window, to no window, or to multiple windows.** Confirmed by
+experiment: a `stty raw` + `od -c` dumper window received zero bytes while
+`send-text` returned 0; in the same run a literal `send-text --match state:focused`
+planted the payload in a *different* kitty window. `kitty @ ls` validating the
+socket is therefore necessary but **not sufficient** — a live socket can still
+accept a `send-text` that does not reach the intended target.
+
+### `--match state:focused` multi-delivers
+
+`--match state:focused` is **not** a precise single-window target. In certain
+focus states (notably when the OS-window keyboard focus and kitty's internal
+"focused" flag diverge — e.g. a remote-control `focus-window` was issued, or a
+second kitty window/tmux pane shares the focused OS window) `state:focused`
+matches **more than one window** and `send-text` writes the payload into *all*
+of them. One `omd-paste-at-cursor` invocation (one `inject` line in
+`events.log`) then produces two visible insertions. This is the root cause of
+the long-standing "voice and clipboard paste twice" report.
+
+Empirical sweep in a two-omp-window kitty instance:
+
+| `send-text` match | win1 (tmux/omp) | win5 (focused) |
+|---|---|---|
+| `--match state:focused`        | 0 or 1, drifts with focus; observed =2 | 1 |
+| no `--match` (active tab active window) | 1 | 0 |
+| `--match id:$id` (resolved from `kitty @ ls`) | 0 | 1 ✅ |
+
+Only `--match id:$id` reliably delivers to exactly one window.
+
+### Resolution contract
+
+Because of the above, the helper must **resolve a single kitty window id** and
+send with `--match id:$id`, never with `--match state:focused` or a bare
+`send-text`. The resolution order is, from `kitty @ --to $socket ls`:
+
+1. the OS window with `is_focused: true` (fall back to the first OS window);
+2. within it, the tab with `is_active: true` (fall back to the first tab);
+3. within it, the window with `is_focused: true` (fall back to the tab's first
+   window).
+
+If that resolves to zero windows the helper must treat the send as failed and
+fall back to the synthetic-key path. It must not issue a synthetic fallback
+paste after an accepted remote send, because that would create a real second
+insertion.
+
+### omp appends the Wayland clipboard to every bracketed paste
+
+**This is the root cause of the original "voice and clipboard paste twice in
+omp" report.** omp's smart-paste path pulls text/images/paths from the Wayland
+clipboard on *every* bracketed paste it receives — independent of the paste
+content and independent of tmux. Confirmed by experiment: with the Wayland
+clipboard holding `CLIPONLY_ZZZ`, a bracketed paste of `FILEONLY_AAA` lands in
+omp as `FILEONLY_AAA`+`CLIPONLY_ZZZ` (both inside AND outside tmux, so tmux is
+not the cause).
+
+OMD's callers deliberately run `wl-copy < payload` before the helper to keep
+the Wayland clipboard synced with the paste. With omp's behavior that means a
+single paste inserts the payload **twice**: once as the bracketed content and
+once as omp's clipboard read. One `omd-paste-at-cursor` invocation, one
+`inject` line in `events.log`, two visible insertions.
+
+The fix lives in the helper's kitty-remote path, not in the callers: clear the
+Wayland clipboard (`wl-copy -c`) immediately before `send-text` so omp's
+clipboard read yields nothing, then restore `wl-copy < payload` immediately
+after so the clipboard stays synced. omp reads the clipboard during the paste
+delivery (synchronously with `send-text`) and has no clipboard-change watcher,
+so the clear-before / restore-after window is safe; a tiny `sleep 0.05` before
+the restore guards against an async `wl-paste` read that finishes just after
+`send-text` returns. The restore always runs, even if the send fails, so
+callers are never left with an empty clipboard.
+
+Because this only touches the Wayland clipboard around the `send-text`, it is
+harmless for non-omp kitty targets (plain shells do not read the clipboard on a
+bracketed paste) and for image-as-path paste (the caller already replaced the
+image with the path text before calling the helper).
+
+### Socket naming
+
+Do not assume `listen_on unix:/tmp/mykitty` from `kitty.conf` is the live
+socket. Older kitty instances (or instances started before the config change)
+listen on `/tmp/mykitty-$pid` instead. The helper must probe
+`/tmp/mykitty-$pid`, then `/tmp/mykitty*`, then the runtime-dir variants.
 
 ## OMP/OpenCode
 
@@ -141,3 +221,13 @@ Runtime checks:
 3. Run voice auto-paste in both targets.
 4. Inspect `$XDG_RUNTIME_DIR/omd-paste/events.log` and confirm one `inject` per
    user action.
+5. **Multi-window regression:** with two kitty windows in the same OS window
+   (e.g. a second omp or shell tab), trigger one paste and verify the payload
+   lands in exactly one window. Count the marker with
+   `kitty @ --to $SOCK get-text --match id:$ID | grep -c MARKER` for every
+   window id; the sum across all windows must equal 1.
+6. **omp clipboard-append regression:** with the Wayland clipboard set to a
+   known string that differs from the paste payload, trigger one paste into
+   omp and verify omp's input contains only the payload, not the clipboard
+   string. If the clipboard string appears, the clear-before-send guard in the
+   helper regressed.
