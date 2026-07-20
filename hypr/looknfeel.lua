@@ -41,7 +41,6 @@ o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000,
 -- Go settings TUI pages (theme/background, etc.) launched via omd-launch-tui
 o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.edit-muted-apps", { float = true, center = true, size = { 880, 620 } })
-o.window("org.omd.omarchy-edit-muted-apps", { float = true, center = true, size = { 880, 620 } })
 o.window("org.omd.edit-file-share-backup", { float = true, center = true, size = { 880, 620 } })
 o.window("org.omd.list-file-share-backup", { float = true, center = true, size = { 880, 620 } })
 
