@@ -1,12 +1,18 @@
 import qs
 import qs.services
 import qs.services as Services
+import qs.modules.voice
 import qs.modules.bar
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
+
+VoiceInput {
+    id: voiceInput
+    visible: false
+}
 Item {
     id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
@@ -16,8 +22,7 @@ Item {
     // Hide when neither voice nor input method is active.
     visible: root.usingVoiceUi || (Config.options.inputMethod.enabled && Services.InputMethod.available)
 
-    // Voice input state
-    readonly property string voiceState: VoiceInput.state
+    readonly property string voiceState: voiceInput.state
     readonly property bool isRecording: voiceState === "recording"
     readonly property bool isTranscribing: voiceState === "transcribing"
     readonly property bool isSetup: voiceState === "setup"
@@ -63,7 +68,7 @@ Item {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200)
                 return;
             if (root.usingVoiceUi) {
-                VoiceInput.toggle();
+                voiceInput.toggle();
             } else {
                 Services.InputMethod.refresh();
                 GlobalStates.barPopupType = GlobalStates.barPopupType === "inputMethod"
