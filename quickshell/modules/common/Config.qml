@@ -119,15 +119,15 @@ Singleton {
             }
 
             property JsonObject apps: JsonObject {
-                property string bluetooth: "kcmshell6 kcm_bluetooth"
-                property string changePassword: "kitty -1 --hold=yes fish -i -c 'passwd'"
-                property string network: "kcmshell6 kcm_networkmanagement"
-                property string manageUser: "kcmshell6 kcm_users"
-                property string networkEthernet: "kcmshell6 kcm_networkmanagement"
-                property string taskManager: "plasma-systemmonitor --page-name Processes"
-                property string terminal: "kitty -1" // This is only for shell actions
-                property string update: "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'"
-                property string volumeMixer: `~/.config/hypr/hyprland/scripts/launch_first_available.sh "pavucontrol-qt" "pavucontrol"`
+                property string bluetooth: ""
+                property string changePassword: ""
+                property string network: ""
+                property string manageUser: ""
+                property string networkEthernet: ""
+                property string taskManager: ""
+                property string terminal: "xdg-terminal-exec" // This is only for shell actions
+                property string update: ""
+                property string volumeMixer: "pavucontrol-qt"
             }
 
             property JsonObject background: JsonObject {

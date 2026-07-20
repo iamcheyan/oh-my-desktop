@@ -2,13 +2,13 @@
   "appearance": {
     "extraBackgroundTint": true,
     "fonts": {
-      "expressive": "Cantarell",
+      "expressive": "Sans Serif",
       "iconNerd": "JetBrainsMono Nerd Font Mono",
-      "main": "Cantarell",
+      "main": "Sans Serif",
       "monospace": "MesloLGS Nerd Font Mono",
-      "numbers": "Cantarell",
-      "reading": "Cantarell",
-      "title": "Cantarell"
+      "numbers": "Sans Serif",
+      "reading": "Sans Serif",
+      "title": "Sans Serif"
     },
     "transparency": {
       "automatic": false,
@@ -29,14 +29,14 @@
     }
   },
   "apps": {
-    "bluetooth": "kcmshell6 kcm_bluetooth",
-    "changePassword": "kitty -1 --hold=yes fish -i -c 'passwd'",
-    "manageUser": "kcmshell6 kcm_users",
-    "network": "kcmshell6 kcm_networkmanagement",
-    "networkEthernet": "kcmshell6 kcm_networkmanagement",
-    "taskManager": "plasma-systemmonitor --page-name Processes",
-    "terminal": "kitty -1",
-    "update": "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'",
+    "bluetooth": "",
+    "changePassword": "",
+    "manageUser": "",
+    "network": "",
+    "networkEthernet": "",
+    "taskManager": "",
+    "terminal": "xdg-terminal-exec",
+    "update": "",
     "volumeMixer": "pavucontrol-qt"
   },
   "audio": {
