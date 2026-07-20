@@ -240,6 +240,21 @@ Scope {
                         return emptyContent;
                     }
                 }
+
+                // Module-registered popup sections (loaded dynamically)
+                Repeater {
+                    model: ModuleLoader.popupSections
+                    delegate: Loader {
+                        required property var modelData
+                        anchors.fill: parent
+                        active: root.activeType === modelData.type
+                        source: modelData.component
+                        onStatusChanged: if (status === Loader.Error) {
+                            console.warn("[Module] Popup load failed:", modelData.type, modelData.component)
+                            active = false
+                        }
+                    }
+                }
             }
         }
     }

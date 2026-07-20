@@ -26,3 +26,4 @@ singleton Translation 1.0 Translation.qml
 singleton TrayService 1.0 TrayService.qml
 singleton VoiceInput 1.0 VoiceInput.qml
 singleton Wallpaper 1.0 Wallpaper.qml
+singleton ModuleLoader 1.0 ModuleLoader.qml
