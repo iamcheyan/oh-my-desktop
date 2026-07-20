@@ -6,35 +6,19 @@ import Quickshell.Io
 /// ModuleLoader — loads external Sumika Shell modules at runtime.
 ///
 /// Modules live in ~/development/sumika-modules/<id>/ and are discovered
-/// by the startup script, which sets SUMIKA_MODULE_PATHS (colon-separated).
-/// Each module has a module.json declaring its capabilities.
-///
-/// This singleton parses the registry JSON (written by the startup script
-/// to /tmp/sumika-module-registry.json) and exposes:
-///   - barButtons:  [{ component, slot, order, moduleId }] sorted by order
-///   - popupSections: [{ type, component, moduleId }]
-///   - settingsPages: [{ id, title, component, icon, order, moduleId }]
-///   - disabledModules: [string] — user-config blacklisted module IDs
+/// by the startup script, which writes /tmp/sumika-module-registry.json.
+/// This singleton parses that JSON and exposes bar buttons, popup sections,
+/// and settings pages for dynamic loading via Repeater + Loader.
 
 Singleton {
     id: loader
 
-    // Path to the registry JSON written by the startup script.
     readonly property string registryPath: Quickshell.env("SUMIKA_MODULE_REGISTRY") ?? "/tmp/sumika-module-registry.json"
 
-    // Parsed registry data.
-    readonly property var registry: {
-        try {
-            const f = Quickshell.readFile(registryPath)
-            if (!f || f.length === 0) return _emptyRegistry()
-            return JSON.parse(f)
-        } catch (e) {
-            console.warn("[ModuleLoader] Failed to load registry:", e)
-            return _emptyRegistry()
-        }
-    }
+    // Raw registry data — populated by registryReader Process.
+    property var _registry: _emptyRegistry()
 
-    // User-config disabled modules (from config.json modules.disabled).
+    // User-config disabled modules.
     readonly property var disabled: {
         const list = Config.options.modules?.disabled ?? []
         return Array.isArray(list) ? list : []
@@ -44,29 +28,55 @@ Singleton {
         return !disabled.includes(moduleId)
     }
 
-    // Bar buttons from all enabled modules, sorted by order.
     readonly property var barButtons: {
-        const buttons = (registry.barButtons ?? []).filter(b => isEnabled(b.moduleId))
+        const buttons = (_registry.barButtons ?? []).filter(b => isEnabled(b.moduleId))
         return buttons.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
 
-    // Popup sections from all enabled modules.
     readonly property var popupSections: {
-        return (registry.popupSections ?? []).filter(s => isEnabled(s.moduleId))
+        return (_registry.popupSections ?? []).filter(s => isEnabled(s.moduleId))
     }
 
-    // Settings pages from all enabled modules, sorted by order.
     readonly property var settingsPages: {
-        const pages = (registry.settingsPages ?? []).filter(p => isEnabled(p.moduleId))
+        const pages = (_registry.settingsPages ?? []).filter(p => isEnabled(p.moduleId))
         return pages.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
 
-    // Module IDs that are physically present and not disabled.
     readonly property var activeModuleIds: {
-        return (registry.modules ?? []).filter(m => isEnabled(m)).map(m => m.id)
+        return (_registry.modules ?? []).filter(m => isEnabled(m.id ?? m)).map(m => m.id ?? m)
     }
 
     function _emptyRegistry() {
         return { modules: [], barButtons: [], popupSections: [], settingsPages: [] }
+    }
+
+    // Read registry JSON via cat (Quickshell has no readFile API).
+    Process {
+        id: registryReader
+        command: ["cat", loader.registryPath]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const text = this.text.trim()
+                    if (text.length > 0) {
+                        loader._registry = JSON.parse(text)
+                        console.log("[ModuleLoader] Loaded registry:", JSON.stringify({
+                            modules: loader._registry.modules?.length ?? 0,
+                            barButtons: loader._registry.barButtons?.length ?? 0,
+                            popupSections: loader._registry.popupSections?.length ?? 0,
+                            settingsPages: loader._registry.settingsPages?.length ?? 0
+                        }))
+                    }
+                } catch (e) {
+                    console.warn("[ModuleLoader] Failed to parse registry:", e)
+                }
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                // File doesn't exist yet — silent, modules just won't load.
+            }
+        }
+        running: true
     }
 }

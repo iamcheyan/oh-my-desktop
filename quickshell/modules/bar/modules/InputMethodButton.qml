@@ -1,23 +1,11 @@
 import qs
 import qs.services
 import qs.services as Services
-import qs.modules.voice
-import qs.modules.input-method
 import qs.modules.bar
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
-
-VoiceInput {
-    id: voiceInput
-    visible: false
-}
-
-InputMethod {
-    id: im
-    visible: false
-}
 
 Item {
     id: root
@@ -26,10 +14,10 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
     // Hide when neither voice nor input method is active.
-    visible: root.usingVoiceUi || (Config.options.inputMethod.enabled && im.available)
+    visible: root.usingVoiceUi || (Config.options.inputMethod.enabled && Services.InputMethod.available)
 
     // Voice input state
-    readonly property string voiceState: voiceInput.state
+    readonly property string voiceState: VoiceInput.state
     readonly property bool isRecording: voiceState === "recording"
     readonly property bool isTranscribing: voiceState === "transcribing"
     readonly property bool isSetup: voiceState === "setup"
@@ -75,9 +63,9 @@ Item {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200)
                 return;
             if (root.usingVoiceUi) {
-                voiceInput.toggle();
+                VoiceInput.toggle();
             } else {
-                im.refresh();
+                Services.InputMethod.refresh();
                 GlobalStates.barPopupType = GlobalStates.barPopupType === "inputMethod"
                     ? ""
                     : "inputMethod";
@@ -177,7 +165,7 @@ Item {
 
         StyledText {
             anchors.centerIn: parent
-            text: im.badge || "?"
+            text: Services.InputMethod.badge || "?"
             color: TuiStyle.accent
             font.family: Appearance.font.family.main
             font.pixelSize: 9

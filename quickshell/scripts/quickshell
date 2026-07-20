@@ -75,12 +75,12 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
             # Add module entry and merge capabilities
             tmp_reg=$(mktemp)
             echo "$registry" > "$tmp_reg"
-            registry=$(jq -c --slurpfile mod "$module_json" \
-                '.modules += [{"id": $mod[0].id, "path": $module_dir}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id})) |
-                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id})) |
-                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id}))' \
-                "$tmp_reg" 2>/dev/null || echo "$registry")
+            registry=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
+                '.modules += [{"id": $mod[0].id, "path": $mdir}] |
+                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                "$tmp_reg" 2>&1 || echo "$registry")
             rm -f "$tmp_reg"
         fi
     done
