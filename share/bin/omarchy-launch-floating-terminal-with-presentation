@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# OMD compatibility implementation for omd-launch-floating-terminal-with-presentation.
-
-cmd="$*"
-exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.terminal --title=OMD -e bash -c "$cmd"

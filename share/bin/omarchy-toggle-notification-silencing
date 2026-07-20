@@ -1,5 +1,0 @@
-#!/bin/sh
-
-# omarchy:summary=Toggle notification do-not-disturb mode
-
-exec omd-notification-control toggle-silent
