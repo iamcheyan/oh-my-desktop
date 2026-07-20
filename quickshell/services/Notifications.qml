@@ -76,7 +76,12 @@ Singleton {
 
     readonly property bool silent: Config.options?.notifications?.silent ?? false
     property var mutedApps: Config.options?.notifications?.mutedApps ?? []
-    property string mutedAppsFilePath: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
+    // Sumika Shell config home (XDG-compliant, matches lib/paths.sh default)
+    readonly property string sumikaConfigHome: `${FileUtils.trimFileProtocol(Directories.config)}/sumika-shell`
+    // Canonical write path (new location)
+    property string mutedAppsFilePath: `${sumikaConfigHome}/notifications/muted_apps.cfg`
+    // Legacy read fallback (old location, removed in Phase 7)
+    readonly property string mutedAppsFilePathLegacy: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
     property bool openMutedEditorAfterWrite: false
     property int unread: 0
     property var filePath: Directories.notificationsPath
@@ -329,7 +334,7 @@ Singleton {
 
     Process {
         id: readMutedAppsProc
-        command: ["bash", "-c", `cat "$1" 2>/dev/null || true`, "omd-muted-apps-read", root.mutedAppsFilePath]
+        command: ["bash", "-c", `cat "$1" 2>/dev/null || cat "$2" 2>/dev/null || true`, "omd-muted-apps-read", root.mutedAppsFilePath, root.mutedAppsFilePathLegacy]
         running: false
         stdout: StdioCollector {
             id: mutedAppsCollector

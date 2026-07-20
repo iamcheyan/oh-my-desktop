@@ -2,4 +2,9 @@
 # Wrapper for omd-launch-tui: opens muted apps config in vi.
 set -euo pipefail
 
-exec vi "${XDG_CONFIG_HOME:-$HOME/.config}/omd/notifications/muted_apps.cfg"
+# Prefer Sumika Shell config path; fall back to old OMD path for migration.
+_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/notifications/muted_apps.cfg"
+if [ ! -f "$_cfg" ]; then
+  _cfg="${XDG_CONFIG_HOME:-$HOME/.config}/omd/notifications/muted_apps.cfg"
+fi
+exec vi "$_cfg"
