@@ -42,14 +42,6 @@ PageBody {
                     Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
                 }
             }
-            SettingsButton {
-                label: "File Share / Backup"
-                iconName: "cloud_upload"
-                onClicked: {
-                    if (settingsRoot) settingsRoot.dismiss();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-backup-tui`]);
-                }
-            }
         }
     }
 }

@@ -511,15 +511,6 @@ Scope {
                 }
             }
 
-            ToolLauncherRow {
-                icon: "cloud_upload"
-                title: "File Share / Backup"
-                subtitle: "SMB backup, sync and file sharing"
-                onClicked: {
-                    root.close();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-backup-tui`]);
-                }
-            }
         }
     }
 
