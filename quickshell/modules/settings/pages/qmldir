@@ -7,6 +7,5 @@ SystemPage 1.0 SystemPage.qml
 NetworkPage 1.0 NetworkPage.qml
 BluetoothPage 1.0 BluetoothPage.qml
 VoicePage 1.0 VoicePage.qml
-WindowsVmPage 1.0 WindowsVmPage.qml
 KeyboardRemapPage 1.0 KeyboardRemapPage.qml
 KeyboardEditorOverlay 1.0 KeyboardEditorOverlay.qml

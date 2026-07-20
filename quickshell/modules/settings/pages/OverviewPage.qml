@@ -34,14 +34,6 @@ PageBody {
                 }
             }
             SettingsButton { label: "Keyboard Remap"; iconName: "keyboard"; onClicked: settingsRoot.currentPage = "keyremap" }
-            SettingsButton {
-                label: "Windows VM"
-                iconName: "desktop_windows"
-                onClicked: {
-                    if (settingsRoot) settingsRoot.dismiss();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-windows-tui`]);
-                }
-            }
         }
     }
 }
