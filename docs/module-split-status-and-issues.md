@@ -1,4 +1,15 @@
-> **更新**：问题 1 已通过创建共享模块 `popup-components` 解决。详见下方。
+> **更新日志**：
+> - ✅ 问题 1（inline component 依赖）— 创建 `popup-components` 共享模块（10 个组件提取为独立文件）
+> - ✅ 问题 5（bin 脚本缺失）— 7 个脚本恢复到核心作为 fallback
+> - ✅ BarStatusPopup 模块 Repeater — 动态加载模块弹窗 section
+> - ✅ SettingsDialog 模块支持 — 动态加载模块设置页
+> - ✅ ModuleLoader — 移到 services/，修复 Config import
+> - ✅ module.json barButtons 重复声明 — 从 clipboard/display 移除
+> - ✅ 启动脚本 jq bug + file:// 前缀 — 修复
+> - ⬜ 问题 2（bar qmldir 循环依赖）— 暂不需要（不为 bar/ 创建 qmldir）
+> - ⬜ 问题 3（服务重复）— 长期项，保持现状
+> - ⬜ 模块 QML 运行时测试 — 需用户手动测试
+> - ⬜ BarContent 模块 Repeater — 待按钮从核心移到模块后添加
 
 # 模块拆分当前状态与问题报告（详细版）
 
