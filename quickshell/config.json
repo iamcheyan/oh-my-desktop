@@ -154,7 +154,7 @@
     "mutedApps": [
       "notify-send:📋 已粘贴图片路径"
     ],
-    "silent": false,
+    "silent": true,
     "timeout": 7000
   },
   "osd": {
