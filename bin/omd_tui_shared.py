@@ -76,6 +76,16 @@ def _load_theme_accent():
             os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
         )
         path = os.path.join(sumika_state, "theme", "current", "quickshell.json")
+        with open(path) as f:
+            data = json.load(f)
+        primary = data.get("primary", "")
+        if primary and primary.startswith("#") and len(primary) == 7:
+            r = int(primary[1:3], 16)
+            g = int(primary[3:5], 16)
+            b = int(primary[5:7], 16)
+            return (r, g, b)
+    except (FileNotFoundError, json.JSONDecodeError, ValueError, KeyError, OSError):
+        pass
     return None
 
 
@@ -83,11 +93,24 @@ def _load_theme_border_color():
     """Load the active_border_color from colors.toml.
     Returns (r,g,b) on success, None on failure.
     """
+    try:
         sumika_state = os.environ.get(
             "SUMIKA_SHELL_STATE_HOME",
             os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
         )
         path = os.path.join(sumika_state, "theme", "current", "colors.toml")
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("active_border_color"):
+                    hex_val = line.split("=", 1)[1].strip().strip('"')
+                    if hex_val.startswith("#") and len(hex_val) == 7:
+                        r = int(hex_val[1:3], 16)
+                        g = int(hex_val[3:5], 16)
+                        b = int(hex_val[5:7], 16)
+                        return (r, g, b)
+    except (FileNotFoundError, OSError, ValueError, IndexError):
+        pass
     return None
 
 
