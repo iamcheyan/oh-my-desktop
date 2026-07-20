@@ -2,235 +2,357 @@
 
 ## 背景
 
-OMD 现有 9 个 Python 脚本（`bin/` 下），涵盖以下设置工具：
+OMD 现有 8 个 Python TUI 脚本（`bin/` 下），涵盖以下设置工具：
 
-| 脚本 | 类型 | 代码行数 | 架构模式 |
+| 脚本 | 类型 | 架构模式 | Layout 模板 |
 |---|---|---|---|
-| `omd-wifi-tui` | 工具盒（bar 弹出） | 1088 | 独立 OOP，自建事件循环 |
-| `omd-bluetooth-tui` | 工具盒（bar 弹出） | 1422 | 独立 OOP，自建事件循环 + bluetoothctl agent |
-| `omd-settings-keyboard-tui` | 设置中心 | 1251 | `StatusModel` + `run_tui_loop` |
-| `omd-settings-voice-tui` | 设置中心 | 707 | `StatusModel` + `run_tui_loop` |
-| `omd-settings-vm-tui` | 设置中心 | 547 | `StatusModel` + `run_tui_loop` |
-| `omd-settings-theme-tui` | 设置中心 | 1093 | `StatusModel` + `run_tui_loop` |
-| `omd-settings-backup-tui` | 设置中心 | 1008 | 自建 Model，自建事件循环 |
-| `omd-settings-ocr-tui` | 设置中心 | 463 | `StatusModel` + `run_tui_loop` |
-| `omd-ocr` | 独立命令行工具 | 42 | 无 TUI，纯 CLI |
 
-已共享的模块 `bin/omd_tui_shared.py`（851 行）覆盖了：
-- 颜色对初始化（`init_colors`, 16 个颜色常量）
-- 绘制原语（边框、文本、表格、日志、英雄栏、帮助栏）
-- 文本工具（截断、折行、宽度计算、安全输出）
-- 视觉组件（`hero_line`, `primary_line`, `action_line`, `kv_line`, `toggle_line`, `segmented_line` 等）
-- 模型基类 `StatusModel`（状态管理、日志、后台刷新）
-- 事件循环 `run_tui_loop`
-- 后端命令执行（`run_cmd`, `run_cmd_bg`, `drain_callbacks`）
-- 鼠标事件处理
-- 布局工具（`two_column_widths`）
+| `omd-wifi-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
+| `omd-bluetooth-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
+| `omd-settings-keyboard-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（自定义高度/堆叠） |
+| `omd-settings-voice-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
+| `omd-settings-vm-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
+| `omd-settings-theme-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（`force_single` + 自定义绘制） |
+| `omd-settings-backup-tui` | 设置中心 | 自建 Model，自建事件循环 | 是 |
+已共享的模块 `bin/omd_tui_shared.py`（1178 行）覆盖了：
 
-下文分析现有重复和可提取的框架层。
+## 架构模式
 
-## 现状：三种架构模式
+### 模式 A：`StatusModel` + `run_tui_loop`（6 个 TUI 的骨架）
 
-### 模式 A：`StatusModel` + `run_tui_loop`（5 个脚本）
-
-**文件：** keyboard, voice, vm, theme, ocr
-
-**共同结构：**
-```
+```python
 class Model(S.StatusModel):
-    def __init__(self):     # 设默认值，调 refresh()
-    def refresh(self):      # 调 S.run_cmd_bg(...) 用 pending 计数器同步
-    def run_action(self, action):  # 调 S.run_cmd_bg(...)，设置 busy/message/logs
+    def refresh(self):      # 调 S.run_cmd_bg(...) via RefreshCounter
+    def run_action(self):   # 调 S.run_cmd_bg(...)
 
-def view(stdscr, model):    # 调用 render_left/render_right/render_log/hero_info
+def view(stdscr, model):
+    ly = S.Layout(stdscr)   # 可选使用 Layout 模板
+    ly.compute()
+    ly.draw_hero(stdscr, hero_info(model))
+    # ... 各 TUI 自有绘制 ...
+    ly.draw_help(stdscr, *help_items(model))
+    S.finish_frame(stdscr)
+
 def handle_key(stdscr, model, key):  # 按键分发
 
 def main(stdscr):
     S.run_tui_loop(stdscr, Model(), view, handle_key, ...)
 ```
 
-**重复模式（5 个脚本中完全相同）：**
-1. `refresh()` 中的 `pending` 计数器模式——至少 5 处几乎同样的 `pending = [N]` / `complete()` 闭包
-2. `run_action()` 中的 `cb(lines, err)` 模式——结构一样，只是具体字段不同
-3. 每个 TUI 自己写 `render_log()`——但逻辑几乎一样（截取 + `("muted", truncate(line))`）
-4. 每个 TUI 自己写 `hero_info()`——都是调用 `S.hero_line(title, ...)` 但参数组装各不相同
-5. `handle_key` 中的滚轮/翻页代码——方向不同但公式一样（`KEY_UP`/`DOWN`/`PPAGE`/`NPAGE`/`HOME`/`END` + `scroll_offset`）
-6. `handle_key` 中的鼠标处理——至少在 4 个 TUI 中手写 `S.get_mouse_event()` + `mouse_wheel_delta()`
+### 模式 B：独立 OOP（wifi、bluetooth）
 
-### 模式 B：独立 OOP（2 个脚本）
-
-**文件：** wifi, bluetooth
-
-**共同结构：**
-```
+```python
 class XxxTUI:
-    def __init__(self, stdscr):
-        self.stdscr = stdscr
-        self.focus = F_SECTION_A   # 焦点区域枚举
-        self.selected = 0
-        self.busy = False
-        self.status_msg = "..."
-
+    def __init__(self, stdscr): ...
     def run(self):                # 自建事件循环
-    def _init_curses(self):       # curses 初始化
-    def _handle_input(self):      # 按键处理
     def _draw(self):              # 全屏绘制
-    def _hero_info(self):         # 英雄栏
-    def _run_bg(self, ...):       # 后台线程
-    def _draw_xxx_table(self):    # 各区域表格绘制
-    def _draw_password_prompt(self):  # 弹出框
+    def _handle_input(self):      # 按键处理
 ```
 
-**这两种 TUI（wifi + bluetooth）之间的重复：**
-1. `_init_curses()`——5 行几乎一样
-2. `_force_narrow_ambiguous_locale()`——完全一样（wifi 的 `main()` 和 bluetooth 的 `main()` 都有）
-3. `_draw_password_prompt` / `_draw_prompt`——overlay 弹出框几乎一样
-4. `_draw_row()`、`_put_row_cells()`、`_space_around()`、`_header_attr()`、`_sel_attr()`——表格绘制代码 95% 相同
-5. `_focus_next()` / `_focus_prev()`——焦点切换逻辑相同
-6. `_handle_input()` 中的键盘导航（`j/k/↑/↓/Tab/Backtab/q`）——结构一致
-7. `_move_sel()`——几乎一样
-8. `nmcli_split()`（wifi）和 `_parse_scan_lines()`（bluetooth）——不同的数据解析但模式类似
+### 模式 C：自建 Model（backup）
 
-**wifi 特殊：** 密码输入 overlay、Enterprise 检测、nmcli 集成
-**bluetooth 特殊：** `pty_spawn()` + bluetoothctl agent（唯一使用伪终端的），设备图标/类型推理
-
-### 模式 C：自建 Model（1 个脚本）
-
-**文件：** backup
-
-**特点：** 不使用 `StatusModel`，自建 `Model` 类。有可编辑字段（独特的表单编辑能力），使用 `threading.Thread` 直接管理后台线程（不是 `run_cmd_bg`），自建事件循环。
-
-**backup 独有功能：**
-- Config 字段编辑（`editing_field` / `edit_buffer` / `edit_field_key`）
-- SMB 网络挂载/同步（`test_connection`, `run_backup`）
-- 单独的 `omd-backup` 后端脚本
-- 比较结果展示
-
-## 重复代码汇总
-
-| 重复项 | 出现次数 | 现在位置 | 建议 |
-|---|---|---|---|
-| `pending` 计数器模式 | 5 (keyboard, voice, vm, theme, ocr) | 各 TUI 的 `refresh()` | 提取到 `StatusModel` 或 `RefreshHelper` |
-| `run_action` 的 `cb(lines, err)` 样板 | 5+ | 各 TUI 的 `run_action()` | 基类提供通用回调方法 |
-| 滚轮/翻页 `handle_key` | 5+ (所有带日志的 TUI) | 各 TUI 的 `handle_key()` | 提取到共享模块或 `run_tui_loop` 钩子 |
-| 鼠标事件处理 | 4+ | 各 TUI 的 `handle_key()` | 同 |
-| `render_log()` | 4+ (keyboard, voice, vm, ocr, theme) | 各 TUI 的 render 函数 | 共享 `render_log()` |
-| 表格绘制 (`_draw_row`, `_space_around`, 等) | 2 (wifi, bluetooth) | 各 TUI 内部 | 提取共享的表格组件 |
-| `_init_curses()` | 2 (wifi, bluetooth) | 各 TUI 内部 | 可直接用 `run_tui_loop` |
-| `_force_narrow_ambiguous_locale()` | 2 (wifi, bluetooth) | 各 TUI 的 `main()` | 移到共享模块 |
-| 提示框 overlay (`_draw_password_prompt`, `_draw_prompt`) | 2 (wifi, bluetooth) | 各 TUI 内部 | 提取 `draw_dialog()` |
-| 焦点切换 (`_focus_next/_focus_prev`) | 2 (wifi, bluetooth) | 各 TUI 内部 | 提取共享焦点管理器 |
-| 英雄栏构建 (`_hero_info` vs `hero_info`) | 8 | 各 TUI 内部 | 已有 `hero_line()` 原语，不需要抽象 |
-| `StatusModel` 字段默认值 | 5 | 各 TUI 的 `__init__` | 可统一但差异较大，不强制 |
-
-## 框架提取方案（建议）
-
-### 目标
-1. 消除机械性重复（pending 计数器、滚动处理、log 渲染）
-2. 保持各 TUI 的内容自由，不强制统一渲染模式
-3. wifi/bluetooth 的独立架构保留（它们有特殊的伪终端/后台进程需求），但可吸收共享的表格/弹窗组件
-4. backup 的字段编辑能力如果需要推广，才提取表单组件
-
-### 阶段一：提取无争议的机械重复（到 `omd_tui_shared.py`）
-
-```
-# 新增:
-def setup_locale():
-    """设置 LC_ALL=C.UTF-8 + 窄 ambiguous 宽度"""
-    ...
-
-class RefreshCounter:
-    """简化 pending 计数器模式：
-    pending = RefreshCounter(n, on_done=lambda: set(refreshing=False))
-    with pending:
-        call()
-    """
-    ...
-
-# 滚动帮助函数
-def scroll_key(key, scroll_offset, max_offset=None):
-    """统一处理 KEY_UP/DOWN/PPAGE/NPAGE/HOME/END 的偏移量计算"""
-    ...
-
-def render_log(model, w, h, empty_text="(no activity yet)"):
-    """标准日志渲染函数。model.logs 可以是 list[str] 或 list[tuple[str, tag]]"""
-    ...
-
-# dialog/overlay
-def draw_dialog(stdscr, h, w, lines, attr=S.ATTR_ACCENT_BOLD):
-    """居中绘制提示框。wifi 和 bluetooth 各有一个近乎一样的实现。"""
-    ...
+```python
+class Model:   # 不使用 StatusModel
+    # 表单编辑（editing_field/edit_buffer/edit_field_key）
+    # threading.Thread 直接管理
 ```
 
-### 阶段二：提取表格组件（wifi/bluetooth 共享）
+## Layout 模板框架
 
-```
-class Table:
-    """可排序、可聚焦的表格组件
+### 解决的问题
 
-    用法：
-        table = Table(headers=["SSID", "Security", ...])
-        table.set_rows(data)
-        table.draw(win, y, x, w, h, focus, selected)
-    """
-    ...
-```
+8 个 TUI 过去各写各的几何计算（`pad_x`、`pad_y`、`content_w`、`left_w`、`right_x` …），
+公式一样但数字不同。改一个布局参数得改 8 处。
 
-### 阶段三（可选）：表单编辑组件
+### 方案：`S.Layout` 类
 
-```
-class FieldEditor:
-    """文本字段编辑，backup TUI 的 config 编辑通用化"""
-    ...
-```
+```python
+ly = S.Layout(stdscr)        # 读取终端尺寸
+ly.pad = 2                   # 可覆盖默认值
+ly.left_w = 34
+ly.compute()                 # 计算所有坐标
 
-### 建议的模块组织
+# 绘制
+ly.draw_hero(stdscr, hero_data)
+ly.draw_panel("left", "Title", lines, focus=(m.focus == 0))
+ly.draw_panel("right", "Title", lines, focus=(m.focus == 1))
+ly.draw_help(stdscr, *help_items(m))
 
-保持单文件 `bin/omd_tui_shared.py`（简单项目不需要包结构），按节组织：
-
-```
-Current:              After:
-  omd_tui_shared.py    omd_tui_shared.py
-  (851 lines)          ├── color/attrs         (现状)
-                       ├── text utilities      (现状)
-                       ├── drawing             (现状 + draw_dialog)
-                       ├── components          (现状 + RefreshCounter, render_log, scroll_key, Table)
-                       ├── model (StatusModel) (现状 + 通用回调)
-                       ├── event loop          (现状 + 鼠标/滚动集成)
-                       ├── backend             (现状)
-                       ├── mouse               (现状)
-                       └── misc                (现状 + setup_locale)
+# 或：只取坐标自行绘制（backup/voice/ocr 用法）
+ly.content_top, ly.left_x, ly.left_w, ly.right_x, ...
 ```
 
-### 不变的边界
+### Layout 的参数
 
-1. **wifi/bluetooth 保持独立 OOP**——它们有 `bluetoothctl` 伪终端、`nmcli` 等特殊后端，不适合模板化。但可消费共享组件（`Table`, `draw_dialog`, `render_log`）。
-
-2. **backup 的字段编辑**——当前只有它有，如果需要其他 TUI 也有表单编辑才提取。
-
-3. **theme TUI 的图片预览**——独有功能，不提取。
-
-4. **每个 TUI 的 view 布局**——`render_left`/`render_right` 的内容完全属于业务逻辑，不模板化。
-
-## 改动影响
-
-| 修改的文件 | 预计改动量 | 风险 |
+| 参数 | 默认值 | 说明 |
 |---|---|---|
-| `omd_tui_shared.py` | +200~400 行（新增函数）| 低，只增不改 |
-| `omd-settings-keyboard-tui` | -80~120 行（去掉 pending/log/scroll 样板）| 中 |
-| `omd-settings-voice-tui` | -60~100 行 | 中 |
-| `omd-settings-vm-tui` | -50~80 行 | 中 |
-| `omd-settings-theme-tui` | -80~120 行 | 中 |
-| `omd-settings-ocr-tui` | -40~60 行 | 低（脚本最小）|
-| `omd-wifi-tui` | -100~150 行（Table/scroll locale 替换）| 中 |
-| `omd-bluetooth-tui` | -100~150 行 | 中 |
-| `omd-settings-backup-tui` | -30~50 行（scroll 替换）| 低 |
+| `pad` | 2 | 边缘留白 |
+| `hero_h` | 2 | 英雄栏高度 |
+| `help_h` | 1 | 帮助栏高度 |
+| `gap` | 1 | 左右面板间距 |
+| `left_w` | 34 | 左栏宽度 |
+| `right_min` | 28 | 右栏最小宽度 |
+| `split_threshold` | 80 | 低于此宽度时隐藏右栏 |
+| `force_single` | False | 强制单栏模式 |
 
-总计：每个 TUI 减少 15-25% 的样板代码。
+### computed 后提供的属性
 
-## 不做的事情
+`content_top`、`content_h`、`content_w`、`show_right`、
+`left_x`/`y`/`h`/`w`、`right_x`/`y`/`h`/`w`
 
-1. **不引入框架依赖**——保持纯 `curses` + Python stdlib
-2. **不统一渲染引擎**——每个 TUI 的内容布局是其核心差异
-3. **不把 wifi/bluetooth 强行套进 `StatusModel`**——它们的后端交互模式差异大
-4. **不提取 `omd-ocr`**——它只是简单的 CLI 工具
+### 谁用了 Layout
+
+| TUI | 用法 |
+|---|---|
+| **vm-tui** | `draw_panel()` 全量使用，左右面板一致 |
+| **voice-tui** | 取 `ly.left_w`、`ly.right_x` 等坐标自行绘制（堆叠盒子） |
+| **ocr-tui** | 取全部坐标，自定义日志区 |
+| **backup-tui** | 取坐标，自定义不等高左右面板 |
+| **keyboard-tui** | 取坐标，自定义堆叠盒子（6 框 + 3 路焦点仍保持自制） |
+| **theme-tui** | `ly.split_threshold=108` + `force_single` 计算几何，自定义绘制 |
+| **wifi-tui** | 否（OOP 结构，用 `S.draw_row`/`S.put_row_cells` 等共享 Table 函数） |
+| **bluetooth-tui** | 否（OOP 结构，用 `S.draw_row`/`S.put_row_cells` 等共享 Table 函数） |
+
+## `handle_tab` 焦点切换
+
+```python
+if S.handle_tab(key, m):      # field="focus", count=2
+    return True
+```
+
+自动循环 `model.focus` 0→1→0（或任意 count）。Tab 键通用处理，各 TUI 不再各自手写。
+
+## 已完成的阶段
+
+### 阶段一：消除机械重复（✅ 完成）
+
+在 `omd_tui_shared.py` 新增了以下提取物，逐 TUI 替换手写样板：
+
+| 提取物 | 用途 | 消费者 |
+|---|---|---|
+| `RefreshCounter` | 简化 `pending = [N]` 计数器模式 | vm, voice, theme, ocr, keyboard |
+| `scroll_key()` | UP/DOWN/PPAGE/NPAGE/HOME/END 统一处理 | vm, voice, ocr, backup |
+| `draw_dialog()` | 居中 overlay 提示框 | wifi, bluetooth |
+| `setup_locale()` | LC_ALL + 窄 ambiguous 统一设置 | 所有 8 个 TUI |
+
+| 文件 | 阶段一净变化 |
+|---|---|
+| `omd_tui_shared.py` | +994 行（851→994 含阶段一） |
+| 各 TUI | -20~60 行每文件 |
+
+### 阶段二：Layout 模板框架（✅ 完成）
+
+| 新增 | 行数 | 说明 |
+|---|---|---|
+| `Layout` 类 | ~100 行 | 标准两栏布局，含 `compute()` / `draw_panel()` / `inner_rect()` |
+| `handle_tab()` | ~15 行 | Tab 焦点切换 |
+| 重写 `Layout.draw_hero` | 修复继承类方法签名 | 从解包 bug 修复 |
+已转换 6 个 TUI：
+- vm-tui（最先转换，验证 API）
+- voice-tui
+- ocr-tui
+- backup-tui
+- keyboard-tui（取坐标 + 自定义堆叠盒子和焦点）
+- theme-tui（`split_threshold=108`, `force_single`, 自定义预览/设置/动作盒）
+### 阶段三：表格渲染原语（✅ 完成）
+
+将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `omd_tui_shared.py`：
+
+| 提取物 | 说明 |
+|---|---|
+| `space_around()` | CSS/ratatui SpaceAround 列偏移计算 |
+| `clip_cell()` | 单元格文本截断/填充 |
+| `draw_row()` | 行绘制：背景填充 + 按偏移放单元格 |
+| `put_row_cells()` | 自动计算 SpaceAround 偏移的 `draw_row` 简写 |
+| `header_attr()` | 表头样式（`ATTR_SECTION`） |
+| `sel_attr()` | 选中行样式（`ATTR_FOCUS` 或 normal） |
+
+wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_header_attr`, `_sel_attr`, `_draw_row`），bluetooth-tui 同理。各自约 -50 行。
+
+### 阶段四：表单编辑（🚫 跳过）
+
+只有 backup 需要表单编辑，无第二消费者。保持 backup 独有。
+
+## 不变的边界
+
+1. 不动 `omd-ocr`（纯 CLI，没有 TUI）
+2. 不动 theme TUI 的图片预览功能
+3. 不动 backup 的线程模型
+4. 不把 wifi/bluetooth 强行套进 `StatusModel`
+5. 不加第三方依赖——纯 `curses` + Python stdlib
+6. `omd_tui_shared.py` 保持单文件（~1178 行）
+
+## 新建 TUI 实践指南
+
+### 0. 起步
+
+```python
+import sys, os, curses, locale, threading
+sys.path.insert(0, os.path.dirname(__file__))
+import omd_tui_shared as S
+```
+
+所有 TUI 共用 `bin/omd_tui_shared.py`（1178 行），不加第三方依赖。
+
+### 1. 选骨架
+
+| 用途 | 骨架 | 已有的例子 |
+|------|------|-----------|
+| **设置中心**（有模型、状态刷新、日志） | `S.StatusModel` + `S.run_tui_loop()` | vm, voice, ocr, keyboard, theme |
+| **工具盒**（bar 弹出，全自控） | 自写 OOP 类 + 自建事件循环 | wifi, bluetooth |
+| **含表单编辑** | 自写 Model（keep threading） | backup |
+
+Settings TUI 模板代码：
+
+```python
+class Model(S.StatusModel):
+    def refresh(self):
+        # S.run_cmd_bg(..., callback=...) via RefreshCounter
+    def run_action(self):
+        pass
+
+_hero: list[tuple[str, str]] | None = None
+def hero_info(m: Model):
+    global _hero
+    if _hero is None:
+        _hero = [S.primary_line("My Tool"), S.action_line("key1->action1", "key2->action2")]
+    return _hero
+
+def view(stdscr, m: Model):
+    ly = S.Layout(stdscr)
+    ly.compute()
+    ly.draw_hero(stdscr, hero_info(m))
+    ly.draw_panel("left", "Items", render_items(m), focus=(m.focus == 0))
+    ly.draw_panel("right", "Details", render_details(m), focus=(m.focus == 1))
+    ly.draw_help(stdscr, *help_items(m))
+    S.finish_frame(stdscr)
+
+def handle_key(stdscr, m: Model, key: str) -> bool:
+    if S.handle_tab(key, m): return True
+    if key == "q": return False
+    # ... 其他按键
+    return True
+
+def main(stdscr):
+    S.run_tui_loop(stdscr, Model(), view, handle_key)
+
+if __name__ == "__main__":
+    S.setup_locale()
+    curses.wrapper(main)
+```
+
+### 2. 构图
+
+`S.Layout` 覆盖了多数情况，`compute()` 前调参数：
+
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| `pad` | 2 | 边缘留白 |
+| `hero_h` | 2 | 英雄栏高度 |
+| `help_h` | 1 | 帮助栏高度 |
+| `gap` | 1 | 左右栏间距 |
+| `left_w` | 34 | 左栏宽度 |
+| `right_min` | 28 | 右栏最小宽度 |
+| `split_threshold` | 80 | 低于此宽隐藏右栏 |
+| `force_single` | False | 强制单栏 |
+
+`compute()` 后取用：
+
+```python
+ly.content_top     # 内容区起始行
+ly.content_h       # 内容区高度
+ly.content_w       # 内容区宽度
+ly.show_right      # 右栏是否有空间
+ly.left_x, ly.left_y, ly.left_h, ly.left_w
+ly.right_x, ly.right_y, ly.right_h, ly.right_w
+```
+
+**标准面板**：`ly.draw_panel("left", title, lines, focus=True)` — 画边框 + 标题 + 内容。
+
+**不标准的情况**（取坐标自己画）：
+- 堆叠多个盒子（keyboard：左 3 右 3）
+- 不等高左右栏（backup）
+- 内置预览 / 自定义区域（theme：预览框 + 设置框 + 动作框 + 主题网格）
+- 大日志区（ocr / voice）
+
+#### 布局的几个典型模式
+
+**等高二栏**（vm 用法）：
+```python
+ly.draw_panel("left", "Left", lines, focus=True)
+ly.draw_panel("right", "Right", lines, focus=True)
+```
+
+**左栏堆叠 + 右栏内容**（voice 用法）：
+```python
+S.draw_border(stdscr, ly.content_top, ly.left_x, box_h, ly.left_w, "Box A")
+S.draw_lines_in_area(...)
+S.draw_thick_border(stdscr, ly.content_top + box_h, ly.left_x, ..., ly.left_w, "Box B")
+ly.draw_panel("right", "Details", lines, focus=True)
+```
+
+**单栏全宽**（theme 窄屏 / ocr 日志区）：
+```python
+ly.force_single = True;  ly.compute()
+S.draw_thick_border(stdscr, ly.content_top, ly.left_x, log_h, ly.content_w, "Logs")
+```
+
+**不等高左右栏**（backup 用法）：
+```python
+left_h = ly.content_h - right_h  # 右栏的高度自己算
+S.draw_border(stdscr, ly.content_top, ly.left_x, left_h, ly.left_w, "Left")
+S.draw_border(stdscr, ly.content_top, ly.right_x, right_h, ly.right_w, "Right")
+```
+
+### 3. 共享组件速查
+
+**所有 TUI 通用：**
+
+| 函数/组件 | 用途 |
+|-----------|------|
+| `init_colors()` | 配色初始化（curses 颜色对） |
+| `draw_border` / `draw_thick_border` / `draw_focus_border` | 三种边框（普通/粗焦/焦点） |
+| `draw_hero(stdscr, lines)` | 顶部英雄栏（2 行，带图标） |
+| `draw_help(stdscr, generic, specific)` | 底部帮助栏（按键说明） |
+| `hero_line` / `primary_line` / `action_line` / `toggle_line` / `kv_line` / `segmented_line` | 标准行组件 |
+| `safe_addstr` / `truncate` / `wrap_text` | 文本安全输出与截断 |
+| `draw_dialog(stdscr, lines)` | 居中 overlay 弹窗 |
+| `setup_locale()` | locale 统一设置（在 `main()` 开头调） |
+| `run_cmd(name, *args)` / `run_cmd_bg(...)` / `drain_callbacks()` | 后端命令执行 |
+| `get_mouse_event` / `mouse_wheel_delta` | 鼠标事件解析 |
+| `finish_frame(stdscr)` | 帧收尾（refresh + 可选鼠标） |
+| `require_terminal_size(stdscr, min_w, min_h)` | 终端尺寸检查 |
+
+**Settings TUI 额外：**
+
+| 函数/组件 | 用途 |
+|-----------|------|
+| `StatusModel` | 基类：`logs` / `refresh()` / `run_action()` / `focus` / `scroll_offset` |
+| `run_tui_loop(stdscr, model, view, handle_key, ...)` | 事件循环（定时器、日志限制、refresh 调度） |
+| `RefreshCounter(n, on_done)` | `.cb()` 返回 `run_cmd_bg` 的回调闭包，归零调 `on_done` |
+| `scroll_key(key, scroll_offset, max_offset)` | 统一滚轮/翻页处理 |
+| `draw_log_in_area(win, y, x, h, w, logs, scroll_offset, empty_text)` | 带滚动条的日志区 |
+| `Layout` + `handle_tab` | 几何模板 + Tab 焦点切换 |
+
+**Toolbox TUI 额外（wifi/bt 用，settings 也可用）：**
+
+| 函数 | 用途 |
+|------|------|
+| `draw_row(win, y, x, inner_w, cells, widths, offsets, attr)` | 表格行绘制（填充背景 + 放单元格） |
+| `put_row_cells(win, y, x, inner_w, cells, widths, attr)` | 自动算 SpaceAround 偏移的 `draw_row` |
+| `space_around(inner_w, col_widths)` | 列偏移计算（CSS SpaceAround 分布） |
+| `clip_cell(s, width)` | 单元格截断 + 填充 |
+| `header_attr(focused)` | 表头样式（固定 `ATTR_SECTION`） |
+| `sel_attr(selected, focused_section)` | 选中行样式（`ATTR_FOCUS` 或 normal） |
+
+### 4. 口诀
+
+1. 新建 settings TUI → `StatusModel` + `Layout` + `draw_panel`/`draw_log_in_area`。不用手写几何。
+2. 新建 toolbox TUI → 自写 OOP 类 + 想用 Layout 取坐标就取 + 共享 `draw_row`/`put_row_cells` 画行。
+3. 有弹窗 → `S.draw_dialog`。
+4. 有日志 → `S.draw_log_in_area`。
+5. 有单选/切换/键值行 → `S.toggle_line` / `S.segmented_line` / `S.kv_line`。
+6. `main()` 入口必须有一行 `S.setup_locale()` + `curses.wrapper(main)`。
+7. **不用的可以不 import**。共享模块函数是工具，不是继承约束。
+8. 画完调 `S.finish_frame(stdscr)`。
+9. 不加第三方依赖。

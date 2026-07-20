@@ -47,22 +47,66 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 
 ## 技术栈
 
-全部 Python TUI 共用以下基础设施（位于 `share/` 或脚本内置）：
+全部 Python TUI 共用以下基础设施（位于 `bin/omd_tui_shared.py`）：
 
 - **TUI 框架**：Python `curses`，统一窗口管理、鼠标支持、事件循环
 - **视觉系统**：`docs/settings-tui-visual-system.md` — 颜色、边框、间距约定
-- **布局系统**：`docs/settings-layout-system.md` — 面板分割、焦点导航
+- **布局系统**：`docs/settings-layout-system.md` — QML 面板分割（含 QML 设置中心参考布局）
+- **Python 布局系统**：`docs/tui-framework-plan.md` — Python TUI 的 Layout 模板类 + 架构说明
 - **启动方式**：`bin/omd-settings-tui` bash 路由 → Python 子进程
 
-## 相关设计文档
+### 共享模块 `bin/omd_tui_shared.py`（1178 行）
 
-- `docs/settings-center.md` — 设置中心总架构
-- `docs/settings-tui-go.md` — 早期 Go 版本的 TUI 设计（已迁移到 Python）
-- `docs/settings-tui-visual-system.md` — TUI 视觉规范
-- `docs/settings-layout-system.md` — 布局与焦点系统
-- `docs/voice-settings-redesign.md` — 语音设置页设计
-- `docs/windows-vm-settings-layout.md` — 虚拟机设置布局
-- `docs/appearance-settings-layout.md` — 外观设置布局
-- `docs/keyboard-remap-settings-layout.md` — 键盘映射布局
-- `docs/network-settings-layout.md` — 网络设置布局
-- `docs/settings-panel-ux-optimization.md` — 面板 UX 优化
+| 组件 | 用途 | 所有 TUI 共用 |
+|---|---|---|
+| `init_colors()` / 16 个颜色常量 | 统一配色 | ✅ |
+| `draw_border()` / `draw_thick_border()` | 边框绘制 | ✅ |
+| `draw_hero()` / `draw_help_bar()` | 英雄栏、帮助栏 | ✅ |
+| `hero_line()` / `primary_line()` / `action_line()` / ... | 视觉组件工厂 | ✅ |
+| `StatusModel` | 模型基类 | 6 个 TUI |
+| `RefreshCounter` | 后台刷新计数器 | 6 个 TUI |
+| `run_tui_loop()` | 事件循环 | 6 个 TUI |
+| `run_cmd_bg()` / `drain_callbacks()` | 后台命令执行 | ✅ |
+| `scroll_key()` | 快捷键滚动处理 | ✅ |
+| `draw_dialog()` | 居中弹窗 | ✅ |
+| `setup_locale()` | 语言环境初始化 | ✅ |
+| **`Layout` 类** | 标准两栏几何模板 | 6 个 TUI（vm/voice/ocr/backup/keyboard/theme） |
+| `draw_row()` / `put_row_cells()` / `space_around()` / `clip_cell()` | 表格行绘制原语 | wifi, bluetooth |
+| `handle_tab()` | Tab 焦点切换 | 按需 |
+
+### 使用 Layout 模板的 TUI
+
+```python
+def view(stdscr, model):
+    ly = S.Layout(stdscr)        # 创建模板
+    ly.left_w = 36                # 覆盖默认值
+    ly.compute()                  # 计算所有几何坐标
+    ly.draw_hero(stdscr, hero_data)  # 标准英雄栏
+    ly.draw_panel("left", "Status", lines, focus=(m.focus==0))
+    ly.draw_panel("right", "Details", lines, focus=(m.focus==1))
+    ly.draw_help(stdscr, *help_items(m))  # 标准帮助栏
+    S.finish_frame(stdscr)
+```
+
+### 使用共享 Table 函数的 TUI
+
+wifi-tui 和 bluetooth-tui 未用 `Layout`，但通过 `S.draw_row()`/`S.put_row_cells()`/
+`S.space_around()`/`S.clip_cell()`/`S.header_attr()`/`S.sel_attr()` 共享行绘制逻辑。
+
+### 未使用 Layout 的 TUI
+
+无当前未使用的——6 个 settings TUI 全部覆盖。wifi/bluetooth 作为 OOP 类不使用 Layout 但使用共享 Table 函数。
+
+全部 TUI 共用共享模块中的颜色、边框、英雄栏、帮助栏、文本工具、事件循环等底层组件。
+
+### 新建 TUI 速查
+
+新建设置 TUI 或工具盒 TUI 时，参考 `docs/tui-framework-plan.md` 末尾的
+「[新建 TUI 实践指南]」一节，包含：
+
+- 骨架模板代码（`StatusModel` + `run_tui_loop` / 自写 OOP）
+- 5 种布局模式样例（等高二栏 / 堆叠 / 单栏全宽 / 不等高 / 带预览）
+- 共享组件速查表（所有 TUI 通用、Settings 额外、Toolbox 额外）
+- 9 条口诀
+
+[新建 TUI 实践指南]: tui-framework-plan.md#新建-tui-实践指南

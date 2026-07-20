@@ -176,9 +176,9 @@ Until then, state auto-paste as a short readonly note if it is always on.
 - Real preference toggles where applicable
 - Dedicated setup flow when engine is not installed
 
-### Phase 5 — Go TUI state pages ✅ (2026-07-18)
+### Phase 5 — Python TUI state pages ✅ (2026-07-18)
 
-`tui-go/internal/pages/voice/model.go` follows the same progressive disclosure
+`bin/omd-settings-voice-tui` follows the same progressive disclosure
 pattern as the Windows VM TUI:
 
 | State | What the user sees |

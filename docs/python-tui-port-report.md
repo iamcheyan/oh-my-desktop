@@ -15,9 +15,8 @@ bin/omd-settings-tui
 └── windows  -> bin/omd-settings-vm-tui
 ```
 
-The Go pages under `tui-go/internal/pages/` remain the behavioral and visual
-reference. The Python pages call the same OMD backend commands, so business
-logic and machine state are not duplicated in Python.
+The Python pages follow the same backend commands and progressive disclosure
+pattern inherited from the Go prototypes. No tui-go sources remain in the repo.
 
 ## Audit correction
 
@@ -150,8 +149,6 @@ python3 -m py_compile \
 
 python3 -m unittest discover -s tests -p 'test_python_tuis.py' -v
 
-cd tui-go
-GOCACHE=/tmp/omd-go-cache go test ./...
 ```
 
 The Python regression tests cover display-width helpers, log wrapping, command

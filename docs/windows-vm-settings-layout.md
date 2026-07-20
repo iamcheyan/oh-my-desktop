@@ -91,40 +91,14 @@ with human-readable detail.
 
 Logs: hidden before a VM exists; auto-shown while installing, fixing, or booting.
 
-## Go Settings TUI (`tui-go`)
+## Python TUI (`bin/omd-settings-vm-tui`)
 
 Canonical interactive page:
 
-- File: `tui-go/internal/pages/windows/model.go`
+- File: `bin/omd-settings-vm-tui`
 - Backend: `bin/omd-settings-windows-vm`
-- Layout rules match `docs/tui-style-system.md` (borderless dashboard, no
-  pill-buttons for non-interactive status).
-
-State rendering is branch-based (`blockedView`, `installView`, `readyView`, …)
-rather than one form with every section always visible.
-
-### Example: current host blocked + not installed
-
-```text
-● Windows VM
-  Host requirements need attention before install.
-
-WHAT'S BLOCKING
-Only failed checks are listed. Fix these, then install.
-
-✗ Docker access
-  permission denied while trying to connect to the docker API…
-✗ Free disk space
-  49 GB free (need ≥ 74 GB)
-
-NEXT STEP
-Resolve host requirements before install or start.
-→ Fix requirements (enter)
-  Refresh status (r)
-```
-
-No Connection / Runtime / empty Specs / empty Logs until install is possible.
-
+- Layout rules follow `docs/tui-framework-plan.md` (Layout + draw_panel).
+- No tui-go sources remain in the repo.
 ## QML Settings Center (legacy panel)
 
 - Keep `QtObject` status model and Process helpers; fix `parseKeyValue` to split
@@ -147,15 +121,15 @@ tokenized colors.
 
 Single primary label per state; connection and power actions secondary.
 
-### Phase C — Go TUI state pages ✅ (2026-07-18)
+### Phase C — Python TUI state pages ✅ (2026-07-18)
 
-`tui-go` Windows page is state-driven: blocked/install are single-column
+`bin/omd-settings-vm-tui` is state-driven: blocked/install are single-column
 guided flows; manage/logs only appear after a VM exists or during work.
 
 ### Phase D — Later (optional)
 
 Editable RAM/CPU/Disk drafts, password display, dedicated Requirements/Logs
-subpages; align QML panel with Go TUI disclosure rules.
+subpages; align QML panel with the Python TUI's disclosure rules.
 
 ## Success Criteria
 

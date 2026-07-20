@@ -6,7 +6,7 @@
 
 ## 背景
 
-原 Go 实现（`tui-go/internal/pages/theme/model.go`）有两个视觉功能在 Python 移植版里没有生效：
+原 Go 原型（已移除）有两个视觉功能在 Python 移植版里没有完全复刻：
 
 1. **壁纸像素预览** — 用 Unicode 象限字符渲染实际壁纸图片
 2. **主题 tile 颜色 swatch** — 每个主题格子用该主题的 accent/bg/fg 颜色实际渲染
