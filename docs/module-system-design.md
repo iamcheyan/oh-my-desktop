@@ -14,21 +14,63 @@
 
 ### 1.2 目标
 
-- **可选功能模块化**：显示器设置、fcitx 输入法、语音输入、OCR、截图、虚拟机、文件备份、keyboard remap 拆为独立模块
+- **可选功能模块化**：14 个可选功能拆为独立模块（显示器/输入法/语音/OCR/截图/虚拟机/备份/键盘映射/剪贴板/会话快照/媒体控制/系统托盘/电源电池/亮度夜间模式）
 - **用户按需启用**：通过配置选择要加载的模块
 - **独立仓库**：每个模块是独立 git 仓库，通过 submodule 引用
 - **声明式注册**：模块自描述提供的能力（bar 按钮、设置页、服务、OSD、bin 脚本）
 - **启动时扫描加载**：Quickshell 进程启动时扫描已启用模块
 
-### 1.3 不拆分的核心模块
+### 1.3 模块拆分原则
 
-| 模块 | 理由 |
-|------|------|
-| Topbar | Shell 骨架，所有模块挂载点 |
-| Workspace Overview | 核心导航，依赖 HyprlandData |
-| Theme 系统 | Appearance/TuiStyle/Config 是所有 UI 的基础 |
-| Lock / Polkit / Notifications / OSD | 基础桌面功能 |
-| Settings 框架 | 设置中心本身是核心，模块只注册页面 |
+**最小核心**：只保留桌面运行必需的功能 —— 顶栏框架、工作区概览、主题系统、配置系统、基础窗口管理。其他一切可拆。
+
+**拆分判据**：
+1. 用户可能不需要这个功能（如：不用虚拟机、不用语音、不用 OCR）
+2. 功能自成闭环（有自己的服务 + UI + bin 脚本）
+3. 拆出后核心不受影响（核心不 import 模块的 QML）
+
+### 1.4 完整模块清单（14 个可选模块）
+
+#### 之前已确认的 8 个模块
+
+| 模块 | 当前文件 |
+------|----------|
+| 显示器设置 | `settings/display/`, `bin/omd-display-config`, `bin/omd-hyprland-monitor-*` |
+| 输入法 (fcitx) | `services/InputMethod.qml`, `bar/modules/InputMethodButton.qml`, OSD, `hypr/bindings` |
+| 语音输入 | `services/VoiceInput.qml`, `settings/pages/VoicePage.qml`, `bin/omd-voice-*` |
+| OCR | `bin/omd-ocr`, `bin/omd-settings-ocr*`, `share/bin/omarchy-capture-text-extraction` |
+| 截图 | `modules/regionSelector/`, `bin/omd-screenshot`, `apps/omd-screenshot` |
+| 虚拟机 | `settings/pages/WindowsVmPage.qml`, `bin/omd-settings-windows-vm`, `share/bin/omarchy-windows-vm` |
+| 文件备份 | `file-share-backup/`, `bin/omd-settings-backup-tui`, `bin/omd-backup` |
+| Keyboard Remap | `services/KeyboardRemap.qml`, `settings/pages/KeyboardRemapPage.qml`, `share/bin/omarchy-keyboard-*` |
+
+#### 新增可拆模块（6 个）
+
+| 模块 | 当前文件 | 理由 |
+|------|----------|------|
+| **剪贴板管理** | `apps/omd-clipboard/`（独立进程）, `bar/modules/ClipboardButton.qml`, `bin/omd-clipboard*`, `bin/omd-kitty-smart-paste` | 已是独立 Quickshell 进程，用户可能用 wl-clipboard 直接管理 |
+| **会话快照** | `bar/SessionRestoreOverlay.qml`, `bar/SessionAutoRestore.qml`, `bar/SessionConfirmOverlay.qml`, `bar/BarStatusPopup.qml` 里的 session save/restore 逻辑, `bin/omd-session`, `common/functions/Session.qml` | 会话保存/恢复是高级功能，基础用户不需要 |
+| **媒体控制 (MPRIS)** | `services/MprisController.qml`, `services/TrackArt.qml`, `BarStatusPopup.qml` 里的媒体控制区（1376-1712 行）, `bar/modules/` 媒体相关 | 用户可能不用媒体播放器，或用其他媒体控制工具 |
+| **系统托盘** | `bar/SysTray.qml`, `bar/SysTrayItem.qml`, `bar/SysTrayMenu.qml`, `bar/SysTrayMenuEntry.qml`, `services/TrayService.qml` | 托盘是可选的，很多应用自带托盘图标 |
+| **电源/电池** | `services/Battery.qml`, `services/PowerProfiles.qml`, `bar/BarBatteryIcon.qml`, `bar/PowerContextMenu.qml`, `settings/pages/PowerPage.qml` | 台式机没有电池；用户可能用其他电源管理 |
+| **亮度/夜间模式** | `services/Brightness.qml`, `services/Hyprsunset.qml`, `onScreenDisplay/indicators/BrightnessIndicator.qml`, `onScreenDisplay/indicators/GammaIndicator.qml`, `bar/modules/DisplayButton.qml` 的亮度部分 | 外接显示器用户可能不用软件亮度控制 |
+
+### 1.5 不拆分的核心（最小桌面必需）
+
+| 核心模块 | 包含 | 理由 |
+|----------|------|------|
+| **Topbar 框架** | `bar/Bar.qml`, `bar/BarContent.qml`, `bar/Workspaces.qml`, `bar/ActiveWindow.qml`, `bar/ClockWidget.qml`, `bar/AppLauncherButton.qml` | Shell 骨架，所有模块的挂载点 |
+| **Workspace Overview** | `overview/*` | 核心导航 |
+| **Theme 系统** | `common/Appearance.qml`, `common/TuiStyle.qml`, `common/Config.qml`, `common/Directories.qml`, `common/Persistent.qml` | 所有 UI 的基础 |
+| **锁屏** | `lock/*`, `services/LockService.qml` | 桌面安全必需 |
+| **PolKit** | `polkit/*`, `services/PolkitService.qml` | 提权对话框必需 |
+| **通知弹窗** | `notificationPopup/*`, `services/Notifications.qml` | 桌面通知是基础功能 |
+| **通知历史中心** | `schedulePopup/*` | 通知查看是基础功能 |
+| **OSD 框架** | `onScreenDisplay/OnScreenDisplay.qml`, `OsdValueIndicator.qml` | OSD 框架是核心，具体指示器（音量/亮度）由模块提供 |
+| **设置框架** | `settings/SettingsDialog.qml`, `settings/widgets/*`, `settings/pages/AppearancePage.qml`, `settings/pages/OverviewPage.qml`, `settings/pages/SystemPage.qml` | 设置框架是核心；外观/概览/系统设置页是核心配置 |
+| **核心服务** | `HyprlandData.qml`, `HyprlandXkb.qml`, `Audio.qml`, `Network.qml`, `BluetoothStatus.qml`, `Wallpaper.qml`, `DateTime.qml`, `SystemInfo.qml`, `GlobalFocusGrab.qml`, `Idle.qml`, `AppSearch.qml`, `Translation.qml`, `OmarchyTheme.qml`, `KeyringStorage.qml` | 桌面运行必需的服务 |
+| **Audio 弹窗 + 音量 OSD** | `bar/modules/AudioButton.qml`, `BarStatusPopup.qml` 的 audioContent, `onScreenDisplay/indicators/VolumeIndicator.qml` | 音量控制是桌面基础功能（与"亮度"不同，几乎所有用户都需要） |
+| **WiFi/蓝牙弹窗** | `bar/modules/WifiButton.qml`, `BarStatusPopup.qml` 的 wifi/bluetoothContent, `settings/pages/NetworkPage.qml`, `BluetoothPage.qml` | 网络连接是桌面基础功能 |
 
 ---
 
@@ -87,7 +129,13 @@
 │   ├── display/                      # git submodule → sumika-module-display
 │   ├── windows-vm/                   # git submodule → sumika-module-windows-vm
 │   ├── file-backup/                  # git submodule → sumika-module-file-backup
-│   └── keyboard-remap/               # git submodule → sumika-module-keyboard-remap
+│   ├── keyboard-remap/               # git submodule → sumika-module-keyboard-remap
+│   ├── clipboard/                    # git submodule → sumika-module-clipboard
+│   ├── session/                      # git submodule → sumika-module-session
+│   ├── mpris/                        # git submodule → sumika-module-mpris
+│   ├── systray/                      # git submodule → sumika-module-systray
+│   ├── battery/                      # git submodule → sumika-module-battery
+│   └── brightness-gamma/             # git submodule → sumika-module-brightness-gamma
 ├── bin/                              # 核心脚本
 ├── share/                            # 核心资源
 └── Init.sh                           # 安装脚本（更新：初始化 submodule）
@@ -539,10 +587,16 @@ echo "Voice module ready."
 | P0 | 文件备份 | `file-share-backup/`, `bin/omd-settings-backup-tui` | 很高 | 自包含 |
 | P1 | 虚拟机 | `settings/pages/WindowsVmPage.qml`, `bin/omd-settings-windows-vm`, `share/bin/omarchy-windows-vm` | 高 | Hyprland 窗口规则 |
 | P1 | 语音输入 | `services/VoiceInput.qml`, `settings/pages/VoicePage.qml`, `bin/omd-voice-*` | 高 | Config, GlobalStates |
+| P1 | 剪贴板管理 | `apps/omd-clipboard/`, `bar/modules/ClipboardButton.qml`, `bin/omd-clipboard*` | 高 | Config, GlobalStates |
+| P1 | 电源/电池 | `services/Battery.qml`, `services/PowerProfiles.qml`, `settings/pages/PowerPage.qml` | 高 | Config, DBus, UPower |
+| P1 | 系统托盘 | `bar/SysTray.qml`, `services/TrayService.qml` | 中高 | TrayService, Config |
 | P2 | 显示器设置 | `settings/display/*`, `bin/omd-display-config`, `bin/omd-hyprland-monitor-*` | 中 | HyprlandData, Config |
 | P2 | Keyboard Remap | `services/KeyboardRemap.qml`, `settings/pages/KeyboardRemapPage.qml`, `share/bin/omarchy-keyboard-*` | 中 | HyprlandData, bar 按钮, OSD |
-| P3 | 截图 | `modules/regionSelector/*`, `bin/omd-screenshot` | 中 | GlobalStates, bar 按钮, ScreenshotAction |
-| P3 | 输入法 | `services/InputMethod.qml`, `bar/modules/InputMethodButton.qml`, OSD, `settings/pages` | 中 | bar 按钮, OSD, Config |
+| P2 | MPRIS 媒体控制 | `services/MprisController.qml`, `BarStatusPopup.qml` 媒体区 | 中 | Config, Mpris |
+| P2 | 亮度/夜间模式 | `services/Brightness.qml`, `services/Hyprsunset.qml`, OSD 指示器 | 中 | Config, OSD |
+| P3 | 截图 | `modules/regionSelector/*`, `bin/omd-screenshot` | 中 | GlobalStates, bar 按钮 |
+| P3 | 输入法 | `services/InputMethod.qml`, `bar/modules/InputMethodButton.qml`, OSD | 中 | bar 按钮, OSD, Config |
+| P3 | 会话快照 | `bar/SessionRestoreOverlay.qml`, `bin/omd-session`, `common/functions/Session.qml` | 中低 | Config, HyprlandData |
 
 ### 9.2 每个模块拆分的步骤模板
 
@@ -638,6 +692,12 @@ echo "Voice module ready."
 - [ ] 拆出 `sumika-module-keyboard-remap`
 - [ ] 拆出 `sumika-module-screenshot`
 - [ ] 拆出 `sumika-module-input-method`
+- [ ] 拆出 `sumika-module-clipboard`
+- [ ] 拆出 `sumika-module-session`
+- [ ] 拆出 `sumika-module-mpris`
+- [ ] 拆出 `sumika-module-systray`
+- [ ] 拆出 `sumika-module-battery`
+- [ ] 拆出 `sumika-module-brightness-gamma`
 
 ### Phase 4：文档与工具（1 天）
 - [ ] 编写模块开发指南（`docs/module-development.md`）
