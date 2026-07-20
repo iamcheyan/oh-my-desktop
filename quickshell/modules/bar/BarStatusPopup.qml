@@ -484,15 +484,6 @@ Scope {
                 }
             }
 
-            ToolLauncherRow {
-                icon: "text_snippet"
-                title: "OCR Recognition"
-                subtitle: "PaddleOCR engine, model and test"
-                onClicked: {
-                    root.close();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-ocr-tui`]);
-                }
-            }
 
             ToolLauncherRow {
                 icon: "keyboard"

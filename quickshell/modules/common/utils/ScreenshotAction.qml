@@ -110,7 +110,7 @@ Singleton {
             case ScreenshotAction.Action.Search:
                 return `${setup}xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadCurrentTempCommand()})"`;
             case ScreenshotAction.Action.CharRecognition:
-                return `${setup}$HOME/.config/omd/bin/omd-ocr "$tmpFile" 2>/dev/null | wl-copy`;
+                return `${setup}omd-ocr "$tmpFile" 2>/dev/null | wl-copy`;
             case ScreenshotAction.Action.Record:
             case ScreenshotAction.Action.RecordWithSound:
                 console.warn("[Region Selector] Record actions require a selected region, not a temp file.");
