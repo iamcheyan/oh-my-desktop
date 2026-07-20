@@ -91,7 +91,7 @@ Pressing `Ctrl+V` in kitty should paste the clipboard image as a `/tmp` path
 (when the clipboard holds an image), and paste text normally otherwise —
 replacing kitty's native `paste_from_clipboard` for this key.
 
-### Approach: `launch --type=background` + `kitty @ send-text`
+### Approach: background launcher + targeted native paste
 
 kitty.conf maps `Ctrl+V` to launch a background script:
 
@@ -103,14 +103,17 @@ The script (`bin/omd-kitty-smart-paste`):
 
 1. Resolves the kitty remote-control socket (see "Socket resolution" below).
 2. Checks `wl-paste -l` for an image MIME type.
-3. If image → save to `/tmp/omd-clip-<ts>.<ext>` → `printf '%s ' "$tmp" | kitty @ --to "$KC" send-text --stdin --bracketed-paste auto` → `notify-send`.
-4. If no image → `wl-paste | kitty @ --to "$KC" send-text --stdin --bracketed-paste auto` (equivalent to native `paste_from_clipboard`).
+3. If image → save to `/tmp/omd-clip-<ts>.<ext>` and publish its path as text.
+4. If no image → snapshot the clipboard text.
+5. Delegate both cases to `omd-paste-at-cursor`, which resolves one Kitty window
+   ID and runs `kitty @ action --match id:<id> paste_from_clipboard`.
 
-`kitty @ send-text` injects text **directly into the active kitty window** (not
-as a keypress), so it does **not** retrigger the `Ctrl+V` bind — there is no
-recursion and no freeze risk. `--bracketed-paste auto` wraps the text in
-bracketed-paste escape codes only when the running program enabled bracketed
-paste mode, matching kitty's native paste behavior.
+The remote action invokes Kitty's native paste implementation without
+re-injecting `Ctrl+V`, so it cannot recursively trigger this binding. It also
+preserves bracketed-paste semantics: CLI/TUI applications receive one complete
+paste transaction instead of processing the payload as typed characters. The
+compatibility fallback is `send-text --bracketed-paste auto` with the clipboard
+temporarily cleared to prevent OMP OSC 5522 duplicate insertion.
 
 ### Socket resolution
 

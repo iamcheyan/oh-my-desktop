@@ -244,11 +244,11 @@ sumika-module-voice/
   ▼
 quickshell/scripts/quickshell（启动脚本）
   │
-  ├─ 1. 读取 ~/.config/sumika-shell/quickshell/config.json
-  │     获取 modules.enabled 列表
+  ├─ 1. 扫描 OMD/modules/*/module.json
+  │     获取物理存在的所有模块目录（即插即用，丢入目录即识别）
   │
-  ├─ 2. 扫描 OMD/modules/*/module.json
-  │     过滤出已启用的模块
+  ├─ 2. 读取 ~/.config/sumika-shell/quickshell/config.json
+  │     过滤掉用户显式在 "modules.disabled" 中声明禁用的模块，其余默认全部启用
   │
   ├─ 3. 构建 QML_IMPORT_PATH
   │     核心路径: OMD/quickshell/
@@ -258,8 +258,11 @@ quickshell/scripts/quickshell（启动脚本）
   ├─ 4. 合并配置默认值
   │     核心默认 + 各模块 configDefaults → 用户 config 覆盖
   │
-  ├─ 5. 生成模块注册表
-  │     收集所有 module.json 的 capabilities
+  ├─ 5. 自动编译/初始化校验（见第 14.4 节自构建机制）
+  │     对首次丢入的模块，后台或同步执行 scripts/install.sh 进行就地编译/构建
+  │
+  ├─ 6. 生成模块注册表
+  │     收集所有已启用模块的 module.json 的 capabilities
   │     写入 /tmp/sumika-module-registry.json
   │
   └─ 6. exec qs -p OMD/quickshell
@@ -437,11 +440,12 @@ ColumnLayout {
 
 `~/.config/sumika-shell/quickshell/config.json` 新增 `modules` 段：
 
+采用 **“黑名单制”** 管理，物理丢入 `modules/` 下的插件默认全部自动加载启用。用户仅需在 `disabled` 中声明想要停用的插件。
+
 ```json
 {
   "modules": {
-    "enabled": ["voice", "ocr", "screenshot", "input-method", "display", "keyboard-remap"],
-    "disabled": ["windows-vm", "file-backup"],
+    "disabled": ["windows-vm", "file-backup"], // 仅在此声明禁用的模块，其余物理丢入的默认全部自动加载
     "barButtonOrder": {
       "voice": 45,
       "input-method": 50,
@@ -731,3 +735,185 @@ echo "Voice module ready."
 5. **Hyprland 配置怎么模块化？**
    - 模块可能需要注册 Hyprland 窗口规则/快捷键
    - 方案：模块提供 `hypr/overrides.lua`，用户配置加载
+
+---
+
+## 14. 异构语言插件设计规范（Go / Python / 编译语言支持）
+
+为了支持 Python、Go、Rust、C++ 等多语言混合开发的插件，系统采用**“标准构建契约 + 运行时动态 PATH 注入”**的架构，避免写死路径或手动软链接。
+
+### 14.1 目录结构与成果物规范
+
+每个插件必须将可执行成果物（脚本或编译后的二进制）统一放置在 `bin/` 目录下：
+
+```
+sumika-module-<id>/
+├── module.json
+├── qmldir
+├── bin/                       # 必须：所有的可执行产物存放于此
+│   └── omd-<id>-helper        # Python 脚本、编译好的 Go/Rust 程序或 C++ 二进制
+├── scripts/
+│   └── install.sh             # 必须：负责该模块在当前平台的构建与依赖安装
+```
+
+### 14.2 生命周期构建契约（`install.sh`）
+
+核心框架不负责插件的具体编译与依赖管理，而是在初始化（`Init.sh`）或插件启用时，委托插件自主执行 `scripts/install.sh`：
+
+* **Python 插件**：在 `install.sh` 中配置插件专属的虚拟环境（venv），或者安装对应的 pip 包。
+  ```bash
+  # Python 编译/安装示例
+  python3 -m venv venv
+  ./venv/bin/pip install -r requirements.txt
+  # 在 bin/ 下创建一个指向 venv 的包装加载脚本
+  ```
+* **Go / Rust / 编译语言插件**：在 `install.sh` 中调用本地编译器进行就地编译，将成果物输出至 `bin/` 目录。
+  ```bash
+  # Go 编译示例
+  go build -o ../bin/omd-<id>-helper main.go
+  ```
+* **第三方成品（如 Quick Share）**：若无本地编译环境，`install.sh` 可负责拉取对应架构的 Prebuilt 二进制包，并解压至 `bin/` 下。
+
+### 14.3 运行时动态 PATH 隔离注入
+
+QML、Shell 或 TUI 在调用插件的后台服务时，一律**禁止使用相对路径或绝对路径硬编码**（例如不使用 `../../modules/ocr/bin/omd-ocr`），而是直接呼叫命令名称（如 `omd-ocr`）。
+
+由 `bin/omd-run` 或环境装载器在启动时，动态收集所有 `enabled` 模块的 `bin/` 路径，并一次性注入到 `PATH` 环境变量中：
+
+```bash
+# quickshell/scripts/quickshell 或 omd-run 启动逻辑
+# 动态计算并导出 PATH
+for module_id in $(jq -r '.modules.enabled[]?' "$CONFIG_JSON"); do
+    module_bin="$OMD_ROOT/modules/$module_id/bin"
+    if [[ -d "$module_bin" ]]; then
+        export PATH="$module_bin:$PATH"
+    fi
+done
+```
+
+#### 💡 设计优势：
+1. **零路径硬编码**：核心 UI 和其他组件仅需调用 `omd-ocr` 等命令名，完全无需感知模块文件被部署在何处。
+2. **多语言自由**：插件开发者可以使用最适合的语言（Go 高性能、Python 机器学习、Bash 快捷控制），只要能编译/生成可在 `bin/` 下执行的同名文件即可。
+3. **按需环境隔离**：每个插件各自处理依赖，不污染全局系统路径或全局 Python 环境。
+
+### 14.4 零操作自构建机制（即插即用 / 零安装）
+
+为了实现“插件目录直接丢进去，Reload 时自动启用且自动跑起来”的极致体验，系统采用**“状态哨兵自构建”**方案：
+
+1. **自动扫描发现**：环境加载器每次启动或 Reload 时，直接扫描 `OMD/modules/*/module.json`，存在即代表已安装，默认自动激活（除非在黑名单中）。
+2. **哨兵校验 (.installed)**：
+   * 启动脚本在扫描到插件后，检测其根目录下是否存在 `.installed` 哨兵标记文件（或检查 `bin/` 下对应二进制是否存在）。
+   * 若**不存在**，代表该插件是首次被“丢入”系统或刚刚被拉取：
+     1. 加载器自动在后台或加载准备阶段静默运行该插件的 `scripts/install.sh`。
+     2. 自行编译 Go/Rust 程序或创建 Python venv 虚拟环境。
+     3. 编译/安装成功后，系统自动写入 `.installed` 哨兵文件（记录编译时间及版本）。
+   * 若**已存在**，则直接跳过构建步骤，进行毫秒级极速装载。
+
+通过该机制，用户从外界拉取或拷贝一个 Go/Python 编写的外部插件（如 `sumika-module-windows-vm`）到 `modules/` 目录下后，**无需手动执行任何 build、make 或 pip 命令**，直接按下系统重新加载快捷键，插件就会在后台自动完成编译/配置，并瞬间在顶栏和设置中心亮起！
+
+### 14.5 顶栏按钮挂载与快捷键触发通讯机制
+
+插件与主程序（顶栏 Topbar 及窗口管理器 Hyprland）的通讯核心在于两点：**“动态 QML 锚点挂载”** 与 **“声明式快捷键映射”**。
+
+#### 14.5.1 顶栏图标动态挂载（Topbar Slot Binding）
+
+顶栏不预先为任何可选模块预留固定的插槽，而是通过 `module.json` 进行声明式注册：
+
+```json
+// sumika-module-voice/module.json 示例
+"capabilities": {
+  "barButtons": [{
+    "component": "bar/VoiceButton.qml", // 按钮对应的组件相对路径
+    "slot": "right",                     // 挂载位置：left | center | right
+    "defaultOrder": 45                   // 默认排序权重
+  }]
+}
+```
+
+* **QML 侧加载**：
+  主顶栏的右侧按钮区（`BarContent.qml`）使用 `Repeater` 读取加载器列表，将模块按钮包装为 `Loader` 载入：
+  ```qml
+  Repeater {
+      model: ModuleLoader.barButtons.filter(btn => btn.slot === "right")
+      delegate: Loader {
+          source: "file://" + modelData.absoluteComponentPath
+          Layout.alignment: Qt.AlignVCenter
+      }
+  }
+  ```
+
+#### 14.5.2 快捷键触发与通讯机制（Hotkey Binding）
+
+按需启用的插件（例如截图、剪贴板、语音输入开关）通常需要绑定系统快捷键。为了保持底层解耦，系统提供两种快捷键通信链路：
+
+1. **声明式快捷键绑定（由核心统一生成配置）**：
+   模块在其 `module.json` 中声明自己期望绑定的系统快捷键与动作：
+   ```json
+   "bindings": [
+     {
+       "key": "Alt, A",
+       "action": "omd-voice toggle"       // 触发时执行的 shell 脚本命令
+     },
+     {
+       "key": "Super, V",
+       "action": "qs -p omd-clipboard ipc call clipboard toggle" // 触发时发送给 QML 的 IPC 通信
+     }
+   ]
+   ```
+   * **运行原理**：每次系统重新加载（`omd-restart`）时，加载程序会扫描所有激活插件的 `bindings` 项，自动生成一份临时的 Hyprland 快捷键绑定配置文件（例如 `~/.local/state/sumika-shell/hypr/bindings_modules.conf`）。
+   * **自动注入**：主 Hyprland 配置文件中动态 `source` 这个生成文件。当插件被移除或禁用时，对应的快捷键就会物理消失，**完全不污染主配置**。
+
+2. **核心层安全垫片（Safety Fallback Shim）**：
+   对一些固定的、极度常用的快捷键（如截图 `PrintScreen`），主程序仍然可以在 `hypr/bindings.conf` 中写死。但调用的指令是一个**核心安全外壳命令**（例如 `omd-screenshot`）。
+   * 如果截图插件已启用，`PATH` 中会有该命令，正常执行；
+   * 如果截图插件未装载，该命令执行时会检测到命令不存在，触发核心默认的轻量提示（“截图模块未安装”），保证系统绝对不崩溃、不闪退。
+
+---
+
+## 15. 进阶边界考虑与容错设计清单
+
+在真实的桌面环境中，一个优秀的插件系统还需要解决**“异常隔离”**、**“本地化冲突”**和**“系统权限”**等隐性问题。以下是必不可少的工程设计清单：
+
+### 15.1 异常隔离：单个插件崩溃，不黑屏 (Error Isolation)
+
+* **问题**：如果用户丢入的第三方插件 QML 存在语法错误（如缺少花括号、找不到 import），它会不会导致整个顶栏（Topbar）报错中断加载，进而让用户面临“黑屏无顶栏”的灾难？
+* **方案**：顶栏动态加载模块按钮的 `Loader` 必须包含错误兜底：
+  ```qml
+  Repeater {
+      model: ModuleLoader.barButtons
+      delegate: Loader {
+          id: buttonLoader
+          source: "file://" + modelData.absoluteComponentPath
+          // 容错处理：加载失败时不引起上层崩溃
+          onStatusChanged: {
+              if (status === Loader.Error) {
+                  console.warn(`[Module System] Failed to load module ${modelData.id}:`, errorString());
+                  // 可以选择在这里装载一个默认的警告图标或直接隐藏
+                  active = false; 
+              }
+          }
+      }
+  }
+  ```
+
+### 15.2 插件的国际化翻译合并 (i18n Merging)
+
+* **问题**：如果插件自己包含英文和中文翻译，如何无缝融入核心系统的中英文切换？
+* **方案**：
+  * 插件必须在 `translations/` 下提供标准的语言包文件（例如 `zh.json`, `en.json`）。
+  * 核心系统的加载器在生成注册表时，自动合并各激活模块的 JSON 翻译字典至 `/tmp/sumika-merged-translations.json`，供 `Translation.qml` 统一调配。
+
+### 15.3 系统级特权与依赖检测 (System Sudo / Udev / Systemd)
+
+* **问题**：部分插件不仅仅是 UI，它还涉及系统层面的改动（例如键盘映射需要开启并控制 `keyd.service`；网络或电源控制可能涉及特殊的 udev 规则）。这些在“丢入目录”后无法自动生效。
+* **方案**：
+  * **在 `install.sh` 中完成提权配置**：如果哨兵文件 `.installed` 缺失，执行自编译构建时，若涉及系统配置，可在控制台（TUI）或在 `install.sh` 中合理调用 `sudo` 进行环境配置。
+  * **利用系统哨兵工具检查**：核心自带的检查程序 `bin/omd-doctor` 需增加模块化检测接口。当运行 `omd-doctor` 时，除了检查主系统健康度外，还要自动轮询 `modules/*/scripts/check-health.sh`（如果有的话），向用户输出明确的模块环境状态。
+
+### 15.4 命名空间防冲突限制 (Namespace Collision)
+
+* **问题**：如果两个不同的作者都开发了名为 `clipboard` 的插件并丢进目录，或者两个插件都注册了相同的 IPC 方法名，会发生覆盖冲突。
+* **方案**：系统在加载器中强制做三项隔离约束：
+  1. **目录即 ID**：插件在 `modules/` 下的目录名即为它的唯一 `id`。
+  2. **配置隔离**：每个插件在配置中心仅拥有以 `id` 命名的独立命名空间子树（如 `Config.options.modules[id]`）。
+  3. **IPC 方法前缀**：IPC 动作注册一律强制带上前缀 `org.omd.module.<id>.*`。

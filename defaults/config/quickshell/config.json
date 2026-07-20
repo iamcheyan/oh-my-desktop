@@ -239,7 +239,11 @@
     "stronglyAdviseUpdateThreshold": 200
   },
   "windows": {
-    "centerTitle": true,
-    "showTitlebar": true
+    "showTitlebar": true,
+    "centerTitle": true
+  },
+  "modules": {
+    "disabled": [],
+    "barButtonOrder": {}
   }
 }

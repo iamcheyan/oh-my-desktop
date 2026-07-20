@@ -375,7 +375,13 @@ CHANGELOG 条目（`#3261: Added OSC 5522 enhanced paste handling`、`#2051: Fix
 
 ### Q4：方向 C 的方案 1（原始字节）和方案 2（空 paste + smart paste），哪个更值得做？
 
-**推荐方案 1（`--bracketed-paste disable` + 控制字符安全检测）。**
+> **2026-07-20 update:** 本节保留的是历史调查结论。实际使用发现方案 1 会让部分
+> raw-input CLI/TUI 把大段正文逐字处理，性能和体验不可接受。当前实现已经改为
+> `kitty @ action ... paste_from_clipboard` 原生整块粘贴；仅在 action 不可用时使用
+> `send-text --bracketed-paste auto` + 临时清空/恢复剪贴板。禁止重新启用正文
+> `--bracketed-paste disable` 路径。
+
+**历史推荐方案 1（已废弃）：`--bracketed-paste disable` + 控制字符安全检测。**
 
 | 维度 | 方案 1：原始字节 | 方案 2：空 paste + smart paste |
 |------|-----------------|-------------------------------|

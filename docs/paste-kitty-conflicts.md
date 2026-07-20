@@ -163,17 +163,19 @@ bracketed paste 标记的内容时，kitty 会把**当前 Wayland 剪贴板里�
 我们的 helper 为了让 omp 能读剪贴板拿到 payload（omp 的做法），会先 `wl-copy < payload`
 再把剪贴板设成 payload，然后 `send-text` 发同样一份。结果 omp 收到两遍同样的内容。
 
-**修复（双路决策）：**
+**当前修复（原生粘贴优先）：**
 
-- **主线（~95% 场景）**：payload 是纯文本、路径等不带控制字符的内容 → `--bracketed-paste disable`
-  发原始字节，不发 bracketed paste 标记 → kitty 不触发 OSC 5522 → omp 不去读剪贴板 →
-  完全不碰剪贴板，零副作用，对 omp/bash/任何 TUI 都安全。
-- **回退（~5% 场景）**：payload 含 `ESC` / `Ctrl+C` 等控制字符（用 bracket 包裹安全） →
-  `--bracketed-paste auto` + 发前 `wl-copy -c` 清空剪贴板 + 发后 `wl-copy < payload` 恢复。
-  这样 omp 读剪贴板时读到空，不会多插一遍。
+1. helper 将不可变 payload 同步到 Wayland clipboard；
+2. 从 `kitty @ ls` 解析唯一窗口 ID；
+3. 调用 `kitty @ action --match id:<id> paste_from_clipboard`，让目标窗口执行一次
+   Kitty 原生粘贴。CLI/TUI 会收到一个完整的 bracketed-paste transaction；
+4. 若 remote action 不可用，才使用 `send-text --bracketed-paste auto`。发送前临时
+   `wl-copy -c`，发送后恢复 payload，从而规避 OMP 的 OSC 5522 二次读取；
+5. 两条路径都按整块粘贴处理，禁止使用 `--bracketed-paste disable` 发送正文。
 
-**如何判断 "含控制字符"：** `is_control_char_free()` 用 POSIX `od` 扫描 payload 每个字节，
-放行 `\t\n\r`，只要有其他 C0 控制符（`\x00-\x08\x0b\x0c\x0e-\x1f`）或 `\x7f`(DEL) 就算。
+此前使用过 `--bracketed-paste disable` 来避开 OSC 5522。虽然可以阻止 OMP 双贴，
+但它会把正文作为普通 PTY 输入字节流交给应用。部分 raw-input CLI/TUI 因此逐字处理和
+重绘，大文本粘贴非常慢。该方案已经废弃，不应恢复。
 
 ---
 
@@ -224,9 +226,9 @@ Runtime checks:
    lands in exactly one window. Count the marker with
    `kitty @ --to $SOCK get-text --match id:$ID | grep -c MARKER` for every
    window id; the sum across all windows must equal 1.
-6. **原始字节路径（主线）：** 剪贴板设 `CLIP_A`，payload 为 `FILE_B`，触发一次
-   paste 进 omp 并确认只收到 `FILE_B`。验证 `wl-paste` 仍返回 `CLIP_A`
-   （剪贴板未被动过）。重复 10 次确认 0 双贴。
-7. **控制字符回退路径：** payload 含 ESC（如 `printf 'ab\x1bcd'`），确认走
-   `--bracketed-paste auto` + 清空/恢复，无双贴。
+6. **原生 action 主线：** payload 为 `FILE_B`，触发一次 paste 进 omp，确认日志为
+   `transport=kitty-native-paste`，只收到一次 `FILE_B`，且不是逐字输入。重复 10 次
+   确认 0 双贴。
+7. **兼容回退路径：** 模拟 remote action 失败，确认只走一次
+   `--bracketed-paste auto` + 清空/恢复，无双贴且无 `--bracketed-paste disable`。
 8. **多行 payload：** 三行文本，确认在 omp 中多行插入不提交。

@@ -210,16 +210,20 @@ Scope {
                 anchors.fill: parent
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
-                implicitHeight: contentLoader.implicitHeight + contentPadding * 2
-                contentPadding: 0                           // Rows manage their own 20px margins
-                // Height-variable content (audio expand, etc.): skip OpacityMask FBO
-                // rebuild on resize — see docs/bar-popup-height-stability.md.
+                implicitHeight: Math.max(
+                    contentLoader.implicitHeight,
+                    modulePopupActiveHeight
+                ) + contentPadding * 2
+                contentPadding: 0
                 useLayerMask: false
                 color: panel.multiShell ? "transparent" : TuiStyle.bg
                 border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
                 border.color: TuiStyle.menuBorder
                 radius: panel.multiShell ? 0 : TuiStyle.shellRadius
                 clip: !panel.multiShell
+
+                // Tracks the height of the active module-registered popup section
+                property int modulePopupActiveHeight: 0
 
                 Loader {
                     id: contentLoader
@@ -238,6 +242,25 @@ Scope {
                         if (root.activeType === "xkb") return xkbContent;
                         if (root.activeType === "tools") return toolsContent;
                         return emptyContent;
+                    }
+                }
+
+                // Module-registered popup sections
+                Repeater {
+                    model: ModuleLoader.popupSections
+
+                    delegate: Loader {
+                        id: modulePopupLoader
+                        anchors.fill: parent
+                        active: root.activeType === modelData.type
+                        source: modelData.component
+                        onLoaded: if (active) panelBg.modulePopupActiveHeight = implicitHeight
+                        onImplicitHeightChanged: if (active) panelBg.modulePopupActiveHeight = implicitHeight
+                        onActiveChanged: if (!active) panelBg.modulePopupActiveHeight = 0
+                        onStatusChanged: if (status === Loader.Error) {
+                            console.warn("[Module] Popup section load error:", modelData.component)
+                            active = false
+                        }
                     }
                 }
             }

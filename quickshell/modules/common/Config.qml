@@ -351,11 +351,14 @@ Singleton {
                 property bool showTitlebar: true // Client-side decoration for shell apps
                 property bool centerTitle: true
             }
+            property JsonObject modules: JsonObject {
+                property list<string> disabled: []
+                property JsonObject barButtonOrder: JsonObject {}
+            }
 
             property JsonObject hacks: JsonObject {
                 property int arbitraryRaceConditionDelay: 20 // milliseconds
             }
-
         }
     }
 }

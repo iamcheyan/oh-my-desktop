@@ -1,7 +1,8 @@
 #!/bin/sh
 # Paste the current clipboard into a focused (or recorded) window.
-# Uses one virtual-keyboard chord, with targeted Hyprland dispatch only as a
-# last fallback. Hyprland send_key_state can leave synthetic keys repeating.
+# Uses a targeted native paste action when the terminal exposes one, otherwise
+# one virtual-keyboard chord. Hyprland dispatch is the last fallback because
+# send_key_state can leave synthetic keys repeating.
 #
 # Usage: omarchy-paste-at-cursor [--stdin|--file PATH] [terminal|gui|auto] [window-class] [window-target]
 #   window-target: "activewindow" (default) or "address:0x...."
@@ -206,9 +207,10 @@ paste_ctrl_v() {
         || send_hypr CTRL V "$target"
 }
 
-# kitty remote control: inject the immutable payload directly into the active kitty
-# window. This is more reliable than triggering paste_from_clipboard from a
-# separate process, and it does not depend on keybindings or ydotoold.
+# Kitty remote control: ask the exact target window to perform one native paste.
+# This preserves bracketed-paste semantics without re-injecting a keyboard
+# shortcut, so TUIs receive the payload as one paste transaction and the smart
+# paste key binding cannot recursively trigger itself.
 paste_kitty_remote() {
     command -v kitty >/dev/null 2>&1 || return 1
 
@@ -247,24 +249,37 @@ paste_kitty_remote() {
         ' 2>/dev/null
     }
 
-
-    is_control_char_free() {
-        # Returns 0 if payload contains no dangerous control characters.
-        # Dangerous: C0 except \t(9) \n(10) \r(13), plus DEL(127).
-        # Uses od (POSIX) to scan byte values; no dependence on gawk/grep -P.
-        test -r "$1" || return 1
-        LC_ALL=C od -An -tu1 "$1" 2>/dev/null | {
-            while read -r line; do
-                for byte in $line; do
-                    case "$byte" in
-                        ''|9|10|13) ;;
-                        [0-8]|1[0-9]|2[0-9]|3[01]|127) return 1 ;;
-                    esac
-                done
-            done
-            return 0
-        }
+    restore_payload_clipboard() {
+        command -v wl-copy >/dev/null 2>&1 || return 1
+        wl-copy < "$PAYLOAD_FILE" 2>/dev/null
     }
+
+    send_bracketed_to_kitty() {
+        to_arg="$1"
+        win_id="$2"
+
+        # OpenCode/OMP enables Kitty OSC 5522 enhanced paste. A programmatic
+        # bracketed send can therefore make it request the Wayland clipboard
+        # as a second payload. Temporarily clearing the clipboard prevents that
+        # duplicate while retaining one bracketed (bulk) paste transaction.
+        if command -v wl-copy >/dev/null 2>&1; then
+            wl-copy -c 2>/dev/null || true
+        fi
+        send_rc=0
+        if [ -n "$to_arg" ]; then
+            kitty @ --to "$to_arg" send-text --match "id:$win_id" \
+                --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
+        else
+            kitty @ send-text --match "id:$win_id" \
+                --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
+        fi
+        if command -v wl-copy >/dev/null 2>&1; then
+            sleep 0.05
+            restore_payload_clipboard || true
+        fi
+        return "$send_rc"
+    }
+
     send_to_kitty() {
         to_arg="$1"
         # `send-text` always exits successfully, even for a dead target or a
@@ -275,31 +290,28 @@ paste_kitty_remote() {
         win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
         [ -n "$win_id" ] || return 1
 
-        send_rc=0
-        if is_control_char_free "$PAYLOAD_FILE"; then
-            # Safe payload: raw bytes with --bracketed-paste disable.
-            # No bracketed paste marker → kitty doesn't fire OSC 5522
-            # enhanced paste → omp's EnhancedPasteController never reads the
-            # clipboard → no double paste. Works for omp, bash, any target.
-            kitty @ --to "$to_arg" send-text --match "id:$win_id" \
-                --from-file "$PAYLOAD_FILE" --bracketed-paste disable >/dev/null 2>&1 || send_rc=$?
-        else
-            # Payload contains control characters (ESC, Ctrl+C, etc.).
-            # Use bracketed-paste auto to avoid raw-byte interpretation.
-            # Must clear/restore clipboard to work around omp's OSC 5522
-            # enhanced paste double-insertion (see docs/omp-bracketed-paste-double-investigation.md).
-            if command -v wl-copy >/dev/null 2>&1; then
-                wl-copy -c 2>/dev/null || true
-            fi
-            kitty @ --to "$to_arg" send-text --match "id:$win_id" \
-                --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
-            if command -v wl-copy >/dev/null 2>&1; then
-                sleep 0.05
-                wl-copy < "$PAYLOAD_FILE" 2>/dev/null || true
-            fi
+        # All current callers already publish the immutable payload before
+        # invoking this helper. Publish it here as well so direct --file/--stdin
+        # callers get the same contract.
+        restore_payload_clipboard || return 1
+
+        # Unlike send-text, `action` reports target/action failures. It invokes
+        # Kitty's native paste path and therefore gives shells and TUIs one
+        # bracketed paste instead of a stream of ordinary typed bytes.
+        if kitty @ --to "$to_arg" action --match "id:$win_id" \
+            paste_from_clipboard >/dev/null 2>&1; then
+            TRANSPORT="kitty-native-paste"
+            return 0
         fi
-        TRANSPORT="kitty-remote"
-        return "$send_rc"
+
+        # Compatibility fallback for Kitty builds/configurations where the
+        # remote action is unavailable. This remains a bulk bracketed paste;
+        # raw unbracketed text injection is deliberately forbidden.
+        if send_bracketed_to_kitty "$to_arg" "$win_id"; then
+            TRANSPORT="kitty-bracketed-fallback"
+            return 0
+        fi
+        return 1
     }
 
     if [ -n "$kitty_pid" ] && [ -S "/tmp/mykitty-$kitty_pid" ]; then
@@ -320,24 +332,16 @@ paste_kitty_remote() {
 
     # Last resort: default socket ($KITTY_PID / $XDG_RUNTIME_DIR). Still
     # resolve a single window id — never bare `state:focused`.
-    if kitty @ ls >/dev/null 2>&1; then
-        win_id="$(kitty @ ls 2>/dev/null | resolve_kitty_window_id)"
+    if ls_out="$(kitty @ ls 2>/dev/null)"; then
+        win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
         if [ -n "$win_id" ]; then
-            send_rc=0
-            if is_control_char_free "$PAYLOAD_FILE"; then
-                kitty @ send-text --match "id:$win_id" --from-file "$PAYLOAD_FILE" --bracketed-paste disable >/dev/null 2>&1 || send_rc=$?
-            else
-                if command -v wl-copy >/dev/null 2>&1; then
-                    wl-copy -c 2>/dev/null || true
-                fi
-                kitty @ send-text --match "id:$win_id" --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
-                if command -v wl-copy >/dev/null 2>&1; then
-                    sleep 0.05
-                    wl-copy < "$PAYLOAD_FILE" 2>/dev/null || true
-                fi
+            restore_payload_clipboard || return 1
+            if kitty @ action --match "id:$win_id" paste_from_clipboard >/dev/null 2>&1; then
+                TRANSPORT="kitty-native-paste"
+                return 0
             fi
-            if [ "$send_rc" -eq 0 ]; then
-                TRANSPORT="kitty-remote"
+            if send_bracketed_to_kitty "" "$win_id"; then
+                TRANSPORT="kitty-bracketed-fallback"
                 return 0
             fi
         fi

@@ -47,8 +47,24 @@ WindowDialog {
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
     ]
-
-    readonly property var pages: primaryPages
+    
+    // Module-registered settings pages (from ModuleLoader)
+    readonly property var modulePages: ModuleLoader.settingsPages
+    
+    readonly property var pages: {
+        const merged = primaryPages.slice();
+        for (let i = 0; i < modulePages.length; i++) {
+            const mp = modulePages[i];
+            merged.push({
+                key: mp.id,
+                icon: mp.icon,
+                title: mp.title,
+                keywords: mp.id,
+                moduleId: mp.moduleId
+            });
+        }
+        return merged;
+    }
 
 
     backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
@@ -86,11 +102,6 @@ WindowDialog {
         return match ? match.title : "Overview";
     }
 
-    function pageIcon(page) {
-        const match = pages.find(item => item.key === page);
-        return match ? match.icon : "settings";
-    }
-
     function pageComponent(page) {
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
@@ -99,6 +110,11 @@ WindowDialog {
         if (page === "appearance") return appearancePageComponent;
         if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
+        // Check module-registered pages
+        const modPage = modulePages.find(p => p.id === page);
+        if (modPage) {
+            return Qt.createComponent(modPage.component);
+        }
         return overviewPageComponent;
     }
 
