@@ -45,7 +45,8 @@ WindowDialog {
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
-        { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
+        { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" },
+        { key: "modules", icon: "extension", title: "Modules", keywords: "module plugin addon extension enable disable" }
     ]
 
     readonly property var pages: primaryPages.concat(
@@ -102,6 +103,7 @@ WindowDialog {
         if (page === "display") return migratedDisplayPage;
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
+        if (page === "modules") return modulesPageComponent;
         if (page === "power") return powerPageComponent;
         // Module-registered pages
         for (let i = 0; i < ModuleLoader.settingsPages.length; i++) {
@@ -198,6 +200,7 @@ WindowDialog {
     Component { id: bluetoothPage; BluetoothPage { settingsRoot: root } }
 
     Component { id: keyremapPage; KeyboardRemapPage { settingsRoot: root } }
+    Component { id: modulesPageComponent; ModulesPage { settingsRoot: root } }
 
     // Loader for module-registered settings pages
     Component {

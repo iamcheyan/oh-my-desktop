@@ -10,3 +10,4 @@ VoicePage 1.0 VoicePage.qml
 WindowsVmPage 1.0 WindowsVmPage.qml
 KeyboardRemapPage 1.0 KeyboardRemapPage.qml
 KeyboardEditorOverlay 1.0 KeyboardEditorOverlay.qml
+ModulesPage 1.0 ModulesPage.qml
