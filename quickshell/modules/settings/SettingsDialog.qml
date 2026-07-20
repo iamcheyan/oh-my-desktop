@@ -11,7 +11,6 @@ import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
-import "display" as DisplaySettings
 import "wallpaper" as WallpaperSettings
 import qs.modules.settings
 import qs.modules.settings.widgets
@@ -106,7 +105,6 @@ WindowDialog {
     function pageComponent(page) {
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
-        if (page === "display") return migratedDisplayPage;
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
         if (page === "power") return powerPageComponent;
@@ -186,14 +184,6 @@ WindowDialog {
 
     Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
-
-    Component {
-        id: migratedDisplayPage
-        DisplaySettings.DisplayPage {
-            brightnessMonitor: root.brightnessMonitor
-            settingsRoot: root
-        }
-    }
 
     Component {
         id: networkPage
