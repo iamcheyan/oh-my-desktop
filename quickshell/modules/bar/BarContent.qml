@@ -124,7 +124,6 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
-            // Core buttons — always present
             SysTray {
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -141,10 +140,15 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            // ClipboardButton and DisplayButton are loaded via module Repeater below
-            // (their module.json declares barButtons)
+            ClipboardButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
 
             SessionButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            DisplayButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -158,23 +162,6 @@ Item { // Bar content region
 
             SidebarIndicators {
                 Layout.alignment: Qt.AlignVCenter
-                // SidebarIndicators contains the battery icon — do NOT add
-                // BarBatteryIcon separately, it would duplicate.
-            }
-
-            // Dynamic module bar buttons
-            Repeater {
-                model: ModuleLoader.barButtons
-                delegate: Loader {
-                    required property var modelData
-                    source: modelData.component
-                    active: true
-                    Layout.alignment: Qt.AlignVCenter
-                    onStatusChanged: if (status === Loader.Error) {
-                        console.warn("[Module] Failed to load bar button:", modelData.component)
-                        active = false
-                    }
-                }
             }
         }
     }

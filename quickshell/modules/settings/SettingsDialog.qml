@@ -11,6 +11,7 @@ import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
+import "display" as DisplaySettings
 import "wallpaper" as WallpaperSettings
 import qs.modules.settings
 import qs.modules.settings.widgets
@@ -46,24 +47,8 @@ WindowDialog {
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
     ]
-    
-    // Module-registered settings pages (from ModuleLoader)
-    readonly property var modulePages: ModuleLoader.settingsPages
-    
-    readonly property var pages: {
-        const merged = primaryPages.slice();
-        for (let i = 0; i < modulePages.length; i++) {
-            const mp = modulePages[i];
-            merged.push({
-                key: mp.id,
-                icon: mp.icon,
-                title: mp.title,
-                keywords: mp.id,
-                moduleId: mp.moduleId
-            });
-        }
-        return merged;
-    }
+
+    readonly property var pages: primaryPages
 
 
     backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
@@ -101,17 +86,19 @@ WindowDialog {
         return match ? match.title : "Overview";
     }
 
+    function pageIcon(page) {
+        const match = pages.find(item => item.key === page);
+        return match ? match.icon : "settings";
+    }
+
     function pageComponent(page) {
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
+        if (page === "display") return migratedDisplayPage;
         if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
+        if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
-        // Check module-registered pages
-        const modPage = modulePages.find(p => p.id === page);
-        if (modPage) {
-            return Qt.createComponent(modPage.component);
-        }
         return overviewPageComponent;
     }
 
@@ -180,6 +167,16 @@ WindowDialog {
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
 
+    Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
+    Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
+
+    Component {
+        id: migratedDisplayPage
+        DisplaySettings.DisplayPage {
+            brightnessMonitor: root.brightnessMonitor
+            settingsRoot: root
+        }
+    }
 
     Component {
         id: networkPage
