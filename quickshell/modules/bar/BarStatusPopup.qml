@@ -452,16 +452,6 @@ Scope {
             }
 
             ToolLauncherRow {
-                icon: "palette"
-                title: "Themes"
-                subtitle: "Colors, fonts and desktop appearance"
-                onClicked: {
-                    root.close();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
-                }
-            }
-
-            ToolLauncherRow {
                 icon: "keyboard_voice"
                 title: "Voice Input"
                 subtitle: "Speech engine, model and shortcuts"
@@ -2001,6 +1991,17 @@ Scope {
                         duration: 120
                         easing.type: Easing.OutCubic
                     }
+                }
+            }
+
+            ToolLauncherRow {
+                Layout.fillWidth: true
+                icon: "palette"
+                title: "Themes"
+                subtitle: "Colors, fonts and desktop appearance"
+                onClicked: {
+                    root.close();
+                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-launch-settings-theme-tui`]);
                 }
             }
 
