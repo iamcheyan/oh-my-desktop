@@ -46,7 +46,7 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
     # Master switch: skip all module loading if modules.enabled is false
     modules_enabled=true
     if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
-        modules_enabled=$(jq -r '.modules.enabled // true' "$config_file" 2>/dev/null || true)
+        modules_enabled=$(jq -r 'try .modules.enabled' "$config_file" 2>/dev/null || true)
     fi
     if [ "$modules_enabled" = "false" ]; then
         echo "[sumika] modules disabled via sumika.json"

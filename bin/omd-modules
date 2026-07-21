@@ -30,7 +30,7 @@ config_disabled_list() {
     if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null 2>&1; then
         # If modules.enabled is false, all modules are disabled
         local enabled
-        enabled=$(jq -r '.modules.enabled // true' "$CONFIG_FILE" 2>/dev/null || true)
+        enabled=$(jq -r 'try .modules.enabled' "$CONFIG_FILE" 2>/dev/null || true)
         if [ "$enabled" = "false" ]; then
             # List everything under sumika-modules as disabled
             for m in "$SUMIKA_MODULES_HOME"/*/; do

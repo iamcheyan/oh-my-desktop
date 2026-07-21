@@ -266,7 +266,7 @@ check_modules() {
         disabled=$(jq -r '.modules.exclude // [] | length' "$cfg_file" 2>/dev/null || echo 0)
         [ "$disabled" -gt 0 ] && info "  $disabled module(s) disabled in config"
         local enabled
-        enabled=$(jq -r '.modules.enabled // true' "$cfg_file" 2>/dev/null || true)
+        enabled=$(jq -r 'try .modules.enabled' "$cfg_file" 2>/dev/null || true)
         [ "$enabled" = "false" ] && info "  All modules disabled via modules.enabled=false"
     fi
 }
