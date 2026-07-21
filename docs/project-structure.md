@@ -570,15 +570,14 @@ config/nvim/lua/plugins/zz-omarchy-theme.lua  # 主题 drop-in
 ### `icons/` — OS 图标
 - `OS/` — 操作系统图标资源
 
-### `docs/` — 文档（90 篇）
-- 49 篇活跃文档（`docs/*.md`）
-- 41 篇归档文档（`docs/archive/`）
+### `docs/` — 文档（76 篇）
+35 活跃文档（`docs/*.md`）
+41 归档文档（`docs/archive/`）
 
 **主要分类**：
-- **迁移**：`sumika-shell-migration-*.md`, `personal-settings-migration-*.md`
 - **设计**：`settings-layout-system.md`, `keyboard-remap.md`, `omarchy-theme-system.md`
 - **审计**：`repo-cleanup-audit-*.md`, `quickshell-cleanup-audit.md`, `dead-code-cleanup.md`
-- **架构**：`omd-config-architecture.md`, `module-split-plan.md`, `deployment-portability.md`
+- **架构**：`omd-config-architecture.md`, `deployment-portability.md`
 - **功能**：`clipboard-menu.md`, `smart-paste.md`, `overview-command-palette.md`
 
 ---
