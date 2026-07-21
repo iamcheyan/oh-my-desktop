@@ -886,7 +886,7 @@ setup_ddcutil_permissions() {
     local rule_file="/etc/udev/rules.d/60-omd-ddcutil-i2c.rules"
     sudo tee "$rule_file" >/dev/null <<'EOF'
 # OMD: allow members of group i2c to use ddcutil for monitor brightness (VCP 10).
-# See docs/wifi-bluetooth-tui.md / multi-monitor brightness notes.
+# See docs/tui/wifi-bluetooth-tui.md / multi-monitor brightness notes.
 KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0660"
 # ddcutil vendor hint (harmless if ATTRS unsupported on some buses)
 SUBSYSTEM=="i2c-dev", KERNEL=="i2c-[0-9]*", ATTRS{class}=="0x030000", GROUP="i2c", MODE="0660", TAG+="uaccess"

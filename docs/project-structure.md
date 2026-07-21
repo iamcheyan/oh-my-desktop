@@ -18,7 +18,7 @@
 ├── config/              # 遗留 nvim 配置
 ├── current/             # 当前主题/壁纸快照（gitignored，运行时生成）
 ├── defaults/            # 配置基线模板（所有人共用的默认值）
-├── docs/                # 90 篇设计/迁移文档
+├── docs/                # 62 篇设计和技术文档
 ├── file-share-backup/   # SMB 备份配置（gitignored）
 ├── hypr/                # Hyprland Lua 配置（~1.3K LOC）
 ├── icons/               # OS 图标
@@ -65,14 +65,12 @@
 ```
 quickshell/
 ├── GlobalStates.qml          # 全局状态单例（所有模块共享的状态总线）
-├── clipboard_settings.conf   # 剪贴板字体缩放设置
 ├── .qmlformat.ini            # QML 格式化配置
 ├── modules/                  # UI 模块集合（10 个子模块）
 ├── services/                 # 30+ QML singleton 后端服务
 ├── translations/             # 16 种语言国际化文件
 ├── scripts/                  # 辅助脚本（色彩、录像、钥匙圈）
 ├── assets/                   # 静态资源（SVG 图标）
-└── docs/                     # quickshell 内部设计文档
 ```
 
 ### 模块导入约定
@@ -570,15 +568,22 @@ config/nvim/lua/plugins/zz-omarchy-theme.lua  # 主题 drop-in
 ### `icons/` — OS 图标
 - `OS/` — 操作系统图标资源
 
-### `docs/` — 文档（82 篇）
-41 活跃文档（`docs/*.md`）
-41 归档文档（`docs/archive/`）
+### `docs/` — 设计和技术文档（62 篇）
+归类说明：文档已按主题分到子目录，root 下只保留今天正在编辑的文档。
 
-**主要分类**：
-- **设计**：`settings-layout-system.md`, `keyboard-remap.md`, `omarchy-theme-system.md`
-- **审计**：`repo-cleanup-audit-*.md`, `dead-code-cleanup.md`
-- **架构**：`omd-config-architecture.md`, `deployment-portability.md`
-- **功能**：`clipboard-menu.md`, `smart-paste.md`, `overview-command-palette.md`
+| 类别 | 文档数 | 内容 |
+|------|--------|------|
+| `architecture/` | 17 | 系统架构 `omd-config-architecture.md`、`deployment-portability.md`、`module-system-design.md`、`session-persistence.md`、`wallpaper-runtime.md` 等 |
+| `features/` | 20 | 功能设计 `clipboard-menu.md`、`keyboard-remap.md`、`voice-input.md`、`smart-paste.md`、`windows-vm-settings-redesign.md` 等 |
+| `settings/` | 7 | 设置面板设计 `settings-layout-system.md`、`settings-center.md`、`settings-panel-ux-optimization.md` 等 |
+| `tui/` | 7 | TUI 框架与色彩 `tui-framework-plan.md`、`tui-style-system.md`、`theme-tui-color-impl-plan.md` 等 |
+| `platform/` | 5 | 平台适配 `nixos-install-adaptation.md`、`asahi-notch.md`、`gdm-hyprland-quickshell-session.md` 等 |
+| `reviews/` | 3 | 审查与调查 `optimization-review.md`、`omp-bracketed-paste-double-investigation.md` 等 |
+
+**Root 下（今天编辑中，未归类）**：
+- `project-structure.md` — 本项目目录结构
+- `module-management-system-design.md` — 模块管理系统设计
+- `module-registration-audit.md` — 模块注册机制审查
 
 ---
 
