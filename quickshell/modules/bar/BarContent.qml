@@ -124,11 +124,31 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
+            SysTray {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            InputMethodButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
             AudioButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
             WifiButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            ClipboardButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            SessionButton {
+                Layout.alignment: Qt.AlignVCenter
+            }
+
+            DisplayButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -144,15 +164,17 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            // Module-registered bar buttons (loaded dynamically)
+            // Module-registered bar buttons (dynamic, after core buttons)
             Repeater {
                 model: ModuleLoader.barButtons
                 delegate: Loader {
                     required property var modelData
-                    Layout.alignment: Qt.AlignVCenter
                     source: modelData.component
+                    active: true
+                    Layout.alignment: Qt.AlignVCenter
                     onStatusChanged: if (status === Loader.Error) {
-                        console.warn("[Module] Bar button load failed:", modelData.moduleId, modelData.component)
+                        console.warn("[Module] Bar button load failed:", modelData.component)
+                        active = false
                     }
                 }
             }

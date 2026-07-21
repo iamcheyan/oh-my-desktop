@@ -228,25 +228,16 @@ Scope {
                         if (root.activeType === "wifi") return wifiContent;
                         if (root.activeType === "bluetooth") return bluetoothContent;
                         if (root.activeType === "audio") return audioContent;
+                        if (root.activeType === "display") return displayContent;
+                        if (root.activeType === "battery") return batteryContent;
                         if (root.activeType === "notifications") return notificationsContent;
+                        if (root.activeType === "voice") return voiceContent;
+                        if (root.activeType === "inputMethod") return inputMethodContent;
+                        if (root.activeType === "keyboard") return keyboardContent;
+                        if (root.activeType === "session") return sessionContent;
                         if (root.activeType === "xkb") return xkbContent;
                         if (root.activeType === "tools") return toolsContent;
                         return emptyContent;
-                    }
-                }
-
-                // Module-registered popup sections (loaded dynamically)
-                Repeater {
-                    model: ModuleLoader.popupSections
-                    delegate: Loader {
-                        required property var modelData
-                        anchors.fill: parent
-                        active: root.activeType === modelData.type
-                        source: modelData.component
-                        onStatusChanged: if (status === Loader.Error) {
-                            console.warn("[Module] Popup load failed:", modelData.type, modelData.component)
-                            active = false
-                        }
                     }
                 }
             }
