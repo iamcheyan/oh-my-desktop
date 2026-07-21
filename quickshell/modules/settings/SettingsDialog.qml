@@ -43,9 +43,7 @@ WindowDialog {
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
-        { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
-        { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" },
         { key: "modules", icon: "extension", title: "Modules", keywords: "module plugin addon extension enable disable" }
     ]
 
@@ -101,10 +99,10 @@ WindowDialog {
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
         if (page === "display") return migratedDisplayPage;
-        if (page === "keyremap") return keyremapPage;
+
         if (page === "appearance") return appearancePageComponent;
         if (page === "modules") return modulesPageComponent;
-        if (page === "power") return powerPageComponent;
+
         // Module-registered pages
         for (let i = 0; i < ModuleLoader.settingsPages.length; i++) {
             if (ModuleLoader.settingsPages[i].id === page)
@@ -178,7 +176,6 @@ WindowDialog {
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
 
-    Component { id: powerPageComponent; PowerPage { settingsRoot: root } }
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
 
     Component {
@@ -199,7 +196,6 @@ WindowDialog {
 
     Component { id: bluetoothPage; BluetoothPage { settingsRoot: root } }
 
-    Component { id: keyremapPage; KeyboardRemapPage { settingsRoot: root } }
     Component { id: modulesPageComponent; ModulesPage { settingsRoot: root } }
 
     // Loader for module-registered settings pages

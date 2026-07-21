@@ -124,31 +124,11 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
-            SysTray {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            InputMethodButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
             AudioButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
             WifiButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            ClipboardButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            SessionButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            DisplayButton {
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -162,6 +142,19 @@ Item { // Bar content region
 
             SidebarIndicators {
                 Layout.alignment: Qt.AlignVCenter
+            }
+
+            // Module-registered bar buttons (loaded dynamically)
+            Repeater {
+                model: ModuleLoader.barButtons
+                delegate: Loader {
+                    required property var modelData
+                    Layout.alignment: Qt.AlignVCenter
+                    source: modelData.component
+                    onStatusChanged: if (status === Loader.Error) {
+                        console.warn("[Module] Bar button load failed:", modelData.moduleId, modelData.component)
+                    }
+                }
             }
         }
     }

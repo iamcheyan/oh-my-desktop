@@ -242,3 +242,30 @@ else
   printf 'OMD doctor finished cleanly.\n'
   exit 0
 fi
+# ── Modules ──
+
+check_modules() {
+    echo "── Modules ──"
+    local modules_home="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+    if [ ! -d "$modules_home" ]; then
+        warn "Module directory not found: $modules_home"
+        return
+    fi
+    local count
+    count=$(find "$modules_home" -maxdepth 2 -name "module.json" 2>/dev/null | wc -l)
+    ok "$count modules installed in $modules_home"
+    if [ -f /tmp/sumika-module-registry.json ]; then
+        ok "Module registry generated"
+    else
+        warn "Module registry missing — run omd-restart"
+    fi
+    # Check disabled count
+    if command -v jq >/dev/null 2>&1 && [ -f "$CONFIG_FILE" ]; then
+        local disabled
+        disabled=$(jq -r '.modules.disabled // [] | length' "$CONFIG_FILE" 2>/dev/null || echo 0)
+        [ "$disabled" -gt 0 ] && info "  $disabled module(s) disabled in config"
+    fi
+}
+check_modules
+
+exit $errors

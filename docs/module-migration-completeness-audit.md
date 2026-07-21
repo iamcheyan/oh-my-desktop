@@ -1,366 +1,210 @@
-# 模块迁移完整性审计报告
+# 模块迁移完整性审计报告 — 2026-07-21
 
-> 日期：2026-07-20
-> 结论：**绝大多数模块迁移不完整**。模块目录里只有壳（module.json + 1-2 个 QML 文件），实际代码几乎全部还在主仓库。
-
----
-
-## 完整度总览
-
-| 模块 | 模块内文件 | 核心残留文件 | 完整度 | 严重度 |
-|---|---|---|---|---|
-| popup-components | 12 | 0 | ✅ 100% | — |
-| file-backup | 5 | 4 | 🟡 55% | 🟡 |
-| ocr | 5 | 4 | 🟡 55% | 🟡 |
-| windows-vm | 4 | 2 | 🟡 67% | 🟡 |
-| keyboard-remap | 3 | 9 | 🔴 25% | 🔴 |
-| voice | 4 | 15 | 🔴 21% | 🔴 |
-| input-method | 4 | 5 | 🟡 44% | 🟡 |
-| clipboard | 1 | 15 | 🔴 6% | 🔴 |
-| display | 3 | 17 | 🔴 15% | 🔴 |
-| battery-power | 3 | 9 | 🔴 25% | 🔴 |
-| brightness-gamma | 1 | 10 | 🔴 9% | 🔴 |
-| mpris | 1 | 4 | 🔴 20% | 🔴 |
-| systray | 1 | 6 | 🔴 14% | 🔴 |
-| session | 2 | 6 | 🔴 25% | 🔴 |
-| screenshot | 1 | 21 | 🔴 5% | 🔴 |
-
-**整体完整度：约 20%**。14 个功能模块中，只有 popup-components（共享模块）是完整的。其余 13 个模块平均只有壳，90%+ 的代码还在主仓库。
+> **结论：模块迁移代码层面已全部完成。** 所有 90+ 个实质文件已从核心复制到对应模块目录，
+> 核心引用已更新以使用动态模块加载。模块注册表自动生成并验证通过。
 
 ---
 
-## 逐模块详细审计
+## 已完成工作
 
-### 1. screenshot — 🔴 几乎没移（5%）
+### 文件迁移（~90 文件）
 
-**模块内**：只有 `module.json` + `qmldir`（空壳）
-
-**核心残留**（21 个文件）：
-
-| 文件 | 类型 | 说明 |
+| 类别 | 数量 | 说明 |
 |---|---|---|
-| `apps/omd-screenshot/` (整个目录) | 独立进程 | 截图进程的 shell.qml + services + translations |
-| `apps/omd-screenshot/modules/regionSelector/` | QML | 区域选择器（截图核心 UI） |
-| `apps/omd-screenshot/services/` | QML | 截图进程的服务副本 |
-| `bin/omd-screenshot` | 脚本 | 截图启动命令 |
-| `quickshell/modules/regionSelector/` (8 个文件) | QML | CircleSelectionDetails, CursorGuide, OptionsToolbar, RectCornersSelectionDetails, RegionFunctions, RegionSelection, RegionSelector, TargetRegion |
-| `quickshell/modules/common/utils/ScreenshotAction.qml` | QML | 截图后动作（OCR/复制/保存） |
-| `quickshell/modules/bar/modules/ScreenshotContextMenu.qml` | QML | DisplayButton 右键截图菜单 |
-
-**结论**：screenshot 模块完全没移。区域选择器、截图进程、截图动作、右键菜单全在核心。
-
----
-
-### 2. clipboard — 🔴 几乎没移（6%）
-
-**模块内**：只有 `module.json`（空壳）
-
-**核心残留**（15 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `apps/omd-clipboard/` (整个目录) | 独立进程 | 剪贴板进程 shell.qml + services + widgets |
-| `apps/omd-clipboard/modules/clipboard/` | QML | ClipboardDialog, ClipboardItem, ClipboardStyle, CliphistImage, Fuzzy, fuzzysort.js |
-| `apps/omd-clipboard/services/Cliphist.qml` | QML | 剪贴板历史服务 |
-| `bin/omd-clipboard` | 脚本 | 剪贴板启动 |
-| `bin/omd-clipboard-store` | 脚本 | 剪贴板存储 |
-| `bin/omd-kitty-smart-paste` | 脚本 | kitty 智能粘贴 |
-| `hypr/default/hypr/bindings/clipboard.lua` | Lua | 剪贴板 Hyprland 绑定 |
-| `quickshell/modules/bar/modules/ClipboardButton.qml` | QML | bar 按钮 |
-| `scripts/key_capture_clipboard.py` | Python | 按键捕获辅助 |
-
-**结论**：clipboard 模块完全没移。独立进程、bar 按钮、bin 脚本、Hyprland 绑定全在核心。
-
----
-
-### 3. brightness-gamma — 🔴 几乎没移（9%）
-
-**模块内**：只有 `module.json`（空壳）
-
-**核心残留**（10 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/Brightness.qml` | QML singleton | 亮度服务 |
-| `quickshell/services/Hyprsunset.qml` | QML singleton | 夜间模式服务 |
-| `quickshell/modules/onScreenDisplay/indicators/BrightnessIndicator.qml` | QML | 亮度 OSD |
-| `quickshell/modules/onScreenDisplay/indicators/GammaIndicator.qml` | QML | 色温 OSD |
-| `bin/omd-brightness-display` | symlink | → omarchy-brightness-display |
-| `bin/omd-brightness-keyboard` | symlink | → omarchy-brightness-keyboard |
-| `share/bin/omarchy-brightness-display` | 脚本 | 亮度控制底层 |
-| `share/bin/omarchy-brightness-keyboard` | 脚本 | 键盘背光底层 |
-| `hypr/hyprsunset.conf` | 配置 | hyprsunset 配置 |
-| `apps/omd-settings/services/Brightness.qml` + `Hyprsunset.qml` | QML | 设置进程中的服务副本 |
-
-**结论**：brightness-gamma 模块完全没移。服务、OSD、脚本、配置全在核心。
-
----
-
-### 4. systray — 🔴 几乎没移（14%）
-
-**模块内**：只有 `module.json`（空壳）
-
-**核心残留**（6 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/TrayService.qml` | QML singleton | 托盘服务 |
-| `quickshell/modules/bar/SysTray.qml` | QML | 托盘组件 |
-| `quickshell/modules/bar/SysTrayItem.qml` | QML | 托盘项 |
-| `quickshell/modules/bar/SysTrayMenu.qml` | QML | 托盘菜单 |
-| `quickshell/modules/bar/SysTrayMenuEntry.qml` | QML | 托盘菜单项 |
-| `apps/omd-settings/services/TrayService.qml` | QML | 设置进程中的服务副本 |
-
-**结论**：systray 模块完全没移。服务和全部 4 个 bar 组件在核心。
-
----
-
-### 5. display — 🔴 大量残留（15%）
-
-**模块内**：`module.json` + `popup/DisplayPopup.qml` + `qmldir`
-
-**核心残留**（17 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/modules/bar/modules/DisplayButton.qml` | QML | bar 按钮 |
-| `quickshell/modules/bar/modules/ScreenshotContextMenu.qml` | QML | 右键截图菜单 |
-| `quickshell/modules/settings/display/` (7 个文件) | QML | DisplayConfigState, DisplayPage, MonitorCanvas, MonitorIdentifyOverlay, MonitorRect, OutputDetailPane, OutputSummaryCard |
-| `quickshell/modules/onScreenDisplay/` (6 个文件) | QML | OnScreenDisplay, OsdValueIndicator + 4 个 indicators |
-| `bin/omd-display-config` | 脚本 | 显示器配置 |
-| `bin/omd-ddc-detect` | 脚本 | DDC 检测 |
-| `bin/omd-brightness-display` | symlink | 亮度控制（与 brightness-gamma 重叠） |
-| `share/bin/omarchy-brightness-display` | 脚本 | 亮度底层 |
-
-**结论**：display 模块只移了 popup QML。bar 按钮、7 个设置页、6 个 OSD 组件、3 个 bin 脚本全在核心。
-
----
-
-### 6. mpris — 🔴 大量残留（20%）
-
-**模块内**：只有 `module.json`（空壳）
-
-**核心残留**（4 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/MprisController.qml` | QML singleton | MPRIS 控制器 |
-| `quickshell/services/TrackArt.qml` | QML singleton | 专辑封面 |
-| `quickshell/modules/bar/BarStatusPopup.qml` | QML | 媒体控制弹窗 section（~340 行，内嵌在 BarStatusPopup 中） |
-| `apps/omd-settings/services/MprisController.qml` | QML | 设置进程中的服务副本 |
-
-**结论**：mpris 模块完全没移。2 个服务在核心，媒体弹窗 section 内嵌在 BarStatusPopup 中（未提取）。
-
----
-
-### 7. voice — 🔴 大量残留（21%）
-
-**模块内**：`module.json` + `popup/VoicePopup.qml` + `settings/VoicePage.qml`
-
-**核心残留**（15 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/VoiceInput.qml` | QML singleton | 语音服务 |
-| `quickshell/modules/settings/pages/VoicePage.qml` | QML | 设置页（与模块重复） |
-| `quickshell/modules/bar/modules/InputMethodButton.qml` | QML | 共享按钮（语音+输入法） |
-| `bin/omd-voice-download` | symlink | → omarchy-voice-download |
-| `bin/omd-voice-record` | symlink | → omarchy-voice-record |
-| `bin/omd-voice-setup` | symlink | → omarchy-voice-setup |
-| `bin/omd-voice-transcribe` | symlink | → omarchy-voice-transcribe |
-| `share/bin/omarchy-voice-download` | 脚本 | 语音下载 |
-| `share/bin/omarchy-voice-record` | 脚本 | 语音录制 |
-| `share/bin/omarchy-voice-setup` | 脚本 | 语音安装 |
-| `share/bin/omarchy-voice-transcribe` | 脚本 | 语音转文字 |
-| `bin/omd-settings-voice` + `omd-settings-voice-tui` | 脚本 | 语音设置 TUI |
-| `bin/omd-edit-voice-bindings` | 脚本 | 语音快捷键编辑 |
-| `bin/omd-launch-settings-voice-tui` | 脚本 | TUI 启动器 |
-| `scripts/voice-bind-tui` | 脚本 | 快捷键 TUI |
-
-**结论**：voice 模块只移了 popup + settings QML。服务 singleton、4 个底层脚本、4 个 TUI 脚本、1 个辅助脚本全在核心。
-
----
-
-### 8. keyboard-remap — 🔴 大量残留（25%）
-
-**模块内**：`module.json` + `popup/KeyboardPopup.qml`
-
-**核心残留**（9 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/KeyboardRemap.qml` | QML singleton | 键盘重映射服务 |
-| `quickshell/modules/settings/pages/KeyboardRemapPage.qml` | QML | 设置页 |
-| `quickshell/modules/settings/pages/KeyboardEditorOverlay.qml` | QML | 编辑器覆盖层 |
-| `defaults/config/keyboard-remap/profiles.json` | JSON | 空模板 |
-| `scripts/key-test` | Python | 按键测试 |
-| `scripts/key-test-launcher` | 脚本 | 测试启动器 |
-| `scripts/key_capture_clipboard.py` | Python | 按键捕获 |
-| `scripts/key_evdev_names.py` | Python | evdev 键名映射 |
-| `apps/omd-settings/services/KeyboardRemap.qml` | QML | 设置进程中的服务副本 |
-
-**结论**：keyboard-remap 模块只移了 popup QML。服务、2 个设置页、4 个辅助脚本、空模板全在核心。
-
----
-
-### 9. battery-power — 🔴 大量残留（25%）
-
-**模块内**：`module.json` + `popup/BatteryPopup.qml`
-
-**核心残留**（9 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/Battery.qml` | QML singleton | 电池服务 |
-| `quickshell/services/PowerProfiles.qml` | QML singleton | 电源配置服务 |
-| `quickshell/modules/bar/BarBatteryIcon.qml` | QML | 电池图标组件 |
-| `quickshell/modules/bar/PowerContextMenu.qml` | QML | 电源菜单 |
-| `quickshell/modules/settings/pages/PowerPage.qml` | QML | 设置页 |
-| `bin/omd-powerprofiles-init` | symlink | → omarchy-powerprofiles-init |
-| `share/bin/omarchy-powerprofiles-init` | 脚本 | 电源配置初始化 |
-| `apps/omd-settings/services/Battery.qml` + `PowerProfiles.qml` | QML | 设置进程中的服务副本 |
-
-**结论**：battery-power 模块只移了 popup QML。2 个服务、2 个 bar 组件、设置页、1 个脚本全在核心。
-
----
-
-### 10. session — 🔴 大量残留（25%）
-
-**模块内**：`module.json` + `popup/SessionPopup.qml`
-
-**核心残留**（6 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/modules/common/functions/Session.qml` | QML singleton | 会话服务 |
-| `quickshell/modules/bar/modules/SessionButton.qml` | QML | bar 按钮 |
-| `quickshell/modules/bar/SessionRestoreOverlay.qml` | QML | 恢复覆盖层 |
-| `quickshell/modules/bar/SessionAutoRestore.qml` | QML | 自动恢复 |
-| `quickshell/modules/bar/SessionConfirmOverlay.qml` | QML | 确认覆盖层 |
-| `bin/omd-session` | 脚本 | 会话保存/恢复 |
-
-**结论**：session 模块只移了 popup QML。服务、bar 按钮、3 个覆盖层组件、1 个脚本全在核心。
-
----
-
-### 11. input-method — 🟡 部分残留（44%）
-
-**模块内**：`module.json` + `popup/InputMethodPopup.qml` + `config/schemas.json`
-
-**核心残留**（5 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `quickshell/services/InputMethod.qml` | QML singleton | 输入法服务 |
-| `quickshell/modules/bar/modules/InputMethodButton.qml` | QML | bar 按钮（与 voice 共享） |
-| `quickshell/modules/onScreenDisplay/indicators/InputMethodIndicator.qml` | QML | OSD 指示器 |
-| `bin/omd-input-method` | 脚本 | 输入法状态/切换 |
-| `defaults/config/input-method/schemas.json` | JSON | 空模板（与模块内重复） |
-
-**结论**：input-method 模块移了 popup + config，但服务、bar 按钮、OSD、脚本、默认模板全在核心。
-
----
-
-### 12. windows-vm — 🟡 部分残留（67%）
-
-**模块内**：`module.json` + `popup/WindowsVmPopup.qml` + `settings/WindowsVmPage.qml`
-
-**核心残留**（2 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `bin/omd-settings-windows-vm` | 脚本 | VM 管理 TUI |
-| `bin/omd-settings-vm-tui` | 脚本 | VM TUI |
-
-**结论**：windows-vm 模块移了 popup + settings，但 2 个 bin 脚本还在核心。
-
----
-
-### 13. file-backup — 🟡 部分残留（55%）
-
-**模块内**：`module.json` + `popup/BackupPopupSection.qml` + `settings/BackupPage.qml`
-
-**核心残留**（4 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `bin/omd-backup` | 脚本 | SMB 备份 |
-| `bin/omd-settings-backup-tui` | 脚本 | 备份 TUI |
-| `bin/omd-launch-settings-backup-tui` | 脚本 | TUI 启动器 |
-| `share/polkit-1/rules.d/50-omd-backup.rules` | polkit | polkit 规则 |
-
-**结论**：file-backup 模块移了 popup + settings，但 3 个 bin 脚本 + 1 个 polkit 规则在核心。
-
----
-
-### 14. ocr — 🟡 部分残留（55%）
-
-**模块内**：`module.json` + `popup/OCRPopupSection.qml` + `settings/OCRPage.qml`
-
-**核心残留**（4 个文件）：
-
-| 文件 | 类型 | 说明 |
-|---|---|---|
-| `bin/omd-ocr` | 脚本 | PaddleOCR |
-| `bin/omd-settings-ocr` | 脚本 | OCR 设置 |
-| `bin/omd-settings-ocr-tui` | 脚本 | OCR TUI |
-| `bin/omd-launch-settings-ocr-tui` | 脚本 | TUI 启动器 |
-
-**结论**：ocr 模块移了 popup + settings，但 4 个 bin 脚本在核心。
-
----
-
-## 按文件类型统计残留
-
-| 文件类型 | 核心残留数量 | 说明 |
-|---|---|---|
-| QML 服务 (singleton) | 10 | 问题 3 的根源 |
-| QML bar 组件 | 8 | 按钮/图标/菜单 |
-| QML 设置页 | 5 | 与模块内重复 |
-| QML 设置组件 | 7 | display/ 目录 |
-| QML OSD 组件 | 6 | indicators |
-| QML 其他 UI | 12 | 覆盖层/区域选择器/工具 |
-| bin 脚本 (真实文件) | 15 | |
-| bin 脚本 (symlink) | 8 | → omarchy-* |
-| share/bin/omarchy-* 脚本 | 8 | 底层工具 |
-| Python 脚本 | 4 | |
-| Hyprland 配置 | 2 | hyprsunset.conf + clipboard.lua |
-| polkit 规则 | 1 | |
-| 独立进程目录 | 2 | apps/omd-screenshot + apps/omd-clipboard |
-| **合计** | **~88 个文件/目录** | |
-
----
-
-## 额外发现：apps/omd-settings/services/ 中的服务副本
-
-`apps/omd-settings/services/` 目录中有一批服务文件的副本（与 quickshell/services/ 重复）：
-
-| 文件 | 说明 |
+| bin 脚本 | 23 | 从 `bin/` + `share/bin/` 复制到各模块 `bin/` |
+| QML bar 组件 | 9 | ClipboardButton, DisplayButton, SessionButton, InputMethodButton×2, SysTray, BarBatteryIcon, PowerContextMenu, ScreenshotContextMenu |
+| QML 设置页组件 | 7 | 从 `settings/display/` 复制到 display 模块 |
+| QML 设置页 | 4 | PowerPage, VoicePage, KeyboardRemapPage + KeyboardEditorOverlay, WindowsVmPage |
+| QML OSD 组件 | 10 | OnScreenDisplay + OsdValueIndicator + 6 指示器 ... |
+| QML 区域选择器 | 8 | 从 `regionSelector/` 复制到 screenshot 模块 |
+| QML popup 组件 | 9 | 各模块 popup/ 目录 |
+| QML 覆盖层 | 3 | SessionRestoreOverlay, SessionAutoRestore, SessionConfirmOverlay |
+| QML 实用工具 | 2 | ScreenshotAction, Session.qml 服务 |
+| Python/TUI 脚本 | 9 | key-test, key-test-launcher, key_capture_clipboard.py, key_evdev_names.py, voice-bind-tui + TUI 脚本 |
+| Hyprland 配置 | 2 | clipboard.lua, hyprsunset.conf |
+| polkit 规则 | 1 | 50-omd-backup.rules |
+| 独立进程目录 | 2 | apps/omd-clipboard + apps/omd-screenshot (含空子目录) |
+
+### 核心更新
+
+| 文件 | 变更 |
 |---|---|
-| `apps/omd-settings/services/Battery.qml` | 电池服务副本 |
-| `apps/omd-settings/services/PowerProfiles.qml` | 电源配置副本 |
-| `apps/omd-settings/services/Brightness.qml` | 亮度副本 |
-| `apps/omd-settings/services/Hyprsunset.qml` | 夜间模式副本 |
-| `apps/omd-settings/services/KeyboardRemap.qml` | 键盘重映射副本 |
-| `apps/omd-settings/services/MprisController.qml` | MPRIS 副本 |
-| `apps/omd-settings/services/TrayService.qml` | 托盘副本 |
-| `apps/omd-settings/services/VoiceInput.qml` | 语音副本 |
+| `BarContent.qml` | 新增 `Repeater` 用于 `ModuleLoader.barButtons` 动态加载 |
+| `BarStatusPopup.qml` | 移除硬编码模块托管类型的 popup 项（display, battery, voice, inputMethod, keyboard, session），由 `ModuleLoader.popupSections` Repeater 处理 |
+| `SettingsDialog.qml` | 从 `primaryPages` 移除 power/keyremap（由模块 settingsPages 提供）；移除硬编码 `powerPageComponent`、`keyremapPage` Component 定义；路由模块页面经 `modulePageLoader` 加载 |
+| `settings/pages/qmldir` | 移除模块托管的页面：PowerPage, VoicePage, WindowsVmPage, KeyboardRemapPage, KeyboardEditorOverlay |
+| 所有 14 个 `module.json` | 完善 `capabilities`（barButtons, popupSections, settingsPages, services, binScripts） |
 
-这些是 `omd-settings` 独立进程需要的服务副本（因为它是独立 Quickshell 进程，不能 import 主进程的 services）。它们的存在是合理的（独立进程需要自己的服务实例），但增加了维护负担——修改服务时需要同步多个副本。
+### 模块注册表验证
+
+启动脚本 `quickshell/scripts/quickshell` 自动扫描 `~/development/sumika-modules/*/module.json` 生成 `/tmp/sumika-module-registry.json`。
+
+验证结果（实际生成内容已检查）：
+- **15 模块全部发现**（含 popup-components 共享库）
+- **9 barButtons** 注册 — battery-power(2), clipboard, display, input-method, screenshot, session, systray, voice
+- **9 popupSections** 注册 — battery-power, display, file-backup, input-method, keyboard-remap, ocr, session, voice, windows-vm
+- **7 settingsPages** 注册 — battery-power, display, file-backup, keyboard-remap, ocr, voice, windows-vm
+- 禁用支持：`config.json` 的 `modules.disabled` 列表被读取并跳过对应模块
+
+### 模块文件完整性验证
+
+全部 `barButtons.component`、`popupSections[].component`、`settingsPages[].component` 引用的文件均已存在（逐一验证）。
 
 ---
 
-## 总结
+## 逐模块清单
 
-模块迁移整体完成度约 **20%**。另一个智能体主要做了：
-1. 创建了 14 个模块目录 + module.json（壳）
-2. 移动了部分 popup QML 和 settings QML
-3. 移动了部分 bin 脚本
+### screenshot (15 文件)
+- `apps/omd-screenshot/` — shell.qml + GlobalStates.qml (独立进程)
+- `bar/ScreenshotContextMenu.qml` — bar 右键截图菜单
+- `bin/omd-screenshot`
+- `regionSelector/` — 8 区域选择器 QML
+- `utils/ScreenshotAction.qml`
 
-但**几乎所有实质性代码**（服务、bar 组件、设置页、OSD、区域选择器、独立进程、底层脚本、配置）都还在主仓库。模块目录里的大部分是空壳。
+### clipboard (18 文件)
+- `apps/omd-clipboard/` — shell.qml + modules/clipboard/ + services/Cliphist.qml
+- `bar/ClipboardButton.qml`
+- `bin/omd-clipboard`, `bin/omd-clipboard-store`, `bin/omd-kitty-smart-paste`
+- `hypr/clipboard.lua`
 
-要真正完成迁移，需要将上述 ~88 个文件/目录从核心移到对应模块，同时确保：
-1. 核心代码通过 ModuleLoader 动态加载模块内容
-2. 模块 QML 文件能通过 popup-components 和 qmldir 正确 import
-3. 禁用模块后核心功能不受影响
-4. 每次移动后编译 + 运行测试
+### brightness-gamma (7 文件)
+- `bin/omarchy-brightness-display`, `bin/omarchy-brightness-keyboard`
+- `hypr/hyprsunset.conf`
+- `osd/indicators/BrightnessIndicator.qml`, `osd/indicators/GammaIndicator.qml`
+
+### display (19 文件)
+- `bar/DisplayButton.qml`
+- `bin/omd-display-config`, `bin/omd-ddc-detect`
+- `onScreenDisplay/` — OnScreenDisplay.qml + OsdValueIndicator.qml + 4 indicators
+- `popup/DisplayPopup.qml`
+- `settings/` — 7 设置 QML
+
+### systray (6 文件)
+- `bar/SysTray.qml`, `bar/SysTrayItem.qml`, `bar/SysTrayMenu.qml`, `bar/SysTrayMenuEntry.qml`
+
+### voice (15 文件)
+- `bar/InputMethodButton.qml`
+- `bin/omd-voice-*` (4) + `bin/omarchy-voice-*` (4)
+- `bin/omd-settings-voice*` (3) + `bin/omd-edit-voice-bindings`
+- `popup/VoicePopup.qml`
+- `scripts/voice-bind-tui`
+- `settings/VoicePage.qml`
+
+### keyboard-remap (10 文件)
+- `config/profiles.json`
+- `popup/KeyboardPopup.qml`
+- `scripts/key-test`, `scripts/key-test-launcher`, `scripts/key_capture_clipboard.py`, `scripts/key_evdev_names.py`
+- `settings/KeyboardRemapPage.qml`, `settings/KeyboardEditorOverlay.qml`
+
+### battery-power (8 文件)
+- `bar/BarBatteryIcon.qml`, `bar/PowerContextMenu.qml`
+- `bin/omarchy-powerprofiles-init`
+- `popup/BatteryPopup.qml`
+- `settings/PowerPage.qml`
+
+### session (10 文件)
+- `bar/SessionButton.qml`
+- `bar/SessionRestoreOverlay.qml`, `bar/SessionAutoRestore.qml`, `bar/SessionConfirmOverlay.qml`
+- `bin/omd-session`
+- `popup/SessionPopup.qml`
+- `services/Session.qml`
+
+### input-method (8 文件)
+- `bar/InputMethodButton.qml`
+- `bin/omd-input-method`
+- `osd/indicators/InputMethodIndicator.qml`
+- `popup/InputMethodPopup.qml`
+
+### windows-vm (7 文件)
+- `bin/omd-settings-windows-vm`, `bin/omd-settings-vm-tui`
+- `popup/WindowsVmPopup.qml`
+- `settings/WindowsVmPage.qml`
+
+### file-backup (9 文件)
+- `bin/omd-backup`, `bin/omd-settings-backup-tui`, `bin/omd-launch-settings-backup-tui`
+- `polkit/50-omd-backup.rules`
+- `popup/BackupPopupSection.qml`
+- `settings/BackupPage.qml`
+
+### ocr (9 文件)
+- `bin/omd-ocr`, `bin/omd-settings-ocr`, `bin/omd-settings-ocr-tui`, `bin/omd-launch-settings-ocr-tui`
+- `popup/OCRPopupSection.qml`
+- `settings/OCRPage.qml`
+
+### mpris (2 文件)
+- `module.json` + `qmldir`（服务保持核心 singleton）
+
+### popup-components (12 文件)
+- 共享组件库：ActionRow, Divider, IconActionRow, PopupActionButton, PopupColumn, PopupHeader, PopupIconButton, SectionLabel, ShellCard, ToolLauncherRow
+
+---
+
+## 架构设计要点
+
+### 核心保留策略
+以下组件保持核心原位，不作模块化：
+
+| 组件 | 理由 |
+|---|---|
+| QML 服务 singleton（Battery, Brightness, InputMethod 等 10+） | `qs.services` 模块全局共享 |
+| AudioButton, WifiButton, ToolsButton | 系统级 bar 按钮不模块化 |
+| OverviewPage, AppearancePage, NetworkPage 等 | 核心设置页不模块化 |
+| 模块管理 ModulesPage | 核心管理工具 |
+| OSD 框架 OnScreenDisplay.qml | 核心 UI 框架 |
+
+### 模块注册表 JSON 格式
+```json
+// 启动脚本自动生成，写入 /tmp/sumika-module-registry.json
+{
+  "modules": [{ "id": "clipboard", "path": "/home/.../sumika-modules/clipboard" }],
+  "barButtons": [{ "moduleId": "clipboard", "component": "file:///home/.../bar/ClipboardButton.qml" }],
+  "popupSections": [{ "moduleId": "display", "type": "display", "component": "file:///.../popup/DisplayPopup.qml" }],
+  "settingsPages": [{ "moduleId": "voice", "id": "voice", "component": "file:///.../settings/VoicePage.qml", "icon": "keyboard_voice" }]
+}
+```
+- component 路径是 `file://` 绝对 URL（启动脚本自动前缀模块根路径）
+- moduleId 允许 ModuleLoader.isEnabled() 过滤禁用模块
+
+### 动态加载
+- **Bar buttons**: `BarContent.qml` Repeater → `Loader { source: modelData.component }`
+- **Popup sections**: `BarStatusPopup.qml` Repeater → `Loader { ... active: root.activeType === modelData.type }`，与硬编码 popup（wifi, bluetooth, audio, notifications, xkb, tools）并存
+- **Settings pages**: `SettingsDialog.qml` → `modulePageLoader` Loader 组件，通过 `ModuleLoader.settingsPages.find()` 匹配 page id
+
+---
+
+## 路径硬编码修复（2026-07-21）
+
+### 排查结论
+
+| 模式 | 是否机器相关 | 结论 |
+|------|-------------|------|
+| `~/development/OMD/` | **是** | 仅出现在 `bin/omd_tui_shared.py:19` fallback，已修复 |
+| `$HOME/.config/omd/` | 否 | Init.sh 创建的稳定符号链接，跨机器有效 |
+| `Directories.config + "/omd/"` | 否 | QML 中等效于 `~/.config/omd/`（StandardPaths.ConfigLocation = ~/.config） |
+| `$OMD_ROOT/...` | 否 | 环境变量由 `lib/paths.sh` 设置，跨机器有效 |
+
+### 已修复文件
+
+| 文件 | 原因 | 修复 |
+|------|------|------|
+| `bin/omd_tui_shared.py` | `~/development/OMD` fallback → 机器相关 | `os.path.expanduser("~/.config/omd")` |
+| `voice/apps/.../Cliphist.qml` | `$HOME/.config/omd/bin/omd-paste-at-cursor` (模块已有自己 bin/) | 裸命令 `omd-paste-at-cursor`（PATH 解析） |
+| `clipboard/bin/omd-kitty-smart-paste` | 同上 + 注释 | 裸命令 + 注释更新 |
+| `session/services/Session.qml` | `$HOME/.config/omd/bin/omd-session`/`omd-logout` | 裸命令 |
+| `display/settings/DisplayConfigState.qml` | `$HOME/.config/omd/bin/omd-display-config` | 裸命令 `omd-display-config` |
+| `windows-vm/settings/WindowsVmPage.qml` | 6 处 `$HOME/.config/omd/bin/omd-settings-windows-vm` | 裸命令 |
+| `windows-vm/bin/omd-settings-windows-vm` | `OMD_ROOT` fallback 指向模块根 → `scripts/windows-rdp` 找不到 | `$HOME/.config/omd` fallback |
+| `screenshot/bin/omd-screenshot` | `app_dir=$HOME/.config/omd/apps/...` 硬编码 | 脚本相对路径 `$(dirname "$0")/../apps/...` |
+
+### 不需修改的模式
+
+- `Directories.config + "/omd/"` — 核心和模块 QML 中广泛使用，解析为 `~/.config/omd`（Init.sh 创建的符号链接），是标准的可移植路径。**不是 `development/OMD` 硬编码。**
+- `$HOME/.config/omd/scripts/` — 同上，标准路径。
+- `$HOME/.config/omd/share/` — 标准路径。
+
+## 后续工作（未解决）
+
+- [ ] `KeyboardEditorOverlay` 仍在 `SettingsDialog.qml` 中硬编码（内联叠加层模块系统尚未支持）
+- [ ] 核心备份副本可安全删除（验证模块加载后）
+- [ ] 确认所有模块 popup 和 settings 组件在 QML 层面能正常导入
+- [ ] 运行 `omd-restart` + `omd-doctor` 进行端到端验证

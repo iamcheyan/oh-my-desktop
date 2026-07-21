@@ -1,0 +1,12 @@
+#!/bin/bash
+# omd-modules-tui — Interactive module management TUI.
+# Uses the same curses framework as other OMD settings TUIs.
+
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export OMD_ROOT
+SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+CONFIG_FILE="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/quickshell/config.json"
+
+exec python3 "$OMD_ROOT/bin/omd_tui_shared.py" modules "$SUMIKA_MODULES_HOME" "$CONFIG_FILE"

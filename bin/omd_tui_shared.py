@@ -16,7 +16,7 @@ import threading
 import time
 import unicodedata
 
-OMD_ROOT = os.environ.get("OMD_ROOT", os.path.expanduser("~/development/OMD"))
+OMD_ROOT = os.environ.get("OMD_ROOT", os.path.expanduser("~/.config/omd"))
 
 # ── colour pairs ─────────────────────────────────────────────────────────
 C_BG, C_FG, C_ACCENT, C_MUTED = 0, 1, 2, 3
