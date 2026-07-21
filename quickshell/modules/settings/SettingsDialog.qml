@@ -48,14 +48,66 @@ WindowDialog {
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
     ]
 
-    readonly property var pages: primaryPages
+    // Lazy-created Component cache for module settings pages
+    property var _modulePageComponents: ({})
+    // Maps page key → module settings page entry (includes aliases)
+    property var _modulePageEntries: ({})
 
+    readonly property var pages: {
+        var ps = []
+        var seen = {}
+        for (var i = 0; i < primaryPages.length; i++) {
+            var pp = primaryPages[i]
+            ps.push(pp)
+            seen[pp.key] = true
+        }
+        // Merge module settings pages, skipping duplicates
+        var modPages = ModuleLoader.settingsPages
+        for (var j = 0; j < modPages.length; j++) {
+            var p = modPages[j]
+            if (p.id && !seen[p.id]) {
+                ps.push({
+                    key: p.id,
+                    icon: p.icon ?? "extension",
+                    title: p.title ?? p.id,
+                    keywords: p.keywords ?? ""
+                })
+                seen[p.id] = true
+                // Also mark aliases as seen to prevent collision
+                if (p.aliases) {
+                    for (var a = 0; a < p.aliases.length; a++) {
+                        seen[p.aliases[a]] = true
+                    }
+                }
+            }
+        }
+        return ps
+    }
 
-    backgroundWidth: clamp(Persistent.states.settingsCenter.width || defaultDialogWidth, minDialogWidth, maxDialogWidth)
-    backgroundHeight: clamp(Persistent.states.settingsCenter.height || defaultDialogHeight, minDialogHeight, maxDialogHeight)
-    anchorPosition: 0
-    contentPadding: 0
-    dismissOnBackgroundPress: false
+    function _ensureModulePage(pageId) {
+        if (pageId in _modulePageComponents) return
+        var modPages = ModuleLoader.settingsPages
+        for (var i = 0; i < modPages.length; i++) {
+            var p = modPages[i]
+            if (!p.id) continue
+            if (p.id !== pageId && (!p.aliases || p.aliases.indexOf(pageId) < 0)) continue
+            // Found matching module page — create Component lazily
+            var comp = Qt.createComponent(p.component)
+            if (comp.status === Component.Error) {
+                console.warn("[Settings] Failed to load module page:", p.id, comp.errorString())
+                return
+            }
+            _modulePageComponents[p.id] = comp
+            _modulePageEntries[p.id] = p
+            if (p.aliases) {
+                for (var a = 0; a < p.aliases.length; a++) {
+                    _modulePageComponents[p.aliases[a]] = comp
+                    _modulePageEntries[p.aliases[a]] = p
+                }
+            }
+            return
+        }
+    }
 
     function normalizePage(page) {
         if (page === "wifi") return "network";
@@ -75,6 +127,10 @@ WindowDialog {
         if (page === "windows") return "overview";
         if (page === "virtualization") return "overview";
         if (page === "vm") return "overview";
+        // Module-managed pages: check aliases before hardcoded redirect
+        _ensureModulePage(page)
+        if (page in _modulePageEntries) return _modulePageEntries[page].id
+        // Hardcoded fallback redirects (non-module pages only)
         if (page === "windows-vm") return "overview";
         if (page === "voice" || page === "voice-input" || page === "speech") return "overview";
         if (page === "keyboard" || page === "keymap" || page === "remap") return "keyremap";
@@ -99,6 +155,9 @@ WindowDialog {
         if (page === "appearance") return appearancePageComponent;
         if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
+        // Fall back to module page component
+        _ensureModulePage(page)
+        if (page in _modulePageComponents) return _modulePageComponents[page]
         return overviewPageComponent;
     }
 

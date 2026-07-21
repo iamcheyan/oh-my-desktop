@@ -21,11 +21,30 @@ PageBody {
     // Master switch from config
     readonly property bool masterEnabled: Config.options.modules?.enabled !== false
 
+    // Current module exclusion list
+    property var _disabledList: []
+
+    function syncDisabledList() {
+        const raw = Config.options.modules?.disabled
+        page._disabledList = Array.isArray(raw) ? raw.slice() : []
+    }
+
     function setMasterEnabled(enabled) {
         Config.setNestedValue("modules.enabled", enabled)
     }
 
-
+    function toggleModule(moduleId) {
+        page.syncDisabledList()
+        const idx = page._disabledList.indexOf(moduleId)
+        if (idx >= 0) {
+            // Re-enable: remove from exclusion list
+            page._disabledList.splice(idx, 1)
+        } else {
+            // Disable: add to exclusion list
+            page._disabledList.push(moduleId)
+        }
+        Config.setNestedValue("modules.disabled", page._disabledList)
+    }
 
     ColumnLayout {
         Layout.fillWidth: true
@@ -35,7 +54,12 @@ PageBody {
             Layout.fillWidth: true
             icon: NerdIconMap.extension
             title: "Modules"
-            subtitle: `${modules.length} installed${masterEnabled ? "" : " · ALL DISABLED"}`
+            subtitle: {
+                if (!page.masterEnabled) return "All disabled (master switch OFF)"
+                const total = page.modules.length
+                const active = page.modules.filter(m => ModuleLoader.isEnabled(m.id)).length
+                return `${active}/${total} active`
+            }
         }
 
         // Master switch
@@ -81,7 +105,7 @@ PageBody {
                         colRipple: Qt.rgba(1, 1, 1, 0.12)
                         toggled: ModuleLoader.isEnabled(modelData.id)
 
-                        onClicked: page.setMasterEnabled(!page.masterEnabled)
+                        onClicked: page.toggleModule(modelData.id)
 
                         BarNerdIcon {
                             anchors.centerIn: parent
