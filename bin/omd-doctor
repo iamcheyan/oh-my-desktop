@@ -258,13 +258,9 @@ check_modules() {
     else
         warn "Module registry missing — run omd-restart"
     fi
-    # Check disabled count
     local sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
     local cfg_file="$sumika_cfg/sumika.json"
     if command -v jq >/dev/null 2>&1 && [ -f "$cfg_file" ]; then
-        local disabled
-        disabled=$(jq -r '.modules.exclude // [] | length' "$cfg_file" 2>/dev/null || echo 0)
-        [ "$disabled" -gt 0 ] && info "  $disabled module(s) disabled in config"
         local enabled
         enabled=$(jq -r 'try .modules.enabled' "$cfg_file" 2>/dev/null || true)
         [ "$enabled" = "false" ] && info "  All modules disabled via modules.enabled=false"

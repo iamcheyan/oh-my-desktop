@@ -25,25 +25,6 @@ PageBody {
         Config.setNestedValue("modules.enabled", enabled)
     }
 
-    function toggleModule(id) {
-        // If master switch is off, turning on any module enables the master switch first
-        if (!masterEnabled) {
-            const currentExcluded = Config.options.modules?.exclude ?? []
-            const newExcluded = currentExcluded.filter(m => m !== id)
-            Config.setNestedValue("modules.exclude", newExcluded)
-            Config.setNestedValue("modules.enabled", true)
-            return
-        }
-        const excluded = Config.options.modules?.exclude ?? []
-        const isExcluded = excluded.includes(id)
-        if (isExcluded) {
-            const newList = excluded.filter(m => m !== id)
-            Config.setNestedValue("modules.exclude", newList)
-        } else {
-            const newList = [...excluded, id]
-            Config.setNestedValue("modules.exclude", newList)
-        }
-    }
 
 
     ColumnLayout {
@@ -54,7 +35,7 @@ PageBody {
             Layout.fillWidth: true
             icon: NerdIconMap.extension
             title: "Modules"
-            subtitle: `${modules.length} installed · ${(Config.options.modules?.exclude ?? []).length} excluded${masterEnabled ? "" : " · ALL DISABLED"}`
+            subtitle: `${modules.length} installed${masterEnabled ? "" : " · ALL DISABLED"}`
         }
 
         // Master switch
@@ -100,7 +81,7 @@ PageBody {
                         colRipple: Qt.rgba(1, 1, 1, 0.12)
                         toggled: ModuleLoader.isEnabled(modelData.id)
 
-                        onClicked: page.toggleModule(modelData.id)
+                        onClicked: page.setMasterEnabled(!page.masterEnabled)
 
                         BarNerdIcon {
                             anchors.centerIn: parent

@@ -353,7 +353,6 @@ Singleton {
             }
             property JsonObject modules: JsonObject {
                 property bool enabled: true
-                property list<string> disabled: []
                 property JsonObject barButtonOrder: JsonObject {}
             }
 

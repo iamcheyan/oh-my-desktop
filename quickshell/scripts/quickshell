@@ -53,11 +53,6 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
     else
         unset modules_enabled
 
-        # Read disabled module list from sumika.json
-        disabled_modules=""
-        if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
-            disabled_modules=$(jq -r '.modules.exclude // [] | join(",")' "$config_file" 2>/dev/null || true)
-        fi
 
         # Build registry
         registry_file="/tmp/sumika-module-registry.json"
@@ -68,10 +63,6 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
             module_dir=$(dirname "$module_json")
             module_id=$(basename "$module_dir")
 
-            # Skip disabled modules
-            if echo ",$disabled_modules," | grep -q ",$module_id,"; then
-                continue
-            fi
 
             # Add to QML import path and PATH
             export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"

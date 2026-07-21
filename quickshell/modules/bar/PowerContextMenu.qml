@@ -249,7 +249,7 @@ PopupWindow {
                     label:    "Reload Shell"
                     onClicked: {
                         root.close();
-                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/scripts/reload-quickshell`]);
+                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
                     }
                 }
             }

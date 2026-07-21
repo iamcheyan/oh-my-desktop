@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-omd_root="${OMD_ROOT:-$HOME/.config/sumika-shell}"
+omd_root="${OMD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 quickshell_only=0
 
 case "${1:-}" in

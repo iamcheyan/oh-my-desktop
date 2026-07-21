@@ -124,13 +124,19 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
+            // --- 模块按钮（受 modules.enabled 总开关控制）---
+
             SysTray {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
 
             InputMethodButton {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
+
+            // --- 核心按钮（永远显示）---
 
             AudioButton {
                 Layout.alignment: Qt.AlignVCenter
@@ -140,8 +146,11 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
+            // --- 模块按钮（受 modules.enabled 总开关控制）---
+
             ClipboardButton {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
 
             SessionButton {
@@ -150,11 +159,15 @@ Item { // Bar content region
 
             DisplayButton {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
 
             ToolsButton {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
+
+            // --- 核心按钮（永远显示）---
 
             ClockWidget {
                 Layout.alignment: Qt.AlignVCenter
@@ -164,7 +177,7 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            // Module-registered bar buttons (dynamic, after core buttons)
+            // 外部可插拔模块按钮（动态加载，也受总开关控制）
             Repeater {
                 model: ModuleLoader.barButtons
                 delegate: Loader {
