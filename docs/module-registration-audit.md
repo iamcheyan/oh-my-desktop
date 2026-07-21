@@ -791,6 +791,7 @@ alias、导航项和 component 选择都从该 index 读取，不能继续由硬
 
 涉及文件：`quickshell/services/ModuleLoader.qml`（+18 行）。
 
+
 **2. 按钮 owner 修复（P1）**
 
 `quickshell/registry/builtin/bar.json` 中可选按钮的 `moduleId` 改为其对应外部模块 ID：
@@ -805,6 +806,8 @@ alias、导航项和 component 选择都从该 index 读取，不能继续由硬
 | Tools | builtin | builtin（无可选模块） |
 
 现在禁用 `clipboard`、`session`、`display` 等模块会同时隐藏其对应 Bar 按钮。
+同时修复启动脚本的 jq merge 表达式：原 `map(. + {moduleId: $mod[0].id})` 无条件覆盖了每项已有的
+`moduleId`，改为 `| .moduleId = (.moduleId // $mod[0].id)` 保留显式声明的 moduleId。
 
 **3. SettingsDialog 路由优先级（P1）**
 
