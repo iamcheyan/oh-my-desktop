@@ -28,3 +28,5 @@ scripts/remote-desktop.conf
 
 # Generated keyd config (runtime state, not source)
 keyboard-remap/keyd.generated.conf
+# Generated symlink for external lock module
+/quickshell/modules/lock

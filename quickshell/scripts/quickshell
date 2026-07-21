@@ -39,11 +39,42 @@ export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
 SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
-    # Read config from unified sumika.json
+    # Always add modules to QML import path so core components (lock, screen
+    # saver, etc.) are importable even when the master switch is off.
     sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
     config_file="$sumika_config/sumika.json"
 
-    # Master switch: skip all module loading if modules.enabled is false
+    # Create symlinks for core modules that need direct QML scanner resolution
+    # (e.g., lock screen) under the modules discovery directory.
+    # The scanner resolves qs.modules.<name> from <config-dir>/modules/<name>/,
+    # which is not covered by QML_IMPORT_PATH.
+    for module_dir in "$SUMIKA_MODULES_HOME"/*/; do
+        [ -d "$module_dir" ] || continue
+        name="$(basename "$module_dir")"
+        link_target="$repo_root/quickshell/modules/$name"
+        case "$name" in
+            lock) ;;  # core modules needing scanner resolution — add more here
+            *) continue ;;
+        esac
+        # Remove stale internal directory if it exists (post-extraction).
+        if [ -d "$link_target" ] && [ ! -L "$link_target" ]; then
+            rm -rf "$link_target"
+        fi
+        if [ ! -L "$link_target" ]; then
+            ln -sf "$module_dir" "$link_target"
+        fi
+    done
+
+    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        module_dir=$(dirname "$module_json")
+        export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
+        if [ -d "$module_dir/bin" ]; then
+            export PATH="$module_dir/bin:$PATH"
+        fi
+    done
+
+    # Master switch: skip registry generation if modules.enabled is false
     modules_enabled=true
     if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
         modules_enabled=$(jq -r 'try .modules.enabled' "$config_file" 2>/dev/null || true)
@@ -51,28 +82,16 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
     if [ "$modules_enabled" = "false" ]; then
         echo "[sumika] modules disabled via sumika.json"
     else
-        unset modules_enabled
-
-
-        # Build registry
+        # Build registry for dynamic module loading (bar buttons, popups, etc.)
         registry_file="/tmp/sumika-module-registry.json"
         registry='{"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
 
         for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
             [ -f "$module_json" ] || continue
             module_dir=$(dirname "$module_json")
-            module_id=$(basename "$module_dir")
 
-
-            # Add to QML import path and PATH
-            export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
-            if [ -d "$module_dir/bin" ]; then
-                export PATH="$module_dir/bin:$PATH"
-            fi
-
-            # Merge into registry (use jq if available, fall back to python)
+            # Merge into registry
             if command -v jq >/dev/null 2>&1; then
-                # Add module entry and merge capabilities
                 tmp_reg=$(mktemp)
                 echo "$registry" > "$tmp_reg"
                 registry=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
