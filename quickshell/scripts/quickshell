@@ -97,7 +97,7 @@ if [ -d "$builtin_dir" ]; then
             echo "$registry" > "$tmp_reg"
             new_reg=$(jq -c --slurpfile mod "$manifest_json" --arg mdir "$repo_root/quickshell" \
                 '.modules += [{"id": $mod[0].id, "path": $mdir, "builtin": true}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id)))' \
                 "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: builtin merge failed for $manifest_json" >&2
             rm -f "$tmp_reg"
         done
@@ -127,9 +127,9 @@ if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ]; then
             echo "$registry" > "$tmp_reg"
             new_reg=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
                 '.modules += [{"id": $mod[0].id, "path": $mdir}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id))) |
+                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id))) |
+                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id)))' \
                 "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: external module merge failed for $module_json" >&2
             rm -f "$tmp_reg"
         fi
