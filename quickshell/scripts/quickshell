@@ -40,7 +40,6 @@ export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 config_file="$sumika_config/sumika.json"
 
-SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
     # Always add modules to QML import path so core components (lock, screen
     # saver, etc.) are importable even when the master switch is off.

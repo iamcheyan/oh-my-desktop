@@ -6,7 +6,7 @@ set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
-SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+source "$OMD_ROOT/scripts/omd-path.sh"
 CONFIG_FILE="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json"
 
 exec python3 "$OMD_ROOT/bin/omd_tui_shared.py" modules "$SUMIKA_MODULES_HOME" "$CONFIG_FILE"

@@ -2,6 +2,7 @@
 set -u
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$repo/scripts/omd-path.sh"
 export PATH="$HOME/.local/bin:$PATH"
 failed=0
 warned=0
@@ -245,7 +246,7 @@ fi
 
 check_modules() {
     echo "── Modules ──"
-    local modules_home="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+    local modules_home="$SUMIKA_MODULES_HOME"
     if [ ! -d "$modules_home" ]; then
         warn "Module directory not found: $modules_home"
         return

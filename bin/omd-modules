@@ -16,7 +16,7 @@ set -euo pipefail
 
 # ── Path resolution ──
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
+source "$OMD_ROOT/scripts/omd-path.sh"
 SUMIKA_CONFIG="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 CONFIG_FILE="$SUMIKA_CONFIG/sumika.json"
 
@@ -268,10 +268,9 @@ Commands:
   update [id]       Update module(s) via git pull
   remove <id>       Remove a module (with confirmation)
   help              Show this help
-
-Module directory: ~/development/sumika-modules/
-Config file: ~/.config/sumika-shell/sumika.json
 EOF
+    echo "Module directory: $SUMIKA_MODULES_HOME"
+    echo "Config file: ~/.config/sumika-shell/sumika.json"
 }
 
 # ── Main ──

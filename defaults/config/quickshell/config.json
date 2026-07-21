@@ -243,6 +243,7 @@
     "centerTitle": true
   },
   "modules": {
-    "barButtonOrder": {}
+    "barButtonOrder": {},
+    "dir": "~/development/sumika-modules"
   }
 }
