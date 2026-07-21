@@ -72,18 +72,27 @@ Item { // Bar content region
         anchors.verticalCenter: parent.verticalCenter
         spacing: 14
 
-        AppLauncherButton {
-            Layout.alignment: Qt.AlignVCenter
-        }
 
         Workspaces {
             Layout.alignment: Qt.AlignVCenter
         }
 
-        ActiveWindow {
-            Layout.alignment: Qt.AlignVCenter
+        // Left module registration slot — AppLauncher, ActiveWindow, and external modules
+        Repeater {
+            model: ModuleLoader.leftBarModules
+            delegate: Loader {
+                required property var modelData
+                source: modelData.component
+                active: true
+                Layout.alignment: Qt.AlignVCenter
+                onStatusChanged: if (status === Loader.Error) {
+                    console.warn("[Module] Left bar module load failed:", modelData.component)
+                    active = false
+                }
+            }
         }
     }
+
 
     // Center section — centered between left and right content
     Item {

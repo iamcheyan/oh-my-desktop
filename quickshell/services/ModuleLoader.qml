@@ -34,6 +34,31 @@ Singleton {
         return buttons.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
 
+    // Left-side modules (built-in and external) — registered in the workspace-adjacent slot
+    readonly property var leftBarModules: {
+        if (!modulesEnabled) return []
+        var items = []
+        // Built-in core modules (Applications, ActiveWindow)
+        items.push({
+            component: Qt.resolvedUrl("../modules/bar/AppLauncherButton.qml"),
+            id: "appLauncher",
+            name: "Applications"
+        })
+        items.push({
+            component: Qt.resolvedUrl("../modules/bar/ActiveWindow.qml"),
+            id: "activeWindow",
+            name: "Active Window"
+        })
+        // External modules that declare barButtons with slot: "left"
+        var extButtons = (_registry.barButtons ?? []).filter(function(b) {
+            return b.slot === "left" && loader.isEnabled(b.moduleId)
+        })
+        for (var i = 0; i < extButtons.length; i++) {
+            items.push(extButtons[i])
+        }
+        return items
+    }
+
     readonly property var popupSections: {
         if (!modulesEnabled) return []
         return (_registry.popupSections ?? []).filter(s => isEnabled(s.moduleId))

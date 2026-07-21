@@ -2266,6 +2266,7 @@ Scope {
 
             TileTrack {
                 PanelTile {
+                    visible: ModuleLoader.modulesEnabled
                     icon: NerdIconMap.lock
                     label: "LOCK"
                     tone: TuiStyle.accent
