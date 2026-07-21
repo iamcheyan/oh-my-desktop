@@ -210,7 +210,7 @@ Scope {
                 anchors.fill: parent
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
-                implicitHeight: contentLoader.implicitHeight + contentPadding * 2
+                implicitHeight: panelContent.implicitHeight + contentPadding * 2
                 contentPadding: 0                           // Rows manage their own 20px margins
                 // Height-variable content (audio expand, etc.): skip OpacityMask FBO
                 // rebuild on resize — see docs/bar-popup-height-stability.md.
@@ -220,24 +220,45 @@ Scope {
                 border.color: TuiStyle.menuBorder
                 radius: panel.multiShell ? 0 : TuiStyle.shellRadius
                 clip: !panel.multiShell
-
-                Loader {
-                    id: contentLoader
+                ColumnLayout {
+                    id: panelContent
                     anchors.fill: parent
-                    sourceComponent: {
-                        if (root.activeType === "wifi") return wifiContent;
-                        if (root.activeType === "bluetooth") return bluetoothContent;
-                        if (root.activeType === "audio") return audioContent;
-                        if (root.activeType === "display") return displayContent;
-                        if (root.activeType === "battery") return batteryContent;
-                        if (root.activeType === "notifications") return notificationsContent;
-                        if (root.activeType === "voice") return voiceContent;
-                        if (root.activeType === "inputMethod") return inputMethodContent;
-                        if (root.activeType === "keyboard") return keyboardContent;
-                        if (root.activeType === "session") return sessionContent;
-                        if (root.activeType === "xkb") return xkbContent;
-                        if (root.activeType === "tools") return toolsContent;
-                        return emptyContent;
+                    spacing: 0
+
+                    Loader {
+                        id: contentLoader
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        sourceComponent: {
+                            if (root.activeType === "wifi") return wifiContent;
+                            if (root.activeType === "bluetooth") return bluetoothContent;
+                            if (root.activeType === "audio") return audioContent;
+                            if (root.activeType === "display") return displayContent;
+                            if (root.activeType === "battery") return batteryContent;
+                            if (root.activeType === "notifications") return notificationsContent;
+                            if (root.activeType === "voice") return voiceContent;
+                            if (root.activeType === "inputMethod") return inputMethodContent;
+                            if (root.activeType === "keyboard") return keyboardContent;
+                            if (root.activeType === "session") return sessionContent;
+                            if (root.activeType === "xkb") return xkbContent;
+                            if (root.activeType === "tools") return toolsContent;
+                            return emptyContent;
+                        }
+                    }
+
+                    // Generic module popup sections — shown when their type matches root.activeType
+                    Repeater {
+                        model: ModuleLoader.popupSections
+                        delegate: Loader {
+                            required property var modelData
+                            active: root.activeType === modelData.type
+                            source: active ? modelData.component : ""
+                            Layout.fillWidth: true
+                            onStatusChanged: if (status === Loader.Error) {
+                                console.warn("[Module] Popup section load failed:", modelData.component)
+                                active = false
+                            }
+                        }
                     }
                 }
             }
@@ -1386,7 +1407,7 @@ Scope {
             readonly property MprisPlayer activePlayer: MprisController.activePlayer
             // The controller exposes only Playing or Paused sessions. Stopped
             // and destroyed sessions resolve to null and remove this strip.
-            readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.modulesEnabled
+            readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.isEnabled("mpris")
             readonly property bool hasTrackArt: showMediaControls && TrackArt.resolvedArtUrl.length > 0
             readonly property string trackTitle: {
                 const t = StringUtils.cleanMusicTitle(activePlayer?.trackTitle || "")
@@ -1701,21 +1722,7 @@ Scope {
                         color: TuiStyle.line
                         opacity: TuiStyle.dividerOpacity
                     }
-                }
 
-                // ── Module popup sections (audio type) ─────────────────
-                Repeater {
-                    model: ModuleLoader.popupSections
-                    delegate: Loader {
-                        required property var modelData
-                        active: root.activeType === modelData.type
-                        source: active ? modelData.component : ""
-                        Layout.fillWidth: true
-                        onStatusChanged: if (status === Loader.Error) {
-                            console.warn("[Module] Popup section load failed:", modelData.component)
-                            active = false
-                        }
-                    }
                 }
 
                 PopupSliderRow {

@@ -1,4 +1,3 @@
-import qs.modules.bar.modules
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -79,7 +78,7 @@ Item { // Bar content region
 
         // Left module registration slot — AppLauncher, ActiveWindow, and external modules
         Repeater {
-            model: ModuleLoader.leftBarModules
+            model: ModuleLoader.leftBarButtons
             delegate: Loader {
                 required property var modelData
                 source: modelData.component
@@ -133,63 +132,9 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
-            // --- 模块按钮（受 modules.enabled 总开关控制）---
-
-            SysTray {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            InputMethodButton {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            // --- 核心按钮（永远显示）---
-
-            AudioButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            WifiButton {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            // --- 模块按钮（受 modules.enabled 总开关控制）---
-
-            ClipboardButton {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            SessionButton {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            DisplayButton {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            ToolsButton {
-                Layout.alignment: Qt.AlignVCenter
-                visible: ModuleLoader.modulesEnabled
-            }
-
-            // --- 核心按钮（永远显示）---
-
-            ClockWidget {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            SidebarIndicators {
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            // 外部可插拔模块按钮（动态加载，也受总开关控制）
+            // 所有按钮通过 registry 动态加载
             Repeater {
-                model: ModuleLoader.barButtons
+                model: ModuleLoader.rightBarButtons
                 delegate: Loader {
                     required property var modelData
                     source: modelData.component
