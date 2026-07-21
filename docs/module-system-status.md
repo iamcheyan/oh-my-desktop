@@ -2,6 +2,7 @@
 
 > 日期：2026-07-21
 > 范围：Sumika Shell 插件/模块的行为逻辑与控制方式
+> 版本：module-split 分支 + 注册审计修复
 
 ---
 
@@ -10,20 +11,32 @@
 ```
 sumika.json (chezmoi 管理)
     │ modules.enabled: true/false
+    │ modules.disabled: ["module-id", ...]    ← per-module 禁用
     ▼
 ModuleLoader.qml (QML Singleton)
     ├── modulesEnabled          ← 读取 Config.options.modules.enabled
-    ├── leftBarModules          ← 左侧注册区（AppLauncher + ActiveWindow + ext slot:left）
-    ├── barButtons              ← 右侧动态模块按钮（来自注册表）
+    ├── isEnabled(moduleId)     ← 检查 modules.enabled + modules.disabled
+    ├── leftBarButtons          ← 左侧所有按钮（registry.barButtons, slot:left）
+    ├── rightBarButtons         ← 右侧所有按钮（registry.barButtons, slot:right）
+    ├── barButtons              ← @deprecated rightBarButtons 别名
     ├── popupSections           ← 动态弹窗 section（来自注册表）
     ├── settingsPages           ← 动态设置页（来自注册表）
-    └── isEnabled(moduleId)     ← 过滤函数
-        └── 当前实现：完全由 master switch 控制，无 per-module 开关
+    └── activeModuleIds         ← 已启用的模块 ID 列表
 
 quickshell/scripts/quickshell (启动脚本)
     ├── SUMIKA_MODULES_HOME → 扫描 module.json
     ├── 总是添加 QML_IMPORT_PATH + 创建 lock symlink
-    └── modules.enabled = true 时才生成注册表
+    ├── modules.enabled = true 时：
+    │   ├── 扫描外部模块 → 生成 popupSections/barButtons/settingsPages
+    │   ├── 扫描 builtin 清单 → 合并 barButtons (alwaysShow标记)
+    │   └── 原子写入 $XDG_RUNTIME_DIR/sumika-shell/modules.json
+    └── modules.enabled = false 时删除遗留注册表
+
+quickshell/registry/builtin/bar.json (内置清单)
+    └── 12 个核心按钮（AppLauncher, ActiveWindow, SysTray, Audio, Wifi,
+         InputMethod, Clipboard, Session, Display, Tools, Clock, SidebarIndicators）
+        ├── alwaysShow: true  → Audio, Wifi, Clock, SidebarIndicators, AppLauncher, ActiveWindow
+        └── alwaysShow: false → SysTray, InputMethod, Clipboard, Session, Display, Tools
 ```
 
 ### 控制链
@@ -31,8 +44,12 @@ quickshell/scripts/quickshell (启动脚本)
 ```
 chezmoi sumika.json
   └─ modules.enabled: false
-       ├─ ModuleLoader.modulesEnabled → false → 所有模块属性返回 []
-       ├─ 启动脚本不生成注册表 → /tmp/sumika-module-registry.json 不存在
+       ├─ ModuleLoader.modulesEnabled → false
+       │   ├─ leftBarButtons → 只返回 alwaysShow=true 的按钮
+       │   ├─ rightBarButtons → 只返回 alwaysShow=true 的按钮
+       │   ├─ popupSections → []（无模块提供）
+       │   └─ settingsPages → []（无模块提供）
+       ├─ 启动脚本不生成注册表 → 删除遗留注册表
        └─ 锁屏 Lock {} 组件仍然创建（核心 UI，不是可选插件）
 ```
 
@@ -41,18 +58,8 @@ chezmoi sumika.json
 ```qml
 property JsonObject modules: JsonObject {
     property bool enabled: true                          // 总开关
+    property list disabled: []                           // per-module 禁用列表
     property JsonObject barButtonOrder: JsonObject {}    // 预留：按钮排序
-}
-```
-
-当前 `sumika.json` 状态：
-
-```json
-{
-  "modules": {
-    "barButtonOrder": {},
-    "enabled": false
-  }
 }
 ```
 
@@ -65,116 +72,266 @@ property JsonObject modules: JsonObject {
 | 值 | 效果 |
 |---|---|
 | `true`（默认） | 所有模块功能可用，注册表生成，动态加载 |
-| `false` | 所有模块功能隐藏，注册表不生成 |
+| `false` | 无模块功能，仅内置 alwaysShow 按钮可见 |
 
 ### 影响范围
 
-**`modules.enabled: false` 时隐藏的内容：**
+**`modules.enabled: false` 时隐藏或不可用的内容：**
 
 | 组件 | 位置 | 控制机制 |
 |---|---|---|
-| AppLauncherButton | 左侧，Workspaces 右侧 | `ModuleLoader.leftBarModules` → 返回 `[]` |
-| ActiveWindow | 左侧，AppLauncher 右侧 | 同上 |
-| SysTray | 右侧按钮区 | `visible: ModuleLoader.modulesEnabled` |
+| SysTray | 右侧按钮区 | `alwaysShow: false` → 被过滤 |
 | InputMethodButton | 右侧按钮区 | 同上 |
 | ClipboardButton | 右侧按钮区 | 同上 |
 | SessionButton | 右侧按钮区 | 同上 |
 | DisplayButton | 右侧按钮区 | 同上 |
 | ToolsButton | 右侧按钮区 | 同上 |
-| 外部模块动态按钮 | 右侧 Repeater | `ModuleLoader.barButtons` → 返回 `[]` |
-| 外部模块动态弹窗 | BarStatusPopup Repeater | `ModuleLoader.popupSections` → 返回 `[]` |
-| 外部模块设置页 | SettingsDialog Repeater | `ModuleLoader.settingsPages` → 返回 `[]` |
+| 外部模块动态按钮 | 右侧 Repeater | `isEnabled()` → false |
+| 外部模块动态弹窗 | BarStatusPopup TuiShell Repeater | `isEnabled()` → false |
+| 外部模块设置页 | SettingsDialog Repeater | `isEnabled()` → false |
 | LOCK 按钮 | 电池弹窗 SESSION 区 | `visible: ModuleLoader.modulesEnabled` |
 
 **`modules.enabled: false` 时仍然存在的功能：**
 
 | 组件 | 原因 |
 |---|---|
-| AudioButton | 核心功能，永远显示 |
-| WifiButton | 核心功能，永远显示 |
-| ClockWidget | 核心功能，永远显示 |
-| SidebarIndicators | 核心功能，永远显示 |
+| AppLauncherButton | `alwaysShow: true` |
+| ActiveWindow | `alwaysShow: true` |
+| AudioButton | `alwaysShow: true` |
+| WifiButton | `alwaysShow: true` |
+| ClockWidget | `alwaysShow: true` |
+| SidebarIndicators | `alwaysShow: true` |
 | 通知弹窗 | 核心功能 |
 | 锁屏 Lock {} | 核心 UI 组件，不是可选插件 |
 | 锁屏扫描的 QML import | 启动脚本无条件添加模块目录和 symlink |
 
 ---
 
-## 三、左侧模块注册区（本次新增）
+## 三、Per-Module 禁用：`modules.disabled`
 
-`BarContent.qml` 的 `leftSectionRowLayout` 中 `Workspaces` 之后有一个 `Repeater`：
+### 配置方法
+
+```json
+{
+  "modules": {
+    "enabled": true,
+    "disabled": ["mpris", "systray"]
+  }
+}
+```
+
+### `ModuleLoader.isEnabled(moduleId)`
 
 ```qml
-Repeater {
-    model: ModuleLoader.leftBarModules
-    delegate: Loader {
-        source: modelData.component
-        // 动态加载
+function isEnabled(moduleId) {
+    if (!modulesEnabled) return false
+    const excluded = Config.options.modules?.exclude ?? []
+    if (Array.isArray(excluded) && excluded.indexOf(moduleId) >= 0) return false
+    return true
+}
+```
+
+### 效果
+
+| 情景 | showMediaControls | popupSections | 右侧按钮 |
+|---|---|---|---|
+| enabled:true, exclude:[] | false（模块提供） | 加载 mpris section | 全部显示 |
+| enabled:true, exclude:["mpris"] | true（内嵌回退） | 无 mpris section | 全部显示 |
+| enabled:false | true（内嵌回退） | [] | 仅 alwaysShow 按钮 |
+
+---
+
+## 四、按钮注册系统
+
+### 内置清单 (`quickshell/registry/builtin/bar.json`)
+
+所有核心按钮通过单一清单文件注册：
+
+| id | slot | alwaysShow | 文件 |
+|---|---|---|---|
+| appLauncher | left | true | `modules/bar/AppLauncherButton.qml` |
+| activeWindow | left | true | `modules/bar/ActiveWindow.qml` |
+| systray | right | false | `modules/bar/SysTray.qml` |
+| inputMethod | right | false | `modules/bar/modules/InputMethodButton.qml` |
+| audio | right | true | `modules/bar/modules/AudioButton.qml` |
+| wifi | right | true | `modules/bar/modules/WifiButton.qml` |
+| clipboard | right | false | `modules/bar/modules/ClipboardButton.qml` |
+| session | right | false | `modules/bar/modules/SessionButton.qml` |
+| display | right | false | `modules/bar/modules/DisplayButton.qml` |
+| tools | right | false | `modules/bar/modules/ToolsButton.qml` |
+| clock | right | true | `modules/bar/ClockWidget.qml` |
+| sidebarIndicators | right | true | `modules/bar/SidebarIndicators.qml` |
+
+### 右侧按钮加载逻辑 (`ModuleLoader._filterBarButtons`)
+
+```qml
+function _filterBarButtons(slot) {
+    const buttons = _registry.barButtons ?? []
+    const result = []
+    for (var i = 0; i < buttons.length; i++) {
+        var b = buttons[i]
+        if (b.slot !== slot) continue
+        // alwaysShow 按钮不受模块开关影响
+        if (b.alwaysShow) {
+            result.push(b)
+        } else if (loader.isEnabled(b.moduleId)) {
+            result.push(b)
+        }
+    }
+    result.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+    return result
+}
+```
+
+### 右侧按钮区现在改为纯 Repeater
+
+```qml
+RowLayout {
+    Repeater {
+        model: ModuleLoader.rightBarButtons
+        delegate: Loader {
+            source: modelData.component
+            active: true
+            Layout.alignment: Qt.AlignVCenter
+        }
     }
 }
 ```
 
-### 当前注册的两个内置模块
+**不再有硬编码的 SysTray/Audio/Wifi 等直接 import 和实例化。**
 
-`ModuleLoader.leftBarModules` 返回：
+### 顺序控制
 
-```js
-[
-    { component: Qt.resolvedUrl("../modules/bar/AppLauncherButton.qml"), id: "appLauncher", name: "Applications" },
-    { component: Qt.resolvedUrl("../modules/bar/ActiveWindow.qml"), id: "activeWindow", name: "Active Window" }
-]
-```
-
-### 外部模块左侧扩展
-
-外部 module.json 的 `barButtons` 中声明 `"slot": "left"` 的按钮会被附加到数组末尾。当前没有外部模块使用此 slot。
-
-### 顺序
-
-硬编码内置模块在前，外部 slot:left 在后。内置模块的相对顺序（AppLauncher → ActiveWindow）不可配置。
+按钮在清单中声明的 `order` 决定显示顺序。外部模块声明的 barButtons 也参与排序。
 
 ---
 
-## 四、右侧按钮区
+## 五、弹窗 Section 通用挂载点
 
-### 静态硬编码按钮（永远显示）
+### 结构变化
+
+原本 `popupSections` Repeater 硬编码在 `audioContent` Component 内部：
 
 ```
-[SysTray] [InputMethodButton] ← 只当 enabled 时 visible
-                                 ─── 分割线 ───
-[AudioButton] [WifiButton]     ← 永远显示
-                                 ─── 分割线 ───
-[ClipboardButton] [SessionButton] [DisplayButton] [ToolsButton] ← 只当 enabled 时 visible
-                                 ─── 分割线 ───
-[ClockWidget] [SidebarIndicators] ← 永远显示
-                                 ─── 分割线 ───
-<Repeater: ModuleLoader.barButtons> ← 外部模块动态加载
+TuiShell {
+    Loader { id: contentLoader }  ← 加载 audioContent/wifiContent 等
+    // （无 section 挂载点）
+}
+
+audioContent Component {
+    ColumnLayout {
+        ... header ...
+        Repeater { model: ModuleLoader.popupSections } ← 旧：只在音频弹窗
+        ... slider ...
+    }
+}
 ```
 
-### 行为的实际问题
+现在移至 `TuiShell` 内通用位置：
 
-这几个按钮（SysTray, InputMethodButton, ClipboardButton, SessionButton, DisplayButton, ToolsButton）当前只通过 `visible: ModuleLoader.modulesEnabled` 控制显隐，**没有 per-module 开关**。它们对应的功能服务（TrayService, InputMethod, Cliphist, Session, Display, KeyboardRemap 等）在 `modules.enabled: false` 时仍然在后台运行——只是按钮隐藏了。
+```
+TuiShell {
+    ColumnLayout {
+        Loader { id: contentLoader }
+        Repeater { model: ModuleLoader.popupSections }  ← 新：所有弹窗类型可见
+    }
+}
+```
 
-这是已知的设计 gap，后续需要：
-1. 给每个右侧按钮分配 moduleId
-2. ModuleLoader.isEnabled() 支持 per-module 配置
-3. 服务懒加载
+每个 popup section 通过 `root.activeType === modelData.type` 控制显隐，仅在匹配的弹窗类型中加载。
+
+### 内嵌媒体回退
+
+`showMediaControls` 现在由 `ModuleLoader.isEnabled("mpris")` 控制：
+
+```qml
+readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.isEnabled("mpris")
+```
+
+确保当 mpris 模块被禁用或全局模块关闭时，内嵌媒体控件自动显示。
 
 ---
 
-## 五、锁屏（特殊核心组件）
+## 六、设置页动态集成
+
+### SettingsDialog 变化
+
+`SettingsDialog.qml` 现在通过 `ModuleLoader.settingsPages` 合并动态设置页：
+
+```qml
+readonly property var pages: {
+    var ps = []
+    for (var i = 0; i < primaryPages.length; i++) ps.push(primaryPages[i])
+    var modPages = ModuleLoader.settingsPages
+    for (var j = 0; j < modPages.length; j++) {
+        var p = modPages[j]
+        if (p.id) {
+            ps.push({ key: p.id, icon: p.icon ?? "extension", title: p.title ?? p.id, ... })
+        }
+    }
+    return ps
+}
+```
+
+### 懒加载 Component
+
+模块设置页通过 `Qt.createComponent()` 懒加载，首次导航到该页时才创建 Component：
+
+```qml
+function _ensureModulePage(pageId) {
+    if (pageId in _modulePageComponents) return
+    var modPages = ModuleLoader.settingsPages
+    for (var i = 0; i < modPages.length; i++) {
+        var p = modPages[i]
+        if (p.id !== pageId && (!p.aliases || p.aliases.indexOf(pageId) < 0)) continue
+        var comp = Qt.createComponent(p.component)
+        if (comp.status === Component.Error) {
+            console.warn("[Settings] Failed to load module page:", p.id, comp.errorString())
+            return
+        }
+        _modulePageComponents[p.id] = comp
+        // 别名映射
+    }
+}
+```
+
+---
+
+## 七、注册表系统
+
+### 路径
+
+```
+旧: /tmp/sumika-module-registry.json
+新: $XDG_RUNTIME_DIR/sumika-shell/modules.json
+    → /run/user/1000/sumika-shell/modules.json
+```
+
+### 原子写入
+
+启动脚本使用 `mktemp` + `mv` 确保注册表不会被部分写入。
+
+### schemaVersion 校验
+
+每个注册表包含 `schemaVersion: 1`。ModuleLoader 验证版本，不匹配时打印警告但不阻止加载（向后兼容）。
+
+### 内置清单合并
+
+启动脚本在外部模块扫描之后合并 `quickshell/registry/builtin/` 下的 JSON 文件：
+
+```
+jq 合并：
+  .modules += [{ id, path, builtin: true }]
+  .barButtons += (capabilities.barButtons // [] | map({ +moduleId, component: file:// resolve }))
+```
+
+---
+
+## 八、锁屏（特殊核心组件）
 
 ### 为什么锁屏不服从 modules.enabled
 
-锁屏 (`Lock {}`) 在 `shell.qml` 中直接 import 和实例化：
-
-```qml
-import qs.modules.lock
-...
-Lock {}
-```
-
-它不经过 ModuleLoader，不受 `modules.enabled` 控制。原因：
+锁屏 (`Lock {}`) 在 `shell.qml` 中直接 import 和实例化，不经过 ModuleLoader，不受 `modules.enabled` 控制。原因：
 
 1. **锁屏是安全组件** — 如果禁用了，任何用户都能绕过锁屏
 2. **锁屏是 Quickshell 的 compositor 协议** — 使用 `ext-session-lock-v1` Wayland 协议，必须在 compositor 会话中存在
@@ -182,80 +339,15 @@ Lock {}
 
 ### 锁屏的控制方式
 
-锁屏通过 `Config.options.lock.*` 控制行为，不通过 `modules.enabled`：
-
-| 配置项 | 默认值 | 说明 |
-|---|---|---|
-| `lock.launchOnStartup` | `false` | 启动时是否立即锁屏 |
-| `lock.blur.enable` | `true` | 锁屏模糊效果 |
-| `lock.blur.radius` | `100` | 模糊半径 |
-| `lock.centerClock` | `true` | 居中时钟 |
-| `lock.showLockedText` | `true` | 显示"已锁定"文字 |
-| `lock.security.unlockKeyring` | `true` | 解锁时是否解锁 keyring |
-| `lock.security.requirePasswordToPower` | `false` | 关机/重启是否需要密码 |
-| `lock.materialShapeChars` | `true` | 材料设计锁屏字符形状 |
+锁屏通过 `Config.options.lock.*` 控制行为，不通过 `modules.enabled`。
 
 ### LOCK 按钮 vs 锁屏功能
 
-**电池弹窗里的 LOCK 按钮**（BarStatusPopup.qml:2268）受 `modules.enabled` 控制——它只是一个快捷操作入口。但锁屏功能本身（Lock.qml + LockService + LockSurface）始终存在，不受 modules.enabled 影响。
-
-这意味着：
-- `modules.enabled: false` → LOCK 按钮隐藏，但系统仍然会自动锁屏（idle timeout、suspend 前）
-- `modules.enabled: true` → LOCK 按钮可见，用户可手动触发锁屏
-
-### LockService 注册机制
-
-`Lock.qml` 通过 `LockService.register()` 在 Component.onCompleted 时注册锁屏回调：
-
-```qml
-Component.onCompleted: LockService.register(() => root.lock())
-Component.onDestruction: LockService.register(null)
-```
-
-`Session.lock()` 调用 `LockService.lock()`，优先调用已注册的 handler，否则直接设置 `GlobalStates.screenLocked = true`。
+电池弹窗里的 LOCK 按钮受 `modules.enabled` 控制——它只是一个快捷操作入口。但锁屏功能本身始终存在。
 
 ---
 
-## 六、外部模块系统（sumika-modules）
-
-### 发现机制
-
-启动脚本 `quickshell/scripts/quickshell` 扫描 `~/development/sumika-modules/*/module.json`：
-
-1. 无条件：添加每个模块目录到 `QML_IMPORT_PATH`
-2. 无条件：为 `lock` 等核心模块创建 `quickshell/modules/<name>` symlink（用于 scanner 解析）
-3. 有条件（`modules.enabled = true`）：生成注册表 `/tmp/sumika-module-registry.json`
-
-### 注册表结构
-
-```json
-{
-  "modules": [
-    { "id": "battery-power", "path": "/home/tetsuya/development/sumika-modules/battery-power" }
-  ],
-  "barButtons": [],
-  "popupSections": [
-    { "type": "battery", "component": "file://.../BatteryPopup.qml", "moduleId": "battery-power" }
-  ],
-  "settingsPages": [
-    { "id": "power", "title": "Power & Battery", "component": "file://.../PowerPage.qml", "moduleId": "battery-power" }
-  ]
-}
-```
-
-### ModuleLoader 消费
-
-ModuleLoader 的 Process 异步读取注册表 JSON，解析后暴露给 Repeater：
-
-| 属性 | 来源 | 消费方 |
-|---|---|---|
-| `barButtons` | registry.barButtons | BarContent.qml 右侧 Repeater |
-| `leftBarModules` | registry.barButtons (slot: left) + 内置 | BarContent.qml 左侧 Repeater |
-| `popupSections` | registry.popupSections | BarStatusPopup.qml 弹窗 Repeater |
-| `settingsPages` | registry.settingsPages | SettingsDialog.qml 导航 Repeater |
-| `activeModuleIds` | registry.modules | ModulesPage.qml 设置页 |
-
-### 所有外部模块清单
+## 九、外部模块清单
 
 | 模块 ID | 弹窗(s) | 设置页 | 服务 | 备注 |
 |---|---|---|---|---|
@@ -267,7 +359,7 @@ ModuleLoader 的 Process 异步读取注册表 JSON，解析后暴露给 Repeate
 | input-method | inputMethod | — | InputMethod | 按钮在核心 |
 | keyboard-remap | keyboard | Keyboard Remap | KeyboardRemap | 按钮在核心 |
 | lock | — | — | — | 特殊：直接 import，不受 modules.enabled 控制 |
-| mpris | audio | — | MprisController, TrackArt | 弹窗已提取到模块；modules.enabled:false 时回退到内嵌版本 |
+| mpris | audio | — | MprisController, TrackArt | 弹窗已提取到模块；isEnabled("mpris")=false 时回退到内嵌版本 |
 | ocr | ocr | OCR 识别 | — | |
 | screenshot | — | — | — | bin 在核心 |
 | session | session | — | Session | 按钮在核心 |
@@ -278,88 +370,57 @@ ModuleLoader 的 Process 异步读取注册表 JSON，解析后暴露给 Repeate
 
 ---
 
-## 七、控制方式总结
+## 十、控制方式总结
 
-### 通过 chezmoi 配置（`~/.config/sumika-shell/sumika.json`）
+### 配置
 
-```json
-{
-  "modules": {
-    "enabled": false          // ← 一键关闭所有模块功能
-  },
-  "lock": {                   // ← 锁屏行为配置（独立于 modules）
-    "launchOnStartup": false,
-    "centerClock": true
-  }
-}
-```
+| 配置 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `modules.enabled` | boolean | `true` | 主开关 |
+| `modules.disabled` | string[] | `[]` | 禁用的模块 ID 列表 |
+| `modules.barButtonOrder` | object | `{}` | 预留：按钮排序 |
 
 ### 修改方法
 
 ```sh
-# 编辑配置
 chezmoi edit ~/.config/sumika-shell/sumika.json
-# 修改 modules.enabled → true/false
-# 然后
-chezmoi apply
+# 修改 modules.enabled / modules.disabled
+chezmoi apply --force
 omd-restart
+```
+
+### 查看状态
+
+```sh
+omd-modules list
+# MODULE                STATUS     FILES  CAPABILITIES
+# ──────                ──────     ─────  ───────────
+# mpris                 enabled    14     popup(1)
+# battery-power         enabled    22     popup(1) settings(1)
+# clipboard             disabled   8      —
 ```
 
 ### 效果速查表
 
-| 场景 | modules.enabled: false | modules.enabled: true |
-|---|---|---|
-| AppLauncher 按钮 | 隐藏 | 显示 |
-| ActiveWindow 标题 | 隐藏 | 显示 |
-| 右侧模块按钮 | 全部隐藏 | 全部显示（受 per-module 控制） |
-| 外部模块弹窗 | 不可用（回退到核心内嵌版本） | 可用（模块版本替代内嵌版本） |
-| 设置页模块导航 | 不可用 | 可用 |
-| LOCK 快捷按钮（电池弹窗） | 隐藏 | 显示 |
-| 自动锁屏（idle/suspend） | 正常工作 | 正常工作 |
-| 锁屏功能 | 完整可用 | 完整可用 |
-| Audio/WiFi/时钟 | 正常 | 正常 |
+| 场景 | modules.enabled: false | modules.enabled: true, exclude:[] | modules.enabled: true, exclude:["mpris"] |
+|---|---|---|---|
+| AppLauncher / ActiveWindow | 显示（alwaysShow） | 显示 | 显示 |
+| Audio / WiFi / Clock / Sidebar | 显示（alwaysShow） | 显示 | 显示 |
+| 右侧模块按钮 | 全部隐藏 | 全部显示 | 全部显示 |
+| mpris 媒体弹窗 | 无（内嵌回退） | 模块提供 | 无（内嵌回退） |
+| 其他外部模块弹窗 | 不可用 | 可用 | 可用 |
+| 设置页模块导航 | 不可用 | 可用 | 可用 |
+| LOCK 快捷按钮 | 隐藏 | 显示 | 显示 |
+| 自动锁屏（idle/suspend） | 正常工作 | 正常工作 | 正常工作 |
+| 锁屏功能 | 完整可用 | 完整可用 | 完整可用 |
 
 ---
 
-## 八、后续改进方向
+## 十一、后续改进方向
 
-1. **Per-module 开关** — `isEnabled(moduleId)` 目前只检查 master switch，未检查 per-module 配置
-2. **右侧按钮模块化** — 6 个硬编码右侧按钮（SysTray, InputMethod, Clipboard, Session, Display, Tools）应该迁移到外部模块，通过 module.json 的 barButtons 注册
-3. **服务懒加载** — 模块禁用时应停止对应服务，不只是隐藏按钮
-4. **barButtonOrder 实现** — 配置中存在但未使用的排序功能
-5. **lock 模块移动到 modules.enabled 控制** — 允许当 `modules.enabled: false` 时也隐藏锁屏功能（当前保留为安全设计，需要讨论后再改）
-
-
-## 九、MPRIS 媒体控制模块提取
-
-### 提取方案
-
-媒体播放控制（专辑封面、曲目标题、播放/暂停/上一首/下一首）已从 `BarStatusPopup.qml` 的 `audioContent` 内嵌实现提取到外部模块 `sumika-modules/mpris/popup/MprisPopup.qml`。
-
-### 模块注册
-
-`mpris/module.json` 中的 `popupSections` 注册 `"type": "audio"`，表示此弹窗段附加在音频弹窗内。
-
-### 双状态切换
-
-| modules.enabled | 媒体控制来源 |
-|---|---|
-| `true` | `MprisPopup.qml`（通过 ModuleLoader.popupSections Repeater 动态加载） |
-| `false` | 内嵌在 `BarStatusPopup.qml` 的 `audioContent`（`showMediaControls` 属性通过 `&& !ModuleLoader.modulesEnabled` 回退） |
-
-### 机制
-
-`BarStatusPopup.qml` 的 `audioContent` 中插入了 `Repeater` 以加载 `ModuleLoader.popupSections`：
-
-```qml
-Repeater {
-    model: ModuleLoader.popupSections
-    delegate: Loader {
-        required property var modelData
-        active: root.activeType === modelData.type
-        source: active ? modelData.component : ""
-    }
-}
-```
-
-当模块版本启用时，内嵌版本的 `showMediaControls` 被设为 `false` 以隐藏内嵌 UI。这是第一个使用此机制的模块弹窗。
+1. **服务懒加载** — 模块禁用时应停止对应服务，不只是隐藏 UI
+2. **barButtonOrder 实现** — 配置中存在但未使用的排序功能
+3. **lock 模块迁移** — 允许 lock 模块通过 modules.enabled 控制（需要安全设计讨论）
+4. **注册表热重载** — 模块动态启用/禁用时无需 omd-restart
+5. **ModulesPage 实时性** — 设置页中添加/移除模块后即时反映，无需重启
+6. **内置按钮迁移到外部模块** — 逐步将 builtin 按钮转换为自包含的外部模块（含服务迁移）
