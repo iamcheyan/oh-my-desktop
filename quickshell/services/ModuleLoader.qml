@@ -33,7 +33,12 @@ Singleton {
 
 
     function _filterBarButtons(slot) {
-        const buttons = _registry.barButtons ?? []
+        var buttons = _registry.barButtons ?? []
+        // Fallback: if registry has no buttons, use builtin fallback list
+        if (buttons.length === 0) {
+            console.log("[ModuleLoader] Registry has no barButtons — using builtin fallback")
+            buttons = loader._builtinFallback
+        }
         const result = []
         for (var i = 0; i < buttons.length; i++) {
             var b = buttons[i]
@@ -105,6 +110,23 @@ Singleton {
         return { schemaVersion: 0, modules: [], barButtons: [], popupSections: [], settingsPages: [] }
     }
 
+    /**
+     * Builtin fallback buttons — used when the registry file is missing,
+     * corrupt, or otherwise fails to load. This ensures the bar never goes
+     * completely empty even without a startup-generated registry.
+     * Mirrors the shell script's fallback registry.
+     */
+    readonly property var _builtinFallback: [
+        // Left slot — alwaysShow core items
+        {id: "appLauncher", slot: "left", component: Qt.resolvedUrl("../modules/bar/AppLauncherButton.qml"), order: 0, alwaysShow: true, moduleId: "builtin"},
+        {id: "activeWindow", slot: "left", component: Qt.resolvedUrl("../modules/bar/ActiveWindow.qml"), order: 10, alwaysShow: true, moduleId: "builtin"},
+        // Right slot — alwaysShow core items
+        {id: "audio", slot: "right", component: Qt.resolvedUrl("../modules/bar/modules/AudioButton.qml"), order: 20, alwaysShow: true, moduleId: "builtin"},
+        {id: "wifi", slot: "right", component: Qt.resolvedUrl("../modules/bar/modules/WifiButton.qml"), order: 30, alwaysShow: true, moduleId: "builtin"},
+        {id: "clock", slot: "right", component: Qt.resolvedUrl("../modules/bar/ClockWidget.qml"), order: 80, alwaysShow: true, moduleId: "builtin"},
+        {id: "sidebarIndicators", slot: "right", component: Qt.resolvedUrl("../modules/bar/SidebarIndicators.qml"), order: 90, alwaysShow: true, moduleId: "builtin"}
+    ]
+
     // Read registry JSON via cat (Quickshell has no readFile API).
     Process {
         id: registryReader
@@ -120,9 +142,8 @@ Singleton {
                             console.warn("[ModuleLoader] Registry schemaVersion mismatch: got", parsed.schemaVersion, "expected 1")
                         }
                         loader._registry = parsed
-                        // Safety check: warn if registry has no buttons
                         if (!parsed.barButtons || parsed.barButtons.length === 0) {
-                            console.warn("[ModuleLoader] Registry has no barButtons — bar will be empty")
+                            console.log("[ModuleLoader] Registry has no barButtons — will use builtin fallback")
                         }
                         console.log("[ModuleLoader] Loaded registry:", JSON.stringify({
                             schemaVersion: parsed.schemaVersion,

@@ -29,7 +29,7 @@
         "component": "modules/bar/SysTray.qml",
         "order": 0,
         "alwaysShow": false,
-        "moduleId": "builtin"
+        "moduleId": "systray"
       },
       {
         "id": "inputMethod",
@@ -38,7 +38,7 @@
         "component": "modules/bar/modules/InputMethodButton.qml",
         "order": 10,
         "alwaysShow": false,
-        "moduleId": "builtin"
+        "moduleId": "input-method"
       },
       {
         "id": "audio",
@@ -65,7 +65,7 @@
         "component": "modules/bar/modules/ClipboardButton.qml",
         "order": 40,
         "alwaysShow": false,
-        "moduleId": "builtin"
+        "moduleId": "clipboard"
       },
       {
         "id": "session",
@@ -74,7 +74,7 @@
         "component": "modules/bar/modules/SessionButton.qml",
         "order": 50,
         "alwaysShow": false,
-        "moduleId": "builtin"
+        "moduleId": "session"
       },
       {
         "id": "display",
@@ -83,7 +83,7 @@
         "component": "modules/bar/modules/DisplayButton.qml",
         "order": 60,
         "alwaysShow": false,
-        "moduleId": "builtin"
+        "moduleId": "display"
       },
       {
         "id": "tools",

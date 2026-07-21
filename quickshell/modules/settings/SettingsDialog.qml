@@ -148,16 +148,18 @@ WindowDialog {
     }
 
     function pageComponent(page) {
+        // Pure core pages — always use built-in component
         if (page === "network") return networkPage;
         if (page === "bluetooth") return bluetoothPage;
-        if (page === "display") return migratedDisplayPage;
-        if (page === "keyremap") return keyremapPage;
         if (page === "appearance") return appearancePageComponent;
-        if (page === "power") return powerPageComponent;
         if (page === "system") return systemPageComponent;
-        // Fall back to module page component
+        // Module-managed pages take priority over core fallbacks
         _ensureModulePage(page)
         if (page in _modulePageComponents) return _modulePageComponents[page]
+        // Core fallback for pages that modules CAN provide
+        if (page === "display") return migratedDisplayPage;
+        if (page === "keyremap") return keyremapPage;
+        if (page === "power") return powerPageComponent;
         return overviewPageComponent;
     }
 
