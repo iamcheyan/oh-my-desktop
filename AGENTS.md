@@ -47,8 +47,7 @@ cd ~/development/OMD && ./Init.sh
 ## Runtime
 
 - **Hyprland**: `hypr/hyprland.lua` loads `hypr/default/` then `hypr/*.lua`.
-- **Autostart**: `hypr/autostart.lua` → `omd-restart` → Quickshell 4 app processes (bar, overview, applauncher, clipboard).
-- **Quickshell config**: user override at `~/.config/sumika-shell/quickshell/config.json`, baseline at `defaults/config/quickshell/config.json`.
+* **Quickshell config**: user override at `~/.config/sumika-shell/sumika.json` (unified config via sumika.json), baseline at `defaults/config/quickshell/config.json`.
 - **Themes**: `share/bin/omarchy-theme-*` → snapshot to `~/.local/state/sumika-shell/theme/current/`.
 - **Wallpaper**: `swaybg` via autostart; `bin/omd-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
 - **Terminal themes**: `~/.local/state/sumika-shell/theme/current/{foot,kitty,alacritty,ghostty}.*` — include from chezmoi-managed terminal configs.

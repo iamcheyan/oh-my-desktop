@@ -166,7 +166,7 @@ fast_capture() {
 
     save_dir=""
     _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-    _cfg_file="$_sumika_cfg/quickshell/config.json"
+    _cfg_file="$_sumika_cfg/sumika.json"
     [ -f "$_cfg_file" ] || _cfg_file="$HOME/.config/quickshell/config.json"
     if command -v jq >/dev/null 2>&1 && [ -r "$_cfg_file" ]; then
         save_dir="$(jq -r '.screenSnip.savePath // empty' "$_cfg_file" 2>/dev/null || true)"

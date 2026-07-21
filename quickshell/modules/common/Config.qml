@@ -7,7 +7,7 @@ import qs.modules.common.functions
 
 Singleton {
     id: root
-    property string filePath: Directories.shellConfigPath
+    property string filePath: Directories.sumikaConfigPath
     property alias options: configOptionsJsonAdapter
     property bool ready: false
     property int readWriteDelay: 50 // milliseconds
@@ -192,12 +192,12 @@ Singleton {
             }
 
             property JsonObject inputMethod: JsonObject {
-                property bool enabled: false
-                property string backend: "auto" // "auto" | "fcitx5" | "ibus" | "none"
-                property bool autostart: false
+                property bool enabled: true
+                property string backend: "fcitx5"
+                property bool autostart: true
                 property string switchKey: "SUPER + SPACE"
                 property string switchSchemaKey: "SUPER + SHIFT + SPACE"
-                property string schemasFile: "input-method/schemas.json"
+                property list<var> schemas: []
             }
 
             property JsonObject language: JsonObject {
@@ -352,12 +352,72 @@ Singleton {
                 property bool centerTitle: true
             }
             property JsonObject modules: JsonObject {
+                property bool enabled: true
                 property list<string> disabled: []
                 property JsonObject barButtonOrder: JsonObject {}
             }
 
             property JsonObject hacks: JsonObject {
                 property int arbitraryRaceConditionDelay: 20 // milliseconds
+            }
+
+            property JsonObject cursor: JsonObject {
+                property string theme: "Adwaita"
+                property int size: 24
+            }
+
+            property JsonObject gestures: JsonObject {
+                property string fourFingerUp: "overview"
+                property string fourFingerPinchIn: "launcher"
+                property string fourFingerDown: ""
+                property string fourFingerLeft: ""
+                property string fourFingerRight: ""
+                property string threeFingerHorizontal: ""
+            }
+
+            property JsonObject input: JsonObject {
+                property JsonObject keyboard: JsonObject {
+                    property string kbLayout: "jp"
+                    property string kbVariant: ""
+                    property string kbOptions: "compose:caps"
+                    property bool numlockByDefault: true
+                    property int repeatRate: 40
+                    property int repeatDelay: 250
+                }
+                property JsonObject touchpad: JsonObject {
+                    property bool tapToClick: true
+                    property string tapButtonMap: "lrm"
+                    property bool clickfingerBehavior: true
+                    property real scrollFactor: 0.4
+                    property bool naturalScroll: false
+                    property bool disableWhileTyping: false
+                }
+            }
+
+            property JsonObject keyboardRemap: JsonObject {
+                property var devices: ({})
+            }
+
+            property JsonObject ocr: JsonObject {
+                property string lang: "ch"
+                property string engine: "onnxruntime"
+            }
+
+            property JsonObject backup: JsonObject {
+                property string address: ""
+                property string share: ""
+                property string user: ""
+                property string remotePath: ""
+                property list<string> localPaths: []
+                property string includeExt: ""
+                property string excludeExt: ""
+                property string scheduleType: "manual"
+                property string scheduleValue: ""
+            }
+
+            property JsonObject system: JsonObject {
+                property list<string> startupAutoCommands: []
+                property bool waybarOff: false
             }
         }
     }

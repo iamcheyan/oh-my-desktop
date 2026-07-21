@@ -37,56 +37,66 @@ export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
 
-# ── Module system: scan sumika-modules/ for external modules ──
 SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
-    # Read disabled list from config.json
+    # Read config from unified sumika.json
     sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-    user_config_file="$sumika_config/quickshell/config.json"
-    [ -f "$user_config_file" ] || user_config_file="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/config.json"
+    config_file="$sumika_config/sumika.json"
 
-    disabled_modules=""
-    if command -v jq >/dev/null 2>&1 && [ -f "$user_config_file" ]; then
-        disabled_modules=$(jq -r '.modules.disabled // [] | join(",")' "$user_config_file" 2>/dev/null || true)
+    # Master switch: skip all module loading if modules.enabled is false
+    modules_enabled=true
+    if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
+        modules_enabled=$(jq -r '.modules.enabled // true' "$config_file" 2>/dev/null || true)
     fi
+    if [ "$modules_enabled" = "false" ]; then
+        echo "[sumika] modules disabled via sumika.json"
+    else
+        unset modules_enabled
 
-    # Build registry
-    registry_file="/tmp/sumika-module-registry.json"
-    registry='{"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
-
-    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
-        [ -f "$module_json" ] || continue
-        module_dir=$(dirname "$module_json")
-        module_id=$(basename "$module_dir")
-
-        # Skip disabled modules
-        if echo ",$disabled_modules," | grep -q ",$module_id,"; then
-            continue
+        # Read disabled module list from sumika.json
+        disabled_modules=""
+        if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
+            disabled_modules=$(jq -r '.modules.disabled // [] | join(",")' "$config_file" 2>/dev/null || true)
         fi
 
-        # Add to QML import path and PATH
-        export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
-        if [ -d "$module_dir/bin" ]; then
-            export PATH="$module_dir/bin:$PATH"
-        fi
+        # Build registry
+        registry_file="/tmp/sumika-module-registry.json"
+        registry='{"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
 
-        # Merge into registry (use jq if available, fall back to python)
-        if command -v jq >/dev/null 2>&1; then
-            # Add module entry and merge capabilities
-            tmp_reg=$(mktemp)
-            echo "$registry" > "$tmp_reg"
-            registry=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
-                '.modules += [{"id": $mod[0].id, "path": $mdir}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
-                "$tmp_reg" 2>&1 || echo "$registry")
-            rm -f "$tmp_reg"
-        fi
-    done
+        for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+            [ -f "$module_json" ] || continue
+            module_dir=$(dirname "$module_json")
+            module_id=$(basename "$module_dir")
 
-    echo "$registry" > "$registry_file"
-    export SUMIKA_MODULE_REGISTRY="$registry_file"
+            # Skip disabled modules
+            if echo ",$disabled_modules," | grep -q ",$module_id,"; then
+                continue
+            fi
+
+            # Add to QML import path and PATH
+            export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
+            if [ -d "$module_dir/bin" ]; then
+                export PATH="$module_dir/bin:$PATH"
+            fi
+
+            # Merge into registry (use jq if available, fall back to python)
+            if command -v jq >/dev/null 2>&1; then
+                # Add module entry and merge capabilities
+                tmp_reg=$(mktemp)
+                echo "$registry" > "$tmp_reg"
+                registry=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
+                    '.modules += [{"id": $mod[0].id, "path": $mdir}] |
+                     .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                     .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                     .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                    "$tmp_reg" 2>&1 || echo "$registry")
+                rm -f "$tmp_reg"
+            fi
+        done
+
+        echo "$registry" > "$registry_file"
+        export SUMIKA_MODULE_REGISTRY="$registry_file"
+    fi
 fi
 repair_config_json() {
     # User config path (new Sumika Shell location)

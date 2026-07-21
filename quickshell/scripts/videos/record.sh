@@ -3,7 +3,7 @@
 # Sumika Shell config path with legacy fallback
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 CONFIG_FILE="$_sumika_cfg/quickshell/config.json"
-[ -f "$CONFIG_FILE" ] || CONFIG_FILE="$HOME/.config/quickshell/config.json"
+[ -f "$CONFIG_FILE" ] || CONFIG_FILE="$HOME/.config/sumika-shell/sumika.json"
 JSON_PATH=".screenRecord.savePath"
 
 CUSTOM_PATH=$(jq -r "$JSON_PATH" "$CONFIG_FILE" 2>/dev/null)

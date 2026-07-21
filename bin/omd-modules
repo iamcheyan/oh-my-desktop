@@ -20,7 +20,7 @@ set -euo pipefail
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 SUMIKA_CONFIG="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-CONFIG_FILE="$SUMIKA_CONFIG/quickshell/config.json"
+CONFIG_FILE="$SUMIKA_CONFIG/sumika.json"
 
 # ── Helpers ──
 
@@ -28,6 +28,17 @@ modules_dir() { echo "$SUMIKA_MODULES_HOME"; }
 
 config_disabled_list() {
     if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null 2>&1; then
+        # If modules.enabled is false, all modules are disabled
+        local enabled
+        enabled=$(jq -r '.modules.enabled // true' "$CONFIG_FILE" 2>/dev/null || true)
+        if [ "$enabled" = "false" ]; then
+            # List everything under sumika-modules as disabled
+            for m in "$SUMIKA_MODULES_HOME"/*/; do
+                [ -d "$m" ] || continue
+                basename "$m"
+            done
+            return
+        fi
         jq -r '.modules.disabled // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
     fi
 }
@@ -317,7 +328,7 @@ Commands:
   help              Show this help
 
 Module directory: ~/development/sumika-modules/
-Config file: ~/.config/sumika-shell/quickshell/config.json
+Config file: ~/.config/sumika-shell/sumika.json
 EOF
 }
 

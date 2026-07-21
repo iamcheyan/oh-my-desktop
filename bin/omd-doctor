@@ -76,13 +76,12 @@ section() {
 }
 
 section "runtime symlinks"
-# ~/.config/sumika-shell is a real config directory managed by chezmoi, not a
-# repo symlink. Check it exists and has at least one managed config file.
+# ~/.config/sumika-shell is a real config directory managed by chezmoi
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-if [[ -d "$_sumika_cfg" && -f "$_sumika_cfg/quickshell/config.json" ]]; then
-  ok "$_sumika_cfg (real config dir)"
+if [[ -d "$_sumika_cfg" && -f "$_sumika_cfg/sumika.json" ]]; then
+  ok "$_sumika_cfg (real config dir, sumika.json present)"
 else
-  fail "$_sumika_cfg is missing or incomplete"
+  fail "$_sumika_cfg is missing or incomplete (sumika.json not found)"
 fi
 check_link "$HOME/.config/omd" "$repo"
 section "terminal configs"
@@ -198,7 +197,7 @@ fi
 
 section "wallpaper"
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-_cfg_file="$_sumika_cfg/quickshell/config.json"
+_cfg_file="$_sumika_cfg/sumika.json"
 [ -f "$_cfg_file" ] || _cfg_file="$repo/quickshell/config.json"
 wallpaper="$(jq -r '.background.wallpaperPath // ""' "$_cfg_file" 2>/dev/null || true)"
 if [[ -n "$wallpaper" ]]; then
@@ -260,10 +259,15 @@ check_modules() {
         warn "Module registry missing — run omd-restart"
     fi
     # Check disabled count
-    if command -v jq >/dev/null 2>&1 && [ -f "$CONFIG_FILE" ]; then
+    local sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+    local cfg_file="$sumika_cfg/sumika.json"
+    if command -v jq >/dev/null 2>&1 && [ -f "$cfg_file" ]; then
         local disabled
-        disabled=$(jq -r '.modules.disabled // [] | length' "$CONFIG_FILE" 2>/dev/null || echo 0)
+        disabled=$(jq -r '.modules.disabled // [] | length' "$cfg_file" 2>/dev/null || echo 0)
         [ "$disabled" -gt 0 ] && info "  $disabled module(s) disabled in config"
+        local enabled
+        enabled=$(jq -r '.modules.enabled // true' "$cfg_file" 2>/dev/null || true)
+        [ "$enabled" = "false" ] && info "  All modules disabled via modules.enabled=false"
     fi
 }
 check_modules

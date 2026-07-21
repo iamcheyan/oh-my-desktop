@@ -197,10 +197,19 @@ _cfg_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or os.path.join(
 _ocr_lang = 'ch'
 _ocr_engine = 'onnxruntime'
 try:
-    with open(os.path.join(_cfg_home, 'ocr.json')) as _f:
-        _cfg = json.load(_f)
-    _ocr_lang = _cfg.get('lang', _ocr_lang)
-    _ocr_engine = _cfg.get('engine', _ocr_engine)
+    # Read from sumika.json first
+    with open(os.path.join(_cfg_home, 'sumika.json')) as _f:
+        _cfg_data = json.load(_f)
+    _ocr_cfg = _cfg_data.get('ocr', {})
+    if _ocr_cfg:
+        _ocr_lang = _ocr_cfg.get('lang', _ocr_lang)
+        _ocr_engine = _ocr_cfg.get('engine', _ocr_engine)
+    else:
+        # Fallback: old ocr.json
+        with open(os.path.join(_cfg_home, 'ocr.json')) as _f2:
+            _cfg2 = json.load(_f2)
+        _ocr_lang = _cfg2.get('lang', _ocr_lang)
+        _ocr_engine = _cfg2.get('engine', _ocr_engine)
 except (FileNotFoundError, json.JSONDecodeError):
     pass
 

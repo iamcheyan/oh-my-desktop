@@ -1,5 +1,6 @@
 // ModulesPage — Module management settings page.
 // Shows installed modules with enable/disable toggles.
+// Respects modules.enabled master switch from sumika.json.
 
 import qs.modules.common
 import qs.modules.common.widgets
@@ -17,19 +18,33 @@ PageBody {
 
     readonly property var modules: ModuleLoader._registry.modules ?? []
 
+    // Master switch from config
+    readonly property bool masterEnabled: Config.options.modules?.enabled !== false
+
+    function setMasterEnabled(enabled) {
+        Config.setNestedValue("modules.enabled", enabled)
+    }
+
     function toggleModule(id) {
+        // If master switch is off, turning on any module enables the master switch first
+        if (!masterEnabled) {
+            const currentDisabled = Config.options.modules?.disabled ?? []
+            const newDisabled = currentDisabled.filter(m => m !== id)
+            Config.setNestedValue("modules.disabled", newDisabled)
+            Config.setNestedValue("modules.enabled", true)
+            return
+        }
         const disabled = Config.options.modules?.disabled ?? []
         const isDisabled = disabled.includes(id)
         if (isDisabled) {
-            // Enable: remove from disabled list
             const newList = disabled.filter(m => m !== id)
             Config.setNestedValue("modules.disabled", newList)
         } else {
-            // Disable: add to disabled list
             const newList = [...disabled, id]
             Config.setNestedValue("modules.disabled", newList)
         }
     }
+
 
     ColumnLayout {
         Layout.fillWidth: true
@@ -39,8 +54,19 @@ PageBody {
             Layout.fillWidth: true
             icon: NerdIconMap.extension
             title: "Modules"
-            subtitle: `${modules.length} installed · ${(Config.options.modules?.disabled ?? []).length} disabled`
+            subtitle: `${modules.length} installed · ${(Config.options.modules?.disabled ?? []).length} disabled${masterEnabled ? "" : " · ALL DISABLED"}`
         }
+
+        // Master switch
+        SettingsToggleRow {
+            Layout.fillWidth: true
+            label: "Enable modules"
+            description: "Master switch — when off, all modules are disabled"
+            checked: page.masterEnabled
+            onToggled: page.setMasterEnabled(!page.masterEnabled)
+        }
+
+        SettingsSectionDivider {}
 
         Repeater {
             model: page.modules

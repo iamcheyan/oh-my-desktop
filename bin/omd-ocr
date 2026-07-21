@@ -21,9 +21,21 @@ def _ocr_config():
     cfg_home = os.environ.get("SUMIKA_SHELL_CONFIG_HOME") or os.path.join(
         os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "sumika-shell"
     )
-    cfg_path = os.path.join(cfg_home, "ocr.json")
+    # Read from sumika.json first
+    sumika_path = os.path.join(cfg_home, "sumika.json")
+    if os.path.isfile(sumika_path):
+        try:
+            with open(sumika_path) as f:
+                data = json.load(f)
+            ocr_cfg = data.get("ocr", {})
+            if ocr_cfg:
+                return ocr_cfg.get("lang", "ch"), ocr_cfg.get("engine", "onnxruntime")
+        except (json.JSONDecodeError, IOError):
+            pass
+    # Fallback: old ocr.json
+    old_path = os.path.join(cfg_home, "ocr.json")
     try:
-        with open(cfg_path) as f:
+        with open(old_path) as f:
             cfg = json.load(f)
         return cfg.get("lang", "ch"), cfg.get("engine", "onnxruntime")
     except (FileNotFoundError, json.JSONDecodeError):

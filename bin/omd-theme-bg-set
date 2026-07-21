@@ -34,8 +34,8 @@ ln -nsf "wallpaper" "$current_background"
 # runtime revision so long-running Quickshell processes invalidate their cache.
 date +%s%N >"$wp_dir/revision"
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-sumika_config_file="$_sumika_cfg/quickshell/config.json"
-# Legacy fallback: use old path if new doesn't exist yet (Phase 7: remove)
+sumika_config_file="$_sumika_cfg/sumika.json"
+# Legacy fallback: use old path if new doesn't exist yet
 [ -f "$sumika_config_file" ] || sumika_config_file="$HOME/.config/quickshell/config.json"
 quickshell_config="$sumika_config_file"
 if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then

@@ -19,13 +19,18 @@ Singleton {
     // Raw registry data — populated by registryReader Process.
     property var _registry: _emptyRegistry()
 
+    // Master switch — if false, all modules are disabled.
+    readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
+
     // User-config disabled modules.
     readonly property var disabled: {
+        if (!modulesEnabled) return []
         const list = Config.options.modules?.disabled ?? []
         return Array.isArray(list) ? list : []
     }
 
     function isEnabled(moduleId) {
+        if (!modulesEnabled) return false
         return !disabled.includes(moduleId)
     }
 

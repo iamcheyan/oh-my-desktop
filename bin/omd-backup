@@ -54,13 +54,19 @@ cmd="${1:-}"; shift || true
 # ── helpers ────────────────────────────────────────────────────────────
 
 load_config() {
-  if [[ -f "$CONFIG_FILE" ]]; then
-    cat "$CONFIG_FILE"
-  elif [[ -f "$_LEGACY_CONFIG_DIR/config.json" ]]; then
-    cat "$_LEGACY_CONFIG_DIR/config.json"
-  else
-    echo '{"address":"","share":"","user":"","password":"","remotePath":"","localPath":"","includeExt":"","excludeExt":"","scheduleType":"manual","scheduleValue":""}'
+  # Read from sumika.json first, then overlay old config.json
+  local sumika_json="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json"
+  local merged="{}"
+  if [[ -f "$sumika_json" ]] && command -v jq >/dev/null 2>&1; then
+    merged=$(jq '.backup | {address,share,user,remotePath,localPaths,includeExt,excludeExt,scheduleType,scheduleValue} | .localPath = (.localPaths // []) | del(.localPaths)' "$sumika_json" 2>/dev/null || echo "{}")
   fi
+  # Overlay with old config.json if it exists (takes precedence for migration)
+  if [[ -f "$CONFIG_FILE" ]]; then
+    merged=$(echo "$merged" | jq -c ". * $(cat "$CONFIG_FILE")" 2>/dev/null || cat "$CONFIG_FILE")
+  elif [[ -f "$_LEGACY_CONFIG_DIR/config.json" ]]; then
+    merged=$(echo "$merged" | jq -c ". * $(cat "$_LEGACY_CONFIG_DIR/config.json")" 2>/dev/null || cat "$_LEGACY_CONFIG_DIR/config.json")
+  fi
+  echo "$merged"
 }
 
 save_config() {

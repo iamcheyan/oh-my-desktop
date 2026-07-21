@@ -45,6 +45,10 @@ Singleton {
     property string shellConfig: FileUtils.trimFileProtocol(`${Directories.config}/sumika-shell/quickshell`)
     property string shellConfigName: "config.json"
     property string shellConfigPath: `${Directories.shellConfig}/${Directories.shellConfigName}`
+    // Unified config path (sumika.json — replaces individual config files)
+    readonly property string sumikaConfig: FileUtils.trimFileProtocol(`${Directories.config}/sumika-shell`)
+    readonly property string sumikaConfigName: "sumika.json"
+    readonly property string sumikaConfigPath: `${Directories.sumikaConfig}/${Directories.sumikaConfigName}`
     property string notificationsPath: FileUtils.trimFileProtocol(`${Directories.cache}/notifications/notifications.json`)
     property string cliphistDecode: FileUtils.trimFileProtocol(`${Directories.cache}/media/cliphist`)
     property string screenshotTemp: "/tmp/quickshell/media/screenshot"

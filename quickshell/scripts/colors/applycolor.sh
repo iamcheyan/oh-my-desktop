@@ -81,7 +81,7 @@ apply_term() {
 # Check if terminal theming is enabled in config (new Sumika Shell path + legacy fallback)
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 CONFIG_FILE="$_sumika_cfg/quickshell/config.json"
-[ -f "$CONFIG_FILE" ] || CONFIG_FILE="$XDG_CONFIG_HOME/quickshell/config.json"
+[ -f "$CONFIG_FILE" ] || CONFIG_FILE="$XDG_CONFIG_HOME/sumika-shell/sumika.json"
 if [ -f "$CONFIG_FILE" ]; then
   enable_terminal=$(jq -r '.appearance.wallpaperTheming.enableTerminal' "$CONFIG_FILE")
   if [ "$enable_terminal" = "true" ]; then
