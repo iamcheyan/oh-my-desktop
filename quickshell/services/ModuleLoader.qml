@@ -22,17 +22,18 @@ Singleton {
     // Master switch — if false, all modules are disabled.
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
 
-    // User-config disabled modules.
-    readonly property var disabled: {
+    // User-configured excluded modules.
+    readonly property var excludedModules: {
         if (!modulesEnabled) return []
-        const list = Config.options.modules?.disabled ?? []
+        const list = Config.options.modules?.exclude ?? []
         return Array.isArray(list) ? list : []
     }
 
     function isEnabled(moduleId) {
         if (!modulesEnabled) return false
-        return !disabled.includes(moduleId)
+        return !excludedModules.includes(moduleId)
     }
+
 
     readonly property var barButtons: {
         const buttons = (_registry.barButtons ?? []).filter(b => isEnabled(b.moduleId))

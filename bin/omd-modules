@@ -39,7 +39,7 @@ config_disabled_list() {
             done
             return
         fi
-        jq -r '.modules.disabled // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
+        jq -r '.modules.exclude // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
     fi
 }
 
@@ -100,9 +100,9 @@ modify_disabled() {
     local tmp
     tmp=$(mktemp)
     if [ "$action" = "add" ]; then
-        jq --arg id "$id" '.modules.disabled = ((.modules.disabled // []) + [$id] | unique)' "$CONFIG_FILE" > "$tmp"
+        jq --arg id "$id" '.modules.exclude = ((.modules.exclude // []) + [$id] | unique)' "$CONFIG_FILE" > "$tmp"
     else
-        jq --arg id "$id" '.modules.disabled = ((.modules.disabled // []) - [$id])' "$CONFIG_FILE" > "$tmp"
+        jq --arg id "$id" '.modules.exclude = ((.modules.exclude // []) - [$id])' "$CONFIG_FILE" > "$tmp"
     fi
     if jq empty "$tmp" 2>/dev/null; then
         mv "$tmp" "$CONFIG_FILE"

@@ -56,7 +56,7 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
         # Read disabled module list from sumika.json
         disabled_modules=""
         if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
-            disabled_modules=$(jq -r '.modules.disabled // [] | join(",")' "$config_file" 2>/dev/null || true)
+            disabled_modules=$(jq -r '.modules.exclude // [] | join(",")' "$config_file" 2>/dev/null || true)
         fi
 
         # Build registry

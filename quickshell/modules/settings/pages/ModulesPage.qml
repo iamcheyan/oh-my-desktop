@@ -28,20 +28,20 @@ PageBody {
     function toggleModule(id) {
         // If master switch is off, turning on any module enables the master switch first
         if (!masterEnabled) {
-            const currentDisabled = Config.options.modules?.disabled ?? []
-            const newDisabled = currentDisabled.filter(m => m !== id)
-            Config.setNestedValue("modules.disabled", newDisabled)
+            const currentExcluded = Config.options.modules?.exclude ?? []
+            const newExcluded = currentExcluded.filter(m => m !== id)
+            Config.setNestedValue("modules.exclude", newExcluded)
             Config.setNestedValue("modules.enabled", true)
             return
         }
-        const disabled = Config.options.modules?.disabled ?? []
-        const isDisabled = disabled.includes(id)
-        if (isDisabled) {
-            const newList = disabled.filter(m => m !== id)
-            Config.setNestedValue("modules.disabled", newList)
+        const excluded = Config.options.modules?.exclude ?? []
+        const isExcluded = excluded.includes(id)
+        if (isExcluded) {
+            const newList = excluded.filter(m => m !== id)
+            Config.setNestedValue("modules.exclude", newList)
         } else {
-            const newList = [...disabled, id]
-            Config.setNestedValue("modules.disabled", newList)
+            const newList = [...excluded, id]
+            Config.setNestedValue("modules.exclude", newList)
         }
     }
 
@@ -54,7 +54,7 @@ PageBody {
             Layout.fillWidth: true
             icon: NerdIconMap.extension
             title: "Modules"
-            subtitle: `${modules.length} installed · ${(Config.options.modules?.disabled ?? []).length} disabled${masterEnabled ? "" : " · ALL DISABLED"}`
+            subtitle: `${modules.length} installed · ${(Config.options.modules?.exclude ?? []).length} excluded${masterEnabled ? "" : " · ALL DISABLED"}`
         }
 
         // Master switch
