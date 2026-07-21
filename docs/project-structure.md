@@ -570,8 +570,8 @@ config/nvim/lua/plugins/zz-omarchy-theme.lua  # 主题 drop-in
 ### `icons/` — OS 图标
 - `OS/` — 操作系统图标资源
 
-### `docs/` — 文档（69 篇）
-28 活跃文档（`docs/*.md`）
+### `docs/` — 文档（82 篇）
+41 活跃文档（`docs/*.md`）
 41 归档文档（`docs/archive/`）
 
 **主要分类**：
