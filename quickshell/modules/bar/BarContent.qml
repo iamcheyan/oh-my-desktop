@@ -155,6 +155,7 @@ Item { // Bar content region
 
             SessionButton {
                 Layout.alignment: Qt.AlignVCenter
+                visible: ModuleLoader.modulesEnabled
             }
 
             DisplayButton {
