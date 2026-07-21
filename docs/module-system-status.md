@@ -23,15 +23,17 @@ ModuleLoader.qml (QML Singleton)
     ├── settingsPages           ← 动态设置页（来自注册表）
     └── activeModuleIds         ← 已启用的模块 ID 列表
 
-quickshell/scripts/quickshell (启动脚本)
-    ├── SUMIKA_MODULES_HOME → 扫描 module.json
-    ├── 总是添加 QML_IMPORT_PATH + 创建 lock symlink
-    ├── modules.enabled = true 时：
-    │   ├── 扫描外部模块 → 生成 popupSections/barButtons/settingsPages
-    │   ├── 扫描 builtin 清单 → 合并 barButtons (alwaysShow标记)
-    │   └── 原子写入 $XDG_RUNTIME_DIR/sumika-shell/modules.json
-    └── modules.enabled = false 时删除遗留注册表
-
+```
+quickshell/scripts/quickshell
+  ├─ 添加 QML_IMPORT_PATH / PATH（外部模块存在时）
+  ├─ 无条件生成注册表：
+  │   ├── 扫描 builtin 清单 → 合并 barButtons (alwaysShow标记)
+  │   ├── modules.enabled != false 时扫描外部模块 → 合并 popupSections/barButtons/settingsPages
+  │   ├── jq 不可用时写入硬编码 fallback（6 个 alwaysShow 核心按钮）
+  │   ├── 原子写入 $XDG_RUNTIME_DIR/sumika-shell/modules.json
+  │   └── 日志输出按钮/弹窗/设置页数量
+  └── 启动 Quickshell
+```
 quickshell/registry/builtin/bar.json (内置清单)
     └── 12 个核心按钮（AppLauncher, ActiveWindow, SysTray, Audio, Wifi,
          InputMethod, Clipboard, Session, Display, Tools, Clock, SidebarIndicators）
@@ -125,18 +127,19 @@ property JsonObject modules: JsonObject {
 ```qml
 function isEnabled(moduleId) {
     if (!modulesEnabled) return false
-    const excluded = Config.options.modules?.exclude ?? []
-    if (Array.isArray(excluded) && excluded.indexOf(moduleId) >= 0) return false
+    const disabled = Config.options.modules?.disabled ?? []
+    if (Array.isArray(disabled) && disabled.indexOf(moduleId) >= 0) return false
     return true
 }
 ```
 
 ### 效果
 
-| 情景 | showMediaControls | popupSections | 右侧按钮 |
+|
+ 情景 | showMediaControls | popupSections | 右侧按钮 |
 |---|---|---|---|
-| enabled:true, exclude:[] | false（模块提供） | 加载 mpris section | 全部显示 |
-| enabled:true, exclude:["mpris"] | true（内嵌回退） | 无 mpris section | 全部显示 |
+| enabled:true, disabled:[] | false（模块提供） | 加载 mpris section | 全部显示 |
+| enabled:true, disabled:["mpris"] | true（内嵌回退） | 无 mpris section | 全部显示 |
 | enabled:false | true（内嵌回退） | [] | 仅 alwaysShow 按钮 |
 
 ---
@@ -312,12 +315,10 @@ function _ensureModulePage(pageId) {
 启动脚本使用 `mktemp` + `mv` 确保注册表不会被部分写入。
 
 ### schemaVersion 校验
-
-每个注册表包含 `schemaVersion: 1`。ModuleLoader 验证版本，不匹配时打印警告但不阻止加载（向后兼容）。
-
 ### 内置清单合并
 
-启动脚本在外部模块扫描之后合并 `quickshell/registry/builtin/` 下的 JSON 文件：
+启动脚本在外部模块扫描之前合并 `quickshell/registry/builtin/` 下的 JSON 文件：
+
 
 ```
 jq 合并：
@@ -402,7 +403,7 @@ omd-modules list
 
 ### 效果速查表
 
-| 场景 | modules.enabled: false | modules.enabled: true, exclude:[] | modules.enabled: true, exclude:["mpris"] |
+| 场景 | modules.enabled: false | modules.enabled: true, disabled:[] | modules.enabled: true, disabled:["mpris"] |
 |---|---|---|---|
 | AppLauncher / ActiveWindow | 显示（alwaysShow） | 显示 | 显示 |
 | Audio / WiFi / Clock / Sidebar | 显示（alwaysShow） | 显示 | 显示 |

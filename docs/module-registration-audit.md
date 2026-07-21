@@ -657,6 +657,186 @@ builtin manifest 中每项手写了 `moduleId: "builtin"`，但生成器随后�
 使 `audioHeader` 在其子元素全部结束后正确关闭，后续内容恢复为 `audioColumn` 的平级子元素。
 
 **验证：** `omd-restart` 后 bar 正常启动，日志无 QML parse error。
-文件长度 2835 行，根 `Scope` 在文件末尾正常闭合。
 
 **涉及文件：** `quickshell/modules/bar/BarStatusPopup.qml`（+1 行）。
+
+### 9.13 对 `bca44d3..3ee4f42` 的修复后复审
+
+本节复审 2026-07-21 本轮六个提交的实际 diff，而不是只依据“Bar 已能启动”这一运行现象：
+
+- `e20cf61`：无条件生成 builtin registry，并改为 runtime directory + atomic write。
+- `6aa9d74`：增加 per-module `isEnabled()`、左右 Bar 注册列表和 registry 日志。
+- `c104c25`：Bar 全面改为 registry 驱动，并把 popup section Repeater 移到通用容器。
+- `4f97270`：Settings 动态页面合并、模块开关修复。
+- `75c4493`：CLI/doctor 路径及 `modules.disabled` 对齐。
+- `3ee4f42`：状态文档、审查文档及 9.12 括号修复记录。
+
+#### 已确认修复的部分
+
+1. **本轮右侧 Bar 消失的直接原因已处理。** builtin manifest 的生成不再依赖
+   `SUMIKA_MODULES_HOME` 是否存在，也不再因 `modules.enabled: false` 删除整份 registry。
+   当前运行时 registry 位于 `$XDG_RUNTIME_DIR/sumika-shell/modules.json`，包含 17 个模块、
+   12 个 Bar 按钮、10 个 popup section 和 7 个 settings page；所有 component 路径均存在。
+2. **核心 Bar 的降级语义基本恢复。** App Launcher、Active Window、Audio、Wi-Fi、Clock、
+   Sidebar Indicators 均带 `alwaysShow: true`，master switch 关闭时仍可从已生成 registry 中加载。
+3. **registry 写入比之前可靠。** 生成路径从全局 `/tmp` 改到用户 runtime directory，并使用
+   临时文件 + `mv` 原子替换，避免 Reader 读到半份 JSON。
+4. **配置字段在代码中已统一为 `modules.disabled`。** `Config.qml`、ModulesPage、
+   `omd-modules` 使用同一字段；逐模块按钮不再误切换 master switch。
+5. **9.12 描述的 QML 结构修复成立。** `audioHeader` 已在 divider 后闭合，后续 slider/device
+   内容重新成为 `audioColumn` 的平级项。`quickshell/scripts/quickshell` 和 `bin/omd-modules`
+   均通过 `bash -n`。
+
+结论：**时间、Wi-Fi、音量等右侧核心项同时消失的故障可以判定为已修复，但模块注册系统尚不能判定为完成。**
+
+#### P0：ModuleLoader 本身仍没有 builtin fallback
+
+启动脚本现在能在缺少 `jq` 时写一份最小 registry，但 `ModuleLoader.qml` 在以下情况仍只保留
+`_emptyRegistry()`：
+
+- 用户直接执行 `qs -p ...`，绕过 `quickshell/scripts/quickshell`；
+- runtime registry 被删除；
+- registry JSON 损坏；
+- `SUMIKA_MODULE_REGISTRY` 指向不存在的文件。
+
+Reader 当前只打印 warning，不会加载内置资源；`leftBarButtons` 与 `rightBarButtons` 因此仍会同时为空。
+这与 9.2、9.10 中“registry 缺失或损坏时核心 Bar fallback 生效”的验收条件不符。
+
+**建议：** 在 `ModuleLoader` 内维护一份真正可执行的 builtin fallback，或直接读取 repo 内的
+`registry/builtin/bar.json` 作为第二数据源。Shell 生成器的 fallback 只能算第一层保护，不能代替
+UI Loader 的失败保护。
+
+#### P1：Bar 按钮的 owner 仍然错误，逐模块禁用不会控制对应图标
+
+生成器会用 manifest ID 覆盖每个 Bar 条目的 `moduleId`。因此当前 12 个 builtin Bar 按钮的真实
+owner 全部是 `builtin-bar`，而不是 `systray`、`input-method`、`clipboard`、`session`、`display`
+等外部模块。
+
+实际结果：
+
+- 禁用 `display`：Display popup/settings contribution 会消失，但顶部 Display 按钮仍在。
+- 禁用 `clipboard`：剪贴板模块会停用，但顶部 Clipboard 按钮仍在。
+- 禁用 `builtin-bar`：会一次性隐藏 SysTray、Input Method、Clipboard、Session、Display、Tools。
+
+这不符合“插件自己注册并拥有入口”的目标，也会留下点击后缺少 provider 的空入口。
+
+**建议：** builtin manifest 只保留真正核心的按钮。可选按钮应由对应插件的 `module.json`
+注册；如果必须保留 builtin 壳，则清单需要单独的 `ownerModuleId`/`requiresModule` 契约，生成器
+不能无条件覆盖它。
+
+#### P1：`popupSections` 仍同时承担 route 与 extension 两种职责
+
+Repeater 从 `audioContent` 移到通用容器是正确方向，但当前会先加载固定 `contentLoader`，再追加
+同 type 的外部 section。于是 `battery`、`display`、`inputMethod`、`keyboard`、`session`、`voice`
+同时存在内置内容与外部内容；而 `file-backup`、`ocr`、`windows-vm` 又依赖空的内置页面，事实上
+把 section 当作完整 route 使用。
+
+这使同一 capability 在不同模块中语义不同，也容易出现重复 UI、重复 service 调用和高度计算问题。
+
+**建议：** 落实 9.8 的契约拆分：`popupRoutes` 每个 type 只允许一个完整页面 provider；
+`popupSections` 必须指定 extension point，例如 `audio.afterHeader`，只能追加局部内容。
+
+#### P1：Settings 页面冲突只是被隐藏，未真正解决
+
+`pages` 对相同 key 做了去重，但 `pageComponent()` 仍优先返回固定组件。当前 registry 中：
+
+- `battery-power` 注册 `power`，与 primary `power` 冲突，外部页面不可达；
+- `keyboard-remap` 注册 `keyremap`，与 primary `keyremap` 冲突，外部页面不可达；
+- `display` 额外注册 `display-settings`，会与 primary `display` 同时出现在导航中，而常规
+  `display` 入口仍打开内置页面。
+
+因此这里不是“动态页面已接管”，而是“冲突页面不显示或生成第二入口”。此外 `windows`、
+`virtualization`、`vm` 的硬编码 redirect 位于模块 alias 查询之前，未来插件无法声明这些 alias。
+
+**建议：** 建立唯一 route index，并明确冲突策略（replace / extend / reject）。所有 normalize、
+alias、导航项和 component 选择都从该 index 读取，不能继续由硬编码 `if` 与动态表并行决定。
+
+#### P2：文档与实现仍有残留不一致
+
+1. `docs/module-system-status.md` 主体已经使用 `modules.disabled`，但场景表和 MPRIS 示例仍写
+   `exclude` / `exclude:["mpris"]`，会继续误导后续实现者。
+2. 状态文档描述的 registry 合并顺序与代码不完全一致；代码是先 builtin、后 external。
+3. 9.12 写“文件长度 2835 行”，当前实际为 2834 行。括号修复本身正确，但该验证数字应修正，
+   不应把行数作为结构正确性的依据。
+4. Modules 页面仍显示“Changes apply after restart”，但 `Config.options.modules.disabled` 已参与
+   QML 响应式过滤；需要明确哪些变更即时生效、哪些服务卸载必须重启。
+
+#### 本轮建议验收状态
+
+| 项目 | 状态 |
+|---|---|
+| 右侧核心 Bar 恢复 | 通过 |
+| builtin 无条件生成 | 通过 |
+| master switch 保留 alwaysShow | 通过（前提：registry 已生成且有效） |
+| registry 缺失/损坏时 UI fallback | 未通过 |
+| 可选按钮归属对应插件 | 未通过 |
+| Popup route/section 契约 | 未通过 |
+| Settings 动态路由与冲突处理 | 未通过 |
+| `disabled` 配置字段代码统一 | 通过 |
+| 文档字段完全统一 | 未通过 |
+
+下一轮应先完成 Loader 内 fallback 和按钮 owner 修复，再处理 Popup 与 Settings 契约。否则继续增加
+插件只会扩大当前“注册成功但入口/页面并不真正受该插件控制”的问题。
+
+### 9.14 修复：ModuleLoader 内 fallback + 按钮 owner + Settings 路由优先级
+
+本节对应 9.13 建议的"下一轮应先完成 Loader 内 fallback 和按钮 owner 修复"。
+
+**1. ModuleLoader 内置 fallback（P0）**
+
+新增 `_builtinFallback` 硬编码列表，包含 6 个 alwaysShow 核心按钮
+（AppLauncher、ActiveWindow、Audio、Wifi、Clock、SidebarIndicators）。
+当 registry 文件缺失、损坏、或 `barButtons` 为空时，`_filterBarButtons()` 自动降级使用该列表，
+保证 bar 永远不会完全空白。
+
+涉及文件：`quickshell/services/ModuleLoader.qml`（+18 行）。
+
+**2. 按钮 owner 修复（P1）**
+
+`quickshell/registry/builtin/bar.json` 中可选按钮的 `moduleId` 改为其对应外部模块 ID：
+
+| 按钮 | 原 moduleId | 现 moduleId |
+|---|---|---|
+| SysTray | builtin | systray |
+| Input Method | builtin | input-method |
+| Clipboard | builtin | clipboard |
+| Session | builtin | session |
+| Display | builtin | display |
+| Tools | builtin | builtin（无可选模块） |
+
+现在禁用 `clipboard`、`session`、`display` 等模块会同时隐藏其对应 Bar 按钮。
+
+**3. SettingsDialog 路由优先级（P1）**
+
+`pageComponent()` 顺序调整为：
+1. 纯核心页面（network、bluetooth、appearance、system）→ 固定组件
+2. 模块注册页面 → 动态组件（如 battery-power 的 `power`、keyboard-remap 的 `keyremap`）
+3. 核心回退（display、keyremap、power）→ 仅当无模块注册时使用
+
+现在 `battery-power` 注册的 `power` 页面、`keyboard-remap` 注册的 `keyremap` 页面可以正常到达。
+
+**4. 文档修复（P2）**
+
+- `docs/module-system-status.md`：全部 `exclude` 改为 `disabled`；修复注册表合并顺序描述。
+- `docs/module-registration-audit.md`：9.12 行数错误修正；增加本节。
+
+#### 本轮后验收状态
+
+| 项目 | 上轮状态 | 当前状态 |
+|---|---|---|
+| 右侧核心 Bar 恢复 | 通过 | 通过 |
+| builtin 无条件生成 | 通过 | 通过 |
+| master switch 保留 alwaysShow | 通过 | 通过 |
+| registry 缺失/损坏时 UI fallback | 未通过 | **已修复** |
+| 可选按钮归属对应插件 | 未通过 | **已修复** |
+| Popup route/section 契约 | 未通过 | 未通过 |
+| Settings 动态路由与冲突处理 | 未通过 | **部分修复**（power/keyremap 可达，display-settings 重复入口未解决） |
+| `disabled` 配置字段代码统一 | 通过 | 通过 |
+| 文档字段完全统一 | 未通过 | **已修复** |
+
+#### 待办
+
+1. **Popup route/section 契约** — 区分完整 Popup 接管（popupRoutes）与局部 section（popupSections）。
+2. **display-settings 重复入口** — display 模块注册 `display-settings` 会产生第二个导航项。
+3. **注册表热重载** — ModuleLoader 只启动时读取一次，运行时修改 `modules.disabled` 需重启。
+4. **模块按钮组件路径** — 可选按钮的 component 仍指向核心路径，而非外部模块的独立实现。
