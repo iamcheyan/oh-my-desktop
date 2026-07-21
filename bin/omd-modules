@@ -62,8 +62,19 @@ module_file_count() {
     find "$SUMIKA_MODULES_HOME/$1" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
+# Read disabled module list from sumika.json
+disabled_modules() {
+    jq -r '.modules.disabled // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
+}
 
-# ── Commands ──
+module_status() {
+    local id="$1"
+    if disabled_modules | grep -qxF "$id"; then
+        echo "disabled"
+    else
+        echo "enabled"
+    fi
+}
 
 cmd_list() {
     printf "%-22s %-10s %-6s %s\n" "MODULE" "STATUS" "FILES" "CAPABILITIES"
@@ -74,7 +85,7 @@ cmd_list() {
         id=$(basename "$(dirname "$module_json")")
         name=$(module_field "$id" "name")
         [ -n "$name" ] || name="$id"
-        status="enabled"
+        status=$(module_status "$id")
         caps=$(module_capabilities "$id")
         fcount=$(module_file_count "$id")
         printf "%-22s %-10s %-6s %s\n" "$id" "$status" "$fcount" "$caps"
@@ -91,7 +102,7 @@ cmd_info() {
     desc=$(module_field "$id" "description")
     version=$(module_field "$id" "version")
     [ -n "$name" ] || name="$id"
-    status="enabled"
+    status=$(module_status "$id")
 
     echo "Module: $name"
     echo "  ID:          $id"

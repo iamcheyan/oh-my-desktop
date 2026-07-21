@@ -253,10 +253,14 @@ check_modules() {
     local count
     count=$(find "$modules_home" -maxdepth 2 -name "module.json" 2>/dev/null | wc -l)
     ok "$count modules installed in $modules_home"
-    if [ -f /tmp/sumika-module-registry.json ]; then
-        ok "Module registry generated"
+    local registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
+    local registry_file="$registry_dir/modules.json"
+    if [ -f "$registry_file" ]; then
+        local bar_count
+        bar_count=$(jq -r '.barButtons | length // 0' "$registry_file" 2>/dev/null || echo 0)
+        ok "Module registry: $registry_file ($bar_count bar buttons)"
     else
-        warn "Module registry missing — run omd-restart"
+        warn "Module registry missing: $registry_file — run omd-restart"
     fi
     local sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
     local cfg_file="$sumika_cfg/sumika.json"
