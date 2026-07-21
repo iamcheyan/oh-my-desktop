@@ -1,0 +1,117 @@
+{
+  "id": "builtin-bar",
+  "name": "Built-in Bar Buttons",
+  "description": "Core bar buttons shipped with Sumika Shell",
+  "capabilities": {
+    "barButtons": [
+      {
+        "id": "appLauncher",
+        "name": "Applications",
+        "slot": "left",
+        "component": "modules/bar/AppLauncherButton.qml",
+        "order": 0,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "activeWindow",
+        "name": "Active Window",
+        "slot": "left",
+        "component": "modules/bar/ActiveWindow.qml",
+        "order": 10,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "systray",
+        "name": "System Tray",
+        "slot": "right",
+        "component": "modules/bar/SysTray.qml",
+        "order": 0,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "inputMethod",
+        "name": "Input Method",
+        "slot": "right",
+        "component": "modules/bar/modules/InputMethodButton.qml",
+        "order": 10,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "audio",
+        "name": "Audio",
+        "slot": "right",
+        "component": "modules/bar/modules/AudioButton.qml",
+        "order": 20,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "wifi",
+        "name": "WiFi",
+        "slot": "right",
+        "component": "modules/bar/modules/WifiButton.qml",
+        "order": 30,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "clipboard",
+        "name": "Clipboard",
+        "slot": "right",
+        "component": "modules/bar/modules/ClipboardButton.qml",
+        "order": 40,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "session",
+        "name": "Session",
+        "slot": "right",
+        "component": "modules/bar/modules/SessionButton.qml",
+        "order": 50,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "display",
+        "name": "Display",
+        "slot": "right",
+        "component": "modules/bar/modules/DisplayButton.qml",
+        "order": 60,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "tools",
+        "name": "Tools",
+        "slot": "right",
+        "component": "modules/bar/modules/ToolsButton.qml",
+        "order": 70,
+        "alwaysShow": false,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "clock",
+        "name": "Clock",
+        "slot": "right",
+        "component": "modules/bar/ClockWidget.qml",
+        "order": 80,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      },
+      {
+        "id": "sidebarIndicators",
+        "name": "Sidebar Indicators",
+        "slot": "right",
+        "component": "modules/bar/SidebarIndicators.qml",
+        "order": 90,
+        "alwaysShow": true,
+        "moduleId": "builtin"
+      }
+    ]
+  }
+}

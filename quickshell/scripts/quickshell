@@ -37,12 +37,13 @@ export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
 
+sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+config_file="$sumika_config/sumika.json"
+
 SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
     # Always add modules to QML import path so core components (lock, screen
     # saver, etc.) are importable even when the master switch is off.
-    sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-    config_file="$sumika_config/sumika.json"
 
     # Create symlinks for core modules that need direct QML scanner resolution
     # (e.g., lock screen) under the modules discovery directory.
@@ -73,40 +74,102 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
             export PATH="$module_dir/bin:$PATH"
         fi
     done
+fi
 
-    # Master switch: skip registry generation if modules.enabled is false
-    modules_enabled=true
-    if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
-        modules_enabled=$(jq -r 'try .modules.enabled' "$config_file" 2>/dev/null || true)
-    fi
-    if [ "$modules_enabled" = "false" ]; then
-        echo "[sumika] modules disabled via sumika.json"
-    else
-        # Build registry for dynamic module loading (bar buttons, popups, etc.)
-        registry_file="/tmp/sumika-module-registry.json"
-        registry='{"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
+# ---------------------------------------------------------------
+# Registry generation — always generated, independent of master switch
+# ---------------------------------------------------------------
+registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
+mkdir -p "$registry_dir"
+registry_file="$registry_dir/modules.json"
 
-        for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
-            [ -f "$module_json" ] || continue
-            module_dir=$(dirname "$module_json")
+# Start with empty template
+registry='{"schemaVersion":1,"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
 
-            # Merge into registry
-            if command -v jq >/dev/null 2>&1; then
-                tmp_reg=$(mktemp)
-                echo "$registry" > "$tmp_reg"
-                registry=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
-                    '.modules += [{"id": $mod[0].id, "path": $mdir}] |
-                     .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                     .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
-                     .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
-                    "$tmp_reg" 2>&1 || echo "$registry")
-                rm -f "$tmp_reg"
-            fi
+# Merge builtin manifests unconditionally (core bar buttons, alwaysShow info).
+# This does not depend on SUMIKA_MODULES_HOME or modules.enabled.
+builtin_dir="$repo_root/quickshell/registry/builtin"
+if [ -d "$builtin_dir" ]; then
+    if command -v jq >/dev/null 2>&1; then
+        for manifest_json in "$builtin_dir"/*.json; do
+            [ -f "$manifest_json" ] || continue
+            tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
+            echo "$registry" > "$tmp_reg"
+            new_reg=$(jq -c --slurpfile mod "$manifest_json" --arg mdir "$repo_root/quickshell" \
+                '.modules += [{"id": $mod[0].id, "path": $mdir, "builtin": true}] |
+                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: builtin merge failed for $manifest_json" >&2
+            rm -f "$tmp_reg"
         done
-
-        echo "$registry" > "$registry_file"
-        export SUMIKA_MODULE_REGISTRY="$registry_file"
+    else
+        echo "[sumika] INFO: jq not available — builtin manifests will not be merged"
     fi
+fi
+
+# Read master switch from user config
+modules_enabled=true
+if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
+    modules_enabled=$(jq -r 'try .modules.enabled // "true"' "$config_file" 2>/dev/null || true)
+fi
+if [ "$modules_enabled" != "false" ]; then
+    :  # modules enabled — merge external contributions below
+else
+    echo "[sumika] modules disabled via sumika.json (builtin buttons still available)"
+fi
+
+# Merge external modules only when enabled and directory exists
+if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ]; then
+    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        module_dir=$(dirname "$module_json")
+        if command -v jq >/dev/null 2>&1; then
+            tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
+            echo "$registry" > "$tmp_reg"
+            new_reg=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
+                '.modules += [{"id": $mod[0].id, "path": $mdir}] |
+                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)})) |
+                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {moduleId: $mod[0].id, component: ("file://" + $mdir + "/" + .component)}))' \
+                "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: external module merge failed for $module_json" >&2
+            rm -f "$tmp_reg"
+        fi
+    done
+fi
+
+# Fallback: if the registry still has the empty template (no jq for builtin merge),
+# write a hardcoded minimal registry so the bar never goes completely empty.
+if [ "$registry" = '{"schemaVersion":1,"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}' ]; then
+    echo "[sumika] WARN: jq unavailable — writing fallback registry with core alwaysShow buttons"
+    registry='{
+  "schemaVersion": 1,
+  "modules": [{"id":"builtin-bar","path":"'"$repo_root"'/quickshell","builtin":true}],
+  "barButtons": [
+    {"id":"appLauncher","slot":"left","component":"file://'"$repo_root"'/quickshell/modules/bar/AppLauncherButton.qml","order":0,"alwaysShow":true,"moduleId":"builtin"},
+    {"id":"activeWindow","slot":"left","component":"file://'"$repo_root"'/quickshell/modules/bar/ActiveWindow.qml","order":10,"alwaysShow":true,"moduleId":"builtin"},
+    {"id":"audio","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/modules/AudioButton.qml","order":20,"alwaysShow":true,"moduleId":"builtin"},
+    {"id":"wifi","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/modules/WifiButton.qml","order":30,"alwaysShow":true,"moduleId":"builtin"},
+    {"id":"clock","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/ClockWidget.qml","order":80,"alwaysShow":true,"moduleId":"builtin"},
+    {"id":"sidebarIndicators","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/SidebarIndicators.qml","order":90,"alwaysShow":true,"moduleId":"builtin"}
+  ],
+  "popupSections": [],
+  "settingsPages": []
+}'
+fi
+
+# Atomic write: temp file + mv
+tmp_file="$(mktemp "$registry_dir/registry.XXXXXX")"
+echo "$registry" > "$tmp_file"
+mv "$tmp_file" "$registry_file"
+export SUMIKA_MODULE_REGISTRY="$registry_file"
+
+# Log summary
+if command -v jq >/dev/null 2>&1; then
+    bar_count=$(echo "$registry" | jq -r '.barButtons | length // 0')
+    popup_count=$(echo "$registry" | jq -r '.popupSections | length // 0')
+    settings_count=$(echo "$registry" | jq -r '.settingsPages | length // 0')
+    echo "[sumika] Registry: $registry_file (barButtons: $bar_count, popupSections: $popup_count, settingsPages: $settings_count)"
+else
+    echo "[sumika] Registry: $registry_file"
 fi
 repair_config_json() {
     # User config path (new Sumika Shell location)

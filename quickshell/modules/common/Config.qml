@@ -353,6 +353,9 @@ Singleton {
             }
             property JsonObject modules: JsonObject {
                 property bool enabled: true
+                // Per-module exclusion list. When non-empty, only modules NOT in this
+                // list are enabled (subject to master switch). Empty = all.
+                property list<var> disabled: []
                 property JsonObject barButtonOrder: JsonObject {}
             }
 
