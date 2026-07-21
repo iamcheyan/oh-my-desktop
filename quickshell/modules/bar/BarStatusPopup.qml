@@ -1386,7 +1386,7 @@ Scope {
             readonly property MprisPlayer activePlayer: MprisController.activePlayer
             // The controller exposes only Playing or Paused sessions. Stopped
             // and destroyed sessions resolve to null and remove this strip.
-            readonly property bool showMediaControls: activePlayer !== null
+            readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.modulesEnabled
             readonly property bool hasTrackArt: showMediaControls && TrackArt.resolvedArtUrl.length > 0
             readonly property string trackTitle: {
                 const t = StringUtils.cleanMusicTitle(activePlayer?.trackTitle || "")
@@ -1700,6 +1700,21 @@ Scope {
                         height: 1
                         color: TuiStyle.line
                         opacity: TuiStyle.dividerOpacity
+                    }
+                }
+
+                // ── Module popup sections (audio type) ─────────────────
+                Repeater {
+                    model: ModuleLoader.popupSections
+                    delegate: Loader {
+                        required property var modelData
+                        active: root.activeType === modelData.type
+                        source: active ? modelData.component : ""
+                        Layout.fillWidth: true
+                        onStatusChanged: if (status === Loader.Error) {
+                            console.warn("[Module] Popup section load failed:", modelData.component)
+                            active = false
+                        }
                     }
                 }
 

@@ -267,7 +267,7 @@ ModuleLoader 的 Process 异步读取注册表 JSON，解析后暴露给 Repeate
 | input-method | inputMethod | — | InputMethod | 按钮在核心 |
 | keyboard-remap | keyboard | Keyboard Remap | KeyboardRemap | 按钮在核心 |
 | lock | — | — | — | 特殊：直接 import，不受 modules.enabled 控制 |
-| mpris | — | — | MprisController, TrackArt | 弹窗在核心 |
+| mpris | audio | — | MprisController, TrackArt | 弹窗已提取到模块；modules.enabled:false 时回退到内嵌版本 |
 | ocr | ocr | OCR 识别 | — | |
 | screenshot | — | — | — | bin 在核心 |
 | session | session | — | Session | 按钮在核心 |
@@ -312,7 +312,7 @@ omd-restart
 | AppLauncher 按钮 | 隐藏 | 显示 |
 | ActiveWindow 标题 | 隐藏 | 显示 |
 | 右侧模块按钮 | 全部隐藏 | 全部显示（受 per-module 控制） |
-| 外部模块弹窗 | 不可用 | 可用 |
+| 外部模块弹窗 | 不可用（回退到核心内嵌版本） | 可用（模块版本替代内嵌版本） |
 | 设置页模块导航 | 不可用 | 可用 |
 | LOCK 快捷按钮（电池弹窗） | 隐藏 | 显示 |
 | 自动锁屏（idle/suspend） | 正常工作 | 正常工作 |
@@ -328,3 +328,38 @@ omd-restart
 3. **服务懒加载** — 模块禁用时应停止对应服务，不只是隐藏按钮
 4. **barButtonOrder 实现** — 配置中存在但未使用的排序功能
 5. **lock 模块移动到 modules.enabled 控制** — 允许当 `modules.enabled: false` 时也隐藏锁屏功能（当前保留为安全设计，需要讨论后再改）
+
+
+## 九、MPRIS 媒体控制模块提取
+
+### 提取方案
+
+媒体播放控制（专辑封面、曲目标题、播放/暂停/上一首/下一首）已从 `BarStatusPopup.qml` 的 `audioContent` 内嵌实现提取到外部模块 `sumika-modules/mpris/popup/MprisPopup.qml`。
+
+### 模块注册
+
+`mpris/module.json` 中的 `popupSections` 注册 `"type": "audio"`，表示此弹窗段附加在音频弹窗内。
+
+### 双状态切换
+
+| modules.enabled | 媒体控制来源 |
+|---|---|
+| `true` | `MprisPopup.qml`（通过 ModuleLoader.popupSections Repeater 动态加载） |
+| `false` | 内嵌在 `BarStatusPopup.qml` 的 `audioContent`（`showMediaControls` 属性通过 `&& !ModuleLoader.modulesEnabled` 回退） |
+
+### 机制
+
+`BarStatusPopup.qml` 的 `audioContent` 中插入了 `Repeater` 以加载 `ModuleLoader.popupSections`：
+
+```qml
+Repeater {
+    model: ModuleLoader.popupSections
+    delegate: Loader {
+        required property var modelData
+        active: root.activeType === modelData.type
+        source: active ? modelData.component : ""
+    }
+}
+```
+
+当模块版本启用时，内嵌版本的 `showMediaControls` 被设为 `false` 以隐藏内嵌 UI。这是第一个使用此机制的模块弹窗。
