@@ -394,10 +394,6 @@ Singleton {
                 }
             }
 
-            property JsonObject keyboardRemap: JsonObject {
-                property var devices: ({})
-            }
-
             property JsonObject ocr: JsonObject {
                 property string lang: "ch"
                 property string engine: "onnxruntime"
