@@ -3,9 +3,8 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
-import "modules/common"
-import "services"
-
+import qs.modules.common
+import qs.services
 import qs.modules.polkit
 
 import QtQuick

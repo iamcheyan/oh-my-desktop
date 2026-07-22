@@ -1,1 +1,0 @@
-../../../quickshell/services/TrayService.qml

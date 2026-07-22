@@ -5,14 +5,11 @@
 //@ pragma Env QT_IM_MODULE=fcitx
 
 import qs.core.runtime
-import "modules/common"
-import "services"
-import "services" as Services
+import qs.modules.common
+import qs.services
+import qs.services as Services
 
 import qs.modules.bar
-import qs.modules.onScreenDisplay
-import qs.modules.lock
-import qs.modules.notificationPopup
 
 import QtQuick
 import Quickshell
@@ -135,14 +132,22 @@ ShellRoot {
 
     // Create top-level windows immediately. Gating this scope on Config.ready
     // lets Quickshell exit during cold login/reload before any window exists.
+    // Core bar infrastructure — always present.
     Scope {
         Bar {}
-        NotificationPopup {}
-        Lock {}
         BarDismissLayer {}
         BarStatusPopup {}
         SessionConfirmOverlay {}
         SessionAutoRestore {}
-        OnScreenDisplay {}
+    }
+
+    // Dynamic overlays loaded from module registry.
+    // Modules register via contributes.overlays in their module.json.
+    Repeater {
+        model: ModuleLoader.overlays
+        delegate: Loader {
+            required property var modelData
+            source: modelData.component
+        }
     }
 }

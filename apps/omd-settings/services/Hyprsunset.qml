@@ -1,1 +1,0 @@
-../../../quickshell/services/Hyprsunset.qml

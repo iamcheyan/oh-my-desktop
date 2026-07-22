@@ -72,9 +72,6 @@ Item { // Bar content region
         spacing: 14
 
 
-        Workspaces {
-            Layout.alignment: Qt.AlignVCenter
-        }
 
         // Left module registration slot — AppLauncher, ActiveWindow, and external modules
         Repeater {

@@ -1,1 +1,0 @@
-../../../quickshell/services/PolkitService.qml
