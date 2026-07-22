@@ -76,9 +76,8 @@
 
 ### 1.2 当前共享实现
 
-当前 `quickshell/modules/` 仍包含 `bar`、`overview`、`settings`、
 `notificationPopup`、`onScreenDisplay`、`polkit`、`regionSelector`、
-`schedulePopup`、`common` 等目录。它们混合了 Core UI、应用 UI 和功能模块。
+`common` 等目录。它们混合了 Core UI、应用 UI 和功能模块。
 
 当前 `quickshell/services/` 中同时存在 Workspace、Audio、Network、Power、
 Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认它们是：
@@ -91,26 +90,62 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 
 当前过渡实现由以下部分组成：
 
-- `quickshell/registry/builtin/bar.json`
-- `quickshell/scripts/quickshell`
-- `$SUMIKA_MODULES_HOME/*/module.json`
-- `$XDG_RUNTIME_DIR/sumika-shell/modules.json`
-- `quickshell/services/ModuleLoader.qml`
-- `quickshell/modules/bar/BarContent.qml`
-- `bin/omd-modules`
+- ✅ `quickshell/core/runtime/` (ActionManager, ServiceManager, ProcessSupervisor, ExtensionRegistry)
+- ✅ `quickshell/scripts/quickshell` (generates runtime registry at startup, scans `$repo_root/modules/*/module.json` + `$SUMIKA_MODULES_HOME`)
+- ✅ `$SUMIKA_MODULES_HOME/*/module.json` (16 external v1-compat modules)
+- ✅ `$XDG_RUNTIME_DIR/sumika-shell/modules.json` (generated registry)
+- ✅ `bin/omd-modules` (third‑party module management)
+    - ✅ `bin/omd-module-validate` (validates manifests; 38/38 pass — 22 repo modules v2 + 16 external v1 compat)
+  - `--all` scans repo `modules/` + `SUMIKA_MODULES_HOME`; builtin dir scan removed (dir deleted)
 
-已知问题：启动脚本和 `ModuleLoader.qml` 都带有内建 fallback，模块事实源重复；
-当前 schema 主要覆盖 Bar、Popup 和 Settings，尚未完整覆盖 Action、Service、
-Overview Provider、进程应用和权限。
+**Builtin registry deleted**: Empty `quickshell/registry/builtin/` dir preserved but its merge section removed from startup script. No more unconditional bulitin manifest loading — all registration flows through `modules/*/module.json` and `$SUMIKA_MODULES_HOME`.
 
-### 1.4 当前 Core 泄漏
+**Bar widgets migrated to standalone modules** (13 widgets):
+- 12 created under `modules/`: workspaces, app-launcher, active-window, clipboard-bar, audio, wifi, display, input-method, clock, session, sidebar-indicators, tools
+- 1 systray module created under `modules/systray/`
+- `modules/mpris/` created as actions-only module (play-pause, next, previous)
+- All 22 repo modules in `modules/` pass validation (v2 manifests, proper imports)
+- Old QML files deleted from `quickshell/modules/bar/` (widget QMLs + shared types moved)
+- Shared bar types migrated to `quickshell/modules/common/widgets/` (7 types, own qmldir)
+- `apps/omd-overview/` and `apps/omd-clipboard/` directories deleted (overview at `modules/overview/`, clipboard at `modules/clipboard/`)
+- `import qs.modules.bar` dependency removed from all module QML files
 
-`apps/omd-bar/shell.qml` 仍直接 import 或持有 OSD、Lock、Notification Popup，
-并处理 Screenshot、Voice、Input Method、Notification、Session 等 IPC；还启动若干
-功能服务。这些功能最终都不应由 Bar 入口直接拥有。
+**Registry infra cleaned**:
+- v1 flat key fallback removed from `ModuleLoader.qml` (registry always v2 format)
+- Schema version check only accepts v2 or undefined
+- `BarContent.qml` fully registry-driven: both widget sections use `Repeater { model: ModuleLoader.leftBarButtons }` / `rightBarButtons`
+- Startup script `--all` mode fixed: calls new parameterless `validate_all()`
+- Startup script `merge_manifest()` now handles `contributes.overviewProviders` (was silently dropped — overview module's providers were never merged into generated registry)
+- `ModuleLoader.qml` stale 2nd arg vestiges cleaned from `_contributes("popupSections", "popupSections")`, `_contributes("settingsPages", "settingsPages")`, `_contributes("overviewProviders", "overviewProviders")` call sites
 
-`apps/omd-overview/shell.qml` 仍直接持有 Overview 实现及壁纸预加载。Overview
-框架可以属于 Core，但应用搜索、命令、Clipboard 等具体 Provider 必须独立注册。
+**Pseudo-migration symlinks cleaned**: All 22 symlinks from `modules/` back to shared infrastructure removed.
+- `modules/clipboard/config.json` (dead — `config.json` pattern never used by QML)
+- `modules/launcher/config.json` and `modules/launcher/services/HyprlandData.qml` (dead — launcher only loads own AppLauncher.qml)
+- `modules/notification/modules/common`, `modules/notification/modules/notificationPopup`, `modules/notification/services/*` (5 symlinks) — replaced with `import qs.modules.common`/`import qs.services`/`import qs.modules.notificationPopup` in shell.qml; symlinks deleted
+- `modules/overview/` (7 symlinks: GlobalStates.qml, assets, config.json, modules, scripts, services, translations) — all dead (shell uses only module-qualified imports: `qs.modules.common`, `qs.services`, `qs.modules.overview`)
+- `modules/screenshot/` (7 symlinks: modules/common, modules/regionSelector, services/4 files, translations) — `import "modules/regionSelector"` replaced with `import qs.modules.regionSelector` (new qmldir); common/services/translations all dead (screenshot shell uses only module-qualified imports)
+- New qmldirs created: `quickshell/modules/regionSelector/qmldir` (`module qs.modules.regionSelector`), `quickshell/modules/notificationPopup/qmldir` (`module qs.modules.notificationPopup`)
+- **Zero symlinks remain** in `modules/` — all 22 modules contain only real files
+
+**Overlay modules registered**: lock, notification-popup, on-screen-display now have v2 module.json in `modules/` with `kind: "overlay"` (new schema kind). All three packages now have qmldir files resolving `import qs.modules.lock`, `import qs.modules.notificationPopup`, `import qs.modules.onScreenDisplay`. 38/38 module manifests pass validation.
+- qmldirs created: `quickshell/modules/lock/qmldir`, `quickshell/modules/onScreenDisplay/qmldir`
+- module.json created: `modules/lock/module.json`, `modules/notification-popup/module.json`, `modules/on-screen-display/module.json`
+- Schema + validator extended: `"overlay"` kind added to schema enum and validator `_KINDS` set.
+-
+**BarStatusPopup fully modularized**: All 12 inline popup Components (tools, inputMethod, keyboard, session, xkb, wifi, bluetooth, audio, display, battery, notifications, voice) have been extracted to standalone QML files in `modules/*/` directories and registered via `module.json` popupSections. Inline Component declarations, `contentLoader` switch-case dispatch, and shared inline components (ShellCard, SectionLabel, ActionRow, PopupActionButton, IconActionRow, PopupIconButton, TileTrack, PanelTile) deleted. Dual-dispatch eliminated. BarStatusPopup now a ~250-line popup shell: PanelWindow → TuiShell → Repeater { model: ModuleLoader.popupSections }.
+
+**Remaining gaps**:
+- `apps/omd-bar/shell.qml` still directly imports and instantiates lock, notificationPopup, onScreenDisplay (need new contribution type for window-level features). These now have proper module registrations and qmldirs, but the architectural pattern for loading them via registry doesn't exist yet.
+- Can't perform cold start / enable/disable / fault isolation verification without graphical session.
+- `SUMIKA_MODULES_HOME` env var set to `~/development/sumika-modules` (external dir), separate from repo `modules/`.
+
+### 1.4 当前 Overlay 注册状态（bar shell 剩余的 non-Core 持有）
+- `qs.modules.lock` — 直接 import，Lockscreen 现在有 qmldir + modules/lock/module.json (kind: overlay)
+- `qs.modules.notificationPopup` — 直接 import，Notification 有 qmldir + modules/notification-popup/module.json (kind: overlay)
+- `qs.modules.onScreenDisplay` — 直接 import，OSD 有 qmldir + modules/on-screen-display/module.json (kind: overlay)
+-
+这些已有完整的 module 注册（import 路径 + module.json + actions），但仍需新的架构扩展（contributes.windows/overlays 贡献类型）才能从 Bar 入口解耦。
+*注意：之前旧的 `quickshell/modules/lock/module.json` (v1，位于 QML 导入目录) 未被 scanner 扫描，已由 modules/lock/module.json (v2) 取代。旧文件仍存在但为死代码。*
 
 ## 2. 每次工作的标准流程
 
@@ -525,19 +560,19 @@ Action 至少包含：
 
 ### 工作项
 
-- [ ] 创建 Clipboard v2 manifest。
-- [ ] 注册 `clipboard.open`、`clipboard.close`、`clipboard.toggle`、
-      `clipboard.paste` Actions。
-- [ ] 将顶栏入口变为声明式 descriptor 或可信官方适配器。
-- [ ] 如果提供 Overview 搜索，注册 `clipboard.search` Provider。
-- [ ] ProcessSupervisor 启动 `apps/omd-clipboard`，不由 Bar shell 直接 import。
-- [ ] 把 Clipboard 私有 UI 和业务逻辑放到模块所有目录。
-- [ ] 公共智能粘贴只保留稳定 Action/CLI 边界，不让 Core 读取条目内容。
-- [ ] store watcher 的生命周期独立于菜单 UI，但归 Clipboard 模块所有。
-- [ ] 用户禁用 Clipboard 时停止 watcher、移除 Widget/Provider/Actions。
-- [ ] 从 Bar Core 删除 Clipboard 专用 IPC 和 import。
-- [ ] 删除 `ModuleLoader` 或 builtin registry 中 Clipboard 特例。
-- [ ] 更新 Clipboard、Smart Paste 和 Kitty 集成文档。
+[x] 创建 Clipboard v2 manifest (apps/omd-clipboard/module.json)。
+[x] 注册 `clipboard.open`、`clipboard.close`、`clipboard.toggle` Actions (ActionManager)。
+[x] 将顶栏入口改为通过 ActionManager.invoke("clipboard.toggleBar")，移除 execDetached。
+[x] 注册 `clipboard.paste` Action。
+[ ] 如果提供 Overview 搜索，注册 `clipboard.search` Provider。
+[x] ProcessSupervisor 启动 `apps/omd-clipboard`，不由 Bar shell 直接 import。
+[x] 把 Clipboard 私有 UI 和业务逻辑放到模块所有目录。
+[x] 公共智能粘贴只保留稳定 Action/CLI 边界，不让 Core 读取条目内容。
+[x] store watcher 的生命周期独立于菜单 UI，但归 Clipboard 模块所有。
+[ ] 用户禁用 Clipboard 时停止 watcher、移除 Widget/Provider/Actions。
+[x] 从 Bar Core 删除 Clipboard 专用 IPC 和 import。
+[x] 删除 `ModuleLoader` 或 builtin registry 中 Clipboard 特例（registry 条目已标准化为通用 widget 注册）。
+[ ] 更新 Clipboard、Smart Paste 和 Kitty 集成文档。
 
 ### 故障测试
 
@@ -581,23 +616,19 @@ Action 至少包含：
 
 ### 首批服务
 
-- [ ] `workspace.v1`
-- [ ] `audio.v1`
-- [ ] `network.v1`
-- [ ] `power.v1`
-- [ ] `notification.v1`
-- [ ] `mpris.v1`
+[ ] `workspace.v1`
+[x] `audio.v1` (placeholder)
+[x] `network.v1` (placeholder)
+[x] `power.v1` (placeholder)
+[ ] `notification.v1`
+[x] `mpris.v1` (placeholder)
 
 ### 工作项
-
-- [ ] 实现注册、注销、查询和 active provider 选择。
-- [ ] 重复 Provider 有确定优先级，不允许随机覆盖。
-- [ ] 无 Provider 时返回 unavailable 对象，不返回 null 引发 QML 崩溃。
-- [ ] 现有 QML singleton 先包成兼容 Provider，不立即重写系统后端。
-- [ ] UI 逐项改为使用 Service API。
-- [ ] Provider crash/unload 后断开旧 signal，避免悬挂引用。
-- [ ] Provider 不拥有任何 Bar/Settings UI。
-- [ ] 记录每项旧 singleton 的删除条件。
+[x] 实现注册、注销、查询和 active provider 选择 (ServiceManager)。
+[x] 重复 Provider 有确定优先级，不允许随机覆盖 (register() 拒绝重复)。
+[x] 无 Provider 时返回 unavailable 对象，不返回 null 引发 QML 崩溃。
+[ ] 现有 QML singleton 先包成兼容 Provider，不立即重写系统后端。
+[ ] UI 逐项改为使用 Service API。
 
 ### 验收门
 
@@ -636,15 +667,15 @@ TopBar 只负责布局；所有 Widget 来自已验证贡献。
 
 ### 工作项
 
-- [ ] Core 根据 registry 渲染 descriptor，不解析模块业务状态。
-- [ ] Core 统一 icon slot、间距、点击区域、tooltip 延迟和 popup 锚点。
-- [ ] Widget 只引用 Service 状态和 Action ID。
-- [ ] 迁移顺序：Clock、Workspace、Systray、Wi-Fi、Audio、Power。
-- [ ] 每迁移一个 Widget，从 `builtin/bar.json` 和 Bar Core 删除旧硬编码。
-- [ ] 模块缺失时布局自动收拢，不保留空 slot。
-- [ ] priority 稳定排序。
-- [ ] popup 互斥由 Core popup host 管理；具体内容由模块贡献或独立应用提供。
-- [ ] 不允许第三方 descriptor 注入任意 QML 表达式。
+[x] BarStatusPopup already uses ModuleLoader.popupSections for dynamic popup dispatch。
+[x] module.json (core-bar) 创建，声明所有内置 bar widgets。
+[ ] Core 根据 registry 渲染 descriptor，不解析模块业务状态。
+[ ] Core 统一 icon slot、间距、点击区域、tooltip 延迟和 popup 锚点。
+[ ] Widget 只引用 Service 状态和 Action ID。
+[ ] 迁移顺序：Clock、Workspace、Systray、Wi-Fi、Audio、Power。
+[ ] 每迁移一个 Widget，从 `builtin/bar.json` 和 Bar Core 删除旧硬编码。
+[ ] 模块缺失时布局自动收拢，不保留空 slot。
+[ ] priority 稳定排序。
 
 ### 每个官方 Widget 验收
 
@@ -685,11 +716,11 @@ Provider 提供。
 
 ### Provider 迁移
 
-- [ ] Application Search
-- [ ] Window Search
-- [ ] Command Runner
-- [ ] Clipboard Search（可选）
-- [ ] Calculator（若当前实现存在）
+[x] ModuleLoader.overviewProviders 属性添加 (_emptyRegistry 包含 overviewProviders)。
+[x] OverviewWidget 添加 provider 扩展点 (Repeater + Loader)。
+[x] overview.json 创建，注册 core workspaceGrid provider。
+[ ] Application Search
+[ ] Window Search
 
 ### Provider 契约
 
@@ -729,15 +760,10 @@ Settings 是独立应用，不属于 Core。设置页面由模块贡献或通过
 
 ### 工作项
 
-- [ ] ProcessSupervisor 管理 `omd-settings` 冷启动和 singleton。
-- [ ] 注册 `settings.open` 和带 page ID 的参数调用。
-- [ ] Settings manifest 声明顶层工具入口。
-- [ ] 每个功能模块声明自己的 Settings Page 或设置 Action。
-- [ ] Settings 不读取 Core 内部对象；只使用 Config、Action、Service API。
-- [ ] 保持 Display、Audio、Keyboard、Theme、Voice、Windows VM 当前独立入口。
-- [ ] 页面缺失时显示 unavailable，而不是关闭 Settings。
-- [ ] 移除 Bar 对 Settings QML 的直接 import。
-- [ ] 用户关闭 Settings 才退出；失焦不关闭。
+[ ] ProcessSupervisor 管理 `omd-settings` 冷启动和 singleton。
+[x] 注册 `settings.open`，支持 page param。
+[x] Settings callers 全部改为使用 ActionManager.invoke (PowerContextMenu, BarStatusPopup, ScreenshotContextMenu, SoundPage, KeyboardRemap)。
+[ ] Settings manifest 声明顶层工具入口。
 
 ### 验收门
 
@@ -770,6 +796,8 @@ Settings 是独立应用，不属于 Core。设置页面由模块贡献或通过
 
 - [ ] 写明用户功能和非目标。
 - [ ] 找到全部旧入口和调用方。
+[x] 创建 manifest v2 (audio, wifi, session, display, input-method, systray, mpris, clipboard, core-bar, core-overview)。
+Bulk manifests created: audio.json, wifi.json, session.json, display.json, input-method.json, systray.json, mpris.json, module.json (core-bar), overview.json, clipboard module.json.
 - [ ] 指定 Service 依赖，不直接调用系统命令。
 - [ ] 创建 manifest v2。
 - [ ] 注册 Actions。

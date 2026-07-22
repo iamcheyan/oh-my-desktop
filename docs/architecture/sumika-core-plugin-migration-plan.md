@@ -470,7 +470,7 @@ Bar 入口: ClipboardButton.qml → omd-clipboard (独立进程，通过 pgrep +
 | `overview/` | Overview 框架 + 搜索 UI | Core |
 | `polkit/` | Polkit 对话框 | Official Module (polkit) |
 | `regionSelector/` | 截图区域选择 | Official Module (screenshot) |
-| `schedulePopup/` | 计划/日程弹出 | Official Module (notification) |
+| `schedulePopup/` | ~~(deleted — TuiNotificationList moved to modules/notification-popup/)~~ | N/A |
 | `settings/` | 设置对话框、页面、显示配置 | Official Module (settings) |
 | `lock/` | → symlink to sumika-modules/lock/ | Official Module (lock) |
 

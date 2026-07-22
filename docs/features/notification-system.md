@@ -59,8 +59,9 @@ location when needed. New code must only write the Sumika path.
 - `quickshell/modules/common/widgets/NotificationGroup.qml`: grouping and
   dismissal interaction.
 - `quickshell/modules/common/widgets/NotificationItem.qml`: notification row.
-- `quickshell/modules/schedulePopup/notifications/TuiNotificationList.qml`:
+- `modules/notification-popup/TuiNotificationList.qml`:
   persistent history shown from the bar.
+
 
 Popup placement must use the same top-right margin contract as other bar
 panels. Do not add independent hard-coded screen offsets.
