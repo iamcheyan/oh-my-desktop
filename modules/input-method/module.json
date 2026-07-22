@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "id": "input-method",
+  "name": "Input Method & Voice",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "inputMethod",
+        "name": "Input Method",
+        "slot": "right",
+        "component": "InputMethodButton.qml",
+        "order": 70,
+        "alwaysShow": true,
+        "moduleId": "input-method"
+      }
+    ],
+    "popupSections": [
+      {"id": "inputMethod", "type": "inputMethod", "name": "Input Language", "component": "InputMethodPopup.qml"},
+      {"id": "xkb", "type": "xkb", "name": "Keyboard Layout", "component": "XkbPopup.qml"},
+      {"id": "keyboard", "type": "keyboard", "name": "Keyboard Remap", "component": "KeyboardPopup.qml"}
+    ]
+  }
+}

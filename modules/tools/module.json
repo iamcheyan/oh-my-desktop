@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "tools",
+  "name": "Tools",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "tools",
+        "name": "Tools",
+        "slot": "right",
+        "component": "ToolsButton.qml",
+        "order": 100,
+        "alwaysShow": true,
+        "moduleId": "tools"
+      }
+    ],
+    "popupSections": [
+      {"id": "tools", "type": "tools", "name": "OMD Tools", "component": "ToolsPopup.qml"}
+    ]
+  }
+}

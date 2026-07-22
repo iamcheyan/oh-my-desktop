@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "id": "systray",
+  "name": "System Tray",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "systray",
+        "name": "System Tray",
+        "slot": "right",
+        "component": "SysTray.qml",
+        "order": 0,
+        "alwaysShow": false,
+        "moduleId": "systray"
+      }
+    ],
+    "actions": []
+  }
+}

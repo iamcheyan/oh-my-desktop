@@ -1,0 +1,22 @@
+module qs.modules.bar
+Bar 1.0 Bar.qml
+BarContent 1.0 BarContent.qml
+BarRuntime 1.0 BarRuntime.qml
+BarDismissLayer 1.0 BarDismissLayer.qml
+BarStatusPopup 1.0 BarStatusPopup.qml
+PopupHeader 1.0 PopupHeader.qml
+PopupDeviceRow 1.0 PopupDeviceRow.qml
+PopupSliderRow 1.0 PopupSliderRow.qml
+PopupToggleRow 1.0 PopupToggleRow.qml
+PopupInfoRow 1.0 PopupInfoRow.qml
+PopupFooterLink 1.0 PopupFooterLink.qml
+StyledPopup 1.0 StyledPopup.qml
+StyledPopupContent 1.0 StyledPopupContent.qml
+StyledPopupHeaderRow 1.0 StyledPopupHeaderRow.qml
+StyledPopupValueRow 1.0 StyledPopupValueRow.qml
+SessionConfirmOverlay 1.0 SessionConfirmOverlay.qml
+SessionAutoRestore 1.0 SessionAutoRestore.qml
+SessionRestoreOverlay 1.0 SessionRestoreOverlay.qml
+ToolLauncherRow 1.0 ToolLauncherRow.qml
+IconActionRow 1.0 IconActionRow.qml
+PopupIconButton 1.0 PopupIconButton.qml

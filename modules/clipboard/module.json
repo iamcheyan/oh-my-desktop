@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "id": "clipboard",
+  "name": "Clipboard Manager",
+  "description": "Clipboard history viewer, image preview, smart paste for terminals, and search",
+  "version": "2.0.0",
+  "kind": "application",
+  "entry": {
+    "command": ["omd-clipboard", "open"],
+    "instance": "omd-clipboard",
+    "readyTimeout": 10,
+    "appId": "org.omd.clipboard"
+  },
+  "contributes": {
+    "actions": [
+      {"id": "clipboard.open", "name": "Open clipboard", "description": "Open clipboard history at cursor position"},
+      {"id": "clipboard.toggle", "name": "Toggle clipboard", "description": "Toggle clipboard history at cursor position"},
+      {"id": "clipboard.close", "name": "Close clipboard", "description": "Close clipboard history if open"},
+      {"id": "clipboard.paste", "name": "Paste clipboard selection", "description": "Paste the currently selected clipboard entry"}
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "id": "display",
+  "name": "Display",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "display",
+        "name": "Display",
+        "slot": "right",
+        "component": "DisplayButton.qml",
+        "order": 60,
+        "alwaysShow": true,
+        "moduleId": "display"
+      }
+    ],
+    "popupSections": [
+      {"id": "display", "type": "display", "name": "Display", "component": "DisplayPopup.qml"},
+      {"id": "bluetooth", "type": "bluetooth", "name": "Bluetooth", "component": "BluetoothPopup.qml"}
+    ]
+  }
+}
