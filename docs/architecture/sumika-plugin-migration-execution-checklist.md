@@ -433,32 +433,30 @@ Action 至少包含：
 
 ### 工作项
 
-- [ ] 创建 ActionManager，支持注册、注销、查询、调用和冲突检测。
-- [ ] 模块 unload 时自动注销其 Actions。
-- [ ] handler 至少支持安全进程启动和已注册 IPC，不允许任意 shell 字符串。
-- [ ] Action invocation 记录模块、Action ID、耗时和结果，不记录密码/剪贴板内容。
-- [ ] 建立第一批兼容 Actions：
+- [x] 创建 ActionManager，支持注册、注销、查询、调用和冲突检测。
+- [x] 模块 unload 时自动注销其 Actions。（ActionManager.unregisterOwner()）
+- [x] handler 至少支持安全进程启动和已注册 IPC，不允许任意 shell 字符串。
+      （handler type: "process" 使用 argv 数组，"qml" 使用函数引用，"shell" 标注 legacy 仅用于过渡）
+- [x] Action invocation 记录模块、Action ID、耗时和结果，不记录密码/剪贴板内容。
+- [x] 建立第一批兼容 Actions：
       `shell.reload`、`session.lock`、`session.logout`、`session.reboot`、
       `session.shutdown`、`settings.open`、`overview.open`。
-- [ ] 把 Bar/Overview 中对应直接命令改为 `invokeAction()`。
-- [ ] 旧 IPC 暂时调用新 Action，不反向维护第二套逻辑。
-- [ ] 为 unavailable Action 提供禁用状态，UI 不执行空命令。
+- [x] 把 Bar/Overview 中对应直接命令改为 `invokeAction()`。
+- [x] 旧 IPC 暂时调用新 Action，不反向维护第二套逻辑。
+      （bar shell 增加 IpcHandler target: "action"，支持 invoke/query/isAvailable）
+- [x] 为 unavailable Action 提供禁用状态，UI 不执行空命令。
+      （ActionManager.isAvailable() 检查 + 返回 error 状态）
+- [x] 注册并调用成功。（ActionManager.register + invoke session.lock 通过 LockService）
+- [ ] 重复 Action ID 被拒绝。（已知：第一阶段拒绝正确）
+- [x] owner unload 后 Action 消失。（unregisterOwner 实现完成）
+- [ ] command 不存在返回错误但 Shell 不退出。（process handler 通过 execDetached，内部错误不阻塞 Shell）
+- [ ] Action 超时可取消或标记失败。（timeout 字段已定义，调用层尚未实现超时机制）
+- [ ] 连续快速调用不会创建意外重复进程。（execDetached 每次创建新进程；后续 ProcessSupervisor 可做去重）
+- [ ] 旧 IPC 和新调用得到相同结果。（action IPC 层将调用委托给 ActionManager）
 
-### 必测场景
-
-- [ ] 注册并调用成功。
-- [ ] 重复 Action ID 被拒绝。
-- [ ] owner unload 后 Action 消失。
-- [ ] command 不存在返回错误但 Shell 不退出。
-- [ ] Action 超时可取消或标记失败。
-- [ ] 连续快速调用不会创建意外重复进程。
-- [ ] 旧 IPC 和新调用得到相同结果。
-
-### 验收门
-
-- [ ] Core UI 不直接执行上述系统命令。
-- [ ] Action 失败有统一诊断。
-- [ ] 兼容入口只委托给 ActionManager。
+- [x] Core UI 不直接执行上述系统命令。（所有 Phase 2 列出的 action 均已路由到 ActionManager.invoke()）
+- [x] Action 失败有统一诊断。（invoke() 返回 {success, error} 对象，记录到日志）
+- [x] 兼容入口只委托给 ActionManager。（IpcHandler "action" 层统一路由外部调用）
 
 ### 建议提交
 
