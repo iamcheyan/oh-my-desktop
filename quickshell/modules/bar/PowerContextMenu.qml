@@ -3,6 +3,7 @@ import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
+import qs.core.runtime
 import QtQuick
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
@@ -196,20 +197,19 @@ PopupWindow {
                     label:    "Hibernate"
                     onClicked: {
                         root.close();
-                        Session.hibernate();
+                        ActionManager.invoke("session.hibernate");
                     }
                 }
 
                 Separator {
                     visible: root.hibernateAvailable
                 }
-
                 MenuItem {
                     menuIcon: NerdIconMap.logout
                     label:    "Logout"
                     onClicked: {
                         root.close();
-                        Session.logout();
+                        ActionManager.invoke("session.logout");
                     }
                 }
 
@@ -218,7 +218,7 @@ PopupWindow {
                     label:    "Reboot"
                     onClicked: {
                         root.close();
-                        Session.reboot();
+                        ActionManager.invoke("session.reboot");
                     }
                 }
 
@@ -227,7 +227,7 @@ PopupWindow {
                     label:    "Shutdown"
                     onClicked: {
                         root.close();
-                        Session.poweroff();
+                        ActionManager.invoke("session.shutdown");
                     }
                 }
 
@@ -238,9 +238,7 @@ PopupWindow {
                     label:    "Settings"
                     onClicked: {
                         root.close();
-                        Quickshell.execDetached([
-                            `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "overview"
-                        ]);
+                        ActionManager.invoke("settings.open", {section: "overview"});
                     }
                 }
 
@@ -249,7 +247,7 @@ PopupWindow {
                     label:    "Reload Shell"
                     onClicked: {
                         root.close();
-                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                        ActionManager.invoke("shell.reload");
                     }
                 }
             }

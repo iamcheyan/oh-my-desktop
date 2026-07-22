@@ -7,6 +7,7 @@ import qs.modules.schedulePopup.notifications
 import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.services
+import qs.core.runtime
 import qs.services as Services
 import QtQuick
 import QtQuick.Controls
@@ -46,7 +47,7 @@ Scope {
 
     function openDialog(dialogType) {
         root.close();
-        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", dialogType]);
+        ActionManager.invoke("settings.open", {section: dialogType});
     }
 
     function saveSessionSnapshot() {
@@ -2108,12 +2109,17 @@ Scope {
             }
 
             function executeAction(action) {
-                if (action === "lock") { root.close(); Session.lock(); return; }
-                if (action === "sleep") { Session.suspend(); root.close(); return; }
-                if (action === "hibernate") { Session.hibernate(); root.close(); return; }
-                if (action === "logout") { Session.logout(); root.close(); return; }
-                if (action === "reboot") { Session.reboot(); root.close(); return; }
-                if (action === "poweroff") { Session.poweroff(); root.close(); return; }
+                root.close();
+                const actionId = action === "lock" ? "session.lock"
+                    : action === "sleep" ? "session.suspend"
+                    : action === "hibernate" ? "session.hibernate"
+                    : action === "logout" ? "session.logout"
+                    : action === "reboot" ? "session.reboot"
+                    : action === "poweroff" ? "session.shutdown"
+                    : null;
+                if (actionId) {
+                    ActionManager.invoke(actionId);
+                }
             }
 
             function requestAction(action, label) {

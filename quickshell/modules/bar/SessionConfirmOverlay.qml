@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import qs
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -44,12 +45,15 @@ Scope {
     function runAction(saveCurrentSession) {
         const currentAction = action;
         GlobalStates.closeSessionConfirm();
-        if (currentAction === "logout") {
-            Session.logout(saveCurrentSession);
-        } else if (currentAction === "reboot") {
-            Session.reboot(saveCurrentSession);
-        } else if (currentAction === "poweroff") {
-            Session.poweroff(saveCurrentSession);
+        const actionId = saveCurrentSession && currentAction === "logout" ? "session.logout.save"
+            : saveCurrentSession && currentAction === "reboot" ? "session.reboot.save"
+            : saveCurrentSession && currentAction === "poweroff" ? "session.shutdown.save"
+            : currentAction === "logout" ? "session.logout"
+            : currentAction === "reboot" ? "session.reboot"
+            : currentAction === "poweroff" ? "session.shutdown"
+            : null;
+        if (actionId) {
+            ActionManager.invoke(actionId);
         }
     }
 

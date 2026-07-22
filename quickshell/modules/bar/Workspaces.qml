@@ -1,4 +1,5 @@
 import qs
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import QtQuick
@@ -7,14 +8,9 @@ import Quickshell
 Item {
     id: root
 
-    property bool vertical: false
-    property int widgetPadding: 0
-    readonly property string overviewApp: `${FileUtils.trimFileProtocol(Directories.root)}/apps/omd-overview`
 
     function toggleOverview() {
-        Quickshell.execDetached([
-            "qs", "-p", root.overviewApp, "ipc", "call", "overview", "toggle"
-        ]);
+        ActionManager.invoke("overview.open");
     }
 
     implicitWidth: workspacesButton.implicitWidth
