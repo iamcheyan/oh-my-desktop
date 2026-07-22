@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import qs
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import QtQuick
@@ -470,7 +471,7 @@ Singleton {
 
     function openSettings() {
         GlobalStates.barPopupType = "";
-        Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-settings`, "open", "keyremap"]);
+        ActionManager.invoke("settings.open", {page: "keyremap"});
     }
 
     function openPanel() {

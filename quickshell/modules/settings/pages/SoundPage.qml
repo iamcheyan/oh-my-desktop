@@ -1,5 +1,6 @@
 import qs
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -552,7 +553,7 @@ ColumnLayout {
                         iconName: "open_in_new"
                         onClicked: {
                             pageRoot.settingsRoot.dismiss()
-                            Quickshell.execDetached([Quickshell.env("HOME") + "/.config/omd/bin/omd-settings", "open", "sound"])
+                            ActionManager.invoke("settings.open", {page: "sound"})
                         }
                     }
                 }

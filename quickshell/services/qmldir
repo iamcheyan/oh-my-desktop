@@ -26,7 +26,6 @@ singleton OmarchyTheme 1.0 OmarchyTheme.qml
 singleton Wallpaper 1.0 Wallpaper.qml
 singleton Battery 1.0 Battery.qml
 singleton PowerProfiles 1.0 PowerProfiles.qml
-singleton ModuleLoader 1.0 ModuleLoader.qml
 singleton FirstRunExperience 1.0 FirstRunExperience.qml
 singleton ConflictKiller 1.0 ConflictKiller.qml
 singleton Updates 1.0 Updates.qml

@@ -991,4 +991,25 @@ Item {
             }
         }
     }
+
+    // ── Overview provider extension point ──
+    Repeater {
+        id: overviewProvidersRepeater
+        model: ModuleLoader.overviewProviders
+        delegate: Loader {
+            required property var modelData
+            source: modelData.component
+            active: true
+            z: {
+                // Default z-order; individual providers can override via their component
+                if (modelData.z !== undefined) return modelData.z;
+                return root.windowDraggingZ + 2;
+            }
+            Component.onCompleted: {
+                if (!modelData.component || modelData.component.length === 0) {
+                    console.warn("[Overview] overviewProvider missing component:", JSON.stringify(modelData));
+                }
+            }
+        }
+    }
 }
