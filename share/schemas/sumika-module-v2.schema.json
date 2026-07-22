@@ -1,0 +1,344 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://sumika-shell.dev/schemas/module-v2.schema.json",
+    "title": "Sumika Module Manifest v2",
+    "description": "Strict schema for Sumika module manifests (Registry v2). All modules MUST pass this schema before their contributions are included in the runtime registry.",
+    "type": "object",
+    "required": [
+        "schemaVersion",
+        "id",
+        "name",
+        "kind"
+    ],
+    "properties": {
+        "schemaVersion": {
+            "description": "Manifest schema version. MUST be 2.",
+            "type": "integer",
+            "enum": [2]
+        },
+        "id": {
+            "description": "Globally unique module identifier. Lowercase letters, digits, hyphens only.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "minLength": 1,
+            "maxLength": 64
+        },
+        "name": {
+            "description": "Human-readable module name.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+        },
+        "version": {
+            "description": "Semantic version string. Optional for local modules; recommended for distributable modules.",
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+"
+        },
+        "description": {
+            "description": "Short description of the module.",
+            "type": "string",
+            "maxLength": 512
+        },
+        "kind": {
+            "description": "Module isolation kind. Determines how Core loads and manages the module.",
+            "type": "string",
+            "enum": ["application", "qml-singleton", "service-provider", "shared"]
+        },
+        "entry": {
+            "description": "Process entry point for 'application' kind modules.",
+            "type": "object",
+            "required": ["command"],
+            "properties": {
+                "command": {
+                    "description": "Executable command and arguments as an array. NEVER use shell strings.",
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "minItems": 1
+                },
+                "instance": {
+                    "description": "Unique instance name for singleton detection and process supervision.",
+                    "type": "string",
+                    "pattern": "^omd-[a-z][a-z0-9-]*$",
+                    "maxLength": 64
+                },
+                "readyTimeout": {
+                    "description": "Seconds to wait for the process to signal readiness (via log pattern or socket).",
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 10
+                },
+                "readyLog": {
+                    "description": "Regex pattern to match against process stdout/stderr to determine readiness.",
+                    "type": "string"
+                },
+                "readyPort": {
+                    "description": "TCP port that must accept connections for the process to be considered ready.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                },
+                "appId": {
+                    "description": "The app-id/class for Hyprland window rules. Must not contain spaces.",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9._-]+$",
+                    "maxLength": 128
+                }
+            },
+            "additionalProperties": false
+        },
+        "contributes": {
+            "description": "What the module contributes to Core runtime. v2 replaces 'capabilities'.",
+            "type": "object",
+            "properties": {
+                "widgets": {
+                    "description": "Bar buttons (widgets in topbar slots). Each has an ID unique within the module.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/contributedWidget"
+                    },
+                    "uniqueItemProperties": ["id"]
+                },
+                "actions": {
+                    "description": "Action IDs this module provides. IDs MUST be globally unique.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/contributedAction"
+                    },
+                    "uniqueItemProperties": ["id"]
+                },
+                "overviewProviders": {
+                    "description": "Search providers for the Overview workspace.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/overviewProvider"
+                    },
+                    "uniqueItemProperties": ["id"]
+                },
+                "settingsPages": {
+                    "description": "Settings pages contributed to the settings dialog.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/settingsPage"
+                    },
+                    "uniqueItemProperties": ["id"]
+                },
+                "services": {
+                    "description": "Service IDs this module provides at runtime.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-zA-Z0-9-]*$"
+                    },
+                    "uniqueItems": true
+                },
+                "popupSections": {
+                    "description": "Additional content sections for bar popups.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/popupSection"
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "minProperties": 1
+        },
+        "capabilities": {
+            "description": "Legacy v1 capabilities. Deprecated — use 'contributes' instead. Only used as compat bridge.",
+            "type": "object",
+            "properties": {
+                "barButtons": { "type": "array" },
+                "popupSections": { "type": "array" },
+                "settingsPages": { "type": "array" },
+                "services": { "type": "array" },
+                "apps": { "type": "array" },
+                "binScripts": { "type": "string" }
+            },
+            "additionalProperties": true
+        },
+        "permissions": {
+            "description": "Permissions the module requires. Will be enforced by Core in future versions.",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9.-]*$"
+            },
+            "uniqueItems": true
+        },
+        "config": {
+            "description": "Configuration metadata for the module.",
+            "type": "object",
+            "properties": {
+                "relativePath": {
+                    "description": "Relative config path under sumika.json's modules.<id> section.",
+                    "type": "string"
+                },
+                "defaults": {
+                    "description": "Default config values applied when no user config exists.",
+                    "type": "object"
+                }
+            },
+            "additionalProperties": false
+        },
+        "dependencies": {
+            "description": "Module IDs this module depends on (not yet enforced at runtime).",
+            "type": "array",
+            "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "uniqueItems": true
+        }
+    },
+    "definitions": {
+        "contributedWidget": {
+            "type": "object",
+            "required": ["id", "slot"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-zA-Z0-9-]*$",
+                    "maxLength": 64
+                },
+                "slot": {
+                    "type": "string",
+                    "enum": ["left", "right"]
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "default": 100
+                },
+                "descriptor": {
+                    "description": "Path to a QML-based descriptor file, relative to module root.",
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "alwaysShow": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "moduleId": {
+                    "description": "Override moduleId for this widget. Defaults to module id.",
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "contributedAction": {
+            "type": "object",
+            "required": ["id", "title"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9.-]*$",
+                    "maxLength": 128
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 512
+                },
+                "handler": {
+                    "description": "How Core should dispatch this action. 'ipc:<msg>' for IPC, 'action:<id>' for forwarding.",
+                    "type": "string",
+                    "pattern": "^(ipc:|action:)[a-zA-Z0-9._-]+$",
+                    "maxLength": 256
+                },
+                "parameterSchema": {
+                    "type": "object",
+                    "description": "JSON Schema for action parameters (optional)."
+                },
+                "timeout": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "default": 30
+                }
+            },
+            "additionalProperties": false
+        },
+        "overviewProvider": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9.-]*$",
+                    "maxLength": 64
+                },
+                "priority": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "default": 100
+                },
+                "handler": {
+                    "type": "string",
+                    "pattern": "^(ipc:|action:)[a-zA-Z0-9._-]+$"
+                }
+            },
+            "additionalProperties": false
+        },
+        "settingsPage": {
+            "type": "object",
+            "required": ["id", "title", "component"],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9.-]*$",
+                    "maxLength": 64
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "component": {
+                    "description": "QML component path, relative to module root.",
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "icon": {
+                    "type": "string",
+                    "maxLength": 64
+                },
+                "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000,
+                    "default": 100
+                }
+            },
+            "additionalProperties": false
+        },
+        "popupSection": {
+            "type": "object",
+            "required": ["type", "component"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                },
+                "component": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "moduleId": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "allOf": [
+        {
+            "description": "Application kind requires an entry point.",
+            "if": { "properties": { "kind": { "const": "application" } } },
+            "then": { "required": ["entry"] }
+        }
+    ],
+    "additionalProperties": false
+}

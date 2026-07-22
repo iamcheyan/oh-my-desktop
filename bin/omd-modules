@@ -255,6 +255,21 @@ cmd_remove() {
     echo "  Run 'omd-restart' to apply."
 }
 
+cmd_validate() {
+    local module_id="${1:-}"
+    local validator="$OMD_ROOT/bin/omd-module-validate"
+    if [ ! -x "$validator" ]; then
+        echo "Validator not found: $validator" >&2
+        return 1
+    fi
+    if [ -n "$module_id" ]; then
+        module_exists "$module_id" || { echo "Module not found: $module_id" >&2; return 1; }
+        "$validator" "$SUMIKA_MODULES_HOME/$module_id/"
+    else
+        "$validator" --all
+    fi
+}
+
 cmd_help() {
     cat <<'EOF'
 Usage: omd-modules <command> [args]
@@ -267,6 +282,7 @@ Commands:
   install <url>     Install a module from git URL
   update [id]       Update module(s) via git pull
   remove <id>       Remove a module (with confirmation)
+  validate [id]     Validate module manifest(s) using Registry v2 schema
   help              Show this help
 EOF
     echo "Module directory: $SUMIKA_MODULES_HOME"
@@ -285,6 +301,7 @@ main() {
         doctor)   cmd_doctor "$@" ;;
         install)  cmd_install "$@" ;;
         update)   cmd_update "$@" ;;
+        validate) cmd_validate "$@" ;;
         remove)   cmd_remove "$@" ;;
         help|-h|--help) cmd_help ;;
         *)        echo "Unknown command: $cmd" >&2; cmd_help >&2; return 2 ;;
