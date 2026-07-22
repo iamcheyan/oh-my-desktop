@@ -1,0 +1,2 @@
+module qs.core.runtime
+singleton ActionManager 1.0 ActionManager.qml

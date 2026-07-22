@@ -4,7 +4,7 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
-import qs
+import qs.core.runtime
 import "modules/common"
 import "services"
 import "services" as Services
@@ -102,7 +102,31 @@ ShellRoot {
         }
     }
 
+    // Action IPC compat layer — external processes (overview, settings, etc.)
+    // can invoke or query any registered ActionManager action by ID.
+    // This is the migration path from old direct qs -p ipc calls.
+    IpcHandler {
+        target: "action"
+
+        function invoke(id: string, params: var): void {
+            const result = ActionManager.invoke(id, params)
+            if (!result.success) {
+                console.warn("[action IPC] invoke '" + id + "' failed: " + (result.error || "unknown"))
+            }
+        }
+
+        function query(id: string): var {
+            return ActionManager.query(id)
+        }
+
+        function isAvailable(id: string): bool {
+            return ActionManager.isAvailable(id)
+        }
+    }
+
     Component.onCompleted: {
+        // Register all core builtin actions.
+        ActionManager._registerBuiltins()
         Hyprsunset.load()
         FirstRunExperience.load()
         ConflictKiller.load()
