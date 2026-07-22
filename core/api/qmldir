@@ -1,0 +1,3 @@
+module qs.core.api
+singleton ActionApi 1.0 ActionApi.qml
+singleton ServiceApi 1.0 ServiceApi.qml

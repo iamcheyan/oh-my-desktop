@@ -1,0 +1,2 @@
+module qs.core.diagnostics
+singleton DiagnosticReporter 1.0 DiagnosticReporter.qml

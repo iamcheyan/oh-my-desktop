@@ -1,0 +1,2 @@
+module qs.core.ui
+singleton MainBar 1.0 topbar/MainBar.qml

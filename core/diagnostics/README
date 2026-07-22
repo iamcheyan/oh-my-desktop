@@ -1,0 +1,9 @@
+core/diagnostics - TUI / Health Services
+
+This module provides diagnostic reporters and health-check utilities for
+the Sumika Shell runtime. DiagnosticReporter collects state snapshots
+from core singletons (ServiceManager, ModuleLoader, ActionManager, etc.)
+for rendering by terminal TUI tools or shell health commands.
+
+Contents:
+  DiagnosticReporter.qml  - Singleton reporter for runtime state
