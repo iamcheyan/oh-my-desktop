@@ -76,86 +76,111 @@ if [ -d "$SUMIKA_MODULES_HOME" ]; then
 fi
 
 # ---------------------------------------------------------------
-# Registry generation — always generated, independent of master switch
+# Registry generation — always generated, independent of master switch.
+# Outputs v2 schema (schemaVersion=2) with contributes.widgets/popupSections/
+# settingsPages/services/actions/overviewProviders.
 # ---------------------------------------------------------------
 registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
 mkdir -p "$registry_dir"
 registry_file="$registry_dir/modules.json"
 
-# Start with empty template
-registry='{"schemaVersion":1,"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}'
+# v2 empty template
+registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[]}}'
 
-# Merge builtin manifests unconditionally (core bar buttons, alwaysShow info).
-# This does not depend on SUMIKA_MODULES_HOME or modules.enabled.
+# Helper: merge a single manifest into the registry.
+# Args: $1 = module.json path, $2 = module root dir
+merge_manifest() {
+    local manifest="$1" mod_dir="$2"
+    local id
+    id=$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)
+    [ -n "$id" ] || { echo "[sumika] WARN: skipping $manifest — no id field" >&2; return 1; }
+
+    # Validate via omd-module-validate if available
+    local validator="$OMD_REPO_ROOT/bin/omd-module-validate"
+    if [ -x "$validator" ]; then
+        if ! "$validator" "$manifest" >/dev/null 2>&1; then
+            echo "[sumika] WARN: manifest validation failed for $id — skipping" >&2
+            return 1
+        fi
+    fi
+
+    local tmp_reg
+    tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
+    echo "$registry" > "$tmp_reg"
+
+    local new_reg
+    new_reg=$(jq -c \
+        --slurpfile mod "$manifest" \
+        --arg mdir "$mod_dir" \
+        --arg mid "$id" \
+        '.modules += [{"id": $mid, "path": $mdir}] |
+         .contributes.widgets += (
+           ($mod[0].contributes.widgets // $mod[0].capabilities.barButtons // [])
+           | map(. + {component: ("file://" + $mdir + "/" + .component)}
+                | .moduleId = (.moduleId // $mid))
+         ) |
+         .contributes.popupSections += (
+           ($mod[0].contributes.popupSections // $mod[0].capabilities.popupSections // [])
+           | map(. + {component: ("file://" + $mdir + "/" + .component)}
+                | .moduleId = (.moduleId // $mid))
+         ) |
+         .contributes.settingsPages += (
+           ($mod[0].contributes.settingsPages // $mod[0].capabilities.settingsPages // [])
+           | map(. + {component: ("file://" + $mdir + "/" + .component)}
+                | .moduleId = (.moduleId // $mid))
+         ) |
+         .contributes.services += (
+           ($mod[0].contributes.services // $mod[0].capabilities.services // [])
+         ) |
+         .contributes.actions += ($mod[0].contributes.actions // [])' \
+        "$tmp_reg" 2>&1) && registry="$new_reg" || {
+            echo "[sumika] WARN: merge failed for $manifest" >&2
+            rm -f "$tmp_reg"
+            return 1
+        }
+    rm -f "$tmp_reg"
+}
+
+# Merge builtin manifests unconditionally
 builtin_dir="$repo_root/quickshell/registry/builtin"
 if [ -d "$builtin_dir" ]; then
     if command -v jq >/dev/null 2>&1; then
         for manifest_json in "$builtin_dir"/*.json; do
             [ -f "$manifest_json" ] || continue
-            tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
-            echo "$registry" > "$tmp_reg"
-            new_reg=$(jq -c --slurpfile mod "$manifest_json" --arg mdir "$repo_root/quickshell" \
-                '.modules += [{"id": $mod[0].id, "path": $mdir, "builtin": true}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id)))' \
-                "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: builtin merge failed for $manifest_json" >&2
-            rm -f "$tmp_reg"
+            merge_manifest "$manifest_json" "$repo_root/quickshell"
         done
     else
-        echo "[sumika] INFO: jq not available — builtin manifests will not be merged"
+        echo "[sumika] WARN: jq not available — builtin manifests will not be merged"
     fi
 fi
 
-# Read master switch from user config
+# Read master switch
 modules_enabled=true
 if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
     modules_enabled=$(jq -r 'try .modules.enabled // "true"' "$config_file" 2>/dev/null || true)
 fi
-if [ "$modules_enabled" != "false" ]; then
-    :  # modules enabled — merge external contributions below
-else
-    echo "[sumika] modules disabled via sumika.json (builtin buttons still available)"
+if [ "$modules_enabled" = "false" ]; then
+    echo "[sumika] modules disabled via sumika.json (builtin widgets still available)"
 fi
 
-# Merge external modules only when enabled and directory exists
+# Merge external modules when enabled and directory exists
 if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ]; then
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue
         module_dir=$(dirname "$module_json")
         if command -v jq >/dev/null 2>&1; then
-            tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
-            echo "$registry" > "$tmp_reg"
-            new_reg=$(jq -c --slurpfile mod "$module_json" --arg mdir "$module_dir" \
-                '.modules += [{"id": $mod[0].id, "path": $mdir}] |
-                 .barButtons += ($mod[0].capabilities.barButtons // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id))) |
-                 .popupSections += ($mod[0].capabilities.popupSections // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id))) |
-                 .settingsPages += ($mod[0].capabilities.settingsPages // [] | map(. + {component: ("file://" + $mdir + "/" + .component)} | .moduleId = (.moduleId // $mod[0].id)))' \
-                "$tmp_reg" 2>&1) && registry="$new_reg" || echo "[sumika] WARN: external module merge failed for $module_json" >&2
-            rm -f "$tmp_reg"
+            merge_manifest "$module_json" "$module_dir"
         fi
     done
 fi
 
-# Fallback: if the registry still has the empty template (no jq for builtin merge),
-# write a hardcoded minimal registry so the bar never goes completely empty.
-if [ "$registry" = '{"schemaVersion":1,"modules":[],"barButtons":[],"popupSections":[],"settingsPages":[]}' ]; then
-    echo "[sumika] WARN: jq unavailable — writing fallback registry with core alwaysShow buttons"
-    registry='{
-  "schemaVersion": 1,
-  "modules": [{"id":"builtin-bar","path":"'"$repo_root"'/quickshell","builtin":true}],
-  "barButtons": [
-    {"id":"appLauncher","slot":"left","component":"file://'"$repo_root"'/quickshell/modules/bar/AppLauncherButton.qml","order":0,"alwaysShow":true,"moduleId":"builtin"},
-    {"id":"activeWindow","slot":"left","component":"file://'"$repo_root"'/quickshell/modules/bar/ActiveWindow.qml","order":10,"alwaysShow":true,"moduleId":"builtin"},
-    {"id":"audio","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/modules/AudioButton.qml","order":20,"alwaysShow":true,"moduleId":"builtin"},
-    {"id":"wifi","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/modules/WifiButton.qml","order":30,"alwaysShow":true,"moduleId":"builtin"},
-    {"id":"clock","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/ClockWidget.qml","order":80,"alwaysShow":true,"moduleId":"builtin"},
-    {"id":"sidebarIndicators","slot":"right","component":"file://'"$repo_root"'/quickshell/modules/bar/SidebarIndicators.qml","order":90,"alwaysShow":true,"moduleId":"builtin"}
-  ],
-  "popupSections": [],
-  "settingsPages": []
-}'
+# No hardcoded fallback: if jq is absent, registry stays empty.
+# ModuleLoader handles empty registry gracefully by showing no module-dependent UI.
+if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[]}}' ]; then
+    echo "[sumika] INFO: empty registry — jq may be missing or no manifests found"
 fi
 
-# Atomic write: temp file + mv
+# Atomic write
 tmp_file="$(mktemp "$registry_dir/registry.XXXXXX")"
 echo "$registry" > "$tmp_file"
 mv "$tmp_file" "$registry_file"
@@ -163,10 +188,10 @@ export SUMIKA_MODULE_REGISTRY="$registry_file"
 
 # Log summary
 if command -v jq >/dev/null 2>&1; then
-    bar_count=$(echo "$registry" | jq -r '.barButtons | length // 0')
-    popup_count=$(echo "$registry" | jq -r '.popupSections | length // 0')
-    settings_count=$(echo "$registry" | jq -r '.settingsPages | length // 0')
-    echo "[sumika] Registry: $registry_file (barButtons: $bar_count, popupSections: $popup_count, settingsPages: $settings_count)"
+    widget_count=$(echo "$registry" | jq -r '.contributes.widgets | length // 0')
+    popup_count=$(echo "$registry" | jq -r '.contributes.popupSections | length // 0')
+    settings_count=$(echo "$registry" | jq -r '.contributes.settingsPages | length // 0')
+    echo "[sumika] Registry: $registry_file (widgets: $widget_count, popupSections: $popup_count, settingsPages: $settings_count)"
 else
     echo "[sumika] Registry: $registry_file"
 fi
