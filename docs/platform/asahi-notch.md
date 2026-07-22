@@ -52,7 +52,7 @@ hl.monitor({ output = "eDP-1", mode = "3024x1964@120", position = "0x0", scale =
 
 为避免时钟绘制到顶部中央被刘海盖住，当前 Bar 布局已在
 `quickshell/modules/bar/BarContent.qml` 固定为中央留空、时钟在右侧。
-不再通过 `quickshell/config.json` 的 `centerModules` / `rightModules`
+不再通过旧版配置文件的 `centerModules` / `rightModules`
 调整位置。Quickshell 热重载即可生效；HDMI 等外接显示器不受影响。
 
 ## 回退

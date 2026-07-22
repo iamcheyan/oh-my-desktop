@@ -190,7 +190,7 @@ DisplayConfigState.qml
        -> wlr-randr --dryrun <complete layout>
        -> wlr-randr <complete layout>
        -> wlr-randr --json and verify every requested value
-       -> write ~/.local/state/omd/display/layout.lua
+       -> write ~/.local/state/sumika-shell/display/layout.lua
        -> hypr/monitors.lua reads it on startup or config reload
 ```
 
@@ -254,7 +254,7 @@ has a different set of clean divisors. The draft stores the UI preset and the
 effective compositor scale separately, which also lets the Apply button treat
 two presets mapping to the same actual value as a real user edit.
 The selected preset is persisted in
-`~/.local/state/omd/display/layout.json` alongside the effective scale, while
+`~/.local/state/sumika-shell/display/layout.json` alongside the effective scale, while
 `layout.lua` remains the Hyprland startup configuration. This preserves labels
 such as `175% · actual 166.67%` after reopening the settings panel.
 

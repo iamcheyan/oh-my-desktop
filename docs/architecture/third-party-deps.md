@@ -1,6 +1,7 @@
 # Third-Party Dependencies
 
-All external programs used by oh-my-desktop, grouped by feature.
+All external programs used by Sumika Shell, grouped by feature. Technical
+commands and package identifiers retain the `omd` prefix.
 
 ## Hyprland Core
 

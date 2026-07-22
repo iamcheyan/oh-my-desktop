@@ -1,8 +1,9 @@
-# Python TUI 框架统一方案
+# Python TUI 框架
 
-## 背景
+## 当前架构
 
-OMD 现有 8 个 Python TUI 脚本（`bin/` 下），涵盖以下设置工具：
+Sumika Shell 的 Python TUI 位于 `bin/`，并通过
+`bin/omd_tui_shared.py` 共享布局、绘制和事件循环能力：
 
 | 脚本 | 类型 | 架构模式 | Layout 模板 |
 |---|---|---|---|
@@ -14,7 +15,7 @@ OMD 现有 8 个 Python TUI 脚本（`bin/` 下），涵盖以下设置工具：
 | `omd-settings-vm-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
 | `omd-settings-theme-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（`force_single` + 自定义绘制） |
 | `omd-settings-backup-tui` | 设置中心 | 自建 Model，自建事件循环 | 是 |
-已共享的模块 `bin/omd_tui_shared.py`（1178 行）覆盖了：
+共享模块覆盖以下能力。
 
 ## 架构模式
 
@@ -59,12 +60,12 @@ class Model:   # 不使用 StatusModel
 
 ## Layout 模板框架
 
-### 解决的问题
+### 设计目的
 
-8 个 TUI 过去各写各的几何计算（`pad_x`、`pad_y`、`content_w`、`left_w`、`right_x` …），
-公式一样但数字不同。改一个布局参数得改 8 处。
+设置 TUI 不应分别维护重复的几何计算。`Layout` 统一提供
+`pad_x`、`pad_y`、`content_w`、`left_w`、`right_x` 等布局数据。
 
-### 方案：`S.Layout` 类
+### `S.Layout` 类
 
 ```python
 ly = S.Layout(stdscr)        # 读取终端尺寸
@@ -122,9 +123,9 @@ if S.handle_tab(key, m):      # field="focus", count=2
 
 自动循环 `model.focus` 0→1→0（或任意 count）。Tab 键通用处理，各 TUI 不再各自手写。
 
-## 已完成的阶段
+## 已实现能力
 
-### 阶段一：消除机械重复（✅ 完成）
+### 通用运行能力
 
 在 `omd_tui_shared.py` 新增了以下提取物，逐 TUI 替换手写样板：
 
@@ -135,18 +136,12 @@ if S.handle_tab(key, m):      # field="focus", count=2
 | `draw_dialog()` | 居中 overlay 提示框 | wifi, bluetooth |
 | `setup_locale()` | LC_ALL + 窄 ambiguous 统一设置 | 所有 8 个 TUI |
 
-| 文件 | 阶段一净变化 |
+### Layout 模板框架
+
+| 能力 | 说明 |
 |---|---|
-| `omd_tui_shared.py` | +994 行（851→994 含阶段一） |
-| 各 TUI | -20~60 行每文件 |
-
-### 阶段二：Layout 模板框架（✅ 完成）
-
-| 新增 | 行数 | 说明 |
-|---|---|---|
-| `Layout` 类 | ~100 行 | 标准两栏布局，含 `compute()` / `draw_panel()` / `inner_rect()` |
-| `handle_tab()` | ~15 行 | Tab 焦点切换 |
-| 重写 `Layout.draw_hero` | 修复继承类方法签名 | 从解包 bug 修复 |
+| `Layout` 类 | 标准两栏布局，含 `compute()` / `draw_panel()` / `inner_rect()` |
+| `handle_tab()` | Tab 焦点切换 |
 已转换 6 个 TUI：
 - vm-tui（最先转换，验证 API）
 - voice-tui
@@ -154,7 +149,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 - backup-tui
 - keyboard-tui（取坐标 + 自定义堆叠盒子和焦点）
 - theme-tui（`split_threshold=108`, `force_single`, 自定义预览/设置/动作盒）
-### 阶段三：表格渲染原语（✅ 完成）
+### 表格渲染原语
 
 将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `omd_tui_shared.py`：
 
@@ -169,7 +164,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 
 wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_header_attr`, `_sel_attr`, `_draw_row`），bluetooth-tui 同理。各自约 -50 行。
 
-### 阶段四：表单编辑（🚫 跳过）
+### 表单编辑边界
 
 只有 backup 需要表单编辑，无第二消费者。保持 backup 独有。
 
@@ -180,7 +175,7 @@ wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_head
 3. 不动 backup 的线程模型
 4. 不把 wifi/bluetooth 强行套进 `StatusModel`
 5. 不加第三方依赖——纯 `curses` + Python stdlib
-6. `omd_tui_shared.py` 保持单文件（~1178 行）
+6. 共享原语保持集中，只有出现清晰的职责边界时才继续拆文件
 
 ## 新建 TUI 实践指南
 
@@ -192,7 +187,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import omd_tui_shared as S
 ```
 
-所有 TUI 共用 `bin/omd_tui_shared.py`（1178 行），不加第三方依赖。
+所有 TUI 共用 `bin/omd_tui_shared.py`，不加第三方依赖。
 
 ### 1. 选骨架
 

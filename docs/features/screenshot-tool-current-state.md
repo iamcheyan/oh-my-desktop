@@ -1,7 +1,5 @@
 # Screenshot Architecture
 
-Updated: 2026-07-16
-
 ## Goals
 
 OMD has two screenshot paths with deliberately different priorities:

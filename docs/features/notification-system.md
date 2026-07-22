@@ -1,201 +1,96 @@
 # Notification System
 
-Date: 2026-07-19
+Sumika provides a notification server, transient popup UI, and persistent
+history. Notification functionality is currently loaded by the bar runtime but
+is a candidate for an isolated module in the Core/plugin migration.
 
-## Overview
+## Data Flow
 
-The notification system has three layers:
-
-| Layer | Component | Path |
-|---|---|---|
-| **Server** | `Notifications.qml` (singleton) | `quickshell/services/Notifications.qml` |
-| **Popup UI** | `NotificationPopup.qml` → `NotificationListView` → `NotificationGroup` → `NotificationItem` | `quickshell/modules/notificationPopup/` + `quickshell/modules/common/widgets/` |
-| **History** | `TuiNotificationList.qml` | `quickshell/modules/schedulePopup/notifications/` |
-| **Bar entry** | `ClockWidget.qml` | `quickshell/modules/bar/ClockWidget.qml` |
-
----
-
-## 1. How Notifications Are Triggered
-
-### Path A: External DBus (Desktop Notifications)
-
-Any app or script calls `notify-send`, which arrives via DBus at `NotificationServer`:
-
-```mermaid
-flowchart LR
-    App[App/script] -->|notify-send| DBus[DBus]
-    DBus --> NS[NotificationServer<br/>Notifications.qml:168]
-    NS -->|wrap| Notif[Notif object]
-    Notif -->|push| List[Notifications.list]
-    Notif -->|popup=true| Popup[Notifications.popupList]
-    Notif -->|start| Timer[NotifTimer 7s]
-    Notif -->|persist| File[notifications.json]
+```text
+application / notify-send
+        -> Quickshell NotificationServer
+        -> Notifications singleton
+        -> popupList (transient presentation)
+        -> list (history and persistence)
 ```
 
-Files calling `notify-send`:
-- `Battery.qml` — low/critical/full battery
-- `VoiceInput.qml` — setup progress
-- `BarStatusPopup.qml` — session save
-- `share/bin/omarchy-capture-screenshot` — screenshot taken
-- `share/bin/omarchy-capture-text-extraction` — OCR done
-- `quickshell/scripts/videos/record.sh` — recording start/stop
-- `quickshell/scripts/colors/switchwall.sh` — wallpaper changed
-- `apps/omd-clipboard/services/Cliphist.qml` — image path copied
+`quickshell/services/Notifications.qml` owns notification state. It wraps DBus
+notifications, starts expiry timers, maintains unread state and application
+groups, and emits updates consumed by both popup and history views.
 
-### Path B: IPC (Cross-Process Control)
+## Behavior
 
-The bar process exposes an `IpcHandler` for notification control:
+- Transient notifications are removed when their timeout expires.
+- Non-transient notifications leave the popup but remain in history.
+- A sender-provided positive timeout overrides the configured default.
+- A zero timeout is persistent.
+- Do Not Disturb inhibits popups without discarding history.
+- Popup hover pauses dismissal; leaving resumes it.
+- Notification actions, copy, close, grouping, and drag dismissal are handled
+  by shared notification widgets.
+- Notifications are hidden while the screen is locked.
 
-```javascript
-// apps/omd-bar/shell.qml:76
-IpcHandler {
-    target: "notifications"
-    function dismissLast(): void
-    function dismissAll(): void
-    function toggleSilent(): void
-}
+## Storage And Configuration
+
+History remains runtime cache rather than user configuration:
+
+```text
+${XDG_CACHE_HOME:-~/.cache}/quickshell/notifications/notifications.json
 ```
 
-Usage: `qs -p $APP ipc call notifications dismissAll`
+User settings are under `notifications` in
+`~/.config/sumika-shell/sumika.json`, with defaults in
+`defaults/config/quickshell/config.json`.
 
-Note: external processes **cannot inject** new notifications via IPC — only DBus `notify-send`.
+Muted application names are stored one per line in:
 
----
-
-## 2. Core Service: `Notifications.qml`
-
-| Lines | What |
-|---|---|
-| 19–43 | `Notif` component — wrapper around `Notification` |
-| 62–74 | `NotifTimer` — auto-dismiss timer (default 7000ms) |
-| 76–78 | `silent` (DND), `unread` counter, `filePath` |
-| 80–81 | `popupList` — filtered list where `popup == true` |
-| 96–107 | Debounced persistence (500ms) |
-| 129–157 | Grouping by app name |
-| 163–167 | Signals: `notify`, `discard`, `discardAll`, `timeout` |
-| 168–205 | `NotificationServer` — DBus listener |
-| 300–341 | Persistence: saves/loads `notifications.json` |
-
-### Key design decisions:
-
-- **Transient vs non-transient**: Transient notifications are fully removed on timeout; non-transient only lose their popup flag and stay in history
-- **Timeout override**: If sender specifies `expireTimeout > 0`, it overrides the 7s default; if `expireTimeout == 0`, notification is persistent
-- **DND**: When `silent` is true, `popupInhibited` prevents popup display but notifications are still persisted
-- **Persistence**: JSON file at `~/.cache/quickshell/notifications/notifications.json`, debounced writes at 500ms
-
----
-
-## 3. Popup Window: `NotificationPopup.qml`
-
-| Property | Value |
-|---|---|
-| Position | Top-right overlay |
-| Width | 410px (`Appearance.sizes.notificationPopupWidth`) |
-| Layer | `WlrLayer.Overlay` |
-| Exclusive zone | 0 (floating) |
-| Visibility | `Notifications.popupList.length > 0 && !GlobalStates.screenLocked` |
-| Screen | Configurable `forceMonitor` or focused monitor |
-| Top margin | 4px (bar on bottom) or `barHeight + 8` (bar on top) |
-
-### Popup behavior:
-
-- **Visibility** is entirely reactive via QML bindings on `Notifications.popupList`
-- **Hover** cancels auto-dismiss timer; un-hover re-triggers it
-- **Drag-to-dismiss**: swipe left/right with 70px threshold, animated slide-out
-- **Middle-click**: dismiss instantly
-- **Critical** notifications: red left border, red shell border
-- **Grouping**: notifications are grouped by `appName`; max 2 shown when collapsed, expandable via click
-
----
-
-## 4. Visual Components
-
-| Component | File | Role |
-|---|---|---|
-| `NotificationListView` | `common/widgets/NotificationListView.qml` | List model binding |
-| `NotificationGroup` | `common/widgets/NotificationGroup.qml` | Group container, drag-dismiss, expand |
-| `NotificationItem` | `common/widgets/NotificationItem.qml` | Individual notification card |
-| `NotificationAppIcon` | `common/widgets/NotificationAppIcon.qml` | App icon / fallback |
-| `NotificationActionButton` | `common/widgets/NotificationActionButton.qml` | Action pill button |
-| `TuiNotificationList` | `schedulePopup/notifications/TuiNotificationList.qml` | History list in bar popup |
-
----
-
-## 5. Bar Integration
-
-1. **ClockWidget** (rightmost bar button): click toggles `GlobalStates.barPopupType` between `""` and `"notifications"`
-2. **BarStatusPopup**: routes `activeType === "notifications"` to `notificationsContent` component
-3. **Notifications popup content**: `PopupHeader` (bell + count) + DND toggle + Clear all + `TuiNotificationList`
-4. **Mark read**: When bar popup opens, `markReadOnVisible` calls `Notifications.markAllRead()`
-
----
-
-## 6. Configuration
-
-In `quickshell/config.json`:
-
-```json
-{
-  "notifications": {
-    "silent": false,
-    "timeout": 7000,
-    "forceMonitor": {
-      "enable": false,
-      "name": ""
-    }
-  }
-}
+```text
+~/.config/sumika-shell/notifications/muted_apps.cfg
 ```
 
----
+The service migrates the old `~/.config/omd/notifications/muted_apps.cfg`
+location when needed. New code must only write the Sumika path.
 
-## 7. Key Files
+## UI Surfaces
 
-| Path | Lines |
-|---|---|
-| `quickshell/services/Notifications.qml` | 342 |
-| `quickshell/modules/notificationPopup/NotificationPopup.qml` | 49 |
-| `quickshell/modules/common/widgets/NotificationListView.qml` | 26 |
-| `quickshell/modules/common/widgets/NotificationGroup.qml` | 235 |
-| `quickshell/modules/common/widgets/NotificationItem.qml` | 223 |
-| `quickshell/modules/common/widgets/NotificationAppIcon.qml` | 92 |
-| `quickshell/modules/common/widgets/NotificationActionButton.qml` | 49 |
-| `quickshell/modules/common/functions/NotificationUtils.qml` | 111 |
-| `quickshell/modules/schedulePopup/notifications/TuiNotificationList.qml` | 680 |
-| `quickshell/modules/bar/BarStatusPopup.qml` | 2771 |
-| `quickshell/modules/bar/ClockWidget.qml` | 57 |
-| `quickshell/GlobalStates.qml` | — |
-| `apps/omd-bar/shell.qml` | 120 |
+- `quickshell/modules/notificationPopup/NotificationPopup.qml`: top-right
+  transient popup window.
+- `quickshell/modules/common/widgets/NotificationListView.qml`: popup list.
+- `quickshell/modules/common/widgets/NotificationGroup.qml`: grouping and
+  dismissal interaction.
+- `quickshell/modules/common/widgets/NotificationItem.qml`: notification row.
+- `quickshell/modules/schedulePopup/notifications/TuiNotificationList.qml`:
+  persistent history shown from the bar.
 
----
+Popup placement must use the same top-right margin contract as other bar
+panels. Do not add independent hard-coded screen offsets.
 
-## 8. Troubleshooting & Incident Log
+## Control Interface
 
-### Incident: `kded6` Crash Loop & DBus Notification Hijack (2026-07-20)
+The bar exposes the `notifications` IPC target. `bin/omd-notification-control`
+is the supported command wrapper:
 
-#### Symptom
-1. System continuously displayed top-right blue error cards: `kded6 意外关闭 请报告此错误，帮助改进这款软件。`
-2. Desktop notifications (screenshots, `notify-send`) rendered as KDE Plasma blue cards instead of OMD's Quickshell notification cards.
+```sh
+omd-notification-control dismiss-last
+omd-notification-control dismiss-all
+omd-notification-control toggle-silent
+```
 
-#### Root Cause Analysis
-1. **`killall kded6` Crash Loop**:
-   - `quickshell/services/ConflictKiller.qml` executed `killall kded6` during startup to clear conflicting tray services.
-   - `kded6` is KDE's core background daemon. Forcibly terminating it with `killall` triggered `KCrash` / `systemd-coredump`, prompting KDE DrKonqi to post a crash error notification.
-   - Systemd automatically restarted `kded6`. Upon restart, `kded6` registered DBus service `org.freedesktop.Notifications`.
-   - On the next reload, `ConflictKiller.qml` ran `killall kded6` again, creating an endless **Kill → Crash Notification → Respawn → Kill** loop.
+New notifications enter through the freedesktop notification protocol (for
+example `notify-send`), not through this control IPC.
 
-2. **DBus Notification Service Hijack**:
-   - Because `kded6` claimed `org.freedesktop.Notifications` on DBus first during its auto-restart, Quickshell's `NotificationServer` failed to bind the name (`WARN: Could not register notification server at org.freedesktop.Notifications`).
-   - Consequently, all notifications fell back to KDE's built-in blue notification cards.
+## Conflict Handling
 
-3. **Missing QML Import**:
-   - `quickshell/modules/common/widgets/NotificationItem.qml` lacked `import Quickshell.Services.Notifications`, causing `ReferenceError: NotificationUrgency is not defined` when rendering urgent notification cards.
+`quickshell/services/ConflictKiller.qml` disables competing notification
+daemons when the Sumika notification server is active. Starting another daemon
+such as mako, dunst, or swaync can take the DBus name and prevent Sumika popups.
 
-#### Solution & Fixes
-1. **[ConflictKiller.qml](file:///home/tetsuya/development/OMD/quickshell/services/ConflictKiller.qml)**:
-   - Removed `killall kded6`.
-   - Updated conflict check to target only standalone notification daemons (`mako`, `dunst`, `swaync`, `fnott`) via `killall -9`.
-2. **[NotificationItem.qml](file:///home/tetsuya/development/OMD/quickshell/modules/common/widgets/NotificationItem.qml)**:
-   - Added `import Quickshell.Services.Notifications`.
-3. **DBus Recovery**:
-   - Released DBus name `org.freedesktop.Notifications` to ensure Quickshell's `NotificationServer` binds the service exclusively.
+## Verification
+
+```sh
+notify-send 'Sumika test' 'Normal notification'
+notify-send -u critical 'Sumika test' 'Critical notification'
+```
+
+Verify popup placement and border, timeout behavior, history retention, DND,
+actions, muted-app filtering, and behavior while locked.

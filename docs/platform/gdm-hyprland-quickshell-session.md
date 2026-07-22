@@ -1,104 +1,54 @@
-# GDM Hyprland + Quickshell Session
+# GDM Hyprland + Sumika Session
 
-OMD registers a dedicated GDM Wayland session named `Oh My Desktop`.
-Select it from the GDM gear menu to start Hyprland with this repository's
-Omarchy config and split Quickshell processes.
+`Init.sh` installs a dedicated Wayland session named **Oh My Desktop**. The
+technical name remains unchanged while the public shell name is Sumika Shell.
 
-## Installed By Init.sh
+## Installed Files
 
-`Init.sh` performs these session steps after package install and runtime
-symlink creation:
+- `/usr/local/bin/omd-hyprland-session`
+- `/usr/share/wayland-sessions/oh-my-desktop.desktop`
+- `~/.local/bin/uwsm-app` compatibility wrapper
 
-- On Fedora/RHEL-family systems, enables the `ashbuk/Hyprland-Fedora` COPR for
-  Fedora 43 Hyprland packages and `errornointernet/quickshell` for Quickshell.
-- Creates `~/.local/bin/uwsm-app` as a compatibility wrapper. In the OMD
-  session it runs commands directly instead of requiring a full `uwsm` session.
-- Creates `/usr/local/bin/omd-hyprland-session`.
-- Creates `/usr/share/wayland-sessions/oh-my-desktop.desktop` for GDM.
-- Re-enables GDM Wayland sessions if `/etc/gdm/custom.conf` explicitly has
-  `WaylandEnable=false`.
-
-The session wrapper exports:
+The session wrapper exports `SUMIKA_SHELL_ROOT` and compatibility `OMD_ROOT`
+as the physical repository path, then launches:
 
 ```sh
-OMD_ROOT="$HOME/.config/omd"
-OMARCHY_PATH="$HOME/.local/share/omarchy"
-OMARCHY_CONFIG="$HOME/.config/omarchy"
-OMD_FORCE_NO_UWSM=1
-OMARCHY_FORCE_NO_UWSM=1
-XDG_CURRENT_DESKTOP=Hyprland
-XDG_SESSION_DESKTOP=oh-my-desktop
-XDG_SESSION_TYPE=wayland
+start-hyprland -- -c <repo>/hypr/hyprland.lua
 ```
 
-It then starts Hyprland with:
-
-```sh
-~/.config/omarchy/hypr/hyprland.lua
-```
-
-On Fedora, it prefers `start-hyprland -- -c <config>` when available and falls
-back to `Hyprland -c <config>`.
+It falls back to `Hyprland -c` or `hyprland -c` when needed and sets native
+Wayland environment variables for Qt, GTK, and Firefox.
 
 ## Runtime Chain
 
-1. GDM launches `/usr/local/bin/omd-hyprland-session`.
-2. Hyprland loads `~/.config/omarchy/hypr/hyprland.lua`.
-3. `omarchy/hypr/autostart.lua` runs `~/.config/omd/bin/omd-restart`.
-4. `omd-restart` starts the split Quickshell apps:
+1. GDM starts `/usr/local/bin/omd-hyprland-session`.
+2. Hyprland loads `<repo>/hypr/hyprland.lua`.
+3. Repository defaults and overrides load before optional
+   `~/.config/sumika-shell/hypr/*.lua` user overrides.
+4. `hypr/autostart.lua` starts `bin/omd-restart` and restores wallpaper state.
+5. Required Quickshell processes start; cold-start features remain stopped
+   until invoked.
 
-```sh
-omd-bar
-omd-overview
-omd-applauncher
-omd-clipboard
-omd-clipboard-store
-```
-
-Wallpaper is started by Hyprland/`omd-wallpaper` through `swaybg`, not by a
-Quickshell desktop app.
+Do not point the session at retired `~/.config/omarchy/hypr` or
+`~/.config/hypr` trees.
 
 ## Verification
 
-After running `bash Init.sh`, check:
-
 ```sh
-test -x ~/.local/bin/uwsm-app
 test -x /usr/local/bin/omd-hyprland-session
 test -f /usr/share/wayland-sessions/oh-my-desktop.desktop
-command -v Hyprland || command -v hyprland
-command -v quickshell
-```
-
-If already inside the OMD session, check:
-
-```sh
+Hyprland --verify-config -c ~/.config/omd/hypr/hyprland.lua
 pgrep -a Hyprland
 pgrep -af 'quickshell|qs -p'
 hyprctl monitors
+~/.config/omd/bin/omd-doctor
 ```
 
-For failures:
+For login failures:
 
 ```sh
-journalctl --user -b --no-pager | rg 'omd|quickshell|Hyprland|hyprland|uwsm|failed|ERROR'
+journalctl --user -b --no-pager | rg 'omd|sumika|quickshell|Hyprland|failed|ERROR'
 ```
 
-## Verified On 2026-07-05
-
-Fedora 43 Workstation was verified with:
-
-```sh
-bash Init.sh
-Hyprland --verify-config -c ~/.config/omarchy/hypr/hyprland.lua
-timeout 25s /usr/local/bin/omd-hyprland-session
-```
-
-Observed runtime state from the nested Hyprland test instance:
-
-- `Hyprland --verify-config` returned `config ok`.
-- `start-hyprland` launched Hyprland with
-  `~/.config/omarchy/hypr/hyprland.lua`.
-- `hyprctl -j monitors` reported a `WAYLAND-1` monitor.
-- `hyprctl -j layers` showed `quickshell:background` and `quickshell:bar`,
-  proving `omarchy/hypr/autostart.lua` started OMD's split Quickshell apps.
+Re-run `Init.sh` after moving the repository because the installed wrapper
+stores the physical repository path.

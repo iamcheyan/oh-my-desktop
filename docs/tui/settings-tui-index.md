@@ -1,4 +1,4 @@
-# Python 设置工具一览
+# Python TUI 工具一览
 
 OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 
@@ -8,23 +8,23 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 
 ## 工具盒类
 
-| 文件 | 最近提交数 | 说明 |
-|---|---|---|
-| `bin/omd-wifi-tui` | 10 | WiFi 网络管理器 TUI。扫描网络、连接/断开、信号强度、频段显示。从 bar 的 WiFi 按钮弹出。 |
-| `bin/omd-bluetooth-tui` | 22 | 蓝牙配对与连接 TUI。发现设备、配对、连接、断开。显示设备类型标签、RSSI、适配器信息。从 bar 的蓝牙按钮弹出。 |
+| 文件 | 说明 |
+|---|---|
+| `bin/omd-wifi-tui` | WiFi 网络管理器 TUI。扫描网络、连接/断开、信号强度、频段显示。从 bar 的 WiFi 按钮弹出。 |
+| `bin/omd-bluetooth-tui` | 蓝牙配对与连接 TUI。发现设备、配对、连接、断开。显示设备类型标签、RSSI、适配器信息。从 bar 的蓝牙按钮弹出。 |
 
 ## 设置中心类
 
 由 `bin/omd-settings-tui`（bash 路由）按子命令分派到各个 Python TUI：
 
-| 文件 | 最近提交数 | 说明 | 路由键 |
-|---|---|---|---|
-| `bin/omd-settings-keyboard-tui` | 23 | 键盘按键映射 TUI。视觉按键拾取器、Fn 模式切换、预置管理、多面板布局。 | `keyboard` |
-| `bin/omd-settings-voice-tui` | 10 | 语音输入设置 TUI。录音试讲、语音检测、峰值电平、最近录音列表、状态显示。 | `voice` |
-| `bin/omd-settings-vm-tui` | 8 | Windows 虚拟机设置 TUI。按状态显示的详细视图（安装/启动/就绪/停止/修复）、环境依赖检查。 | `windows-vm` |
-| `bin/omd-settings-theme-tui` | 13 | 主题与外观设置 TUI。壁纸 ASCII 预览、主题色板显示、模式/特效选择、鼠标支持。 | `theme` |
-| `bin/omd-settings-backup-tui` | 34 | 文件共享/备份设置 TUI。SMB 备份配置、连接测试、手动备份执行。双列布局。 | `backup` |
-| `bin/omd-settings-ocr-tui` | 1 | OCR 设置 TUI。检测 PaddleOCR/ONNX Runtime/模型缓存状态、安装向导、测试功能。 | `ocr` |
+| 文件 | 说明 | 路由键 |
+|---|---|---|
+| `bin/omd-settings-keyboard-tui` | 键盘按键映射 TUI。视觉按键拾取器、Fn 模式切换、预置管理、多面板布局。 | `keyboard` |
+| `bin/omd-settings-voice-tui` | 语音输入设置 TUI。录音试讲、语音检测、峰值电平、最近录音列表、状态显示。 | `voice` |
+| `bin/omd-settings-vm-tui` | Windows 虚拟机设置 TUI。按状态显示的详细视图（安装/启动/就绪/停止/修复）、环境依赖检查。 | `windows-vm` |
+| `bin/omd-settings-theme-tui` | 主题与外观设置 TUI。壁纸 ASCII 预览、主题色板显示、模式/特效选择、鼠标支持。 | `theme` |
+| `bin/omd-settings-backup-tui` | 文件共享/备份设置 TUI。SMB 备份配置、连接测试、手动备份执行。双列布局。 | `backup` |
+| `bin/omd-settings-ocr-tui` | OCR 设置 TUI。检测 PaddleOCR/ONNX Runtime/模型缓存状态、安装向导、测试功能。 | `ocr` |
 
 ### 配套 shell 辅助脚本
 
@@ -41,21 +41,21 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 
 ## 独立工具
 
-| 文件 | 最近提交数 | 说明 |
-|---|---|---|
-| `bin/omd-ocr` | 1 | 对给定图片执行文字识别（PaddleOCR PP-OCRv6），输出逐行识别文本到 stdout。 |
+| 文件 | 说明 |
+|---|---|
+| `bin/omd-ocr` | 对给定图片执行文字识别（PaddleOCR PP-OCRv6），输出逐行识别文本到 stdout。 |
 
 ## 技术栈
 
 全部 Python TUI 共用以下基础设施（位于 `bin/omd_tui_shared.py`）：
 
 - **TUI 框架**：Python `curses`，统一窗口管理、鼠标支持、事件循环
-- **视觉系统**：`docs/settings-tui-visual-system.md` — 颜色、边框、间距约定
-- **布局系统**：`docs/settings-layout-system.md` — QML 面板分割（含 QML 设置中心参考布局）
-- **Python 布局系统**：`docs/tui-framework-plan.md` — Python TUI 的 Layout 模板类 + 架构说明
+- **视觉系统**：[`tui-style-system.md`](tui-style-system.md) — 颜色、边框、间距约定
+- **布局系统**：[`../settings/settings-layout-system.md`](../settings/settings-layout-system.md) — QML 面板布局契约
+- **Python 布局系统**：[`tui-framework-plan.md`](tui-framework-plan.md) — Python TUI 的 Layout 模板类与架构
 - **启动方式**：`bin/omd-settings-tui` bash 路由 → Python 子进程
 
-### 共享模块 `bin/omd_tui_shared.py`（1178 行）
+### 共享模块 `bin/omd_tui_shared.py`
 
 | 组件 | 用途 | 所有 TUI 共用 |
 |---|---|---|
@@ -101,7 +101,7 @@ wifi-tui 和 bluetooth-tui 未用 `Layout`，但通过 `S.draw_row()`/`S.put_row
 
 ### 新建 TUI 速查
 
-新建设置 TUI 或工具盒 TUI 时，参考 `docs/tui-framework-plan.md` 末尾的
+新建设置 TUI 或工具盒 TUI 时，参考 [`tui-framework-plan.md`](tui-framework-plan.md) 末尾的
 「[新建 TUI 实践指南]」一节，包含：
 
 - 骨架模板代码（`StatusModel` + `run_tui_loop` / 自写 OOP）

@@ -1,6 +1,9 @@
 # NixOS Installation and Adaptation Guide
 
-This document describes how to install, configure, and adapt **oh-my-desktop (OMD)** on NixOS. Since NixOS handles package dependency, environment paths, and system sessions declaratively, running OMD requires specific declarative changes and hardware adjustments.
+This document describes how to install and adapt **Sumika Shell** on NixOS.
+Technical commands still use the `omd` prefix. Since NixOS handles package
+dependencies, environment paths, and system sessions declaratively, the shell
+requires corresponding declarative changes and hardware adjustments.
 
 ---
 

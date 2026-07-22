@@ -27,7 +27,8 @@ Use `--hotkey` for Voice Input and application shortcuts. It leaves keyd running
 
 Keyboard Remap edits are a draft until the user presses **Apply changes**.
 
-- Add / Update / Remove / Preset edit `~/.config/omd/keyboard-remap/profiles.json`.
+- Add / Update / Remove / Preset edit
+  `~/.config/sumika-shell/keyboard-remap/profiles.json`.
 - Apply renders with `~/.config/omd/share/bin/omarchy-keyboard-render`.
 - Apply installs `/etc/keyd/omd.conf` with `omarchy-keyboard-apply`.
 - UI pending state compares render output with `/etc/keyd/omd.conf`.
@@ -69,7 +70,7 @@ XF86Tools
 Fix a broken Voice binding:
 
 ```sh
-sed -i 's/^TOOLS$/XF86Tools/' ~/.config/omarchy/voice_bindings.txt
+sed -i 's/^TOOLS$/XF86Tools/' ~/.config/voice_bindings.txt
 hyprctl reload
 ```
 
@@ -102,5 +103,5 @@ keyd list-keys | rg '^f(1[3-9]|2[0-4])$'
 
 Related docs:
 
-- `docs/keyboard-remap.md`
-- `docs/voice-input.md`
+- [`keyboard-remap.md`](keyboard-remap.md)
+- [`voice-input.md`](voice-input.md)

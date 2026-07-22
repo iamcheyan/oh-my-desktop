@@ -1,18 +1,7 @@
 # Wi-Fi Connect Flow
 
-Date: 2026-07-15
-
-## Problems Fixed
-
-1. **No password UI** — `Network.qml` set `askingPassword` on APs, but
-   `NetworkPage.qml` never rendered a password field. Unknown secure networks
-   looked like dead clicks.
-2. **Any failure opened “password mode”** — `onExited` set
-   `askingPassword = (exitCode !== 0)` for every error, including “not found”
-   and timeouts.
-3. **Weak feedback** — no lasting phase/message for connecting / failed /
-   success.
-4. **Bar popup was status-only** — connect required opening Settings.
+This document defines the current connection behavior shared by the bar and
+network settings UI. It is a behavioral contract rather than a change log.
 
 ## Current Model
 
@@ -36,7 +25,8 @@ Service state: `wifiConnectPhase` =
   the gear on each toggle (no bottom “Network settings…” footer).
 - **Settings Network page** — two-column network center (no Bluetooth); same
   connect API; link details, diagnostics, saved profiles, advanced tools.
-  See `docs/network-settings-layout.md`.
+  Shared panel rules are in
+  [`../settings/settings-layout-system.md`](../settings/settings-layout-system.md).
 
 ## Key Files
 

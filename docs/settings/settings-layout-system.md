@@ -123,7 +123,7 @@ footer
 └── Close
 ```
 
-Product plan and phased delivery: `docs/voice-settings-redesign.md`.
+Implementation details: [`../features/voice-input.md`](../features/voice-input.md).
 
 ## Windows VM Reference Layout
 
@@ -143,8 +143,8 @@ footer
 └── Close
 ```
 
-Layout plan: `docs/windows-vm-settings-layout.md`. Backend contract:
-`docs/windows-vm-settings-redesign.md`.
+The Windows VM page follows this shared layout contract; feature behavior stays
+in its page and backend instead of a separate layout specification.
 
 ## Appearance Reference Layout
 
@@ -163,7 +163,8 @@ footer
 └── Close
 ```
 
-Plan: `docs/appearance-settings-layout.md`.
+Wallpaper runtime behavior is documented in
+[`../architecture/wallpaper-runtime.md`](../architecture/wallpaper-runtime.md).
 
 ## Keyboard Remap Reference Layout
 
@@ -184,7 +185,8 @@ footer
 └── Discard / Apply  (when drafts pending)
 ```
 
-Plan: `docs/keyboard-remap-settings-layout.md`.
+Keyboard behavior is documented in
+[`../features/keyboard-remap.md`](../features/keyboard-remap.md).
 
 ## Network Reference Layout
 
@@ -205,7 +207,7 @@ footer
 └── Close
 ```
 
-Plan: `docs/network-settings-layout.md`. Connect protocol: `docs/wifi-connect-flow.md`.
+Connect protocol: [`../features/wifi-connect-flow.md`](../features/wifi-connect-flow.md).
 
 ## Slider Rows
 

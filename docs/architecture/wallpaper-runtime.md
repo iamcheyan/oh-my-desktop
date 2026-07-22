@@ -1,98 +1,87 @@
 # Wallpaper Runtime Contract
 
-OMD imports the selected wallpaper into a stable, machine-local runtime file:
+Sumika imports the active wallpaper into stable machine-local state. Consumers
+must never depend on the user's original file path.
+
+## Paths
 
 ```text
-~/.config/omd/current/wallpaper   # copied image, ignored by Git
-~/.config/omd/current/background  # relative symlink -> wallpaper
+~/.local/state/sumika-shell/wallpaper/
+├── wallpaper       # managed image copy
+├── background      # relative symlink -> wallpaper
+├── revision        # cache invalidation token
+├── mode            # file | folder | color
+├── source          # selected source file/folder
+├── interval        # rotation interval in seconds
+└── renderer.log
 ```
 
-The source selected by the user is only an import source. Moving, renaming, or
-deleting it after selection must not affect the active desktop.
+All paths honor `SUMIKA_SHELL_STATE_HOME`. User configuration lives in
+`~/.config/sumika-shell/sumika.json`; its `background.wallpaperPath` points to
+`~/.local/state/sumika-shell/wallpaper/background`.
 
 ## Update Flow
 
-`bin/omd-theme-bg-set <image>` performs the update:
+`bin/omd-theme-bg-set <image>`:
 
-1. Validate and resolve the selected source image.
-2. Copy it to a temporary file beside `current/wallpaper`.
-3. Atomically replace `current/wallpaper`.
-4. Repair the relative `current/background -> wallpaper` link.
-5. Publish an ignored runtime revision at
-   `~/.config/omd/current/wallpaper.revision`, then store the stable path in
-   Quickshell config.
-6. Restart `swaybg` with the stable path.
+1. validates the selected source;
+2. atomically copies it to the managed `wallpaper` file;
+3. repairs `background -> wallpaper`;
+4. updates `revision` and the user configuration path;
+5. asks `bin/omd-wallpaper` to render the managed image.
 
-Folder rotation uses the same import function for every selected image. Its
-mode, source folder, and interval are stored under
-`~/.local/state/omd/wallpaper/`. Hyprland autostart runs
-`omd-wallpaper restore`, which first starts `swaybg` with the existing managed
-image and then recreates the transient user-systemd timer when the persisted
-mode is `folder`. Restoring only the timer is insufficient: previews can still
-read the image file while the real desktop remains unpainted.
+Folder rotation uses the same import path for every selected image. It changes
+the managed file and revision, not the public path. `omd-wallpaper restore`
+recreates both the renderer and the transient rotation timer after login.
 
-All image and solid-color renderer launches go through `bin/omd-wallpaper`.
-The renderer is a dedicated transient user service named
-`omd-wallpaper-renderer.service` running `swaybg`, rather than a child of the
-short-lived wallpaper rotation service. This ownership is important: a
-detached process still remains in its caller's systemd cgroup and would be
-killed when `omd-wallpaper-random.service` exits. That failure updates the
-managed image used by overview while leaving the real desktop black.
+## Renderer Ownership
 
-The renderer service is restarted for each image change and configured to
-restart on failure. On systems without a usable user systemd manager, the
-script falls back to a directly detached `swaybg` process rather than an
-`uwsm-app` scope, so wallpaper restoration does not depend on user D-Bus being
-ready during early Hyprland startup. Renderer stderr is retained in
-`~/.local/state/omd/wallpaper/renderer.log` instead of being discarded.
-There must be exactly one autostart owner: `hypr/autostart.lua` invokes
-`omd-wallpaper restore`; default Hyprland modules must not launch another
-`swaybg` process directly.
+The desktop is painted by `swaybg` in the dedicated transient user service
+`omd-wallpaper-renderer.service`. Rotation runs separately as
+`omd-wallpaper-random.service`. Keeping the renderer out of the short-lived
+rotation cgroup prevents it from being killed as soon as a rotation command
+exits.
 
-Hyprland destroys and recreates output surfaces when a monitor is connected,
-removed, or re-enabled. `omd-hyprland-monitor-watch` therefore coalesces
-`monitoradded*` and `monitorremoved*` event bursts and invokes
-`omd-wallpaper refresh-outputs` after the topology settles. This recreates
-`swaybg` for every active output while preserving the selected source, folder
-mode, interval, and current timer deadline. A preview updating successfully is
-not proof that the desktop renderer covers every output: previews read the
-managed image file, while the desktop requires a live layer surface per output.
+If a user systemd manager is unavailable, the script falls back to a detached
+`swaybg`. There must still be one renderer owner. Hyprland autostart calls
+`omd-wallpaper restore`; no second autostart path may launch `swaybg` directly.
 
-The interval file is read directly whenever the timer is created. Changing the
-interval uses `omd-wallpaper restart`; it must not use `stop`, because `stop`
-is the explicit user action that changes the persisted mode from `folder` to
-`file`.
+Monitor topology changes destroy layer surfaces. The monitor watcher therefore
+calls `omd-wallpaper refresh-outputs` after output add/remove events settle.
 
 ## Consumer Rule
 
-Wallpaper consumers must use `Config.options.background.wallpaperPath`, whose
-runtime value is the stable `current/background` path. This includes overview
-workspace thumbnails, lock screen, color extraction, and future previews.
-Do not retain or introduce direct paths to the original imported file.
+Overview thumbnails, empty workspaces, lock screen, color extraction, and
+previews use `Config.options.background.wallpaperPath`. Long-running QML image
+consumers must also observe `Wallpaper.revision`, because folder rotation keeps
+the same path while replacing its contents.
 
-Because the stable path does not change during folder rotation, long-running
-Quickshell image consumers must also depend on `Wallpaper.revision` (or use
-`Wallpaper.versionedUrl(path)`). The ignored revision file changes on every
-successful wallpaper import, forcing Qt to decode the new contents instead of
-returning a cached image for the unchanged path. This runtime value must not be
-stored in the tracked `quickshell/config.json`.
+Never introduce:
 
-Overview naturally falls back to the active theme's background color when the
-managed file cannot be decoded or when solid color mode is active. `Init.sh`
-seeds the managed file from the default theme's wallpaper during first setup
-or runtime repair. The overview process's 1x1 keepalive `PanelWindow` owns a
-transparent `Image` that decodes the versioned wallpaper independently of the
-on-demand workspace widget. The `Wallpaper` singleton publishes the requested
-and last-ready URLs, while workspace previews reuse Qt's decoded image cache.
-When the revision changes, `Wallpaper.readyUrl` retains the last successfully
-decoded revision until the replacement is ready. The preloader must remain in
-a real window: an `Image` owned only by a singleton may never enter a scene
-graph and therefore may never load. This avoids both a black frame and a
-default-wallpaper flash without retaining window screencopy resources while
-overview is closed.
+- a bundled fallback wallpaper that briefly flashes before the managed image;
+- a direct reference to the imported source file;
+- a second independent wallpaper renderer;
+- state under `~/.config/omd/current` or `~/.local/state/omd`.
 
-## Repository Rule
+## Modes
 
-`current/background` is tracked because it is a portable relative symlink.
-`current/wallpaper` and `current/wallpaper.revision` are ignored because they
-contain machine-local runtime data; the wallpaper may also be large or private.
+- `file`: one imported image; no rotation timer.
+- `folder`: persisted folder and interval; timer selects and imports images.
+- `color`: renderer uses the current theme background color.
+
+Changing the folder interval restarts the timer without changing `mode`.
+`stop` intentionally changes folder mode to file mode and is not a generic
+timer refresh operation.
+
+## Diagnostics
+
+```sh
+~/.config/omd/bin/omd-wallpaper status
+systemctl --user status omd-wallpaper-renderer.service
+cat ~/.local/state/sumika-shell/wallpaper/renderer.log
+readlink ~/.local/state/sumika-shell/wallpaper/background
+```
+
+A correct preview does not prove that the desktop renderer is healthy: the
+preview reads the managed file, while the desktop also requires a live
+`swaybg` surface on every output.

@@ -294,11 +294,10 @@ The IPC is triggered by global keybinds or the dynamic `escape` hook to control 
 
 ## Settings UI
 
-The Settings Center Voice panel is being redesigned as a master–detail page
-(status + trial record on the left; keybindings and advanced tools on the
-right). Full product/layout plan:
-
-- `docs/voice-settings-redesign.md`
+The Voice settings panel uses the shared master-detail layout: status and trial
+recording on the left, keybindings and advanced tools on the right. Shared
+geometry is defined by
+[`../settings/settings-layout-system.md`](../settings/settings-layout-system.md).
 
 Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
 
@@ -311,7 +310,6 @@ Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
 - `quickshell/modules/settings/pages/VoicePage.qml` — Settings Center voice page
 - `scripts/key-test --hotkey` — GTK4 hotkey capture after keyd remaps
 - `scripts/voice-diagnose` — TUI diagnostic tool
-- `docs/voice-settings-redesign.md` — settings UX redesign plan
 
 ### Bar entry points
 
@@ -364,7 +362,7 @@ Transport selection is owned by `omd-paste-at-cursor`, not by
 Kitty is the exception: it receives the exact payload through Kitty remote
 control, without a synthetic key. Other targets prefer one `wtype` chord;
 `ydotool` and Hyprland `send_key_state` are fallback transports only. See
-`docs/paste-kitty-conflicts.md` for the shared transaction and duplicate
+See [`paste-kitty-conflicts.md`](paste-kitty-conflicts.md) for the shared transaction and duplicate
 suppression rules.
 
 ### 为什么不用 ydotool
@@ -514,6 +512,6 @@ is currently viable for SenseVoice on this platform.
 
 ## Related Files
 
-- `docs/tui-style-system.md` — visual design tokens
-- `docs/module-split-plan.md` — Quickshell app process architecture
+- [`../tui/tui-style-system.md`](../tui/tui-style-system.md) — visual design tokens
+- [`../architecture/sumika-core-plugin-migration-plan.md`](../architecture/sumika-core-plugin-migration-plan.md) — target process and module architecture
 - `AGENTS.md` — agent working agreement & project conventions

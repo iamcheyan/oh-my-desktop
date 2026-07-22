@@ -18,13 +18,13 @@ omd-session clear
 Snapshots are stored in:
 
 ```text
-~/.local/state/omd/session/last.json
+~/.local/state/sumika-shell/session/last.json
 ```
 
 Automatic next-login restore is armed by:
 
 ```text
-~/.local/state/omd/session/restore-on-next-start
+~/.local/state/sumika-shell/session/restore-on-next-start
 ```
 
 `preview` returns a grouped snapshot without closing anything. The topbar uses
@@ -194,7 +194,7 @@ If the kitty JSON reveals a running tmux/zellij client (via
 inside kitty, for example:
 
 ```text
-kitty --directory /home/tetsuya tmux attach-session -t 0
+kitty --directory "$HOME" tmux attach-session -t 0
 ```
 
 This is preferred over the session-format file because the multiplexer
@@ -205,13 +205,13 @@ kitty layout.
 If no multiplexer is detected, OMD writes the session-format text to:
 
 ```text
-~/.local/state/omd/session/kitty/restore-<n>.session
+~/.local/state/sumika-shell/session/kitty/restore-<n>.session
 ```
 
 and launches:
 
 ```text
-kitty --session ~/.local/state/omd/session/kitty/restore-<n>.session
+kitty --session ~/.local/state/sumika-shell/session/kitty/restore-<n>.session
 ```
 
 This restores kitty tabs, windows, layouts, and working directories. It does

@@ -119,7 +119,7 @@ A Python curses TUI with two-panel layout:
 ```
 ┌─────────────────────────────────────────────────┐
 │ Backup Settings                              ● Synced │
-│ File Share & Backup · SMB · /home/tetsuya    │
+│ File Share & Backup · SMB · $HOME            │
 ├──────────────────────┬──────────────────────────┤
 │  ○ Connected         │  Name    Type  Files  Ch. │
 │  //192.168.3.10/NAS  │  下载/   dir   466    21  │
@@ -240,18 +240,16 @@ After this, `mount.cifs` runs directly without any elevation.
 
 ---
 
-## State Files
+## Configuration And State
 
-All stored under `~/.local/state/omd/file-share-backup/`:
-
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `config.json` | Connection + path config (also at `~/.config/omd/file-share-backup/`) |
-| `.smbcreds` | Auto-generated SMB credentials file (user/password) |
-| `items.json` | Per-path last-backup timestamps |
-| `md5-cache.json` | MD5 hashes of all backed-up files |
-| `last-result.json` | Last backup result JSON |
-| `last-compare.json` | Last compare result JSON |
+| `~/.config/sumika-shell/file-share-backup/config.json` | Connection and path configuration |
+| `~/.local/state/sumika-shell/file-share-backup/.smbcreds` | Generated SMB credentials; mode `0600` |
+| `~/.local/state/sumika-shell/file-share-backup/items.json` | Per-path last-backup timestamps |
+| `~/.local/state/sumika-shell/file-share-backup/md5-cache.json` | Cached file hashes |
+| `~/.local/state/sumika-shell/file-share-backup/last-result.json` | Last backup result |
+| `~/.local/state/sumika-shell/file-share-backup/last-compare.json` | Last comparison result |
 
 ---
 

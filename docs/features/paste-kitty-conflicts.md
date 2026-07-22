@@ -181,8 +181,7 @@ bracketed paste 标记的内容时，kitty 会把**当前 Wayland 剪贴板里�
 
 **技术背景（供深度排查参考）：** omp 启用 kitty OSC 5522 enhanced paste 协议
 （`\x1b[?5522h`），`EnhancedPasteController` 解析 OSC 5522 包携带的 MIME 数据，
-作为一次独立 `pasteText` 插入。触发链和上游 issue 见
-`docs/omp-bracketed-paste-double-investigation.md` 第 11 节。
+作为一次独立 `pasteText` 插入。本文已经合并原调查记录中仍然有效的结论。
 
 ### Socket naming
 

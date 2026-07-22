@@ -30,7 +30,7 @@ compose these tokens instead of declaring their own palette.
 The global highlight color comes from the active Omarchy theme:
 
 ```text
-~/.config/omarchy/current/theme/quickshell.json
+~/.local/state/sumika-shell/theme/current/quickshell.json
 ```
 
 `quickshell/services/OmarchyTheme.qml` watches that file and exposes:
@@ -76,7 +76,7 @@ The frosted glass effect is implemented in two layers:
 
 ```text
 QML alpha surface  TuiStyle glass tokens make shell/dialog backgrounds translucent
-Hyprland blur      omarchy/hypr/looknfeel.lua enables blur for quickshell layers
+Hyprland blur      hypr/looknfeel.lua enables blur for quickshell layers
 ```
 
 The QML side is controlled from `TuiStyle.qml`:
@@ -95,7 +95,7 @@ meterTrack
 Bar popups and detailed dialogs should use those shared wrappers instead of
 declaring their own glass backgrounds.
 
-The compositor side is configured in `omarchy/hypr/looknfeel.lua`:
+The compositor side is configured in `hypr/looknfeel.lua`:
 
 ```lua
 hl.layer_rule({ match = { namespace = "quickshell:.*" }, blur = true, ignore_alpha = 0.1 })
@@ -115,7 +115,7 @@ To tune the glass effect:
 ```text
 More transparent   lower the alpha in TuiStyle shell/surface/control tokens
 More solid         raise the alpha in those same tokens
-Softer blur        tune decoration.blur in share/default/hypr/looknfeel.lua or an override
+Softer blur        tune decoration.blur in hypr/looknfeel.lua or a user override
 Sharper edges      adjust shellBorder, borderWidth, shellRadius
 ```
 
