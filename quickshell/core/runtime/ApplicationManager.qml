@@ -26,7 +26,7 @@ Singleton {
 
     /// Map of registered apps: { instanceId: queryObject, ... }
     readonly property var apps: ({})
-    readonly property alias supervisor: ProcessSupervisor
+    readonly property var supervisor: ProcessSupervisor
 
     // ── Initialization ──
 

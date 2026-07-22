@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import qs
+import qs.core.runtime
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets

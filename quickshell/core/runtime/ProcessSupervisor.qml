@@ -22,11 +22,11 @@ Singleton {
     id: supervisor
 
     // ── State constants ──
-    readonly property int Stopped: 0
-    readonly property int Starting: 1
-    readonly property int Ready: 2
-    readonly property int Failed: 3
-    readonly property int Stopping: 4
+    readonly property int stopped: 0
+    readonly property int starting: 1
+    readonly property int ready: 2
+    readonly property int failed: 3
+    readonly property int stopping: 4
 
     readonly property var _stateNames: ({"0":"stopped","1":"starting","2":"ready","3":"failed","4":"stopping"})
 
@@ -80,7 +80,7 @@ Singleton {
         const record = {
             instanceId: id,
             moduleId: moduleId || id,
-            state: Stopped,
+            state: stopped,
             command: command,
             commandDisplay: command.join(" "),
             cwd: opts.cwd || "",
@@ -110,7 +110,7 @@ Singleton {
     function unregister(instanceId) {
         const rec = _records[instanceId]
         if (!rec) return false
-        if (rec.state !== Stopped && rec.state !== Failed) {
+        if (rec.state !== stopped && rec.state !== failed) {
             stop(instanceId)
         }
         delete _records[instanceId]
@@ -131,13 +131,13 @@ Singleton {
         }
 
         // Singleton: already running
-        if (rec.state === Ready || rec.state === Starting) {
+        if (rec.state === ready || rec.state === starting) {
             console.log("[ProcessSupervisor] start: '" + instanceId + "' already " + _stateNames[rec.state])
             return true
         }
 
         // If failed and force restart, reset
-        if (rec.state === Failed) {
+        if (rec.state === failed) {
             if (options && options.forceRestart) {
                 rec.restartCount = 0
                 rec.backoffAttempts = 0
@@ -151,7 +151,7 @@ Singleton {
         // Check restart limit
         if (rec.restartCount >= rec.restartLimit) {
             console.error("[ProcessSupervisor] start: '" + instanceId + "' restart limit (" + rec.restartLimit + ") reached")
-            rec.state = Failed
+            rec.state = failed
             rec.lastError = "restart_limit_reached"
             _notifyStateChange(rec)
             return false
@@ -165,14 +165,14 @@ Singleton {
     function stop(instanceId, timeoutMs) {
         const rec = _records[instanceId]
         if (!rec) return false
-        if (rec.state === Stopped || rec.state === Stopping) return true
-        if (rec.state === Failed) {
-            rec.state = Stopped
+        if (rec.state === stopped || rec.state === stopping) return true
+        if (rec.state === failed) {
+            rec.state = stopped
             _notifyStateChange(rec)
             return true
         }
 
-        rec.state = Stopping
+        rec.state = stopping
         _notifyStateChange(rec)
         _cancelTimers(rec)
 
@@ -185,7 +185,7 @@ Singleton {
                 killTimer.interval = timeoutMs
                 killTimer.onTriggered = function() {
                     rec.lastError = "stop_timeout"
-                    rec.state = Stopped
+                    rec.state = stopped
                     _notifyStateChange(rec)
                     killTimer.destroy()
                 }
@@ -193,7 +193,7 @@ Singleton {
             }
         }
 
-        rec.state = Stopped
+        rec.state = stopped
         _notifyStateChange(rec)
         return true
     }
@@ -201,7 +201,7 @@ Singleton {
     /// Get the current state of a process.
     function getState(instanceId) {
         const rec = _records[instanceId]
-        if (!rec) return Stopped
+        if (!rec) return stopped
         return rec.state
     }
 
@@ -250,7 +250,7 @@ Singleton {
         for (var i = 0; i < keys.length; i++) {
             const rec = _records[keys[i]]
             const info = query(keys[i])
-            if (rec.state === Ready || rec.state === Starting) {
+            if (rec.state === ready || rec.state === starting) {
                 healthy.push(info)
             } else {
                 unhealthy.push(info)
@@ -265,7 +265,7 @@ Singleton {
         // Ensure log dir exists
         _ensureLogDir()
 
-        rec.state = Starting
+        rec.state = starting
         rec.startTime = Date.now()
         rec.pid = -1
         rec.exitCode = null
@@ -317,10 +317,10 @@ Singleton {
                 const readyTimer = Qt.createQmlObject("import QtQuick; Timer {}", supervisor)
                 readyTimer.interval = rec.readyTimeout * 1000
                 readyTimer.onTriggered = function() {
-                    if (rec.state === Starting) {
+                    if (rec.state === starting) {
                         console.warn("[ProcessSupervisor] ready timeout for '" + rec.instanceId + "' (" + rec.readyTimeout + "s)")
                         rec.lastError = "ready_timeout"
-                        rec.state = Failed
+                        rec.state = failed
                         _notifyStateChange(rec)
                         _scheduleRestart(rec)
                     }
@@ -333,7 +333,7 @@ Singleton {
             _notifyStateChange(rec)
         } catch (e) {
             console.error("[ProcessSupervisor] failed to launch '" + rec.instanceId + "': " + e)
-            rec.state = Failed
+            rec.state = failed
             rec.lastError = String(e)
             _notifyStateChange(rec)
             _scheduleRestart(rec)
@@ -344,24 +344,24 @@ Singleton {
         const rec = _records[instanceId]
         if (!rec) return
 
-        const wasReady = rec.state === Ready
+        const wasReady = rec.state === ready
         rec.pid = -1
         rec.exitCode = exitCode
         rec.process = null  // Process object destroyed automatically on exit
 
         console.log("[ProcessSupervisor] '" + instanceId + "' exited with code " + exitCode + " (was " + _stateNames[rec.state] + ")")
 
-        if (rec.state === Stopping) {
-            rec.state = Stopped
+        if (rec.state === stopping) {
+            rec.state = stopped
             _notifyStateChange(rec)
             return
         }
 
-        if (rec.state === Starting || rec.state === Ready) {
+        if (rec.state === starting || rec.state === ready) {
             if (exitCode !== 0 && exitCode !== null) {
                 rec.lastError = "exit_code_" + exitCode
             }
-            rec.state = Failed
+            rec.state = failed
             _notifyStateChange(rec)
             _scheduleRestart(rec)
         }
@@ -370,7 +370,7 @@ Singleton {
     function _scheduleRestart(rec) {
         if (rec.restartCount >= rec.restartLimit) {
             console.error("[ProcessSupervisor] '" + rec.instanceId + "' restart limit (" + rec.restartLimit + ") reached after " + rec.restartCount + " attempts")
-            rec.state = Failed
+            rec.state = failed
             rec.lastError = "restart_limit_reached"
             _notifyStateChange(rec)
             return
@@ -388,7 +388,7 @@ Singleton {
         const timer = Qt.createQmlObject("import QtQuick; Timer {}", supervisor)
         timer.interval = backoffMs
         timer.onTriggered = function() {
-            if (rec.state === Failed) {
+            if (rec.state === failed) {
                 _launch(rec)
             }
             timer.destroy()
@@ -425,12 +425,12 @@ Singleton {
     function reportReady(instanceId) {
         const rec = _records[instanceId]
         if (!rec) return false
-        if (rec.state !== Starting) {
+        if (rec.state !== starting) {
             console.warn("[ProcessSupervisor] reportReady: '" + instanceId + "' is not in starting state (state=" + _stateNames[rec.state] + ")")
             return false
         }
 
-        rec.state = Ready
+        rec.state = ready
         if (rec.readyTimer) {
             try { rec.readyTimer.stop(); rec.readyTimer.destroy() } catch (e) { /* ignore */ }
             rec.readyTimer = null
@@ -446,7 +446,7 @@ Singleton {
         const rec = _records[instanceId]
         if (!rec) return false
 
-        rec.state = Failed
+        rec.state = failed
         rec.lastError = error || "health_check_failed"
         _cancelTimers(rec)
 
