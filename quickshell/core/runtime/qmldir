@@ -1,2 +1,4 @@
 module qs.core.runtime
 singleton ActionManager 1.0 ActionManager.qml
+singleton ProcessSupervisor 1.0 ProcessSupervisor.qml
+singleton ApplicationManager 1.0 ApplicationManager.qml

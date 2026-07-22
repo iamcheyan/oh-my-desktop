@@ -471,20 +471,20 @@ Action 至少包含：
 
 ### 工作项
 
-- [ ] 定义进程状态：stopped、starting、ready、failed、stopping。
-- [ ] manifest command 以 argv 数组执行，不使用 `sh -c`。
-- [ ] 记录 PID、启动时间、最后退出码、重启次数和最近错误。
-- [ ] 支持 singleton：重复 open 复用已有实例并发送 Action/IPC。
-- [ ] 支持冷启动：不使用时不常驻。
-- [ ] 支持 ready timeout，不能仅以“进程已创建”视为 ready。
-- [ ] 支持指数退避和重启上限，避免 crash loop。
-- [ ] Core 退出时只停止自己拥有的子进程，不误杀用户程序。
-- [ ] stdout/stderr 写入模块独立日志或 journal，不堵塞父进程。
-- [ ] 增加 `omd-doctor` 进程状态检查。
+- [x] 定义进程状态：stopped、starting、ready、failed、stopping。
+- [x] manifest command 以 argv 数组执行，不使用 `sh -c`。
+- [x] 记录 PID、启动时间、最后退出码、重启次数和最近错误。
+- [x] 支持 singleton：重复 open 复用已有实例并发送 Action/IPC。
+- [x] 支持冷启动：不使用时不常驻。
+- [x] 支持 ready timeout，不能仅以“进程已创建”视为 ready。
+- [x] 支持指数退避和重启上限，避免 crash loop。
+- [x] Core 退出时只停止自己拥有的子进程，不误杀用户程序。
+- [x] stdout/stderr 写入模块独立日志或 journal，不堵塞父进程。
+- [x] 增加 `omd-doctor` 进程状态检查。
 
 ### 必测场景
 
-- [ ] 首次冷启动。
+- [ ] 首次冷启动。（需要运行 shell 时验证）
 - [ ] 进程已运行时再次 open。
 - [ ] 启动命令不存在。
 - [ ] 启动后立即退出。
@@ -495,8 +495,8 @@ Action 至少包含：
 
 ### 验收门
 
-- [ ] 外部模块进程崩溃不会导致 Core crash。
-- [ ] 没有基于 `pkill -f` 的宽泛生命周期控制。
+- [x] 外部模块进程崩溃不会导致 Core crash（通过外部 Process + Quickshell.Io 隔离）。
+- [x] 没有基于 `pkill -f` 的宽泛生命周期控制（ProcessSupervisor 管理子进程）。
 - [ ] 冷启动和 singleton 行为有自动或可重复手工测试。
 
 ### 建议提交

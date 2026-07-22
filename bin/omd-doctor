@@ -242,35 +242,71 @@ else
   printf 'OMD doctor finished cleanly.\n'
   exit 0
 fi
-# ── Modules ──
+# ── Process Supervisor ──
+
+section "process supervisor"
+_ps_files=(
+    "$repo/quickshell/core/runtime/ProcessSupervisor.qml"
+    "$repo/quickshell/core/runtime/ApplicationManager.qml"
+)
+for f in "${_ps_files[@]}"; do
+    if [[ -f "$f" ]]; then
+        ok "process supervisor file: $f"
+    else
+        fail "process supervisor file missing: $f"
+    fi
+done
+
+_state_log_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/logs"
+if [[ -d "$_state_log_dir" ]]; then
+    count=$(find "$_state_log_dir" -name '*.out' -o -name '*.err' 2>/dev/null | wc -l)
+    ok "process logs: $_state_log_dir ($count log files)"
+else
+    warn "process log directory not yet created: $_state_log_dir"
+fi
+
+# Check if registry includes kind/entry for application modules
+_registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
+_registry_file="$_registry_dir/modules.json"
+if [[ -f "$_registry_file" ]]; then
+    _app_count=$(jq -r '[.modules[] | select(.kind == "application")] | length' "$_registry_file" 2>/dev/null || echo 0)
+    ok "application modules in registry: $_app_count"
+else
+    warn "module registry not yet generated: $_registry_file"
+fi
 
 check_modules() {
-    echo "── Modules ──"
-    local modules_home="$SUMIKA_MODULES_HOME"
-    if [ ! -d "$modules_home" ]; then
-        warn "Module directory not found: $modules_home"
+    local modules_home="${SUMIKA_MODULES_HOME:-}"
+    if [[ -z "$modules_home" || ! -d "$modules_home" ]]; then
+        warn "SUMIKA_MODULES_HOME not set or directory missing"
         return
     fi
     local count
     count=$(find "$modules_home" -maxdepth 2 -name "module.json" 2>/dev/null | wc -l)
     ok "$count modules installed in $modules_home"
-    local registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
-    local registry_file="$registry_dir/modules.json"
-    if [ -f "$registry_file" ]; then
-        local bar_count
-        bar_count=$(jq -r '.barButtons | length // 0' "$registry_file" 2>/dev/null || echo 0)
-        ok "Module registry: $registry_file ($bar_count bar buttons)"
-    else
-        warn "Module registry missing: $registry_file — run omd-restart"
+
+    if [[ -f "$_registry_file" ]]; then
+        local contrib_count
+        contrib_count=$(jq -r '.contributes.widgets | length // 0' "$_registry_file" 2>/dev/null || echo 0)
+        ok "v2 registry: $_registry_file ($contrib_count contributed widgets)"
     fi
-    local sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-    local cfg_file="$sumika_cfg/sumika.json"
-    if command -v jq >/dev/null 2>&1 && [ -f "$cfg_file" ]; then
+
+    if command -v jq >/dev/null 2>&1 && [[ -f "${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json" ]]; then
         local enabled
-        enabled=$(jq -r 'try .modules.enabled' "$cfg_file" 2>/dev/null || true)
-        [ "$enabled" = "false" ] && info "  All modules disabled via modules.enabled=false"
+        enabled=$(jq -r 'try .modules.enabled' "${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json" 2>/dev/null || true)
+        [[ "$enabled" = "false" ]] && warn "  All modules disabled via modules.enabled=false"
     fi
 }
 check_modules
 
-exit $errors
+printf '\n'
+if (( failed )); then
+    printf 'OMD doctor finished with failures.\n'
+    exit 1
+elif (( warned )); then
+    printf 'OMD doctor finished with warnings.\n'
+    exit 0
+else
+    printf 'OMD doctor finished cleanly.\n'
+    exit 0
+fi
