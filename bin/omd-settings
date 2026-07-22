@@ -11,45 +11,28 @@ set -eu
 # When started fresh, exports OMD_SETTINGS_ON_DEMAND=1 so shell.qml
 # auto-opens one settings panel and quits when dismissed.
 
-app_dir="$HOME/.config/omd/apps/omd-settings"
+repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+. "$repo_root/scripts/omd-path.sh"
+app_dir="$repo_root/apps/omd-settings"
 
 is_running() {
     pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
 }
 
 ipc_call() {
-    qs -p "$app_dir" ipc call settings "$@" 2>/dev/null || true
+    "${OMD_QS_BIN:-qs}" -p "$app_dir" ipc call settings "$@" 2>/dev/null || true
 }
-
 launch_direct() {
-    qs_bin="${OMD_QS_BIN:-}"
-    if [ -z "$qs_bin" ]; then
-        if [ -x /usr/bin/qs ]; then
-            qs_bin=/usr/bin/qs
-        elif [ -x /usr/bin/quickshell ]; then
-            qs_bin=/usr/bin/quickshell
-        elif [ -x "$HOME/.local/bin/qs" ]; then
-            qs_bin="$HOME/.local/bin/qs"
-        elif [ -x "$HOME/.local/bin/quickshell" ]; then
-            qs_bin="$HOME/.local/bin/quickshell"
-        fi
-    fi
-    if [ -z "$qs_bin" ]; then
-        echo "Quickshell executable not found" >&2
-        exit 127
-    fi
-
-    repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
     export OMD_REPO_ROOT="$repo_root"
     export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
     export QS_CONFIG_DIR="$app_dir"
+    export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$repo_root:$repo_root/quickshell"
     export QS_COMPOSITOR=hyprland
     export OMD_APP_DIR="$app_dir"
     export OMD_SETTINGS_ON_DEMAND=1
     export OMD_SETTINGS_PAGE="${1:-overview}"
 
     runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-
     if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
         for candidate in "$runtime_dir"/hypr/*/hyprland.lock; do
             [ -f "$candidate" ] || continue
@@ -77,7 +60,7 @@ launch_direct() {
         exit 1
     fi
 
-    nohup "$qs_bin" -p "$app_dir" >/tmp/omd-settings.log 2>&1 &
+    nohup "${OMD_QS_BIN:-qs}" -p "$app_dir" >/tmp/omd-settings.log 2>&1 &
 }
 
 action="${1:-open}"
@@ -91,13 +74,13 @@ if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
         exec env -u GDK_SCALE GDK_DPI_SCALE=0.5 pavucontrol
     fi
     if [ "$page" = "windows" ] || [ "$page" = "vm" ] || [ "$page" = "windows-vm" ] || [ "$page" = "virtualization" ]; then
-        exec "$HOME/.config/omd/bin/omd-launch-settings-windows-tui"
+        exec "$repo_root/bin/omd-launch-settings-windows-tui"
     fi
     if [ "$page" = "voice" ] || [ "$page" = "voice-input" ] || [ "$page" = "speech" ]; then
-        exec "$HOME/.config/omd/bin/omd-launch-settings-voice-tui"
+        exec "$repo_root/bin/omd-launch-settings-voice-tui"
     fi
     if [ "$page" = "keyremap" ] || [ "$page" = "keyboard" ] || [ "$page" = "keyboard-remap" ]; then
-        exec "$HOME/.config/omd/bin/omd-launch-settings-keyboard-tui"
+        exec "$repo_root/bin/omd-launch-settings-keyboard-tui"
     fi
 fi
 

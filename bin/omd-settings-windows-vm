@@ -366,7 +366,7 @@ default_disk() {
 
 ensure_desktop_file() {
   mkdir -p "$HOME/.local/share/applications/icons"
-  local omd_icon="$HOME/.config/omd/share/applications/icons/windows.png"
+  local omd_icon="$OMD_ROOT/share/applications/icons/windows.png"
   if [[ -f "$omd_icon" ]]; then
     cp "$omd_icon" "$HOME/.local/share/applications/icons/windows.png"
   fi
@@ -375,7 +375,7 @@ ensure_desktop_file() {
 [Desktop Entry]
 Name=Windows
 Comment=Start Windows VM and connect with RDP
-Exec=$HOME/.config/omd/bin/omd-settings-windows-vm start-connect
+Exec=$OMD_ROOT/bin/omd-settings-windows-vm start-connect
 Icon=$HOME/.local/share/applications/icons/windows.png
 Terminal=false
 Type=Application

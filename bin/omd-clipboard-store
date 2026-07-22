@@ -22,7 +22,7 @@ wl-paste --watch bash -c '
     fi
     # Store it
     echo -n "$data" | cliphist store
-    qs -p "$OMD_ROOT/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$OMD_ROOT/modules/clipboard" ipc call cliphistService update 2>/dev/null || true
 ' &
 
 wl-paste -t image/png --watch sh -c '
@@ -32,7 +32,7 @@ wl-paste -t image/png --watch sh -c '
     [ -s "$tmp" ] || exit 0
     file -b --mime-type "$tmp" | grep -q "^image/" || exit 0
     cliphist store < "$tmp"
-    qs -p "$OMD_ROOT/apps/omd-clipboard" ipc call cliphistService update 2>/dev/null || true
+    qs -p "$OMD_ROOT/modules/clipboard" ipc call cliphistService update 2>/dev/null || true
 '
 
 wait

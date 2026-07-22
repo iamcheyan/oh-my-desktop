@@ -34,7 +34,7 @@ HANDLER_PATTERN = re.compile(r'^(ipc:|action:)[a-zA-Z0-9._-]+$')
 PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
 SERVICE_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
 
-_KINDS = frozenset({"application", "qml-singleton", "service-provider", "shared"})
+_KINDS = frozenset({"application", "overlay", "qml-singleton", "service-provider", "shared"})
 
 def error(module_id: str, path: str, msg: str) -> str:
     return f"  [{module_id}] {path}: {msg}"
@@ -128,14 +128,25 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
             if slot and slot not in ("left", "right"):
                 errors.append(error(module_id, f"#contributes.widgets[{i}].slot", f"invalid slot '{slot}'"))
 
+            # Check component path — MUST exist in module root
+            wcomp = w.get("component", "")
+            if wcomp:
+                if ".." in str(wcomp):
+                    errors.append(error(module_id, f"#contributes.widgets[{i}].component", f"path traversal detected: '{wcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, wcomp)
+                    if not os.path.exists(full_path):
+                        errors.append(error(module_id, f"#contributes.widgets[{i}].component", f"file not found: {wcomp}"))
+
+            # Check descriptor path if present
             descriptor = w.get("descriptor")
             if descriptor:
                 if ".." in str(descriptor):
                     errors.append(error(module_id, f"#contributes.widgets[{i}].descriptor", f"path traversal detected: '{descriptor}'"))
-                full_path = os.path.join(module_root, descriptor)
-                if not os.path.exists(full_path):
-                    warnings.append(warn(module_id, f"#contributes.widgets[{i}].descriptor", f"file not found: {descriptor}"))
-
+                else:
+                    full_path = os.path.join(module_root, descriptor)
+                    if not os.path.exists(full_path):
+                        errors.append(error(module_id, f"#contributes.widgets[{i}].descriptor", f"file not found: '{descriptor}'"))
         # Actions
         seen_action_ids = set()
         for i, a in enumerate(contributes.get("actions", [])):
@@ -160,10 +171,38 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
                 errors.append(error(module_id, f"#contributes.overviewProviders[{i}]", f"duplicate provider id '{pid}'"))
             seen_ovp_ids.add(pid)
 
+            # Validate component path
+            ovpcomp = p.get("component", "")
+            if ovpcomp:
+                if ".." in str(ovpcomp):
+                    errors.append(error(module_id, f"#contributes.overviewProviders[{i}].component", f"path traversal: '{ovpcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, ovpcomp)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.overviewProviders[{i}].component", f"component file not found: {ovpcomp}"))
+
+
             handler = p.get("handler")
             if handler and not HANDLER_PATTERN.match(str(handler)):
                 errors.append(error(module_id, f"#contributes.overviewProviders[{i}].handler", f"invalid handler '{handler}'"))
 
+
+        # Overlays
+        seen_ovl_ids = set()
+        for i, ovl in enumerate(contributes.get("overlays", [])):
+            ovlid = ovl.get("id", f"#{i}")
+            if ovlid in seen_ovl_ids:
+                errors.append(error(module_id, f"#contributes.overlays[{i}]", f"duplicate overlay id '{ovlid}'"))
+            seen_ovl_ids.add(ovlid)
+
+            ovlcomp = ovl.get("component", "")
+            if ovlcomp:
+                if ".." in str(ovlcomp):
+                    errors.append(error(module_id, f"#contributes.overlays[{i}].component", f"path traversal: '{ovlcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, ovlcomp)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.overlays[{i}].component", f"component file not found: {ovlcomp}"))
         # Settings pages
         seen_sp_ids = set()
         for i, sp in enumerate(contributes.get("settingsPages", [])):
@@ -276,7 +315,8 @@ def validate_v1_as_v2(data: dict, module_root: str, module_id: str) -> tuple:
 
 def validate_module(manifest_path: str) -> int:
     """Validate a single module manifest. Returns exit code."""
-    module_root = os.path.dirname(os.path.abspath(manifest_path))
+    manifest_abs = os.path.abspath(manifest_path)
+    module_root = os.path.dirname(manifest_abs)
     module_id = os.path.basename(module_root)
 
     # Parse JSON
@@ -285,6 +325,17 @@ def validate_module(manifest_path: str) -> int:
         for e in errs:
             print(e)
         return 1
+
+    # Auto-detect root dir: builtin manifests resolve component paths relative
+    # to the quickshell root (parent of registry/builtin/), not the manifest location.
+    module_id = data.get("id", module_id)
+    manifest_dir = os.path.dirname(manifest_abs)
+    manifest_parent = os.path.dirname(manifest_dir)
+    # Check if we're inside registry/builtin/
+    if os.path.basename(manifest_dir) == "builtin" and os.path.basename(manifest_parent) == "registry":
+        quickshell_root = os.path.dirname(manifest_parent)
+        if os.path.isdir(quickshell_root):
+            module_root = quickshell_root
 
     sv = data.get("schemaVersion")
     if sv == 2:
@@ -312,26 +363,61 @@ def validate_module(manifest_path: str) -> int:
     return 0 if all_ok else 1
 
 
-def validate_all(modules_home: str) -> int:
-    """Validate all modules in the modules home directory."""
+def scan_manifests(root_dir: str) -> list:
+    """Scan a directory for module.json files (single-dir or builtin-registry style)."""
+    results = []
+    if not os.path.isdir(root_dir):
+        return results
+    # Check if this looks like a builtin registry dir (flat *.json files)
+    has_json = False
+    for entry in sorted(os.listdir(root_dir)):
+        if entry.endswith(".json"):
+            has_json = True
+            break
+    if has_json:
+        # builtin style: each .json is a separate manifest, resolved relative to repo
+        for entry in sorted(os.listdir(root_dir)):
+            if entry.endswith(".json"):
+                results.append(os.path.join(root_dir, entry))
+    else:
+        # external module style: each subdir contains a module.json
+        for entry in sorted(os.listdir(root_dir)):
+            entry_path = os.path.join(root_dir, entry)
+            if not os.path.isdir(entry_path):
+                continue
+            manifest_path = os.path.join(entry_path, "module.json")
+            if os.path.isfile(manifest_path):
+                results.append(manifest_path)
+    return results
+
+
+def validate_all() -> int:
+    """Validate all modules — repo-local and external."""
     total = 0
     passed = 0
     failed = 0
     warned = 0
 
-    if not os.path.isdir(modules_home):
-        print(f"Module directory not found: {modules_home}")
-        return 2
+    omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    # Scan only directories that contain a module.json
-    for entry in sorted(os.listdir(modules_home)):
-        entry_path = os.path.join(modules_home, entry)
-        if not os.path.isdir(entry_path):
-            continue
-        manifest_path = os.path.join(entry_path, "module.json")
-        if not os.path.isfile(manifest_path):
-            # Skip non-module directories (e.g. .git)
-            continue
+    # Repo-local modules/
+    manifests = []
+    repo_modules = os.path.join(omd_root, "modules")
+    if os.path.isdir(repo_modules):
+        manifests += scan_manifests(repo_modules)
+
+    # External modules via SUMIKA_MODULES_HOME
+    modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
+    if not modules_home:
+        modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
+    if modules_home != repo_modules:
+        manifests += scan_manifests(modules_home)
+
+    if not manifests:
+        print("No module manifests found")
+        return 0
+
+    for manifest_path in manifests:
         total += 1
         rc = validate_module(manifest_path)
         if rc == 0:
@@ -352,13 +438,7 @@ def main():
     arg = sys.argv[1]
 
     if arg == "--all":
-        modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
-        if not modules_home:
-            # Try to source paths.sh-like resolution
-            omd_root = os.environ.get("OMD_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            modules_home = os.environ.get("SUMIKA_MODULES_HOME",
-                os.path.join(os.path.expanduser("~"), "development", "sumika-modules"))
-        rc = validate_all(modules_home)
+        rc = validate_all()
     elif os.path.isdir(arg):
         manifest_path = os.path.join(arg, "module.json")
         if os.path.isfile(manifest_path):

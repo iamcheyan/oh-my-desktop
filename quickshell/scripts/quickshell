@@ -36,6 +36,25 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
+# QML resolves `import qs.services` as <import-root>/qs/services.  The source
+# tree is named `quickshell`, so adding the repository itself to
+# QML_IMPORT_PATH is not sufficient once the old per-app `services` and
+# `modules` symlinks have been removed.  Build one transient import root for
+# every Sumika process instead of recreating those application-local mirrors.
+runtime_base="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
+qml_import_root="$runtime_base/qml"
+if ! mkdir -p "$qml_import_root" 2>/dev/null; then
+    runtime_base="${TMPDIR:-/tmp}/sumika-shell-$(id -u)"
+    qml_import_root="$runtime_base/qml"
+    mkdir -p "$qml_import_root"
+fi
+if [ -e "$qml_import_root/qs" ] && [ ! -L "$qml_import_root/qs" ]; then
+    printf 'Invalid Sumika QML import path: %s is not a symlink\n' "$qml_import_root/qs" >&2
+    exit 1
+fi
+ln -sfn "$repo_root/quickshell" "$qml_import_root/qs"
+export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+
 
 sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 config_file="$sumika_config/sumika.json"
@@ -80,12 +99,12 @@ fi
 # Outputs v2 schema (schemaVersion=2) with contributes.widgets/popupSections/
 # settingsPages/services/actions/overviewProviders.
 # ---------------------------------------------------------------
-registry_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell"
+registry_dir="$runtime_base"
 mkdir -p "$registry_dir"
 registry_file="$registry_dir/modules.json"
 
 # v2 empty template
-registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[]}}'
+registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}'
 
 # Helper: merge a single manifest into the registry.
 # Args: $1 = module.json path, $2 = module root dir
@@ -132,7 +151,13 @@ merge_manifest() {
          .contributes.services += (
            ($mod[0].contributes.services // $mod[0].capabilities.services // [])
          ) |
-         .contributes.actions += ($mod[0].contributes.actions // [])' \
+         .contributes.actions += ($mod[0].contributes.actions // []) |
+         .contributes.overlays += (
+           ($mod[0].contributes.overlays // [])
+           | map(. + {component: ("file://" + $mdir + "/" + .component)}
+                | .moduleId = (.moduleId // $mid))
+         ) |
+         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid)))' \
         "$tmp_reg" 2>&1) && registry="$new_reg" || {
             echo "[sumika] WARN: merge failed for $manifest" >&2
             rm -f "$tmp_reg"
@@ -141,18 +166,6 @@ merge_manifest() {
     rm -f "$tmp_reg"
 }
 
-# Merge builtin manifests unconditionally
-builtin_dir="$repo_root/quickshell/registry/builtin"
-if [ -d "$builtin_dir" ]; then
-    if command -v jq >/dev/null 2>&1; then
-        for manifest_json in "$builtin_dir"/*.json; do
-            [ -f "$manifest_json" ] || continue
-            merge_manifest "$manifest_json" "$repo_root/quickshell"
-        done
-    else
-        echo "[sumika] WARN: jq not available — builtin manifests will not be merged"
-    fi
-fi
 
 # Read master switch
 modules_enabled=true
@@ -160,11 +173,23 @@ if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
     modules_enabled=$(jq -r 'try .modules.enabled // "true"' "$config_file" 2>/dev/null || true)
 fi
 if [ "$modules_enabled" = "false" ]; then
-    echo "[sumika] modules disabled via sumika.json (builtin widgets still available)"
+    echo "[sumika] modules disabled via sumika.json — no module contributions will be loaded"
 fi
 
-# Merge external modules when enabled and directory exists
-if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ]; then
+# Merge repo-local modules/ directory
+repo_modules_dir="$repo_root/modules"
+if [ "$modules_enabled" != "false" ] && [ -d "$repo_modules_dir" ]; then
+    for module_json in "$repo_modules_dir"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        module_dir=$(dirname "$module_json")
+        if command -v jq >/dev/null 2>&1; then
+            merge_manifest "$module_json" "$module_dir"
+        fi
+    done
+fi
+
+# Merge external modules via SUMIKA_MODULES_HOME when set and differs from repo modules
+if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ] && [ "$SUMIKA_MODULES_HOME" != "$repo_modules_dir" ]; then
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue
         module_dir=$(dirname "$module_json")
@@ -176,7 +201,7 @@ fi
 
 # No hardcoded fallback: if jq is absent, registry stays empty.
 # ModuleLoader handles empty registry gracefully by showing no module-dependent UI.
-if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[]}}' ]; then
+if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}' ]; then
     echo "[sumika] INFO: empty registry — jq may be missing or no manifests found"
 fi
 

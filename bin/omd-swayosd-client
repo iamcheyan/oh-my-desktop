@@ -4,8 +4,10 @@ set -euo pipefail
 # Compatibility entry point for the existing media bindings. OMD renders its
 # own OSD, so changing volume must not depend on the external SwayOSD daemon.
 
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/scripts/omd-path.sh"
 notify_volume_osd() {
-  qs -p "$HOME/.config/omd/apps/omd-bar" ipc call osdVolume trigger >/dev/null 2>&1 || true
+  "${OMD_QS_BIN:-qs}" -p "$_omd_root/apps/omd-bar" ipc call osdVolume trigger >/dev/null 2>&1 || true
 }
 
 case "${1:-}" in

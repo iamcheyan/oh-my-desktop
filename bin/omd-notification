@@ -7,4 +7,4 @@ _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 # Use OMD_ROOT from env (systemd-run) or resolve from script location
 omd_root="${OMD_ROOT:-$_omd_root}"
 
-exec "$omd_root/quickshell/scripts/quickshell" "$omd_root/apps/omd-notification"
+exec "$omd_root/quickshell/scripts/quickshell" "$omd_root/modules/notification"

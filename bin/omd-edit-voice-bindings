@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 : "${EDITOR:=vi}"
-bindings_file="$HOME/.config/voice_bindings.txt"
+_sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+bindings_file=""
+if command -v jq >/dev/null 2>&1 && [[ -f "$_sumika_cfg/sumika.json" ]]; then
+  bindings_file="$(jq -r 'try .voice.bindingsFile // ""' "$_sumika_cfg/sumika.json" 2>/dev/null || true)"
+fi
+: "${bindings_file:=$HOME/.config/voice_bindings.txt}"
+# Expand leading ~/ if present
+case "$bindings_file" in
+  "~/"*) bindings_file="$HOME${bindings_file#\~}" ;;
+esac
 
 mkdir -p "$(dirname "$bindings_file")"
 if [[ ! -f "$bindings_file" ]]; then

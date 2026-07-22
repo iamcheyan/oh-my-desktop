@@ -1,17 +1,18 @@
 #!/bin/sh
 set -eu
-
-app_dir="$HOME/.config/omd/apps/omd-bar"
+_omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/scripts/omd-path.sh"
+app_dir="$_omd_root/apps/omd-bar"
 
 case "${1:-}" in
     dismiss-last)
-        qs -p "$app_dir" ipc call notifications dismissLast >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications dismissLast >/dev/null 2>&1 || true
         ;;
     dismiss-all)
-        qs -p "$app_dir" ipc call notifications dismissAll >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications dismissAll >/dev/null 2>&1 || true
         ;;
     toggle-silent)
-        qs -p "$app_dir" ipc call notifications toggleSilent >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications toggleSilent >/dev/null 2>&1 || true
         ;;
     *)
         echo "usage: omd-notification-control dismiss-last|dismiss-all|toggle-silent" >&2

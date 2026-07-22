@@ -2,8 +2,7 @@
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-OMD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omd"
-USER_THEMES_DIR="$OMD_CONFIG/themes"
+USER_THEMES_DIR="$OMD_ROOT/themes"
 SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
 STATE_BASE="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
 CURRENT_DIR="$STATE_BASE/theme"

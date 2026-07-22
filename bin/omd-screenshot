@@ -15,18 +15,13 @@ set -eu
 # and quits when the selection is complete or cancelled.
 # Re-invoking while open cancels the current selection (toggle).
 
-app_dir="$HOME/.config/omd/apps/omd-screenshot"
+repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+. "$repo_root/scripts/omd-path.sh"
+app_dir="$repo_root/modules/screenshot"
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"
 lock_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot.lock"
 fast_pid_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot-fast.pid"
-
-# Hyprland binds can run with a minimal environment.
-if [ -n "${PATH:-}" ]; then
-    export PATH="$PATH:/usr/bin:/usr/local/bin:${HOME}/.local/bin"
-else
-    export PATH="/usr/bin:/usr/local/bin:${HOME}/.local/bin"
-fi
 
 # Normalize legacy aliases.
 case "$action" in
@@ -167,8 +162,11 @@ fast_capture() {
     save_dir=""
     _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
     _cfg_file="$_sumika_cfg/sumika.json"
-    [ -f "$_cfg_file" ] || _cfg_file="$HOME/.config/quickshell/config.json"
-    if command -v jq >/dev/null 2>&1 && [ -r "$_cfg_file" ]; then
+    if [ -f "$_cfg_file" ] && command -v jq >/dev/null 2>&1 && [ -r "$_cfg_file" ]; then
+        save_dir="$(jq -r '.screenSnip.savePath // empty' "$_cfg_file" 2>/dev/null || true)"
+    fi
+    [ -n "$save_dir" ] || _cfg_file="$repo_root/quickshell/config.json"
+    if [ -z "$save_dir" ] && [ -f "$_cfg_file" ] && command -v jq >/dev/null 2>&1; then
         save_dir="$(jq -r '.screenSnip.savePath // empty' "$_cfg_file" 2>/dev/null || true)"
     fi
     if [ -n "$save_dir" ]; then
@@ -191,7 +189,7 @@ if is_running; then
     kill_running
     wait_until_not_running
     rm -f /tmp/omd-screenshot-active
-    qs -p "$app_dir/../omd-bar" ipc call screenshot end >/dev/null 2>&1 || true
+    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call screenshot end >/dev/null 2>&1 || true
     # Explicit cancel request: do not relaunch.
     if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
         exec 9>&-
@@ -206,24 +204,6 @@ exec 9>&-
 launch_direct() {
     cancel_fast_capture || true
 
-    qs_bin="${OMD_QS_BIN:-}"
-    if [ -z "$qs_bin" ]; then
-        if [ -x /usr/bin/qs ]; then
-            qs_bin=/usr/bin/qs
-        elif [ -x /usr/bin/quickshell ]; then
-            qs_bin=/usr/bin/quickshell
-        elif [ -x "$HOME/.local/bin/qs" ]; then
-            qs_bin="$HOME/.local/bin/qs"
-        elif [ -x "$HOME/.local/bin/quickshell" ]; then
-            qs_bin="$HOME/.local/bin/quickshell"
-        fi
-    fi
-    if [ -z "$qs_bin" ]; then
-        echo "Quickshell executable not found" >&2
-        exit 127
-    fi
-
-    repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
     export OMD_REPO_ROOT="$repo_root"
     export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
     export QS_CONFIG_DIR="$app_dir"
@@ -283,7 +263,7 @@ launch_direct() {
     # QS process via OMD_SNAPSHOT_DIR; RegionSelection.qml skips its own
     # grim call and loads the pre-captured images directly.
     touch /tmp/omd-screenshot-active
-    qs -p "$app_dir/../omd-bar" ipc call screenshot begin > /dev/null 2>&1 || true
+    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call screenshot begin > /dev/null 2>&1 || true
 
     snapshot_dir="/tmp/quickshell/media/screenshot"
     mkdir -p "$snapshot_dir"
@@ -311,7 +291,7 @@ launch_direct() {
         # image into a monitor-sized selector.
     fi
 
-    nohup "$qs_bin" -p "$app_dir" >> "$log_file" 2>&1 &
+    nohup "${OMD_QS_BIN:-qs}" -p "$app_dir" >> "$log_file" 2>&1 &
     wait_until_running_or_failed || true
 }
 

@@ -59,7 +59,6 @@ if [ -z "${SUMIKA_MODULES_HOME:-}" ]; then
     if command -v jq >/dev/null 2>&1; then
         _sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
         _config_json_path="$_sumika_config/quickshell/config.json"
-        [ -f "$_config_json_path" ] || _config_json_path="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/config.json"
         if [ -f "$_config_json_path" ]; then
             _dir=$(jq -r 'try .modules.dir // ""' "$_config_json_path" 2>/dev/null || true)
             case "$_dir" in
@@ -69,4 +68,24 @@ if [ -z "${SUMIKA_MODULES_HOME:-}" ]; then
     fi
     : "${_dir:=$HOME/development/sumika-modules}"
     export SUMIKA_MODULES_HOME="$_dir"
+fi
+
+# Resolve Quickshell executable path.
+# Priority: 1) already-set OMD_QS_BIN, 2) system PATH, 3) known user paths, 4) known system paths.
+if [ -z "${OMD_QS_BIN:-}" ] || [ ! -x "$OMD_QS_BIN" ]; then
+    OMD_QS_BIN=""
+    for _candidate in \
+        "$(command -v qs 2>/dev/null || true)" \
+        "$(command -v quickshell 2>/dev/null || true)" \
+        "$HOME/.local/bin/qs" \
+        "$HOME/.local/bin/quickshell" \
+        "/usr/bin/qs" \
+        "/usr/bin/quickshell"; do
+        if [ -n "$_candidate" ] && [ -x "$_candidate" ]; then
+            OMD_QS_BIN="$_candidate"
+            break
+        fi
+    done
+    export OMD_QS_BIN
+    unset _candidate
 fi

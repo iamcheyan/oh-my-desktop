@@ -275,8 +275,6 @@ set_color() {
 
   local _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
   local quickshell_config="$_sumika_cfg/sumika.json"
-  # Legacy fallback
-  [ -f "$quickshell_config" ] || quickshell_config="$HOME/.config/quickshell/config.json"
   if [[ -f "$quickshell_config" ]] && command -v jq >/dev/null 2>&1; then
     local tmp
     tmp="$(mktemp)"

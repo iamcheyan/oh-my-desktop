@@ -3,6 +3,7 @@ set -eu
 
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
+. "$_omd_root/scripts/omd-path.sh"
 unset _omd_root
 
 # On-demand App Launcher process.
@@ -15,7 +16,7 @@ unset _omd_root
 # When started fresh, exports OMD_APP_ON_DEMAND=1 so shell.qml auto-opens the
 # launcher and quits the process when the panel closes.
 
-app_dir="$OMD_ROOT/apps/omd-applauncher"
+app_dir="$OMD_ROOT/modules/launcher"
 qs_launcher="$OMD_ROOT/quickshell/scripts/quickshell"
 cache_script="$OMD_ROOT/bin/omd-applauncher-cache"
 
@@ -33,32 +34,13 @@ is_running() {
 }
 
 ipc_call() {
-    qs -p "$app_dir" ipc call appLauncher "$1" 2>/dev/null || true
+    "${OMD_QS_BIN:-qs}" -p "$app_dir" ipc call appLauncher "$1" 2>/dev/null || true
 }
-
 launch_direct() {
-    qs_bin="${OMD_QS_BIN:-}"
-    if [ -z "$qs_bin" ]; then
-        if [ -x /usr/bin/qs ]; then
-            qs_bin=/usr/bin/qs
-        elif [ -x /usr/bin/quickshell ]; then
-            qs_bin=/usr/bin/quickshell
-        elif [ -x "$HOME/.local/bin/qs" ]; then
-            qs_bin="$HOME/.local/bin/qs"
-        elif [ -x "$HOME/.local/bin/quickshell" ]; then
-            qs_bin="$HOME/.local/bin/quickshell"
-        fi
-    fi
-    if [ -z "$qs_bin" ]; then
-        echo "Quickshell executable not found" >&2
-        exit 127
-    fi
-
     # Set up Quickshell/OMD environment variables directly
     # This matches the setup in quickshell/scripts/quickshell but bypasses its execution time
-    repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
-    export OMD_REPO_ROOT="$repo_root"
-    export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
+    export OMD_REPO_ROOT="$OMD_ROOT"
+    export OMD_QUICKSHELL_DIR="$OMD_ROOT/quickshell"
     export QS_CONFIG_DIR="$app_dir"
     export QS_COMPOSITOR=hyprland
     export OMD_APP_DIR="$app_dir"
@@ -75,7 +57,7 @@ launch_direct() {
         done
     fi
 
-    exec "$qs_bin" -p "$app_dir"
+    exec "${OMD_QS_BIN:-qs}" -p "$app_dir"
 }
 
 case "${1:-toggle}" in

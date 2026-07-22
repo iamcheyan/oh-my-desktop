@@ -4,7 +4,17 @@ set -euo pipefail
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
-BINDINGS_FILE="$HOME/.config/voice_bindings.txt"
+_voice_bindings_file=""
+_voice_sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+if command -v jq >/dev/null 2>&1 && [[ -f "$_voice_sumika_cfg/sumika.json" ]]; then
+  _voice_bindings_file="$(jq -r 'try .voice.bindingsFile // ""' "$_voice_sumika_cfg/sumika.json" 2>/dev/null || true)"
+fi
+: "${_voice_bindings_file:=$HOME/.config/voice_bindings.txt}"
+case "$_voice_bindings_file" in
+  "~/"*) BINDINGS_FILE="$HOME${_voice_bindings_file#\~}" ;;
+  *) BINDINGS_FILE="$_voice_bindings_file" ;;
+esac
+unset _voice_bindings_file _voice_sumika_cfg
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omd-voice"
 VENV_DIR="${OMD_VOICE_VENV:-$CACHE_DIR/venv}"
 MODEL_DIR="$CACHE_DIR/sense-voice-small-int8"
