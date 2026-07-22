@@ -6,8 +6,14 @@ import qs.modules.common
 
 /// Modules live in ~/development/sumika-modules/<id>/ and are discovered
 /// by the startup script, which writes $XDG_RUNTIME_DIR/sumika-shell/modules.json.
-/// This singleton parses that JSON and exposes bar buttons, popup sections,
-/// and settings pages for dynamic loading via Repeater + Loader.
+/// This singleton parses that JSON (v2 schema) and exposes contributions
+/// for dynamic loading via Repeater + Loader.
+///
+/// Registry v2 compatibility:
+/// - Primary fields: contributes.widgets, contributes.popupSections,
+///   contributes.settingsPages, contributes.services, contributes.actions
+/// - v1 fallback: barButtons, popupSections, settingsPages (flat top-level keys)
+/// - v1 manifests are converted to v2 by the startup script's merge_manifest()
 
 Singleton {
     id: loader
@@ -31,14 +37,22 @@ Singleton {
         return true
     }
 
+    // Helper: read a contributes array with v1 fallback.
+    function _contributes(key, v1key) {
+        const c = _registry.contributes
+        if (c && Array.isArray(c[key]) && c[key].length > 0) {
+            return c[key]
+        }
+        // v1 fallback (flat top-level key)
+        const v1 = _registry[v1key]
+        if (Array.isArray(v1)) return v1
+        return []
+    }
 
     function _filterBarButtons(slot) {
-        var buttons = _registry.barButtons ?? []
-        // Fallback: if registry has no buttons, use builtin fallback list
-        if (buttons.length === 0) {
-            console.log("[ModuleLoader] Registry has no barButtons — using builtin fallback")
-            buttons = loader._builtinFallback
-        }
+        const buttons = _contributes("widgets", "barButtons")
+        // No fallback: if registry has no widgets, return empty.
+        // Builtin alwaysShow buttons come from builtin/bar.json merged at startup.
         const result = []
         for (var i = 0; i < buttons.length; i++) {
             var b = buttons[i]
@@ -71,26 +85,16 @@ Singleton {
      * - type: string matching root.activeType (e.g. "audio", "battery")
      * - component: file:// URL to a QML component (section content)
      * - moduleId: owning module — used for per-module enable/disable
-     *
-     * For full popup replacement (replacing the core content entirely),
-     * a future `popupRoutes` capability will be introduced. Until then,
-     * all contributions go through this section channel and are always
-     * shown after the core contentLoader.
      */
     readonly property var popupSections: {
         if (!modulesEnabled) return []
         var coreTypes = {wifi:1, bluetooth:1, audio:1, display:1, battery:1, notifications:1, voice:1, inputMethod:1, keyboard:1, session:1, xkb:1, tools:1}
-        return (_registry.popupSections ?? []).filter(s => {
+        const sections = _contributes("popupSections", "popupSections")
+        return sections.filter(s => {
             if (!isEnabled(s.moduleId)) return false
-            // Validate required fields
             if (!s.type || typeof s.type !== 'string') {
                 console.warn("[ModuleLoader] popupSection missing type:", JSON.stringify(s))
                 return false
-            }
-            // Warn if section might be a full route (core popup content exists for this type)
-            if (s.type in coreTypes && (!s.contributionType || s.contributionType === "section")) {
-                // This is expected for modules adding supplemental content (e.g. MPRIS in audio)
-                // Log at debug level if/when we add verbose logging
             }
             return true
         })
@@ -98,34 +102,29 @@ Singleton {
 
     readonly property var settingsPages: {
         if (!modulesEnabled) return []
-        const pages = (_registry.settingsPages ?? []).filter(p => isEnabled(p.moduleId))
+        const pages = _contributes("settingsPages", "settingsPages").filter(p => isEnabled(p.moduleId))
         return pages.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
+
     readonly property var activeModuleIds: {
         if (!modulesEnabled) return []
         return (_registry.modules ?? []).filter(m => isEnabled(m.id ?? m)).map(m => m.id ?? m)
     }
 
     function _emptyRegistry() {
-        return { schemaVersion: 0, modules: [], barButtons: [], popupSections: [], settingsPages: [] }
+        return {
+            schemaVersion: 2,
+            modules: [],
+            contributes: {
+                widgets: [],
+                popupSections: [],
+                settingsPages: [],
+                services: [],
+                actions: [],
+                overviewProviders: []
+            }
+        }
     }
-
-    /**
-     * Builtin fallback buttons — used when the registry file is missing,
-     * corrupt, or otherwise fails to load. This ensures the bar never goes
-     * completely empty even without a startup-generated registry.
-     * Mirrors the shell script's fallback registry.
-     */
-    readonly property var _builtinFallback: [
-        // Left slot — alwaysShow core items
-        {id: "appLauncher", slot: "left", component: Qt.resolvedUrl("../modules/bar/AppLauncherButton.qml"), order: 0, alwaysShow: true, moduleId: "builtin"},
-        {id: "activeWindow", slot: "left", component: Qt.resolvedUrl("../modules/bar/ActiveWindow.qml"), order: 10, alwaysShow: true, moduleId: "builtin"},
-        // Right slot — alwaysShow core items
-        {id: "audio", slot: "right", component: Qt.resolvedUrl("../modules/bar/modules/AudioButton.qml"), order: 20, alwaysShow: true, moduleId: "builtin"},
-        {id: "wifi", slot: "right", component: Qt.resolvedUrl("../modules/bar/modules/WifiButton.qml"), order: 30, alwaysShow: true, moduleId: "builtin"},
-        {id: "clock", slot: "right", component: Qt.resolvedUrl("../modules/bar/ClockWidget.qml"), order: 80, alwaysShow: true, moduleId: "builtin"},
-        {id: "sidebarIndicators", slot: "right", component: Qt.resolvedUrl("../modules/bar/SidebarIndicators.qml"), order: 90, alwaysShow: true, moduleId: "builtin"}
-    ]
 
     // Read registry JSON via cat (Quickshell has no readFile API).
     Process {
@@ -137,20 +136,20 @@ Singleton {
                     const text = this.text.trim()
                     if (text.length > 0) {
                         const parsed = JSON.parse(text)
-                        // Validate schemaVersion
-                        if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== undefined) {
-                            console.warn("[ModuleLoader] Registry schemaVersion mismatch: got", parsed.schemaVersion, "expected 1")
+                        // Accept both v1 and v2 schemas
+                        if (parsed.schemaVersion !== 2 && parsed.schemaVersion !== 1 && parsed.schemaVersion !== undefined) {
+                            console.warn("[ModuleLoader] Registry schemaVersion mismatch: got", parsed.schemaVersion, "expected 2")
                         }
                         loader._registry = parsed
-                        if (!parsed.barButtons || parsed.barButtons.length === 0) {
-                            console.log("[ModuleLoader] Registry has no barButtons — will use builtin fallback")
-                        }
-                        console.log("[ModuleLoader] Loaded registry:", JSON.stringify({
-                            schemaVersion: parsed.schemaVersion,
+                        const c = parsed.contributes || {}
+                        const wCount = (c.widgets || parsed.barButtons || []).length
+                        const pCount = (c.popupSections || parsed.popupSections || []).length
+                        const sCount = (c.settingsPages || parsed.settingsPages || []).length
+                        console.log("[ModuleLoader] Loaded registry v" + (parsed.schemaVersion ?? "?"), JSON.stringify({
                             modules: loader._registry.modules?.length ?? 0,
-                            barButtons: loader._registry.barButtons?.length ?? 0,
-                            popupSections: loader._registry.popupSections?.length ?? 0,
-                            settingsPages: loader._registry.settingsPages?.length ?? 0
+                            widgets: wCount,
+                            popupSections: pCount,
+                            settingsPages: sCount
                         }))
                     }
                 } catch (e) {
