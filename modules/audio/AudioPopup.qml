@@ -2,6 +2,7 @@
 import qs
 import qs.modules.common
 import qs.modules.common.functions
+import qs.modules.common.widgets
 import qs.modules.bar
 import qs.services
 import qs.core.runtime
