@@ -173,6 +173,7 @@ Item { // Bar content region
             Loader {
                 source: root._findFixedWidget("clock")?.component ?? ""
                 active: source !== ""
+                visible: source !== ""
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Fixed clock widget load failed:", source)
@@ -183,6 +184,7 @@ Item { // Bar content region
             Loader {
                 source: root._findFixedWidget("sidebar-indicators")?.component ?? ""
                 active: source !== ""
+                visible: source !== ""
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Fixed sidebar indicators load failed:", source)

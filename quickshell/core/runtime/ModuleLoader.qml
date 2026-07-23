@@ -51,7 +51,7 @@ Singleton {
         for (var i = 0; i < buttons.length; i++) {
             var b = buttons[i]
             if (b.slot !== slot) continue
-            // alwaysShow buttons visible regardless of module state
+            // alwaysShow buttons visible regardless of per-module disabled list
             if (b.alwaysShow) {
                 result.push(b)
             } else if (loader.isEnabled(b.moduleId)) {
