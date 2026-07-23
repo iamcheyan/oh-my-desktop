@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Hyprland
 import qs
 import qs.core.runtime
-import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -17,7 +16,7 @@ Item { // Bar content region
 
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
-    readonly property int barActiveWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.barMonitor)
+    readonly property int barActiveWorkspaceId: ServiceManager.workspace.monitorActiveWorkspaceId(root.barMonitor)
 
     // Fixed widgets at the rightmost positions (power always last, clock before it)
     readonly property var _fixedWidgetIds: ["clock", "power-indicator"]
@@ -46,11 +45,11 @@ Item { // Bar content region
         if (wsId < 1)
             return false;
 
-        const wsData = HyprlandData.workspaceById[wsId];
+        const wsData = ServiceManager.workspace.workspaceById[wsId];
         if (wsData !== undefined && typeof wsData.windows === "number")
             return wsData.windows > 0;
 
-        return HyprlandData.hyprlandClientsForWorkspace(wsId).some(
+        return ServiceManager.workspace.hyprlandClientsForWorkspace(wsId).some(
             win => win.mapped && !win.hidden
         );
     }

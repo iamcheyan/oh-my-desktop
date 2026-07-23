@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.services as Services
 import qs.modules.common
 import qs.modules.common.widgets
@@ -126,15 +126,15 @@ Scope {
 
     Connections {
         // Listen to volume changes
-        target: Audio.sink?.audio ?? null
+        target: ServiceManager.audio.sink?.audio ?? null
         function onVolumeChanged() {
-            if (!Audio.ready)
+            if (!ServiceManager.audio.ready)
                 return;
             root.currentIndicator = "volume";
             root.triggerOsd(root.focusedScreen);
         }
         function onMutedChanged() {
-            if (!Audio.ready)
+            if (!ServiceManager.audio.ready)
                 return;
             root.currentIndicator = "volume";
             root.triggerOsd(root.focusedScreen);
@@ -143,7 +143,7 @@ Scope {
 
     Connections {
         // Listen to protection triggers
-        target: Audio
+        target: ServiceManager.audio
         function onSinkProtectionTriggered(reason) {
             root.protectionMessage = reason;
             root.currentIndicator = "volume";

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import qs
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -54,7 +55,7 @@ Item {
         const needle = String(text || "").toLowerCase().trim();
         if (needle.length === 0)
             return [];
-        return (HyprlandData.windowList || []).filter(win =>
+        return (ServiceManager.workspace.windowList || []).filter(win =>
             win && win.mapped && !win.hidden && win.address
                 && root.windowHaystack(win).indexOf(needle) >= 0);
     }

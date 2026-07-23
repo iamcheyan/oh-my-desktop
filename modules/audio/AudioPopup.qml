@@ -25,7 +25,7 @@ Item {
     readonly property real sourceVolume: source?.audio.volume ?? 0
     readonly property bool sinkMuted: sink?.audio.muted ?? false
     readonly property bool sourceMuted: source?.audio.muted ?? false
-    readonly property MprisPlayer activePlayer: MprisController.activePlayer
+    readonly property MprisPlayer activePlayer: ServiceManager.mpris.activePlayer
     readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.isEnabled("mpris")
     readonly property bool hasTrackArt: showMediaControls && TrackArt.resolvedArtUrl.length > 0
     readonly property string trackTitle: {
@@ -37,7 +37,7 @@ Item {
         return artist === "Unknown Artist" ? "" : artist
     }
     readonly property bool isPlaying: activePlayer?.playbackState === MprisPlaybackState.Playing
-    readonly property string playerName: MprisController.playerIdentity(activePlayer)
+    readonly property string playerName: ServiceManager.mpris.playerIdentity(activePlayer)
     readonly property bool chromiumPlayer: {
         const identity = (activePlayer?.identity || "").toLowerCase()
         return identity.includes("chrome") || identity.includes("chromium")
@@ -62,7 +62,7 @@ Item {
     function setSourceVolume(value) { audioPanel.pinOpen(); Audio.setSourceVolume(value); }
     function mediaPrev() {
         audioPanel.pinOpen()
-        MprisController.previousOrRewind()
+        ServiceManager.mpris.previousOrRewind()
     }
     function mediaToggle() {
         audioPanel.pinOpen()
@@ -89,7 +89,7 @@ Item {
     function focusMediaPlayer() {
         GlobalStates.barPopupType = ""
         GlobalStates.barPopupEphemeral = false
-        Qt.callLater(() => MprisController.raiseActivePlayer())
+        Qt.callLater(() => ServiceManager.mpris.raiseActivePlayer())
     }
 
     ColumnLayout {

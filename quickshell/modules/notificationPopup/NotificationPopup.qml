@@ -1,7 +1,7 @@
 import qs
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.services
 import QtQuick
 import QtQuick.Controls
 import Quickshell
@@ -13,7 +13,7 @@ Scope {
 
     PanelWindow {
         id: root
-        visible: (Notifications.popupList.length > 0) && !GlobalStates.screenLocked
+        visible: (ServiceManager.notification.popupList.length > 0) && !GlobalStates.screenLocked
         screen: Quickshell.screens.find(s => Config.options.notifications.forceMonitor.enable ? s.name === Config.options.notifications.forceMonitor.name : s.name === Hyprland.focusedMonitor?.name) ?? null
         readonly property bool barOnBottom: Config.options.bar.bottom
         readonly property real outerMargin: Appearance.sizes.elevationMargin

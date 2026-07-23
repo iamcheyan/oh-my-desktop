@@ -1,5 +1,4 @@
 import qs
-import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
@@ -92,7 +91,7 @@ ColumnLayout {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: `${Audio.typedSinks.length} output${Audio.typedSinks.length === 1 ? "" : "s"}  ·  ${Audio.typedSources.length} input${Audio.typedSources.length === 1 ? "" : "s"}`
+                                text: `${ServiceManager.audio.typedSinks.length} output${ServiceManager.audio.typedSinks.length === 1 ? "" : "s"}  ·  ${ServiceManager.audio.typedSources.length} input${ServiceManager.audio.typedSources.length === 1 ? "" : "s"}`
                                 color: SettingsTokens.muted
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 elide: Text.ElideRight
@@ -115,7 +114,7 @@ ColumnLayout {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 50
-                    visible: Audio.wireplumberReloading
+                    visible: ServiceManager.audio.wireplumberReloading
                     radius: SettingsTokens.radius
                     color: SettingsTokens.accentSoft
                     border.width: 1
@@ -130,7 +129,7 @@ ColumnLayout {
                             iconSize: 18
                             color: SettingsTokens.accent
                             RotationAnimator on rotation {
-                                running: Audio.wireplumberReloading
+                                running: ServiceManager.audio.wireplumberReloading
                                 loops: Animation.Infinite
                                 from: 0
                                 to: 360
@@ -147,13 +146,13 @@ ColumnLayout {
                 }
 
                 Repeater {
-                    model: Audio.typedSinks
+                    model: ServiceManager.audio.typedSinks
                     delegate: ColumnLayout {
                         id: sinkDelegate
                         required property var modelData
                         readonly property var node: modelData
-                        readonly property bool isActive: Audio.sink?.name === node.name
-                        readonly property bool hasAlias: Audio.hasDeviceAlias(node.name)
+                        readonly property bool isActive: ServiceManager.audio.sink?.name === node.name
+                        readonly property bool hasAlias: ServiceManager.audio.hasDeviceAlias(node.name)
                         property bool editing: false
                         property string aliasText: ""
 
@@ -174,7 +173,7 @@ ColumnLayout {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Audio.setDefaultSink(sinkDelegate.node)
+                                onClicked: ServiceManager.audio.setDefaultSink(sinkDelegate.node)
                             }
 
                             ColumnLayout {
@@ -202,7 +201,7 @@ ColumnLayout {
 
                                         StyledText {
                                             Layout.fillWidth: true
-                                            text: Audio.displayName(sinkDelegate.node)
+                                            text: ServiceManager.audio.displayName(sinkDelegate.node)
                                             color: SettingsTokens.fg
                                             font.pixelSize: Appearance.font.pixelSize.small
                                             font.weight: sinkDelegate.isActive ? Font.Medium : Font.Normal
@@ -211,7 +210,7 @@ ColumnLayout {
 
                                         StyledText {
                                             Layout.fillWidth: true
-                                            text: sinkDelegate.hasAlias ? Audio.originalName(sinkDelegate.node) : ""
+                                            text: sinkDelegate.hasAlias ? ServiceManager.audio.originalName(sinkDelegate.node) : ""
                                             visible: sinkDelegate.hasAlias
                                             color: SettingsTokens.dim
                                             font.pixelSize: Appearance.font.pixelSize.smaller
@@ -239,7 +238,7 @@ ColumnLayout {
                                             anchors.fill: parent
                                             hoverEnabled: true
                                             onClicked: {
-                                                sinkDelegate.aliasText = Audio.getDeviceAlias(sinkDelegate.node.name) || ""
+                                                sinkDelegate.aliasText = ServiceManager.audio.getDeviceAlias(sinkDelegate.node.name) || ""
                                                 sinkDelegate.editing = true
                                             }
                                         }
@@ -295,7 +294,7 @@ ColumnLayout {
                                     clip: true
                                     onTextEdited: sinkDelegate.aliasText = text
                                     onAccepted: {
-                                        Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                        ServiceManager.audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
                                         sinkDelegate.editing = false
                                     }
                                     Keys.onEscapePressed: sinkDelegate.editing = false
@@ -320,7 +319,7 @@ ColumnLayout {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         onClicked: {
-                                            Audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
+                                            ServiceManager.audio.setDeviceAlias(sinkDelegate.node.name, sinkDelegate.aliasText)
                                             sinkDelegate.editing = false
                                         }
                                     }
@@ -345,7 +344,7 @@ ColumnLayout {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         onClicked: {
-                                            Audio.removeDeviceAlias(sinkDelegate.node.name)
+                                            ServiceManager.audio.removeDeviceAlias(sinkDelegate.node.name)
                                             sinkDelegate.editing = false
                                         }
                                     }
@@ -359,15 +358,15 @@ ColumnLayout {
                 // ── Input Devices Section ──
                 SettingsSection {
                     title: "Input devices"
-                    visible: Audio.typedSources.length > 0
+                    visible: ServiceManager.audio.typedSources.length > 0
 
                     Repeater {
-                        model: Audio.typedSources
+                        model: ServiceManager.audio.typedSources
                         delegate: ColumnLayout {
                         id: sourceDelegate
                         required property var modelData
                         readonly property var node: modelData
-                        readonly property bool isActive: Audio.source?.name === node.name
+                        readonly property bool isActive: ServiceManager.audio.source?.name === node.name
 
                         Layout.fillWidth: true
                         spacing: 6
@@ -385,7 +384,7 @@ ColumnLayout {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Audio.setDefaultSource(sourceDelegate.node)
+                                onClicked: ServiceManager.audio.setDefaultSource(sourceDelegate.node)
                             }
 
                             ColumnLayout {
@@ -409,7 +408,7 @@ ColumnLayout {
 
                                     StyledText {
                                         Layout.fillWidth: true
-                                        text: Audio.displayName(sourceDelegate.node)
+                                        text: ServiceManager.audio.displayName(sourceDelegate.node)
                                         color: SettingsTokens.fg
                                         font.pixelSize: Appearance.font.pixelSize.small
                                         font.weight: sourceDelegate.isActive ? Font.Medium : Font.Normal
@@ -482,7 +481,7 @@ ColumnLayout {
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
-                                text: Audio.sink?.audio.muted ? "volume_off" : "volume_up"
+                                text: ServiceManager.audio.sink?.audio.muted ? "volume_off" : "volume_up"
                                 iconSize: 25
                                 color: SettingsTokens.accent
                             }
@@ -503,7 +502,7 @@ ColumnLayout {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
+                                text: ServiceManager.audio.sink ? ServiceManager.audio.displayName(ServiceManager.audio.sink) : "No output device"
                                 color: SettingsTokens.muted
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 elide: Text.ElideRight
@@ -524,29 +523,29 @@ ColumnLayout {
 
                 SettingsSliderRow {
                     label: "Volume level"
-                    description: Audio.sink ? Audio.displayName(Audio.sink) : "No output device"
-                    value: Audio.sink?.audio.muted ? 0 : pageRoot.safeVolume(Audio.sink)
+                    description: ServiceManager.audio.sink ? ServiceManager.audio.displayName(ServiceManager.audio.sink) : "No output device"
+                    value: ServiceManager.audio.sink?.audio.muted ? 0 : pageRoot.safeVolume(ServiceManager.audio.sink)
                     from: 0
                     to: 1
                     formatValue: val => `${Math.round(val * 100)}%`
                     onMoved: {
-                        if (Audio.sink && !Audio.sink.audio.muted)
-                            Audio.sink.audio.volume = value
+                        if (ServiceManager.audio.sink && !ServiceManager.audio.sink.audio.muted)
+                            ServiceManager.audio.sink.audio.volume = value
                     }
                 }
 
                 SettingsToggleRow {
                     label: "Mute output"
                     description: "Mute all audio output"
-                    checked: Audio.sink?.audio.muted ?? false
-                    onToggled: Audio.toggleMute()
+                    checked: ServiceManager.audio.sink?.audio.muted ?? false
+                    onToggled: ServiceManager.audio.toggleMute()
                 }
 
                 ButtonRow {
                     SettingsButton {
                         label: "Cycle Output Device"
                         iconName: "swap_horiz"
-                        onClicked: Audio.cycleAudioOutput()
+                        onClicked: ServiceManager.audio.cycleAudioOutput()
                     }
                     SettingsButton {
                         label: "Volume Control"
@@ -565,22 +564,22 @@ ColumnLayout {
 
                 SettingsSliderRow {
                     label: "Input volume"
-                    description: Audio.source ? Audio.displayName(Audio.source) : "No input device"
-                    value: Audio.source?.audio.muted ? 0 : pageRoot.safeVolume(Audio.source)
+                    description: ServiceManager.audio.source ? ServiceManager.audio.displayName(ServiceManager.audio.source) : "No input device"
+                    value: ServiceManager.audio.source?.audio.muted ? 0 : pageRoot.safeVolume(ServiceManager.audio.source)
                     from: 0
                     to: 1
                     formatValue: val => `${Math.round(val * 100)}%`
                     onMoved: {
-                        if (Audio.source && !Audio.source.audio.muted)
-                            Audio.source.audio.volume = value
+                        if (ServiceManager.audio.source && !ServiceManager.audio.source.audio.muted)
+                            ServiceManager.audio.source.audio.volume = value
                     }
                 }
 
                 SettingsToggleRow {
                     label: "Mute microphone"
                     description: "Mute microphone input"
-                    checked: Audio.source?.audio.muted ?? false
-                    onToggled: Audio.toggleMicMute()
+                    checked: ServiceManager.audio.source?.audio.muted ?? false
+                    onToggled: ServiceManager.audio.toggleMicMute()
                 }
                 }
 

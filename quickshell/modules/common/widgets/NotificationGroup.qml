@@ -1,11 +1,10 @@
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Services.Notifications
 
 MouseArea {
     id: root
@@ -45,9 +44,9 @@ MouseArea {
         if (!root.popup)
             return;
         if (root.containsMouse)
-            root.notifications.forEach(notif => Notifications.cancelTimeout(notif.notificationId));
+            root.notifications.forEach(notif => ServiceManager.notification.cancelTimeout(notif.notificationId));
         else
-            root.notifications.forEach(notif => Notifications.timeoutNotification(notif.notificationId));
+            root.notifications.forEach(notif => ServiceManager.notification.timeoutNotification(notif.notificationId));
     }
 
     SequentialAnimation {
@@ -64,7 +63,7 @@ MouseArea {
             easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
         }
         onFinished: root.notifications.forEach(notif =>
-            Qt.callLater(() => Notifications.discardNotification(notif.notificationId)))
+            Qt.callLater(() => ServiceManager.notification.discardNotification(notif.notificationId)))
     }
 
     DragManager {

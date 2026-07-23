@@ -2,6 +2,7 @@ pragma Singleton
 import qs
 import Quickshell
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 
 Singleton {
@@ -12,7 +13,7 @@ Singleton {
         // Use Hyprland's Lua dispatch so applications get a chance to save
         // state (e.g. editor prompts, browser session restore). Killing with
         // SIGKILL loses unsaved work.
-        HyprlandData.windowList.forEach(w => {
+        ServiceManager.workspace.windowList.forEach(w => {
             if (w.address)
                 Quickshell.execDetached(["hyprctl", "dispatch", `hl.dsp.window.close({window = "address:${w.address}"})`]);
         });

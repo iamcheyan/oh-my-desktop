@@ -28,7 +28,7 @@ Item {
     // explicit overview refresh, or the toplevel count changes. The
     // dependencies are read explicitly so QML registers them; the actual
     // data comes from cached/computed sources.
-    readonly property int modelRevision: HyprlandData.dataSerial
+    readonly property int modelRevision: ServiceManager.workspace.dataSerial
         + GlobalStates.overviewRefreshSerial
         + (ToplevelManager.toplevels.values?.length ?? 0)
     // Clamp to avoid lock-screen temp workspace (2147483647 - N) leaking into UI
@@ -39,7 +39,7 @@ Item {
         void _rev;
         if (OverviewSwitchingController.grabbed)
             return WorkspaceNavigation.switchingModeModel() ?? [];
-        return root.filteredOverviewEntries(HyprlandData.overviewWorkspaceEntries ?? []);
+        return root.filteredOverviewEntries(ServiceManager.workspace.overviewWorkspaceEntries ?? []);
     }
     readonly property var overviewEntryIds: (root.overviewEntries ?? []).map(entry => entry.id)
     readonly property var searchMatchWorkspaceIds: {
@@ -48,7 +48,7 @@ Item {
         if (query.length === 0)
             return matches;
 
-        const windows = HyprlandData.windowList || [];
+        const windows = ServiceManager.workspace.windowList || [];
         for (let i = 0; i < windows.length; ++i) {
             const win = windows[i];
             if (!win || !win.mapped || win.hidden || !win.workspace?.id)
@@ -93,8 +93,8 @@ Item {
         const entry = group ? root.overviewEntries[group.start] : null;
         return entry?.id ?? root.effectiveActiveWorkspaceId;
     }
-    property var windowByAddress: HyprlandData.windowByAddress
-    property var monitorData: HyprlandData.monitors.find(m => m.id === root.monitor?.id)
+    property var windowByAddress: ServiceManager.workspace.windowByAddress
+    property var monitorData: ServiceManager.workspace.monitors.find(m => m.id === root.monitor?.id)
 
     // ── Adaptive scaling ──
     // Overview (工作区概览): full-screen grid, auto-select optimal columns
@@ -258,7 +258,7 @@ Item {
     }
 
     function monitorDataForName(monitorName) {
-        return HyprlandData.monitors.find(mon => (mon.name ?? "") === monitorName)
+        return ServiceManager.workspace.monitors.find(mon => (mon.name ?? "") === monitorName)
             ?? root.monitorData;
     }
 
@@ -433,12 +433,12 @@ Item {
 
     function defaultWindowForGroup(group) {
         if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0) {
-            return HyprlandData.focusedClientForWorkspace(GlobalStates.overviewFocusedWorkspaceId);
+            return ServiceManager.workspace.focusedClientForWorkspace(GlobalStates.overviewFocusedWorkspaceId);
         }
         const entry = root.firstEntryForGroup(group);
         if (!entry || entry.isTrailingEmpty)
             return null;
-        return HyprlandData.focusedClientForWorkspace(entry.id);
+        return ServiceManager.workspace.focusedClientForWorkspace(entry.id);
     }
 
     function infoEntryForGroup(group) {
@@ -687,7 +687,7 @@ Item {
                                     if (!workspace.existingWorkspace && workspace.monitorName.length > 0)
                                         Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${workspace.workspaceValue}", monitor = "${workspace.monitorName}" })`);
                                 } else {
-                                    if (HyprlandData.workspaceHasVisibleWindows(workspace.workspaceValue))
+                                    if (ServiceManager.workspace.workspaceHasVisibleWindows(workspace.workspaceValue))
                                         GlobalStates.promoteWorkspaceMru(workspace.workspaceValue);
                                     GlobalStates.overviewOpen = false;
                                     root.dispatchFocusWorkspace(workspace.workspaceValue);
@@ -739,7 +739,7 @@ Item {
                     id: window
                     required property var modelData
                     property int monitorId: windowData?.monitor
-                    property var monitor: HyprlandData.monitors.find(m => m.id == monitorId)
+                    property var monitor: ServiceManager.workspace.monitors.find(m => m.id == monitorId)
                     property var address: `0x${modelData.HyprlandToplevel.address}`
                     toplevel: modelData
                     monitorData: this.monitor
@@ -764,7 +764,7 @@ Item {
                         const logicalHeight = Math.max(1, (height - reservedStart - reservedEnd) / (mon.scale ?? 1));
                         return root.entryHeight(workspaceEntryIndex) / logicalHeight;
                     }
-                    widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
+                    widgetMonitor: ServiceManager.workspace.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
 
                     // Offset on the canvas

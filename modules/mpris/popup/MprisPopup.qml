@@ -1,6 +1,7 @@
 // MPRIS media player controls — loads as a popup section inside the audio popup.
 // Shown when an active MPRIS player is detected; hidden otherwise.
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -13,7 +14,7 @@ import Quickshell.Services.Mpris
 Item {
     id: root
 
-    readonly property MprisPlayer activePlayer: MprisController.activePlayer
+    readonly property MprisPlayer activePlayer: ServiceManager.mpris.activePlayer
     readonly property bool showControls: activePlayer !== null
     readonly property bool hasTrackArt: showControls && TrackArt.resolvedArtUrl.length > 0
     readonly property string trackTitle: {
@@ -25,7 +26,7 @@ Item {
         return artist === "Unknown Artist" ? "" : artist
     }
     readonly property bool isPlaying: activePlayer?.playbackState === MprisPlaybackState.Playing
-    readonly property string playerName: MprisController.playerIdentity(activePlayer)
+    readonly property string playerName: ServiceManager.mpris.playerIdentity(activePlayer)
     readonly property string mediaSubtitle: {
         if (root.trackArtist.length > 0)
             return root.trackArtist
@@ -39,7 +40,7 @@ Item {
     visible: showControls
 
     function focusPlayer() {
-        Qt.callLater(() => MprisController.raiseActivePlayer())
+        Qt.callLater(() => ServiceManager.mpris.raiseActivePlayer())
     }
 
     Rectangle {
@@ -174,7 +175,7 @@ Item {
                         anchors.fill: parent
                         enabled: root.activePlayer?.canGoPrevious ?? false
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: MprisController.previousOrRewind()
+                        onClicked: ServiceManager.mpris.previousOrRewind()
                     }
                 }
 

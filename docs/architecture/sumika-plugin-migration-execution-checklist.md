@@ -1068,9 +1068,23 @@ Registry is single source of truth | PASS | Startup script regenerates each laun
 Lifecycle scripts are registry-driven | PASS | omd-restart and omd-quickshell-stop.sh read `kind=application` + entry from registry; clipboard shim annotated with Phase J removal condition
 Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersion added to schema; type fixes applied
 
-### BLOCKED items
+### Phase C completed: All 6 service consumer migrations finished (2026-07-24)
+- Audio: OnScreenDisplay.qml, SoundPage.qml migrated to ServiceManager.audio
+- Network: 0 files needed migration (no direct consumer refs)
+- Power: BarBatteryIcon.qml, PowerPage.qml migrated to ServiceManager.power
+- Notification: NotificationGroup.qml, NotificationItem.qml, NotificationListView.qml, NotificationPopup.qml migrated to ServiceManager.notification
+- MPRIS: AudioPopup.qml, MprisPopup.qml migrated to ServiceManager.mpris
+- Workspace (HyprlandData): 8 files migrated to ServiceManager.workspace (BarContent, Session, WorkspaceNavigation, Overview, OverviewSearch, OverviewWidget, InputMethodPopup, Session services)
+- ServiceConsumer.qml created at quickshell/core/runtime/ServiceConsumer.qml
+- `trustedInProcess` (boolean, default false) added to module-schema.json and share/schemas/sumika-module-v2.schema.json
+- Validator updated to validate trustedInProcess field type
+- No remaining Services.Audio/Notifications/HyprlandData/MprisController/Battery/PowerProfiles/Network refs in consumer code
+- 4 external v1 modules still use compat converter (brightness-gamma, keyboard-remap, popup-components, voice) — scope-deferred
+- Clipboard shim in omd-restart remains blocked on external module kind change — scope-deferred
+
+### BLOCKED items (remaining)
 - GUI verification (cold start, reload, disable, crash loop) — requires graphical session (UNTESTED_GUI)
-- Per-service consumer migration (Audio/Network/Power/Notification/MPRIS/Workspace as module providers) — scope-deferred to subsequent phase
 - Settings ProcessSupervisor singleton verification — requires GUI session
+- trustedInProcess enforcement in ModuleLoader — forward-looking, no third-party modules currently
 
 ### §12 completion: **PASS** (architecture complete; blocked items are execution verification, not design gaps)

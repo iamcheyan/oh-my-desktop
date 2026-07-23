@@ -198,6 +198,11 @@
         }
       }
     },
+    "trustedInProcess": {
+      "description": "If true, the module's QML components run in the host process (trusted). Default false.",
+      "type": "boolean",
+      "default": false
+    },
     "permissions": {
       "description": "White-listed permissions required by this module",
       "type": "array",

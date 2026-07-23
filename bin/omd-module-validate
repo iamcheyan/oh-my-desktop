@@ -236,6 +236,11 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
             if not SERVICE_ID_PATTERN.match(str(svc)):
                 errors.append(error(module_id, f"#contributes.services[{i}]", f"invalid service id '{svc}'"))
 
+    # -- trustedInProcess (boolean, default false) --
+    tip = data.get("trustedInProcess")
+    if tip is not None and not isinstance(tip, bool):
+        errors.append(error(module_id, "#trustedInProcess", f"must be boolean, got {type(tip).__name__}"))
+
     # -- Permissions --
     perms = data.get("permissions", [])
     for p in perms:
@@ -435,6 +440,7 @@ def validate_all() -> int:
     print(f"\nSummary: {passed} passed, {warned} warned, {failed} failed ({total} total, {v1_count} v1 compat)")
     return 0 if failed == 0 else 1
 
+def count_v1():
 
     count = 0
     omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -1,7 +1,7 @@
 pragma Singleton
 
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import QtQuick
@@ -18,7 +18,7 @@ Singleton {
         interval: 90
         repeat: false
         onTriggered: {
-            HyprlandData.updateAll();
+            ServiceManager.workspace.updateAll();
             GlobalStates.refreshOverviewModel();
             root.pendingDragRefreshes -= 1;
             if (root.pendingDragRefreshes > 0)
@@ -33,14 +33,14 @@ Singleton {
     function overviewModel() {
         if (OverviewSwitchingController.grabbed)
             return switchingModeModel();
-        return HyprlandData.overviewWorkspaceEntriesGroupedByMonitor();
+        return ServiceManager.workspace.overviewWorkspaceEntriesGroupedByMonitor();
     }
 
     function switchingModeModel() {
         const monitorName = GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "";
-        let model = HyprlandData.overviewWorkspaceEntriesForMonitor(monitorName, true);
+        let model = ServiceManager.workspace.overviewWorkspaceEntriesForMonitor(monitorName, true);
         if (model.length === 0)
-            model = HyprlandData.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
+            model = ServiceManager.workspace.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
         return model;
     }
 
@@ -56,11 +56,11 @@ Singleton {
     function currentWorkspaceId() {
         const anchorName = GlobalStates.overviewOpen ? GlobalStates.overviewAnchorMonitorName : "";
         const monitor = anchorName.length > 0
-            ? HyprlandData.monitors.find(mon => mon.name === anchorName)
+            ? ServiceManager.workspace.monitors.find(mon => mon.name === anchorName)
             : (Hyprland.focusedMonitor ?? Hyprland.monitors[0]);
         if (!monitor)
-            return HyprlandData.activeWorkspace?.id ?? 1;
-        return HyprlandData.monitorActiveWorkspaceId(monitor) || HyprlandData.activeWorkspace?.id || 1;
+            return ServiceManager.workspace.activeWorkspace?.id ?? 1;
+        return ServiceManager.workspace.monitorActiveWorkspaceId(monitor) || ServiceManager.workspace.activeWorkspace?.id || 1;
     }
 
     function focusedWorkspaceId() {
@@ -78,7 +78,7 @@ Singleton {
     function dispatchFocusWorkspace(wsId) {
         if (wsId < 1)
             return;
-        const ws = HyprlandData.workspaceDataForId(wsId);
+        const ws = ServiceManager.workspace.workspaceDataForId(wsId);
         if (ws?.monitor)
             Hyprland.dispatch(`hl.dsp.focus({monitor="${ws.monitor}"})`);
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${wsId} })`);
@@ -185,7 +185,7 @@ Singleton {
         if (!windowAddress || targetWorkspace === -1 || targetWorkspace === currentWorkspaceId)
             return false;
 
-        const sourceVisibleWindows = HyprlandData.hyprlandClientsForWorkspace(currentWorkspaceId)
+        const sourceVisibleWindows = ServiceManager.workspace.hyprlandClientsForWorkspace(currentWorkspaceId)
             .filter(win => win.mapped && !win.hidden);
         const sourceIsEmptyAfterMove = sourceVisibleWindows.length <= 1;
 
@@ -227,7 +227,7 @@ Singleton {
             }
         }
 
-        HyprlandData.updateAll();
+        ServiceManager.workspace.updateAll();
         GlobalStates.refreshOverviewModel();
         root.pendingDragRefreshes = 4;
         refreshAfterDragTimer.restart();

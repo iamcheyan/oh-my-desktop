@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -7,8 +7,8 @@ import QtQuick
 BarNerdIcon {
     id: root
 
-    property real percentage: Battery.percentage
-    property bool charging: Battery.isPluggedIn
+    property real percentage: ServiceManager.power.battery.percentage
+    property bool charging: ServiceManager.power.battery.isPluggedIn
 
     text: {
         const pct = root.percentage;

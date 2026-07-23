@@ -8,6 +8,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import qs.modules.popupComponents
+import qs.core.runtime
 
 PopupColumn {
     readonly property var im: QsServices.InputMethod
@@ -55,7 +56,7 @@ PopupColumn {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    const returnAddress = HyprlandData.activeWindow?.address || "";
+                    const returnAddress = ServiceManager.workspace.activeWindow?.address || "";
                     root.close();
                     im.selectSchema(languageRow.modelData.schema, returnAddress);
                 }

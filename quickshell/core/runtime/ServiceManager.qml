@@ -17,6 +17,32 @@ pragma ComponentBehavior: Bound
 /// Real wrapping requires per-service migration.
 Singleton {
     id: manager
+    /// Emitted when any provider's availability changes.
+    signal providersChanged()
+
+    // ── Convenience accessors for core services ──
+    // These expose the provider object directly for QML bindings.
+    // Modules SHOULD use these instead of importing qs.services directly.
+    //
+    // Nested property changes on the provider (e.g. Audio.sinks) remain reactive
+    // because QML tracks the returned object. Top-level provider swaps (available ->
+    // unavailable) are signaled via the `_tick` dependency and providersChanged().
+    property int _tick: 0
+    onProvidersChanged: _tick++
+
+    /// Audio service provider (Services.Audio singleton)
+    readonly property var audio: (_tick, _providers["audio.v1"] ? _providers["audio.v1"].provider : null)
+    /// Network service provider (Services.Network singleton)
+    readonly property var network: (_tick, _providers["network.v1"] ? _providers["network.v1"].provider : null)
+    /// Power service provider ({battery, powerProfiles} wrapper)
+    readonly property var power: (_tick, _providers["power.v1"] ? _providers["power.v1"].provider : null)
+    /// Notification service provider (Services.Notifications singleton)
+    readonly property var notification: (_tick, _providers["notification.v1"] ? _providers["notification.v1"].provider : null)
+    /// MPRIS service provider (Services.MprisController singleton)
+    readonly property var mpris: (_tick, _providers["mpris.v1"] ? _providers["mpris.v1"].provider : null)
+    /// Workspace service provider (placeholder — null until extracted)
+    readonly property var workspace: (_tick, _providers["workspace.v1"] ? _providers["workspace.v1"].provider : null)
+
 
     /// Internal provider registry keyed by service ID.
     property var _providers: ({})
@@ -68,6 +94,7 @@ Singleton {
         entry.available = available !== false
         entry.error = error || ""
         console.log("[ServiceManager] '" + serviceId + "' available: " + entry.available + (entry.error ? " (" + entry.error + ")" : ""))
+        providersChanged()
         return true
     }
 

@@ -1,5 +1,6 @@
 import qs
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -115,12 +116,12 @@ Scope {
     // Empty workspaces (incl. the trailing "New workspace" slot) are never
     // promoted — only workspaces with windows participate in MRU ordering.
     Connections {
-        target: HyprlandData
+        target: ServiceManager.workspace
         function onActiveWorkspaceChanged() {
             if (GlobalStates.overviewOpen)
                 return;
-            const wsId = HyprlandData.activeWorkspace?.id ?? 0;
-            if (wsId > 0 && HyprlandData.workspaceHasVisibleWindows(wsId))
+            const wsId = ServiceManager.workspace.activeWorkspace?.id ?? 0;
+            if (wsId > 0 && ServiceManager.workspace.workspaceHasVisibleWindows(wsId))
                 GlobalStates.promoteWorkspaceMru(wsId);
         }
     }
@@ -163,7 +164,7 @@ Scope {
                         const settled = GlobalStates.overviewFocusedWorkspaceId > 0
                             ? GlobalStates.overviewFocusedWorkspaceId
                             : overviewScope.currentWorkspaceId();
-                        if (settled > 0 && HyprlandData.workspaceHasVisibleWindows(settled))
+                        if (settled > 0 && ServiceManager.workspace.workspaceHasVisibleWindows(settled))
                             GlobalStates.promoteWorkspaceMru(settled);
                         OverviewSwitchingController.reset();
                         GlobalStates.overviewFocusedWorkspaceId = -1;
