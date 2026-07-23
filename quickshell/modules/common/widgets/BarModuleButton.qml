@@ -27,6 +27,8 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
 
+    property color iconColor: Appearance.colors.colBarText
+
     RippleButton {
         id: button
         anchors.centerIn: parent
@@ -50,6 +52,6 @@ Item {
     BarNerdIcon {
         anchors.centerIn: button
         text: root.effectiveIcon
-        color: Appearance.colors.colBarText
+        color: root.iconColor
     }
 }
