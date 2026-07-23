@@ -168,12 +168,18 @@ merge_manifest() {
         fi
     fi
 
+    # Check for duplicate module ID — first occurrence wins
+    if echo "$registry" | jq -e --arg mid "$id" '.modules | any(.id == $mid)' >/dev/null 2>&1; then
+        existing_path=$(echo "$registry" | jq -r --arg mid "$id" '(.modules[] | select(.id == $mid) | .path) // "?"')
+        echo "[sumika] WARN: duplicate module ID '$id' — already registered at $existing_path, skipping" >&2
+        return 0
+    fi
+
     local tmp_reg
     tmp_reg=$(mktemp "$registry_dir/registry.XXXXXX")
     echo "$registry" > "$tmp_reg"
 
-    local new_reg
-    new_reg=$(jq -c \
+    if new_reg=$(jq -c \
         --slurpfile mod "$manifest" \
         --arg mdir "$mod_dir" \
         --arg mid "$id" \
@@ -203,11 +209,13 @@ merge_manifest() {
                 | .moduleId = (.moduleId // $mid))
          ) |
          .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid)))' \
-        "$tmp_reg" 2>&1) && registry="$new_reg" || {
-            echo "[sumika] WARN: merge failed for $manifest" >&2
-            rm -f "$tmp_reg"
-            return 1
-        }
+        "$tmp_reg" 2>&1); then
+        registry="$new_reg"
+    else
+        echo "[sumika] WARN: merge failed for $manifest" >&2
+        rm -f "$tmp_reg"
+        return 1
+    fi
     rm -f "$tmp_reg"
 }
 
@@ -215,7 +223,16 @@ merge_manifest() {
 # Read master switch
 modules_enabled=true
 if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
-    modules_enabled=$(jq -r 'try .modules.enabled // "true"' "$config_file" 2>/dev/null || true)
+    # jq's alternative operator treats both null and false as missing.  Do not
+    # use `.modules.enabled // true` here: it turns an explicit false back on.
+    modules_enabled=$(jq -r '
+        try (
+            if (.modules | type) == "object" and (.modules | has("enabled"))
+            then .modules.enabled
+            else true
+            end
+        )
+    ' "$config_file" 2>/dev/null || true)
 fi
 if [ "$modules_enabled" = "false" ]; then
     echo "[sumika] modules disabled via sumika.json — no module contributions will be loaded"
@@ -248,7 +265,7 @@ fi
 
 # No hardcoded fallback: if jq is absent, registry stays empty.
 # ModuleLoader handles empty registry gracefully by showing no module-dependent UI.
-if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}' ]; then
+if [ "$modules_enabled" != "false" ] && [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}' ]; then
     echo "[sumika] INFO: empty registry — jq may be missing or no manifests found"
 fi
 

@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# omd-action — Route Hyprland bindings through ActionManager.
+#
+# Usage:
+#   omd-action <action-id> [params...]       Invoke an action
+#   omd-action list                          List all registered actions
+#   omd-action query <action-id>             Query action state (registered, enabled, etc.)
+#   omd-action status                        Summary of registered actions by owner
+#   omd-action isAvailable <action-id>       Check if an action is available
+#
+# Dispatches to the Quickshell bar process via the action IPC target.
+# ActionManager checks module-enabled state dynamically; disabled modules
+# silently reject the call (return code 0 for invoke, 1 for errors).
+#
+# Phase 2 of the sumika-core-plugin-migration-plan: all system behavior
+# called by Action ID, UI never directly invokes commands.
+
+_omd_root="${OMD_REPO_ROOT:-${OMD_ROOT:-$HOME/.config/omd}}"
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <action-id> [args...]" >&2
+    echo "   or: $0 list" >&2
+    echo "   or: $0 query <action-id>" >&2
+    echo "   or: $0 status" >&2
+    echo "   or: $0 isAvailable <action-id>" >&2
+    exit 2
+fi
+
+_qs_base=(qs -p "$_omd_root/apps/omd-bar")
+
+case "$1" in
+    list)
+        # List all registered actions via IPC list() handler
+        "${_qs_base[@]}" ipc call action list
+        ;;
+    query)
+        if [ $# -lt 2 ]; then
+            echo "Usage: $0 query <action-id>" >&2
+            exit 2
+        fi
+        "${_qs_base[@]}" ipc call action query "$2"
+        ;;
+    status)
+        # Print a human-readable status summary
+        actions=$("${_qs_base[@]}" ipc call action list 2>/dev/null || echo "[]")
+        if [ -z "$actions" ] || [ "$actions" = "[]" ]; then
+            echo "No actions registered (bar process may not be running)"
+            exit 1
+        fi
+
+        # Try jq for better formatting
+        if command -v jq >/dev/null 2>&1; then
+            total=$(echo "$actions" | jq -r '. | length')
+            enabled=$(echo "$actions" | jq -r '[.[] | select(.enabled == true)] | length')
+            disabled=$(( total - enabled ))
+            echo "Actions: $total total ($enabled enabled, $disabled disabled)"
+            echo ""
+
+            owners=$(echo "$actions" | jq -r 'group_by(.owner) | map({owner: .[0].owner, count: length}) | .[] | "\(.owner): \(.count)"')
+            while IFS= read -r line; do
+                echo "  $line"
+            done <<< "$owners"
+        else
+            echo "Installed jq for structured output"
+            echo "$actions"
+        fi
+        ;;
+    isAvailable)
+        if [ $# -lt 2 ]; then
+            echo "Usage: $0 isAvailable <action-id>" >&2
+            exit 2
+        fi
+        result=$("${_qs_base[@]}" ipc call action isAvailable "$2")
+        if [ "$result" = "true" ]; then
+            echo "true"
+            exit 0
+        else
+            echo "false"
+            exit 1
+        fi
+        ;;
+    *)
+        action_id="$1"
+        shift
+
+        # Forward extra args as IPC positional string arguments to the handler.
+        # qs ipc call action call <id> [params]  ->  call(id, params) in the IpcHandler
+        #   omd-action voice.toggle              -> call("voice.toggle", "")
+        #   omd-action input-method.cycle 1     -> call("input-method.cycle", "1")
+        if [ $# -eq 0 ]; then
+            "${_qs_base[@]}" ipc call action call "$action_id" ""
+        else
+            # First extra arg is the params string; omd-action passes only one extra arg.
+            "${_qs_base[@]}" ipc call action call "$action_id" "$*"
+        fi
+        ;;
+esac

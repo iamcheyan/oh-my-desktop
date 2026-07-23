@@ -275,6 +275,37 @@ else
     warn "module registry not yet generated: $_registry_file"
 fi
 
+section "action manager"
+_action_script="$repo/bin/omd-action"
+if [[ -x "$_action_script" ]]; then
+    ok "omd-action script: $_action_script"
+    # Try to query action status via IPC (non-fatal if bar isn't running)
+    if _action_list=$("$_action_script" list 2>/dev/null); then
+        if command -v jq >/dev/null 2>&1; then
+            _total=$(echo "$_action_list" | jq -r '. | length // 0')
+            _enabled=$(echo "$_action_list" | jq -r '[.[] | select(.enabled == true)] | length // 0')
+            ok "registered actions: $_total ($_enabled enabled via IPC)"
+        else
+            ok "registered actions via IPC (install jq for counts)"
+        fi
+    else
+        warn "action IPC not reachable (bar may not be running)"
+    fi
+else
+    warn "omd-action script missing: $_action_script"
+fi
+
+section "service manager"
+_am_file="$repo/quickshell/core/runtime/ActionManager.qml"
+_sm_file="$repo/quickshell/core/runtime/ServiceManager.qml"
+for f in "$_am_file" "$_sm_file"; do
+    if [[ -f "$f" ]]; then
+        ok "core runtime file: $f"
+    else
+        fail "core runtime file missing: $f"
+    fi
+done
+
 check_modules() {
     local modules_home="${SUMIKA_MODULES_HOME:-}"
     if [[ -z "$modules_home" || ! -d "$modules_home" ]]; then
@@ -289,6 +320,13 @@ check_modules() {
         local contrib_count
         contrib_count=$(jq -r '.contributes.widgets | length // 0' "$_registry_file" 2>/dev/null || echo 0)
         ok "v2 registry: $_registry_file ($contrib_count contributed widgets)"
+        local v1_count
+        v1_count=$("$repo/bin/omd-module-validate" --v1-count 2>/dev/null || echo 0)
+        if [[ "$v1_count" -gt 0 ]]; then
+            warn "v1 compat manifests: $v1_count (consider migrating to v2 for eventual compat removal)"
+        else
+            ok "v1 compat count: $v1_count (compat code can be removed)"
+        fi
     fi
 
     if command -v jq >/dev/null 2>&1 && [[ -f "${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json" ]]; then

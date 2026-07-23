@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 
@@ -105,7 +106,7 @@ Singleton {
     Process {
         id: statusProcess
         command: [root.helper, "status"]
-        running: true
+        running: ModuleLoader.isEnabled("input-method")
 
         stdout: StdioCollector {
             onStreamFinished: root.applyStatus(text)
@@ -164,7 +165,7 @@ Singleton {
 
     Timer {
         interval: 2000
-        running: true
+        running: ModuleLoader.isEnabled("input-method")
         repeat: true
         onTriggered: root.refresh()
     }

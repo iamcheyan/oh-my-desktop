@@ -158,11 +158,17 @@ cmd_doctor() {
         id=$(basename "$(dirname "$module_json")")
         issues=0
 
-        # Check module.json
-        jq empty "$module_json" 2>/dev/null || { issues=1; }
+        # Check JSON syntax + schema validation via omd-module-validate
+        if ! "$OMD_ROOT/bin/omd-module-validate" "$module_json" >/dev/null 2>&1; then
+            issues=$((issues + 1))
+        fi
         # Check qmldir
         [ -f "$SUMIKA_MODULES_HOME/$id/qmldir" ] || issues=$((issues + 1))
-        # Check component files
+        # Check component files (v2 contributes format)
+        for comp in $(jq -r '.contributes.widgets[].component, .contributes.popupSections[].component, .contributes.settingsPages[].component, .contributes.overviews[].component, .contributes.overlays[].component' "$module_json" 2>/dev/null); do
+            [ -f "$SUMIKA_MODULES_HOME/$id/$comp" ] || issues=$((issues + 1))
+        done
+        # Also check v1 capabilities fallback for backward compatibility
         for comp in $(jq -r '.capabilities.popupSections[].component, .capabilities.settingsPages[].component, .capabilities.barButtons[].component' "$module_json" 2>/dev/null); do
             [ -f "$SUMIKA_MODULES_HOME/$id/$comp" ] || issues=$((issues + 1))
         done

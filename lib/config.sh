@@ -8,7 +8,12 @@ _sumika_config_read() {
   local default="${2:-}"
   [ -f "$SUMIKA_SHELL_CONFIG_HOME/sumika.json" ] || { echo "$default"; return 1; }
   command -v jq >/dev/null 2>&1 || { echo "$default"; return 1; }
-  jq -r "$key // \"$default\"" "$SUMIKA_SHELL_CONFIG_HOME/sumika.json" 2>/dev/null || echo "$default"
+  # `//` also falls back for boolean false, which makes disabled settings read
+  # as enabled when their default is true. Only null/missing values use the
+  # supplied default.
+  jq -r --arg default "$default" \
+    "($key) as \$value | if \$value == null then \$default else \$value end" \
+    "$SUMIKA_SHELL_CONFIG_HOME/sumika.json" 2>/dev/null || echo "$default"
 }
 
 # Read a string value from sumika.json

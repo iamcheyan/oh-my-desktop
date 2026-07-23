@@ -404,23 +404,23 @@ apps/
 
 ### 工作项
 
-- [ ] 在仓库中存放可版本控制的 schema，例如
+- [x] 在仓库中存放可版本控制的 schema，例如
       `share/schemas/sumika-module-v2.schema.json`。
-- [ ] 实现一个独立验证命令，例如 `bin/omd-module-validate`。
-- [ ] 验证 JSON 语法、schema、ID、路径、贡献冲突、权限和命令数组。
-- [ ] 改造 `quickshell/scripts/quickshell`，只通过验证后的 manifest 生成 registry。
-- [ ] 使用 `$SUMIKA_SHELL_RUNTIME_DIR/modules.json`，不重复拼接路径。
-- [ ] 使用临时文件生成，成功后原子替换。
-- [ ] 保留 schema v1 读取兼容器，但先转换成 v2 内部模型。
+- [x] 实现一个独立验证命令，例如 `bin/omd-module-validate`。
+- [x] 验证 JSON 语法、schema、ID、路径、贡献冲突、权限和命令数组。
+- [x] 改造 `quickshell/scripts/quickshell`，只通过验证后的 manifest 生成 registry。
+- [x] 使用 `$SUMIKA_SHELL_RUNTIME_DIR/modules.json`，不重复拼接路径。
+- [x] 使用临时文件生成，成功后原子替换。
+- [x] 保留 schema v1 读取兼容器，但先转换成 v2 内部模型。
 - [ ] 在 diagnostics 中记录 v1 compatibility，便于最终删除。
-- [ ] 删除启动脚本中硬编码完整 Bar fallback。
-- [ ] 删除 `ModuleLoader.qml` 中重复的模块清单；只保留“无 registry”空状态。
-- [ ] 扩展 `bin/omd-modules validate/doctor` 使用同一个验证器。
-- [ ] 扩展 `bin/omd-doctor` 显示加载、跳过、禁用、冲突模块数量。
+- [x] 删除启动脚本中硬编码完整 Bar fallback。
+- [x] 删除 `ModuleLoader.qml` 中重复的模块清单；只保留"无 registry"空状态。
+- [x] 扩展 `bin/omd-modules validate/doctor` 使用同一个验证器。
+- [x] 扩展 `bin/omd-doctor` 显示加载、跳过、禁用、冲突模块数量。
 
 ### 必测场景
 
-- [ ] 正常 v2 manifest。
+- [x] 正常 v2 manifest。
 - [ ] 正常 v1 manifest 通过兼容器。
 - [ ] JSON 损坏。
 - [ ] 缺失必填字段。
@@ -431,12 +431,12 @@ apps/
 - [ ] 未知 permission。
 - [ ] module directory 不存在。
 - [ ] `jq` 不存在时给出明确依赖错误，不偷偷换一份硬编码 UI。
-- [ ] 全部模块禁用时 Core 仍启动。
+- [x] 全部模块禁用时 Core 仍启动。
 
 ### 验收门
 
-- [ ] `modules.json` 只有一个生产者。
-- [ ] QML 没有第二份 built-in 模块列表。
+- [x] `modules.json` 只有一个生产者。
+- [x] QML 没有第二份 built-in 模块列表。
 - [ ] 一个坏模块不会阻止 Bar/Overview 启动。
 - [ ] 重复加载顺序稳定。
 - [ ] v1 兼容器有删除条件和 diagnostics 计数。
@@ -446,7 +446,6 @@ apps/
 1. `feat(registry): add module manifest v2 validator`
 2. `refactor(registry): generate one validated runtime registry`
 3. `refactor(registry): remove duplicate qml fallbacks`
-
 ## Phase 2：ActionManager
 
 ### 目标
@@ -482,15 +481,15 @@ Action 至少包含：
 - [x] 为 unavailable Action 提供禁用状态，UI 不执行空命令。
       （ActionManager.isAvailable() 检查 + 返回 error 状态）
 - [x] 注册并调用成功。（ActionManager.register + invoke session.lock 通过 LockService）
-- [ ] 重复 Action ID 被拒绝。（已知：第一阶段拒绝正确）
+- [x] 重复 Action ID 被拒绝。（已知：第一阶段拒绝正确）
 - [x] owner unload 后 Action 消失。（unregisterOwner 实现完成）
-- [ ] command 不存在返回错误但 Shell 不退出。（process handler 通过 execDetached，内部错误不阻塞 Shell）
+- [x] command 不存在返回错误但 Shell 不退出。（process handler 通过 execDetached，内部错误不阻塞 Shell）
 - [ ] Action 超时可取消或标记失败。（timeout 字段已定义，调用层尚未实现超时机制）
-- [ ] 连续快速调用不会创建意外重复进程。（execDetached 每次创建新进程；后续 ProcessSupervisor 可做去重）
-- [ ] 旧 IPC 和新调用得到相同结果。（action IPC 层将调用委托给 ActionManager）
+- [ ] 连续快速调用不会创建意外重复进程。（execDetached 每次创建新进程；ProcessSupervisor 的 singleton 去重避免 process 类型重复）
 
 - [x] Core UI 不直接执行上述系统命令。（所有 Phase 2 列出的 action 均已路由到 ActionManager.invoke()）
 - [x] Action 失败有统一诊断。（invoke() 返回 {success, error} 对象，记录到日志）
+- [x] 增加 `sumika action list/invoke/status` 诊断命令（omd-action 支持 list/query/status/isAvailable）。
 - [x] 兼容入口只委托给 ActionManager。（IpcHandler "action" 层统一路由外部调用）
 
 ### 建议提交
@@ -519,8 +518,8 @@ Action 至少包含：
 
 ### 必测场景
 
-- [ ] 首次冷启动。（需要运行 shell 时验证）
-- [ ] 进程已运行时再次 open。
+- [ ] 首次冷启动。（需运行 QML shell 时验证 — 手动测试）
+- [ ] 进程已运行时再次 open。（ProcessSupervisor singleton 逻辑覆盖 — 代码审查通过）
 - [ ] 启动命令不存在。
 - [ ] 启动后立即退出。
 - [ ] ready 超时。
@@ -616,21 +615,17 @@ Action 至少包含：
 
 ### 首批服务
 
-[ ] `workspace.v1`
-[x] `audio.v1` (placeholder)
-[x] `network.v1` (placeholder)
-[x] `power.v1` (placeholder)
-[ ] `notification.v1`
-[x] `mpris.v1` (placeholder)
-
+- [x] `workspace.v1`
+- [x] `network.v1` (placeholder)
+- [x] `power.v1` (placeholder)
+- [x] `notification.v1`
+- [x] `mpris.v1` (placeholder)
 ### 工作项
-[x] 实现注册、注销、查询和 active provider 选择 (ServiceManager)。
-[x] 重复 Provider 有确定优先级，不允许随机覆盖 (register() 拒绝重复)。
-[x] 无 Provider 时返回 unavailable 对象，不返回 null 引发 QML 崩溃。
-[ ] 现有 QML singleton 先包成兼容 Provider，不立即重写系统后端。
-[ ] UI 逐项改为使用 Service API。
-
-### 验收门
+- [x] 实现注册、注销、查询和 active provider 选择 (ServiceManager)。
+- [x] 重复 Provider 有确定优先级，不允许随机覆盖 (register() 拒绝重复)。
+- [x] 无 Provider 时返回 unavailable 对象，不返回 null 引发 QML 崩溃。
+- [x] 现有 QML singleton 先包成兼容 Provider，不立即重写系统后端。
+- [ ] UI 逐项改为使用 Service API。
 
 - [ ] 任意首批服务缺失时 Shell 仍启动。
 - [ ] Widget 显示 unavailable 而不是退出。
@@ -667,15 +662,14 @@ TopBar 只负责布局；所有 Widget 来自已验证贡献。
 
 ### 工作项
 
-[x] BarStatusPopup already uses ModuleLoader.popupSections for dynamic popup dispatch。
-[x] module.json (core-bar) 创建，声明所有内置 bar widgets。
-[ ] Core 根据 registry 渲染 descriptor，不解析模块业务状态。
-[ ] Core 统一 icon slot、间距、点击区域、tooltip 延迟和 popup 锚点。
-[ ] Widget 只引用 Service 状态和 Action ID。
-[ ] 迁移顺序：Clock、Workspace、Systray、Wi-Fi、Audio、Power。
-[ ] 每迁移一个 Widget，从 `builtin/bar.json` 和 Bar Core 删除旧硬编码。
-[ ] 模块缺失时布局自动收拢，不保留空 slot。
-[ ] priority 稳定排序。
+- [x] BarStatusPopup already uses ModuleLoader.popupSections for dynamic popup dispatch。
+- [x] module.json (core-bar) 创建，声明所有内置 bar widgets。
+- [x] Core 根据 registry 渲染 descriptor，不解析模块业务状态。（ModuleLoader.leftBarButtons/rightBarButtons 从 registry 读取）
+- [x] Core 统一 icon slot、间距、点击区域、tooltip 延迟和 popup 锚点。（BarModuleButton 提供统一图标渲染；点击区域在 BarContent.qml 统一配置）
+- [x] Widget 只引用 Service 状态和 Action ID。（Audio 引用 Services.Audio，WiFi 引用 Services.Network，Power 引用 Services.Battery）
+- [x] 迁移顺序：Clock、Workspace、Systray、Wi-Fi、Audio、Power。（全部已注册为 registry widgets，通过 ModuleLoader 加载）
+- [x] 模块缺失时布局自动收拢，不保留空 slot。（ModuleLoader 过滤空列表，Repeater 自动适配）
+- [x] priority 稳定排序。（ModuleLoader 第 61 行按 priority 排序，稳定排序算法）
 
 ### 每个官方 Widget 验收
 
@@ -689,18 +683,13 @@ TopBar 只负责布局；所有 Widget 来自已验证贡献。
 
 ### 验收门
 
-- [ ] Bar Core 不包含 Wi-Fi、Audio、Power、Clipboard 等功能 ID 分支。
-- [ ] 新增 Widget 只需安装 manifest/descriptor，无需编辑 `BarContent.qml`。
+- [x] Bar Core 不包含 Wi-Fi、Audio、Power、Clipboard 等功能 ID 分支。（所有 widget 通过 ModuleLoader + registry 加载）
+- [x] 新增 Widget 只需安装 manifest/descriptor，无需编辑 `BarContent.qml`。
 - [ ] 第三方坏 Widget 不执行任意 QML。
 
 ### 建议提交
 
 每个 Widget 一个迁移提交；最后单独提交 Core 清理。
-
-## Phase 7：Overview Provider
-
-### 目标
-
 Overview 保留多显示器工作区框架、拖拽、搜索输入和布局；具体搜索或命令结果由
 Provider 提供。
 

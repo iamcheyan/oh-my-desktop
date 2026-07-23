@@ -1,6 +1,7 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
+import qs.core.runtime
 import qs
 import qs.modules.common
 import qs.modules.common.functions
@@ -63,10 +64,14 @@ Singleton {
     }
 
     Component.onCompleted: {
-        Quickshell.execDetached(["mkdir", "-p", `${root.cacheDir}`])
-        root.checkState()
-        root.refreshModelInfo()
-        root.refreshDaemonStatus()
+        if (ModuleLoader.isEnabled("voice")) {
+            Quickshell.execDetached(["mkdir", "-p", `${root.cacheDir}`])
+            root.checkState()
+            root.refreshModelInfo()
+            root.refreshDaemonStatus()
+        } else {
+            console.log("[VoiceInput] voice module disabled, skipping init")
+        }
     }
 
     onStateChanged: {

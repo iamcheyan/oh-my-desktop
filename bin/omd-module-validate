@@ -397,6 +397,7 @@ def validate_all() -> int:
     passed = 0
     failed = 0
     warned = 0
+    v1_count = 0
 
     omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -424,21 +425,67 @@ def validate_all() -> int:
             passed += 1
         else:
             failed += 1
+        # Track v1 manifests for compat diagnostic
+        try:
+            with open(manifest_path) as f:
+                data = json.load(f)
+            if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                v1_count += 1
+        except (json.JSONDecodeError, OSError):
+            pass
 
-    print(f"\nSummary: {passed} passed, {warned} warned, {failed} failed ({total} total)")
+    print(f"\nSummary: {passed} passed, {warned} warned, {failed} failed ({total} total, {v1_count} v1 compat)")
     return 0 if failed == 0 else 1
+
+
+def count_v1() -> int:
+    """Count v1 manifests (for compat diagnostics)."""
+    count = 0
+    omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Repo-local modules/
+    repo_modules = os.path.join(omd_root, "modules")
+    if os.path.isdir(repo_modules):
+        for m in scan_manifests(repo_modules):
+            try:
+                with open(m) as f:
+                    data = json.load(f)
+                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                    count += 1
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    # External modules
+    modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
+    if not modules_home:
+        modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
+    if modules_home != repo_modules:
+        for m in scan_manifests(modules_home):
+            try:
+                with open(m) as f:
+                    data = json.load(f)
+                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                    count += 1
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    return count
 
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: omd-module-validate <manifest.json | module-dir/>", file=sys.stderr)
         print("       omd-module-validate --all", file=sys.stderr)
+        print("       omd-module-validate --v1-count", file=sys.stderr)
         sys.exit(2)
 
     arg = sys.argv[1]
 
     if arg == "--all":
         rc = validate_all()
+    elif arg == "--v1-count":
+        print(count_v1())
+        rc = 0
     elif os.path.isdir(arg):
         manifest_path = os.path.join(arg, "module.json")
         if os.path.isfile(manifest_path):

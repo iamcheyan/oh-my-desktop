@@ -1,8 +1,8 @@
 local paths = require("default.hypr.paths")
 
 -- Application bindings.
-o.bind("SUPER + RETURN", "Application launcher", paths.omd_root .. "/bin/omd-applauncher")
-o.bind("SUPER + A", "Toggle application launcher", paths.omd_root .. "/bin/omd-applauncher")
+o.bind("SUPER + RETURN", "Application launcher", paths.omd_root .. "/bin/omd-action app-launcher.toggle")
+o.bind("SUPER + A", "Toggle application launcher", paths.omd_root .. "/bin/omd-action app-launcher.toggle")
 o.bind("SUPER + Q", "Terminal", { omd = "terminal" })
 o.bind("SUPER + ALT + RETURN", "Tmux", { omd = "terminal-tmux" })
 o.bind("SUPER + SHIFT + RETURN", "Browser", { omd = "browser" })
@@ -33,11 +33,9 @@ o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
 
 o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 
--- Bluetooth pairing TUI
-o.bind("SUPER + CTRL + B", "Bluetooth", paths.omd_root .. "/bin/omd-launch-bluetooth")
+o.bind("SUPER + CTRL + B", "Bluetooth", paths.omd_root .. "/bin/omd-action bluetooth.launch")
 
--- WiFi manager TUI
-o.bind("SUPER + CTRL + W", "WiFi", paths.omd_root .. "/bin/omd-launch-wifi")
+o.bind("SUPER + CTRL + W", "WiFi", paths.omd_root .. "/bin/omd-action wifi.launch")
 
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
@@ -45,10 +43,9 @@ hl.unbind("SUPER + mouse:273")
 o.bind("ALT + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
--- Input method schema cycling (SUPER+SPACE) is personal.
--- Add in your user override if you use Rime/fcitx:
---   o.bind("SUPER + SPACE", "Next input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle 1")
---   o.bind("SUPER + SHIFT + SPACE", "Previous input language", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call inputMethod cycle -1")
+-- Input method schema cycling via ActionManager.
+o.bind("SUPER + SPACE", "Next input language", paths.omd_root .. "/bin/omd-action input-method.cycle")
+o.bind("SUPER + SHIFT + SPACE", "Previous input language", paths.omd_root .. "/bin/omd-action input-method.cycle -- -1")
 hl.unbind("SUPER + CTRL + SPACE")
 o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call bar toggle")
 
@@ -110,14 +107,11 @@ if #voice_bindings == 0 then
 end
 
 for _, key in ipairs(voice_bindings) do
-    o.bind(key, "Voice input toggle", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call voice toggle")
+    o.bind(key, "Voice input toggle", paths.omd_root .. "/bin/omd-action voice.toggle")
 end
--- Prefer absolute path (same tool as PrintScreen). Re-press cancels if open.
-o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-screenshot screenshot")
-o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/omd-screenshot edit")
+o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-action screenshot.capture")
+o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/omd-action screenshot.capture-edit")
 
--- Logitech MX Keys examples:
+o.bind("ALT + V", "Clipboard manager", paths.omd_root .. "/bin/omd-action clipboard.toggle")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
-hl.unbind("SUPER + CTRL + V")
-o.bind("ALT + V", "Clipboard manager", paths.omd_root .. "/bin/omd-clipboard")
 hl.unbind("SUPER + CTRL + V")

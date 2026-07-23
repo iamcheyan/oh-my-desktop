@@ -111,28 +111,55 @@ Singleton {
             timeout: a.timeout
         }
     }
+    /// Resolve a module's absolute directory path from ModuleLoader's registry.
+    /// Returns empty string if module or registry unavailable.
+    function _modulePath(moduleId) {
+        if (typeof ModuleLoader === "undefined" || !ModuleLoader._registry || !ModuleLoader._registry.modules)
+            return ""
+        for (var i = 0; i < ModuleLoader._registry.modules.length; i++) {
+            var m = ModuleLoader._registry.modules[i]
+            if (m.id === moduleId) return m.path || ""
+        }
+        return ""
+    }
 
-    /// Check if an action is available (registered AND enabled).
+    /// Check if an action is available (registered, enabled, AND module-enabled).
     function isAvailable(id) {
         const a = _actions[id]
-        return a !== undefined && a.enabled
+        if (!a || !a.enabled) return false
+        // Dynamic module enabled check — reacts to Config changes via FileView.
+        // "core" owner is never module-disabled.
+        if (a.owner !== "core" && !ModuleLoader.isEnabled(a.owner)) return false
+        return true
     }
 
     /// Invoke an action by ID with optional parameters.
     /// Returns {success: bool, error?: string}
     function invoke(id, params) {
-        const a = _actions[id]
-        if (!a) {
+        const exists = _actions[id]
+        if (!exists) {
             console.warn("[ActionManager] invoke: unknown action '" + id + "'")
             return {success: false, error: "unknown_action"}
         }
-        if (!a.enabled) {
+        if (!exists.enabled) {
             console.warn("[ActionManager] invoke: action '" + id + "' is disabled")
             return {success: false, error: "action_disabled"}
         }
+        // Dynamic module enabled check — reacts to Config changes via FileView.
+        // Non-core actions require the owning module to be enabled.
+        if (exists.owner !== "core" && !ModuleLoader.isEnabled(exists.owner)) {
+            console.log("[ActionManager] invoke: action '" + id + "' module '" + exists.owner + "' is disabled")
+            return {success: false, error: "module_disabled"}
+        }
+        return _doInvoke(exists, params)
+    }
+
+    /// Internal: execute a verified action's handler.
+    function _doInvoke(a, params) {
 
         const h = a.handler
         const startTime = Date.now()
+        function _elapsed() { return Date.now() - startTime }
 
         try {
             switch (h.type) {
@@ -140,7 +167,7 @@ Singleton {
                     if (typeof h.call === "function") {
                         h.call(params)
                     } else {
-                        console.error("[ActionManager] invoke '" + id + "': handler.call is not a function")
+                        console.error("[ActionManager] invoke '" + a.id + "': handler.call is not a function")
                         return {success: false, error: "invalid_handler"}
                     }
                     break
@@ -152,7 +179,7 @@ Singleton {
                         }
                         Quickshell.execDetached(cmd)
                     } else {
-                        console.error("[ActionManager] invoke '" + id + "': invalid process command")
+                        console.error("[ActionManager] invoke '" + a.id + "': invalid process command")
                         return {success: false, error: "invalid_command"}
                     }
                     break
@@ -160,7 +187,7 @@ Singleton {
                 case "supervised":
                     // Process managed by ProcessSupervisor for lifecycle tracking
                     if (!h.instanceId) {
-                        console.error("[ActionManager] invoke '" + id + "': supervised handler missing instanceId")
+                        console.error("[ActionManager] invoke '" + a.id + "': supervised handler missing instanceId")
                         return {success: false, error: "missing_instance_id"}
                     }
                     var ps = ProcessSupervisor
@@ -183,9 +210,8 @@ Singleton {
                     break
 
                 case "ipc":
-                    console.warn("[ActionManager] invoke '" + id + "': IPC handler dispatch not yet supported directly")
+                    console.warn("[ActionManager] invoke '" + a.id + "': IPC handler dispatch not yet supported directly")
                     return {success: false, error: "handler_unavailable"}
-
                 case "shell":
                     if (typeof h.command === "string" && h.command.length > 0) {
                         Quickshell.execDetached(["bash", "-lc", h.command])
@@ -195,25 +221,31 @@ Singleton {
                     break
 
                 default:
-                    console.error("[ActionManager] invoke '" + id + "': unknown handler type '" + h.type + "'")
+                    console.error("[ActionManager] invoke '" + a.id + "': unknown handler type '" + h.type + "'")
                     return {success: false, error: "unknown_handler_type"}
             }
 
-            const elapsed = Date.now() - startTime
-            console.log("[ActionManager] invoked '" + id + "' (" + elapsed + "ms)")
+            console.log("[ActionManager] invoked '" + a.id + "' (" + _elapsed() + "ms)")
             return {success: true}
         } catch (e) {
-            const elapsed = Date.now() - startTime
-            console.error("[ActionManager] invoke '" + id + "' failed (" + elapsed + "ms): " + e)
+            console.error("[ActionManager] invoke '" + a.id + "' failed (" + _elapsed() + "ms): " + e)
             return {success: false, error: String(e)}
         }
     }
 
-    /// List of registered action objects (read-only).
-    readonly property var actions: {
+    /// Get a serializable array of all registered actions.
+    /// Returns an array of {id, owner, title, enabled, handlerType}.
+    function getActionList() {
         const result = []
         for (var i = 0; i < _order.length; i++) {
-            result.push(_actions[_order[i]])
+            const a = _actions[_order[i]]
+            result.push({
+                id: a.id,
+                owner: a.owner,
+                title: a.title,
+                enabled: a.enabled,
+                handlerType: a.handler.type
+            })
         }
         return result
     }
@@ -288,24 +320,29 @@ Singleton {
         }, {description: "Open or close the overview/workspace view"})
 
         // Clipboard — managed via ProcessSupervisor for lifecycle tracking
+        // Resolve path from external module (clipboard lives in sumika-modules, not OMD repo)
+        var clipDir = this._modulePath("clipboard")
+        if (!clipDir) clipDir = Quickshell.env("OMD_REPO_ROOT") // fallback
+        var clipCmd = clipDir + "/bin/omd-clipboard"
+
         this.register("clipboard.toggle", "clipboard", "Toggle clipboard", {
             type: "supervised",
             instanceId: "clipboard",
             owner: "clipboard",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-clipboard", "toggle"],
+            command: [clipCmd, "toggle"],
             options: {readyTimeout: 10, restartLimit: 3}
         }, {description: "Open or close the clipboard history"})
 
         this.register("clipboard.toggleBar", "clipboard", "Toggle clipboard at bar", {
             type: "shell",
-            command: Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-clipboard toggle-at-bar"
+            command: clipCmd + " toggle-at-bar"
         }, {description: "Open or close the clipboard anchored to the top bar"})
 
         this.register("clipboard.open", "clipboard", "Open clipboard", {
             type: "supervised",
             instanceId: "clipboard",
             owner: "clipboard",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-clipboard", "open"],
+            command: [clipCmd, "open"],
             options: {readyTimeout: 10, restartLimit: 3}
         }, {description: "Open the clipboard history"})
 
@@ -313,7 +350,7 @@ Singleton {
             type: "supervised",
             instanceId: "clipboard",
             owner: "clipboard",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-clipboard", "close"],
+            command: [clipCmd, "close"],
             options: {readyTimeout: 10, restartLimit: 3}
         }, {description: "Close the clipboard history"})
 
@@ -321,10 +358,9 @@ Singleton {
             type: "supervised",
             instanceId: "clipboard",
             owner: "clipboard",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-clipboard", "paste"],
+            command: [clipCmd, "paste"],
             options: {readyTimeout: 10, restartLimit: 3}
         }, {description: "Paste the currently selected clipboard entry"})
-
         // Load additional actions from module manifests in the registry
         this._registerFromRegistry()
     }

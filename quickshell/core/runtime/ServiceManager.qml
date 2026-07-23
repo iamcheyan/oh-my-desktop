@@ -135,14 +135,64 @@ Singleton {
         return result
     }
 
-    /// Register placeholders for known shell services.
-    /// Real wrapping requires per-service migration in later phases.
+    /// Register built-in service providers.
+    /// Wraps existing QML service singletons as Phase 5 providers.
     function _registerPlaceholders() {
-        this.register("audio.v1",    "1.0.0", "core",   null)
-        this.register("network.v1",  "1.0.0", "core",   null)
-        this.register("power.v1",    "1.0.0", "core",   null)
-        this.register("mpris.v1",    "1.0.0", "core",   null)
-        console.log("[ServiceManager] Registered 4 placeholders (audio, network, power, mpris)")
+        // ── Audio: wrap Audio singleton (always available) ──
+        this.register("audio.v1",    "1.0.0", "core",   Services.Audio)
+        this.setAvailable("audio.v1", true, "")
+
+        // ── Network: wrap Network singleton (always available) ──
+        this.register("network.v1",  "1.0.0", "core",   Services.Network)
+        this.setAvailable("network.v1", true, "")
+
+        // ── Power: wrap Battery + PowerProfiles singletons ──
+        this.register("power.v1",    "1.0.0", "core",   {
+            battery: Services.Battery,
+            powerProfiles: Services.PowerProfiles
+        })
+        this.setAvailable("power.v1",
+            Services.Battery.available,
+            Services.Battery.available ? "" : "no battery detected")
+
+        // ── Workspace: placeholder (Hyprland workspace data is embedded in bar UI) ──
+        this.register("workspace.v1", "1.0.0", "core",  null)
+
+        // ── Notification: wrap Notifications singleton ──
+        this.register("notification.v1", "1.0.0", "core", Services.Notifications)
+        this.setAvailable("notification.v1",
+            typeof Services.Notifications !== "undefined",
+            typeof Services.Notifications === "undefined" ? "notifications not available" : "")
+
+        // ── MPRIS: real provider wrapping existing MprisController singleton ──
+        this.register("mpris.v1", "1.0.0", "core", Services.MprisController)
+        this.setAvailable("mpris.v1",
+            Services.MprisController.availablePlayers.length > 0,
+            Services.MprisController.availablePlayers.length === 0
+                ? "no MPRIS players found" : "")
+
+        console.log("[ServiceManager] Registered 6 providers (audio, network, power, workspace, notification, mpris)")
+    }
+    /// Watch MPRIS player changes to update availability dynamically.
+    readonly property Connections _mprisWatcher: Connections {
+        target: Services.MprisController
+
+        function onAvailablePlayersChanged(): void {
+            const hasPlayers = Services.MprisController.availablePlayers.length > 0
+            manager.setAvailable("mpris.v1", hasPlayers,
+                hasPlayers ? "" : "no MPRIS players found")
+        }
+    }
+
+    /// Watch Battery availability (laptop detection).
+    readonly property Connections _batteryWatcher: Connections {
+        target: Services.Battery
+
+        function onAvailableChanged(): void {
+            manager.setAvailable("power.v1",
+                Services.Battery.available,
+                Services.Battery.available ? "" : "no battery detected")
+        }
     }
 
     Component.onCompleted: {
