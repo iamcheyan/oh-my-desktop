@@ -35,14 +35,13 @@ Singleton {
     function initialize() {
         console.log("[ApplicationManager] initializing from ModuleLoader manifest...")
 
-        // Access the module registry via ModuleLoader
-        const registry = ModuleLoader._registry
-        if (!registry || !registry.modules) {
-            console.warn("[ApplicationManager] ModuleLoader registry not ready yet")
+        const mods = ModuleLoader.modules
+        if (!mods || mods.length === 0) {
+            console.warn("[ApplicationManager] ModuleLoader modules not ready yet")
             retryTimer.start()
             return
         }
-        _processRegistry(registry)
+        _processRegistry(mods)
     }
 
     // Retry if registry not ready yet
@@ -51,20 +50,20 @@ Singleton {
         interval: 500
         repeat: true
         onTriggered: {
-            const registry = ModuleLoader._registry
-            if (registry && registry.modules) {
+            const mods = ModuleLoader.modules
+            if (mods && mods.length > 0) {
                 stop()
-                _processRegistry(registry)
+                _processRegistry(mods)
             }
         }
     }
 
-    function _processRegistry(registry) {
-        const modEntries = registry.modules
+    function _processRegistry(modEntries) {
         if (!Array.isArray(modEntries)) {
-            console.warn("[ApplicationManager] registry.modules is not an array — got " + typeof modEntries)
+            console.warn("[ApplicationManager] modules is not an array — got " + typeof modEntries)
             return
         }
+
 
         var count = 0
         for (var i = 0; i < modEntries.length; i++) {
