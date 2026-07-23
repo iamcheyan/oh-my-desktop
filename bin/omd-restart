@@ -19,6 +19,13 @@ fi
 
 start_app() {
     app="$1"
+    executable="${2:-$OMD_ROOT/bin/$app}"
+
+    if [ ! -x "$executable" ]; then
+        printf 'Skipping %s: executable not found at %s\n' "$app" "$executable" >&2
+        return 0
+    fi
+
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         # KillMode=process: only kill the unit main process, NOT the whole cgroup.
         # Apps launched from omd-applauncher (foot, tmux, browsers) stay in this
@@ -30,13 +37,18 @@ start_app() {
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
             --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
             --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
-            /bin/sh -c "exec \"\$OMD_ROOT/bin/$app\" >/tmp/$app.log 2>&1" >/dev/null
+            /bin/sh -c 'exec "$1" >"$2" 2>&1' sh "$executable" "/tmp/$app.log" >/dev/null
     else
-        setsid "$OMD_ROOT/bin/$app" >/tmp/$app.log 2>&1 < /dev/null &
+        setsid "$executable" >"/tmp/$app.log" 2>&1 < /dev/null &
     fi
 }
 
 start_app omd-bar
 start_app omd-overview
 start_app omd-polkit
-start_app omd-clipboard-store
+
+clipboard_store="$OMD_ROOT/bin/omd-clipboard-store"
+if [ ! -x "$clipboard_store" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
+    clipboard_store="$SUMIKA_MODULES_HOME/clipboard/bin/omd-clipboard-store"
+fi
+start_app omd-clipboard-store "$clipboard_store"
