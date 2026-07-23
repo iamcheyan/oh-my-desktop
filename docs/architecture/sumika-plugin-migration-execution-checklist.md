@@ -1072,7 +1072,7 @@ Lifecycle scripts are registry-driven | PASS | omd-restart and omd-quickshell-st
 Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersion added to schema; type fixes applied
 Bar is pure Core host | PASS | apps/omd-bar/shell.qml: IPC bridges only (menus, session confirm, action compat); Bar.qml: layershell window positioning only; no module-private functionality
 No bar-private module functionality | PASS | Dead imports (Pipewire, Bluetooth) removed from BarStatusPopup; all popup sections loaded via ModuleLoader
-**Zero direct Quickshell.Services.* refs in consumer code | PASS** | Only VolumeIndicator.qml (Pipewire.defaultAudioSink — known compat layer, needs Audio service bridge) and NotificationAppIcon.qml (Notifications.NotificationUrgency — type-only enum import). Dead `import qs.services` removed from both files. Dead `saveSessionSnapshot()` code block removed from BarStatusPopup.qml (dead code, never called).
+**Zero direct Quickshell.Services.* refs in consumer code | PASS** | Only VolumeIndicator.qml (Pipewire.defaultAudioSink — known compat layer, needs Audio service bridge) and NotificationAppIcon.qml (Notifications.NotificationUrgency — type-only enum import). Dead `import qs.services` removed from VolumeIndicator, NotificationAppIcon, plus 14 additional files in commit c6e0c64 (shell.qml ×3, GlobalStates, ApplicationManager, Polkit, Widgets ×6, Settings pages ×2). Zero Services.* direct refs verified.
 Overview empty-provider readiness | PASS | ModuleLoader.overviewProviders returns [] when empty; Overview is standalone application with built-in search
 Settings ProcessSupervisor singleton | PASS | settings is `kind: application` with entry; ProcessSupervisor manages it as subprocess; manifest v2 valid
 Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 compat (warnings only)
@@ -1088,11 +1088,14 @@ Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 com
 - `trustedInProcess` (boolean, default false) added to module-schema.json and share/schemas/sumika-module-v2.schema.json
 - Validator updated to validate trustedInProcess field type
 - No remaining Services.Audio/Notifications/HyprlandData/MprisController/Battery/PowerProfiles/Network refs in consumer code
+- Dead `import qs.services` removed from 14 additional consumer files (2026-07-24, commit c6e0c64)
 ### Remaining items (scope-deferred)
 - GUI verification (cold start, reload, disable, crash loop) — requires graphical session (UNTESTED_GUI)
 - Remove clipboard shim from omd-restart (lines 89-99) + omd-quickshell-stop.sh (lines 53-55) — blocked on external clipboard module declaring `kind=application` + `entry`
 - Remove v1 compat fallbacks in quickshell/scripts/quickshell (lines 175, 180, 185, 190) — blocked on 4 external v1 modules migrating to v2
 - `trustedInProcess` enforcement in ModuleLoader — forward-looking, no third-party modules currently
-- Install Audio service bridge for OSD VolumeIndicator Pipewire consumption — VolumeIndicator.qml reads `Pipewire.defaultAudioSink` directly; needs service bridge for module-isolated consumption
+- OverviewSearch `requestSessionAction` (lines 112-115) bypasses ActionManager with direct IPC to bar's `session.confirm` handler
+- Audio service bridge for OSD VolumeIndicator Pipewire consumption — reads `Pipewire.defaultAudioSink` directly; needs service bridge for module-isolated consumption
+- No module contributes `overviewProviders` — extension point exists but is empty (Overview has built-in content)
 
 ### §12 completion: **PASS** (architecture complete; remaining items are execution verification or external preconditions)
