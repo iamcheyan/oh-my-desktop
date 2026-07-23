@@ -74,6 +74,7 @@ ShellRoot {
 
     Component.onCompleted: {
         ActionManager._registerBuiltins()
+        ApplicationManager.initialize()
     }
 
     // Create top-level windows immediately. Gating this scope on Config.ready
