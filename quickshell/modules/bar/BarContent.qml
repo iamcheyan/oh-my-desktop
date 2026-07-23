@@ -19,6 +19,28 @@ Item { // Bar content region
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
     readonly property int barActiveWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.barMonitor)
 
+    // Fixed widgets at the rightmost positions (power always last, clock before it)
+    readonly property var _fixedWidgetIds: ["clock", "sidebar-indicators"]
+
+    readonly property var _movableRightButtons: {
+        var result = [];
+        var all = ModuleLoader.rightBarButtons;
+        for (var i = 0; i < all.length; i++) {
+            if (root._fixedWidgetIds.indexOf(all[i].moduleId) < 0)
+                result.push(all[i]);
+        }
+        return result;
+    }
+
+    function _findFixedWidget(moduleId) {
+        var all = ModuleLoader.rightBarButtons;
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].moduleId === moduleId)
+                return all[i];
+        }
+        return null;
+    }
+
     readonly property bool workspaceHasWindows: {
         const wsId = root.barActiveWorkspaceId;
         if (wsId < 1)
@@ -130,9 +152,9 @@ Item { // Bar content region
             }
             spacing: Config.options.bar.rightModuleSpacing
 
-            // 所有按钮通过 registry 动态加载
+            // Movable plugin buttons sorted by order
             Repeater {
-                model: ModuleLoader.rightBarButtons
+                model: root._movableRightButtons
                 delegate: Loader {
                     required property var modelData
                     source: modelData.component
@@ -142,6 +164,28 @@ Item { // Bar content region
                         console.warn("[Module] Bar button load failed:", modelData.component)
                         active = false
                     }
+                }
+            }
+
+            // Fixed clock widget — always second from right
+            Loader {
+                source: root._findFixedWidget("clock")?.component ?? ""
+                active: source !== ""
+                Layout.alignment: Qt.AlignVCenter
+                onStatusChanged: if (status === Loader.Error) {
+                    console.warn("[Module] Fixed clock widget load failed:", source)
+                    active = false
+                }
+            }
+
+            // Fixed sidebar indicators (power + xkb) — always far right
+            Loader {
+                source: root._findFixedWidget("sidebar-indicators")?.component ?? ""
+                active: source !== ""
+                Layout.alignment: Qt.AlignVCenter
+                onStatusChanged: if (status === Loader.Error) {
+                    console.warn("[Module] Fixed sidebar indicators load failed:", source)
+                    active = false
                 }
             }
         }
