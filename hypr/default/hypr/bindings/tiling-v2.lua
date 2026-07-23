@@ -1,3 +1,5 @@
+local paths = require("default.hypr.paths")
+
 o.bind("SUPER + W", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", paths.omd_root .. "/bin/omd-action window.close-all")
 
