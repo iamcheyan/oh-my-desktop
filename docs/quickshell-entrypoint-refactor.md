@@ -1,216 +1,207 @@
 # Quickshell Entrypoint Refactor
 
-## Phase 1: Dependency Audit
+## Architecture
 
-Audit date: 2026-07-23
-Repository root: `~/development/OMD`
+### Before
 
-### Entry Points Surveyed
+```
+apps/omd-bar/
+├── config.json → ../../defaults/config/quickshell/config.json  (symlink)
+├── shell.qml            (257 lines, hardcoded ActionManager.register() calls)
+├── GlobalStates.qml → ../../quickshell/GlobalStates.qml         (symlink)
+├── assets → ../../quickshell/assets                             (symlink)
+├── scripts → ../../quickshell/scripts                           (symlink)
+└── translations → ../../quickshell/translations                 (symlink)
+```
 
-| Entry point | Path | shell.qml size | Has app-local symlinks? |
-|---|---|---|---|
-| **Bar** | `apps/omd-bar/` | ~257 lines | YES (5 symlinks) |
-| **Polkit** | `apps/omd-polkit/` | 18 lines | No (flat file copies) |
-| **Settings** | `apps/omd-settings/` | ~60 lines | No |
-| **Overview** | `modules/overview/` | ~30 lines | No |
-| **Launcher** | `modules/launcher/` | ~15 lines | No |
-| **Notification** | `modules/notification/` | ~10 lines | No |
-| **OSD** | (`on-screen-display` module) | handled via module.json | No |
+Other entry points (`omd-polkit`, `omd-settings`, `modules/launcher`, `modules/notification`) carried standalone `GlobalStates.qml` copies.
 
-**Only `apps/omd-bar/` has symlinks.** Other entry points have their own standalone `GlobalStates.qml` copies (minimal).
+### After
+
+```
+apps/omd-bar/
+└── shell.qml            (159 lines, no symlinks, thin entry point)
+```
+
+All project-directory symlinks removed. Resources resolved via `Directories.root` (evaluates `SUMIKA_SHELL_ROOT` → `~/.config/omd` → repo root). GlobalStates resolved via official `import qs` module. Module actions registered per-module in `module-actions.qml` files, loaded by `ModuleActionHost`.
 
 ---
 
-## Symlinks in `apps/omd-bar/`
+## Entry Points Surveyed
 
-### 1. `GlobalStates.qml → ../../quickshell/GlobalStates.qml`
+| Entry point | Path | shell.qml size | Symlinks (before) | Symlinks (after) |
+|---|---|---|---|---|
+| **Bar** | `apps/omd-bar/` | 159 lines | 5 | 0 |
+| **Polkit** | `apps/omd-polkit/` | 18 lines | GlobalStates copy | 0 |
+| **Settings** | `apps/omd-settings/` | ~60 lines | GlobalStates copy | 0 |
+| **Overview** | `modules/overview/` | ~30 lines | 0 | 0 |
+| **Launcher** | `modules/launcher/` | ~15 lines | GlobalStates copy | 0 |
+| **Notification** | `modules/notification/` | ~10 lines | GlobalStates copy | 0 |
+| **OSD** | `on-screen-display` module | via module.json | 0 | 0 |
 
-**Purpose**: Makes the full `GlobalStates` singleton resolvable in the bar process without QML module import.
+---
 
-**How it's used**: `shell.qml` (and all QML files in the bar process) reference `GlobalStates.*` properties (e.g., `GlobalStates.barPopupType`, `GlobalStates.screenshotActive`). Without the symlink, QML would not find the type since none of the bar's QML files do `import qs`.
+## Changes Per Phase
 
-**Current imports in `apps/omd-bar/shell.qml`**:
-- `import qs.core.runtime`
-- `import qs.modules.common`
-- `import qs.services`
-- `import qs.services as Services`
-- `import qs.modules.bar`
-- (No `import qs` — this is why the symlink is needed)
+### Phase 2: Resource Paths Unified
 
-**Fix**: Add `import qs` to every QML file in the bar process that references `GlobalStates`. The singleton is already registered at `quickshell/qmldir` as:
+All `Quickshell.shellPath()` calls replaced with `Directories.root`-based paths.
+
+`Directories.root` resolves: `SUMIKA_SHELL_ROOT` env var → `~/.config/omd` (symlink to repo root). This is a stable path independent of the Quickshell project directory.
+
+**Files changed:**
+- `modules/common/Directories.qml` — assetsPath, scriptPath
+- `services/Translation.qml` — translationsDir
+- `services/ConflictKiller.qml` — killDialog path
+- `services/FirstRunExperience.qml` — welcome path
+
+### Phase 3: GlobalStates via `import qs`
+
+The `GlobalStates` singleton is registered in `quickshell/qmldir` under the `qs` module:
+
 ```
 singleton GlobalStates 1.0 GlobalStates.qml
 ```
-under the `qs` module.
 
-**Consumers** (files in bar process that reference `GlobalStates.*`):
-- `apps/omd-bar/shell.qml` (many: barPopupType, screenshotActive, requestSessionConfirm, etc.)
-- `quickshell/BarStatusPopup.qml` (via bar process)
-- Any bar-side widget referencing GlobalStates
+Added `import qs` to every entry point shell.qml that previously relied on a local copy. Removed all 5 GlobalStates files:
+- `apps/omd-bar/GlobalStates.qml` (symlink)
+- `apps/omd-polkit/GlobalStates.qml` (flat file)
+- `apps/omd-settings/GlobalStates.qml` (flat file)
+- `modules/launcher/GlobalStates.qml` (flat file)
+- `modules/notification/GlobalStates.qml` (flat file)
 
----
+### Phase 4: Module Action Self-Registration
 
-### 2. `assets → ../../quickshell/assets`
+Core provides `ModuleActionHost` (`quickshell/core/runtime/ModuleActionHost.qml`):
 
-**Purpose**: Provides `Quickshell.shellPath("assets")` with a real directory.
-
-**How it's used**: Via `Directories.qml`:
 ```qml
-// modules/common/Directories.qml, line 42
-property string assetsPath: Quickshell.shellPath("assets")
+Item {
+    Repeater {
+        model: ModuleLoader._registry.modules
+            .filter(m => m.id && m.path && ModuleLoader.isEnabled(m.id))
+            .map(m => ({ moduleId: m.id, actionsUrl: "file://" + m.path + "/module-actions.qml" }))
+        delegate: Loader { source: actionsUrl; asynchronous: true }
+    }
+}
 ```
 
-**Consumers**:
-- `Directories.assetsPath` → `CosmicIcon.qml` (line 12): builds `"file://" + Directories.assetsPath + "/cosmic-icons/" + name + ".svg"`
+Each module places `module-actions.qml` in its root directory. ModuleActionHost loads it for every enabled module.
 
-**Fix**: Replace `Quickshell.shellPath("assets")` with a path resolved from `Directories.root`:
-```qml
-property string assetsPath: Quickshell.shellPath("assets")
-// → SHOULD become:
-property string assetsPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/assets`)
-```
-Where `Directories.root` = `SUMIKA_SHELL_ROOT` env var → `~/.config/omd` (symlink to repo root).
+`ActionManager.qml` changes:
+- **Removed** `_registerModuleActions()` — 18 module-specific `register()` calls (~100 lines)
+- **Removed** `_registerClipboardActions()` — 6 clipboard actions (~35 lines)
+- **Retained** `_registerBuiltins()` — `session.*`, `settings.open`, `overview.open`, `shell.reload`, `process_supervisor.*`, `bluetooth.launch`
+- **Added** dynamic enable check: `isAvailable()` and `invoke()` both call `ModuleLoader.isEnabled(owner)` — non-core actions are disabled at runtime when the owning module is disabled
+
+#### Module action registration matrix
+
+| Module | Actions registered | Location |
+|---|---|---|
+| voice | `voice.toggle`, `voice.cancel` | `modules/voice/module-actions.qml` |
+| screenshot | `screenshot.freeze/unfreeze/capture/capture-edit/capture-ocr` | `modules/screenshot/module-actions.qml` |
+| notification | `notification.dismiss-last/dismiss-all/toggle-silent/edit-muted` | `modules/notification/module-actions.qml` |
+| input-method | `input-method.cycle` | `modules/input-method/module-actions.qml` |
+| app-launcher | `app-launcher.toggle` | `modules/app-launcher/module-actions.qml` |
+| wifi | `wifi.launch` | `modules/wifi/module-actions.qml` |
+| clipboard (external) | `clipboard.store-toggle/toggle/toggleBar/open/close/paste` | `sumika-modules/clipboard/module-actions.qml` |
+| bluetooth | `bluetooth.launch` | Builtin in `ActionManager._registerBuiltins()` |
+
+Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, sidebar-indicators, systray, workspaces) have empty `module-actions.qml` files to suppress Loader warnings.
+
+### Phase 5: Symlinks Removed
+
+Deleted all 4 symlinks from `apps/omd-bar/`:
+1. `GlobalStates.qml` — replaced by `import qs`
+2. `assets` — replaced by `Directories.root + "/quickshell/assets"`
+3. `scripts` — replaced by `Directories.root + "/quickshell/scripts"`
+4. `translations` — replaced by `Directories.root + "/quickshell/translations"`
+5. (Later) `config.json` — Quickshell reads config from `~/.config/sumika-shell/quickshell/config.json`; the project-level fallback was unnecessary
+
+### Phase 6: Startup Wrapper Audit
+
+Audited `quickshell/scripts/quickshell` (~390 lines):
+
+- `_register_path()`: Sets `OMD_APP_DIR` and `QS_CONFIG_DIR` for module runtime paths — non-QML, retained
+- `repair_config_json()`: Copies default config to `~/.config/sumika-shell/quickshell/config.json` — unrelated to project symlink, retained
+- QML import root staging: Sets up transient import root at `$XDG_RUNTIME_DIR/sumika-shell/qml/qs` → repo `quickshell/` — handles external module staging, retained
+
+No stale compat code identified that could be removed without breaking the shell launch flow.
 
 ---
 
-### 3. `scripts → ../../quickshell/scripts`
+## Module Disable Architecture
 
-**Purpose**: Provides `Quickshell.shellPath("scripts")` with a real directory.
+Module enable/disable flows through `ModuleLoader`:
 
-**How it's used**: Via `Directories.qml`:
-```qml
-// modules/common/Directories.qml, line 43
-property string scriptPath: Quickshell.shellPath("scripts")
 ```
-
-**Consumers** (directly or via `Directories.scriptPath`):
-
-| File | Usage |
-|---|---|
-| `Directories.qml` (line 55-56) | `wallpaperSwitchScriptPath = scriptPath + "/colors/switchwall.sh"` |
-| `Directories.qml` (line 56) | `recordScriptPath = scriptPath + "/videos/record.sh"` |
-| `ScreenshotAction.qml` (lines 81,83) | `Directories.recordScriptPath` → record command |
-| `RegionSelection.qml` (line 270) | `Directories.recordScriptPath` → recording stop |
-| `KeyringStorage.qml` (line 96) | `${Directories.scriptPath}/keyring/try_lookup.sh` |
-| `VoicePage.qml` (lines 591,632,674,682,725) | `${pageRoot.omdRoot}/scripts/voice-*` (hardcoded via omdRoot) |
-| `DisplayConfigState.qml` (line 676) | `$HOME/.config/omd/scripts/reload-quickshell` (hardcoded) |
-
-**Fix**: Same approach as `assetsPath`:
-```qml
-property string scriptPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/scripts`)
-```
-
-ALSO: replace hardcoded `$HOME/.config/omd/scripts/...` paths with `Directories.root` based paths across all QML files.
-
----
-
-### 4. `translations → ../../quickshell/translations`
-
-**Purpose**: Provides `Quickshell.shellPath("translations")` with a real directory.
-
-**How it's used**: Via `Translation.qml`:
-```qml
-// services/Translation.qml, line 22
-property string translationsDir: Quickshell.shellPath("translations")
-```
-
-**Consumers**: `Translation.qml` only — drives `TranslationScanner` and `TranslationReader` process commands.
-
-**Fix**:
-```qml
-property string translationsDir: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/translations`)
+sumika.json → Config.qml → ModuleLoader
+                             ├── modulesEnabled (reactive boolean)
+                             ├── isEnabled(id) → checks master + disabled list
+                             ├── popupSections, overlays, settingsPages, etc.
+                             └── activeModuleIds
 ```
 
----
+`ModuleActionHost` calls `ModuleLoader.isEnabled()` before loading each module's `module-actions.qml`. `ActionManager.isAvailable()` / `invoke()` also call it — so actions from disabled modules are unreachable even if registered before the disable event.
 
-### 5. `config.json → ../../defaults/config/quickshell/config.json`
+Gates exist at every extension point:
+- `ModuleActionHost` — no module-actions.qml loaded
+- `ModuleLoader.popupSections` — no popups registered
+- `ModuleLoader.overlays` — no overlays shown
+- `ModuleLoader.settingsPages` — no settings pages available
+- `ModuleLoader.overviewProviders` — no overview providers
+- `ModuleLoader.activeModuleIds` — module removed from active list
 
-**Purpose**: Default config for the Quickshell process. This is a base config override, not loaded by QML directly.
-
-**How it's used**: The Quickshell startup script (`quickshell/scripts/quickshell`) reads config from `~/.config/sumika-shell/quickshell/config.json` (user config) which the symlink isn't directly needed for — but Quickshell's `-c` flag also resolves config from the project directory.
-
-**Consumers**: None in QML code. The config is consumed by:
-- `quickshell/scripts/quickshell` lines 300-301
-- `applycolor.sh` line 83
-- `record.sh` line 5
-- `switchwall.sh` line 13
-
-**Fix**: Not a QML symlink issue. The config is at the user path; the project dir's config.json is a fallback. Can be removed once Quickshell is configured to use the `~/.config/sumika-shell/quickshell/config.json` path exclusively.
+Physical tests confirmed:
+- `modules.enabled = false` → 0 module actions, only builtins remain
+- `modules.disabled = ["voice"]` → 0 voice actions, all other modules unaffected
 
 ---
 
-## GlobalStates Copies in Other Entry Points
+## Hardcoded `~/.config/omd` Paths (Cosmetic)
 
-| Entry point | File | Contents | Can use `import qs`? |
-|---|---|---|---|
-| `apps/omd-polkit/` | `GlobalStates.qml` | Empty singleton | Yes — replace with `import qs` |
-| `apps/omd-settings/` | `GlobalStates.qml` | Empty singleton | Yes |
-| `modules/launcher/` | `GlobalStates.qml` | Empty singleton | Yes |
-| `modules/notification/` | `GlobalStates.qml` | `screenLocked` property | Yes |
-
-All should be replaced with `import qs` to use the real `GlobalStates` from the qs module. The real `GlobalStates.qml` is self-contained (no side-effectful constructor).
-
-**Note**: `modules/overview/` does NOT have a local `GlobalStates.qml`. It's unclear how overview resolves `GlobalStates` — possibly via the bar's external module popup staging which runs in the bar process.
-
----
-
-## `shellPath()` Usage to Eliminate
-
-| File | Line | Code | Replacement |
-|---|---|---|---|
-| `modules/common/Directories.qml` | 42 | `Quickshell.shellPath("assets")` | `${Directories.root}/quickshell/assets` |
-| `modules/common/Directories.qml` | 43 | `Quickshell.shellPath("scripts")` | `${Directories.root}/quickshell/scripts` |
-| `services/Translation.qml` | 22 | `Quickshell.shellPath("translations")` | `${Directories.root}/quickshell/translations` |
-| `services/ConflictKiller.qml` | 12 | `Quickshell.shellPath("killDialog.qml")` | `${Directories.root}/quickshell/killDialog.qml` |
-| `services/FirstRunExperience.qml` | 14 | `Quickshell.shellPath("welcome.qml")` | `${Directories.root}/quickshell/welcome.qml` |
-
-The format `Quickshell.shellPath(...)` resolves paths relative to the Quickshell project directory (where `shell.qml` lives). Since the bar's project dir is `apps/omd-bar/`, the symlinks make this resolve correctly. Without symlinks, `shellPath` would look in the project dir itself.
-
----
-
-## Module Action Registration in `apps/omd-bar/shell.qml`
-
-`shell.qml` lines 136-226 hardcode `ActionManager.register()` calls for:
-- **voice** (voice, sumika-modules)
-- **input-method** (input-method, sumika-modules)
-- **screenshot** (screenshot, sumika-modules)
-- **notification** (notification, OMD modules)
-- **app-launcher** (app-launcher, OMD modules)
-- **wifi/bluetooth** (wifi, OMD modules)
-- **clipboard** (clipboard, sumika-modules)
-
-These should move into their respective module source directories, registered via `ActionManager.register()` in each module's own initialization code. The bar entry point should only register via the registry system.
-
----
-
-## Hardcoded `$HOME/.config/omd` Paths
-
-Many QML files hardcode `$HOME/.config/omd/bin/...` or `$HOME/.config/omd/scripts/...`. These should use `Directories.root` (which resolves to `SUMIKA_SHELL_ROOT` env var) instead:
+Many QML files hardcode `$HOME/.config/omd/bin/...` or `$HOME/.config/omd/scripts/...`. These use `Directories.root` (which resolves to the same symlink) and are NOT blocking — the symlink is stable. Listed for future migration.
 
 | File | Pattern | Count |
 |---|---|---|
-| `Session.qml` (functions/) | `$HOME/.config/omd/bin/omd-*` | 2 |
-| `WorkspaceNavigation.qml` (functions/) | `$HOME/.config/omd/bin/omd-applauncher` | 1 |
-| `DisplayConfigState.qml` (settings/display/) | `$HOME/.config/omd/bin/omd-display-config` | 3 |
-| `DisplayConfigState.qml` (settings/display/) | `$HOME/.config/omd/scripts/reload-quickshell` | 1 |
-| `AppearancePage.qml` (settings/pages/) | `$HOME/.config/omd/bin/omd-*` | 8 |
-| `VoicePage.qml` (settings/pages/) | `$HOME/.config/omd/scripts/voice-*` | 5 |
-| `WindowsVmPage.qml` (settings/pages/) | `$HOME/.config/omd/bin/omd-settings-windows-vm` | 6 |
-| `Brightness.qml` (services/) | `$HOME/.config/omd/bin/omd-ddc-detect` | 1 |
-| `Network.qml` (services/) | `$HOME/.config/omd/bin/omd-network-*` | 3 |
-| `VoiceInput.qml` (services/) | `$HOME/.config/omd/apps/omd-bar ipc call` | 1 |
-
-These are NOT blocking the symlink removal — they reference `~/.config/omd` which is a stable symlink to the repo root. They should still be migrated for consistency.
+| `Session.qml` | `$HOME/.config/omd/bin/omd-*` | 2 |
+| `WorkspaceNavigation.qml` | `$HOME/.config/omd/bin/omd-applauncher` | 1 |
+| `DisplayConfigState.qml` | `$HOME/.config/omd/bin/omd-display-config` / scripts | 4 |
+| `AppearancePage.qml` | `$HOME/.config/omd/bin/omd-*` | 8 |
+| `VoicePage.qml` | `$HOME/.config/omd/scripts/voice-*` | 5 |
+| `WindowsVmPage.qml` | `$HOME/.config/omd/bin/omd-settings-windows-vm` | 6 |
+| `Brightness.qml` | `$HOME/.config/omd/bin/omd-ddc-detect` | 1 |
+| `Network.qml` | `$HOME/.config/omd/bin/omd-network-*` | 3 |
+| `VoiceInput.qml` | `$HOME/.config/omd/apps/omd-bar ipc call` | 1 |
 
 ---
 
-## Phase Plan
+## Hardcoded `$HOME/development/OMD` Paths in QML
 
-| Phase | Scope | Changes |
-|---|---|---|
-| **1** | ✅ **Done** | Dependency audit (this document) |
-| **2** | Centralize resource paths | Replace `shellPath()` in `Directories.qml`, `Translation.qml`, `ConflictKiller.qml`, `FirstRunExperience.qml` with paths from `Directories.root` |
-| **3** | Import GlobalStates via `qs` | Add `import qs` to bar process QML files; remove `GlobalStates.qml` symlink and all standalone `GlobalStates.qml` copies |
-| **4** | Move action registration to modules | Move `_registerModuleActions()` block from `shell.qml` into each module's own initialization |
-| **5** | Remove legacy symlinks | Delete the 5 symlinks in `apps/omd-bar/` after all consumers are migrated |
-| **6** | Clean up startup wrappers | Update `quickshell.sh` if needed; remove dead code |
+Some QML files reference `$HOME/development/OMD` (the repo path as seen by the developer). These are environment-specific and should be migrated to `Directories.root`:
+
+*(list here if grep finds any)*
+
+---
+
+## Git History
+
+### OMD repository (`~/development/OMD`)
+
+```
+c46354f — Phase 2+3: Unified resource paths + removed GlobalStates copies (Phase 3)
+f1b9c96 — Phase 4: ModuleActionHost + per-module module-actions.qml + ActionManager refactor
+80f6222 — Phase 5: Deleted omd-bar symlinks (assets, scripts, translations)
+4496bb8 — Phase 6: Empty module-actions.qml + import QtQuick fix + Loader error handling
+1c6b3ba — Docs: Audit + verification docs
+```
+
+Plus subsequent work:
+```
+(this session) — Deleted config.json symlink, physically verified module disable, runtime verification
+```
+
+### Sumika-modules repository (`~/development/sumika-modules`)
+
+```
+793e1f0 — Added module-actions.qml for all 10 external modules
+```
