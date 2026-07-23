@@ -19,7 +19,7 @@ Singleton {
     property bool isScanning: scanLanguagesProcess.running
     property bool isLoading: false
     property string translationKeepSuffix: "/*keep*/"
-    property string translationsDir: Quickshell.shellPath("translations")
+    property string translationsDir: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/translations`)
     property string generatedTranslationsDir: Directories.shellConfig + "/translations"
 
     property string languageCode: {

@@ -11,7 +11,7 @@ Singleton {
     property string firstRunFileContent: "This file is just here to confirm you've been greeted :>"
     property string firstRunNotifSummary: "Welcome!"
     property string firstRunNotifBody: "Hit Super+/ for a list of keybinds"
-    property string welcomeQmlPath: FileUtils.trimFileProtocol(Quickshell.shellPath("welcome.qml"))
+    property string welcomeQmlPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/welcome.qml`)
 
     function load() {
         firstRunFileView.reload()

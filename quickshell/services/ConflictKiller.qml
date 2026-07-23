@@ -9,7 +9,7 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    property string killDialogQmlPath: FileUtils.trimFileProtocol(Quickshell.shellPath("killDialog.qml"))
+    property string killDialogQmlPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/killDialog.qml`)
 
     function load() {
         // dummy to force init
