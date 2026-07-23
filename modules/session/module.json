@@ -21,6 +21,10 @@
         "type": "session",
         "component": "popup/SessionPopup.qml"
       }
+    ],
+    "overlays": [
+      {"id": "session-confirm", "name": "Session Confirm", "priority": 10, "component": "bar/SessionConfirmOverlay.qml"},
+      {"id": "session-restore", "name": "Session Restore", "priority": 10, "component": "bar/SessionAutoRestore.qml"}
     ]
   }
 }

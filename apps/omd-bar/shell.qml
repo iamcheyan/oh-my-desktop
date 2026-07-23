@@ -74,7 +74,6 @@ ShellRoot {
 
     Component.onCompleted: {
         ActionManager._registerBuiltins()
-        Hyprsunset.load()
     }
 
     // Create top-level windows immediately. Gating this scope on Config.ready
@@ -85,8 +84,6 @@ ShellRoot {
         BarDismissLayer {}
         ModuleActionHost {}
         BarStatusPopup {}
-        SessionConfirmOverlay {}
-        SessionAutoRestore {}
     }
 
     // Dynamic overlays loaded from module registry.

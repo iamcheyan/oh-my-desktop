@@ -30,6 +30,9 @@
         "icon": "desktop_windows",
         "order": 30
       }
+    ],
+    "overlays": [
+      {"id": "hyprsunset", "name": "Hyprsunset", "priority": 10, "component": "HyprsunsetOverlay.qml"}
     ]
   }
 }

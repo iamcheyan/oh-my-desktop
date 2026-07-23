@@ -47,11 +47,39 @@
             "$ref": "#/$defs/actionContribution"
           }
         },
+        "overlays": {
+          "type": "array",
+          "description": "Overlay contributions that render on top of the bar or shell",
+          "items": {
+            "$ref": "#/$defs/overlayContribution"
+          }
+        },
         "overviewProviders": {
           "type": "array",
           "description": "Overview/workspace view provider contributions",
           "items": {
             "$ref": "#/$defs/overviewProviderContribution"
+          }
+        },
+        "popupSections": {
+          "type": "array",
+          "description": "Popup section contributions for the bar's status popup",
+          "items": {
+            "$ref": "#/$defs/popupSectionContribution"
+          }
+        },
+        "services": {
+          "type": "array",
+          "description": "Service contributions — array of service IDs this module provides",
+          "items": {
+            "$ref": "#/$defs/serviceContribution"
+          }
+        },
+        "settingsPages": {
+          "type": "array",
+          "description": "Settings page contributions for the settings dialog",
+          "items": {
+            "$ref": "#/$defs/settingsPageContribution"
           }
         }
       },
@@ -131,6 +159,101 @@
         "component": {
           "type": "string",
           "description": "Relative path to the QML overview component"
+        },
+        "order": {
+          "type": "integer",
+          "description": "Display order priority (lower = first)",
+          "minimum": 0
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Owning module ID"
+        }
+      }
+    },
+    "overlayContribution": {
+      "type": "object",
+      "required": ["id", "component", "moduleId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique overlay identifier within the module namespace"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable overlay name"
+        },
+        "priority": {
+          "type": "integer",
+          "description": "Z-order priority (higher = drawn on top)",
+          "minimum": 0,
+          "default": 100
+        },
+        "order": {
+          "type": "integer",
+          "description": "Load sort order (lower = loaded first)",
+          "minimum": 0,
+          "default": 100
+        },
+        "component": {
+          "type": "string",
+          "description": "Relative path (manifest) or file:// URL (registry) to the QML overlay component"
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Owning module ID"
+        }
+      }
+    },
+    "popupSectionContribution": {
+      "type": "object",
+      "required": ["type", "component", "moduleId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique popup section identifier within the module namespace"
+        },
+        "type": {
+          "type": "string",
+          "description": "Popup section type key used for singleton deduplication (e.g. 'battery', 'audio')"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name for the popup section"
+        },
+        "component": {
+          "type": "string",
+          "description": "Relative path (manifest) or file:// URL (registry) to the QML popup component"
+        },
+        "moduleId": {
+          "type": "string",
+          "description": "Owning module ID"
+        }
+      }
+    },
+    "serviceContribution": {
+      "type": "string",
+      "description": "Service ID string (e.g. 'battery', 'mpris-controller'). Services are registered with ServiceManager at runtime."
+    },
+    "settingsPageContribution": {
+      "type": "object",
+      "required": ["id", "title", "component", "moduleId"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique settings page identifier within the module namespace"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable title for the settings page"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Material Design icon name for the settings page entry"
+        },
+        "component": {
+          "type": "string",
+          "description": "Relative path (manifest) or file:// URL (registry) to the QML settings page component"
         },
         "order": {
           "type": "integer",
