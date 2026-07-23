@@ -7,7 +7,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import qs.modules.popup-components
+import qs.modules.popupComponents
 
 PopupColumn {
     readonly property var im: QsServices.InputMethod

@@ -7,7 +7,7 @@ import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import qs.modules.popup-components
+import qs.modules.popupComponents
 
 PopupColumn {
     id: displayPanel

@@ -10,7 +10,7 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
-import qs.modules.popup-components
+import qs.modules.popupComponents
 
 PopupColumn {
     id: sessionPanel

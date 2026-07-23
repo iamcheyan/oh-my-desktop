@@ -9,7 +9,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
-import qs.modules.popup-components
+import qs.modules.popupComponents
 
 PopupColumn {
     id: batteryStack
