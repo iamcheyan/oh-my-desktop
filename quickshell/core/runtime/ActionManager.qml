@@ -206,6 +206,23 @@ Singleton {
                                 h.command, h.options || {})
                         }
                         ps.start(h.instanceId)
+
+                        // Timeout enforcement: if action has a timeout, kill the
+                        // process after that many seconds if still running.
+                        if (a.timeout && a.timeout > 0) {
+                            var _timeoutId = a.id
+                            var _timeoutTimer = Qt.createQmlObject("import QtQuick; Timer {}", manager)
+                            _timeoutTimer.interval = a.timeout * 1000
+                            _timeoutTimer.onTriggered = function() {
+                                var curState = ps.getState(h.instanceId)
+                                if (curState === 1 || curState === 2) { // starting or ready
+                                    console.warn("[ActionManager] timeout (" + a.timeout + "s) for '" + _timeoutId + "', stopping instance '" + h.instanceId + "'")
+                                    ps.stop(h.instanceId)
+                                }
+                                _timeoutTimer.destroy()
+                            }
+                            _timeoutTimer.start()
+                        }
                     }
                     break
 
@@ -304,7 +321,7 @@ Singleton {
         // Shell actions
         this.register("shell.reload", "core", "Reload shell", {
             type: "process",
-            command: ["bash", Quickshell.env("OMD_REPO_ROOT") + "/scripts/reload-quickshell"]
+            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-restart", "omd-bar"]
         }, {description: "Reload the Quickshell UI"})
 
         // Settings
@@ -318,6 +335,34 @@ Singleton {
             type: "process",
             command: ["qs", "-p", Quickshell.env("OMD_REPO_ROOT") + "/modules/overview", "ipc", "call", "overview", "toggle"]
         }, {description: "Open or close the overview/workspace view"})
+
+        // ProcessSupervisor management
+        this.register("process_supervisor.cancel", "core", "Cancel supervised process", {
+            type: "qml",
+            call: function(params) {
+                var p = params || {}
+                var id = p.instanceId || p.id || ""
+                if (!id) return {success: false, error: "missing_instanceId"}
+                if (typeof ProcessSupervisor === "undefined" || !ProcessSupervisor)
+                    return {success: false, error: "no_supervisor"}
+                ProcessSupervisor.stop(id)
+                return {success: true}
+            }
+        }, {description: "Stop a running supervised process by instanceId"})
+
+        this.register("process_supervisor.status", "core", "Process supervisor status", {
+            type: "qml",
+            call: function(params) {
+                if (typeof ProcessSupervisor === "undefined" || !ProcessSupervisor)
+                    return {success: false, error: "no_supervisor"}
+                var p = params || {}
+                var id = p.instanceId || ""
+                if (id) {
+                    return ProcessSupervisor.query(id) || {error: "not_found"}
+                }
+                return {processes: ProcessSupervisor.listProcesses()}
+            }
+        }, {description: "Query process supervisor state for an instance or list all"})
 
         // Clipboard — managed via ProcessSupervisor for lifecycle tracking
         // Resolve path from external module (clipboard lives in sumika-modules, not OMD repo)

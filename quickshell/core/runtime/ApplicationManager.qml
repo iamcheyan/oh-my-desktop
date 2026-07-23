@@ -36,7 +36,7 @@ Singleton {
         console.log("[ApplicationManager] initializing from ModuleLoader manifest...")
 
         // Access the module registry via ModuleLoader
-        const registry = ModuleLoader.registry
+        const registry = ModuleLoader._registry
         if (!registry || !registry.modules) {
             console.warn("[ApplicationManager] ModuleLoader registry not ready yet")
             retryTimer.start()
@@ -51,7 +51,7 @@ Singleton {
         interval: 500
         repeat: true
         onTriggered: {
-            const registry = ModuleLoader.registry
+            const registry = ModuleLoader._registry
             if (registry && registry.modules) {
                 stop()
                 _processRegistry(registry)
