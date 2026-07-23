@@ -1,10 +1,10 @@
 pragma Singleton
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.core.runtime
-
-pragma ComponentBehavior: Bound
+import qs
 
 /// Central action registry for Sumika Shell.
 ///
@@ -354,6 +354,28 @@ Singleton {
             type: "process",
             command: ["qs", "-p", Quickshell.env("OMD_REPO_ROOT") + "/modules/overview", "ipc", "call", "overview", "toggle"]
         }, {description: "Open or close the overview/workspace view"})
+
+        // Bar visibility (replaces direct qs -p ipc call bar toggle from Hyprland)
+        this.register("bar.toggle", "core", "Toggle bar visibility", {
+            type: "qml",
+            call: function() { GlobalStates.barOpen = !GlobalStates.barOpen }
+        }, {description: "Show or hide the top bar"})
+
+        this.register("bar.close", "core", "Close bar", {
+            type: "qml",
+            call: function() { GlobalStates.barOpen = false }
+        }, {description: "Hide the top bar"})
+
+        this.register("bar.open", "core", "Open bar", {
+            type: "qml",
+            call: function() { GlobalStates.barOpen = true }
+        }, {description: "Show the top bar"})
+
+        // Menus close (replaces direct qs -p ipc call menus close from Hyprland)
+        this.register("menus.close", "core", "Close active bar menus", {
+            type: "qml",
+            call: function() { if (GlobalStates.barPopupType !== "") GlobalStates.barPopupType = "" }
+        }, {description: "Close any open popup menus in the bar"})
 
         // ProcessSupervisor management
         this.register("process_supervisor.cancel", "core", "Cancel supervised process", {

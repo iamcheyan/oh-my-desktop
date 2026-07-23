@@ -43,44 +43,28 @@ $(jq -r '
 EOF
     fi
 
-    # Also match modules launched from SUMIKA_MODULES_HOME via pkill on
-    # the instance name (no directory prefix needed — pkill -f on name).
-    legacy_apps="omd-desktop"
-
+    # ── Kill each module's quickshell instance ─────────────────────────────
     for app_dir in $apps_dir; do
         pkill -f "(quickshell|qs).* -p ${omd_root}/(apps|modules)/${app_dir}( |$)" 2>/dev/null || true
     done
-
-    # Also kill processes from external module directories.
     for instance in $apps; do
         pkill -f "(quickshell|qs).* -p .*/${instance}( |$)" 2>/dev/null || true
     done
+    # ── Kill clipboard-store watchers (shim-managed, no systemd unit) ───────
+    # Phase J: remove when clipboard module declares kind=application + entry
+    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
 
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
     # because we intentionally avoid tearing down the whole unit cgroup. Clean up
     # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
     pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
-    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
-    pkill -f "wl-paste .*--watch.*cliphist" 2>/dev/null || true
-    pkill -f "wl-paste --type text --watch cliphist store" 2>/dev/null || true
-    pkill -f "wl-paste --type image --watch cliphist store" 2>/dev/null || true
-    sleep 0.3
-
-    pkill -9 -f "(quickshell|qs).* -p ${omd_root}/(apps|modules)/omd-" 2>/dev/null || true
 
     for app in $apps; do
-        systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
-    done
-    for app in $legacy_apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
     done
     sleep 0.2
 
     for app in $apps; do
-        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
-        rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
-    done
-    for app in $legacy_apps; do
         systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
         rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
     done

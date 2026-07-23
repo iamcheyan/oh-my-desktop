@@ -47,7 +47,7 @@ o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = tru
 o.bind("SUPER + SPACE", "Next input language", paths.omd_root .. "/bin/omd-action input-method.cycle")
 o.bind("SUPER + SHIFT + SPACE", "Previous input language", paths.omd_root .. "/bin/omd-action input-method.cycle -- -1")
 hl.unbind("SUPER + CTRL + SPACE")
-o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", "qs -p " .. paths.omd_root .. "/apps/omd-bar ipc call bar toggle")
+o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", paths.omd_root .. "/bin/omd-action bar.toggle")
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
@@ -64,7 +64,7 @@ hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
 -- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
-hl.bind("ESCAPE", hl.dsp.exec_cmd('qs -p "' .. paths.omd_root .. '/apps/omd-bar" ipc call menus close 2>/dev/null'), {
+hl.bind("ESCAPE", hl.dsp.exec_cmd(paths.omd_root .. '/bin/omd-action menus.close 2>/dev/null'), {
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
 })
 

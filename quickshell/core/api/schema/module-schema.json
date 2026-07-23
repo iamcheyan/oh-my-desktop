@@ -33,8 +33,49 @@
       "description": "SPDX license identifier (e.g. 'MIT', 'GPL-3.0-only')"
     },
     "entry": {
+      "oneOf": [
+        { "type": "null", "description": "No entry point (shared/overlay modules)" },
+        {
+          "type": "object",
+          "description": "Application entry point for ProcessSupervisor registration",
+          "required": ["command", "instance"],
+          "properties": {
+            "command": {
+              "type": "array",
+              "description": "Command argv to execute (${OMD_ROOT} is resolved at runtime)",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "instance": {
+              "type": "string",
+              "description": "Unique instance name for ProcessSupervisor tracking"
+            },
+            "readyTimeout": {
+              "type": "integer",
+              "description": "Seconds before module is considered ready",
+              "minimum": 1
+            },
+            "appId": {
+              "type": "string",
+              "description": "Hyprland app-id matching rule (e.g. org.omd.settings)"
+            }
+          }
+        }
+      ]
+    },
+    "kind": {
       "type": "string",
-      "description": "Entry point QML file path relative to the module root"
+      "description": "Module runtime kind",
+      "enum": ["shared", "application", "overlay"]
+    },
+    "actionsProvider": {
+      "type": "string",
+      "description": "Relative path to a QML file that registers module actions via ModuleActionHost (e.g. 'module-actions.qml')"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "description": "Schema version for migration handling (2 = current)",
+      "minimum": 1
     },
     "apiVersion": {
       "type": "string",
