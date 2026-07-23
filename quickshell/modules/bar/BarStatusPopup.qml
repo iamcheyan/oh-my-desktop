@@ -240,9 +240,12 @@ Scope {
                             model: ModuleLoader.popupSections
                             delegate: Loader {
                                 required property var modelData
-                                active: root.activeType === modelData.type
-                                source: active ? modelData.component : ""
+                                readonly property bool isCurrent: root.activeType === modelData.type
+                                active: isCurrent
+                                visible: isCurrent
+                                source: isCurrent ? modelData.component : ""
                                 Layout.fillWidth: true
+                                Layout.preferredHeight: isCurrent ? -1 : 0
                                 Layout.alignment: Qt.AlignTop
                                 onStatusChanged: if (status === Loader.Error) {
                                     console.warn("[Module] Popup section load failed:", modelData.component)
