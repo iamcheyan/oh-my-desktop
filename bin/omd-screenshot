@@ -197,7 +197,7 @@ if is_running; then
     kill_running
     wait_until_not_running
     rm -f /tmp/omd-screenshot-active
-    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call screenshot end >/dev/null 2>&1 || true
+    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call action call screenshot.unfreeze >/dev/null 2>&1 || true
     # Explicit cancel request: do not relaunch.
     if [ "$toggle_mode" -eq 1 ] || [ "${1:-}" = "toggle" ]; then
         exec 9>&-
@@ -271,7 +271,7 @@ launch_direct() {
     # QS process via OMD_SNAPSHOT_DIR; RegionSelection.qml skips its own
     # grim call and loads the pre-captured images directly.
     touch /tmp/omd-screenshot-active
-    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call screenshot begin > /dev/null 2>&1 || true
+    "${OMD_QS_BIN:-qs}" -p "$OMD_ROOT/apps/omd-bar" ipc call action call screenshot.freeze > /dev/null 2>&1 || true
 
     snapshot_dir="/tmp/quickshell/media/screenshot"
     mkdir -p "$snapshot_dir"

@@ -16,8 +16,4 @@ Item {
             command: [omdRoot + "/bin/omd-launch-wifi"]
         }, {description: "Open the WiFi TUI"})
     }
-
-    Component.onDestruction: {
-        ActionManager.unregisterOwner("wifi")
-    }
 }

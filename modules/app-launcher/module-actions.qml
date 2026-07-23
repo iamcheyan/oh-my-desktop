@@ -16,8 +16,4 @@ Item {
             command: [omdRoot + "/bin/omd-applauncher"]
         }, {description: "Open or close the application launcher"})
     }
-
-    Component.onDestruction: {
-        ActionManager.unregisterOwner("app-launcher")
-    }
 }

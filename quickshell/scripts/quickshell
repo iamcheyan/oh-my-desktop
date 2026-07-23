@@ -170,7 +170,7 @@ merge_manifest() {
         --slurpfile mod "$manifest" \
         --arg mdir "$mod_dir" \
         --arg mid "$id" \
-        '.modules += [{"id": $mid, "path": $mdir, "kind": ($mod[0].kind // ""), "entry": ($mod[0].entry // null)}] |
+        '.modules += [{"id": $mid, "path": $mdir, "kind": ($mod[0].kind // ""), "entry": ($mod[0].entry // null), "actionsProvider": ($mod[0].actionsProvider // null)}] |
          .contributes.widgets += (
            ($mod[0].contributes.widgets // $mod[0].capabilities.barButtons // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}

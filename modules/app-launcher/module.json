@@ -3,6 +3,7 @@
   "id": "app-launcher",
   "name": "App Launcher",
   "version": "2.0.0",
+  "actionsProvider": "module-actions.qml",
   "kind": "shared",
   "contributes": {
     "widgets": [

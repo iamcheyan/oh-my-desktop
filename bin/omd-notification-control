@@ -6,13 +6,13 @@ app_dir="$_omd_root/apps/omd-bar"
 
 case "${1:-}" in
     dismiss-last)
-        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications dismissLast >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call action call notification.dismiss-last >/dev/null 2>&1 || true
         ;;
     dismiss-all)
-        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications dismissAll >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call action call notification.dismiss-all >/dev/null 2>&1 || true
         ;;
     toggle-silent)
-        "$OMD_QS_BIN" -p "$app_dir" ipc call notifications toggleSilent >/dev/null 2>&1 || true
+        "$OMD_QS_BIN" -p "$app_dir" ipc call action call notification.toggle-silent >/dev/null 2>&1 || true
         ;;
     *)
         echo "usage: omd-notification-control dismiss-last|dismiss-all|toggle-silent" >&2

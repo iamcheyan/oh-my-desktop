@@ -25,8 +25,4 @@ Item {
         }, {description: "Switch to the next or previous input method schema",
             paramsSchema: {type: "object", properties: {direction: {type: "integer"}}}})
     }
-
-    Component.onDestruction: {
-        ActionManager.unregisterOwner("input-method")
-    }
 }

@@ -32,64 +32,6 @@ ShellRoot {
         }
     }
 
-    // Screenshot coordination: the standalone omd-screenshot process calls
-    // these to freeze bar overlays *before* grim runs, so popups/menus are
-    // preserved in the captured image. Without this, HyprlandFocusGrab fires
-    // the moment the screenshot process creates its layer-shell surface and
-    // dismisses the live popup before grim can capture it.
-    //
-    // All methods now delegate through ActionManager for module-enabled checks.
-    IpcHandler {
-        target: "screenshot"
-
-        function begin(): void {
-            ActionManager.invoke("screenshot.freeze")
-        }
-
-        function end(): void {
-            ActionManager.invoke("screenshot.unfreeze")
-        }
-    }
-
-    IpcHandler {
-        target: "voice"
-
-        function toggle(): void {
-            ActionManager.invoke("voice.toggle")
-        }
-
-        function cancel(): void {
-            ActionManager.invoke("voice.cancel")
-        }
-    }
-
-    IpcHandler {
-        target: "inputMethod"
-
-        function cycle(direction: int): void {
-            ActionManager.invoke("input-method.cycle", {direction})
-        }
-    }
-
-    IpcHandler {
-        target: "notifications"
-
-        function dismissLast(): void {
-            ActionManager.invoke("notification.dismiss-last")
-        }
-
-        function dismissAll(): void {
-            ActionManager.invoke("notification.dismiss-all")
-        }
-
-        function toggleSilent(): void {
-            ActionManager.invoke("notification.toggle-silent")
-        }
-
-        function editMuted(): void {
-            ActionManager.invoke("notification.edit-muted")
-        }
-    }
 
     // Session actions requested by independent Quickshell processes (for
     // example the Overview command palette) reuse the bar's confirmation UI.

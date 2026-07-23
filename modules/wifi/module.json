@@ -3,6 +3,7 @@
   "id": "wifi",
   "name": "WiFi",
   "version": "2.0.0",
+  "actionsProvider": "module-actions.qml",
   "kind": "shared",
   "contributes": {
     "widgets": [

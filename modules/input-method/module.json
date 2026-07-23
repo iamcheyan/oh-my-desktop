@@ -4,6 +4,7 @@
   "name": "输入法与语音",
   "version": "2.0.0",
   "kind": "shared",
+  "actionsProvider": "module-actions.qml",
   "description": "Fcitx5 输入法与 SenseVoice 语音输入管理",
   "contributes": {
     "widgets": [

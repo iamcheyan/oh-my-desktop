@@ -30,8 +30,4 @@ Item {
             call: function(p) { Svcs.Notifications.openMutedAppsEditor() }
         }, {description: "Open muted applications editor"})
     }
-
-    Component.onDestruction: {
-        ActionManager.unregisterOwner("notification")
-    }
 }

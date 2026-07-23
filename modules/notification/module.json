@@ -4,6 +4,7 @@
   "name": "Notification Popup",
   "description": "Notification popup manager and history viewer",
   "version": "2.0.0",
+  "actionsProvider": "module-actions.qml",
   "kind": "application",
   "entry": {
     "command": ["${OMD_ROOT}/bin/omd-notification"],
