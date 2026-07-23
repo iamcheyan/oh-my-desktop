@@ -43,13 +43,13 @@ $(jq -r '
 EOF
     fi
 
-    # ── Kill each module's quickshell instance ─────────────────────────────
-    for app_dir in $apps_dir; do
-        pkill -f "(quickshell|qs).* -p ${omd_root}/(apps|modules)/${app_dir}( |$)" 2>/dev/null || true
-    done
-    for instance in $apps; do
-        pkill -f "(quickshell|qs).* -p .*/${instance}( |$)" 2>/dev/null || true
-    done
+    # ── Compatibility shim: clipboard-store ──────────────────────────────
+    # Clipboard module (sumika-modules/clipboard/) is kind:shared with no entry
+    # block, so it's not discovered by the registry loop above.  The store
+    # process is started by bin/omd-restart's compatibility shim and creates
+    # a systemd unit named omd-clipboard-store.  Kill it here until the module
+    # declares kind=application + entry (Phase J).
+    apps="$apps omd-clipboard-store"
     # ── Kill clipboard-store watchers (shim-managed, no systemd unit) ───────
     # Phase J: remove when clipboard module declares kind=application + entry
     pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true

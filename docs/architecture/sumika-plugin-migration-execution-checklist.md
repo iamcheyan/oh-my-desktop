@@ -156,9 +156,11 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 - ✅ `quickshell/modules/bar/SessionConfirmOverlay.qml`, `SessionAutoRestore.qml`, `SessionRestoreOverlay.qml` deleted — dead copies (session module has own copies in `modules/session/bar/`)
 - ✅ Bar qmldir entries for Session* types removed
 - ✅ All `quickshell/modules/` dirs confirmed alive (bar, common, notificationPopup, onScreenDisplay, overview, polkit, settings — all have active consumers via `import qs.modules.*`)
+- ✅ BarStatusPopup.qml: dead `saveSessionSnapshot()` code block removed (never called); orphaned `Quickshell.Io` import removed; dead `import qs.services` imports removed from VolumeIndicator.qml and NotificationAppIcon.qml
 
 **Phase H – Lifecycle deplugin (completed 2026-07-24)**:
 - ✅ `scripts/omd-quickshell-stop.sh` cleaned: removed `legacy_apps="omd-desktop"` (dead service), deduplicated pkill patterns, consolidated clipboard watcher kill to single pattern with Phase J comment
+- ✅ `scripts/omd-quickshell-stop.sh` extended: clipboard-store added to `apps` list for systemd unit kill (secondary to pkill watcher kill), ensuring clean process teardown on restart
 - ✅ `bin/omd-restart` clipboard shim comment updated with clear removal condition
 - ✅ Registry-driven `kind=application` + `entry` discovery already in place for both scripts
 
@@ -1070,8 +1072,7 @@ Lifecycle scripts are registry-driven | PASS | omd-restart and omd-quickshell-st
 Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersion added to schema; type fixes applied
 Bar is pure Core host | PASS | apps/omd-bar/shell.qml: IPC bridges only (menus, session confirm, action compat); Bar.qml: layershell window positioning only; no module-private functionality
 No bar-private module functionality | PASS | Dead imports (Pipewire, Bluetooth) removed from BarStatusPopup; all popup sections loaded via ModuleLoader
-Module ownership boundaries clean | PASS | All 16 OMD module manifests verified: kind/entry/contributes consistent; singleton popup dedup at ModuleLoader level; no hidden service overlaps
-Zero direct Quickshell.Services.* refs in consumer code | PASS | Only `import Quickshell.Services.Notifications` in NotificationAppIcon.qml — type-only for NotificationUrgency enum
+**Zero direct Quickshell.Services.* refs in consumer code | PASS** | Only VolumeIndicator.qml (Pipewire.defaultAudioSink — known compat layer, needs Audio service bridge) and NotificationAppIcon.qml (Notifications.NotificationUrgency — type-only enum import). Dead `import qs.services` removed from both files. Dead `saveSessionSnapshot()` code block removed from BarStatusPopup.qml (dead code, never called).
 Overview empty-provider readiness | PASS | ModuleLoader.overviewProviders returns [] when empty; Overview is standalone application with built-in search
 Settings ProcessSupervisor singleton | PASS | settings is `kind: application` with entry; ProcessSupervisor manages it as subprocess; manifest v2 valid
 Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 compat (warnings only)
@@ -1087,11 +1088,11 @@ Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 com
 - `trustedInProcess` (boolean, default false) added to module-schema.json and share/schemas/sumika-module-v2.schema.json
 - Validator updated to validate trustedInProcess field type
 - No remaining Services.Audio/Notifications/HyprlandData/MprisController/Battery/PowerProfiles/Network refs in consumer code
-
 ### Remaining items (scope-deferred)
 - GUI verification (cold start, reload, disable, crash loop) — requires graphical session (UNTESTED_GUI)
 - Remove clipboard shim from omd-restart (lines 89-99) + omd-quickshell-stop.sh (lines 53-55) — blocked on external clipboard module declaring `kind=application` + `entry`
 - Remove v1 compat fallbacks in quickshell/scripts/quickshell (lines 175, 180, 185, 190) — blocked on 4 external v1 modules migrating to v2
 - `trustedInProcess` enforcement in ModuleLoader — forward-looking, no third-party modules currently
+- Install Audio service bridge for OSD VolumeIndicator Pipewire consumption — VolumeIndicator.qml reads `Pipewire.defaultAudioSink` directly; needs service bridge for module-isolated consumption
 
 ### §12 completion: **PASS** (architecture complete; remaining items are execution verification or external preconditions)

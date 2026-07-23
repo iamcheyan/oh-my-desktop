@@ -3,23 +3,18 @@ import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
-import qs.services
 import qs.core.runtime
-import qs.services as Services
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Io
 import Quickshell.Wayland
 import qs.modules.bar
 
 Scope {
     id: root
 
-    readonly property string omdSessionCommand: `${FileUtils.trimFileProtocol(Directories.config)}/omd/bin/omd-session`
-    property string sessionSaveOutput: ""
     readonly property string activeType: GlobalStates.barPopupType || ""
     readonly property bool open: activeType.length > 0 && !GlobalStates.screenLocked
     readonly property var focusedScreen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
@@ -46,64 +41,6 @@ Scope {
         ActionManager.invoke("settings.open", {section: dialogType});
     }
 
-    function saveSessionSnapshot() {
-        if (sessionSaveProcess.running)
-            return;
-        root.sessionSaveOutput = "";
-        sessionSaveProcess.running = true;
-        root.close();
-    }
-
-    function sessionSaveNotification(data) {
-        const windows = data.count ?? 0;
-        const workspaces = data.workspaceCount ?? 0;
-        const monitors = data.monitorCount ?? 0;
-        const terminalSessions = data.terminalSessionCount ?? 0;
-        const summary = `Saved ${windows} window${windows === 1 ? "" : "s"} across ${workspaces} workspace${workspaces === 1 ? "" : "s"} on ${monitors} display${monitors === 1 ? "" : "s"}.`;
-        let details = "Includes app launch commands, workspace/display placement, window geometry and state, and focus.";
-        if (terminalSessions > 0)
-            details += ` Captured ${terminalSessions} restorable terminal session${terminalSessions === 1 ? "" : "s"}.`;
-        Quickshell.execDetached([
-            "notify-send", "-a", "OMD Session", "-i", "document-save",
-            "Session snapshot saved", `${summary}\n${details}`
-        ]);
-    }
-
-    Process {
-        id: sessionSaveProcess
-        command: [root.omdSessionCommand, "save"]
-
-        stdout: StdioCollector {
-            id: sessionSaveStdout
-            onStreamFinished: root.sessionSaveOutput = sessionSaveStdout.text.trim()
-        }
-
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
-                Quickshell.execDetached([
-                    "notify-send", "-u", "critical", "-a", "OMD Session",
-                    "Session snapshot failed", "The current workspace state could not be saved."
-                ]);
-                return;
-            }
-            try {
-                const data = JSON.parse(root.sessionSaveOutput);
-                if (data.saved) {
-                    root.sessionSaveNotification(data);
-                } else if (data.skipped && data.reason === "empty") {
-                    Quickshell.execDetached([
-                        "notify-send", "-a", "OMD Session", "Session snapshot unchanged",
-                        "No windows are open, so the last usable snapshot was kept."
-                    ]);
-                }
-            } catch (error) {
-                Quickshell.execDetached([
-                    "notify-send", "-u", "critical", "-a", "OMD Session",
-                    "Session snapshot failed", "The save command returned an unreadable result."
-                ]);
-            }
-        }
-    }
 
     IpcHandler {
         target: "barPopup"
