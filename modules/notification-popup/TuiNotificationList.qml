@@ -25,9 +25,9 @@ Item {
 
     readonly property int headerGap: showHeader ? 10 : 0
     readonly property int footerGap: showFooter ? 10 : 0
-    readonly property int listHeight: Math.max(112, Math.min(maxListHeight, listView.contentHeight))
+    readonly property int listHeight: Math.min(maxListHeight, listView.contentHeight)
 
-    implicitHeight: listHeight + headerGap + footerGap
+    implicitHeight: (Notifications.list.length === 0 && !Notifications.silent) ? 100 : (listHeight + headerGap + footerGap)
     implicitWidth: 360
 
     onVisibleChanged: {
