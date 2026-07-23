@@ -38,7 +38,8 @@ Item {
     readonly property var modelUnpinned: root.trayFiltered.unpinned
 
     readonly property int overflowItemCount: root.modelUnpinned.length
-    readonly property bool overflowMenuOpen: statusButtonLoader.active && statusButtonLoader.item?.toggled ?? false
+    readonly property bool overflowMenuOpen: statusButtonLoader.active
+        && (statusButtonLoader.item?.toggled ?? false)
 
     readonly property int trayIconCount: root.trayFiltered.pinned.length
 

@@ -14,14 +14,14 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.UPower
 
-// ── Power & Battery popup content — inlined ShellCard chrome ──────
+// Power & Battery popup content. BarStatusPopup owns the outer shell.
 Item {
     id: batteryStack
     default property alias content: cardColumn.data
     property int padding: 14
-    property int gap: Appearance.sizes.elevationMargin
-    property int gapTop: gap
-    property int gapBottom: gap
+    property int gap: 0
+    property int gapTop: 0
+    property int gapBottom: 0
 
     Layout.fillWidth: true
     implicitWidth: parent?.width ?? 0
@@ -133,23 +133,15 @@ Item {
         }
     }
 
-    // ── Shell card chrome ────────────────────────────────────────
-    StyledRectangularShadow {
-        target: cardBg
-        visible: batteryStack.visible
-    }
-
+    // Transparent content host. Popup chrome is centralized in BarStatusPopup.
     Rectangle {
         id: cardBg
         anchors {
             left: parent.left; right: parent.right; top: parent.top
-            leftMargin: batteryStack.gap; rightMargin: batteryStack.gap
-            topMargin: batteryStack.gapTop; bottomMargin: batteryStack.gapBottom
         }
-        color: TuiStyle.bg
-        radius: TuiStyle.shellRadius
-        border.width: TuiStyle.borderWidth
-        border.color: TuiStyle.menuBorder
+        color: "transparent"
+        radius: 0
+        border.width: 0
         clip: true
         implicitHeight: cardColumn.implicitHeight + padding * 2
         height: implicitHeight
@@ -223,14 +215,14 @@ Item {
 
             // ── Power Profile ───────────────────────────────────────
             SectionLabel {
-                visible: PowerProfiles.available
+                visible: PowerProfiles.available ?? false
                 text: "POWER PROFILE"
                 topInset: Battery.available ? 4 : 0
             }
 
             Item {
                 Layout.fillWidth: true
-                visible: PowerProfiles.available
+                visible: PowerProfiles.available ?? false
                 implicitHeight: profileList.implicitHeight
 
                 ColumnLayout {

@@ -134,6 +134,11 @@ PopupWindow {
         }
     }
 
+    Component {
+        id: handlePage
+        SubMenu {}
+    }
+
     component SubMenu: ColumnLayout {
         id: submenu
         required property QsMenuHandle handle
@@ -306,6 +311,5 @@ PopupWindow {
                 }
             }
         }
-        component handlePage: SubMenu {}
     }
 }
