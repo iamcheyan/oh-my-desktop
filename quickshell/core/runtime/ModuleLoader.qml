@@ -82,13 +82,22 @@ Singleton {
      */
     readonly property var popupSections: {
         if (!modulesEnabled) return []
-        var coreTypes = {wifi:1, bluetooth:1, audio:1, display:1, battery:1, notifications:1, voice:1, inputMethod:1, keyboard:1, session:1, xkb:1, tools:1}
         const sections = _contributes("popupSections")
+        const singletonTypes = {battery: 1, inputMethod: 1, keyboard: 1, voice: 1}
+        const seenSingletonTypes = {}
         return sections.filter(s => {
             if (!isEnabled(s.moduleId)) return false
             if (!s.type || typeof s.type !== 'string') {
                 console.warn("[ModuleLoader] popupSection missing type:", JSON.stringify(s))
                 return false
+            }
+            if (singletonTypes[s.type]) {
+                if (seenSingletonTypes[s.type]) {
+                    console.warn("[ModuleLoader] ignoring duplicate singleton popup type:",
+                                 s.type, "from", s.moduleId)
+                    return false
+                }
+                seenSingletonTypes[s.type] = true
             }
             return true
         })
