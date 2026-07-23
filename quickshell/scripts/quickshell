@@ -55,6 +55,51 @@ fi
 ln -sfn "$repo_root/quickshell" "$qml_import_root/qs"
 export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 
+# Each Quickshell application starts concurrently during a shell reload. Keep
+# compatibility staging per application so bar/overview/polkit cannot race
+# while replacing the same directory.
+stage_namespace="$(basename "$config_dir" | tr -c 'A-Za-z0-9._-' '_')"
+
+# QML URI segments cannot contain '-'.  Older external popup modules used
+# `qs.modules.popup-components`; expose a legal alias and stage only affected
+# modules with that import rewritten.  The source module repository remains
+# untouched.
+external_qml_root="$runtime_base/staging/$stage_namespace/external-qml"
+external_module_stage="$runtime_base/staging/$stage_namespace/external-modules"
+prepare_popup_components_alias() {
+    popup_components_dir="${SUMIKA_MODULES_HOME:-}/popup-components"
+    [ -d "$popup_components_dir" ] || return 0
+
+    alias_dir="$external_qml_root/qs/modules/popupComponents"
+    rm -rf "$alias_dir"
+    mkdir -p "$alias_dir"
+    cp -a "$popup_components_dir/." "$alias_dir/"
+    if [ -f "$alias_dir/qmldir" ]; then
+        sed -i 's/^module qs\.modules\.popup-components$/module qs.modules.popupComponents/' "$alias_dir/qmldir"
+    fi
+    export QML_IMPORT_PATH="$external_qml_root:$QML_IMPORT_PATH"
+}
+
+stage_external_module() {
+    source_dir="$1"
+    module_id="$2"
+
+    if ! grep -Rqs --include='*.qml' '^import qs\.modules\.popup-components$' "$source_dir"; then
+        printf '%s\n' "$source_dir"
+        return 0
+    fi
+
+    staged_dir="$external_module_stage/$module_id"
+    rm -rf "$staged_dir"
+    mkdir -p "$staged_dir"
+    cp -a "$source_dir/." "$staged_dir/"
+    find "$staged_dir" -type f -name '*.qml' -exec \
+        sed -i 's/^import qs\.modules\.popup-components$/import qs.modules.popupComponents/' {} +
+    printf '%s\n' "$staged_dir"
+}
+
+prepare_popup_components_alias
+
 
 sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 config_file="$sumika_config/sumika.json"
@@ -192,8 +237,10 @@ fi
 if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ] && [ "$SUMIKA_MODULES_HOME" != "$repo_modules_dir" ]; then
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue
-        module_dir=$(dirname "$module_json")
+        source_module_dir=$(dirname "$module_json")
         if command -v jq >/dev/null 2>&1; then
+            module_id=$(jq -r '.id // empty' "$module_json" 2>/dev/null || true)
+            module_dir=$(stage_external_module "$source_module_dir" "$module_id")
             merge_manifest "$module_json" "$module_dir"
         fi
     done
