@@ -106,7 +106,7 @@ Each module places `module-actions.qml` in its root directory. ModuleActionHost 
 | clipboard (external) | `clipboard.store-toggle/toggle/toggleBar/open/close/paste` | `sumika-modules/clipboard/module-actions.qml` |
 | bluetooth | `bluetooth.launch` | Builtin in `ActionManager._registerBuiltins()` |
 
-Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, sidebar-indicators, systray, workspaces) have empty `module-actions.qml` files to suppress Loader warnings.
+Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, power-indicator, systray, workspaces) have empty `module-actions.qml` files to suppress Loader warnings.
 
 ### Phase 5: Symlinks Removed
 

@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/'"$target"'" "$@"
+exec "$(dirname "$0")/../../sumika-modules/keyboard-remap/bin/omd-keyboard-render" "$@"

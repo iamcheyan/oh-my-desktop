@@ -20,7 +20,7 @@ Item { // Bar content region
     readonly property int barActiveWorkspaceId: HyprlandData.monitorActiveWorkspaceId(root.barMonitor)
 
     // Fixed widgets at the rightmost positions (power always last, clock before it)
-    readonly property var _fixedWidgetIds: ["clock", "sidebar-indicators"]
+    readonly property var _fixedWidgetIds: ["clock", "power-indicator"]
 
     readonly property var _movableRightButtons: {
         var result = [];
@@ -180,14 +180,14 @@ Item { // Bar content region
                 }
             }
 
-            // Fixed sidebar indicators (power + xkb) — always far right
+            // Fixed power indicator (power + xkb) — always far right
             Loader {
-                source: root._findFixedWidget("sidebar-indicators")?.component ?? ""
+                source: root._findFixedWidget("power-indicator")?.component ?? ""
                 active: source !== ""
                 visible: source !== ""
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
-                    console.warn("[Module] Fixed sidebar indicators load failed:", source)
+                    console.warn("[Module] Fixed power indicator load failed:", source)
                 }
             }
         }

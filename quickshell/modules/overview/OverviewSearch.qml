@@ -137,11 +137,11 @@ Item {
     }
 
     function windowTitle(win) {
-        return win?.title || win?.initialTitle || Translation.tr("Untitled window");
+        return win?.title || win?.initialTitle || "Untitled window";
     }
 
     function windowProgram(win) {
-        return win?.class || win?.initialClass || Translation.tr("Window");
+        return win?.class || win?.initialClass || "Window";
     }
 
     function workspaceLabel(win) {
@@ -204,7 +204,7 @@ Item {
                     Layout.fillWidth: true
                     text: root.hasQuery
                         ? root.query
-                        : Translation.tr("Search apps and windows, or type > for a command")
+                        : "Search apps and windows, or type > for a command"
                     color: root.hasQuery ? TuiStyle.fg : TuiStyle.dim
                     font.pixelSize: 14
                     elide: Text.ElideRight
@@ -282,19 +282,19 @@ Item {
             SessionMenuItem {
                 Layout.fillWidth: true
                 symbol: "logout"
-                label: Translation.tr("Log out")
+                label: "Log out"
                 onActivated: root.requestSessionAction("logout", "Logout")
             }
             SessionMenuItem {
                 Layout.fillWidth: true
                 symbol: "restart_alt"
-                label: Translation.tr("Restart")
+                label: "Restart"
                 onActivated: root.requestSessionAction("reboot", "Reboot")
             }
             SessionMenuItem {
                 Layout.fillWidth: true
                 symbol: "power_settings_new"
-                label: Translation.tr("Shut down")
+                label: "Shut down"
                 onActivated: root.requestSessionAction("poweroff", "Shutdown")
             }
 
@@ -310,7 +310,7 @@ Item {
             SessionMenuItem {
                 Layout.fillWidth: true
                 symbol: "refresh"
-                label: Translation.tr("Reload Shell")
+                label: "Reload Shell"
                 onActivated: root.reloadShell()
             }
         }
@@ -361,8 +361,8 @@ Item {
                     visible: root.commandResultCount > 0
                     resultIndex: 0
                     title: root.commandText
-                    subtitle: Translation.tr("Open an independent terminal and run this command")
-                    meta: Translation.tr("Terminal command")
+                    subtitle: "Open an independent terminal and run this command"
+                    meta: "Terminal command"
                     symbol: "terminal"
                     selected: root.selectedIndex === resultIndex
                     onActivated: root.executeCommand()
@@ -371,7 +371,7 @@ Item {
                 SearchSectionHeader {
                     Layout.fillWidth: true
                     visible: root.appResults.length > 0
-                    label: Translation.tr("Applications")
+                    label: "Applications"
                     count: root.appResults.length
                 }
 
@@ -385,7 +385,7 @@ Item {
                         resultIndex: index
                         title: modelData?.name || ""
                         subtitle: modelData?.comment || modelData?.genericName || modelData?.id || ""
-                        meta: Translation.tr("New workspace")
+                        meta: "New workspace"
                         iconSource: AppSearch.iconSource(modelData?.icon || "")
                         selected: root.selectedIndex === resultIndex
                         onActivated: root.launchApp(modelData)
@@ -395,7 +395,7 @@ Item {
                 SearchSectionHeader {
                     Layout.fillWidth: true
                     visible: root.windowResults.length > 0
-                    label: Translation.tr("Open Windows")
+                    label: "Open Windows"
                     count: root.windowResults.length
                 }
 
@@ -421,8 +421,8 @@ Item {
                     Layout.preferredHeight: 48
                     visible: root.totalResults === 0
                     text: root.commandMode
-                        ? Translation.tr("Type a command after >")
-                        : Translation.tr("No matching applications or windows")
+                        ? "Type a command after >"
+                        : "No matching applications or windows"
                     color: TuiStyle.dim
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter

@@ -86,7 +86,7 @@ Repeater {
 
 ### 13 empty `module-actions.qml` files
 
-Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, sidebar-indicators, systray, workspaces) received empty `Item {}` files to avoid Loader `"No such file"` warnings.
+Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, power-indicator, systray, workspaces) received empty `Item {}` files to avoid Loader `"No such file"` warnings.
 
 ### 10 sumika-modules `module-actions.qml` files
 

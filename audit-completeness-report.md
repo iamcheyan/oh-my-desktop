@@ -113,11 +113,7 @@ Repo: /home/tetsuya/development/OMD
      - `regionSelector` is old shared QML infrastructure at `quickshell/modules/regionSelector/`.
      - This is migrating path: region selector is screenshot-module-owned tooling, but still lives in old `quickshell/modules/`.
 
-  4. `modules/sidebar-indicators/PowerPopup.qml`:
-     ```qml
-     import qs.modules.settings.widgets
-     ```
-     - `settings` is listed as shared infra in the condition, so this is acceptable.
+  4. `modules/power-indicator/PowerPopup.qml`:
 
 - Comparison to baseline: all functional widget imports (`qs.modules.bar`) are properly factored as shared infra usage. The three problematic imports above involve old `quickshell/modules/` directories that still exist as QML module resolution paths but are not standalone modules.
 

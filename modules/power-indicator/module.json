@@ -1,19 +1,19 @@
 {
   "schemaVersion": 2,
-  "id": "sidebar-indicators",
-  "name": "Sidebar Indicators",
+  "id": "power-indicator",
+  "name": "Power Indicator",
   "version": "2.0.0",
   "kind": "shared",
   "contributes": {
     "widgets": [
       {
-        "id": "sidebarIndicators",
-        "name": "Sidebar Indicators",
+        "id": "powerIndicator",
+        "name": "Power Indicator",
         "slot": "right",
-        "component": "SidebarIndicators.qml",
+        "component": "PowerIndicator.qml",
         "order": 95,
         "alwaysShow": true,
-        "moduleId": "sidebar-indicators"
+        "moduleId": "power-indicator"
       }
     ],
     "popupSections": [

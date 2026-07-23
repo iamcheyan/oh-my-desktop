@@ -467,14 +467,14 @@ Item {
     function infoTitleForGroup(group) {
         const win = root.infoWindowForGroup(group);
         if (win)
-            return win.title || win.initialTitle || win.class || Translation.tr("No active window");
+            return win.title || win.initialTitle || win.class || "No active window";
 
         const entry = root.infoEntryForGroup(group);
         if (!entry)
             return "";
         return entry.isTrailingEmpty
-            ? Translation.tr("New workspace")
-            : `${entry.monitorName || Translation.tr("Hidden")} · Workspace ${entry.id ?? ""}`;
+            ? "New workspace"
+            : `${entry.monitorName || "Hidden"} · Workspace ${entry.id ?? ""}`;
     }
 
     function infoSubtitleForGroup(group) {
@@ -486,8 +486,8 @@ Item {
         if (!entry)
             return "";
         return entry.isTrailingEmpty
-            ? Translation.tr("Create a workspace on this monitor")
-            : Translation.tr("Workspace");
+            ? "Create a workspace on this monitor"
+            : "Workspace";
     }
 
     function infoIconSourceForGroup(group) {
@@ -650,10 +650,10 @@ Item {
                                 margins: 8
                             }
                             text: workspace.isTrailingEmpty
-                                ? Translation.tr("New workspace")
+                                ? "New workspace"
                                 : workspace.isPendingOccupied
-                                    ? Translation.tr("Moving…")
-                                : `${workspace.monitorName || Translation.tr("Hidden")} · ${workspace.workspaceValue}`
+                                    ? "Moving…"
+                                : `${workspace.monitorName || "Hidden"} · ${workspace.workspaceValue}`
                             font {
                                 pixelSize: Appearance.font.pixelSize.smaller
                                 weight: Font.Medium

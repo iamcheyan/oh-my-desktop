@@ -1,18 +1,2 @@
 #!/bin/sh
-for lib_name in libstdc++.so.6 libz.so.1; do
-  lib_dir="$(find /nix/store -path "*/lib/$lib_name" -print -quit 2>/dev/null | xargs -r dirname || true)"
-  if [ -n "${lib_dir:-}" ]; then
-    case ":${LD_LIBRARY_PATH:-}:" in
-      *:"$lib_dir":*) ;;
-      *) export LD_LIBRARY_PATH="$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ;;
-    esac
-  fi
-done
-omd_root="${OMD_ROOT:-$HOME/.config/omd}"
-target="$omd_root/share/bin/omarchy-voice-transcribe"
-venv_python="${OMD_VOICE_VENV:-$HOME/.cache/omd-voice/venv}/bin/python3"
-if [ ! -x "$venv_python" ]; then
-  echo "voice venv missing: run omd-voice-setup" >&2
-  exit 1
-fi
-exec "$venv_python" "$target" "$@"
+exec "$(dirname "$0")/../../sumika-modules/voice/bin/omd-voice-transcribe" "$@"

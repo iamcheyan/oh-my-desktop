@@ -101,7 +101,7 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 **Builtin registry deleted**: Empty `quickshell/registry/builtin/` dir preserved but its merge section removed from startup script. No more unconditional bulitin manifest loading — all registration flows through `modules/*/module.json` and `$SUMIKA_MODULES_HOME`.
 
 **Bar widgets migrated to standalone modules** (13 widgets):
-- 12 created under `modules/`: workspaces, app-launcher, active-window, clipboard-bar, audio, wifi, display, input-method, clock, session, sidebar-indicators, tools
+- 12 created under `modules/`: workspaces, app-launcher, active-window, clipboard-bar, audio, wifi, display, input-method, clock, session, power-indicator, tools
 - 1 systray module created under `modules/systray/`
 - `modules/mpris/` created as actions-only module (play-pause, next, previous)
 - All 22 repo modules in `modules/` pass validation (v2 manifests, proper imports)

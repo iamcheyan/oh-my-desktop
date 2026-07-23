@@ -3,7 +3,6 @@ singleton HyprlandXkb 1.0 HyprlandXkb.qml
 singleton Idle 1.0 Idle.qml
 singleton KeyringStorage 1.0 KeyringStorage.qml
 singleton PolkitService 1.0 PolkitService.qml
-singleton Translation 1.0 Translation.qml
 singleton TrayService 1.0 TrayService.qml
 singleton LockService 1.0 LockService.qml
 singleton BluetoothStatus 1.0 BluetoothStatus.qml

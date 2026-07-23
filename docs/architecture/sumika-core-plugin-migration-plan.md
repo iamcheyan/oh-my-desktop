@@ -339,7 +339,7 @@ Bar 当前持有以下 IPC 端点，未来应迁移到对应模块或 Core Actio
 | display | right | false | display | DisplayButton.qml | Brightness | display |
 | tools | right | false | builtin | ToolsButton.qml | — | tools |
 | clock | right | true | builtin | ClockWidget.qml | DateTime | clock |
-| sidebarIndicators | right | true | builtin | SidebarIndicators.qml | Audio, Network, Battery, MprisController | sidebar-indicators |
+| powerIndicator | right | true | builtin | PowerIndicator.qml | Audio, Network, Battery, MprisController | power-indicator |
 
 #### 6.4.4 Bar 弹出面板内容 (BarStatusPopup.qml)
 

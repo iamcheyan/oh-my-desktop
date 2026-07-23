@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/'"$target"'" "$@"
+exec "$(dirname "$0")/../share/bin/omarchy-hyprland-window-single-square-aspect-toggle" "$@"

@@ -112,9 +112,6 @@
       "touchpadScrollFactor": 450
     }
   },
-  "language": {
-    "ui": "auto"
-  },
   "launcher": {
     "pinnedApps": []
   },

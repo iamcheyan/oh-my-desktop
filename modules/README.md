@@ -27,7 +27,7 @@
 | `on-screen-display` | overlay（OSD 指示器） | — |
 | `overview` | 工作区概览框架注册 | — |
 | `session` | bar 按钮 (right) | — |
-| `sidebar-indicators` | bar 按钮 (right, alwaysShow) | Audio, Network, Battery, MprisController |
+| `power-indicator` | bar 按钮 (right, alwaysShow) | Audio, Network, Battery, MprisController |
 | `wifi` | bar 按钮 (right, alwaysShow)、弹出面板、设置页 | Network |
 | `workspaces` | bar 按钮 (left) | — |
 

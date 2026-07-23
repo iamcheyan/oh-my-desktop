@@ -63,7 +63,7 @@ Complex operations launch the feature's independent settings surface.
 
 The checked-in registry currently includes application launcher, active
 window, system tray, input method, audio, Wi-Fi, clipboard, session, display,
-tools, clock, and sidebar indicators. This list is descriptive, not an API:
+tools, clock, and power indicator. This list is descriptive, not an API:
 inspect `quickshell/registry/builtin/bar.json` for the effective order.
 
 ## Key Files

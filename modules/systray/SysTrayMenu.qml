@@ -205,7 +205,7 @@ PopupWindow {
                     }
                     StyledText {
                         Layout.fillWidth: true
-                        text: Translation.tr("Back")
+                        text: "Back"
                         font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.Medium
@@ -259,7 +259,7 @@ PopupWindow {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: TrayService.isPinned(root.trayItemId) ? Translation.tr("Unpin") : Translation.tr("Pin")
+                    text: TrayService.isPinned(root.trayItemId) ? "Unpin" : "Pin"
                     font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.small
                     font.weight: Font.Medium

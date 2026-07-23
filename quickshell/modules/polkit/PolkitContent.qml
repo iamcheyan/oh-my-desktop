@@ -75,7 +75,7 @@ Item {
             id: titleText
             Layout.fillWidth: true
             textAlignment: Text.AlignHCenter
-            text: Translation.tr("Authentication")
+            text: "Authentication"
         }
 
         WindowDialogParagraph {
@@ -103,8 +103,8 @@ Item {
         WindowDialogToolbar {
             Layout.bottomMargin: 10 // I honestly don't know why this is necessary
             trailingActions: [
-                { type: "text", text: Translation.tr("Cancel"), callback: () => PolkitService.cancel() },
-                { type: "text", text: Translation.tr("OK"), enabled: PolkitService.interactionAvailable, callback: () => root.submit() }
+                { type: "text", text: "Cancel", callback: () => PolkitService.cancel() },
+                { type: "text", text: "OK", enabled: PolkitService.interactionAvailable, callback: () => root.submit() }
             ]
         }
     }
