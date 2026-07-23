@@ -145,6 +145,9 @@ QtObject {
     readonly property string crop: "\uF125"                    // fa-crop U+F125
     readonly property string camera: "\uF030"                  // fa-camera U+F030
     readonly property string desktop: "\uF108"                 // fa-desktop U+F108
+    readonly property string cloudUpload: "\uF0EE"             // fa-cloud-upload U+F0EE
+    readonly property string textDocument: "\uF15C"            // fa-file-text U+F15C
+    readonly property string windows: "\uF17A"                 // fa-windows U+F17A
     readonly property string eyeDropper: "\uF1FB"              // fa-eye-dropper U+F1FB
     readonly property string video: "\uF03D"                   // fa-video U+F03D
     readonly property string keyboard: "\uF11C"                // fa-keyboard U+F11C

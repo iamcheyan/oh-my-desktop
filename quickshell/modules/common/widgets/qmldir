@@ -51,3 +51,4 @@ ClockHoverPopup 1.0 ClockHoverPopup.qml
 HyprlandXkbIndicator 1.0 HyprlandXkbIndicator.qml
 BarBatteryIcon 1.0 BarBatteryIcon.qml
 PowerContextMenu 1.0 PowerContextMenu.qml
+BarModuleButton 1.0 BarModuleButton.qml
