@@ -12,8 +12,6 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
-import Quickshell.Services.Pipewire
-import Quickshell.Bluetooth
 import Quickshell.Wayland
 import qs.modules.bar
 

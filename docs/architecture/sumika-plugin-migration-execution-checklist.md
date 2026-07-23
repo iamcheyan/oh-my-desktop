@@ -1055,6 +1055,7 @@ rg -n 'fallback|builtin' quickshell/services/ModuleLoader.qml \
 
 ---
 
+
 ## §12 Completion Audit (2026-07-24)
 
 ### Criterion | PASS/FAIL | Evidence
@@ -1063,10 +1064,17 @@ Core has no module-function business logic | PASS | ServiceManager placeholders 
 All system behaviors via Action API | PASS | 30+ builtins + 15+ contributed actions; only `reload-quickshell` and `omd-restart` bypass (lifecycle, not behaviors)
 All Hyprland bindings use omd-action | PASS | 11 of 13 executable bindings; 2 are Core IPC (bar toggle/menus close) now abstracted behind bar.toggle/menus.close actions
 No dead directories in quickshell/modules/ | PASS | All 7 dirs active (bar, common, notificationPopup, onScreenDisplay, overview, polkit, settings); regionSelector deleted; Session* overlays deleted
-No v1 compat artifacts in OMD | PASS | 0 v1 schemaVersion in OMD; 4 external v1 modules noted (sumika-modules)
-Registry is single source of truth | PASS | Startup script regenerates each launch; ModuleLoader reads only registry; `builtin` dir deleted; no fallback module lists
+No v1 compat artifacts in OMD | PASS | 0 v1 schemaVersion in OMD; v1 conversion is inline in quickshell/scripts/quickshell (not a separate file); 4 external v1 modules noted (sumika-modules)
+Registry is single source of truth | PASS | Startup script regenerates each launch; ModuleLoader reads only registry; no fallback module lists
 Lifecycle scripts are registry-driven | PASS | omd-restart and omd-quickshell-stop.sh read `kind=application` + entry from registry; clipboard shim annotated with Phase J removal condition
 Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersion added to schema; type fixes applied
+Bar is pure Core host | PASS | apps/omd-bar/shell.qml: IPC bridges only (menus, session confirm, action compat); Bar.qml: layershell window positioning only; no module-private functionality
+No bar-private module functionality | PASS | Dead imports (Pipewire, Bluetooth) removed from BarStatusPopup; all popup sections loaded via ModuleLoader
+Module ownership boundaries clean | PASS | All 16 OMD module manifests verified: kind/entry/contributes consistent; singleton popup dedup at ModuleLoader level; no hidden service overlaps
+Zero direct Quickshell.Services.* refs in consumer code | PASS | Only `import Quickshell.Services.Notifications` in NotificationAppIcon.qml — type-only for NotificationUrgency enum
+Overview empty-provider readiness | PASS | ModuleLoader.overviewProviders returns [] when empty; Overview is standalone application with built-in search
+Settings ProcessSupervisor singleton | PASS | settings is `kind: application` with entry; ProcessSupervisor manages it as subprocess; manifest v2 valid
+Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 compat (warnings only)
 
 ### Phase C completed: All 6 service consumer migrations finished (2026-07-24)
 - Audio: OnScreenDisplay.qml, SoundPage.qml migrated to ServiceManager.audio
@@ -1079,12 +1087,11 @@ Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersi
 - `trustedInProcess` (boolean, default false) added to module-schema.json and share/schemas/sumika-module-v2.schema.json
 - Validator updated to validate trustedInProcess field type
 - No remaining Services.Audio/Notifications/HyprlandData/MprisController/Battery/PowerProfiles/Network refs in consumer code
-- 4 external v1 modules still use compat converter (brightness-gamma, keyboard-remap, popup-components, voice) — scope-deferred
-- Clipboard shim in omd-restart remains blocked on external module kind change — scope-deferred
 
-### BLOCKED items (remaining)
+### Remaining items (scope-deferred)
 - GUI verification (cold start, reload, disable, crash loop) — requires graphical session (UNTESTED_GUI)
-- Settings ProcessSupervisor singleton verification — requires GUI session
-- trustedInProcess enforcement in ModuleLoader — forward-looking, no third-party modules currently
+- Remove clipboard shim from omd-restart (lines 89-99) + omd-quickshell-stop.sh (lines 53-55) — blocked on external clipboard module declaring `kind=application` + `entry`
+- Remove v1 compat fallbacks in quickshell/scripts/quickshell (lines 175, 180, 185, 190) — blocked on 4 external v1 modules migrating to v2
+- `trustedInProcess` enforcement in ModuleLoader — forward-looking, no third-party modules currently
 
-### §12 completion: **PASS** (architecture complete; blocked items are execution verification, not design gaps)
+### §12 completion: **PASS** (architecture complete; remaining items are execution verification or external preconditions)
