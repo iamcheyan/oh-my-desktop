@@ -26,6 +26,40 @@ Singleton {
     // Master switch — if false, all modules are disabled.
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
 
+    // ── Public API (stable, prefer over _registry direct access) ──
+
+    /// All registered modules from the registry.
+    readonly property var modules: _registry.modules ?? []
+
+    /// Modules that declare an actionsProvider (for ModuleActionHost consumption).
+    readonly property var actionProviders: {
+        const mods = _registry.modules ?? []
+        const result = []
+        for (var i = 0; i < mods.length; i++) {
+            var m = mods[i]
+            if (m.id && m.path && m.actionsProvider) {
+                result.push(m)
+            }
+        }
+        return result
+    }
+
+    /// Contributed actions from module manifests (registry contributes.actions).
+    readonly property var contributedActions: _contributes("actions")
+
+    /// Application modules (kind === "application") with entry commands.
+    readonly property var applicationEntries: {
+        const mods = _registry.modules ?? []
+        const result = []
+        for (var i = 0; i < mods.length; i++) {
+            var m = mods[i]
+            if (m.kind === "application" && m.entry && m.entry.command) {
+                result.push(m)
+            }
+        }
+        return result
+    }
+
     function isEnabled(moduleId) {
         if (!modulesEnabled) return false
         // Per-module exclusion check
@@ -67,10 +101,10 @@ Singleton {
         for (var i = 0; i < buttons.length; i++) {
             var b = buttons[i]
             if (b.slot !== slot) continue
-            // alwaysShow buttons visible regardless of per-module disabled list
-            if (b.alwaysShow) {
-                result.push(b)
-            } else if (loader.isEnabled(b.moduleId)) {
+            // Always check module enable first, regardless of alwaysShow.
+            // alwaysShow controls visibility within an enabled module, not
+            // a bypass of the module enable/disable system.
+            if (loader.isEnabled(b.moduleId)) {
                 result.push(b)
             }
         }
@@ -101,7 +135,15 @@ Singleton {
         const sections = _contributes("popupSections")
         const singletonTypes = {battery: 1, inputMethod: 1, keyboard: 1, voice: 1}
         const seenSingletonTypes = {}
-        return sections.filter(s => {
+        // Sort: OMD core modules (path contains "OMD/") before external
+        // modules. This ensures stable singleton popup ownership — the first
+        // module wins, and core modules should be preferred.
+        const sorted = [...sections].sort((a, b) => {
+            const aIsCore = (a.path && a.path.indexOf("OMD/") >= 0) ? 0 : 1
+            const bIsCore = (b.path && b.path.indexOf("OMD/") >= 0) ? 0 : 1
+            return aIsCore - bIsCore
+        })
+        return sorted.filter(s => {
             if (!isEnabled(s.moduleId)) return false
             if (!s.type || typeof s.type !== 'string') {
                 console.warn("[ModuleLoader] popupSection missing type:", JSON.stringify(s))

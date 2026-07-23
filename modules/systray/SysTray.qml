@@ -15,14 +15,15 @@ Item {
 
     property alias trayModel: trayRepeater.model
 
-    readonly property var trayItems: TrayService.trayItems
+    readonly property var trayItems: TrayService.trayItems ?? []
     readonly property var trayFiltered: {
+        const items = root.trayItems;
         const wantedKeys = Config.options.tray.hiddenIcons ?? [];
         const wantPinned = Config.options.tray.showPinnedOnly ?? false;
         let result = { pinned: [], unpinned: [] };
-
-        for (let i = 0; i < root.trayItems.length; i++) {
-            const item = root.trayItems[i];
+        if (!items) return result;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
             if (wantPinned || TrayService.isPinned(item.id)) {
                 item._isPinned = true;
                 result.pinned.push(item);

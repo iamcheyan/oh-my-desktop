@@ -96,15 +96,19 @@ Singleton {
 
     /// Query an action's current state.
     /// Returns the action object or null if not found.
+    /// Reflects both the action-level enabled flag and module enable state.
     function query(id) {
         const a = _actions[id]
         if (!a) return null
+        // Compute effective availability: action must be enabled AND
+        // (core actions always available OR owning module must be enabled).
+        const moduleOk = a.owner === "core" || ModuleLoader.isEnabled(a.owner)
         return {
             id: a.id,
             owner: a.owner,
             title: a.title,
             description: a.description,
-            available: a.enabled,
+            available: a.enabled && moduleOk,
             handlerType: a.handler.type,
             paramsSchema: a.paramsSchema,
             timeout: a.timeout
@@ -113,13 +117,17 @@ Singleton {
     /// Resolve a module's absolute directory path from ModuleLoader's registry.
     /// Returns empty string if module or registry unavailable.
     function _modulePath(moduleId) {
-        if (typeof ModuleLoader === "undefined" || !ModuleLoader._registry || !ModuleLoader._registry.modules)
-            return ""
-        for (var i = 0; i < ModuleLoader._registry.modules.length; i++) {
-            var m = ModuleLoader._registry.modules[i]
-            if (m.id === moduleId) return m.path || ""
+        return typeof ModuleLoader !== "undefined" ? ModuleLoader.modulePath(moduleId) : ""
+    }
+
+    /// Check if a module ID exists in the registry.
+    function _moduleExists(moduleId) {
+        if (typeof ModuleLoader === "undefined" || !ModuleLoader.modules) return false
+        const mods = ModuleLoader.modules
+        for (var i = 0; i < mods.length; i++) {
+            if (mods[i].id === moduleId) return true
         }
-        return ""
+        return false
     }
 
     /// Check if an action is available (registered, enabled, AND module-enabled).
@@ -251,18 +259,19 @@ Singleton {
             return {success: false, error: String(e)}
         }
     }
-
     /// Get a serializable array of all registered actions.
     /// Returns an array of {id, owner, title, enabled, handlerType}.
+    /// The `enabled` field reflects both the action flag and module enable state.
     function getActionList() {
         const result = []
         for (var i = 0; i < _order.length; i++) {
             const a = _actions[_order[i]]
+            const moduleOk = a.owner === "core" || ModuleLoader.isEnabled(a.owner)
             result.push({
                 id: a.id,
                 owner: a.owner,
                 title: a.title,
-                enabled: a.enabled,
+                enabled: a.enabled && moduleOk,
                 handlerType: a.handler.type
             })
         }
@@ -366,29 +375,28 @@ Singleton {
             }
         }, {description: "Query process supervisor state for an instance or list all"})
 
-        // Bluetooth (no dedicated module — action stays in builtins)
-        this.register("bluetooth.launch", "bluetooth", "Open Bluetooth manager", {
-            type: "process",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-launch-bluetooth"]
-        }, {description: "Open the Bluetooth pairing TUI"})
-        this._registerFromRegistry()
+        // Bluetooth — only register if no dedicated bluetooth module exists
+        // in the registry. Owner is "bluetooth" for backward compatibility;
+        // if a module is added later, the registry module takes priority.
+        if (!_moduleExists("bluetooth")) {
+            this.register("bluetooth.launch", "bluetooth", "Open Bluetooth manager", {
+                type: "process",
+                command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-launch-bluetooth"]
+            }, {description: "Open the Bluetooth pairing TUI"})
+        }
     }
 
 
-    /// Register actions declared in module manifests via the registry.
-    /// Module actions with a 'handler' field are registered as-is; application
-    /// modules (kind=application) without explicit handlers get a process action
     function _registerFromRegistry() {
-        // Access ModuleLoader for registry data
-        var reg = ModuleLoader ? ModuleLoader._registry : null
-        if (!reg || !reg.modules) return
+        if (typeof ModuleLoader === "undefined") return
+        const mods = ModuleLoader.modules
+        if (!mods || mods.length === 0) return
 
-        var actions = reg.contributes ? (reg.contributes.actions || []) : []
+        var actions = ModuleLoader.contributedActions
         // Build a map of moduleId -> entry for application modules
         var moduleEntries = ({})
-        var modules = reg.modules || []
-        for (var mi = 0; mi < modules.length; mi++) {
-            var m = modules[mi]
+        for (var mi = 0; mi < mods.length; mi++) {
+            var m = mods[mi]
             if (m.kind === "application" && m.entry && m.entry.command) {
                 moduleEntries[m.id] = m.entry
             }

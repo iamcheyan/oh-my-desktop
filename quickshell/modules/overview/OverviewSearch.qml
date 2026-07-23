@@ -260,9 +260,10 @@ Item {
     Rectangle {
         id: sessionMenu
         anchors {
-            top: searchHeader.bottom
-            topMargin: 8
-            right: searchHeader.right
+            top: parent.top
+            topMargin: 24
+            right: parent.right
+            rightMargin: 8
         }
         width: 230
         implicitHeight: sessionMenuColumn.implicitHeight + 12
@@ -320,8 +321,8 @@ Item {
     Rectangle {
         id: resultsPopup
         anchors {
-            top: searchHeader.bottom
-            topMargin: 10
+            top: parent.top
+            topMargin: 24
             horizontalCenter: parent.horizontalCenter
         }
         width: root.popupWidth
