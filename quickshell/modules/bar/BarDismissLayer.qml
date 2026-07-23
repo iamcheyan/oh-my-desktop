@@ -27,7 +27,8 @@ Scope {
             required property ShellScreen modelData
 
             screen: modelData
-            visible: BarRuntime.dismissLayerActive && !BarRuntime.screenshotActive
+            visible: (BarRuntime.dismissLayerActive ?? false)
+                && !(BarRuntime.screenshotActive ?? false)
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0

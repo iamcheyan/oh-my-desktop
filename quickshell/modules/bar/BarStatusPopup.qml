@@ -36,6 +36,8 @@ Scope {
         return focusedScreen;
     }
 
+    onActiveTypeChanged: popupFlick.contentY = 0
+
     function close() {
         GlobalStates.barPopupEphemeral = false;
         GlobalStates.barPopupType = "";
@@ -172,6 +174,7 @@ Scope {
         onVisibleChanged: {
             if (visible) {
                 popupWindow.screen = root.popupScreen;
+                popupFlick.contentY = 0;
                 dismissGuard.restart();
             } else {
                 dismissGuard.stop();
@@ -189,18 +192,21 @@ Scope {
 
         Item {
             id: panel
-            anchors.right: parent.right
-            // Power panel uses ShellCard chrome; other types use one outer shell.
-            readonly property bool multiShell: root.activeType === "battery"
-            readonly property real shadowMargin: multiShell ? 0 : Appearance.sizes.elevationMargin
+            anchors {
+                top: parent.top
+                right: parent.right
+            }
+            readonly property real shadowMargin: Appearance.sizes.elevationMargin
+            readonly property real maxContentHeight: (popupWindow.screen?.height ?? 1080) * 0.75
+            readonly property real calcHeight: Math.min(panelContent.implicitHeight + shadowMargin * 2, maxContentHeight)
             implicitWidth: panelBg.implicitWidth + shadowMargin * 2
-            implicitHeight: panelBg.implicitHeight + shadowMargin * 2
+            implicitHeight: calcHeight
             width: implicitWidth
-            height: implicitHeight
+            height: calcHeight
 
             StyledRectangularShadow {
                 target: panelBg
-                visible: !panel.multiShell
+                visible: true
             }
 
             TuiShell {
@@ -208,33 +214,39 @@ Scope {
                 anchors.fill: parent
                 anchors.margins: panel.shadowMargin
                 implicitWidth: popupWindow.panelWidth
-                implicitHeight: panelContent.implicitHeight + contentPadding * 2
-                contentPadding: 0                           // Rows manage their own 20px margins
-                // Height-variable content (audio expand, etc.): skip OpacityMask FBO
-                // rebuild on resize — see docs/bar-popup-height-stability.md.
+                implicitHeight: panelContent.implicitHeight
+                contentPadding: 0
                 useLayerMask: false
-                color: panel.multiShell ? "transparent" : TuiStyle.bg
-                border.width: panel.multiShell ? 0 : TuiStyle.borderWidth
+                color: TuiStyle.bg
+                border.width: TuiStyle.borderWidth
                 border.color: TuiStyle.menuBorder
-                radius: panel.multiShell ? 0 : TuiStyle.shellRadius
-                clip: !panel.multiShell
-                ColumnLayout {
-                    id: panelContent
-                    anchors.fill: parent
-                    spacing: 0
+                radius: TuiStyle.shellRadius
+                clip: true
 
-                    // Module popup sections — shown when root.activeType matches the popup section type
-                    Repeater {
-                        model: ModuleLoader.popupSections
-                        delegate: Loader {
-                            required property var modelData
-                            active: root.activeType === modelData.type
-                            source: active ? modelData.component : ""
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            onStatusChanged: if (status === Loader.Error) {
-                                console.warn("[Module] Popup section load failed:", modelData.component)
-                                active = false
+                StyledFlickable {
+                    id: popupFlick
+                    anchors.fill: parent
+                    contentWidth: width
+                    contentHeight: panelContent.implicitHeight
+                    clip: true
+
+                    ColumnLayout {
+                        id: panelContent
+                        width: parent.width
+                        spacing: 0
+
+                        // Module popup sections — shown when root.activeType matches the popup section type
+                        Repeater {
+                            model: ModuleLoader.popupSections
+                            delegate: Loader {
+                                required property var modelData
+                                active: root.activeType === modelData.type
+                                source: active ? modelData.component : ""
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignTop
+                                onStatusChanged: if (status === Loader.Error) {
+                                    console.warn("[Module] Popup section load failed:", modelData.component)
+                                }
                             }
                         }
                     }

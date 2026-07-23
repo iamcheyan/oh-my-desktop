@@ -106,7 +106,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Left bar module load failed:", modelData.component)
-                    active = false
                 }
             }
         }
@@ -160,9 +159,12 @@ Item { // Bar content region
                     source: modelData.component
                     active: true
                     Layout.alignment: Qt.AlignVCenter
+                    onLoaded: {
+                        if (item && typeof item.moduleId !== "undefined")
+                            item.moduleId = modelData.moduleId
+                    }
                     onStatusChanged: if (status === Loader.Error) {
                         console.warn("[Module] Bar button load failed:", modelData.component)
-                        active = false
                     }
                 }
             }
@@ -174,7 +176,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Fixed clock widget load failed:", source)
-                    active = false
                 }
             }
 
@@ -185,7 +186,6 @@ Item { // Bar content region
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Fixed sidebar indicators load failed:", source)
-                    active = false
                 }
             }
         }
