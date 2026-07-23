@@ -400,12 +400,18 @@ def validate_all() -> int:
     v1_count = 0
     omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    # Scan SUMIKA_MODULES_HOME (set by omd-path.sh, defaults to ~/development/sumika-modules)
+    # Scan repo default modules first (OMD/modules/)
     manifests = []
+    repo_modules = os.path.join(omd_root, "modules")
+    if os.path.isdir(repo_modules):
+        manifests += scan_manifests(repo_modules)
+
+    # Then scan SUMIKA_MODULES_HOME for external/override modules
     modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
     if not modules_home:
         modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
-    manifests += scan_manifests(modules_home)
+    if os.path.isdir(modules_home):
+        manifests += scan_manifests(modules_home)
     if not manifests:
         print("No module manifests found")
         return 0
@@ -430,23 +436,34 @@ def validate_all() -> int:
     return 0 if failed == 0 else 1
 
 
-def count_v1() -> int:
-    """Count v1 manifests (for compat diagnostics)."""
     count = 0
     omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Scan repo default modules
+    repo_modules = os.path.join(omd_root, "modules")
+    if os.path.isdir(repo_modules):
+        for m in scan_manifests(repo_modules):
+            try:
+                with open(m) as f:
+                    data = json.load(f)
+                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                    count += 1
+            except (json.JSONDecodeError, OSError):
+                pass
 
     # Scan SUMIKA_MODULES_HOME
     modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
     if not modules_home:
         modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
-    for m in scan_manifests(modules_home):
-        try:
-            with open(m) as f:
-                data = json.load(f)
-            if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
-                count += 1
-        except (json.JSONDecodeError, OSError):
-            pass
+    if os.path.isdir(modules_home):
+        for m in scan_manifests(modules_home):
+            try:
+                with open(m) as f:
+                    data = json.load(f)
+                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                    count += 1
+            except (json.JSONDecodeError, OSError):
+                pass
 
     return count
 

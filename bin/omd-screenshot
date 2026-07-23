@@ -17,10 +17,13 @@ set -eu
 
 repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
 . "$repo_root/scripts/omd-path.sh"
-# app_dir: use SUMIKA_MODULES_HOME (set by omd-path.sh), fallback to legacy repo_path
-if [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/screenshot" ]; then
+# app_dir: prefer repo default modules, fallback to SUMIKA_MODULES_HOME
+if [ -d "$repo_root/modules/screenshot" ]; then
+    app_dir="$repo_root/modules/screenshot"
+elif [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/screenshot" ]; then
     app_dir="$SUMIKA_MODULES_HOME/screenshot"
 else
+    # Legacy fallback
     app_dir="$repo_root/modules/screenshot"
 fi
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"

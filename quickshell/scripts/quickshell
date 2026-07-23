@@ -104,6 +104,17 @@ prepare_popup_components_alias
 sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
 config_file="$sumika_config/sumika.json"
 
+# Add repo default modules to QML import path (takes priority over external)
+if [ -d "$repo_root/modules" ]; then
+    for module_dir in "$repo_root/modules"/*/; do
+        [ -d "$module_dir" ] || continue
+        export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
+        if [ -d "$module_dir/bin" ]; then
+            export PATH="$module_dir/bin:$PATH"
+        fi
+    done
+fi
+
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
     # Always add modules to QML import path so core components (lock, screen
     # saver, etc.) are importable even when the master switch is off.
@@ -236,6 +247,18 @@ if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
 fi
 if [ "$modules_enabled" = "false" ]; then
     echo "[sumika] modules disabled via sumika.json — no module contributions will be loaded"
+fi
+
+# Merge repo default modules first (take priority — duplicates from SUMIKA_MODULES_HOME are skipped)
+if [ "$modules_enabled" != "false" ] && [ -d "$repo_root/modules" ]; then
+    for module_json in "$repo_root/modules"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        source_module_dir=$(dirname "$module_json")
+        if command -v jq >/dev/null 2>&1; then
+            module_id=$(jq -r '.id // empty' "$module_json" 2>/dev/null || true)
+            merge_manifest "$module_json" "$source_module_dir"
+        fi
+    done
 fi
 
 # Merge all modules from SUMIKA_MODULES_HOME (set by omd-path.sh, defaults to ~/development/sumika-modules)

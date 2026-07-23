@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+
+"""Input method status and schema switching for the Sumika Shell bar.
+
+Backend detection: fcitx5 (via fcitx5-remote + gdbus Rime D-Bus), ibus (future).
+Schema list is loaded from the user config at
+  $SUMIKA_SHELL_CONFIG_HOME/input-method/schemas.json
+falling back to the repo default at
+  $OMD_ROOT/defaults/config/input-method/schemas.json
+"""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+
+
+FCITX_SERVICE = "org.fcitx.Fcitx5"
+RIME_PATH = "/rime"
+RIME_INTERFACE = "org.fcitx.Fcitx.Rime1"
+
+
+def config_home():
+    return (
+        os.environ.get("SUMIKA_SHELL_CONFIG_HOME")
+        or (os.environ.get("XDG_CONFIG_HOME") or os.environ.get("HOME", "") + "/.config") + "/sumika-shell"
+    )
+
+
+def omd_root():
+    return os.environ.get("OMD_ROOT") or os.environ.get("HOME", "") + "/.config/omd"
+
+
+def schemas_file_path():
+    """User schemas.json if it exists, else the repo default template."""
+    user_path = os.path.join(config_home(), "input-method", "schemas.json")
+    if os.path.isfile(user_path):
+        return user_path
+    return os.path.join(omd_root(), "defaults", "config", "input-method", "schemas.json")
+
+
+def load_schemas():
+    """Return (backend_hint, schemas_list). Missing file → ("", [])."""
+    path = schemas_file_path()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "", []
+    backend = data.get("backend", "") or ""
+    schemas = data.get("schemas", []) or []
+    if not isinstance(schemas, list):
+        schemas = []
+    return backend, schemas
+
+
+def schema_by_id(schema_id):
+    _, schemas = load_schemas()
+    for s in schemas:
+        if s.get("id") == schema_id:
+            return s
+    return None
+
+
+def detect_backend():
+    """Return 'fcitx5' / 'ibus' / '' based on available tools."""
+    if shutil.which("fcitx5-remote"):
+        return "fcitx5"
+    if shutil.which("ibus"):
+        return "ibus"
+    return ""
+
+
+def run(command, check=False):
+    return subprocess.run(
+        command,
+        check=check,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def rime_call(method, *arguments):
+    command = [
+        "gdbus",
+        "call",
+        "--session",
+        "--dest",
+        FCITX_SERVICE,
+        "--object-path",
+        RIME_PATH,
+        "--method",
+        f"{RIME_INTERFACE}.{method}",
+    ]
+    command.extend(arguments)
+    return run(command)
+
+
+def tuple_string(output):
+    # gdbus prints a one-value tuple such as ('jaroomaji',).
+    value = output.strip()
+    if not value.startswith("("):
+        return ""
+    for quote in ("'", '"'):
+        start = value.find(quote)
+        if start < 0:
+            continue
+        end = value.find(quote, start + 1)
+        if end >= 0:
+            return value[start + 1 : end]
+    return ""
+
+
+def current_input_method():
+    if not shutil.which("fcitx5-remote"):
+        return ""
+    result = run(["fcitx5-remote", "-n"])
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def current_schema():
+    if not shutil.which("gdbus"):
+        return ""
+    result = rime_call("GetCurrentSchema")
+    return tuple_string(result.stdout) if result.returncode == 0 else ""
+
+
+def status():
+    input_method = current_input_method()
+    schema = current_schema() if input_method == "rime" else ""
+    info = schema_by_id(schema) or {}
+
+    if input_method == "keyboard-us":
+        language = "en"
+        display_name = "English"
+        variant = "Direct input"
+    elif input_method == "rime":
+        language = info.get("language", "rime")
+        display_name = info.get("name", "Rime")
+        variant = info.get("variant", schema or "Unknown schema")
+    else:
+        language = "unknown"
+        display_name = input_method or "Unavailable"
+        variant = ""
+
+    _, schemas = load_schemas()
+    print(
+        json.dumps(
+            {
+                "available": bool(input_method),
+                "backend": detect_backend(),
+                "inputMethod": input_method,
+                "schema": schema,
+                "language": language,
+                "displayName": display_name,
+                "variant": variant,
+                "schemas": schemas,
+            },
+            ensure_ascii=False,
+        )
+    )
+
+
+def set_schema(schema):
+    if not schema_by_id(schema):
+        raise RuntimeError(f"Unsupported Rime schema: {schema}")
+    if not shutil.which("fcitx5-remote") or not shutil.which("gdbus"):
+        raise RuntimeError("fcitx5-remote and gdbus are required")
+
+    switch_result = run(["fcitx5-remote", "-s", "rime"])
+    if switch_result.returncode != 0:
+        raise RuntimeError(switch_result.stderr.strip() or "Fcitx5 is not running")
+
+    # The Rime input context may be created just after SetCurrentIM returns.
+    last_error = "Rime D-Bus service is unavailable"
+    for _ in range(8):
+        result = rime_call("SetSchema", schema)
+        if result.returncode == 0:
+            time.sleep(0.08)
+            if current_schema() == schema:
+                status()
+                return
+            last_error = f"Rime kept the previous schema instead of {schema}"
+        else:
+            last_error = result.stderr.strip() or last_error
+        time.sleep(0.08)
+    raise RuntimeError(last_error)
+
+
+def print_schemas():
+    backend, schemas = load_schemas()
+    print(json.dumps({"backend": backend, "schemas": schemas}, ensure_ascii=False))
+
+
+def usage():
+    print("usage: omd-input-method status | set <schema> | schemas | config", file=sys.stderr)
+
+
+def main():
+    if len(sys.argv) < 2:
+        usage()
+        return 2
+
+    action = sys.argv[1]
+    try:
+        if action == "status":
+            status()
+        elif action == "set" and len(sys.argv) == 3:
+            set_schema(sys.argv[2])
+        elif action == "schemas":
+            print_schemas()
+        elif action == "config":
+            subprocess.Popen(
+                ["fcitx5-configtool"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        else:
+            usage()
+            return 2
+    except RuntimeError as error:
+        print(json.dumps({"error": str(error)}, ensure_ascii=False), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

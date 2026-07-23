@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "id": "session",
+  "name": "会话与快照",
+  "version": "2.0.0",
+  "kind": "shared",
+  "description": "窗口、工作区与多屏布局的快照保存与恢复",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "session-bar-button",
+        "name": "Session",
+        "slot": "right",
+        "component": "bar/SessionButton.qml",
+        "order": 90
+      }
+    ],
+    "popupSections": [
+      {
+        "id": "session-popup",
+        "type": "session",
+        "component": "popup/SessionPopup.qml"
+      }
+    ]
+  }
+}

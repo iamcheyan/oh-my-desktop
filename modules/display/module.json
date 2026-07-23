@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "id": "display",
+  "name": "显示器管理",
+  "version": "2.0.0",
+  "kind": "shared",
+  "description": "显示器分辨率、亮度及外接屏管理",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "display-bar-button",
+        "name": "Display",
+        "slot": "right",
+        "component": "bar/DisplayButton.qml",
+        "order": 60
+      }
+    ],
+    "popupSections": [
+      {
+        "id": "display-popup",
+        "type": "display",
+        "component": "popup/DisplayPopup.qml"
+      }
+    ],
+    "settingsPages": [
+      {
+        "id": "display-settings",
+        "title": "显示器设置",
+        "component": "settings/DisplayPage.qml",
+        "icon": "desktop_windows",
+        "order": 30
+      }
+    ]
+  }
+}

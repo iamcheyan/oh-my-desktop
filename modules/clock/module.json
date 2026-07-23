@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "id": "clock",
+  "name": "Clock",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "clock",
+        "name": "Clock",
+        "slot": "right",
+        "component": "ClockWidget.qml",
+        "order": 80,
+        "alwaysShow": true,
+        "moduleId": "clock"
+      }
+    ],
+    "actions": [
+      {
+        "id": "clock.notifications",
+        "name": "Toggle notification center"
+      }
+    ]
+  }
+}

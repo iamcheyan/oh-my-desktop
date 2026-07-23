@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "id": "input-method",
+  "name": "输入法与语音",
+  "version": "2.0.0",
+  "kind": "shared",
+  "description": "Fcitx5 输入法与 SenseVoice 语音输入管理",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "input-method-bar-button",
+        "name": "Input Method",
+        "slot": "right",
+        "component": "bar/InputMethodButton.qml",
+        "order": 70
+      }
+    ],
+    "popupSections": [
+      {
+        "id": "input-method-popup",
+        "type": "inputMethod",
+        "component": "popup/InputMethodPopup.qml"
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+module qs.modules.input-method
+InputMethodButton 1.0 bar/InputMethodButton.qml
+InputMethodPopup 1.0 popup/InputMethodPopup.qml

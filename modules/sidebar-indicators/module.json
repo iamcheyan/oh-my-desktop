@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "sidebar-indicators",
+  "name": "Sidebar Indicators",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "sidebarIndicators",
+        "name": "Sidebar Indicators",
+        "slot": "right",
+        "component": "SidebarIndicators.qml",
+        "order": 95,
+        "alwaysShow": true,
+        "moduleId": "sidebar-indicators"
+      }
+    ],
+    "popupSections": [
+      {"id": "battery", "type": "battery", "name": "Power & Battery", "component": "PowerPopup.qml"}
+    ]
+  }
+}

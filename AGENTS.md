@@ -23,10 +23,11 @@ cd ~/development/OMD && ./Init.sh
 | Role | Path | Managed by |
 |------|------|-----------|
 | Code + QML + assets | `~/development/OMD/` | git |
+| Default modules (bar 按钮、弹出面板、overlay) | `OMD/modules/` (15 个) | git (主仓库) |
+| External modules (第三方、非核心) | `$SUMIKA_MODULES_HOME` → `~/development/sumika-modules/` (28 个) | git (separate repo) |
 | User config (overrides, launchers, keyboard profiles, notifications) | `~/.config/sumika-shell/` | chezmoi |
 | Runtime state (themes, wallpaper, keyd generated config) | `~/.local/state/sumika-shell/` | generated, not committed |
 | Theme library | `~/development/OMD/share/themes/` (22 themes) | git |
-| Modules (all manifests + QML + bin)|`$SUMIKA_MODULES_HOME` → `~/development/sumika-modules/`|git (separate repo) |
 | Terminal configs (foot/kitty/alacritty/ghostty) | `~/.config/{foot,kitty,...}/` | chezmoi |
 
 ### chezmoi: `~/.config/sumika-shell/` 规则
@@ -55,6 +56,7 @@ cd ~/development/OMD && ./Init.sh
 - **Neovim**: opt-in, links LazyVim drop-in that reads `~/.local/state/sumika-shell/theme/current/neovim.lua`.
 - **Restart**: `~/.config/omd/bin/omd-restart` (via symlink to repo).
 - **Doctor**: `~/.config/omd/bin/omd-doctor`.
+- **Modules**: `OMD/modules/` (default core modules) loaded first; `$SUMIKA_MODULES_HOME` (external modules) loaded second. Duplicate IDs from external modules are skipped — default modules always win.
 
 ## Editing
 
@@ -63,6 +65,8 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
+- Default module QML: `modules/<name>/` — 15 core modules in this repo.
+- External modules: `$SUMIKA_MODULES_HOME/<name>/` — separate repo.
 - Bar popups: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - Voice: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
 
@@ -87,7 +91,7 @@ cd ~/development/OMD && ./Init.sh
 | `SUMIKA_SHELL_ROOT` | `$OMD_ROOT` → `~/.config/omd` (symlink to repo) | Shell scripts |
 | `Directories.config + "/sumika-shell"` | — | QML (config path) |
 | `Directories.sumikaStateHome` | `$XDG_STATE_HOME/sumika-shell` | QML (state path) |
-|`SUMIKA_MODULES_HOME`|`~/development/sumika-modules/` (also configurable via `quickshell/config.json:modules.dir`)|Shell scripts, Python tools|
+|`SUMIKA_MODULES_HOME`|`~/development/sumika-modules/` (also configurable via `quickshell/config.json:modules.dir`)|Shell scripts, Python tools|`OMD/modules/` takes priority on duplicate IDs|
 
 **Shell**: `. "$_omd_root/lib/paths.sh"` → all vars.
 **Lua**: `local paths = require("default.hypr.paths")` → `paths.omd_root`, `paths.config_home`, `paths.state_home`.
