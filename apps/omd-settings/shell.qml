@@ -4,7 +4,6 @@
 //@ pragma Env QT_IM_MODULE=fcitx
 
 import qs.modules.common
-import qs.services
 import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.modules.settings.pages

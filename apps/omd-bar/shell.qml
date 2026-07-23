@@ -6,8 +6,6 @@
 
 import qs.core.runtime
 import qs.modules.common
-import qs.services
-import qs.services as Services
 import qs
 
 import qs.modules.bar

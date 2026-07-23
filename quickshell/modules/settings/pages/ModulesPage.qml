@@ -6,7 +6,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings
 import qs.modules.settings.widgets
-import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
