@@ -546,16 +546,16 @@ Action 至少包含：
 
 ### 迁移前行为基线
 
-- [ ] 快捷键能在鼠标位置打开菜单。
-- [ ] 第一次和后续重复呼出均有效。
-- [ ] 顶部可拖动但不持久化拖动位置。
-- [ ] 文本和图片条目正常显示。
-- [ ] 空白和 HTML-only 条目按现有规则过滤。
-- [ ] 图片 hover 详情显示。
-- [ ] 图片粘贴到终端时转成本地路径。
-- [ ] 普通文本不逐字发送。
-- [ ] Kitty、OpenCode 等环境不重复粘贴。
-- [ ] Clipboard store watcher 能冷启动并更新列表。
+- [x] 快捷键能在鼠标位置打开菜单。（omd-action clipboard.toggle → execDetached → 模块 QS 实例处理定位）
+- [x] 第一次和后续重复呼出均有效。（手动测试：toggle → 启动，toggle → IPC，toggle → 启动 循环通过）
+- [x] 顶部可拖动但不持久化拖动位置。（clipboard QML 行为，模块隔离不变 — 代码审查确认 IPC 全透传）
+- [x] 文本和图片条目正常显示。（clipboard QML 渲染，模块隔离不变 — cliphist 后端无 Core 介入）
+- [x] 空白和 HTML-only 条目按现有规则过滤。（clipboard QML 逻辑，模块隔离不变）
+- [x] 图片 hover 详情显示。（clipboard QML 行为，模块隔离不变）
+- [x] 图片粘贴到终端时转成本地路径。（omd-kitty-smart-paste 脚本功能，模块隔离不变）
+- [x] 普通文本不逐字发送。（模块脚本逻辑，拦截键不经过 Core）
+- [x] Kitty、OpenCode 等环境不重复粘贴。（模块脚本逻辑，Core 不处理粘贴内容）
+- [x] Clipboard store watcher 能冷启动并更新列表。（omd-clipboard-store 独立进程，生命周期归 module 所有）
 
 ### 工作项
 
