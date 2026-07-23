@@ -205,7 +205,10 @@ Singleton {
                             ps.register(h.owner || h.instanceId, h.instanceId,
                                 h.command, h.options || {})
                         }
-                        ps.start(h.instanceId)
+                        if (!ps.start(h.instanceId)) {
+                            // Process may be in failed state — user explicit invocation should force restart
+                            ps.start(h.instanceId, {forceRestart: true})
+                        }
 
                         // Timeout enforcement: if action has a timeout, kill the
                         // process after that many seconds if still running.
@@ -385,41 +388,31 @@ Singleton {
         }
         var clipCmd = clipDir + "/bin/omd-clipboard"
 
+        // All clipboard actions use type "process" (execDetached) because
+        // the omd-clipboard script manages its own lifecycle:
+        //   - not running: launches clipboard QS instance
+        //   - running: sends IPC to running instance (toggle, close, paste, open)
+        // ProcessSupervisor tracking is intentionally bypassed — the module
+        // is kind:"shared" and the shell script IS the lifecycle manager.
+
         this.register("clipboard.toggle", "clipboard", "Toggle clipboard", {
-            type: "supervised",
-            instanceId: "clipboard",
-            owner: "clipboard",
-            command: [clipCmd, "toggle"],
-            options: {readyTimeout: 10, restartLimit: 3}
+            type: "process", command: [clipCmd, "toggle"]
         }, {description: "Open or close the clipboard history"})
 
         this.register("clipboard.toggleBar", "clipboard", "Toggle clipboard at bar", {
-            type: "shell",
-            command: clipCmd + " toggle-at-bar"
+            type: "shell", command: clipCmd + " toggle-at-bar"
         }, {description: "Open or close the clipboard anchored to the top bar"})
 
         this.register("clipboard.open", "clipboard", "Open clipboard", {
-            type: "supervised",
-            instanceId: "clipboard",
-            owner: "clipboard",
-            command: [clipCmd, "open"],
-            options: {readyTimeout: 10, restartLimit: 3}
+            type: "process", command: [clipCmd, "open"]
         }, {description: "Open the clipboard history"})
 
         this.register("clipboard.close", "clipboard", "Close clipboard", {
-            type: "supervised",
-            instanceId: "clipboard",
-            owner: "clipboard",
-            command: [clipCmd, "close"],
-            options: {readyTimeout: 10, restartLimit: 3}
+            type: "process", command: [clipCmd, "close"]
         }, {description: "Close the clipboard history"})
 
         this.register("clipboard.paste", "clipboard", "Paste clipboard selection", {
-            type: "supervised",
-            instanceId: "clipboard",
-            owner: "clipboard",
-            command: [clipCmd, "paste"],
-            options: {readyTimeout: 10, restartLimit: 3}
+            type: "process", command: [clipCmd, "paste"]
         }, {description: "Paste the currently selected clipboard entry"})
     }
 
