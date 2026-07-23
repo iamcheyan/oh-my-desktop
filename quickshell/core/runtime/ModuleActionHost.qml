@@ -1,29 +1,28 @@
 import QtQuick
 import qs.core.runtime
 
-/// Loads module-actions.qml from each enabled module.
+/// Loads the declared actions provider from each enabled module.
 ///
-/// This is the extension point for modules to register QML-callback actions
-/// (and module-local process actions) without Core knowing module internals.
-/// Each module places a `module-actions.qml` in its root directory; the host
-/// loads it when the module is enabled and destroys it (triggering
-/// `Component.onDestruction → ActionManager.unregisterOwner(moduleId)`) when
-/// the module is disabled.
+/// Modules declare their actions provider script in module.json via the
+/// `actionsProvider` field (e.g. "module-actions.qml"). Only modules that
+/// explicitly declare this field get a Loader created.
 ///
-/// Place one instance in the bar process Scope, alongside Bar / BarStatusPopup.
+/// When a module is disabled or the host is destroyed, all actions belonging
+/// to that module are automatically unregistered — no manual cleanup needed
+/// in module-actions.qml files.
 Item {
     id: root
 
     Repeater {
         model: {
-            const mods = ModuleLoader._registry.modules ?? []
+            const providers = ModuleLoader.actionProviders
             const result = []
-            for (var i = 0; i < mods.length; i++) {
-                var m = mods[i]
-                if (m.id && m.path && ModuleLoader.isEnabled(m.id)) {
+            for (var i = 0; i < providers.length; i++) {
+                var m = providers[i]
+                if (ModuleLoader.isEnabled(m.id)) {
                     result.push({
                         moduleId: m.id,
-                        actionsUrl: "file://" + m.path + "/module-actions.qml"
+                        actionsUrl: "file://" + m.path + "/" + m.actionsProvider
                     })
                 }
             }
@@ -35,14 +34,25 @@ Item {
             required property var modelData
 
             readonly property url actionsUrl: modelData.actionsUrl
+            // Save ownerId at creation time so Component.onDestruction still has
+            // the correct owner ID even if the model data is removed from the list.
+            readonly property string ownerId: modelData.moduleId
 
             Loader {
                 source: wrapper.actionsUrl
                 asynchronous: true
 
                 onLoaded: {
-                    console.log("[ModuleActionHost] loaded actions for '" + modelData.moduleId + "'")
+                    console.info("[ModuleActionHost] loaded actions for '" + modelData.moduleId + "'")
                 }
+            }
+
+            // Automatic cleanup: when the Repeater removes this delegate
+            // (module disabled) or the host is destroyed, all actions for
+            // this module are unregistered. This eliminates the fragile
+            // Component.onDestruction pattern from module-actions.qml files.
+            Component.onDestruction: {
+                ActionManager.unregisterOwner(wrapper.ownerId)
             }
         }
     }

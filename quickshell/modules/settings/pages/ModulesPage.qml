@@ -16,7 +16,7 @@ PageBody {
     id: page
     settingsRoot: parent?.settingsRoot ?? root
 
-    readonly property var modules: ModuleLoader._registry.modules ?? []
+    readonly property var modules: ModuleLoader.modules ?? []
 
     // Master switch from config
     readonly property bool masterEnabled: Config.options.modules?.enabled !== false
