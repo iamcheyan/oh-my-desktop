@@ -85,15 +85,3 @@ else
     echo "[omd-restart] WARNING: registry not found at $_registry_file" >&2
     echo "[omd-restart] Starting Core processes only." >&2
 fi
-
-# ── Compatibility shim: clipboard-store ────────────────────────────────────
-# Clipboard module (sumika-modules/clipboard/) is kind:shared with no entry
-# block, so the registry-driven section above skips it.  Once clipboard declares
-# kind=application + entry, this shim can be removed (Phase J).
-_clipboard_store="$OMD_ROOT/bin/omd-clipboard-store"
-if [ ! -x "$_clipboard_store" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
-    _clipboard_store="$SUMIKA_MODULES_HOME/clipboard/bin/omd-clipboard-store"
-fi
-if [ -x "$_clipboard_store" ]; then
-    start_app omd-clipboard-store "$_clipboard_store"
-fi

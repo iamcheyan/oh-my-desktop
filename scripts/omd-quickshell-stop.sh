@@ -13,7 +13,6 @@ omd_stop_quickshell() {
     # omd-bar and omd-polkit are Core host processes, not discovered modules.
     # Their directories are under apps/.
     apps="omd-bar omd-polkit"
-    apps_dir="omd-bar omd-polkit"
 
     # ── Registry-driven application modules ──────────────────────────────
     _registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
@@ -21,19 +20,6 @@ omd_stop_quickshell() {
         while IFS=" " read -r instance module_id; do
             [ -z "$instance" ] && continue
             apps="$apps $instance"
-
-            # Determine the app directory: prefer OMD_ROOT/modules/<id>,
-            # fall back to apps/<instance> for reverse compatibility.
-            if [ -d "$omd_root/modules/$module_id" ]; then
-                apps_dir="$apps_dir $module_id"
-            elif [ -d "$omd_root/apps/$instance" ]; then
-                apps_dir="$apps_dir $instance"
-            elif [ -d "$omd_root/modules/$instance" ]; then
-                apps_dir="$apps_dir $instance"
-            else
-                # External module: use instance name for pkill pattern.
-                apps_dir="$apps_dir $instance"
-            fi
         done <<EOF
 $(jq -r '
   .modules[] |
@@ -43,21 +29,13 @@ $(jq -r '
 EOF
     fi
 
-    # ── Compatibility shim: clipboard-store ──────────────────────────────
-    # Clipboard module (sumika-modules/clipboard/) is kind:shared with no entry
-    # block, so it's not discovered by the registry loop above.  The store
-    # process is started by bin/omd-restart's compatibility shim and creates
-    # a systemd unit named omd-clipboard-store.  Kill it here until the module
-    # declares kind=application + entry (Phase J).
-    apps="$apps omd-clipboard-store"
-    # ── Kill clipboard-store watchers (shim-managed, no systemd unit) ───────
-    # Phase J: remove when clipboard module declares kind=application + entry
-    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
-
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
     # because we intentionally avoid tearing down the whole unit cgroup. Clean up
     # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
     pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
+    # Orphan processes from module QML Process children (e.g. cliphist watchers)
+    # survive Quickshell reload. Clean them up to prevent stacking on restart.
+    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
 
     for app in $apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
