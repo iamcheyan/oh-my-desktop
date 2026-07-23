@@ -10,7 +10,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Hyprland
-import Quickshell.Services.Pipewire
 import "display" as DisplaySettings
 import "wallpaper" as WallpaperSettings
 import qs.modules.settings

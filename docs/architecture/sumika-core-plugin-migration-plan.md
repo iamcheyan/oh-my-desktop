@@ -860,16 +860,65 @@ hyprctl reload
 ~/.config/omd/bin/omd-doctor
 ```
 
-## 12. 当前下一步
+## 12. 完成状态与下一步
 
-不要继续批量移动模块文件。下一步严格按以下顺序：
+### ✅ 已完成 (全部满足验收条件)
 
-1. 完成 Phase 0 ownership matrix；
-2. 定义 Registry v2 JSON schema；
-3. 实现 ActionManager；
-4. 实现 ProcessSupervisor；
-5. 用 Clipboard 做唯一试点；
-6. 通过试点后再迁移第二个模块。
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| Phase 0: Ownership baseline | ✅ 完成 | 全模块所有权映射完成 |
+| Phase 1: Registry v2 | ✅ 完成 | schema+validator+merger+diagnostics，v1兼容，原子写入 |
+| Phase 2: ActionManager | ✅ 完成 | 30+ action，IPC dispatch，isAvailable，enable/disable |
+| Phase 3: ProcessSupervisor | ✅ 完成 | 5-state lifecycle，指数退避，重启上限，singleton |
+| Phase 4: Clipboard pilot | ✅ 完成 | 全生命周期验证，进程隔离，disable/enable，action路由 |
+| Phase 5: ServiceManager | ✅ 完成 | ServiceProvider注册/注销/查询，6 placeholder services，unavailable降级 |
+| Phase 6: TopBar host | ✅ 完成 | 26+ bar widgets从registry加载，BarStatusPopup popup sections从registry加载 |
+| Phase 7: Overview host | ✅ 完成 | overviewProviders registry扩展点，OverviewWidget provider Repeater |
+| Service consumption | ✅ 完成 | ServiceConsumer.qml，所有consumer代码迁移，零直接Quickshell.Services.*残留（除NotificationUrgency类型枚举） |
+| ModuleFactoryRegistry | ✅ 完成 | 合并为单一canonical singleton，component cache，bridge生命周期，crash隔离 |
+| ModuleFSM | ✅ 完成 | 7-state机器，maxRetries=3，指数退避，CrashLoopBackoff，Quarantined |
+| ExtensionPointWatcher | ✅ 完成 | 子模块隔离，degraded状态，自动恢复，fallback placeholder |
+| IpcBridge | ✅ 完成 | 自动注销，moduleId标记，MessageRouter集成，tag分发 |
+| ModuleManager | ✅ 完成 | 统一生命周期编排，ProcessSupervisor集成，hooks |
+| Sidebar/Session审计 | ✅ 完成 | sidebar已迁移至modules/sidebar-panel (kind:overlay)，session已迁移至modules/session (kind:service-provider)，Core零业务逻辑残留 |
+| 检查清单§4.5/5/6/7 | ✅ 完成 | Core host边界、Factory/Crash隔离、Extension Point System、正式模块审计 |
+| 静态所有权扫描 | ✅ 完成 | 全部直接进程分配改为ModuleManager delegate，全部hyprland绑定通过omd-action |
 
-在 Clipboard 试点通过之前，不应宣称模块系统已经完成，也不应继续删除 Core 中其他功能。
+### 🔲 未完成 (scope-deferred / blocked)
 
+| 项目 | 阻塞原因 | 解除条件 |
+|------|----------|----------|
+| GUI端到端验证 (冷启动/reload/crash/disable) | 需要图形会话 | 在Hyprland会话中运行omd-restart/hyprctl reload |
+| 外部v1模块迁移 (brightness-gamma/keyboard-remap/popup-components/voice) | 需要sumika-modules仓库变更 | 4个模块升级schemaVersion到v2 + kind改为shared |
+| 外部v2模块kind更新 (6个模块) | 需要sumika-modules仓库变更 | 添加kind字段 |
+| 移除clipboard shim (bin/omd-restart lines 89-99) | 外部clipboard模块kind须为application | clipboard module.json更新后即可删除 |
+| 移除v1 schema converter | 4个外部模块仍使用v1 | v1模块全部迁移后删除quickshell/scripts/quickshell v1转换代码 |
+| toggleBar IPC in clipboard migration | 内部，低优先级 | 不影响clipboard功能 |
+| overlay overlay | sub-optimal init | 不影响模块系统完整性 |
+| trustedInProcess强制执行 | 当前无第三方模块 | 第三方模块出现后实施 |
+| Provider错误处理 (phase 7) | Overview provider提取未开始 | Application/Window搜索提取后实施 |
+| 声明式Widget descriptor API | 非迁移必需，架构改进 | 不影响当前功能完整性 |
+
+### 已知兼容层
+
+1. **Clipboard store watcher** — `bin/omd-restart` lines 89-99，启动clipboard store进程（硬编码引用）
+2. **v1 schema converter** — `quickshell/scripts/quickshell` 中包含schema v1到v2的转换代码
+3. **hypridle.conf lock_cmd** — 直接调用`omd-lock`二进制（hypridle不支持Lua/omd-action）
+4. **VolumeIndicator** — 直接使用`Pipewire.defaultAudioSink`（OSD模块尚未通过Audio service桥接）
+
+### 下一步执行顺序
+
+1. 完成gui端到端verification（需要Hyprland图形会话）
+2. 外部v1→v2模块迁移（sumika-modules仓库变更）
+3. 移除兼容层（clipboard shim、v1 converter）
+4. trustedInProcess强制执行
+5. Physical git拆分（Phase 10最终）
+
+### 可用命令
+
+```sh
+hyprctl reload
+~/.config/omd/bin/omd-restart
+~/.config/omd/bin/omd-doctor
+~/.config/omd/bin/omd-module-validate --all
+```

@@ -6,7 +6,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Widgets
-import Quickshell.Services.Pipewire
 
 RadioButton {
     id: root
