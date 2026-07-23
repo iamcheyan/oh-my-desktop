@@ -27,9 +27,6 @@ start_app() {
     fi
 
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
-        # KillMode=process: only kill the unit main process, NOT the whole cgroup.
-        # Apps launched from omd-applauncher (foot, tmux, browsers) stay in this
-        # cgroup — never use `systemctl stop` here; see omd-quickshell-stop.sh.
         systemd-run --user --unit="$app" --collect \
             --property=KillMode=process \
             --setenv=PATH="$PATH" \
@@ -43,12 +40,58 @@ start_app() {
     fi
 }
 
+# Resolve the runtime registry path.
+_registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
+
+# ── Core host processes (always required) ──────────────────────────────────
+# omd-bar and omd-polkit are Core host processes, not discovered modules.
 start_app omd-bar
-start_app omd-overview
 start_app omd-polkit
 
-clipboard_store="$OMD_ROOT/bin/omd-clipboard-store"
-if [ ! -x "$clipboard_store" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
-    clipboard_store="$SUMIKA_MODULES_HOME/clipboard/bin/omd-clipboard-store"
+# ── Registry-driven application modules ────────────────────────────────────
+# Every module with kind=application and an entry block contributes a process.
+if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
+    jq -r '
+      .modules[] |
+      select(.kind == "application" and (.entry | length > 0)) |
+      "\(.entry.instance // .id)\t\(.entry.command[0] // "")"
+    ' "$_registry_file" 2>/dev/null | while IFS="	" read -r instance first_cmd; do
+        [ -z "$instance" ] && continue
+
+        # Resolve ${OMD_ROOT} in the command path via sed.
+        resolved_cmd=$(echo "$first_cmd" | sed "s|\${OMD_ROOT}|$OMD_ROOT|g")
+
+        # If the result is empty or a relative path not found, fallback to bin/.
+        if [ -z "$resolved_cmd" ]; then
+            resolved_cmd="$OMD_ROOT/bin/$instance"
+        elif echo "$first_cmd" | grep -qv '^/' && [ ! -x "$resolved_cmd" ]; then
+            resolved_cmd="$OMD_ROOT/bin/$instance"
+        fi
+
+        # Check SUMIKA_MODULES_HOME fallback for external modules.
+        if [ ! -x "$resolved_cmd" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
+            _fallback="$SUMIKA_MODULES_HOME/$instance/bin/$instance"
+            if [ -x "$_fallback" ]; then
+                resolved_cmd="$_fallback"
+            fi
+        fi
+
+        start_app "$instance" "$resolved_cmd"
+    done
+elif [ -f "$_registry_file" ]; then
+    echo "[omd-restart] WARNING: jq not available — cannot parse registry for application modules" >&2
+    echo "[omd-restart] Only Core processes (omd-bar, omd-polkit) were started." >&2
+else
+    echo "[omd-restart] WARNING: registry not found at $_registry_file" >&2
+    echo "[omd-restart] Starting Core processes only." >&2
 fi
-start_app omd-clipboard-store "$clipboard_store"
+
+# ── Compatibility shim: clipboard-store ────────────────────────────────────
+# TODO: Phase J — remove when clipboard module declares kind=application + entry
+_clipboard_store="$OMD_ROOT/bin/omd-clipboard-store"
+if [ ! -x "$_clipboard_store" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
+    _clipboard_store="$SUMIKA_MODULES_HOME/clipboard/bin/omd-clipboard-store"
+fi
+if [ -x "$_clipboard_store" ]; then
+    start_app omd-clipboard-store "$_clipboard_store"
+fi
