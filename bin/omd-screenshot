@@ -17,7 +17,12 @@ set -eu
 
 repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
 . "$repo_root/scripts/omd-path.sh"
-app_dir="$repo_root/modules/screenshot"
+# app_dir: use SUMIKA_MODULES_HOME (set by omd-path.sh), fallback to legacy repo_path
+if [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/screenshot" ]; then
+    app_dir="$SUMIKA_MODULES_HOME/screenshot"
+else
+    app_dir="$repo_root/modules/screenshot"
+fi
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"
 lock_file="${XDG_RUNTIME_DIR:-/tmp}/omd-screenshot.lock"

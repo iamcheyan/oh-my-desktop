@@ -16,7 +16,7 @@ unset _omd_root
 # When started fresh, exports OMD_APP_ON_DEMAND=1 so shell.qml auto-opens the
 # launcher and quits the process when the panel closes.
 
-app_dir="$OMD_ROOT/modules/launcher"
+app_dir="$SUMIKA_MODULES_HOME/launcher"
 qs_launcher="$OMD_ROOT/quickshell/scripts/quickshell"
 cache_script="$OMD_ROOT/bin/omd-applauncher-cache"
 

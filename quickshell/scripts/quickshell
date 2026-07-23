@@ -238,20 +238,8 @@ if [ "$modules_enabled" = "false" ]; then
     echo "[sumika] modules disabled via sumika.json — no module contributions will be loaded"
 fi
 
-# Merge repo-local modules/ directory
-repo_modules_dir="$repo_root/modules"
-if [ "$modules_enabled" != "false" ] && [ -d "$repo_modules_dir" ]; then
-    for module_json in "$repo_modules_dir"/*/module.json; do
-        [ -f "$module_json" ] || continue
-        module_dir=$(dirname "$module_json")
-        if command -v jq >/dev/null 2>&1; then
-            merge_manifest "$module_json" "$module_dir"
-        fi
-    done
-fi
-
-# Merge external modules via SUMIKA_MODULES_HOME when set and differs from repo modules
-if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ] && [ "$SUMIKA_MODULES_HOME" != "$repo_modules_dir" ]; then
+# Merge all modules from SUMIKA_MODULES_HOME (set by omd-path.sh, defaults to ~/development/sumika-modules)
+if [ "$modules_enabled" != "false" ] && [ -d "$SUMIKA_MODULES_HOME" ]; then
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue
         source_module_dir=$(dirname "$module_json")

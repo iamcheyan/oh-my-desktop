@@ -26,6 +26,7 @@ cd ~/development/OMD && ./Init.sh
 | User config (overrides, launchers, keyboard profiles, notifications) | `~/.config/sumika-shell/` | chezmoi |
 | Runtime state (themes, wallpaper, keyd generated config) | `~/.local/state/sumika-shell/` | generated, not committed |
 | Theme library | `~/development/OMD/share/themes/` (22 themes) | git |
+| Modules (all manifests + QML + bin)|`$SUMIKA_MODULES_HOME` → `~/development/sumika-modules/`|git (separate repo) |
 | Terminal configs (foot/kitty/alacritty/ghostty) | `~/.config/{foot,kitty,...}/` | chezmoi |
 
 ### chezmoi: `~/.config/sumika-shell/` 规则
@@ -86,6 +87,7 @@ cd ~/development/OMD && ./Init.sh
 | `SUMIKA_SHELL_ROOT` | `$OMD_ROOT` → `~/.config/omd` (symlink to repo) | Shell scripts |
 | `Directories.config + "/sumika-shell"` | — | QML (config path) |
 | `Directories.sumikaStateHome` | `$XDG_STATE_HOME/sumika-shell` | QML (state path) |
+|`SUMIKA_MODULES_HOME`|`~/development/sumika-modules/` (also configurable via `quickshell/config.json:modules.dir`)|Shell scripts, Python tools|
 
 **Shell**: `. "$_omd_root/lib/paths.sh"` → all vars.
 **Lua**: `local paths = require("default.hypr.paths")` → `paths.omd_root`, `paths.config_home`, `paths.state_home`.

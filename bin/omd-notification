@@ -1,10 +1,9 @@
 #!/bin/sh
 set -eu
 
-# Resolve repo root from this script's location (works without ~/.config/omd symlink)
+# Resolve repo root from this script's location
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
+. "$_omd_root/scripts/omd-path.sh"
+unset _omd_root
 
-# Use OMD_ROOT from env (systemd-run) or resolve from script location
-omd_root="${OMD_ROOT:-$_omd_root}"
-
-exec "$omd_root/quickshell/scripts/quickshell" "$omd_root/modules/notification"
+exec "$OMD_ROOT/quickshell/scripts/quickshell" "$SUMIKA_MODULES_HOME/notification"

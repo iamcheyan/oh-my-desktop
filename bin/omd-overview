@@ -3,6 +3,7 @@ set -eu
 
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
+. "$_omd_root/scripts/omd-path.sh"
 unset _omd_root
 
-exec "$OMD_ROOT/quickshell/scripts/quickshell" "$OMD_ROOT/modules/overview"
+exec "$OMD_ROOT/quickshell/scripts/quickshell" "$SUMIKA_MODULES_HOME/overview"
