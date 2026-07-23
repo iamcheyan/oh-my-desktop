@@ -183,12 +183,12 @@ Singleton {
             if (timeoutMs && timeoutMs > 0) {
                 const killTimer = Qt.createQmlObject("import QtQuick; Timer {}", supervisor)
                 killTimer.interval = timeoutMs
-                killTimer.onTriggered = function() {
+                killTimer.triggered.connect(function() {
                     rec.lastError = "stop_timeout"
                     rec.state = stopped
                     _notifyStateChange(rec)
                     killTimer.destroy()
-                }
+                })
                 killTimer.start()
             }
         }
@@ -279,24 +279,24 @@ Singleton {
         const stdoutPath = rec.logDir + ".out"
         const stderrPath = rec.logDir + ".err"
 
-        // Build Process QML text
+        // Build Process QML text — NO leading comma syntax (invalid QML).
         var qmlText = 'import Quickshell.Io; Process {\n'
         qmlText += '    command: ' + JSON.stringify(rec.command) + '\n'
         if (rec.cwd) {
-            qmlText += '    , workingDirectory: ' + JSON.stringify(rec.cwd) + '\n'
+            qmlText += '    workingDirectory: ' + JSON.stringify(rec.cwd) + '\n'
         }
-        qmlText += '    , running: true\n'
-        qmlText += '    , stdout: StdioCollector {\n'
+        qmlText += '    running: true\n'
+        qmlText += '    stdout: StdioCollector {\n'
         qmlText += '        onStreamFinished: {\n'
         qmlText += '            File.append(' + JSON.stringify(stdoutPath) + ', this.text)\n'
         qmlText += '        }\n'
         qmlText += '    }\n'
-        qmlText += '    , stderr: StdioCollector {\n'
+        qmlText += '    stderr: StdioCollector {\n'
         qmlText += '        onStreamFinished: {\n'
         qmlText += '            File.append(' + JSON.stringify(stderrPath) + ', this.text)\n'
         qmlText += '        }\n'
         qmlText += '    }\n'
-        qmlText += '    , onExited: function(exitCode, exitStatus) {\n'
+        qmlText += '    onExited: function(exitCode, exitStatus) {\n'
         qmlText += '        supervisor._onExited(' + JSON.stringify(rec.instanceId) + ', exitCode, exitStatus)\n'
         qmlText += '    }\n'
         qmlText += '}'
@@ -316,7 +316,7 @@ Singleton {
             if (rec.readyTimeout > 0) {
                 const readyTimer = Qt.createQmlObject("import QtQuick; Timer {}", supervisor)
                 readyTimer.interval = rec.readyTimeout * 1000
-                readyTimer.onTriggered = function() {
+                readyTimer.triggered.connect(function() {
                     if (rec.state === starting) {
                         console.warn("[ProcessSupervisor] ready timeout for '" + rec.instanceId + "' (" + rec.readyTimeout + "s)")
                         rec.lastError = "ready_timeout"
@@ -325,7 +325,7 @@ Singleton {
                         _scheduleRestart(rec)
                     }
                     readyTimer.destroy()
-                }
+                })
                 rec.readyTimer = readyTimer
                 rec.readyTimer.start()
             }
@@ -387,12 +387,12 @@ Singleton {
 
         const timer = Qt.createQmlObject("import QtQuick; Timer {}", supervisor)
         timer.interval = backoffMs
-        timer.onTriggered = function() {
+        timer.triggered.connect(function() {
             if (rec.state === failed) {
                 _launch(rec)
             }
             timer.destroy()
-        }
+        })
         rec.backoffTimer = timer
         rec.backoffTimer.start()
     }

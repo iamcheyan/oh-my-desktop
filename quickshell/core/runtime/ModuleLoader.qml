@@ -145,38 +145,38 @@ Singleton {
         }
     }
 
-    // Read registry JSON via cat (Quickshell has no readFile API).
-    Process {
-        id: registryReader
-        command: ["cat", loader.registryPath]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const text = this.text.trim()
-                    if (text.length > 0) {
-                        const parsed = JSON.parse(text)
-                        if (parsed.schemaVersion !== 2 && parsed.schemaVersion !== undefined) {
-                            console.warn("[ModuleLoader] Registry schemaVersion mismatch: got", parsed.schemaVersion, "expected 2")
-                        }
-                        loader._registry = parsed
-                        const c = parsed.contributes || {}
-                        const wCount = (c.widgets || []).length
-                        const pCount = (c.popupSections || []).length
-                        const sCount = (c.settingsPages || []).length
-                        const oCount = (c.overlays || []).length
-                        console.log("[ModuleLoader] Loaded registry v" + (parsed.schemaVersion ?? "?"), JSON.stringify({
-                            modules: loader._registry.modules?.length ?? 0,
-                            widgets: wCount,
-                            popupSections: pCount,
-                            settingsPages: sCount,
-                            overlays: oCount
-                        }))
+    // Read registry JSON via FileView (Process inline in Singleton does not start).
+    FileView {
+        id: registryFileView
+        path: loader.registryPath
+        onLoaded: {
+            try {
+                const text = registryFileView.text()
+                if (text.length > 0) {
+                    const parsed = JSON.parse(text)
+                    if (parsed.schemaVersion !== 2 && parsed.schemaVersion !== undefined) {
+                        console.warn("[ModuleLoader] Registry schemaVersion mismatch: got", parsed.schemaVersion, "expected 2")
                     }
-                } catch (e) {
-                    console.warn("[ModuleLoader] Failed to parse registry:", e)
+                    loader._registry = parsed
+                    const c = parsed.contributes || {}
+                    const wCount = (c.widgets || []).length
+                    const pCount = (c.popupSections || []).length
+                    const sCount = (c.settingsPages || []).length
+                    const oCount = (c.overlays || []).length
+                    console.log("[ModuleLoader] Loaded registry v" + (parsed.schemaVersion ?? "?"), JSON.stringify({
+                        modules: loader._registry.modules?.length ?? 0,
+                        widgets: wCount,
+                        popupSections: pCount,
+                        settingsPages: sCount,
+                        overlays: oCount
+                    }))
                 }
+            } catch (e) {
+                console.warn("[ModuleLoader] Failed to parse registry:", e)
             }
         }
-        running: true
+        onLoadFailed: error => {
+            console.warn("[ModuleLoader] Failed to load registry from '" + loader.registryPath + "':", error)
+        }
     }
 }

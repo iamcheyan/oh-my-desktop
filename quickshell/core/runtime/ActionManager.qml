@@ -213,14 +213,14 @@ Singleton {
                             var _timeoutId = a.id
                             var _timeoutTimer = Qt.createQmlObject("import QtQuick; Timer {}", manager)
                             _timeoutTimer.interval = a.timeout * 1000
-                            _timeoutTimer.onTriggered = function() {
+                            _timeoutTimer.triggered.connect(function() {
                                 var curState = ps.getState(h.instanceId)
                                 if (curState === 1 || curState === 2) { // starting or ready
                                     console.warn("[ActionManager] timeout (" + a.timeout + "s) for '" + _timeoutId + "', stopping instance '" + h.instanceId + "'")
                                     ps.stop(h.instanceId)
                                 }
                                 _timeoutTimer.destroy()
-                            }
+                            })
                             _timeoutTimer.start()
                         }
                     }
@@ -364,10 +364,25 @@ Singleton {
             }
         }, {description: "Query process supervisor state for an instance or list all"})
 
-        // Clipboard — managed via ProcessSupervisor for lifecycle tracking
-        // Resolve path from external module (clipboard lives in sumika-modules, not OMD repo)
+        // Clipboard actions — deferred to next tick so ModuleLoader's registry reader
+        // (an async Process) has time to populate _registry before we resolve paths.
+        Qt.callLater(function() { manager._registerClipboardActions() })
+
+        this._registerFromRegistry()
+    }
+
+    /// Register clipboard actions with binary path resolved from ModuleLoader registry.
+    /// Called deferred (via Qt.callLater) to avoid racing the async registry reader.
+    function _registerClipboardActions() {
         var clipDir = this._modulePath("clipboard")
-        if (!clipDir) clipDir = Quickshell.env("OMD_REPO_ROOT") // fallback
+        if (!clipDir) {
+            console.log("[ActionManager] clipboard module not found in registry, trying fallback")
+            clipDir = Quickshell.env("OMD_REPO_ROOT")
+        }
+        if (!clipDir) {
+            console.warn("[ActionManager] cannot resolve clipboard module path, registrations skipped")
+            return
+        }
         var clipCmd = clipDir + "/bin/omd-clipboard"
 
         this.register("clipboard.toggle", "clipboard", "Toggle clipboard", {
@@ -406,8 +421,6 @@ Singleton {
             command: [clipCmd, "paste"],
             options: {readyTimeout: 10, restartLimit: 3}
         }, {description: "Paste the currently selected clipboard entry"})
-        // Load additional actions from module manifests in the registry
-        this._registerFromRegistry()
     }
 
     /// Register actions declared in module manifests via the registry.
