@@ -108,9 +108,9 @@ Item {
     function requestSessionAction(action, label) {
         menuOpen = false;
         GlobalStates.overviewOpen = false;
-        const barConfig = FileUtils.trimFileProtocol(`${Directories.config}/omd/apps/omd-bar`);
+        const barApp = FileUtils.trimFileProtocol(`${Directories.root}/apps/omd-bar`);
         Quickshell.execDetached([
-            "qs", "-p", barConfig, "ipc", "call", "session", "confirm", action, label
+            "qs", "-p", barApp, "ipc", "call", "session", "confirm", action, label
         ]);
     }
 
@@ -118,7 +118,7 @@ Item {
         menuOpen = false;
         GlobalStates.overviewOpen = false;
         Quickshell.execDetached([
-            "bash", FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts/reload-quickshell`)
+            "qs", "-p", `${Directories.scriptPath}/reload-quickshell`
         ]);
     }
 

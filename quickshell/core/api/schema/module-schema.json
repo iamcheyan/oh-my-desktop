@@ -72,6 +72,11 @@
       "type": "string",
       "description": "Relative path to a QML file that registers module actions via ModuleActionHost (e.g. 'module-actions.qml')"
     },
+    "trustedInProcess": {
+      "type": "boolean",
+      "default": false,
+      "description": "Marks official modules trusted to load arbitrary QML within the Core process. Third-party modules MUST NOT set this to true."
+    },
     "schemaVersion": {
       "type": "integer",
       "description": "Schema version for migration handling (2 = current)",
