@@ -30,3 +30,6 @@ scripts/remote-desktop.conf
 keyboard-remap/keyd.generated.conf
 # Generated symlink for external lock module
 /quickshell/modules/lock
+
+# Runtime module state (pinned apps, config caches — generated, not source)
+modules/**/.state/
