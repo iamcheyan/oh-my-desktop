@@ -77,7 +77,7 @@ Core provides `ModuleActionHost` (`quickshell/core/runtime/ModuleActionHost.qml`
 ```qml
 Item {
     Repeater {
-        model: ModuleLoader._registry.modules
+        model: ModuleLoader.modules
             .filter(m => m.id && m.path && ModuleLoader.isEnabled(m.id))
             .map(m => ({ moduleId: m.id, actionsUrl: "file://" + m.path + "/module-actions.qml" }))
         delegate: Loader { source: actionsUrl; asynchronous: true }
@@ -93,7 +93,7 @@ Each module places `module-actions.qml` in its root directory. ModuleActionHost 
 - **Retained** `_registerBuiltins()` — `session.*`, `settings.open`, `overview.open`, `shell.reload`, `process_supervisor.*`, `bluetooth.launch`
 - **Added** dynamic enable check: `isAvailable()` and `invoke()` both call `ModuleLoader.isEnabled(owner)` — non-core actions are disabled at runtime when the owning module is disabled
 
-#### Module action registration matrix
+### Module action registration matrix
 
 | Module | Actions registered | Location |
 |---|---|---|
@@ -106,8 +106,7 @@ Each module places `module-actions.qml` in its root directory. ModuleActionHost 
 | clipboard (external) | `clipboard.store-toggle/toggle/toggleBar/open/close/paste` | `sumika-modules/clipboard/module-actions.qml` |
 | bluetooth | `bluetooth.launch` | Builtin in `ActionManager._registerBuiltins()` |
 
-Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, power-indicator, systray, workspaces) have empty `module-actions.qml` files to suppress Loader warnings.
-
+Modules without QML-callback actions (audio, battery-power, clock, display, launcher, mpris, notification-popup, on-screen-display, overview, session, power-indicator, systray, workspaces) have no `module-actions.qml` — `ModuleActionHost` iterates only modules with an `actionsProvider` defined in `module.json`.
 ### Phase 5: Symlinks Removed
 
 Deleted all 4 symlinks from `apps/omd-bar/`:
@@ -296,12 +295,12 @@ Item {
 ### 2. `ModuleActionHost`
 
 `ModuleActionHost` (one instance in the bar process, inside the main Scope) iterates
-`ModuleLoader._registry.modules`, checks `ModuleLoader.isEnabled(m.id)`, and loads each
+`ModuleLoader.modules`, checks `ModuleLoader.isEnabled(m.id)`, and loads each
 enabled module's `module-actions.qml` via a `Loader`:
 
 ```qml
 Repeater {
-    model: ModuleLoader._registry.modules
+    model: ModuleLoader.modules
         .filter(m => m.id && m.path && ModuleLoader.isEnabled(m.id))
         .map(m => ({ moduleId: m.id, actionsUrl: "file://" + m.path + "/module-actions.qml" }))
     delegate: Loader { source: actionsUrl; asynchronous: true }
@@ -322,51 +321,45 @@ Actions without a module directory (e.g., `bluetooth.launch` — launched via
 `ActionManager._registerBuiltins()`.
 ---
 
-## Hardcoded `~/.config/omd` Paths (Cosmetic)
+## Hardcoded `~/.config/omd` Paths (All Migrated)
 
-Many QML files hardcode `$HOME/.config/omd/bin/...` or `$HOME/.config/omd/scripts/...`. These use `Directories.root` (which resolves to the same symlink) and are NOT blocking — the symlink is stable. Listed for future migration.
-
-| File | Pattern | Count |
-|---|---|---|
-| `Session.qml` | `$HOME/.config/omd/bin/omd-*` | 2 |
-| `WorkspaceNavigation.qml` | `$HOME/.config/omd/bin/omd-applauncher` | 1 |
-| `DisplayConfigState.qml` | `$HOME/.config/omd/bin/omd-display-config` / scripts | 4 |
-| `AppearancePage.qml` | `$HOME/.config/omd/bin/omd-*` | 8 |
-| `VoicePage.qml` | `$HOME/.config/omd/scripts/voice-*` | 5 |
-| `WindowsVmPage.qml` | `$HOME/.config/omd/bin/omd-settings-windows-vm` | 6 |
-| `Brightness.qml` | `$HOME/.config/omd/bin/omd-ddc-detect` | 1 |
-| `Network.qml` | `$HOME/.config/omd/bin/omd-network-*` | 3 |
-| `VoiceInput.qml` | `$HOME/.config/omd/apps/omd-bar ipc call` | 1 |
+All QML files previously hardcoding `$HOME/.config/omd/…` have been migrated to use `Directories.root`.
+Fixed files: Session.qml, WorkspaceNavigation.qml, DisplayConfigState.qml, AppearancePage.qml,
+WindowsVmPage.qml, Brightness.qml, VoiceInput.qml, Network.qml, SettingsDialog.qml,
+AppLauncherButton.qml, AppLauncher.qml, Directories.qml.
+Zero hardcoded `~/.config/omd` paths remain in QML.
 
 ---
 
-## Hardcoded `$HOME/development/OMD` Paths in QML
+## Git History (Post-Refactor Commits)
 
-Some QML files reference `$HOME/development/OMD` (the repo path as seen by the developer). These are environment-specific and should be migrated to `Directories.root`:
-
-*(list here if grep finds any)*
-
----
-
-## Git History
-
-### OMD repository (`~/development/OMD`)
+### OMD repository (`~/development/OMD`) — Most recent first
 
 ```
-c46354f — Phase 2+3: Unified resource paths + removed GlobalStates copies (Phase 3)
-f1b9c96 — Phase 4: ModuleActionHost + per-module module-actions.qml + ActionManager refactor
-80f6222 — Phase 5: Deleted omd-bar symlinks (assets, scripts, translations)
-4496bb8 — Phase 6: Empty module-actions.qml + import QtQuick fix + Loader error handling
-1c6b3ba — Docs: Audit + verification docs
-```
-
-Plus subsequent work:
-```
-c2a4286 — Final: Deleted config.json symlink, updated docs with actual implementation
+d6281fa — cleanup: remove empty module-actions.qml stubs and duplicate GlobalStates
+31170d8 — refactor: update IPC calls, remove dead shell.qml code, add actionsProvider to manifest
+7e2f865 — refactor: replace hardcoded paths in settings pages
+f5b5990 — refactor: replace hardcoded ~/.config/omd paths with Directories.root
+a4f6eb1 — refactor: ApplicationManager uses ModuleLoader.modules instead of _registry
+ba164a9 — refactor: expose ModuleLoader public API, robust action unregister
+ec4f131 — fix: Systray null safety, OverviewSearch anchor, popup ownership sort, Bluetooth conditional
+3e46a79 — chore: remove __pycache__ and tracked .state dirs, add modules/**/.state/ to gitignore
 ```
 
 ### Sumika-modules repository (`~/development/sumika-modules`)
 
 ```
-793e1f0 — Added module-actions.qml for all 10 external modules
+d080fff — cleanup: remove dead code, migrate module scripts, update actions providers
 ```
+
+### Known Remaining Issues
+
+| # | Issue | Severity |
+|---|---|---|
+| 1 | Bar shell.qml directly loads Hyprsunset/SessionConfirmOverlay/SessionAutoRestore — should be contributed by display/session modules | Medium |
+| 2 | Bluetooth fallback builtin in ActionManager._registerBuiltins() — core knows about bluetooth | Low |
+| 3 | Network.qml popup `linkDetailsProc is not defined` — was a pre-existing process id missing | Fixed |
+| 4 | Stop script pkill path for `omd-overview` → `overview` dir | Fixed |
+| 5 | Popup singleton conflict logged as error with owner tracking (not just warning) | Fixed |
+| 6 | Overview invalid wallpaper provider (no component) — removed | Fixed |
+

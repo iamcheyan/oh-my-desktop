@@ -695,6 +695,7 @@ Singleton {
     }
 
     Process {
+        id: linkDetailsProc
         command: ["bash", "-c", Directories.root + "/bin/omd-network-link-details"]
         stdout: StdioCollector {
             onStreamFinished: {

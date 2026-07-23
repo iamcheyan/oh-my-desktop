@@ -8,11 +8,13 @@
 omd_stop_quickshell() {
     omd_root="${OMD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
     runtime_dir="/run/user/$(id -u)"
+    # Processes whose dir name differs from their unit/process name use DIRECT_* maps.
     apps="omd-notification omd-bar omd-overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
+    apps_dir="omd-notification omd-bar overview omd-polkit omd-applauncher omd-clipboard omd-clipboard-store"
     legacy_apps="omd-desktop"
 
-    for app in omd-notification omd-bar omd-overview omd-polkit omd-applauncher omd-clipboard omd-settings omd-screenshot $legacy_apps; do
-        pkill -f "(quickshell|qs).* -p ${omd_root}/(apps|modules)/${app}( |$)" 2>/dev/null || true
+    for app_dir in $apps_dir; do
+        pkill -f "(quickshell|qs).* -p ${omd_root}/(apps|modules)/${app_dir}( |$)" 2>/dev/null || true
     done
 
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`

@@ -134,7 +134,8 @@ Singleton {
         if (!modulesEnabled) return []
         const sections = _contributes("popupSections")
         const singletonTypes = {battery: 1, inputMethod: 1, keyboard: 1, voice: 1}
-        const seenSingletonTypes = {}
+        // Track original registrant for conflict reporting
+        const seenSingletonOwners = {}
         // Sort: OMD core modules (path contains "OMD/") before external
         // modules. This ensures stable singleton popup ownership — the first
         // module wins, and core modules should be preferred.
@@ -150,12 +151,13 @@ Singleton {
                 return false
             }
             if (singletonTypes[s.type]) {
-                if (seenSingletonTypes[s.type]) {
-                    console.warn("[ModuleLoader] ignoring duplicate singleton popup type:",
-                                 s.type, "from", s.moduleId)
+                if (seenSingletonOwners[s.type]) {
+                    console.error("[ModuleLoader] duplicate singleton popup type '" + s.type +
+                        "': first registered by '" + seenSingletonOwners[s.type] +
+                        "', ignored duplicate from '" + s.moduleId + "'")
                     return false
                 }
-                seenSingletonTypes[s.type] = true
+                seenSingletonOwners[s.type] = s.moduleId
             }
             return true
         })

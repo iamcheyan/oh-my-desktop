@@ -54,3 +54,18 @@ Replaced legacy dependency mechanism (project-directory symlinks + flat file cop
 - `_registry` direct access: 0 consumers (all use public API)
 - `GlobalStates` copies: 0 (single source in `quickshell/GlobalStates.qml`)
 - Hardcoded `~/.config/omd` paths in QML: 0 (all use `Directories.root`)
+
+## Known Remaining Issues (Strict Plugin Goal)
+
+The original 8 issues are resolved. However, a strict plugin architecture goal requires further work:
+
+| # | Issue | Severity |
+|---|---|---|
+| 1 | Bar shell.qml directly loads Hyprsunset/SessionConfirmOverlay/SessionAutoRestore instead of receiving via `contributes.overlays` from display/session modules | Medium |
+| 2 | Bluetooth fallback builtin in `ActionManager._registerBuiltins()` — core retains bluetooth awareness | Low |
+| 3 | Network.qml link-details Process had missing `id` (`linkDetailsProc is not defined`) | ✅ Fixed |
+| 4 | Popup singleton conflict now emits `console.error` with owner tracking (previously `console.warn`) | ✅ Fixed |
+| 5 | Overview registered wallpaper provider without `component` field, causing `Loader.source = undefined` | ✅ Fixed |
+| 6 | Stop script pkill pattern `modules/omd-overview` stale (directory renamed to `modules/overview`) | ✅ Fixed |
+
+**Entry point refactor: ~85% complete.** Core symlink elimination, unified imports, module registration API, path migration, and error fixes are done. Remaining items (#1, #2) require module boundary refactoring (session module contributing overlays, removing bluetooth awareness from core).

@@ -999,7 +999,7 @@ Item {
         model: ModuleLoader.overviewProviders
         delegate: Loader {
             required property var modelData
-            source: modelData.component
+            source: modelData.component ?? ""
             active: true
             z: {
                 // Default z-order; individual providers can override via their component

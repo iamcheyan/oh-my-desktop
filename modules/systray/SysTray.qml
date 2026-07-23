@@ -52,7 +52,7 @@ Item {
     RowLayout {
         id: trayRow
         anchors.centerIn: parent
-        spacing: Config.options.bar.trayIconSpacing
+        spacing: Config.options.bar.trayIconSpacing ?? 0
 
         Repeater {
             id: trayRepeater
