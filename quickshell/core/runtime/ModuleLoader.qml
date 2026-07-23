@@ -40,6 +40,16 @@ Singleton {
         return true
     }
 
+    /// Resolve a module's absolute directory path from the registry.
+    /// Returns empty string if module or registry unavailable.
+    function modulePath(moduleId) {
+        const mods = _registry.modules ?? []
+        for (var i = 0; i < mods.length; i++) {
+            if (mods[i].id === moduleId) return mods[i].path || ""
+        }
+        return ""
+    }
+
     // Helper: read a contributes array. Registry is always v2 format
     // (startup script converts v1 manifests during generation).
     function _contributes(key) {

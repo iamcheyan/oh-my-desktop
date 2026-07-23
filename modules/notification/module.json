@@ -11,10 +11,5 @@
     "readyTimeout": 10,
     "appId": "org.omd.notification"
   },
-  "contributes": {
-    "actions": [
-      {"id": "notification.toggle", "name": "Toggle notifications", "description": "Open or close the notification center"},
-      {"id": "notification.dismiss-all", "name": "Dismiss all", "description": "Dismiss all visible notifications"}
-    ]
-  }
+  "contributes": {}
 }

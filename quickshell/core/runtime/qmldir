@@ -4,3 +4,4 @@ singleton ProcessSupervisor 1.0 ProcessSupervisor.qml
 singleton ModuleLoader 1.0 ModuleLoader.qml
 singleton ApplicationManager 1.0 ApplicationManager.qml
 singleton ServiceManager 1.0 ServiceManager.qml
+ModuleActionHost 1.0 ModuleActionHost.qml

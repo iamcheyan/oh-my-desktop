@@ -3,7 +3,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.core.runtime
-import qs.services as Svcs
 
 pragma ComponentBehavior: Bound
 
@@ -367,54 +366,14 @@ Singleton {
             }
         }, {description: "Query process supervisor state for an instance or list all"})
 
-        // Clipboard actions — deferred to next tick so ModuleLoader's registry reader
-        // (an async Process) has time to populate _registry before we resolve paths.
-        Qt.callLater(function() { manager._registerClipboardActions() })
-
+        // Bluetooth (no dedicated module — action stays in builtins)
+        this.register("bluetooth.launch", "bluetooth", "Open Bluetooth manager", {
+            type: "process",
+            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-launch-bluetooth"]
+        }, {description: "Open the Bluetooth pairing TUI"})
         this._registerFromRegistry()
     }
 
-    /// Register clipboard actions with binary path resolved from ModuleLoader registry.
-    /// Called deferred (via Qt.callLater) to avoid racing the async registry reader.
-    function _registerClipboardActions() {
-        var clipDir = this._modulePath("clipboard")
-        if (!clipDir) {
-            console.log("[ActionManager] clipboard module not found in registry, trying fallback")
-            clipDir = Quickshell.env("OMD_REPO_ROOT")
-        }
-        if (!clipDir) {
-            console.warn("[ActionManager] cannot resolve clipboard module path, registrations skipped")
-            return
-        }
-        var clipCmd = clipDir + "/bin/omd-clipboard"
-
-        // All clipboard actions use type "process" (execDetached) because
-        // the omd-clipboard script manages its own lifecycle:
-        //   - not running: launches clipboard QS instance
-        //   - running: sends IPC to running instance (toggle, close, paste, open)
-        // ProcessSupervisor tracking is intentionally bypassed — the module
-        // is kind:"shared" and the shell script IS the lifecycle manager.
-
-        this.register("clipboard.toggle", "clipboard", "Toggle clipboard", {
-            type: "process", command: [clipCmd, "toggle"]
-        }, {description: "Open or close the clipboard history"})
-
-        this.register("clipboard.toggleBar", "clipboard", "Toggle clipboard at bar", {
-            type: "shell", command: clipCmd + " toggle-at-bar"
-        }, {description: "Open or close the clipboard anchored to the top bar"})
-
-        this.register("clipboard.open", "clipboard", "Open clipboard", {
-            type: "process", command: [clipCmd, "open"]
-        }, {description: "Open the clipboard history"})
-
-        this.register("clipboard.close", "clipboard", "Close clipboard", {
-            type: "process", command: [clipCmd, "close"]
-        }, {description: "Close the clipboard history"})
-
-        this.register("clipboard.paste", "clipboard", "Paste clipboard selection", {
-            type: "process", command: [clipCmd, "paste"]
-        }, {description: "Paste the currently selected clipboard entry"})
-    }
 
     /// Register actions declared in module manifests via the registry.
     /// Module actions with a 'handler' field are registered as-is; application
