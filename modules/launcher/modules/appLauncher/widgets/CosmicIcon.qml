@@ -8,7 +8,7 @@ Item {
     property real iconSize: Appearance.font.pixelSize.small
     property color color: "#c5c8c6"
 
-    readonly property string source: name !== "" ? ("file://" + Directories.assetsPath + "/cosmic-icons/" + name + ".svg") : ""
+    readonly property string source: name !== "" ? ("file://" + Directories.cosmicIcons + "/" + name + ".svg") : ""
 
     implicitWidth: iconSize
     implicitHeight: iconSize

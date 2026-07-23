@@ -1,1 +1,11 @@
-omd-legacy-omarchy
+#!/bin/sh
+for lib_name in libstdc++.so.6 libz.so.1; do
+  lib_dir="$(find /nix/store -path "*/lib/$lib_name" -print -quit 2>/dev/null | xargs -r dirname || true)"
+  if [ -n "${lib_dir:-}" ]; then
+    case ":${LD_LIBRARY_PATH:-}:" in
+      *:"$lib_dir":*) ;;
+      *) export LD_LIBRARY_PATH="$lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ;;
+    esac
+  fi
+done
+exec "$(dirname "$0")/../share/bin/omarchy-voice-record" "$@"

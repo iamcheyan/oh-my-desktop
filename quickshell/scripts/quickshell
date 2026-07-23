@@ -116,30 +116,6 @@ if [ -d "$repo_root/modules" ]; then
 fi
 
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
-    # Always add modules to QML import path so core components (lock, screen
-    # saver, etc.) are importable even when the master switch is off.
-
-    # Create symlinks for core modules that need direct QML scanner resolution
-    # (e.g., lock screen) under the modules discovery directory.
-    # The scanner resolves qs.modules.<name> from <config-dir>/modules/<name>/,
-    # which is not covered by QML_IMPORT_PATH.
-    for module_dir in "$SUMIKA_MODULES_HOME"/*/; do
-        [ -d "$module_dir" ] || continue
-        name="$(basename "$module_dir")"
-        link_target="$repo_root/quickshell/modules/$name"
-        case "$name" in
-            lock) ;;  # core modules needing scanner resolution — add more here
-            *) continue ;;
-        esac
-        # Remove stale internal directory if it exists (post-extraction).
-        if [ -d "$link_target" ] && [ ! -L "$link_target" ]; then
-            rm -rf "$link_target"
-        fi
-        if [ ! -L "$link_target" ]; then
-            ln -sf "$module_dir" "$link_target"
-        fi
-    done
-
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue
         module_dir=$(dirname "$module_json")

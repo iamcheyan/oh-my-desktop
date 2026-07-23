@@ -1,1 +1,2 @@
-omd-legacy-omarchy
+#!/bin/sh
+exec "$(dirname "$0")/../share/bin/omarchy-system-wake" "$@"

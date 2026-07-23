@@ -39,6 +39,7 @@ Singleton {
         Quickshell.env("SUMIKA_SHELL_ROOT")
         ?? `${Directories.config}/omd`
     )
+    readonly property string cosmicIcons: "/usr/share/icons/Cosmic/scalable"
     property string assetsPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/assets`)
     property string scriptPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/scripts`)
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)
