@@ -236,6 +236,14 @@ Singleton {
                     }
                     break
 
+                case "delegate":
+                    // Delegate to another registered action by ID
+                    if (h.targetId && typeof h.targetId === "string") {
+                        return this.invoke(h.targetId, params)
+                    }
+                    console.error("[ActionManager] invoke '" + a.id + "': delegate handler missing targetId")
+                    return {success: false, error: "missing_target"}
+
                 case "ipc":
                     console.warn("[ActionManager] invoke '" + a.id + "': IPC handler dispatch not yet supported directly")
                     return {success: false, error: "handler_unavailable"}

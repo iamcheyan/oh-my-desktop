@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "id": "settings",
+  "name": "Settings",
+  "description": "System settings panels and preferences dialog",
+  "version": "2.0.0",
+  "kind": "application",
+  "entry": {
+    "command": ["${OMD_ROOT}/bin/omd-settings", "open"],
+    "instance": "omd-settings",
+    "readyTimeout": 15,
+    "appId": "org.omd.settings"
+  },
+  "contributes": {
+    "actions": [
+      {"id": "settings.open", "name": "Open settings", "description": "Open system settings dialog"}
+    ]
+  }
+}

@@ -4,6 +4,7 @@
   "name": "On-Screen Display",
   "description": "On-screen display overlays for volume, brightness, input method changes",
   "version": "2.0.0",
+  "actionsProvider": "module-actions.qml",
   "kind": "overlay",
   "contributes": {
     "overlays": [

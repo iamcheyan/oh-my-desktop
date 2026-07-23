@@ -4,6 +4,7 @@
   "name": "Notification Popup",
   "description": "Notification popup overlay showing desktop notifications",
   "version": "2.0.0",
+  "actionsProvider": "module-actions.qml",
   "kind": "overlay",
   "contributes": {
     "overlays": [
