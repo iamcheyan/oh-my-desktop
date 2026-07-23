@@ -7,13 +7,11 @@ import Quickshell
 
 Item {
     id: root
-
     function toggleAppLauncher() {
         Quickshell.execDetached([
-            "sh", "-c", "$HOME/.config/omd/bin/omd-applauncher toggle"
+            "sh", "-c", `${Directories.root}/bin/omd-applauncher toggle`
         ]);
     }
-
     implicitWidth: button.implicitWidth
     implicitHeight: button.implicitHeight
 

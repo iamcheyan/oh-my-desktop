@@ -7,6 +7,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 import qs.services.network
+import qs.modules.common
 
 /**
  * Network service with nmcli.
@@ -694,9 +695,7 @@ Singleton {
     }
 
     Process {
-        id: linkDetailsProc
-        running: true
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-network-link-details"]
+        command: ["bash", "-c", Directories.root + "/bin/omd-network-link-details"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {};
@@ -722,9 +721,7 @@ Singleton {
     }
 
     Process {
-        id: diagProc
-        running: false
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-network-diag"]
+        command: ["bash", "-c", Directories.root + "/bin/omd-network-diag"]
         stdout: StdioCollector {
             id: diagCollector
             onStreamFinished: {
@@ -760,9 +757,7 @@ Singleton {
     }
 
     Process {
-        id: firewallProc
-        running: true
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-network-firewall"]
+        command: ["bash", "-c", Directories.root + "/bin/omd-network-firewall"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {};

@@ -25,13 +25,11 @@ Singleton {
                 refreshAfterDragTimer.restart();
         }
     }
-
     function openAppLauncher() {
         Quickshell.execDetached([
-            "sh", "-c", "$HOME/.config/omd/bin/omd-applauncher open"
+            "sh", "-c", `${Directories.root}/bin/omd-applauncher open`
         ]);
     }
-
     function overviewModel() {
         if (OverviewSwitchingController.grabbed)
             return switchingModeModel();

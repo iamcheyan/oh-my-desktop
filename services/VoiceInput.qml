@@ -33,7 +33,7 @@ Singleton {
     readonly property string recPidFile: "/tmp/omd-voice-rec.pid"
 
     readonly property string shareDir: FileUtils.trimFileProtocol(
-        `${Directories.config}/omd/bin`)
+        `${Directories.root}/bin`)
 
     readonly property string pasteScript: `${root.shareDir}/omd-paste-at-cursor`
 
@@ -71,9 +71,7 @@ Singleton {
 
     onStateChanged: {
         if (state === "recording") {
-            Quickshell.execDetached(["hyprctl", "eval", "o.bind(\"escape\", \"Cancel voice recording\", \"qs -p $HOME/.config/omd/apps/omd-bar ipc call voice cancel\")"])
-        } else {
-            Quickshell.execDetached(["hyprctl", "eval", "hl.unbind(\"escape\")"])
+            Quickshell.execDetached(["hyprctl", "eval", "o.bind(\"escape\", \"Cancel voice recording\", \"qs -p " + Directories.root + "/apps/omd-bar ipc call action call voice.cancel\")"])
         }
 
         if (state === "success") {

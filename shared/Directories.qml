@@ -39,8 +39,8 @@ Singleton {
         Quickshell.env("SUMIKA_SHELL_ROOT")
         ?? `${Directories.config}/omd`
     )
-    property string assetsPath: Quickshell.shellPath("assets")
-    property string scriptPath: Quickshell.shellPath("scripts")
+    property string assetsPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/assets`)
+    property string scriptPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/scripts`)
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)
     property string shellConfig: FileUtils.trimFileProtocol(`${Directories.config}/sumika-shell/quickshell`)
     property string shellConfigName: "config.json"
