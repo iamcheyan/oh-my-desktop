@@ -195,7 +195,40 @@ Singleton {
         }
     }
 
+
+    /// Register services declared by registry modules.
+    /// Reads ModuleLoader modules and their contributed services.
+    function _registerFromRegistry() {
+        if (typeof ModuleLoader === "undefined") return
+        const mods = ModuleLoader.modules
+        if (!mods || mods.length === 0) return
+
+        var count = 0
+        for (var mi = 0; mi < mods.length; mi++) {
+            var m = mods[mi]
+            if (!m.enabled) continue
+            var svcs = m.contributes ? m.contributes.services : null
+            if (!svcs || svcs.length === 0) continue
+
+            for (var si = 0; si < svcs.length; si++) {
+                var svcId = svcs[si]
+                // Skip if already registered (core placeholders take priority)
+                if (_providers[svcId] !== undefined) {
+                    console.log("[ServiceManager] registry service '" + svcId + "' from '" + m.id + "' — skipped, already registered by '" + _providers[svcId].owner + "'")
+                    continue
+                }
+                this.register(svcId, "1.0.0", m.id, null)
+                console.log("[ServiceManager] registered registry service '" + svcId + "' from module '" + m.id + "'")
+                count++
+            }
+        }
+        if (count > 0) {
+            console.log("[ServiceManager] registered " + count + " services from registry modules")
+        }
+    }
+
     Component.onCompleted: {
         _registerPlaceholders()
+        _registerFromRegistry()
     }
 }

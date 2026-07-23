@@ -384,6 +384,148 @@ Singleton {
                 command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-launch-bluetooth"]
             }, {description: "Open the Bluetooth pairing TUI"})
         }
+
+        // === Audio (media control) actions - consumed by Hyprland bindings ===
+        this.register("audio.volume-up", "core", "Volume up", {
+            type: "process",
+            command: ["omd-swayosd-client", "--output-volume", "raise"]
+        }, {description: "Raise output volume"})
+        this.register("audio.volume-down", "core", "Volume down", {
+            type: "process",
+            command: ["omd-swayosd-client", "--output-volume", "lower"]
+        }, {description: "Lower output volume"})
+        this.register("audio.volume-mute-toggle", "core", "Toggle mute", {
+            type: "process",
+            command: ["omd-swayosd-client", "--output-volume", "mute-toggle"]
+        }, {description: "Toggle audio output mute"})
+        this.register("audio.input-mute-toggle", "core", "Toggle input mute", {
+            type: "process",
+            command: ["omd-audio-input-mute"]
+        }, {description: "Toggle microphone mute"})
+        this.register("audio.volume-up-precise", "core", "Volume up 1%", {
+            type: "process",
+            command: ["omd-swayosd-client", "--output-volume", "+1"]
+        }, {description: "Raise output volume by 1%"})
+        this.register("audio.volume-down-precise", "core", "Volume down 1%", {
+            type: "process",
+            command: ["omd-swayosd-client", "--output-volume", "-1"]
+        }, {description: "Lower output volume by 1%"})
+        this.register("audio.output-switch", "core", "Switch audio output", {
+            type: "process",
+            command: ["omd-audio-output-switch"]
+        }, {description: "Cycle audio output device"})
+
+        // === Display brightness ===
+        this.register("display.brightness-up", "core", "Brightness up", {
+            type: "process",
+            command: ["omd-brightness-display", "+5%"]
+        }, {description: "Increase display brightness by 5%"})
+        this.register("display.brightness-down", "core", "Brightness down", {
+            type: "process",
+            command: ["omd-brightness-display", "5%-"]
+        }, {description: "Decrease display brightness by 5%"})
+        this.register("display.brightness-max", "core", "Brightness maximum", {
+            type: "process",
+            command: ["omd-brightness-display", "100%"]
+        }, {description: "Set display brightness to 100%"})
+        this.register("display.brightness-min", "core", "Brightness minimum", {
+            type: "process",
+            command: ["omd-brightness-display", "1%"]
+        }, {description: "Set display brightness to 1%"})
+        this.register("display.brightness-up-precise", "core", "Brightness up 1%", {
+            type: "process",
+            command: ["omd-brightness-display", "+1%"]
+        }, {description: "Increase display brightness by 1%"})
+        this.register("display.brightness-down-precise", "core", "Brightness down 1%", {
+            type: "process",
+            command: ["omd-brightness-display", "1%-"]
+        }, {description: "Decrease display brightness by 1%"})
+
+        // === Keyboard backlight ===
+        this.register("display.kbd-brightness-up", "core", "Keyboard brightness up", {
+            type: "process",
+            command: ["omd-brightness-keyboard", "up"]
+        }, {description: "Increase keyboard backlight brightness"})
+        this.register("display.kbd-brightness-down", "core", "Keyboard brightness down", {
+            type: "process",
+            command: ["omd-brightness-keyboard", "down"]
+        }, {description: "Decrease keyboard backlight brightness"})
+        this.register("display.kbd-brightness-cycle", "core", "Keyboard backlight cycle", {
+            type: "process",
+            command: ["omd-brightness-keyboard", "cycle"]
+        }, {description: "Cycle keyboard backlight states"})
+
+        // === Input (touchpad) ===
+        this.register("input.touchpad-toggle", "core", "Toggle touchpad", {
+            type: "process",
+            command: ["omd-toggle-touchpad"]
+        }, {description: "Toggle touchpad on/off"})
+        this.register("input.touchpad-enable", "core", "Enable touchpad", {
+            type: "process",
+            command: ["omd-toggle-touchpad", "on"]
+        }, {description: "Enable touchpad"})
+        this.register("input.touchpad-disable", "core", "Disable touchpad", {
+            type: "process",
+            command: ["omd-toggle-touchpad", "off"]
+        }, {description: "Disable touchpad"})
+
+        // === Display (monitor/lid) ===
+        this.register("display.internal-toggle", "core", "Toggle laptop display", {
+            type: "process",
+            command: ["omd-hyprland-monitor-internal", "toggle"]
+        }, {description: "Toggle laptop internal display"})
+        this.register("display.internal-mirror-toggle", "core", "Toggle display mirroring", {
+            type: "process",
+            command: ["omd-hyprland-monitor-internal-mirror", "toggle"]
+        }, {description: "Toggle laptop display mirroring"})
+        this.register("display.lid-close", "core", "Lid close", {
+            type: "shell",
+            command: "omd-hw-external-monitors && omd-hyprland-monitor-internal off"
+        }, {description: "Handle lid-close: switch to external monitors"})
+        this.register("display.lid-open", "core", "Lid open", {
+            type: "process",
+            command: ["omd-hyprland-monitor-internal", "on"]
+        }, {description: "Handle lid-open: enable internal display"})
+        this.register("display.color-picker", "core", "Color picker", {
+            type: "shell",
+            command: "pkill hyprpicker || hyprpicker -a"
+        }, {description: "Toggle color picker tool"})
+        this.register("display.scaling-cycle", "core", "Cycle monitor scaling", {
+            type: "process",
+            command: ["omd-hyprland-monitor-scaling-cycle"]
+        }, {description: "Cycle through monitor scaling options"})
+        this.register("display.scaling-cycle-reverse", "core", "Cycle scaling reverse", {
+            type: "process",
+            command: ["omd-hyprland-monitor-scaling-cycle", "--reverse"]
+        }, {description: "Cycle monitor scaling in reverse order"})
+
+        // === Window management ===
+        this.register("window.transparency-toggle", "core", "Toggle transparency", {
+            type: "process",
+            command: ["omd-hyprland-window-transparency-toggle"]
+        }, {description: "Toggle active window transparency"})
+        this.register("window.gaps-toggle", "core", "Toggle gaps", {
+            type: "process",
+            command: ["omd-hyprland-window-gaps-toggle"]
+        }, {description: "Toggle window gaps on/off"})
+        this.register("window.single-square-aspect-toggle", "core", "Toggle square aspect", {
+            type: "process",
+            command: ["omd-hyprland-window-single-square-aspect-toggle"]
+        }, {description: "Toggle single window square aspect ratio"})
+        this.register("window.close-all", "core", "Close all windows", {
+            type: "process",
+            command: ["omd-hyprland-window-close-all"]
+        }, {description: "Close all windows on current workspace"})
+        this.register("window.pop-out", "core", "Pop window out", {
+            type: "process",
+            command: ["omd-hyprland-window-pop"]
+        }, {description: "Pop focused window out (float & pin)"})
+
+        // === Workspace ===
+        this.register("workspace.layout-toggle", "core", "Toggle layout", {
+            type: "process",
+            command: ["omd-hyprland-workspace-layout-toggle"]
+        }, {description: "Toggle workspace layout between master-stack and default"})
     }
 
 

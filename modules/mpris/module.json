@@ -14,9 +14,9 @@
       }
     ],
     "actions": [
-      {"id": "mpris.play-pause", "name": "Play / Pause"},
-      {"id": "mpris.next", "name": "Next track"},
-      {"id": "mpris.previous", "name": "Previous track"}
+      {"id": "mpris.play-pause", "name": "Play / Pause", "handler": "process:omd-swayosd-client --playerctl play-pause"},
+      {"id": "mpris.next", "name": "Next track", "handler": "process:omd-swayosd-client --playerctl next"},
+      {"id": "mpris.previous", "name": "Previous track", "handler": "process:omd-swayosd-client --playerctl previous"}
     ],
     "services": ["mpris-controller", "track-art"]
   }

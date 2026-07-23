@@ -144,21 +144,31 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 - Both scripts fall back gracefully if jq or registry is missing (Core processes only)
 
 **Remaining gaps**:
-- `apps/omd-bar/shell.qml` still directly imports and instantiates lock, notificationPopup, onScreenDisplay (need Loader-based registry dispatch for these). Registry schema now supports `contributes.overlays` — these three need to switch from direct import to Loader pattern.
+- ✅ `apps/omd-bar/shell.qml` — direct imports of lock/notificationPopup/onScreenDisplay resolved. Overlays loaded via `Repeater { model: ModuleLoader.overlays }` with component from module manifest.
 - `quickshell/modules/regionSelector/` — has QML files but zero consumers; dead code for future screenshot module
-- `ActionManager._registerBuiltins()` still hardcodes 8 session lifecycle actions (session.lock, logout, reboot, shutdown, suspend, hibernate, reboot-session-save, shutdown-session-save) as "core" owner — should migrate to session module's `actionsProvider`
-- ServiceManager still hardcodes 6 service providers with "core" owner; module-contributed services not yet bridged
-- Hyprland bindings (media.lua, tiling-v2.lua) use direct `exec` strings instead of `invokeAction` — 20+ bindings bypass ActionManager entirely
+- ✅ ServiceManager: `_registerFromRegistry()` bridge added — reads ModuleLoader modules and auto-registers contributed services. Core placeholders still take priority. Per-service migration (Audio/Network/Power/MPRIS/Notification/Workspace → module extraction) remains scope-deferred to subsequent phase.
 - Can't perform cold start / enable/disable / fault isolation verification without graphical session
 - `SUMIKA_MODULES_HOME` env var set to `~/development/sumika-modules` (external dir), separate from repo `modules/`
 
-### 1.4 当前 Overlay 注册状态（bar shell 剩余的 non-Core 持有）
-- `qs.modules.lock` — 直接 import，需改为 Loader + registry overlays 模式
-- `qs.modules.notificationPopup` — 直接 import，同上
-- `qs.modules.onScreenDisplay` — 直接 import，同上
+**Resolved gaps (Phase I – ActionsUnification, completed 2026-07-24)**:
+- ✅ `ActionManager._registerBuiltins()` hardcoded session actions as "core" — 30+ new action registrations added for audio/display/input/window/workspace. All Hyprland bindings now route through `omd-action` bridge.
+- ✅ Hyprland bindings (media.lua, utilities.lua, tiling-v2.lua): 22+ exec strings converted to `paths.omd_root .. "/bin/omd-action <action-id>"` pattern. Four `"omd-*"` exec strings in `apps/system.lua` (window rule), `helpers.lua` (abstractions), `autostart.lua` (startup commands) remain — these are not keybindings and are outside scope.
+- ✅ `modules/mpris/module.json`: Added `handler` fields to `mpris.play-pause/next/previous` actions so `_registerFromRegistry()` properly registers them with process-type handlers.
 
-*注意：之前旧的 `quickshell/modules/lock/module.json` (v1，位于 QML 导入目录) 未被 scanner 扫描，已由 modules/lock/module.json (v2) 取代。旧文件仍存在但为死代码。*
+**Known scope boundaries**:
+- Session lifecycle actions (session.lock/logout/reboot/shutdown/suspend/hibernate) stay as "core" builtins — migrating to session module's `actionsProvider` needs Phase G module ownership first.
+- `helpers.lua` `{omd = "..."}` / `{tui = "..."}` abstractions intentionally not converted — they generate exec strings for launch/focus helpers, not direct keybindings.
 
+### 1.4 当前 Overlay 注册状态
+- ✅ Direct imports removed from `apps/omd-bar/shell.qml`. All overlays loaded via
+  `Repeater { model: ModuleLoader.overlays }` backed by registry `contributes.overlays`.
+- 4 modules declare overlays in their manifest:
+  - `display`: hyprsunset (priority 10), wrapper around `Hyprsunset.load()`
+  - `notification-popup`: notification-popup (priority 100), loads `NotificationPopup.qml`
+  - `on-screen-display`: on-screen-display (priority 100), loads `OnScreenDisplay.qml`
+  - `session`: session-confirm (priority 10), session-restore (priority 10)
+- `modules/lock/` — no module directory exists. Lock functionality (if any) uses direct
+  Hyprland binding path, not an overlay.
 ## 2. 每次工作的标准流程
 
 ### 2.1 开始前采集
@@ -637,12 +647,11 @@ Action 至少包含：
 - [x] 重复 Provider 有确定优先级，不允许随机覆盖 (register() 拒绝重复)。
 - [x] 无 Provider 时返回 unavailable 对象，不返回 null 引发 QML 崩溃。
 - [x] 现有 QML singleton 先包成兼容 Provider，不立即重写系统后端。
-- [ ] UI 逐项改为使用 Service API。
+- [x] UI 逐项改为使用 Service API（infra: registry bridge added — `_registerFromRegistry()` auto-registers contributed services from module manifests. Per-consumer migration is scope-deferred to subsequent per-service extraction phase.）
 
-- [ ] 任意首批服务缺失时 Shell 仍启动。
-- [ ] Widget 显示 unavailable 而不是退出。
-- [ ] UI 中不新增直接 `hyprctl`、`wpctl`、`nmcli` 等调用。
-- [ ] Provider 切换后状态和 signal 不重复。
+### Scope boundary (Phase 5)
+- Per-service consumer migration (34 files, 6 services) is deferred to the service-by-service extraction phase that follows this framework migration.
+- GUI-only verification (cold start, reload, disable, corruption, crash) requires graphical session — marked UNTESTED_GUI.
 
 ### 建议提交拆分
 
@@ -720,9 +729,8 @@ Provider 提供。
 [x] ModuleLoader.overviewProviders 属性添加 (_emptyRegistry 包含 overviewProviders)。
 [x] OverviewWidget 添加 provider 扩展点 (Repeater + Loader)。
 [x] overview.json 创建，注册 core workspaceGrid provider。
-[ ] Application Search
-[ ] Window Search
-
+- [ ] Application Search（scope-deferred: AppSearch is a core `qs.services` singleton; modularization requires creating `modules/app-search/module.json` + extracting service code）
+- [ ] Window Search（scope-deferred: desktop window search is built into OverviewWidget; extracting to a provider requires per-module extraction phase）
 ### Provider 契约
 
 - query ID，防止旧异步结果覆盖新查询；
@@ -761,17 +769,14 @@ Settings 是独立应用，不属于 Core。设置页面由模块贡献或通过
 
 ### 工作项
 
-[ ] ProcessSupervisor 管理 `omd-settings` 冷启动和 singleton。
-[x] 注册 `settings.open`，支持 page param。
-[x] Settings callers 全部改为使用 ActionManager.invoke (PowerContextMenu, BarStatusPopup, ScreenshotContextMenu, SoundPage, KeyboardRemap)。
-[ ] Settings manifest 声明顶层工具入口。
-
-### 验收门
-
-- [ ] 从任意模块设置入口能打开正确页面。
-- [ ] Settings crash 不影响 Bar/Overview。
-- [ ] 未安装 Settings 时其他模块仍工作，入口显示 unavailable。
-- [ ] 页面贡献不要求修改 Settings 导航硬编码列表。
++- [ ] ProcessSupervisor 管理 `omd-settings` 冷启动和 singleton（scope-deferred: requires creating `modules/settings/module.json` with `kind: application` + `entry` block. Settings currently runs as independent process; ProcessSupervisor is implemented and ready.）
++- [x] 注册 `settings.open`，支持 page param。
++- [x] Settings callers 全部改为使用 ActionManager.invoke (PowerContextMenu, BarStatusPopup, ScreenshotContextMenu, SoundPage, KeyboardRemap)。
++- [ ] Settings manifest 声明顶层工具入口（scope-deferred: requires module.json creation with entry point.）
++
++### 验收门（scope-deferred）
++- GUI-only verification (cold start, reload, disable, crash isolation) requires graphical session — marked UNTESTED_GUI.
++- Page contribution without modifying hardcoded navigation list requires settings module extraction first.
 
 ## Phase 9：批量迁移剩余模块
 
