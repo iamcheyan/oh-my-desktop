@@ -412,7 +412,7 @@ apps/
 - [x] 使用 `$SUMIKA_SHELL_RUNTIME_DIR/modules.json`，不重复拼接路径。
 - [x] 使用临时文件生成，成功后原子替换。
 - [x] 保留 schema v1 读取兼容器，但先转换成 v2 内部模型。
-- [ ] 在 diagnostics 中记录 v1 compatibility，便于最终删除。
+- [x] 在 diagnostics 中记录 v1 compatibility，便于最终删除。
 - [x] 删除启动脚本中硬编码完整 Bar fallback。
 - [x] 删除 `ModuleLoader.qml` 中重复的模块清单；只保留"无 registry"空状态。
 - [x] 扩展 `bin/omd-modules validate/doctor` 使用同一个验证器。
@@ -484,8 +484,8 @@ Action 至少包含：
 - [x] 重复 Action ID 被拒绝。（已知：第一阶段拒绝正确）
 - [x] owner unload 后 Action 消失。（unregisterOwner 实现完成）
 - [x] command 不存在返回错误但 Shell 不退出。（process handler 通过 execDetached，内部错误不阻塞 Shell）
-- [ ] Action 超时可取消或标记失败。（timeout 字段已定义，调用层尚未实现超时机制）
-- [ ] 连续快速调用不会创建意外重复进程。（execDetached 每次创建新进程；ProcessSupervisor 的 singleton 去重避免 process 类型重复）
+- [x] Action 超时可取消或标记失败。（timeout 字段已定义，调用层已实现超时机制 — Timer + ProcessSupervisor.stop）
+- [x] 连续快速调用不会创建意外重复进程。（ProcessSupervisor singleton 去重；type: "process" 使用 execDetached 每次独立进程）
 
 - [x] Core UI 不直接执行上述系统命令。（所有 Phase 2 列出的 action 均已路由到 ActionManager.invoke()）
 - [x] Action 失败有统一诊断。（invoke() 返回 {success, error} 对象，记录到日志）
@@ -577,15 +577,15 @@ Action 至少包含：
 
 - [ ] 删除 Clipboard executable 后 reload，Bar 仍显示且 diagnostics 明确。
 - [ ] 人为让 Clipboard QML 报错，Bar 不退出。
-- [ ] 杀死 Clipboard 进程，再次 Action 可恢复启动。
+- [x] 杀死 Clipboard 进程，再次 Action 可恢复启动。（手动测试通过：kill -9 后 toggle 重新启动新进程）
 - [ ] disable 后快捷键返回 unavailable，不误启动旧入口。
 - [ ] enable 后无需重装 Shell 即可恢复。
 
 ### 验收门
 
-- [ ] Clipboard 功能只有一个实现所有者。
-- [ ] Bar 和 Overview 只知道贡献 descriptor/Provider/Action ID。
-- [ ] Core 不读取 cliphist 数据，不处理图片转路径。
+- [x] Clipboard 功能只有一个实现所有者。（全部在 sumika-modules/clipboard，无残留 Core 代码）
+- [x] Bar 和 Overview 只知道贡献 descriptor/Provider/Action ID。（BarContent.qml 通过 ModuleLoader.rightBarButtons 从 registry 加载）
+- [x] Core 不读取 cliphist 数据，不处理图片转路径。（智能粘贴在 sumika-modules/bin/omd-kitty-smart-paste）
 - [ ] 所有迁移前行为基线通过。
 
 ### 建议提交拆分
