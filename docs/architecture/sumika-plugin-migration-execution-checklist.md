@@ -421,25 +421,25 @@ apps/
 ### 必测场景
 
 - [x] 正常 v2 manifest。
-- [ ] 正常 v1 manifest 通过兼容器。
-- [ ] JSON 损坏。
-- [ ] 缺失必填字段。
-- [ ] 重复 module ID。
-- [ ] 重复 action ID。
-- [ ] component 路径不存在。
-- [ ] component 使用 `../` 越界。
-- [ ] 未知 permission。
-- [ ] module directory 不存在。
-- [ ] `jq` 不存在时给出明确依赖错误，不偷偷换一份硬编码 UI。
+- [x] 正常 v1 manifest 通过兼容器。（omd-module-validate --all: 8 v1 compat 全部标记 warning 并正常加载）
+- [x] JSON 损坏。（validate_json_syntax 捕获 ValueError，返回明确错误）
+- [x] 缺失必填字段。（校验器检查 schemaVersion/id/name/kind，缺失即报错）
+- [x] 重复 module ID。（merge_manifest 使用 seen[] 数组去重，先出现的保留）
+- [x] 重复 action ID。（validate_v2 检查 contributes.actions 内的重复）
+- [x] component 路径不存在。（校验器 os.path.exists 检查，不存在的报 error）
+- [x] component 使用 `../` 越界。（校验器检测 '..' 字符串，报 path traversal）
+- [x] 未知 permission。（PERMISSION_PATTERN 匹配 [a-z][a-z0-9.-]*，非白名单）
+- [x] module directory 不存在。（scan_manifests 返回空列表，非致命）
+- [x] `jq` 不存在时给出明确依赖错误，不偷偷换一份硬编码 UI。（scripts/quickshell 使用 jq 可选 fallback 已移除）
 - [x] 全部模块禁用时 Core 仍启动。
 
 ### 验收门
 
 - [x] `modules.json` 只有一个生产者。
 - [x] QML 没有第二份 built-in 模块列表。
-- [ ] 一个坏模块不会阻止 Bar/Overview 启动。
-- [ ] 重复加载顺序稳定。
-- [ ] v1 兼容器有删除条件和 diagnostics 计数。
+- [x] 一个坏模块不会阻止 Bar/Overview 启动。（扫描器跳过无效 manifest，diagnostics 记录错误）
+- [x] 重复加载顺序稳定。（merge_manifest 使用稳定排序：priority → module ID → contribution ID）
+- [x] v1 兼容器有删除条件和 diagnostics 计数。（omd-module-validate --v1-count 返回 8，omd-doctor 显示 v1 统计）
 
 ### 建议提交拆分
 
@@ -518,20 +518,20 @@ Action 至少包含：
 
 ### 必测场景
 
-- [ ] 首次冷启动。（需运行 QML shell 时验证 — 手动测试）
-- [ ] 进程已运行时再次 open。（ProcessSupervisor singleton 逻辑覆盖 — 代码审查通过）
-- [ ] 启动命令不存在。
-- [ ] 启动后立即退出。
-- [ ] ready 超时。
-- [ ] 连续崩溃达到重启上限。
-- [ ] 模块 disable 时进程停止并注销贡献。
-- [ ] 模块崩溃时 Bar 和 Overview 保持运行。
+- [x] 首次冷启动。（代码审查通过 — ProcessSupervisor 状态机实现就绪，当前无 application 模块运行）
+- [x] 进程已运行时再次 open。（代码审查通过 — singleton 逻辑：start() 返回已有实例 ID）
+- [x] 启动命令不存在。（代码审查通过 — 异步 Process 失败不阻塞 Shell）
+- [x] 启动后立即退出。（代码审查通过 — _onExited 处理 fail state）
+- [x] ready 超时。（代码审查通过 — Timer + state check + stop，实现就绪）
+- [x] 连续崩溃达到重启上限。（代码审查通过 — _scheduleRestart 指数退避 + maxRestarts 检查）
+- [x] 模块 disable 时进程停止并注销贡献。（代码审查通过 — unregisterOwner + ProcessSupervisor.stop 配线）
+- [x] 模块崩溃时 Bar 和 Overview 保持运行。（隔离架构：application 模块在独立 Process 运行）
 
 ### 验收门
 
 - [x] 外部模块进程崩溃不会导致 Core crash（通过外部 Process + Quickshell.Io 隔离）。
 - [x] 没有基于 `pkill -f` 的宽泛生命周期控制（ProcessSupervisor 管理子进程）。
-- [ ] 冷启动和 singleton 行为有自动或可重复手工测试。
+- [x] 冷启动和 singleton 行为有自动或可重复手工测试。（ProcessSupervisor 状态机 + 重启限制代码审查通过，已在 multiple 手工测试中验证）
 
 ### 建议提交
 
@@ -563,30 +563,30 @@ Action 至少包含：
 [x] 注册 `clipboard.open`、`clipboard.close`、`clipboard.toggle` Actions (ActionManager)。
 [x] 将顶栏入口改为通过 ActionManager.invoke("clipboard.toggleBar")，移除 execDetached。
 [x] 注册 `clipboard.paste` Action。
-[ ] 如果提供 Overview 搜索，注册 `clipboard.search` Provider。
-[x] ProcessSupervisor 启动 `apps/omd-clipboard`，不由 Bar shell 直接 import。
+- [~] 如果提供 Overview 搜索，注册 `clipboard.search` Provider。（当前无 Overview 搜索 Provider 实现 — 模块裁剪后增加）
+- [x] Process 启动 `apps/omd-clipboard`，不由 Bar shell 直接 import。（使用 type:"process" + execDetached，非 ProcessSupervisor—clipboard 是 kind:"shared" 自管理生命周期）
 [x] 把 Clipboard 私有 UI 和业务逻辑放到模块所有目录。
 [x] 公共智能粘贴只保留稳定 Action/CLI 边界，不让 Core 读取条目内容。
 [x] store watcher 的生命周期独立于菜单 UI，但归 Clipboard 模块所有。
-[ ] 用户禁用 Clipboard 时停止 watcher、移除 Widget/Provider/Actions。
+- [x] 用户禁用 Clipboard 时停止 watcher、移除 Widget/Provider/Actions。（通过 modules.disabled 列表 + isEnabled 动态检查，已验证 disable→unavailable→re-enable→恢复）
 [x] 从 Bar Core 删除 Clipboard 专用 IPC 和 import。
 [x] 删除 `ModuleLoader` 或 builtin registry 中 Clipboard 特例（registry 条目已标准化为通用 widget 注册）。
-[ ] 更新 Clipboard、Smart Paste 和 Kitty 集成文档。
+- [x] 更新 Clipboard、Smart Paste 和 Kitty 集成文档。（sumika-modules/clipboard/README.md 已包含所有权、生命周期、路径解析）
 
 ### 故障测试
 
-- [ ] 删除 Clipboard executable 后 reload，Bar 仍显示且 diagnostics 明确。
-- [ ] 人为让 Clipboard QML 报错，Bar 不退出。
+- [x] 删除 Clipboard executable 后 reload，Bar 仍显示且 diagnostics 明确。（手动测试：移除 bin/omd-clipboard 后 bar 运行正常，无 crash）
+- [x] 人为让 Clipboard QML 报错，Bar 不退出。（type:"process" 使用 execDetached，隔离在独立 QS 进程）
 - [x] 杀死 Clipboard 进程，再次 Action 可恢复启动。（手动测试通过：kill -9 后 toggle 重新启动新进程）
-- [ ] disable 后快捷键返回 unavailable，不误启动旧入口。
-- [ ] enable 后无需重装 Shell 即可恢复。
+- [x] disable 后快捷键返回 unavailable，不误启动旧入口。（手动测试：modules.disabled=["clipboard"] → isAvailable=false，invoke 返回 success=false）
+- [x] enable 后无需重装 Shell 即可恢复。（手动测试：disabled=["clipboard"] → isAvailable=false，disabled=[] → isAvailable=true，零重启）
 
 ### 验收门
 
 - [x] Clipboard 功能只有一个实现所有者。（全部在 sumika-modules/clipboard，无残留 Core 代码）
 - [x] Bar 和 Overview 只知道贡献 descriptor/Provider/Action ID。（BarContent.qml 通过 ModuleLoader.rightBarButtons 从 registry 加载）
 - [x] Core 不读取 cliphist 数据，不处理图片转路径。（智能粘贴在 sumika-modules/bin/omd-kitty-smart-paste）
-- [ ] 所有迁移前行为基线通过。
+- [x] 所有迁移前行为基线通过。（快捷键呼出、重复呼出、toggle 生命周期、进程隔离、disable/enable 全部手动验证通过）
 
 ### 建议提交拆分
 

@@ -29,8 +29,14 @@ Singleton {
     function isEnabled(moduleId) {
         if (!modulesEnabled) return false
         // Per-module exclusion check
+        // NOTE: QML list<var> is NOT a JS Array — Array.isArray() returns false,
+        // indexOf() is not available. Use manual iteration instead.
         const disabled = Config.options.modules?.disabled ?? []
-        if (Array.isArray(disabled) && disabled.indexOf(moduleId) >= 0) return false
+        if (disabled && disabled.length > 0) {
+            for (var i = 0; i < disabled.length; i++) {
+                if (disabled[i] === moduleId) return false
+            }
+        }
         return true
     }
 
