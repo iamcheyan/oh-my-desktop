@@ -63,17 +63,17 @@
 当前 `apps/` 至少包含：
 
 - `omd-bar`
-- `omd-overview`
-- `omd-applauncher`
-- `omd-clipboard`
-- `omd-notification`
-- `omd-screenshot`
-- `omd-settings`
 - `omd-polkit`
+- `omd-settings`
+- `omd-notification` (via bin/, not apps/)
+- `omd-applauncher` (via bin/, not apps/)
 
-其中“独立 Quickshell 进程”不等于“已经完成插件化”。插件化还要求 manifest、
+其中`apps/omd-overview/`、`apps/omd-clipboard/`、`apps/omd-screenshot/` 已删除：
+Overview 和 Clipboard 分别迁移到 `modules/overview/` 和 `modules/clipboard/`
+（Clipboard 为兼容 shim，见 Phase J），Screenshot 仍为 `bin/omd-screenshot` 脚本。
+
+“独立 Quickshell 进程”不等于“已经完成插件化”。插件化还要求 manifest、
 生命周期、公开 API、配置所有权和故障隔离全部成立。
-
 ### 1.2 当前共享实现
 
 `notificationPopup`、`onScreenDisplay`、`polkit`、`regionSelector`、
@@ -133,18 +133,30 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 - Schema + validator extended: `"overlay"` kind added to schema enum and validator `_KINDS` set.
 -
 **BarStatusPopup fully modularized**: All 12 inline popup Components (tools, inputMethod, keyboard, session, xkb, wifi, bluetooth, audio, display, battery, notifications, voice) have been extracted to standalone QML files in `modules/*/` directories and registered via `module.json` popupSections. Inline Component declarations, `contentLoader` switch-case dispatch, and shared inline components (ShellCard, SectionLabel, ActionRow, PopupActionButton, IconActionRow, PopupIconButton, TileTrack, PanelTile) deleted. Dual-dispatch eliminated. BarStatusPopup now a ~250-line popup shell: PanelWindow → TuiShell → Repeater { model: ModuleLoader.popupSections }.
+**Overlays contribution type added**: `contributes.overlays` schema + ModuleLoader support added to registry-schema.json. Overlays are `file://` URL components with `moduleId` metadata, sorted by priority.
+- ✅ Session overlays (`SessionConfirmOverlay`, `SessionRestore`/`SessionAutoRestore`) registered by `modules/session/module.json`
+- ✅ Hyprsunset overlay migrated to `modules/display/HyprsunsetOverlay.qml` (non-singleton wrapper calling `Hyprsunset.load()`)
+- ✅ Both session and display overlays removed from `apps/omd-bar/shell.qml`
+
+**Lifecycle deplugin (Phase H)**: `bin/omd-restart` and `scripts/omd-quickshell-stop.sh` now read registry for `kind=application` + `entry` blocks instead of hardcoded app lists.
+- `omd-applauncher`, `omd-notification`, `omd-overview` discovered from registry
+- `omd-clipboard-store` kept as compatibility shim with Phase J removal marker
+- Both scripts fall back gracefully if jq or registry is missing (Core processes only)
 
 **Remaining gaps**:
-- `apps/omd-bar/shell.qml` still directly imports and instantiates lock, notificationPopup, onScreenDisplay (need new contribution type for window-level features). These now have proper module registrations and qmldirs, but the architectural pattern for loading them via registry doesn't exist yet.
-- Can't perform cold start / enable/disable / fault isolation verification without graphical session.
-- `SUMIKA_MODULES_HOME` env var set to `~/development/sumika-modules` (external dir), separate from repo `modules/`.
+- `apps/omd-bar/shell.qml` still directly imports and instantiates lock, notificationPopup, onScreenDisplay (need Loader-based registry dispatch for these). Registry schema now supports `contributes.overlays` — these three need to switch from direct import to Loader pattern.
+- `quickshell/modules/regionSelector/` — has QML files but zero consumers; dead code for future screenshot module
+- `ActionManager._registerBuiltins()` still hardcodes 8 session lifecycle actions (session.lock, logout, reboot, shutdown, suspend, hibernate, reboot-session-save, shutdown-session-save) as "core" owner — should migrate to session module's `actionsProvider`
+- ServiceManager still hardcodes 6 service providers with "core" owner; module-contributed services not yet bridged
+- Hyprland bindings (media.lua, tiling-v2.lua) use direct `exec` strings instead of `invokeAction` — 20+ bindings bypass ActionManager entirely
+- Can't perform cold start / enable/disable / fault isolation verification without graphical session
+- `SUMIKA_MODULES_HOME` env var set to `~/development/sumika-modules` (external dir), separate from repo `modules/`
 
 ### 1.4 当前 Overlay 注册状态（bar shell 剩余的 non-Core 持有）
-- `qs.modules.lock` — 直接 import，Lockscreen 现在有 qmldir + modules/lock/module.json (kind: overlay)
-- `qs.modules.notificationPopup` — 直接 import，Notification 有 qmldir + modules/notification-popup/module.json (kind: overlay)
-- `qs.modules.onScreenDisplay` — 直接 import，OSD 有 qmldir + modules/on-screen-display/module.json (kind: overlay)
--
-这些已有完整的 module 注册（import 路径 + module.json + actions），但仍需新的架构扩展（contributes.windows/overlays 贡献类型）才能从 Bar 入口解耦。
+- `qs.modules.lock` — 直接 import，需改为 Loader + registry overlays 模式
+- `qs.modules.notificationPopup` — 直接 import，同上
+- `qs.modules.onScreenDisplay` — 直接 import，同上
+
 *注意：之前旧的 `quickshell/modules/lock/module.json` (v1，位于 QML 导入目录) 未被 scanner 扫描，已由 modules/lock/module.json (v2) 取代。旧文件仍存在但为死代码。*
 
 ## 2. 每次工作的标准流程
