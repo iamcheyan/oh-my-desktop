@@ -214,10 +214,9 @@ WindowDialog {
 
         WallpaperSettings.WallpaperPickerDialog {
             id: wallpaperPicker
-            anchors.fill: parent
             onAccepted: (mode, path) => {
                 const action = mode === "folder" ? "set-folder" : "set-file";
-                Quickshell.execDetached(["bash", "-lc", "$HOME/.config/omd/bin/omd-wallpaper " + action + " " + root.shellQuote(path)]);
+                Quickshell.execDetached(["bash", "-lc", `${Directories.root}/bin/omd-wallpaper ` + action + " " + root.shellQuote(path)]);
                 root.wallpaperRefreshNonce += 1;
             }
         }

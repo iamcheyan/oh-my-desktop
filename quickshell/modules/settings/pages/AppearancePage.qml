@@ -115,9 +115,8 @@ ColumnLayout {
             message = `Applying ${slug}…`
             themeApplyProc.command = [
                 "bash", "-c",
-                `$HOME/.config/omd/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}'`
+                `${Directories.root}/bin/omd-settings-theme apply '${slug.replace(/'/g, "'\\''")}'`
             ]
-            themeApplyProc.running = true
         }
     }
 
@@ -598,17 +597,15 @@ ColumnLayout {
                         visible: wpState.isFolder
                         SettingsButton {
                             label: "Next image"
-                            iconName: "skip_next"
                             onClicked: {
-                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper random"])
+                                Quickshell.execDetached(["bash", "-c", `${Directories.root}/bin/omd-wallpaper random`])
                                 wpRefreshTimer.restart()
                             }
                         }
                         SettingsButton {
                             label: "Stop rotation"
-                            iconName: "stop"
                             onClicked: {
-                                Quickshell.execDetached(["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper stop"])
+                                Quickshell.execDetached(["bash", "-c", `${Directories.root}/bin/omd-wallpaper stop`])
                                 wpRefreshTimer.restart()
                             }
                         }
@@ -628,7 +625,7 @@ ColumnLayout {
                                 "bash", "-c",
                                 's="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}" && ' +
                                 'echo "' + Math.round(value) + '" > "$s/wallpaper/interval" && ' +
-                                '$HOME/.config/omd/bin/omd-wallpaper restart'
+                                `${Directories.root}/bin/omd-wallpaper restart`
                             ])
                             wpRefreshTimer.restart()
                         }
@@ -705,8 +702,7 @@ ColumnLayout {
     }
 
     Process {
-        id: wallpaperStatusProc
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-wallpaper status 2>/dev/null || true"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-wallpaper status 2>/dev/null || true`]
         running: true
         stdout: StdioCollector {
             id: wallpaperStatusCollector
@@ -739,8 +735,7 @@ ColumnLayout {
     }
 
     Process {
-        id: themeListProc
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme list"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-settings-theme list`]
         running: true
         stdout: StdioCollector {
             id: themeListCollector
@@ -766,8 +761,7 @@ ColumnLayout {
     }
 
     Process {
-        id: themeCurrentProc
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-theme current"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-settings-theme current`]
         running: true
         stdout: StdioCollector {
             id: themeCurrentCollector

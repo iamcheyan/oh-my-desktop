@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.modules.common
 
 Item {
     id: root
@@ -673,7 +674,7 @@ Item {
         repeat: false
         onTriggered: Quickshell.execDetached([
             "/bin/sh",
-            Quickshell.env("HOME") + "/.config/omd/scripts/reload-quickshell",
+            Directories.root + "/scripts/reload-quickshell",
             "--quickshell-only"
         ])
     }

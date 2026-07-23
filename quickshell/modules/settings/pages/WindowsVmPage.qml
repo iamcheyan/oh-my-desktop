@@ -272,8 +272,7 @@ ColumnLayout {
             s.mode = mode
             s.actionText = ""
             s.actionError = ""
-            windowsActionProc.command = ["bash", "-c", `$HOME/.config/omd/bin/omd-settings-windows-vm ${action}`]
-            windowsActionProc.running = true
+            windowsActionProc.command = ["bash", "-c", `${Directories.root}/bin/omd-settings-windows-vm ${action}`]
         }
         function beginInstall() {
             s.pendingInstall = true
@@ -290,7 +289,7 @@ ColumnLayout {
             pageRoot.settingsRoot.dismiss()
             Quickshell.execDetached([
                 "bash", "-c",
-                `$HOME/.config/omd/bin/omd-settings-windows-vm ${keepAlive ? "launch-keepalive" : "launch"}`
+                `${Directories.root}/bin/omd-settings-windows-vm ${keepAlive ? "launch-keepalive" : "launch"}`
             ])
         }
         function parseBool(value) {
@@ -1150,10 +1149,9 @@ ColumnLayout {
         running: false
         onTriggered: windowsLogsProc.running = true
     }
-
     Process {
         id: windowsStatusProc
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm status"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-settings-windows-vm status`]
         running: false
         stdout: StdioCollector {
             onStreamFinished: s.applyStatus(pageRoot.parseKeyValue(text))
@@ -1162,8 +1160,7 @@ ColumnLayout {
 
     Process {
         id: windowsInstallStatusProc
-        running: false
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm install-status"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-settings-windows-vm install-status`]
         stdout: StdioCollector {
             onStreamFinished: {
                 const d = pageRoot.parseKeyValue(text)
@@ -1190,8 +1187,7 @@ ColumnLayout {
 
     Process {
         id: windowsLogsProc
-        running: false
-        command: ["bash", "-c", "$HOME/.config/omd/bin/omd-settings-windows-vm logs"]
+        command: ["bash", "-c", `${Directories.root}/bin/omd-settings-windows-vm logs`]
         stdout: StdioCollector { id: windowsLogsOutput }
     }
 

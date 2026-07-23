@@ -509,7 +509,7 @@ Item {
 
     function applyCommand() {
         return [
-            Quickshell.env("HOME") + "/.config/omd/bin/omd-display-config",
+            `${Directories.root}/bin/omd-display-config`,
             "apply",
             JSON.stringify(monitorSpecs())
         ];
@@ -595,7 +595,7 @@ Item {
 
     Process {
         id: monitorProc
-        command: [Quickshell.env("HOME") + "/.config/omd/bin/omd-display-config", "get"]
+        command: [`${Directories.root}/bin/omd-display-config`, "get"]
         stdout: StdioCollector {
             id: monitorCollector
             onStreamFinished: {
@@ -673,7 +673,7 @@ Item {
         repeat: false
         onTriggered: Quickshell.execDetached([
             "/bin/sh",
-            Quickshell.env("HOME") + "/.config/omd/scripts/reload-quickshell",
+            `${Directories.root}/scripts/reload-quickshell`,
             "--quickshell-only"
         ])
     }
