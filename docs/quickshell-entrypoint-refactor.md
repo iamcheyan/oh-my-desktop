@@ -155,6 +155,171 @@ Physical tests confirmed:
 - `modules.enabled = false` → 0 module actions, only builtins remain
 - `modules.disabled = ["voice"]` → 0 voice actions, all other modules unaffected
 
+
+---
+
+## QML Import Root Mechanism
+
+Quickshell resolves `import qs.services` as `<QML_IMPORT_PATH>/qs/services`. Since the source
+directory is named `quickshell/`, adding the repo root to `QML_IMPORT_PATH` directly would not
+make `import qs` work — hence the transient import root.
+
+### Setup (in `quickshell/scripts/quickshell`)
+
+```
+runtime_base="$XDG_RUNTIME_DIR/sumika-shell"
+qml_import_root="$runtime_base/qml"
+ln -sfn "$repo_root/quickshell" "$qml_import_root/qs"
+export QML_IMPORT_PATH="$qml_import_root"
+```
+
+This creates a symlink `$XDG_RUNTIME_DIR/sumika-shell/qml/qs → repo/quickshell/`. Quickshell
+then resolves `import qs.modules.bar` as `$qml_import_root/qs/modules/bar/qmldir` → the actual
+`quickshell/modules/bar/` directory.
+
+### External module import root
+
+For modules in `sumika-modules/` (separate repo), each external module's `bar/` subdirectory
+is symlinked into a staging area under `$runtime_base/staging/<process>_/external-modules/`.
+These staging links are prepended to `QML_IMPORT_PATH` so `import qs.modules.<name>` resolves
+to the external module before checking OMD's built-in modules.
+
+### Default OMD module import
+
+Modules under `modules/` (built-in OMD modules like `bar`, `clock`, `workspaces`) are added
+to `QML_IMPORT_PATH` by the startup script so their `qmldir` files are discoverable.
+These come after external modules in the path order, so external modules take priority.
+
+---
+
+## `qmldir` Module Registration
+
+The `qs` module is registered in `quickshell/qmldir`:
+
+```
+module qs
+singleton GlobalStates 1.0 GlobalStates.qml
+```
+
+Because `QML_IMPORT_PATH` points to the repo's `quickshell/` directory as the `qs` module
+root, this `qmldir` is found automatically. Any QML file in any process can do:
+
+- `import qs` → makes `GlobalStates` available
+- `import qs.core.runtime` → `quickshell/core/runtime/qmldir` (ActionManager, ModuleActionHost, etc.)
+- `import qs.services` → `quickshell/services/qmldir` (VoiceInput, Notifications, etc.)
+- `import qs.modules.common` → `quickshell/modules/common/qmldir` (Directories, TuiStyle, etc.)
+- `import qs.modules.bar` → `quickshell/modules/bar/qmldir` (Bar, SysTray, etc.)
+
+Each subdirectory with a `qmldir` acts as its own QML module under the `qs` module namespace.
+
+---
+
+## Entry Point Responsibility Boundaries
+
+Each Quickshell process has a thin `shell.qml` with strict boundaries:
+
+### What a shell.qml MUST do:
+- Create a `ShellRoot` as the top-level QML component
+- Launch the process-specific runtime infrastructure (bar: `Bar`, `ModuleActionHost`; overview: search panel)
+- Provide IPC handlers for cross-process communication (via `IpcHandler` with unique `target`)
+- Load dynamic overlays from `ModuleLoader.overlays`
+
+### What a shell.qml MUST NOT do:
+- `ActionManager.register()` for module-specific actions (done by `module-actions.qml`)
+- Hardcode module-specific logic (no `if module=="voice"`)
+- Reference module-internal components directly
+- Load QML files by app-local symlinks
+
+### IPC handler rules:
+- IPC handlers call `ActionManager.invoke()` for module actions — they do not bypass
+  `ModuleLoader.isEnabled()` checks
+- Each IPC handler has a unique `target` name (e.g., `"voice"`, `"screenshot"`, `"menus"`)
+- The `"action"` target provides a generic dispatch layer for cross-process action calls
+
+---
+
+## GlobalStates Process Isolation
+
+`GlobalStates` is a QML singleton registered in `quickshell/qmldir`:
+
+```
+singleton GlobalStates 1.0 GlobalStates.qml
+```
+
+**Each Quickshell process has its own independent instance of `GlobalStates`.**
+
+This is a fundamental QML singleton behavior: singletons are per-engine-instance.
+Since each `shell.qml` runs in a separate `quickshell` OS process (started by systemd),
+their `GlobalStates` singletons are completely isolated.
+
+### Cross-process communication:
+
+| Mechanism | When to use |
+|---|---|
+| **IPC (qs -p ... ipc call)** | Direct action invocation, menu control |
+| **File state** | Shared state like wallpaper path, theme |
+| **DBus services** | System services (Polkit, MPRIS, Notifications) |
+| **ActionManager IPC** | `bin/omd-action call <id>` or `qs -p ... ipc call action call <id>` |
+
+### Before the refactor:
+Previous code sometimes assumed `GlobalStates.screenshotActive` or `GlobalStates.barPopupType`
+was shared between the bar process and screenshot process — this was never guaranteed and could
+cause race conditions. Now all cross-process coordination goes through `ActionManager.invoke()` or
+explicit IPC (`qs -p apps/omd-bar ipc call...`).
+
+---
+
+## Module Registration Mechanism
+
+Modules register their QML-callback actions through a uniform mechanism:
+
+### 1. `module-actions.qml`
+
+Each module places a `module-actions.qml` file in its root directory. This file imports
+`qs.core.runtime` and calls `ActionManager.register()`:
+
+```qml
+// modules/voice/module-actions.qml
+import QtQuick
+import qs.core.runtime
+
+Item {
+    Component.onCompleted: {
+        ActionManager.register("voice.toggle", "voice", "Toggle voice recording", {
+            type: "qml",
+            callback: () => Svcs.VoiceInput.toggle()
+        })
+    }
+}
+```
+
+### 2. `ModuleActionHost`
+
+`ModuleActionHost` (one instance in the bar process, inside the main Scope) iterates
+`ModuleLoader._registry.modules`, checks `ModuleLoader.isEnabled(m.id)`, and loads each
+enabled module's `module-actions.qml` via a `Loader`:
+
+```qml
+Repeater {
+    model: ModuleLoader._registry.modules
+        .filter(m => m.id && m.path && ModuleLoader.isEnabled(m.id))
+        .map(m => ({ moduleId: m.id, actionsUrl: "file://" + m.path + "/module-actions.qml" }))
+    delegate: Loader { source: actionsUrl; asynchronous: true }
+}
+```
+
+### 3. Module disable cleanup
+
+When a module is disabled (or `modules.enabled` becomes `false`), the QML `Repeater` model
+re-evaluates, the `Loader` is destroyed, and `Component.onDestruction` fires
+`ActionManager.unregisterOwner(moduleId)` — automatically cleaning up all actions from
+that module.
+
+### 4. Builtin actions
+
+Actions without a module directory (e.g., `bluetooth.launch` — launched via
+`bin/omd-launch-bluetooth`, a standalone script) remain registered in
+`ActionManager._registerBuiltins()`.
 ---
 
 ## Hardcoded `~/.config/omd` Paths (Cosmetic)
@@ -197,7 +362,7 @@ f1b9c96 — Phase 4: ModuleActionHost + per-module module-actions.qml + ActionMa
 
 Plus subsequent work:
 ```
-(this session) — Deleted config.json symlink, physically verified module disable, runtime verification
+c2a4286 — Final: Deleted config.json symlink, updated docs with actual implementation
 ```
 
 ### Sumika-modules repository (`~/development/sumika-modules`)

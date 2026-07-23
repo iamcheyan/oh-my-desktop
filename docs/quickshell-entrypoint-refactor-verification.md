@@ -7,7 +7,7 @@
 
 Replaced legacy dependency mechanism (project-directory symlinks + flat file copies) with official QML module system (`import qs`) and per-module action registration (`module-actions.qml`). All 6 phases complete with runtime verification.
 
-### Changes (OMD repo): 5 commits, net -174 lines
+### Changes (OMD repo): 6 commits, net -174 lines
 
 | Commit | Phase | Description | ± |
 |---|---|---|---|
@@ -16,6 +16,7 @@ Replaced legacy dependency mechanism (project-directory symlinks + flat file cop
 | `80f6222` | 5 | Deleted omd-bar symlinks (assets, scripts, translations) | -3 |
 | `4496bb8` | 6 | Empty module-actions.qml + Loader error handling | 13 files |
 | `1c6b3ba` | — | Audit + verification docs | 2 files |
+| `c2a4286` | — | Final: Deleted config.json symlink, updated docs | 3 files +314 -209 |
 
 plus `793e1f0` in sumika-modules repo for 10 external module-actions.qml files.
 
