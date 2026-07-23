@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "id": "mpris",
+  "name": "MPRIS Media Controller",
+  "description": "MPRIS media player integration and track art resolution",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "popupSections": [
+      {
+        "type": "audio",
+        "name": "Now Playing",
+        "component": "popup/MprisPopup.qml"
+      }
+    ],
+    "actions": [
+      {"id": "mpris.play-pause", "name": "Play / Pause"},
+      {"id": "mpris.next", "name": "Next track"},
+      {"id": "mpris.previous", "name": "Previous track"}
+    ],
+    "services": ["mpris-controller", "track-art"]
+  }
+}
