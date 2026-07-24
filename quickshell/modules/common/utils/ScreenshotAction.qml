@@ -11,7 +11,12 @@ import Quickshell
 
 Singleton {
     id: root
-
+    readonly property string ocrBinary: {
+        const mh = Quickshell.env("SUMIKA_MODULES_HOME")
+        if (mh) return `${mh}/ocr/bin/omd-ocr`
+        console.warn("[ScreenshotAction] SUMIKA_MODULES_HOME not set, OCR unavailable")
+        return "omd-ocr"
+    }()
     enum Action {
         Copy,
         Edit,
@@ -109,7 +114,7 @@ Singleton {
             case ScreenshotAction.Action.Search:
                 return `${setup}xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadCurrentTempCommand()})"`;
             case ScreenshotAction.Action.CharRecognition:
-                return `${setup}omd-ocr "$tmpFile" 2>/dev/null | wl-copy`;
+                return `${setup}${root.ocrBinary} "$tmpFile" 2>/dev/null | wl-copy`;
             case ScreenshotAction.Action.Record:
             case ScreenshotAction.Action.RecordWithSound:
                 console.warn("[Region Selector] Record actions require a selected region, not a temp file.");

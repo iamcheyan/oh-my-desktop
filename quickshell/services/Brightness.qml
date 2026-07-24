@@ -102,9 +102,15 @@ Singleton {
         initializeMonitor(0);
     }
 
+    readonly property string displayModuleDir: {
+        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
+        if (mh) return mh + "/display"
+        return FileUtils.trimFileProtocol(Directories.root) + "/modules/display"
+    }()
+
     Process {
         id: ddcProc
-        command: [FileUtils.trimFileProtocol(`${Directories.root}/bin/omd-ddc-detect`)]
+        command: [root.displayModuleDir + "/bin/omd-ddc-detect"]
         stdout: SplitParser {
             splitMarker: "\n\n"
             onRead: data => {

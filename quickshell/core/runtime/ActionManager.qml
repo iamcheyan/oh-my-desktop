@@ -324,17 +324,17 @@ Singleton {
 
         this.register("session.logout.save", "core", "Log out and save session", {
             type: "shell",
-            command: Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-session save-auto >/dev/null 2>&1; " + Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-logout"
+            command: (Quickshell.env("SUMIKA_MODULES_HOME") || FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT")) + "/../sumika-modules") + "/session/bin/omd-session save-auto >/dev/null 2>&1; " + Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-logout"
         }, {description: "Save session snapshot then log out"})
 
         this.register("session.reboot.save", "core", "Reboot after saving session", {
             type: "shell",
-            command: Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-session save-auto >/dev/null 2>&1; reboot || loginctl reboot"
+            command: (Quickshell.env("SUMIKA_MODULES_HOME") || FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT")) + "/../sumika-modules") + "/session/bin/omd-session save-auto >/dev/null 2>&1; reboot || loginctl reboot"
         }, {description: "Save session snapshot then reboot"})
 
         this.register("session.shutdown.save", "core", "Shut down after saving session", {
             type: "shell",
-            command: Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-session save-auto >/dev/null 2>&1; systemctl poweroff || loginctl poweroff"
+            command: (Quickshell.env("SUMIKA_MODULES_HOME") || FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT")) + "/../sumika-modules") + "/session/bin/omd-session save-auto >/dev/null 2>&1; systemctl poweroff || loginctl poweroff"
         }, {description: "Save session snapshot then power off"})
 
         // Shell actions
@@ -349,11 +349,14 @@ Singleton {
             command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-settings", "open"]
         }, {description: "Open system settings", paramsSchema: {type: "object", properties: {page: {type: "string"}}}})
 
-        // Overview
-        this.register("overview.open", "core", "Toggle overview", {
-            type: "process",
-            command: ["qs", "-p", Quickshell.env("OMD_REPO_ROOT") + "/modules/overview", "ipc", "call", "overview", "toggle"]
-        }, {description: "Open or close the overview/workspace view"})
+        // Overview — path resolved from ModuleLoader registry at build time
+        var overviewPath = manager._modulePath("overview")
+        if (overviewPath) {
+            this.register("overview.open", "core", "Toggle overview", {
+                type: "process",
+                command: ["qs", "-p", overviewPath, "ipc", "call", "overview", "toggle"]
+            }, {description: "Open or close the overview/workspace view"})
+        }
 
         // Bar visibility (replaces direct qs -p ipc call bar toggle from Hyprland)
         this.register("bar.toggle", "core", "Toggle bar visibility", {
@@ -409,81 +412,89 @@ Singleton {
         // in the registry. Owner is "bluetooth" for backward compatibility;
         // if a module is added later, the registry module takes priority.
         if (!_moduleExists("bluetooth")) {
+            var btModulesHome = Quickshell.env("SUMIKA_MODULES_HOME")
+            if (!btModulesHome) btModulesHome = Quickshell.env("HOME") + "/development/sumika-modules"
             this.register("bluetooth.launch", "bluetooth", "Open Bluetooth manager", {
                 type: "process",
-                command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-launch-bluetooth"]
+                command: [btModulesHome + "/wifi/bin/omd-launch-bluetooth"]
             }, {description: "Open the Bluetooth pairing TUI"})
         }
 
-        // === Audio (media control) actions - consumed by Hyprland bindings ===
+
+        var audioModHome = Quickshell.env("SUMIKA_MODULES_HOME")
+        if (!audioModHome) audioModHome = Quickshell.env("HOME") + "/development/sumika-modules"
+        var audioBin = audioModHome + "/audio/bin/"
         this.register("audio.volume-up", "core", "Volume up", {
             type: "process",
-            command: ["omd-swayosd-client", "--output-volume", "raise"]
+            command: [audioBin + "omd-swayosd-client", "--output-volume", "raise"]
         }, {description: "Raise output volume"})
         this.register("audio.volume-down", "core", "Volume down", {
             type: "process",
-            command: ["omd-swayosd-client", "--output-volume", "lower"]
+            command: [audioBin + "omd-swayosd-client", "--output-volume", "lower"]
         }, {description: "Lower output volume"})
         this.register("audio.volume-mute-toggle", "core", "Toggle mute", {
             type: "process",
-            command: ["omd-swayosd-client", "--output-volume", "mute-toggle"]
+            command: [audioBin + "omd-swayosd-client", "--output-volume", "mute-toggle"]
         }, {description: "Toggle audio output mute"})
         this.register("audio.input-mute-toggle", "core", "Toggle input mute", {
             type: "process",
-            command: ["omd-audio-input-mute"]
+            command: [audioBin + "omd-audio-input-mute"]
         }, {description: "Toggle microphone mute"})
         this.register("audio.volume-up-precise", "core", "Volume up 1%", {
             type: "process",
-            command: ["omd-swayosd-client", "--output-volume", "+1"]
+            command: [audioBin + "omd-swayosd-client", "--output-volume", "+1"]
         }, {description: "Raise output volume by 1%"})
         this.register("audio.volume-down-precise", "core", "Volume down 1%", {
             type: "process",
-            command: ["omd-swayosd-client", "--output-volume", "-1"]
+            command: [audioBin + "omd-swayosd-client", "--output-volume", "-1"]
         }, {description: "Lower output volume by 1%"})
         this.register("audio.output-switch", "core", "Switch audio output", {
             type: "process",
-            command: ["omd-audio-output-switch"]
+            command: [audioBin + "omd-audio-output-switch"]
         }, {description: "Cycle audio output device"})
 
-        // === Display brightness ===
+        // === Display brightness (external module: SUMIKA_MODULES_HOME/brightness-gamma) ===
+        var bri = Quickshell.env("SUMIKA_MODULES_HOME")
+        if (!bri) bri = Quickshell.env("HOME") + "/development/sumika-modules"
+        var briBin = bri + "/brightness-gamma/bin/"
         this.register("display.brightness-up", "core", "Brightness up", {
             type: "process",
-            command: ["omd-brightness-display", "+5%"]
+            command: [briBin + "omd-brightness-display", "+5%"]
         }, {description: "Increase display brightness by 5%"})
         this.register("display.brightness-down", "core", "Brightness down", {
             type: "process",
-            command: ["omd-brightness-display", "5%-"]
+            command: [briBin + "omd-brightness-display", "5%-"]
         }, {description: "Decrease display brightness by 5%"})
         this.register("display.brightness-max", "core", "Brightness maximum", {
             type: "process",
-            command: ["omd-brightness-display", "100%"]
+            command: [briBin + "omd-brightness-display", "100%"]
         }, {description: "Set display brightness to 100%"})
         this.register("display.brightness-min", "core", "Brightness minimum", {
             type: "process",
-            command: ["omd-brightness-display", "1%"]
+            command: [briBin + "omd-brightness-display", "1%"]
         }, {description: "Set display brightness to 1%"})
         this.register("display.brightness-up-precise", "core", "Brightness up 1%", {
             type: "process",
-            command: ["omd-brightness-display", "+1%"]
+            command: [briBin + "omd-brightness-display", "+1%"]
         }, {description: "Increase display brightness by 1%"})
         this.register("display.brightness-down-precise", "core", "Brightness down 1%", {
             type: "process",
-            command: ["omd-brightness-display", "1%-"]
+            command: [briBin + "omd-brightness-display", "1%-"]
         }, {description: "Decrease display brightness by 1%"})
-
-        // === Keyboard backlight ===
+        // === Keyboard backlight (external module) ===
         this.register("display.kbd-brightness-up", "core", "Keyboard brightness up", {
             type: "process",
-            command: ["omd-brightness-keyboard", "up"]
+            command: [briBin + "omd-brightness-keyboard", "up"]
         }, {description: "Increase keyboard backlight brightness"})
         this.register("display.kbd-brightness-down", "core", "Keyboard brightness down", {
             type: "process",
-            command: ["omd-brightness-keyboard", "down"]
+            command: [briBin + "omd-brightness-keyboard", "down"]
         }, {description: "Decrease keyboard backlight brightness"})
         this.register("display.kbd-brightness-cycle", "core", "Keyboard backlight cycle", {
             type: "process",
-            command: ["omd-brightness-keyboard", "cycle"]
+            command: [briBin + "omd-brightness-keyboard", "cycle"]
         }, {description: "Cycle keyboard backlight states"})
+
 
         // === Input (touchpad) ===
         this.register("input.touchpad-toggle", "core", "Toggle touchpad", {

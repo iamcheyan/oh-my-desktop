@@ -27,7 +27,7 @@ Singleton {
     property bool functionRowBusy: false
     property string functionRowError: ""
 
-    readonly property string shareDir: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin`)
+    readonly property string shareDir: FileUtils.trimFileProtocol(`${Quickshell.env("SUMIKA_MODULES_HOME")}/keyboard-remap/bin`)
     // Sumika Shell config home (user-authored data lives here)
     readonly property string sumikaConfigHome: `${FileUtils.trimFileProtocol(Directories.config)}/sumika-shell`
     // Canonical write path (new location)
@@ -36,7 +36,7 @@ Singleton {
     // Legacy read fallback (old location, removed in Phase 7)
     readonly property string dataDirLegacy: FileUtils.trimFileProtocol(`${Directories.config}/omd/keyboard-remap`)
     readonly property string profilesPathLegacy: `${dataDirLegacy}/profiles.json`
-    readonly property string functionRowHelper: FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-keyboard-function-row`)
+    readonly property string functionRowHelper: `${root.shareDir}/omd-keyboard-function-row`
 
     function applyFunctionRowStatus(text) {
         try {

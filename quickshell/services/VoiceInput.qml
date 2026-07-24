@@ -33,10 +33,16 @@ Singleton {
     readonly property string wavPath: "/tmp/omd-voice-rec.wav"
     readonly property string recPidFile: "/tmp/omd-voice-rec.pid"
 
-    readonly property string shareDir: FileUtils.trimFileProtocol(
-        `${Directories.root}/bin`)
+    readonly property string shareDir: {
+        const mh = Quickshell.env("SUMIKA_MODULES_HOME")
+        if (mh) return mh + "/voice/bin"
+        console.warn("[VoiceInput] SUMIKA_MODULES_HOME not set, voice binaries unavailable")
+        return ""
+    }
 
-    readonly property string pasteScript: `${root.shareDir}/omd-paste-at-cursor`
+    // paste-at-cursor is a core OMD utility (share/bin/omarchy-paste-at-cursor), not voice-specific
+    readonly property string pasteScript: FileUtils.trimFileProtocol(
+        `${Directories.root}/bin/omd-paste-at-cursor`)
 
     // 录音开始时记录焦点窗口，转写完成后贴回该窗口（避免转写期间焦点跑到顶栏）。
     property string focusedWindowClass: ""
