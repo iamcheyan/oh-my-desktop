@@ -87,6 +87,11 @@ PopupColumn {
         icon: "palette"
         title: "Themes"
         subtitle: "Colors, fonts and desktop appearance"
+        onClicked: {
+            GlobalStates.barPopupType = "";
+            const rootDir = FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT") || Directories.root)
+            Quickshell.execDetached([`${rootDir}/bin/omd-settings`, "open", "themes"]);
+        }
     }
     SettingsButton {
         label: qsTr("Display Settings")

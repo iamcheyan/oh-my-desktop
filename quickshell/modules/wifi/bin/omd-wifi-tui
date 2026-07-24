@@ -28,7 +28,11 @@ import threading
 import time
 from shutil import which
 
+from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_repo_bin = str(Path(os.path.dirname(os.path.abspath(__file__))).resolve().parent.parent.parent.parent / "bin")
+if _repo_bin not in sys.path:
+    sys.path.insert(0, _repo_bin)
 import omd_tui_shared as S
 
 # ── helpers ───────────────────────────────────────────────────────────
