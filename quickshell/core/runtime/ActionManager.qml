@@ -349,14 +349,48 @@ Singleton {
             command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-settings", "open"]
         }, {description: "Open system settings", paramsSchema: {type: "object", properties: {page: {type: "string"}}}})
 
-        // Overview — path resolved from ModuleLoader registry at build time
-        var overviewPath = manager._modulePath("overview")
-        if (overviewPath) {
-            this.register("overview.open", "core", "Toggle overview", {
-                type: "process",
-                command: ["qs", "-p", overviewPath, "ipc", "call", "overview", "toggle"]
-            }, {description: "Open or close the overview/workspace view"})
-        }
+        // Overview — paths resolved lazily at invoke time so registry loading order doesn't matter
+        this.register("overview.open", "core", "Open overview", {
+            type: "qml",
+            call: function() {
+                var overviewPath = manager._modulePath("overview")
+                if (overviewPath) {
+                    Quickshell.execDetached(["qs", "-p", overviewPath, "ipc", "call", "overview", "toggle"])
+                } else {
+                    var mh = Quickshell.env("SUMIKA_MODULES_HOME") || (Quickshell.env("HOME") + "/development/sumika-modules")
+                    Quickshell.execDetached(["qs", "-p", mh + "/overview", "ipc", "call", "overview", "toggle"])
+                }
+            }
+        }, {description: "Open or close the overview/workspace view"})
+
+        this.register("overview.toggle", "core", "Toggle overview", {
+            type: "qml",
+            call: function() {
+                var overviewPath = manager._modulePath("overview")
+                if (overviewPath) {
+                    Quickshell.execDetached(["qs", "-p", overviewPath, "ipc", "call", "overview", "toggle"])
+                } else {
+                    var mh = Quickshell.env("SUMIKA_MODULES_HOME") || (Quickshell.env("HOME") + "/development/sumika-modules")
+                    Quickshell.execDetached(["qs", "-p", mh + "/overview", "ipc", "call", "overview", "toggle"])
+                }
+            }
+        }, {description: "Toggle the workspace overview"})
+
+        // App launcher — lazy IPC dispatch
+        var mh = Quickshell.env("SUMIKA_MODULES_HOME") || (Quickshell.env("HOME") + "/development/sumika-modules")
+        var applauncher = mh + "/launcher/bin/omd-applauncher"
+        this.register("app-launcher.toggle", "core", "Toggle launcher", {
+            type: "process",
+            command: [applauncher]
+        }, {description: "Open or close the application launcher"})
+        this.register("app-launcher.open", "core", "Open launcher", {
+            type: "process",
+            command: [applauncher, "open"]
+        }, {description: "Open the application launcher"})
+        this.register("app-launcher.close", "core", "Close launcher", {
+            type: "process",
+            command: [applauncher, "close"]
+        }, {description: "Close the application launcher"})
 
         // Bar visibility (replaces direct qs -p ipc call bar toggle from Hyprland)
         this.register("bar.toggle", "core", "Toggle bar visibility", {
@@ -628,5 +662,15 @@ Singleton {
     Component.onCompleted: {
         _registerBuiltins()
         _registerFromRegistry()
+    }
+
+    // Re-run registry-sourced actions once ModuleLoader has parsed the registry JSON.
+    // This ensures path-dependent registrations (overview, etc.) work even if the
+    // FileView loads after Component.onCompleted has already run.
+    Connections {
+        target: ModuleLoader
+        function onRegistryLoaded() {
+            manager._registerFromRegistry()
+        }
     }
 }

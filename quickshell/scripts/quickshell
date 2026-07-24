@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-# shellcheck source=../../scripts/omd-path.sh
-. "$script_dir/../../scripts/omd-path.sh"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# shellcheck source=../../lib/paths.sh
+. "$script_dir/../../lib/paths.sh"
 
 qs_bin=""
 for candidate in \
@@ -196,7 +196,7 @@ merge_manifest() {
          .contributes.services += (
            ($mod[0].contributes.services // $mod[0].capabilities.services // [])
          ) |
-         .contributes.actions += ($mod[0].contributes.actions // []) |
+         .contributes.actions += ($mod[0].contributes.actions // [] | map(.moduleId = (.moduleId // $mid))) |
          .contributes.overlays += (
            ($mod[0].contributes.overlays // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}

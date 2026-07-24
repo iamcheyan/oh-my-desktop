@@ -23,6 +23,10 @@ Singleton {
     // Raw registry data — populated by registryReader Process.
     property var _registry: _emptyRegistry()
 
+    /// Emitted once the registry JSON has been successfully parsed from disk.
+    /// Listeners (e.g. ActionManager) use this to (re-)register path-dependent actions.
+    signal registryLoaded()
+
     // Master switch — if false, only product-floor (required) modules stay enabled.
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
 
@@ -288,6 +292,8 @@ Singleton {
                         settingsPages: sCount,
                         overlays: oCount
                     }))
+                    // Notify listeners (ActionManager etc.) that registry is ready
+                    loader.registryLoaded()
                 }
             } catch (e) {
                 console.warn("[ModuleLoader] Failed to parse registry:", e)

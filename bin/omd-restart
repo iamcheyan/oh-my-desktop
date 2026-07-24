@@ -6,8 +6,6 @@ _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
 unset _omd_root
 
-# shellcheck source=../scripts/omd-path.sh
-. "$OMD_ROOT/scripts/omd-path.sh"
 # shellcheck source=../scripts/omd-quickshell-stop.sh
 . "$OMD_ROOT/scripts/omd-quickshell-stop.sh"
 
