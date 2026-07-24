@@ -50,7 +50,7 @@ cd ~/development/OMD && ./Init.sh
 
 - **Hyprland**: `hypr/hyprland.lua` loads `hypr/default/` then `hypr/*.lua`.
 * **Quickshell config**: user override at `~/.config/sumika-shell/sumika.json` (unified config via sumika.json), baseline at `defaults/config/quickshell/config.json`.
-- **Themes**: `share/bin/omarchy-theme-*` → snapshot to `~/.local/state/sumika-shell/theme/current/`.
+- **Themes**: `OmarchyTheme.qml` reads `~/.local/state/sumika-shell/theme/current/colors.toml`; 22 themes in `share/themes/`.
 - **Wallpaper**: `swaybg` via autostart; `bin/omd-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
 ## Quickshell (shell UI)
   
