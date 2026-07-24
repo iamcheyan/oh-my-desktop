@@ -1,3 +1,4 @@
+import qs.modules.settings.widgets
 import qs
 import qs.modules.common
 import qs.modules.common.functions

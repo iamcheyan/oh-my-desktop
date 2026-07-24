@@ -1,3 +1,4 @@
+import qs.modules.settings.widgets
 import qs
 import qs.core.runtime
 import qs.modules.common
