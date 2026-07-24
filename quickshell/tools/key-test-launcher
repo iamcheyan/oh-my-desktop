@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Wrapper to launch key-test with correct GTK4/pygobject environment on NixOS.
+# Uses nix-shell to resolve all typelibs and python packages.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KEY_TEST="$SCRIPT_DIR/key-test"
+
+# On non-NixOS, python3 should have gi built-in; just run directly.
+if [[ ! -e /nix/store ]]; then
+    exec python3 "$KEY_TEST" "$@"
+fi
+
+# NixOS: use nix-shell to get GTK4 + pygobject3 + all typelib deps.
+# Cached nix-shell eval takes ~5-7s; acceptable for an interactive capture tool.
+# Pass arguments safely through the shell string.
+ARGS=""
+for arg in "$@"; do
+    ARGS+=" '$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")'"
+done
+
+exec nix-shell --extra-experimental-features 'flakes nix-command' -p \
+    python3Packages.pygobject3 \
+    gtk4 \
+    libadwaita \
+    graphene \
+    gobject-introspection \
+    pango \
+    harfbuzz \
+    gdk-pixbuf \
+    --run \
+    "exec python3 '$KEY_TEST'$ARGS"

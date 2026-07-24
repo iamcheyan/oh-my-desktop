@@ -22,6 +22,8 @@ launcher/
     └── pinned-apps           # 已固定应用列表 (运行时)
 ```
 
+内置工具位于 `quickshell/tools/`：参见 [quickshell/tools/README](../tools/README.md)。
+
 ## 用法
 
 ### 打开启动器

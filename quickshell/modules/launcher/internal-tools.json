@@ -3,7 +3,7 @@
     "id": "sumika-keytest.desktop",
     "name": "Key Test",
     "description": "Hardware key capture for keyboard diagnostics and OMD bind string generation",
-    "command": ["$HOME/tools/key-test/key-test"],
+    "command": ["$root/quickshell/tools/key-test"],
     "icon": "keyboard",
     "keywords": ["keyboard", "test", "diagnostic", "key", "capture", "evdev"]
   }
