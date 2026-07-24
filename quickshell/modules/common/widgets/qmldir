@@ -39,3 +39,7 @@ HyprlandXkbIndicator 1.0 HyprlandXkbIndicator.qml
 BarBatteryIcon 1.0 BarBatteryIcon.qml
 PowerContextMenu 1.0 PowerContextMenu.qml
 BarModuleButton 1.0 BarModuleButton.qml
+SettingsRow 1.0 SettingsRow.qml
+SettingsNavigationRow 1.0 SettingsNavigationRow.qml
+SettingsSlider 1.0 SettingsSlider.qml
+SettingsToggleRow 1.0 SettingsToggleRow.qml

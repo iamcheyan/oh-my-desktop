@@ -1,5 +1,5 @@
 // ToolLauncherRow — row icon + title + subtitle for the tools popup.
-import qs.modules.settings.widgets
+import qs.modules.common.widgets
 import QtQuick
 
 SettingsNavigationRow {

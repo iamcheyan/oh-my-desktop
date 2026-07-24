@@ -53,7 +53,7 @@ local function json_parse(str, pos)
         if str:sub(pos, pos) ~= ":" then return nil, pos end
         pos = pos + 1
         local v, vpos = json_parse(str, pos)
-        if not v then return nil, vpos end
+        if v == nil then return nil, vpos end
         pos = vpos
         obj[k] = v
       end
@@ -74,7 +74,7 @@ local function json_parse(str, pos)
         end
         first = false
         local v, vpos = json_parse(str, pos)
-        if not v then return nil, vpos end
+        if v == nil then return nil, vpos end
         pos = vpos
         table.insert(arr, v)
       end

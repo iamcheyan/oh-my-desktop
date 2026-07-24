@@ -4,3 +4,4 @@ singleton Config 1.0 Config.qml
 singleton TuiStyle 1.0 TuiStyle.qml
 singleton Persistent 1.0 Persistent.qml
 singleton Directories 1.0 Directories.qml
+singleton SettingsTokens 1.0 SettingsTokens.qml

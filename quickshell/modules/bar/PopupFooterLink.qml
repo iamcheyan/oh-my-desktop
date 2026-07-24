@@ -1,7 +1,6 @@
 // Popup adapter for the shared settings navigation row.
 import qs.modules.common
-import qs.modules.settings
-import qs.modules.settings.widgets
+import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
