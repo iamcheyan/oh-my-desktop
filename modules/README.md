@@ -7,7 +7,7 @@ Sumika Shell 使用**单一外部模块仓库**放置所有功能模块。`OMD/m
 | 位置 | 内容 |
 |---|---|
 | `$SUMIKA_MODULES_HOME` (默认 `~/development/sumika-modules/`) | 所有功能模块（27 个）：包括 product-floor 最小桌面模块 + 可选模块 |
-| `OMD/quickshell/modules/` | 共享 QML 导入库（7 个）：`bar`、`common`、`settings`、`overview`、`onScreenDisplay`、`notificationPopup`、`polkit` |
+| `OMD/quickshell/modules/` | 共享 QML 导入库（4 个）：`bar`、`common`、`settings`、`polkit` |
 
 启动脚本扫描 `$SUMIKA_MODULES_HOME/*/module.json` 生成注册表，并将 QML import path 指向模块目录。
 
