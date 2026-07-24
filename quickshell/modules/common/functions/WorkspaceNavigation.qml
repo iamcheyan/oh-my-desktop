@@ -26,10 +26,9 @@ Singleton {
         }
     }
     function openAppLauncher() {
-        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
-        var binDir = mh ? mh + "/launcher" : Directories.root
+        var rootDir = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)
         Quickshell.execDetached([
-            binDir + "/bin/omd-applauncher", "open"
+            rootDir + "/bin/omd-applauncher", "open"
         ]);
     }
     function overviewModel() {

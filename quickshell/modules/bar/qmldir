@@ -17,3 +17,4 @@ StyledPopupValueRow 1.0 StyledPopupValueRow.qml
 ToolLauncherRow 1.0 ToolLauncherRow.qml
 IconActionRow 1.0 IconActionRow.qml
 PopupIconButton 1.0 PopupIconButton.qml
+PopupIconButtonDark 1.0 PopupIconButtonDark.qml

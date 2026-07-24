@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 
-app_dir="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/launcher"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+app_dir="$repo_root/quickshell/modules/launcher"
 if [ ! -d "$app_dir" ]; then
     printf 'omd-applauncher-cache: launcher module not found at %s\n' "$app_dir" >&2
     exit 1

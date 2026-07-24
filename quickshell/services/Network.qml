@@ -22,9 +22,9 @@ Singleton {
     id: root
 
     readonly property string wifiModuleDir: (function() {
-        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
-        if (mh) return mh + "/wifi"
-        return FileUtils.trimFileProtocol(Directories.root) + "/../sumika-modules/wifi"
+        var root = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
+        if (root) return root + "/quickshell/modules/wifi"
+        return FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi"
     })()
 
     property bool wifi: true

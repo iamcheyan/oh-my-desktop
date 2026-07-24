@@ -386,7 +386,7 @@ ColumnLayout {
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;
-            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("SUMIKA_MODULES_HOME") || Directories.root + "/modules"}/wifi/bin/omd-launch-wifi`]);
+            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/omd-launch-wifi`]);
         }
     }
 
@@ -516,7 +516,7 @@ ColumnLayout {
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;
-            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("SUMIKA_MODULES_HOME") || Directories.root + "/modules"}/wifi/bin/omd-launch-bluetooth`]);
+            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/omd-launch-bluetooth`]);
         }
     }
 }

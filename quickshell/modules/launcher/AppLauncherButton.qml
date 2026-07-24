@@ -16,11 +16,9 @@ Item {
             return
         }
 
-        // Fallback: launch directly via SUMIKA_MODULES_HOME or OMD repo root
-        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
+        // Fallback: launch via canonical entry script
         var rootDir = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        var binDir = mh ? mh + "/launcher" : rootDir
-        Quickshell.execDetached([binDir + "/bin/omd-applauncher", "toggle"])
+        Quickshell.execDetached([rootDir + "/bin/omd-applauncher", "toggle"])
     }
 
     implicitWidth: button.implicitWidth
