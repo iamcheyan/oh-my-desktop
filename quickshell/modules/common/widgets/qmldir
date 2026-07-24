@@ -1,15 +1,10 @@
 module qs.modules.common.widgets
-Circle 1.0 Circle.qml
 CosmicIcon 1.0 CosmicIcon.qml
 DashedBorder 1.0 DashedBorder.qml
 DragManager 1.0 DragManager.qml
-ErrorShakeAnimation 1.0 ErrorShakeAnimation.qml
-FloatingActionButton 1.0 FloatingActionButton.qml
 FocusedScrollMouseArea 1.0 FocusedScrollMouseArea.qml
 MaterialTextField 1.0 MaterialTextField.qml
 NotificationGroupExpandButton 1.0 NotificationGroupExpandButton.qml
-PointingHandInteraction 1.0 PointingHandInteraction.qml
-Revealer 1.0 Revealer.qml
 RippleButton 1.0 RippleButton.qml
 RoundCorner 1.0 RoundCorner.qml
 StyledImage 1.0 StyledImage.qml
@@ -20,15 +15,8 @@ StyledScrollBar 1.0 StyledScrollBar.qml
 StyledText 1.0 StyledText.qml
 StyledToolTip 1.0 StyledToolTip.qml
 StyledToolTipContent 1.0 StyledToolTipContent.qml
-Toolbar 1.0 Toolbar.qml
-ToolbarTabBar 1.0 ToolbarTabBar.qml
-ToolbarTabButton 1.0 ToolbarTabButton.qml
-WavyLine 1.0 WavyLine.qml
 NotificationListView 1.0 NotificationListView.qml
-TuiDetailRow 1.0 TuiDetailRow.qml
-TuiActionButton 1.0 TuiActionButton.qml
 WindowDialog 1.0 WindowDialog.qml
-TuiMeterBar 1.0 TuiMeterBar.qml
 DialogButton 1.0 DialogButton.qml
 WindowDialogParagraph 1.0 WindowDialogParagraph.qml
 WindowDialogTitle 1.0 WindowDialogTitle.qml
@@ -46,7 +34,6 @@ StyledListView 1.0 StyledListView.qml
 TuiShell 1.0 TuiShell.qml
 BarTextButton 1.0 BarTextButton.qml
 BarNerdIcon 1.0 BarNerdIcon.qml
-CircleUtilButton 1.0 CircleUtilButton.qml
 ClockHoverPopup 1.0 ClockHoverPopup.qml
 HyprlandXkbIndicator 1.0 HyprlandXkbIndicator.qml
 BarBatteryIcon 1.0 BarBatteryIcon.qml
