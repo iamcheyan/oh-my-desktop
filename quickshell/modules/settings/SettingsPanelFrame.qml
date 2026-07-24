@@ -24,8 +24,8 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: TuiStyle.shellRadius
-        color: TuiStyle.bg
+        radius: 0
+        color: "transparent"
         clip: true
 
         ColumnLayout {
