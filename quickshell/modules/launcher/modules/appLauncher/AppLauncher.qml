@@ -728,7 +728,7 @@ PanelWindow {
                             // Nerd Font icon (internal tools)
                             NerdIcon {
                                 anchors.centerIn: parent
-                                iconSize: 28
+                                iconSize: 36
                                 text: {
                                     if (!appItem.resolvedIconSource || !appItem.resolvedIconSource.startsWith("nerd:")) return "";
                                     const prop = appItem.resolvedIconSource.substring(5);
