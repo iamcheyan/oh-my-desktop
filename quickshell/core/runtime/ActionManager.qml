@@ -613,4 +613,9 @@ Singleton {
 
         console.log("[ActionManager] registered " + actions.length + " actions from registry")
     }
+
+    Component.onCompleted: {
+        _registerBuiltins()
+        _registerFromRegistry()
+    }
 }

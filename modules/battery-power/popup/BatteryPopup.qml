@@ -267,6 +267,7 @@ PopupColumn {
             icon: NerdIconMap.lock
             label: "LOCK"
             tone: TuiStyle.accent
+            visible: LockService.lockHandler !== null
             onClicked: batteryStack.requestAction("lock", "Lock")
         }
         PanelTile {

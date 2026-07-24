@@ -389,7 +389,8 @@ PanelWindow {
 
     onOpenChanged: {
         if (onDemand && !open) {
-            Qt.quit();
+            // Keep process alive for instant re-show on next toggle.
+            // Just hiding via visible: launcher.open is sufficient.
         }
     }
 
