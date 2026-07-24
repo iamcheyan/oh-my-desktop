@@ -1,4 +1,5 @@
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -16,8 +17,8 @@ Item {
     property bool hideOnShortScreen: true
 
     readonly property HyprlandMonitor monitor: Hyprland.monitorFor(root.QsWindow.window?.screen)
-    readonly property int activeWorkspaceId: ServiceManager.workspace.monitorActiveWorkspaceId(root.monitor)
-    readonly property var displayClient: ServiceManager.workspace.focusedClientForWorkspace(root.activeWorkspaceId)
+    readonly property int activeWorkspaceId: ServiceManager.workspace?.monitorActiveWorkspaceId(root.monitor) ?? 0
+    readonly property var displayClient: ServiceManager.workspace?.focusedClientForWorkspace(root.activeWorkspaceId) ?? null
 
     readonly property bool hasWindowOnWorkspace: root.displayClient !== null
     readonly property string windowTitle: root.displayClient?.title ?? ""

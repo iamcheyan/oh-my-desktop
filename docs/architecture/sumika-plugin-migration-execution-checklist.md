@@ -92,11 +92,7 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 
 - ✅ `quickshell/core/runtime/` (ActionManager, ServiceManager, ProcessSupervisor, ExtensionRegistry)
 - ✅ `quickshell/scripts/quickshell` (generates runtime registry at startup, scans `$repo_root/modules/*/module.json` + `$SUMIKA_MODULES_HOME`)
-- ✅ `$SUMIKA_MODULES_HOME/*/module.json` (16 external v1-compat modules)
-- ✅ `$XDG_RUNTIME_DIR/sumika-shell/modules.json` (generated registry)
-- ✅ `bin/omd-modules` (third‑party module management)
-    - ✅ `bin/omd-module-validate` (validates manifests; 38/38 pass — 22 repo modules v2 + 16 external v1 compat)
-  - `--all` scans repo `modules/` + `SUMIKA_MODULES_HOME`; builtin dir scan removed (dir deleted)
+- ✅ `$SUMIKA_MODULES_HOME/*/module.json` (9 external modules, all v2)
 
 **Builtin registry deleted**: Empty `quickshell/registry/builtin/` dir preserved but its merge section removed from startup script. No more unconditional bulitin manifest loading — all registration flows through `modules/*/module.json` and `$SUMIKA_MODULES_HOME`.
 
@@ -104,7 +100,7 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 - 12 created under `modules/`: workspaces, app-launcher, active-window, clipboard-bar, audio, wifi, display, input-method, clock, session, power-indicator, tools
 - 1 systray module created under `modules/systray/`
 - `modules/mpris/` created as actions-only module (play-pause, next, previous)
-- All 22 repo modules in `modules/` pass validation (v2 manifests, proper imports)
+- All 18 repo modules in `modules/` pass validation (v2 manifests, proper imports); active-window moved from sumika-modules into OMD/modules/
 - Old QML files deleted from `quickshell/modules/bar/` (widget QMLs + shared types moved)
 - Shared bar types migrated to `quickshell/modules/common/widgets/` (7 types, own qmldir)
 - `apps/omd-overview/` and `apps/omd-clipboard/` directories deleted (overview at `modules/overview/`, clipboard at `modules/clipboard/`)
@@ -125,9 +121,9 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 - `modules/overview/` (7 symlinks: GlobalStates.qml, assets, config.json, modules, scripts, services, translations) — all dead (shell uses only module-qualified imports: `qs.modules.common`, `qs.services`, `qs.modules.overview`)
 - `modules/screenshot/` (7 symlinks: modules/common, modules/regionSelector, services/4 files, translations) — `import "modules/regionSelector"` replaced with `import qs.modules.regionSelector` (new qmldir); common/services/translations all dead (screenshot shell uses only module-qualified imports)
 - New qmldirs created: `quickshell/modules/regionSelector/qmldir` (`module qs.modules.regionSelector`), `quickshell/modules/notificationPopup/qmldir` (`module qs.modules.notificationPopup`)
-- **Zero symlinks remain** in `modules/` — all 22 modules contain only real files
+- **Zero symlinks remain** in `modules/` — all modules contain only real files
 
-**Overlay modules registered**: lock, notification-popup, on-screen-display now have v2 module.json in `modules/` with `kind: "overlay"` (new schema kind). All three packages now have qmldir files resolving `import qs.modules.lock`, `import qs.modules.notificationPopup`, `import qs.modules.onScreenDisplay`. 38/38 module manifests pass validation.
+**Overlay modules registered**: lock, notification-popup, on-screen-display now have v2 module.json in `modules/` with `kind: "overlay"` (new schema kind). All three packages now have qmldir files resolving `import qs.modules.lock`, `import qs.modules.notificationPopup`, `import qs.modules.onScreenDisplay`. 27/27 module manifests pass validation.
 - qmldirs created: `quickshell/modules/lock/qmldir`, `quickshell/modules/onScreenDisplay/qmldir`
 - module.json created: `modules/lock/module.json`, `modules/notification-popup/module.json`, `modules/on-screen-display/module.json`
 - Schema + validator extended: `"overlay"` kind added to schema enum and validator `_KINDS` set.
@@ -140,10 +136,8 @@ Notification、MPRIS、Wallpaper、Voice 等服务。迁移前必须逐项确认
 
 **Lifecycle deplugin (Phase H)**: `bin/omd-restart` and `scripts/omd-quickshell-stop.sh` now read registry for `kind=application` + `entry` blocks instead of hardcoded app lists.
 - `omd-applauncher`, `omd-notification`, `omd-overview` discovered from registry
-- `omd-clipboard-store` kept as compatibility shim (`kind: "shared"` module, no `entry` block — cannot be registry-driven). Shim stays until clipboard module declares `kind: application` + proper `entry` in sumika-modules.
-- Both scripts fall back gracefully if jq or registry is missing (Core processes only)
-**Phase F – ApplicationManager wired**: `ApplicationManager.initialize()` now called from `apps/omd-bar/shell.qml` `Component.onCompleted`, activating ProcessSupervisor lifecycle management for settings, overview, and future `kind: application` modules.
-**Phase G – MPRIS fixed**: Created `modules/mpris/module-actions.qml` with `type: "qml"` callback handlers calling `playerctl` directly, replacing invalid `process:omd-swayosd-client` handler strings. Added `actionsProvider` to module manifest. All 28 modules pass validation (0 failed, 4 v1 compat warnings).
+**v1→v2 upgrades completed (2026-07-24)**: 4 external modules upgraded to v2 schema (brightness-gamma, keyboard-remap, popup-components, voice). active-window moved from external to OMD/modules/. All 27 modules now pass v2 validation with 0 v1 compat.
+**Phase G – MPRIS fixed**: Created `modules/mpris/module-actions.qml` with `type: "qml"` callback handlers calling `playerctl` directly, replacing invalid `process:omd-swayosd-client` handler strings. Added `actionsProvider` to module manifest. All 27 modules pass validation (0 failed, 0 v1 compat).
 
 **Remaining gaps**:
 - ✅ `apps/omd-bar/shell.qml` — direct imports of lock/notificationPopup/onScreenDisplay resolved. Overlays loaded via `Repeater { model: ModuleLoader.overlays }` with component from module manifest.
@@ -1058,56 +1052,54 @@ rg -n 'fallback|builtin' quickshell/services/ModuleLoader.qml \
 ---
 
 
-## §12 Completion Audit (2026-07-24)
+## §12 Current Status (2026-07-24)
 
-### Criterion | PASS/FAIL | Evidence
----|---|---
-Core has no module-function business logic | PASS | ServiceManager placeholders (audio/power/notification/mpris) are documented core wrappers; ModuleLoader overlays are framework, not business
-All system behaviors via Action API | PASS | 30+ builtins + 15+ contributed actions; only `reload-quickshell` and `omd-restart` bypass (lifecycle, not behaviors)
-All Hyprland bindings use omd-action | PASS | 11 of 13 executable bindings; 2 are Core IPC (bar toggle/menus close) now abstracted behind bar.toggle/menus.close actions
-No dead directories in quickshell/modules/ | PASS | All 7 dirs active (bar, common, notificationPopup, onScreenDisplay, overview, polkit, settings); regionSelector deleted; Session* overlays deleted
-No v1 compat artifacts in OMD | PASS | 0 v1 schemaVersion in OMD; v1 conversion is inline in quickshell/scripts/quickshell (not a separate file); 4 external v1 modules noted (sumika-modules)
-Registry is single source of truth | PASS | Startup script regenerates each launch; ModuleLoader reads only registry; no fallback module lists
-Lifecycle scripts are registry-driven | PASS | omd-restart and omd-quickshell-stop.sh read `kind=application` + entry from registry; clipboard-store shim **removed** entirely (1de28c2) — binary no longer existed, module is kind=shared. `apps_dir` dead variable removed. Orphan process cleanup kept (wl-paste/cliphist, nmcli monitor — module QML Process children survive reload).
-Schema matches manifest usage | PASS | entry, kind, actionsProvider, schemaVersion added to schema; type fixes applied
-Bar is pure Core host | PASS | apps/omd-bar/shell.qml: IPC bridges only (menus, session confirm, action compat); Bar.qml: layershell window positioning only; no module-private functionality. Zero Hyprsunset.load(), zero direct Clipboard/Notification/Screenshot/Voice/Wifi/Audio/Battery instantiation. Verified by static scan.
-No bar-private module functionality | PASS | Dead imports (Pipewire, Bluetooth, Pipewire services) removed from BarStatusPopup; all popup sections loaded via ModuleLoader
-**Zero direct Quickshell.Services.* refs in consumer code | PASS** | All consumer files route through ServiceManager. Only VolumeIndicator.qml (Pipewire.defaultAudioSink — known compat layer, needs Audio service bridge to be module-isolated) and NotificationAppIcon.qml (Notifications.NotificationUrgency — Quickshell core enum, not service dependency). Dead `import qs.services` removed from 14 additional files (c6e0c64). Verified by rg scan.
-Overview empty-provider readiness | PASS | ModuleLoader.overviewProviders returns [] when empty; Overview is standalone module with built-in search; extension point exists for future providers
-Settings ProcessSupervisor singleton | PASS | settings is `kind: application` with entry block, ProcessSupervisor manages it as subprocess; manifest v2 valid
-Module validation: 28 pass, 0 fail | PASS | 24 OMD v2 modules, 4 external v1 compat (warnings only)
-**Static ownership scan: clean** | PASS | Zero hyprctl/wpctl/nmcli in core/bar/overview. Zero `omd-clipboard/omd-screenshot/apps/omd-` hardcoded paths in core/bar. Zero process whitelist remnants (lifecycle scripts only kill Core processes + registry-discovered applications). Documented orphan cleanup for module-spawned watchers.
+### Migration Summary
 
-### Lifecycle cleanup completed (2026-07-24, commit 1de28c2)
-- Removed dead clipboard-store shim from omd-restart (-12 lines, binary already deleted)
-- Removed clipboard-store app kill from omd-quickshell-stop.sh (no systemd unit exists)
-- Removed unused `apps_dir` variable (dead code, no consumer)
-- Relocated orphan-process cleanup (wl-paste/cliphist, nmcli monitor) into documented section
+| Area | Status | Notes |
+|------|--------|-------|
+| Module validation (27 modules) | ✅ 27/27 pass, 0 fail, 0 v1 compat | All v2 manifests |
+| ServiceManager providers | ✅ 10 providers (audio, network, power, workspace, brightness, notification, mpris, inputmethod, tray, bluetooth) | All registered as `owner=core` |
+| Direct singleton refs in `modules/` | ✅ Zero Audio./Network./Battery./Notifications./PowerProfiles./HyprlandData. refs | P1.2 audit completed |
+| `import qs.services` in modules/ | ✅ All remaining imports backed by live refs; 5 truly dead imports removed | AudioPopup, MprisPopup, PowerContextMenu (x2), module PowerPage |
+| Settings pages using ServiceManager | ✅ All 13 pages with ServiceManager.* have `import qs.core.runtime` | NetworkPage was missing — fixed P0-B |
+| Directories.qml ReferenceError | ✅ `SystemInfo.username` → `Quickshell.env("USER")` in both copies | P0-C fixed |
+| ActiveWindow HyprlandData refs | ✅ Routed through ServiceManager.workspace | P0-A fixed |
+| External module v1→v2 upgrades | ✅ 4 modules upgraded (brightness-gamma, keyboard-remap, popup-components, voice) | 0 v1 compat remaining |
+| active-window placement | ✅ Moved to OMD/modules/, no sumika-modules duplicate | Product floor B (built-in, not floor) |
+| Product floor modules | ✅ 7 modules (launcher, clock, workspaces, systray, wifi, audio, power-indicator) | Fixed set; active-window intentionally excluded |
+| Registry generation | ✅ Always scans all modules regardless of modules.enabled | P0.3 verified |
 
-### Phase C completed: All 6 service consumer migrations finished (2026-07-24)
-- Audio: OnScreenDisplay.qml, SoundPage.qml migrated to ServiceManager.audio
-- Network: 0 files needed migration (no direct consumer refs)
-- Power: BarBatteryIcon.qml, PowerPage.qml migrated to ServiceManager.power
-- Notification: NotificationGroup.qml, NotificationItem.qml, NotificationListView.qml, NotificationPopup.qml migrated to ServiceManager.notification
-- MPRIS: AudioPopup.qml, MprisPopup.qml migrated to ServiceManager.mpris
-- Workspace (HyprlandData): 8 files migrated to ServiceManager.workspace (BarContent, Session, WorkspaceNavigation, Overview, OverviewSearch, OverviewWidget, InputMethodPopup, Session services)
-- ServiceConsumer.qml created at quickshell/core/runtime/ServiceConsumer.qml
-- `trustedInProcess` (boolean, default false) added to module-schema.json and share/schemas/sumika-module-v2.schema.json
-- Dead `import qs.services` removed from 14 additional consumer files (c6e0c64)
+### Remaining Items (scope-deferred or externally blocked)
 
-### Phase B completed: Single live core (2026-07-24)
-- root `core/` directory: gone (verified)
-- `services/ModuleLoader.qml`: gone (verified)
-- `quickshell/core/runtime/` is the single live core (QML import root)
-- Dual core drift: none detected
-
-### Remaining items (scope-deferred, externally blocked)
 - GUI verification (cold start, reload, disable, crash loop) — requires graphical session (UNTESTED_GUI)
-- Remove v1 compat fallbacks in quickshell/scripts/quickshell — blocked on 4 external v1 modules migrating to v2
+- Brightness consumer migration (9 files: BrightnessIndicator.qml, BatteryPopup.qml, DisplayPopup.qml, PowerPopup.qml, etc.) — out of scope for this round
 - `trustedInProcess` enforcement in ModuleLoader — forward-looking, no third-party modules currently
-- OverviewSearch `requestSessionAction` bypasses ActionManager with direct IPC to bar's `session.confirm` handler — compat layer; needs ActionManager to expose session actions via IPC
-- Audio service bridge for OSD VolumeIndicator Pipewire consumption — reads `Pipewire.defaultAudioSink` directly; needs service bridge for module isolation
-- No module contributes `overviewProviders` — extension point exists and is empty (Overview has built-in content; no breakage)
-- workspace.v1 provider is null — ServiceManager registers workspace but provider is deliberately null (Hyprland workspace data is embedded in bar UI); workspace modules import HyprlandData directly via their own module imports
+- OverviewSearch `requestSessionAction` bypasses ActionManager with direct IPC — needs ActionManager session action IPC exposure
+- Audio service bridge for OSD VolumeIndicator Pipewire consumption — reads `Pipewire.defaultAudioSink` directly
+- No module contributes `overviewProviders` — extension point exists and is empty (valid state)
+- Remove v1 compat fallbacks in quickshell/scripts/quickshell — 0 v1 callers remain, kept for forward compat
+- SettingsDialog hardcoded component blocks — design issue needing further refactoring
+- True modular provider architecture — all ServiceManager providers still `owner=core`, cannot be disabled independently
+- Core ActionManager business actions — 35+ actions registered as "core" is a separate design concern
 
-### §12 completion: **PASS** (architecture complete; remaining items are execution verification or external preconditions)
+### Known Limitations
+
+This is NOT a full plugin architecture. The ServiceManager is a convenience wrapper over
+existing singletons, not a hot-pluggable provider registry. True module isolation requires:
+- Out-of-process module loading
+- Service API (contract-based, not singleton-passing)
+- Independent module lifecycle (start/stop/reload per module)
+- Granular permission model for third-party modules
+
+These remain deferred to a future architecture phase. The current work establishes
+the directory layout, manifest format, and import conventions needed to support
+that future work — but does not implement it.
+
+### Next Work (ordered by priority)
+
+1. Fix remaining `Brightness.*` direct refs in indicator/popup files (9 files)
+2. GUI verification once graphical session available
+3. Add overviewProviders contribution to overview module
+4. Evaluate ActionManager action ownership split (core vs module)
+5. Design ServiceAPI contract for true provider pluggability
