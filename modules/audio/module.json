@@ -22,12 +22,6 @@
         "type": "audio",
         "name": "Audio Controls",
         "component": "AudioPopup.qml"
-      },
-      {
-        "id": "voice",
-        "type": "voice",
-        "name": "Voice Input",
-        "component": "VoicePopup.qml"
       }
     ]
   }

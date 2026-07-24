@@ -1,6 +1,6 @@
 import Quickshell
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -16,8 +16,8 @@ Item {
     property real wheelAccum: 0
 
     readonly property string volumeIcon: {
-        if (Audio.sink?.audio?.muted) return NerdIconMap.volumeOff
-        const vol = Audio.sink?.audio?.volume ?? 0
+        if (ServiceManager.audio?.sink?.audio?.muted) return NerdIconMap.volumeOff
+        const vol = ServiceManager.audio?.sink?.audio?.volume ?? 0
         if (vol > 0.66) return NerdIconMap.volumeHigh
         if (vol > 0.33) return NerdIconMap.volumeMedium
         return NerdIconMap.volumeLow
@@ -62,9 +62,9 @@ Item {
             root.wheelAccum = r.accum
             for (let i = 0; i < Math.abs(r.steps); i++) {
                 if (r.steps > 0)
-                    Audio.incrementVolume()
+                    ServiceManager.audio?.incrementVolume?.()
                 else if (r.steps < 0)
-                    Audio.decrementVolume()
+                    ServiceManager.audio?.decrementVolume?.()
             }
             wheel.accepted = true
         }

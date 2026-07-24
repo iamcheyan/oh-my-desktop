@@ -1,7 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -37,7 +37,7 @@ Item {
 
     BarNerdIcon {
         anchors.centerIn: wifiButton
-        text: Network.nerdIcon
+        text: ServiceManager.network?.nerdIcon ?? NerdIconMap.wifi
         color: Appearance.colors.colBarText
     }
 }

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 2,
+  "id": "active-window",
+  "name": "当前窗口与桌面状态",
+  "version": "2.0.0",
+  "kind": "shared",
+  "description": "顶栏左侧活动窗口标题、图标与桌面状态展示",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "active-window-widget",
+        "name": "Active Window",
+        "slot": "left",
+        "component": "ActiveWindow.qml",
+        "order": 10,
+        "alwaysShow": true
+      }
+    ]
+  }
+}

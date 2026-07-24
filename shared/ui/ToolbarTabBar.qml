@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.models
 import qs.modules.common.functions
-import qs.services
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts

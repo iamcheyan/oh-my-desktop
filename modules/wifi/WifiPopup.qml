@@ -20,27 +20,27 @@ ColumnLayout {
     width: parent?.width ?? implicitWidth
 
     Component.onCompleted: {
-        if (Network.wifiEnabled)
-            Network.rescanWifi();
+        if (ServiceManager.network.wifiEnabled)
+            ServiceManager.network.rescanWifi();
     }
 
     function connStatus() {
-        if (Network.wifiConnectPhase === "connecting" || Network.wifiConnecting)
+        if (ServiceManager.network.wifiConnectPhase === "connecting" || ServiceManager.network.wifiConnecting)
             return "Connecting";
-        if (Network.wifiConnectPhase === "need_password")
+        if (ServiceManager.network.wifiConnectPhase === "need_password")
             return "Password";
-        if (Network.wifiConnectPhase === "failed")
+        if (ServiceManager.network.wifiConnectPhase === "failed")
             return "Failed";
-        if (Network.ethernet)
+        if (ServiceManager.network.ethernet)
             return "Connected";
-        if (!Network.wifiEnabled || Network.wifiStatus === "disabled")
+        if (!ServiceManager.network.wifiEnabled || ServiceManager.network.wifiStatus === "disabled")
             return "Disabled";
-        const s = Network.wifiStatus || "disconnected";
+        const s = ServiceManager.network.wifiStatus || "disconnected";
         return s.charAt(0).toUpperCase() + s.slice(1);
     }
     function connTone() {
         const s = popup.connStatus();
-        if (s === "Connected" || Network.wifiConnectPhase === "success")
+        if (s === "Connected" || ServiceManager.network.wifiConnectPhase === "success")
             return TuiStyle.success;
         if (s === "Disabled" || s === "Failed")
             return TuiStyle.danger;
@@ -49,35 +49,35 @@ ColumnLayout {
         return TuiStyle.muted;
     }
     function connIcon() {
-        return Network.ethernet ? NerdIconMap.ethernet : NerdIconMap.wifi;
+        return ServiceManager.network.ethernet ? NerdIconMap.ethernet : NerdIconMap.wifi;
     }
     function connName() {
-        if (Network.ethernet)
-            return Network.networkName || "Wired Connection";
-        return Network.active?.ssid || Network.networkName || "Not connected";
+        if (ServiceManager.network.ethernet)
+            return ServiceManager.network.networkName || "Wired Connection";
+        return ServiceManager.network.active?.ssid || ServiceManager.network.networkName || "Not connected";
     }
     function connDetail() {
-        if (Network.wifiConnectMessage.length > 0
-                && Network.wifiConnectPhase !== "idle"
-                && Network.wifiConnectPhase !== "success")
-            return Network.wifiConnectMessage;
-        if (Network.ethernet)
+        if (ServiceManager.network.wifiConnectMessage.length > 0
+                && ServiceManager.network.wifiConnectPhase !== "idle"
+                && ServiceManager.network.wifiConnectPhase !== "success")
+            return ServiceManager.network.wifiConnectMessage;
+        if (ServiceManager.network.ethernet)
             return "";
-        if (Network.wifiStatus === "connected")
-            return `Signal ${Network.active?.strength ?? Network.networkStrength}%  ·  ${Network.friendlyWifiNetworks.length} nearby`;
-        return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`;
+        if (ServiceManager.network.wifiStatus === "connected")
+            return `Signal ${ServiceManager.network.active?.strength ?? ServiceManager.network.networkStrength}%  ·  ${ServiceManager.network.friendlyWifiNetworks.length} nearby`;
+        return `${ServiceManager.network.friendlyWifiNetworks.length} network${ServiceManager.network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`;
     }
 
 
     // ── Wi-Fi section: toggle + nearby list ──
     PopupToggleRow {
         label: "Wi-Fi"
-        checked: Network.wifiEnabled
+        checked: ServiceManager.network.wifiEnabled
         showSettingsButton: true
         showDivider: false
         onToggled: checked => {
             GlobalStates.barPopupEphemeral = false;
-            Network.enableWifi(checked);
+            ServiceManager.network.enableWifi(checked);
         }
         onSettingsClicked: ActionManager.invoke("settings.open", {section: "wifi"})
     }
@@ -88,13 +88,13 @@ ColumnLayout {
         Layout.rightMargin: 20
         Layout.topMargin: 2
         Layout.bottomMargin: 4
-        visible: Network.wifiEnabled
-            && Network.wifiConnectMessage.length > 0
-            && Network.wifiConnectPhase !== "idle"
-        text: Network.wifiConnectMessage
-        color: Network.wifiConnectPhase === "failed" || Network.wifiConnectPhase === "need_password"
+        visible: ServiceManager.network.wifiEnabled
+            && ServiceManager.network.wifiConnectMessage.length > 0
+            && ServiceManager.network.wifiConnectPhase !== "idle"
+        text: ServiceManager.network.wifiConnectMessage
+        color: ServiceManager.network.wifiConnectPhase === "failed" || ServiceManager.network.wifiConnectPhase === "need_password"
             ? TuiStyle.danger
-            : (Network.wifiConnectPhase === "success" ? TuiStyle.success : TuiStyle.muted)
+            : (ServiceManager.network.wifiConnectPhase === "success" ? TuiStyle.success : TuiStyle.muted)
         font.pixelSize: Appearance.font.pixelSize.smaller
         wrapMode: Text.WordWrap
     }
@@ -105,12 +105,12 @@ ColumnLayout {
         Layout.rightMargin: 12
         Layout.topMargin: 2
         Layout.bottomMargin: 2
-        visible: Network.wifiEnabled
+        visible: ServiceManager.network.wifiEnabled
         spacing: 8
 
         StyledText {
             Layout.fillWidth: true
-            text: Network.wifiScanning ? "Scanning…" : "Networks"
+            text: ServiceManager.network.wifiScanning ? "Scanning…" : "Networks"
             color: TuiStyle.dim
             font.pixelSize: Appearance.font.pixelSize.smaller
             font.weight: Font.DemiBold
@@ -128,7 +128,7 @@ ColumnLayout {
                 iconSize: 16
                 color: TuiStyle.muted
                 RotationAnimator on rotation {
-                    running: Network.wifiScanning
+                    running: ServiceManager.network.wifiScanning
                     loops: Animation.Infinite
                     from: 0
                     to: 360
@@ -143,7 +143,7 @@ ColumnLayout {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     GlobalStates.barPopupEphemeral = false;
-                    Network.rescanWifi();
+                    ServiceManager.network.rescanWifi();
                 }
             }
         }
@@ -152,10 +152,10 @@ ColumnLayout {
     Flickable {
         id: wifiListFlick
         Layout.fillWidth: true
-        Layout.preferredHeight: Network.wifiEnabled
+        Layout.preferredHeight: ServiceManager.network.wifiEnabled
             ? Math.min(wifiListCol.implicitHeight, 280)
             : 0
-        visible: Network.wifiEnabled
+        visible: ServiceManager.network.wifiEnabled
         contentHeight: wifiListCol.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
@@ -167,14 +167,14 @@ ColumnLayout {
             spacing: 0
 
             Repeater {
-                model: Network.friendlyWifiNetworks.filter(ap => ap.active || Network.isKnownWifi(ap)).slice(0, 12)
+                model: ServiceManager.network.friendlyWifiNetworks.filter(ap => ap.active || ServiceManager.network.isKnownWifi(ap)).slice(0, 12)
                 delegate: ColumnLayout {
                     id: apRow
                     required property var modelData
                     readonly property var ap: modelData
                     readonly property bool isActive: ap.active ?? false
-                    readonly property bool isKnown: Network.isKnownWifi(ap)
-                    readonly property bool isConnecting: Network.isConnectingTo(ap)
+                    readonly property bool isKnown: ServiceManager.network.isKnownWifi(ap)
+                    readonly property bool isConnecting: ServiceManager.network.isConnectingTo(ap)
                     readonly property bool showPassword: ap.askingPassword === true
 
                     Layout.fillWidth: true
@@ -278,7 +278,7 @@ ColumnLayout {
                             onClicked: {
                                 GlobalStates.barPopupEphemeral = false;
                                 if (apRow.ap.ssid)
-                                    Network.connectToWifiNetwork(apRow.ap);
+                                    ServiceManager.network.connectToWifiNetwork(apRow.ap);
                             }
                         }
                     }
@@ -323,16 +323,16 @@ ColumnLayout {
                                     passwordCharacter: "•"
                                     clip: true
                                     focus: apRow.showPassword
-                                    enabled: !Network.wifiConnecting
+                                    enabled: !ServiceManager.network.wifiConnecting
                                     Keys.onReturnPressed: {
                                         GlobalStates.barPopupEphemeral = false;
-                                        Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
                                     }
                                     Keys.onEnterPressed: {
                                         GlobalStates.barPopupEphemeral = false;
-                                        Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
                                     }
-                                    Keys.onEscapePressed: Network.cancelWifiPassword()
+                                    Keys.onEscapePressed: ServiceManager.network.cancelWifiPassword()
                                 }
                             }
 
@@ -342,21 +342,21 @@ ColumnLayout {
 
                                 SettingsButton {
                                     Layout.fillWidth: true
-                                    label: Network.wifiConnecting ? "…" : "Connect"
+                                    label: ServiceManager.network.wifiConnecting ? "…" : "Connect"
                                     iconName: "link"
                                     active: true
-                                    enabledState: !Network.wifiConnecting && popupPassField.text.length > 0
+                                    enabledState: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0
                                     onClicked: {
                                         GlobalStates.barPopupEphemeral = false;
-                                        Network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
                                     }
                                 }
                                 SettingsButton {
                                     Layout.fillWidth: true
                                     label: "Cancel"
                                     iconName: "close"
-                                    enabledState: !Network.wifiConnecting
-                                    onClicked: Network.cancelWifiPassword()
+                                    enabledState: !ServiceManager.network.wifiConnecting
+                                    onClicked: ServiceManager.network.cancelWifiPassword()
                                 }
                             }
                         }
@@ -370,7 +370,7 @@ ColumnLayout {
                 Layout.rightMargin: 20
                 Layout.topMargin: 8
                 Layout.bottomMargin: 8
-                visible: Network.friendlyWifiNetworks.length === 0 && !Network.wifiScanning
+                visible: ServiceManager.network.friendlyWifiNetworks.length === 0 && !ServiceManager.network.wifiScanning
                 text: "No networks found. Tap refresh to scan."
                 color: TuiStyle.dim
                 font.pixelSize: Appearance.font.pixelSize.smaller

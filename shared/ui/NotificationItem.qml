@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -26,7 +26,7 @@ Item {
     implicitHeight: rowBackground.implicitHeight
 
     function discard() {
-        Notifications.discardNotification(notificationObject.notificationId);
+        ServiceManager.notification.discardNotification(notificationObject.notificationId);
     }
 
     function bodyText() {
@@ -192,9 +192,9 @@ Item {
 
                         MaterialSymbol {
                             anchors.centerIn: parent
-                            text: Notifications.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
+                            text: ServiceManager.notification.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
                             iconSize: 18
-                            color: Notifications.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? TuiStyle.danger : TuiStyle.dim
+                            color: ServiceManager.notification.isMuted(root.displayApp, notificationObject?.summary, notificationObject?.body) ? TuiStyle.danger : TuiStyle.dim
                         }
 
                         MouseArea {
@@ -202,7 +202,7 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Notifications.toggleMuteApp(root.displayApp, notificationObject?.summary)
+                            onClicked: ServiceManager.notification.toggleMuteApp(root.displayApp, notificationObject?.summary)
                         }
                     }
 

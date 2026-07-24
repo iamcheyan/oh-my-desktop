@@ -7,13 +7,6 @@
   "kind": "shared",
   "contributes": {
     "services": ["battery", "power-profiles"],
-    "popupSections": [
-      {
-        "type": "battery",
-        "name": "Power",
-        "component": "popup/BatteryPopup.qml"
-      }
-    ],
     "settingsPages": [
       {
         "id": "power",

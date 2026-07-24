@@ -240,6 +240,17 @@
     "centerTitle": true
   },
   "modules": {
+    "enabled": true,
+    "disabled": [],
+    "required": [
+      "launcher",
+      "clock",
+      "workspaces",
+      "systray",
+      "wifi",
+      "audio",
+      "power-indicator"
+    ],
     "barButtonOrder": {},
     "dir": "~/development/sumika-modules"
   }

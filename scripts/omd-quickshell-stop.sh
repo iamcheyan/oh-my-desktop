@@ -31,16 +31,44 @@ EOF
 
     # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
     # because we intentionally avoid tearing down the whole unit cgroup. Clean up
-    # known OMD watcher processes so repeated `omd-restart` calls do not stack them.
-    pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
-    # Orphan processes from module QML Process children (e.g. cliphist watchers)
-    # survive Quickshell reload. Clean them up to prevent stacking on restart.
-    pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
-
+    # known watcher processes from module manifests so repeated `omd-restart` calls
+    # do not stack them.
+    #
+    # Registry-driven cleanup: modules declare `watchers: ["cmd1", "cmd2"]` in their
+    # module.json entry. If the registry file is unavailable, fall back to known
+    # legacy watchers for backwards compatibility.
+    _cleaned=false
+    if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
+        while IFS="" read -r watcher; do
+            [ -z "$watcher" ] && continue
+            pkill -f "$watcher" 2>/dev/null || true
+            _cleaned=true
+        done <<WATCHERS
+$(jq -r '
+  .modules[] |
+  select(.contributes.watchers? // [] | length > 0) |
+  .contributes.watchers[]
+' "$_registry_file" 2>/dev/null || true)
+WATCHERS
+    fi
+    if [ "$_cleaned" != "true" ]; then
+        # Legacy fallback: known OMD watcher processes.
+        pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
+        pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
+    fi
     for app in $apps; do
         systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
     done
     sleep 0.2
+
+    # Targeted cleanup for any remaining OMD Quickshell processes (orphans from
+    # previous unit names, failed stops, or path-based launches). Do not use a
+    # bare `pkill quickshell` — only configs under this repo / known roots.
+    pkill -f "/usr/bin/quickshell -p ${omd_root}/" 2>/dev/null || true
+    if [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
+        pkill -f "/usr/bin/quickshell -p ${SUMIKA_MODULES_HOME}/" 2>/dev/null || true
+    fi
+    sleep 0.15
 
     for app in $apps; do
         systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true

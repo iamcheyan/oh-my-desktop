@@ -13,6 +13,13 @@ pragma ComponentBehavior: Bound
 ///
 /// Provider entry: {id, version, owner, provider, available: bool, error: string}
 ///
+//
+// IMPORTANT: This is NOT a full provider architecture. All providers are
+// still QML singletons loaded in the Core process, wrapped for convenience.
+// True hot-pluggable, out-of-process providers require a ServiceApi layer
+// that does not exist yet. Do not claim "migration complete" or "replaceable
+// providers" based on this facade.
+//
 /// Currently wraps known services as placeholders (available: false).
 /// Real wrapping requires per-service migration.
 Singleton {
@@ -40,8 +47,16 @@ Singleton {
     readonly property var notification: (_tick, _providers["notification.v1"] ? _providers["notification.v1"].provider : null)
     /// MPRIS service provider (Services.MprisController singleton)
     readonly property var mpris: (_tick, _providers["mpris.v1"] ? _providers["mpris.v1"].provider : null)
-    /// Workspace service provider (placeholder — null until extracted)
+    /// Workspace service provider (Services.HyprlandData singleton)
     readonly property var workspace: (_tick, _providers["workspace.v1"] ? _providers["workspace.v1"].provider : null)
+    /// Brightness service provider (Services.Brightness singleton)
+    readonly property var brightness: (_tick, _providers["brightness.v1"] ? _providers["brightness.v1"].provider : null)
+    /// InputMethod service provider (Services.InputMethod singleton)
+    readonly property var inputmethod: (_tick, _providers["inputmethod.v1"] ? _providers["inputmethod.v1"].provider : null)
+    /// Tray service provider (TrayService singleton)
+    readonly property var tray: (_tick, _providers["tray.v1"] ? _providers["tray.v1"].provider : null)
+    /// Bluetooth service provider (Services.BluetoothStatus singleton)
+    readonly property var bluetooth: (_tick, _providers["bluetooth.v1"] ? _providers["bluetooth.v1"].provider : null)
 
 
     /// Internal provider registry keyed by service ID.
@@ -182,9 +197,23 @@ Singleton {
             Services.Battery.available,
             Services.Battery.available ? "" : "no battery detected")
 
-        // ── Workspace: placeholder (Hyprland workspace data is embedded in bar UI) ──
-        this.register("workspace.v1", "1.0.0", "core",  null)
-
+        // ── Workspace: wrap HyprlandData (consumers use ServiceManager.workspace.*) ──
+        this.register("workspace.v1", "1.0.0", "core", Services.HyprlandData)
+        this.setAvailable("workspace.v1", true, "")
+        // ── Brightness: wrap Brightness singleton (always available) ──
+        this.register("brightness.v1", "1.0.0", "core", Services.Brightness)
+        this.setAvailable("brightness.v1", true, "")
+        // ── InputMethod: wrap InputMethod singleton (always available) ──
+        this.register("inputmethod.v1", "1.0.0", "core", Services.InputMethod)
+        this.setAvailable("inputmethod.v1", true, "")
+        // ── Tray: wrap TrayService singleton (always available) ──
+        // ── Bluetooth: wrap BluetoothStatus singleton ──
+        this.register("bluetooth.v1", "1.0.0", "core", Services.BluetoothStatus)
+        this.setAvailable("bluetooth.v1",
+            Services.BluetoothStatus.available,
+            Services.BluetoothStatus.available ? "" : "no bluetooth adapter")
+        this.register("tray.v1", "1.0.0", "core", Services.TrayService)
+        this.setAvailable("tray.v1", true, "")
         // ── Notification: wrap Notifications singleton ──
         this.register("notification.v1", "1.0.0", "core", Services.Notifications)
         this.setAvailable("notification.v1",
@@ -197,8 +226,7 @@ Singleton {
             Services.MprisController.availablePlayers.length > 0,
             Services.MprisController.availablePlayers.length === 0
                 ? "no MPRIS players found" : "")
-
-        console.log("[ServiceManager] Registered 6 providers (audio, network, power, workspace, notification, mpris)")
+        console.log("[ServiceManager] Registered 10 providers (audio, network, power, workspace, brightness, notification, mpris, inputmethod, tray, bluetooth)")
     }
     /// Watch MPRIS player changes to update availability dynamically.
     readonly property Connections _mprisWatcher: Connections {

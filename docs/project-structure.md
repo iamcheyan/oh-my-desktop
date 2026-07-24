@@ -10,7 +10,7 @@ defined in
 | Path | Current responsibility |
 | --- | --- |
 | `apps/` | Remaining standalone Quickshell process roots (`omd-bar`, `omd-settings`, `omd-polkit`) |
-| `modules/` | 19 modules (launcher, notification, overview, workspace, clock, audio, wifi, session, etc.) with module.json manifests; application modules are registry-driven processes |
+|| `modules/` | 18 modules (active-window, audio, clock, display, input-method, launcher, mpris, notification, notification-popup, on-screen-display, overview, power-indicator, session, settings, systray, wifi, workspaces) + `battery-power` (shared) with module.json manifests; application modules are registry-driven processes |
 | `services/` | Shared QML services (31 Singletons, same module `qs.services` as original) |
 | `shared/` | Shared UI components, TuiStyle, icons, utils — module `qs.shared` / `qs.shared.ui` |
 | `quickshell/` | Single-source QML root — all `qs.core.*`, `qs.services.*`, `qs.shared.*` imports resolve via QML_IMPORT_PATH symlink |

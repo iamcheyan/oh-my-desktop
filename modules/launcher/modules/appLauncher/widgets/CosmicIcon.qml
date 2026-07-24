@@ -1,5 +1,6 @@
 import QtQuick
 import Qt5Compat.GraphicalEffects
+import qs.modules.common
 
 Item {
     id: root
@@ -8,7 +9,9 @@ Item {
     property real iconSize: Appearance.font.pixelSize.small
     property color color: "#c5c8c6"
 
-    readonly property string source: name !== "" ? ("file://" + Directories.cosmicIcons + "/" + name + ".svg") : ""
+    readonly property string source: name !== ""
+        ? ("file://" + Directories.cosmicIcons + "/" + name + ".svg")
+        : ""
 
     implicitWidth: iconSize
     implicitHeight: iconSize

@@ -352,10 +352,23 @@ Singleton {
                 property bool centerTitle: true
             }
             property JsonObject modules: JsonObject {
+                // Master switch for optional modules. When false, only the product-floor
+                // minimum desktop remains (clock, workspaces, systray, wifi, audio, power).
                 property bool enabled: true
-                // Per-module exclusion list. When non-empty, only modules NOT in this
-                // list are enabled (subject to master switch). Empty = all.
+                // Per-module exclusion list (optional modules only). Required/floor
+                // modules ignore this list and always stay enabled.
                 property list<var> disabled: []
+                // Extra required module IDs (union with hardcoded product floor).
+                // Cannot shrink below: clock, workspaces, systray, wifi, audio, power-indicator.
+                property list<var> required: [
+                    "launcher",
+                    "clock",
+                    "workspaces",
+                    "systray",
+                    "wifi",
+                    "audio",
+                    "power-indicator"
+                ]
                 property JsonObject barButtonOrder: JsonObject {}
             }
 

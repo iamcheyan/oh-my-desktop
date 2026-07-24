@@ -3,7 +3,6 @@
 /// Hyprsunset.load() at startup to ensure the night-light
 /// service is running and schedule-enabled.
 import QtQuick
-import qs.services
 
 Item {
     id: root

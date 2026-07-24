@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -8,7 +8,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import Quickshell.Services.Notifications
+// removed dead import
 
 Item {
     id: root
@@ -27,12 +27,12 @@ Item {
     readonly property int footerGap: showFooter ? 10 : 0
     readonly property int listHeight: Math.min(maxListHeight, listView.contentHeight)
 
-    implicitHeight: (Notifications.list.length === 0 && !Notifications.silent) ? 100 : (listHeight + headerGap + footerGap)
+    implicitHeight: (ServiceManager.notification.list.length === 0 && !ServiceManager.notification.silent) ? 100 : (listHeight + headerGap + footerGap)
     implicitWidth: 360
 
     onVisibleChanged: {
         if (visible && markReadOnVisible)
-            Notifications.markAllRead();
+            ServiceManager.notification.markAllRead();
     }
 
     function isExpanded(notificationId) {
@@ -50,7 +50,7 @@ Item {
     }
 
     function sortedNotifications() {
-        return Notifications.list.slice().sort((a, b) => b.time - a.time);
+        return ServiceManager.notification.list.slice().sort((a, b) => b.time - a.time);
     }
 
     ColumnLayout {
@@ -89,11 +89,11 @@ Item {
                 }
 
                 StyledText {
-                    text: Notifications.silent
+                    text: ServiceManager.notification.silent
                         ? "Do not disturb is on"
-                        : (Notifications.list.length === 0
+                        : (ServiceManager.notification.list.length === 0
                             ? "All clear"
-                            : `${Notifications.appNameList.length} app${Notifications.appNameList.length === 1 ? "" : "s"} · ${Notifications.list.length} notification${Notifications.list.length === 1 ? "" : "s"}`)
+                            : `${ServiceManager.notification.appNameList.length} app${ServiceManager.notification.appNameList.length === 1 ? "" : "s"} · ${ServiceManager.notification.list.length} notification${ServiceManager.notification.list.length === 1 ? "" : "s"}`)
                     font.family: Appearance.font.family.main
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: TuiStyle.dim
@@ -101,25 +101,25 @@ Item {
             }
 
             PillButton {
-                label: Notifications.silent ? "DND" : "Live"
-                active: !Notifications.silent
-                accent: Notifications.silent ? TuiStyle.warning : TuiStyle.success
-                onClicked: Notifications.silent = !Notifications.silent
+                label: ServiceManager.notification.silent ? "DND" : "Live"
+                active: !ServiceManager.notification.silent
+                accent: ServiceManager.notification.silent ? TuiStyle.warning : TuiStyle.success
+                onClicked: ServiceManager.notification.silent = !ServiceManager.notification.silent
             }
 
             IconButton {
                 symbol: "done_all"
                 tooltip: "Mark read"
-                enabled: Notifications.unread > 0
-                onClicked: Notifications.markAllRead()
+                enabled: ServiceManager.notification.unread > 0
+                onClicked: ServiceManager.notification.markAllRead()
             }
 
             IconButton {
                 symbol: "delete_sweep"
                 tooltip: "Clear all"
-                enabled: Notifications.list.length > 0
+                enabled: ServiceManager.notification.list.length > 0
                 danger: true
-                onClicked: Notifications.discardAllNotifications()
+                onClicked: ServiceManager.notification.discardAllNotifications()
             }
 
             IconButton {
@@ -127,7 +127,7 @@ Item {
                 tooltip: "Muted apps"
                 onClicked: {
                     GlobalStates.barPopupType = "";
-                    Notifications.openMutedAppsEditor();
+                    ServiceManager.notification.openMutedAppsEditor();
                 }
             }
         }
@@ -164,7 +164,7 @@ Item {
 
             Item {
                 anchors.fill: parent
-                visible: Notifications.list.length === 0
+                visible: ServiceManager.notification.list.length === 0
                 z: 1
 
                 ColumnLayout {
@@ -182,9 +182,9 @@ Item {
 
                         MaterialSymbol {
                             anchors.centerIn: parent
-                            text: Notifications.silent ? "notifications_paused" : "notifications"
+                            text: ServiceManager.notification.silent ? "notifications_paused" : "notifications"
                             iconSize: 22
-                            color: Notifications.silent ? TuiStyle.warning : TuiStyle.accent
+                            color: ServiceManager.notification.silent ? TuiStyle.warning : TuiStyle.accent
                         }
                     }
 
@@ -192,7 +192,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
-                        text: Notifications.silent ? "Notifications paused" : "Nothing new"
+                        text: ServiceManager.notification.silent ? "Notifications paused" : "Nothing new"
                         font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.normal
                         font.weight: Font.DemiBold
@@ -203,7 +203,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.fillWidth: true
                         horizontalAlignment: Text.AlignHCenter
-                        text: Notifications.silent ? "Incoming popups stay quiet." : "New messages will appear here."
+                        text: ServiceManager.notification.silent ? "Incoming popups stay quiet." : "New messages will appear here."
                         font.family: Appearance.font.family.main
                         font.pixelSize: Appearance.font.pixelSize.small
                         color: TuiStyle.dim
@@ -244,8 +244,8 @@ Item {
 
             TuiToggle {
                 visible: root.showFooterDnd
-                checked: Notifications.silent
-                onToggled: Notifications.silent = !Notifications.silent
+                checked: ServiceManager.notification.silent
+                onToggled: ServiceManager.notification.silent = !ServiceManager.notification.silent
             }
 
             Item { Layout.fillWidth: true }
@@ -258,7 +258,7 @@ Item {
                     : clearMouse.containsMouse ? TuiStyle.controlHover
                     : TuiStyle.control
                 border.width: 0
-                opacity: Notifications.list.length > 0 ? 1 : 0.45
+                opacity: ServiceManager.notification.list.length > 0 ? 1 : 0.45
 
                 StyledText {
                     id: clearLabel
@@ -273,10 +273,10 @@ Item {
                 MouseArea {
                     id: clearMouse
                     anchors.fill: parent
-                    enabled: Notifications.list.length > 0
+                    enabled: ServiceManager.notification.list.length > 0
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Notifications.discardAllNotifications()
+                    onClicked: ServiceManager.notification.discardAllNotifications()
                 }
             }
         }
@@ -344,7 +344,7 @@ Item {
         }
 
         function discard() {
-            Notifications.discardNotification(notificationObject.notificationId);
+            ServiceManager.notification.discardNotification(notificationObject.notificationId);
         }
 
         function copyText() {
@@ -533,10 +533,10 @@ Item {
                         }
 
                         IconButton {
-                            symbol: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
-                            tooltip: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "Unmute app" : "Mute app"
-                            danger: Notifications.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body)
-                            onClicked: Notifications.toggleMuteApp(row.displayApp, notificationObject?.summary)
+                            symbol: ServiceManager.notification.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "notifications_off" : "notifications"
+                            tooltip: ServiceManager.notification.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body) ? "Unmute app" : "Mute app"
+                            danger: ServiceManager.notification.isMuted(row.displayApp, notificationObject?.summary, notificationObject?.body)
+                            onClicked: ServiceManager.notification.toggleMuteApp(row.displayApp, notificationObject?.summary)
                         }
 
                         IconButton {

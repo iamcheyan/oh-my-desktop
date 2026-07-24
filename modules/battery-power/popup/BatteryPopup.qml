@@ -23,25 +23,25 @@ PopupColumn {
     readonly property int chargeLimit: Config.options.battery.full ?? 100
 
     function stateLabel() {
-        if (!Battery.available) return "desktop";
-        if (Battery.isCharging) return "charging";
-        if (Battery.isPluggedIn) return "plugged";
+        if (!ServiceManager.power.battery.available) return "desktop";
+        if (ServiceManager.power.battery.isCharging) return "charging";
+        if (ServiceManager.power.battery.isPluggedIn) return "plugged";
         return "battery";
     }
 
     function headerTitle() {
-        return Battery.available ? "BATTERY" : "POWER";
+        return ServiceManager.power.battery.available ? "BATTERY" : "POWER";
     }
 
     function headerStatus() {
-        if (!Battery.available) return "DESKTOP";
-        return `${Math.round(Battery.percentage * 100)}%`;
+        if (!ServiceManager.power.battery.available) return "DESKTOP";
+        return `${Math.round(ServiceManager.power.battery.percentage * 100)}%`;
     }
 
     function headerTone() {
-        if (!Battery.available) return TuiStyle.accent;
-        if (Battery.isLowAndNotCharging) return TuiStyle.danger;
-        if (Battery.isCharging) return TuiStyle.warning;
+        if (!ServiceManager.power.battery.available) return TuiStyle.accent;
+        if (ServiceManager.power.battery.isLowAndNotCharging) return TuiStyle.danger;
+        if (ServiceManager.power.battery.isCharging) return TuiStyle.warning;
         return TuiStyle.success;
     }
 
@@ -54,29 +54,29 @@ PopupColumn {
     }
 
     function showTimeEstimate() {
-        const timeValue = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
-        const power = Battery.energyRate;
-        return Battery.available
-            && !(Battery.chargeState === 4 || timeValue <= 0 || power <= 0.01);
+        const timeValue = ServiceManager.power.battery.isCharging ? ServiceManager.power.battery.timeToFull : ServiceManager.power.battery.timeToEmpty;
+        const power = ServiceManager.power.battery.energyRate;
+        return ServiceManager.power.battery.available
+            && !(ServiceManager.power.battery.chargeState === 4 || timeValue <= 0 || power <= 0.01);
     }
 
     function timeEstimateLabel() {
-        return Battery.isCharging ? "TIME TO FULL" : "TIME LEFT";
+        return ServiceManager.power.battery.isCharging ? "TIME TO FULL" : "TIME LEFT";
     }
 
     function timeEstimateValue() {
-        const seconds = Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty;
+        const seconds = ServiceManager.power.battery.isCharging ? ServiceManager.power.battery.timeToFull : ServiceManager.power.battery.timeToEmpty;
         return formatDuration(seconds);
     }
 
     function timeEstimateColor() {
-        if (Battery.isLowAndNotCharging) return TuiStyle.danger;
-        if (Battery.isCharging) return TuiStyle.warning;
+        if (ServiceManager.power.battery.isLowAndNotCharging) return TuiStyle.danger;
+        if (ServiceManager.power.battery.isCharging) return TuiStyle.warning;
         return TuiStyle.muted;
     }
 
     function profileLabel() {
-        const profile = PowerProfiles.currentProfile;
+        const profile = ServiceManager.power.powerProfiles.currentProfile;
         if (profile === "performance") return "performance";
         if (profile === "balanced") return "balanced";
         if (profile === "power-saver") return "power saver";
@@ -115,38 +115,38 @@ PopupColumn {
 
     PopupHeader {
         Layout.fillWidth: true
-        icon: Battery.available ? NerdIconMap.batteryFull : NerdIconMap.power
-        title: Battery.available ? "Power & Battery" : "Power"
+        icon: ServiceManager.power.battery.available ? NerdIconMap.batteryFull : NerdIconMap.power
+        title: ServiceManager.power.battery.available ? "Power & Battery" : "Power"
         subtitle: batteryStack.headerStatus() + (batteryStack.showTimeEstimate() ? "  ·  " + batteryStack.timeEstimateValue() + " remaining" : "")
         tone: batteryStack.headerTone()
     }
 
     RowLayout {
         Layout.fillWidth: true
-        Layout.preferredHeight: Battery.available ? 24 : 0
+        Layout.preferredHeight: ServiceManager.power.battery.available ? 24 : 0
         spacing: 12
-        visible: Battery.available
+        visible: ServiceManager.power.battery.available
 
         TuiMeterBar {
             Layout.fillWidth: true
             Layout.preferredHeight: 10
             Layout.alignment: Qt.AlignVCenter
-            value: Battery.percentage * 100
-            accent: Battery.isLowAndNotCharging ? TuiStyle.danger : Battery.isCharging ? TuiStyle.warning : TuiStyle.success
+            value: ServiceManager.power.battery.percentage * 100
+            accent: ServiceManager.power.battery.isLowAndNotCharging ? TuiStyle.danger : ServiceManager.power.battery.isCharging ? TuiStyle.warning : TuiStyle.success
         }
 
         StyledText {
             Layout.alignment: Qt.AlignVCenter
-            text: `${Math.round(Battery.percentage * 100)}%`
+            text: `${Math.round(ServiceManager.power.battery.percentage * 100)}%`
             font.family: Appearance.font.family.main
             font.pixelSize: Appearance.font.pixelSize.small
             font.weight: Font.DemiBold
-            color: Battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
+            color: ServiceManager.power.battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
         }
     }
 
     TuiDetailRow {
-        visible: Battery.available
+        visible: ServiceManager.power.battery.available
         keyText: "STATE"
         valueText: batteryStack.stateLabel()
         valueColor: batteryStack.headerTone()
@@ -162,23 +162,23 @@ PopupColumn {
     }
 
     TuiDetailRow {
-        visible: Battery.available && Battery.chargeState !== 4 && Battery.energyRate > 0.01
+        visible: ServiceManager.power.battery.available && ServiceManager.power.battery.chargeState !== 4 && ServiceManager.power.battery.energyRate > 0.01
         keyText: "POWER DRAW"
-        valueText: `${Battery.energyRate.toFixed(1)}W`
-        valueColor: Battery.isCharging ? TuiStyle.warning : TuiStyle.info
+        valueText: `${ServiceManager.power.battery.energyRate.toFixed(1)}W`
+        valueColor: ServiceManager.power.battery.isCharging ? TuiStyle.warning : TuiStyle.info
         keyWidth: 96
     }
 
     SectionLabel {
-        visible: PowerProfiles.available
+        visible: ServiceManager.power.powerProfiles.available
         text: "POWER PROFILE"
-        topInset: Battery.available ? 4 : 0
+        topInset: ServiceManager.power.battery.available ? 4 : 0
     }
 
     // ── Power Profile — vertical list, GNOME style ───────────────
     Item {
         Layout.fillWidth: true
-        visible: PowerProfiles.available
+        visible: ServiceManager.power.powerProfiles.available
         implicitHeight: profileList.implicitHeight
 
         ColumnLayout {
@@ -198,7 +198,7 @@ PopupColumn {
                     implicitHeight: profileRow.implicitHeight + 20
 
                     required property var modelData
-                    readonly property bool isActive: PowerProfiles.currentProfile === modelData.id
+                    readonly property bool isActive: ServiceManager.power.powerProfiles.currentProfile === modelData.id
 
                     RowLayout {
                         id: profileRow
@@ -253,7 +253,7 @@ PopupColumn {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: PowerProfiles.setProfile(modelData.id)
+                        onClicked: ServiceManager.power.powerProfiles.setProfile(modelData.id)
                     }
                 }
             }

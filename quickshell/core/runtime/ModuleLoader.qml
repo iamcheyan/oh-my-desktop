@@ -23,8 +23,46 @@ Singleton {
     // Raw registry data — populated by registryReader Process.
     property var _registry: _emptyRegistry()
 
-    // Master switch — if false, all modules are disabled.
+    // Master switch — if false, only product-floor (required) modules stay enabled.
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
+
+    /// Product-floor minimum desktop. Cannot be smaller than this set.
+    /// launcher + clock / workspaces / systray / wifi / audio / power.
+    readonly property var productFloorModuleIds: [
+        "launcher",
+        "clock",
+        "workspaces",
+        "systray",
+        "wifi",
+        "audio",
+        "power-indicator"
+    ]
+
+    /// Required module IDs = product floor ∪ config modules.required (extras only expand).
+    readonly property var requiredModuleIds: {
+        const ids = []
+        const floor = productFloorModuleIds
+        for (var i = 0; i < floor.length; i++)
+            ids.push(floor[i])
+        const extra = Config.options.modules?.required ?? []
+        if (extra && extra.length > 0) {
+            for (var j = 0; j < extra.length; j++) {
+                const id = extra[j]
+                if (!id || typeof id !== "string")
+                    continue
+                var found = false
+                for (var k = 0; k < ids.length; k++) {
+                    if (ids[k] === id) {
+                        found = true
+                        break
+                    }
+                }
+                if (!found)
+                    ids.push(id)
+            }
+        }
+        return ids
+    }
 
     // ── Public API (stable, prefer over _registry direct access) ──
 
@@ -37,7 +75,7 @@ Singleton {
         const result = []
         for (var i = 0; i < mods.length; i++) {
             var m = mods[i]
-            if (m.id && m.path && m.actionsProvider) {
+            if (m.id && m.path && m.actionsProvider && loader.isEnabled(m.id)) {
                 result.push(m)
             }
         }
@@ -45,6 +83,8 @@ Singleton {
     }
 
     /// Contributed actions from module manifests (registry contributes.actions).
+    /// Note: registry action entries currently lack moduleId; enablement is
+    /// enforced via actionProviders + ModuleActionHost isEnabled checks.
     readonly property var contributedActions: _contributes("actions")
 
     /// Application modules (kind === "application") with entry commands.
@@ -53,22 +93,41 @@ Singleton {
         const result = []
         for (var i = 0; i < mods.length; i++) {
             var m = mods[i]
-            if (m.kind === "application" && m.entry && m.entry.command) {
+            if (m.kind === "application" && m.entry && m.entry.command && loader.isEnabled(m.id)) {
                 result.push(m)
             }
         }
         return result
     }
 
+    function isRequired(moduleId) {
+        if (!moduleId)
+            return false
+        const ids = requiredModuleIds
+        for (var i = 0; i < ids.length; i++) {
+            if (ids[i] === moduleId)
+                return true
+        }
+        return false
+    }
+
+    /// Module enablement:
+    /// - product-floor / required modules are always on (cannot disable, survive master off)
+    /// - master off → all non-required off
+    /// - modules.disabled excludes optional modules only
     function isEnabled(moduleId) {
-        if (!modulesEnabled) return false
+        if (isRequired(moduleId))
+            return true
+        if (!modulesEnabled)
+            return false
         // Per-module exclusion check
         // NOTE: QML list<var> is NOT a JS Array — Array.isArray() returns false,
         // indexOf() is not available. Use manual iteration instead.
         const disabled = Config.options.modules?.disabled ?? []
         if (disabled && disabled.length > 0) {
             for (var i = 0; i < disabled.length; i++) {
-                if (disabled[i] === moduleId) return false
+                if (disabled[i] === moduleId)
+                    return false
             }
         }
         return true
@@ -131,7 +190,7 @@ Singleton {
      * - moduleId: owning module — used for per-module enable/disable
      */
     readonly property var popupSections: {
-        if (!modulesEnabled) return []
+        // Master-off still allows product-floor modules via isEnabled().
         const sections = _contributes("popupSections")
         const singletonTypes = {battery: 1, inputMethod: 1, keyboard: 1, voice: 1}
         // Track original registrant for conflict reporting
@@ -164,25 +223,21 @@ Singleton {
     }
 
     readonly property var settingsPages: {
-        if (!modulesEnabled) return []
         const pages = _contributes("settingsPages").filter(p => isEnabled(p.moduleId))
         return pages.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
 
     readonly property var activeModuleIds: {
-        if (!modulesEnabled) return []
         return (_registry.modules ?? []).filter(m => isEnabled(m.id ?? m)).map(m => m.id ?? m)
     }
 
     readonly property var overviewProviders: {
-        if (!modulesEnabled) return []
         const providers = _contributes("overviewProviders")
         return providers.filter(p => isEnabled(p.moduleId))
             .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     }
 
     readonly property var overlays: {
-        if (!modulesEnabled) return []
         const c = _registry.contributes
         if (c && Array.isArray(c.overlays)) return c.overlays.filter(o => isEnabled(o.moduleId))
             .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))

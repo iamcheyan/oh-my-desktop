@@ -3,7 +3,6 @@ import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.bar
-import qs.services
 import qs.core.runtime
 import QtQuick
 import QtQuick.Layouts

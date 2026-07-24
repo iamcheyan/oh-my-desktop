@@ -1,7 +1,6 @@
 import QtQuick
 
 import qs.core.runtime
-import qs.services as Svcs
 
 /// Notification popup action registrations.
 ///

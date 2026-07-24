@@ -4,7 +4,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.modules.bar
-import qs.services
+import qs.core.runtime
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -17,14 +17,14 @@ ColumnLayout {
 
     PopupHeader {
         Layout.fillWidth: true
-        icon: Notifications.silent ? NerdIconMap.notificationsOff : NerdIconMap.notifications
+        icon: ServiceManager.notification.silent ? NerdIconMap.notificationsOff : NerdIconMap.notifications
         title: "Notifications"
-        subtitle: Notifications.silent
+        subtitle: ServiceManager.notification.silent
             ? "Do not disturb"
-            : (Notifications.list.length === 0
+            : (ServiceManager.notification.list.length === 0
                 ? "All clear"
-                : `${Notifications.list.length} notification${Notifications.list.length === 1 ? "" : "s"}`)
-        tone: Notifications.silent ? TuiStyle.warning : TuiStyle.success
+                : `${ServiceManager.notification.list.length} notification${ServiceManager.notification.list.length === 1 ? "" : "s"}`)
+        tone: ServiceManager.notification.silent ? TuiStyle.warning : TuiStyle.success
 
         RowLayout {
             Layout.alignment: Qt.AlignVCenter
@@ -43,7 +43,7 @@ ColumnLayout {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         GlobalStates.barPopupType = "";
-                        Notifications.openMutedAppsEditor();
+                        ServiceManager.notification.openMutedAppsEditor();
                     }
                 }
             }
@@ -54,14 +54,14 @@ ColumnLayout {
                 text: "delete_sweep"
                 iconSize: 20
                 color: clearMouse.containsMouse ? TuiStyle.danger : TuiStyle.dim
-                visible: Notifications.list.length > 0
+                visible: ServiceManager.notification.list.length > 0
 
                 MouseArea {
                     id: clearMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Notifications.discardAllNotifications()
+                    onClicked: ServiceManager.notification.discardAllNotifications()
                 }
             }
 
@@ -72,9 +72,9 @@ ColumnLayout {
                 width: 46
                 height: 26
                 radius: height / 2
-                color: !Notifications.silent ? TuiStyle.accent : TuiStyle.controlMuted
+                color: !ServiceManager.notification.silent ? TuiStyle.accent : TuiStyle.controlMuted
                 border.width: TuiStyle.borderWidth
-                border.color: !Notifications.silent ? TuiStyle.shellBorder : TuiStyle.line
+                border.color: !ServiceManager.notification.silent ? TuiStyle.shellBorder : TuiStyle.line
 
                 Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -83,8 +83,8 @@ ColumnLayout {
                     height: 20
                     radius: 10
                     anchors.verticalCenter: parent.verticalCenter
-                    x: !Notifications.silent ? parent.width - width - 3 : 3
-                    color: !Notifications.silent ? TuiStyle.bg : TuiStyle.fg
+                    x: !ServiceManager.notification.silent ? parent.width - width - 3 : 3
+                    color: !ServiceManager.notification.silent ? TuiStyle.bg : TuiStyle.fg
                     Behavior on x { NumberAnimation { duration: 110 } }
                 }
 
@@ -92,7 +92,7 @@ ColumnLayout {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Notifications.toggleSilent()
+                    onClicked: ServiceManager.notification.toggleSilent()
                 }
             }
         }
@@ -101,7 +101,7 @@ ColumnLayout {
     TuiNotificationList {
         Layout.fillWidth: true
         Layout.topMargin: visible ? 12 : 0
-        visible: !Notifications.silent
+        visible: !ServiceManager.notification.silent
         Layout.bottomMargin: 16
         showHeader: false
         showFooter: false

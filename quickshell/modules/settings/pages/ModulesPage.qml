@@ -1,11 +1,12 @@
 // ModulesPage — Module management settings page.
 // Shows installed modules with enable/disable toggles.
-// Respects modules.enabled master switch from sumika.json.
+// Product-floor modules always stay on; master switch only affects optional modules.
 
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings
 import qs.modules.settings.widgets
+import qs.core.runtime
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -17,7 +18,7 @@ PageBody {
 
     readonly property var modules: ModuleLoader.modules ?? []
 
-    // Master switch from config
+    // Master switch from config (optional modules only)
     readonly property bool masterEnabled: Config.options.modules?.enabled !== false
 
     // Current module exclusion list
@@ -33,6 +34,8 @@ PageBody {
     }
 
     function toggleModule(moduleId) {
+        if (ModuleLoader.isRequired(moduleId))
+            return
         page.syncDisabledList()
         const idx = page._disabledList.indexOf(moduleId)
         if (idx >= 0) {
@@ -54,9 +57,10 @@ PageBody {
             icon: NerdIconMap.extension
             title: "Modules"
             subtitle: {
-                if (!page.masterEnabled) return "All disabled (master switch OFF)"
                 const total = page.modules.length
                 const active = page.modules.filter(m => ModuleLoader.isEnabled(m.id)).length
+                if (!page.masterEnabled)
+                    return `Minimum desktop (${active}/${total} active)`
                 return `${active}/${total} active`
             }
         }
@@ -64,8 +68,8 @@ PageBody {
         // Master switch
         SettingsToggleRow {
             Layout.fillWidth: true
-            label: "Enable modules"
-            description: "Master switch — when off, all modules are disabled"
+            label: "Enable optional modules"
+            description: "When off, only the minimum desktop remains: launcher, clock, workspaces, systray, Wi‑Fi, audio, power"
             checked: page.masterEnabled
             onToggled: page.setMasterEnabled(!page.masterEnabled)
         }
@@ -78,9 +82,19 @@ PageBody {
                 required property var modelData
                 Layout.fillWidth: true
 
-                iconName: "extension"
-                label: modelData.name ?? modelData.id ?? "Unknown"
-                description: modelData.description ?? modelData.id ?? ""
+                readonly property bool requiredModule: ModuleLoader.isRequired(modelData.id)
+                readonly property bool moduleOn: ModuleLoader.isEnabled(modelData.id)
+
+                iconName: requiredModule ? "lock" : "extension"
+                label: {
+                    const name = modelData.name ?? modelData.id ?? "Unknown"
+                    return requiredModule ? `${name} (required)` : name
+                }
+                description: {
+                    if (requiredModule)
+                        return "Minimum desktop — cannot be disabled"
+                    return modelData.description ?? modelData.id ?? ""
+                }
                 showDivider: true
 
                 trailingItem: RowLayout {
@@ -88,8 +102,8 @@ PageBody {
                     spacing: 8
 
                     StyledText {
-                        text: ModuleLoader.isEnabled(modelData.id) ? "ON" : "OFF"
-                        color: ModuleLoader.isEnabled(modelData.id) ? TuiStyle.accent : TuiStyle.dim
+                        text: requiredModule ? "REQ" : (moduleOn ? "ON" : "OFF")
+                        color: requiredModule ? TuiStyle.accent : (moduleOn ? TuiStyle.accent : TuiStyle.dim)
                         font.pixelSize: Appearance.font.pixelSize.small
                         font.weight: Font.Medium
                     }
@@ -99,18 +113,20 @@ PageBody {
                         Layout.preferredHeight: 36
                         Layout.alignment: Qt.AlignVCenter
                         buttonRadius: 18
+                        enabled: !requiredModule && page.masterEnabled
+                        opacity: enabled ? 1.0 : 0.45
                         colBackground: "transparent"
                         colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
                         colRipple: Qt.rgba(1, 1, 1, 0.12)
-                        toggled: ModuleLoader.isEnabled(modelData.id)
+                        toggled: moduleOn
 
                         onClicked: page.toggleModule(modelData.id)
 
                         BarNerdIcon {
                             anchors.centerIn: parent
-                            text: ModuleLoader.isEnabled(modelData.id) ? NerdIconMap.check : NerdIconMap.close
+                            text: requiredModule ? NerdIconMap.lock : (moduleOn ? NerdIconMap.check : NerdIconMap.close)
                             iconSize: 16
-                            color: ModuleLoader.isEnabled(modelData.id) ? TuiStyle.accent : TuiStyle.dim
+                            color: requiredModule ? TuiStyle.accent : (moduleOn ? TuiStyle.accent : TuiStyle.dim)
                         }
                     }
                 }
@@ -124,10 +140,11 @@ PageBody {
 
             StyledText {
                 Layout.fillWidth: true
-                text: "Changes apply after restart (omd-restart)"
+                text: "Minimum desktop: launcher, clock, workspaces, systray, Wi‑Fi, audio, power. Changes apply after reload."
                 color: TuiStyle.dim
                 font.pixelSize: Appearance.font.pixelSize.small
                 horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
             }
         }
     }

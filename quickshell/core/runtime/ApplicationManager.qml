@@ -71,6 +71,8 @@ Singleton {
 
             // Only application-kind modules are supervised
             if (mod.kind !== "application") continue
+            // Respect product floor / master switch / per-module disable
+            if (!ModuleLoader.isEnabled(mod.id)) continue
             if (!mod.entry || !Array.isArray(mod.entry.command)) {
                 console.warn("[ApplicationManager] module '" + mod.id + "' is application kind but has no entry.command array")
                 continue

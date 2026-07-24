@@ -4,6 +4,8 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Wayland
+import qs.modules.common
+import qs.modules.common.functions
 
 import "widgets"
 
@@ -41,12 +43,12 @@ PanelWindow {
         if (desktopEntry.id === "omd-tools.desktop") {
             launcher.open = false;
             Quickshell.execDetached([
-                FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-settings`),
+                Directories.root + "/bin/omd-settings",
                 "open", "overview"
             ]);
             return;
         }
-        const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
+        const detach = Directories.root + "/bin/omd-detach";
         const appId = desktopEntry.desktopId || desktopEntry.id || "";
         if (appId.length === 0) return;
 
@@ -74,7 +76,7 @@ PanelWindow {
 
     function requestSessionAction(action, label) {
         launcher.sessionMenuOpen = false;
-        const barConfig = FileUtils.trimFileProtocol(`${Directories.config}/omd/apps/omd-bar`);
+        const barConfig = Directories.root + "/apps/omd-bar";
         Quickshell.execDetached([
             "qs", "-p", barConfig, "ipc", "call", "session", "confirm", action, label
         ]);
@@ -84,7 +86,7 @@ PanelWindow {
     function reloadShell() {
         launcher.sessionMenuOpen = false;
         Quickshell.execDetached([
-            "bash", FileUtils.trimFileProtocol(`${Directories.config}/omd/scripts/reload-quickshell`)
+            "bash", Directories.root + "/scripts/reload-quickshell"
         ]);
         launcher.open = false;
     }

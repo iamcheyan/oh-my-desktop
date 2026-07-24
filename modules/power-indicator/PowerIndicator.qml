@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -78,19 +78,19 @@ Item {
         BarIconButton {
             id: powerButton
             popupType: "battery"
-            visible: Battery.showBarIcon
+            visible: ServiceManager.power?.battery?.showBarIcon ?? false
             IconSlot {
                 anchors.centerIn: parent
                 BarBatteryIcon {
                     anchors.centerIn: parent
                     color: container.colText
-                    visible: Battery.available
+                    visible: ServiceManager.power?.battery?.available ?? false
                 }
                 BarNerdIcon {
                     anchors.centerIn: parent
                     text: NerdIconMap.powerSettingsNew
                     color: container.colText
-                    visible: !Battery.available
+                    visible: !(ServiceManager.power?.battery?.available ?? false)
                 }
             }
             MouseArea {
