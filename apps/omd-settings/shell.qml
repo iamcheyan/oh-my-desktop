@@ -3,17 +3,11 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
-import qs.modules.common
 import qs.modules.settings
-import qs.modules.settings.widgets
-import qs.modules.settings.pages
-
 import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Bluetooth
-import Quickshell.Hyprland
 
 ShellRoot {
     id: root

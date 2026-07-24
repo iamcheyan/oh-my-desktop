@@ -7,6 +7,12 @@ set -eu
 
 REPO="$(cd "$(dirname "$0")" && pwd -P)"
 
+#
+# After cloning, also clone the external modules repo:
+#   git clone git@github.com:iamcheyan/sumika-modules.git ~/development/sumika-modules
+#
+# Init.sh creates runtime symlinks and installs system dependencies.
+# External modules auto-resolve via $SUMIKA_MODULES_HOME (default ~/development/sumika-modules).
 # ── Color helpers ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1385,16 +1391,10 @@ print_summary() {
         login_manager="SDDM"
     elif systemctl is-enabled gdm.service >/dev/null 2>&1; then
         login_manager="GDM"
-    fi
-
-    echo
-    echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}  oh-my-desktop setup complete!${NC}"
-    echo -e "${GREEN}════════════════════════════════════════════════════════════════${NC}"
-    echo
-    echo "Next steps:"
-    echo "  1. Log out"                                                                             
-    echo "  2. In ${login_manager}, choose \"Oh My Desktop\" from the session menu"
+    echo "  0. Clone external modules: git clone git@github.com:iamcheyan/sumika-modules.git ~/development/sumika-modules"
+    echo "     (Skip if already cloned; \$SUMIKA_MODULES_HOME defaults to ~/development/sumika-modules)"
+    echo "  1. Log out"
+    echo "  2. In \${login_manager}, choose \"Oh My Desktop\" from the session menu"
     echo "  3. Log in; Hyprland will load hypr/hyprland.lua and autostart Quickshell"
     echo
     echo "Useful commands:"
