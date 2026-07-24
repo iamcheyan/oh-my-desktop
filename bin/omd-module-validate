@@ -385,7 +385,7 @@ def scan_manifests(root_dir: str) -> list:
             if entry.endswith(".json"):
                 results.append(os.path.join(root_dir, entry))
     else:
-        # external module style: each subdir contains a module.json
+        # module.json style: each subdir contains a module.json
         for entry in sorted(os.listdir(root_dir)):
             entry_path = os.path.join(root_dir, entry)
             if not os.path.isdir(entry_path):

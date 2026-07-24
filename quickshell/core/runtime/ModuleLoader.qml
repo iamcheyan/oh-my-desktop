@@ -4,8 +4,8 @@ import Quickshell
 import Quickshell.Io
 import qs.modules.common
 
-/// Modules live in ~/development/sumika-modules/<id>/ and are discovered
-/// by the startup script, which writes $XDG_RUNTIME_DIR/sumika-shell/modules.json.
+/// All modules live in quickshell/modules/<id>/ within the repo.
+/// The startup script discovers them and writes $XDG_RUNTIME_DIR/sumika-shell/modules.json.
 /// This singleton parses that JSON (v2 schema) and exposes contributions
 /// for dynamic loading via Repeater + Loader.
 /// Registry access helpers for module contributes.

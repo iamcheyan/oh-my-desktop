@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qs.core.api.schema/module-schema.json",
   "title": "Sumika Shell Module Manifest Schema",
-  "description": "Defines the structure for external module manifests used by ModuleLoader to discover and register contributed resources.",
+  "description": "Module manifest schema for Sumika Shell discovered modules.",
   "type": "object",
   "required": ["id", "name", "version", "entry"],
   "properties": {

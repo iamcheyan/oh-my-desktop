@@ -95,7 +95,7 @@ Item { // Bar content region
 
 
 
-        // Left module registration slot — AppLauncher, ActiveWindow, and external modules
+        // Left module registration slot — AppLauncher, ActiveWindow, and bar modules
         Repeater {
             model: ModuleLoader.leftBarButtons
             delegate: Loader {

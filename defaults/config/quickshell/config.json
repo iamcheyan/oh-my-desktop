@@ -254,7 +254,6 @@
       "power-indicator",
       "display"
     ],
-    "barButtonOrder": {},
-    "dir": "~/development/sumika-modules"
+    "barButtonOrder": {}
   }
 }

@@ -326,17 +326,17 @@ Singleton {
         this.register("session.logout.save", "core", "Log out and save session", {
             type: "process",
             command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-logout"]
-        }, {description: "Log out (session save available with sumika-modules session module)"})
+        }, {description: "Log out with session save"})
 
         this.register("session.reboot.save", "core", "Reboot after saving session", {
             type: "shell",
             command: "reboot || loginctl reboot"
-        }, {description: "Reboot (session save available with sumika-modules session module)"})
+        }, {description: "Reboot with session save"})
 
         this.register("session.shutdown.save", "core", "Shut down after saving session", {
             type: "shell",
             command: "systemctl poweroff || loginctl poweroff"
-        }, {description: "Power off (session save available with sumika-modules session module)"})
+        }, {description: "Power off with session save"})
 
         // Shell actions
         this.register("shell.reload", "core", "Reload shell", {

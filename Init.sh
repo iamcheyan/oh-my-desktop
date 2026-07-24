@@ -7,10 +7,6 @@ set -eu
 
 REPO="$(cd "$(dirname "$0")" && pwd -P)"
 
-#
-# After cloning, also clone the external modules repo:
-#   git clone git@github.com:iamcheyan/sumika-modules.git ~/development/sumika-modules
-#
 # Init.sh creates runtime symlinks and installs system dependencies.
 # No external module repo — all modules live in quickshell/modules/
 # ── Color helpers ──────────────────────────────────────────────────────────────

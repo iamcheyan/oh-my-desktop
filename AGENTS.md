@@ -23,7 +23,7 @@ cd ~/development/OMD && ./Init.sh
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|All modules (bar, wifi, settings, launcher, audio, display, overview, etc.)|`OMD/quickshell/modules/` (13 个)|git (主仓库)|
+|All modules (bar, wifi, settings, launcher, audio, display, overview, etc.)|`OMD/quickshell/modules/` (14 个)|git (主仓库)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
 |Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
@@ -55,7 +55,6 @@ cd ~/development/OMD && ./Init.sh
 - **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
-- **Voice**: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
 
 ## Editing
 
@@ -64,9 +63,8 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- Default module QML: `modules/<name>/` — 13 modules in this repo.
-- Bar popups: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
-- Voice: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
+- Default module QML: `modules/<name>/` — 14 modules in this repo.
+- **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 
 ### Omarchy / Hyprland
 

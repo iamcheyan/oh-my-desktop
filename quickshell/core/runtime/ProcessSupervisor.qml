@@ -5,7 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-/// Manages the lifecycle of external module processes.
+/// Manages the lifecycle of supervised module processes.
 ///
 /// Each supervised process is identified by a unique `instanceId`
 /// (typically `<moduleId>` or `<moduleId>:<variant>`).
