@@ -55,7 +55,12 @@ PanelWindow {
         }
         if (desktopEntry._toolCommand && desktopEntry._toolCommand.length > 0) {
             launcher.open = false;
-            Quickshell.execDetached(desktopEntry._toolCommand);
+            const cmd = desktopEntry._toolCommand.map(arg => {
+                return arg
+                    .replace(/\$root/g, Directories.root)
+                    .replace(/\$HOME/g, Quickshell.env("HOME") ?? "");
+            });
+            Quickshell.execDetached(cmd);
             console.log("[AppLauncher] Launched internal tool " + desktopEntry.id);
             return;
         }
