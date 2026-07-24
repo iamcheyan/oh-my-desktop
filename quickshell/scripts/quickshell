@@ -159,7 +159,15 @@ fi
 if command -v jq >/dev/null 2>&1; then
     for module_json in "$repo_root/quickshell/modules"/*/module.json; do
         [ -f "$module_json" ] || continue
-        merge_manifest "$module_json" "$(dirname "$module_json")"
+        mod_dir=$(dirname "$module_json")
+        merge_manifest "$module_json" "$mod_dir"
+        if [ -f "$mod_dir/qmldir" ]; then
+            qml_mod_name=$(grep -E '^module\s+' "$mod_dir/qmldir" 2>/dev/null | awk '{print $2}' | awk -F'.' '{print $NF}' || true)
+            dir_name=$(basename "$mod_dir")
+            if [ -n "$qml_mod_name" ] && [ "$qml_mod_name" != "$dir_name" ]; then
+                ln -sfn "$dir_name" "$repo_root/quickshell/modules/$qml_mod_name"
+            fi
+        fi
     done
 fi
 

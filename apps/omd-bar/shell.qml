@@ -16,6 +16,8 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Services.Notifications
+import Quickshell.Wayland
+import qs.modules.common.widgets
 
 ShellRoot {
     id: root
@@ -105,32 +107,53 @@ ShellRoot {
                 Notifications.handleNotification(notification)
             }
         }
-        
-        // Dynamic overlays loaded from module registry.
-        // Modules register via contributes.overlays in their module.json.
-        Repeater {
-            id: overlaysRepeater
-            Component.onCompleted: console.log("[Bar] Overlays count:", ModuleLoader.overlays.length, "items:", JSON.stringify(ModuleLoader.overlays.map(o => o.id)))
-            model: ModuleLoader.overlays
-            delegate: Loader {
-                required property var modelData
-                source: modelData.component
+
+        // Notification popup overlay — PanelWindow bound to popupList
+        PanelWindow {
+            id: notifPopup
+            visible: (ServiceManager.notification.popupList.length > 0) && !GlobalStates.screenLocked
+            screen: Quickshell.screens.find(s =>
+                Config.options.notifications.forceMonitor.enable
+                    ? s.name === Config.options.notifications.forceMonitor.name
+                    : s.name === Hyprland.focusedMonitor?.name) ?? null
+            readonly property bool barOnBottom: Config.options.bar.bottom
+            readonly property real outerMargin: Appearance.sizes.elevationMargin
+
+            WlrLayershell.namespace: "quickshell:notificationPopup"
+            WlrLayershell.layer: WlrLayer.Overlay
+            exclusionMode: ExclusionMode.Ignore
+            exclusiveZone: 0
+
+            anchors {
+                top: !notifPopup.barOnBottom
+                bottom: notifPopup.barOnBottom
+                right: true
             }
-        }
-        
-        Timer {
-            interval: 5000
-            repeat: true
-            running: true
-            onTriggered: {
-                console.log("[BarDiag] Overlays count:", ModuleLoader.overlays.length, "Repeater children:", overlaysRepeater.count)
-                for (var i = 0; i < overlaysRepeater.count; i++) {
-                    var item = overlaysRepeater.itemAt(i)
-                    console.log("[BarDiag] Overlay", i, "item:", item ? "exists" : "null")
-                    if (item && item.status === Loader.Error) {
-                        console.log("[BarDiag] Overlay", i, "error:", item.errorString())
-                    }
+
+            margins {
+                top: notifPopup.barOnBottom ? 0 : Appearance.sizes.barHeight + 4
+                bottom: notifPopup.barOnBottom ? Appearance.sizes.barHeight + 4 : 0
+                right: 4
+            }
+
+            mask: Region {
+                item: listview.contentItem
+            }
+
+            color: "transparent"
+            implicitWidth: Appearance.sizes.notificationPopupWidth + notifPopup.outerMargin * 2
+            implicitHeight: Math.min(
+                listview.contentHeight + notifPopup.outerMargin * 2,
+                (notifPopup.screen?.height ?? 1080) - Appearance.sizes.barHeight - 8
+            )
+
+            NotificationListView {
+                id: listview
+                anchors {
+                    fill: parent
+                    margins: notifPopup.outerMargin
                 }
+                popup: true
             }
         }
     }
