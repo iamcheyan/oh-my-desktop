@@ -197,6 +197,19 @@ else
   ok "no current home path outside docs"
 fi
 
+section "extensions"
+_ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+if [ -d "$_ext_dir" ]; then
+    _ext_count=0
+    for _ext_json in "$_ext_dir"/*/module.json; do
+        [ -f "$_ext_json" ] || continue
+        _ext_count=$((_ext_count + 1))
+    done
+    ok "extensions directory: $_ext_dir ($_ext_count installed)"
+else
+    ok "extensions directory not present — no extensions installed"
+fi
+
 printf '\n'
 if (( failed )); then
   printf 'OMD doctor finished with failures.\n'

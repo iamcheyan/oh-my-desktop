@@ -169,6 +169,45 @@ if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],
     echo "[sumika] INFO: empty registry — jq may be missing or no manifests found"
 fi
 
+# ── Extensions ───────────────────────────────────────────────────
+# Scan for user-installed extensions in the standard directory.
+# Extensions are loaded after core modules and cannot override core IDs.
+# Each extension has: <extensions_dir>/<id>/module.json
+extensions_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+ext_qml_root="${registry_dir}/qml_ext"
+if [ -d "$extensions_dir" ] && command -v jq >/dev/null 2>&1; then
+    mkdir -p "$ext_qml_root/qs/modules"
+    for ext_mod_json in "$extensions_dir"/*/module.json; do
+        [ -f "$ext_mod_json" ] || continue
+        ext_mod_dir=$(dirname "$ext_mod_json")
+        ext_id=$(basename "$ext_mod_dir")
+
+        # Skip if already registered by core (core always wins)
+        if echo "$registry" | jq -e --arg mid "$ext_id" '.modules | any(.id == $mid)' >/dev/null 2>&1; then
+            echo "[sumika] INFO: extension '$ext_id' skipped — already provided by core" >&2
+            continue
+        fi
+
+        # Merge manifest into registry
+        if merge_manifest "$ext_mod_json" "$ext_mod_dir"; then
+            # Symlink extension QML into the import path
+            ln -sfn "$ext_mod_dir" "$ext_qml_root/qs/modules/$ext_id"
+
+            # Add bin/ to PATH if it exists
+            if [ -d "$ext_mod_dir/bin" ]; then
+                export PATH="$PATH:$ext_mod_dir/bin"
+            fi
+
+            echo "[sumika] INFO: loaded extension '$ext_id'" >&2
+        fi
+    done
+
+    # Add extension QML import path after core so core takes priority
+    if [ -n "$(ls -A "$ext_qml_root/qs/modules/" 2>/dev/null)" ]; then
+        export QML_IMPORT_PATH="$QML_IMPORT_PATH:$ext_qml_root"
+    fi
+fi
+
 # Atomic write
 tmp_file="$(mktemp "$registry_dir/registry.XXXXXX")"
 echo "$registry" > "$tmp_file"

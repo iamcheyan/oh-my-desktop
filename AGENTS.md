@@ -55,6 +55,7 @@ cd ~/development/OMD && ./Init.sh
 - **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
+- **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — user-installed extensions discovered at startup. Core modules always win on ID conflict.
 
 ## Editing
 
@@ -65,6 +66,22 @@ cd ~/development/OMD && ./Init.sh
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - Default module QML: `modules/<name>/` — 14 modules in this repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
+
+### Extensions
+
+Third-party modules go in `~/.local/share/sumika-shell/extensions/<id>/`:
+```
+<id>/
+  module.json       # v2 manifest (required)
+  qmldir            # QML module declaration (required for `import qs.modules.<id>`)
+  *.qml             # QML source files
+  bin/              # Optional: executables auto-added to PATH at startup
+```
+- Extensions are scanned at Quickshell startup, after core modules.
+- **Core modules always win** on ID conflict — extension is silently skipped.
+- Extension QML imports (`import qs.modules.<id>`) work automatically via runtime symlink.
+- Extension `bin/` is added to `PATH` each startup.
+- Use `omd-modules extensions` to list installed extensions.
 
 ### Omarchy / Hyprland
 
@@ -88,8 +105,7 @@ cd ~/development/OMD && ./Init.sh
 |`Directories.config + "/sumika-shell"`|—|QML (config path)|
 |`Directories.sumikaStateHome`|`$XDG_STATE_HOME/sumika-shell`|QML (state path)|
 
-**Shell**: `. "$_omd_root/lib/paths.sh"` → all vars.
-**Lua**: `local paths = require("default.hypr.paths")` → `paths.omd_root`, `paths.config_home`, `paths.state_home`.
+|`SUMIKA_SHELL_EXTENSIONS_DIR`|`$XDG_DATA_HOME/sumika-shell/extensions` → `~/.local/share/sumika-shell/extensions`|Shell scripts|
 **QML**: use `Directories.sumikaStateHome + "/..."` for runtime state. It honors `SUMIKA_SHELL_STATE_HOME`; do not append another `sumika-shell` suffix. Do NOT use `Qt.environmentVariable()` (unsupported).
 
 ## Git

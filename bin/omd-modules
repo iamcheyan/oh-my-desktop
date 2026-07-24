@@ -127,6 +127,32 @@ cmd_path() {
     echo "$MODULES_DIR"
 }
 
+cmd_extensions() {
+    local ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+    if [ ! -d "$ext_dir" ]; then
+        echo "No extensions directory found at $ext_dir"
+        echo "Create one by copying extensions into: $ext_dir"
+        return 0
+    fi
+
+    local count=0
+    for mod_dir in "$ext_dir"/*/; do
+        [ -d "$mod_dir" ] || continue
+        count=$((count + 1))
+        local id name version
+        id=$(basename "$mod_dir")
+        name=$(jq -r '.name // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
+        version=$(jq -r '.version // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
+        printf "  %-22s %-24s %s\n" "$id" "$name" "v$version"
+    done
+
+    if [ "$count" -eq 0 ]; then
+        echo "No extensions installed in $ext_dir"
+    else
+        printf "\n%d extension(s) installed in %s\n" "$count" "$ext_dir"
+    fi
+}
+
 cmd_help() {
     cat <<'EOF'
 Usage: omd-modules <command> [args]
@@ -134,12 +160,22 @@ Usage: omd-modules <command> [args]
 Commands:
   list              List core modules and their status
   info <id>         Show module details
+  extensions        List installed extensions
   path              Print the modules directory path
   help              Show this help
 
 Core modules are found in quickshell/modules/ inside the repo.
+Extensions are found in ~/.local/share/sumika-shell/extensions/<id>/
+
+Extension layout:
+  <id>/
+    module.json       # v2 manifest (required)
+    qmldir            # QML module declaration (required for QML imports)
+    *.qml             # QML source files
+    bin/              # Optional executables (auto-added to PATH at startup)
 EOF
     echo "Module directory: $MODULES_DIR"
+    echo "Extensions directory: ${SUMIKA_SHELL_EXTENSIONS_DIR:-$HOME/.local/share/sumika-shell/extensions}"
     echo "Config file: ~/.config/sumika-shell/sumika.json"
 }
 
@@ -152,6 +188,7 @@ main() {
     case "$cmd" in
         list)    cmd_list "$@" ;;
         info)    cmd_info "$@" ;;
+        extensions) cmd_extensions "$@" ;;
         path)    cmd_path "$@" ;;
         help|--help|-h) cmd_help ;;
         doctor|install|update|remove|validate)

@@ -14,12 +14,10 @@ singleton Audio 1.0 Audio.qml
 singleton Brightness 1.0 Brightness.qml
 singleton DateTime 1.0 DateTime.qml
 singleton GlobalFocusGrab 1.0 GlobalFocusGrab.qml
-singleton InputMethod 1.0 InputMethod.qml
 singleton MprisController 1.0 MprisController.qml
 singleton Network 1.0 Network.qml
 singleton Notifications 1.0 Notifications.qml
 singleton TrackArt 1.0 TrackArt.qml
-singleton KeyboardRemap 1.0 KeyboardRemap.qml
 singleton OmarchyTheme 1.0 OmarchyTheme.qml
 singleton Wallpaper 1.0 Wallpaper.qml
 singleton Battery 1.0 Battery.qml
