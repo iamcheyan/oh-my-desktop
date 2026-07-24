@@ -26,8 +26,6 @@ Item {
         anchors.fill: parent
         radius: TuiStyle.shellRadius
         color: TuiStyle.bg
-        border.width: TuiStyle.borderWidth
-        border.color: TuiStyle.shellBorder
         clip: true
 
         ColumnLayout {
