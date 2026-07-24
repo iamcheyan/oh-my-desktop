@@ -53,6 +53,7 @@ export SUMIKA_SHELL_ROOT
 _xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
 _xdg_state="${XDG_STATE_HOME:-$HOME/.local/state}"
 _xdg_data="${XDG_DATA_HOME:-$HOME/.local/share}"
+_xdg_runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 SUMIKA_SHELL_CONFIG_HOME="${SUMIKA_SHELL_CONFIG_HOME:-$_xdg_config/sumika-shell}"
 SUMIKA_SHELL_STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-$_xdg_state/sumika-shell}"
 SUMIKA_SHELL_DATA_HOME="${SUMIKA_SHELL_DATA_HOME:-$_xdg_data/sumika-shell}"
@@ -63,6 +64,8 @@ export SUMIKA_SHELL_CONFIG_HOME
 export SUMIKA_SHELL_STATE_HOME
 export SUMIKA_SHELL_DATA_HOME
 export SUMIKA_SHELL_RUNTIME_DIR
+
+unset _xdg_config _xdg_state _xdg_data _xdg_runtime
 export SUMIKA_SHELL_EXTENSIONS_DIR
 # OMD_ROOT must always mean repository root, never the user config directory.
 # Always resolve to the physical path so that IPC callers (using paths.lua,
