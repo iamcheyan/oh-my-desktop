@@ -6,7 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 import qs.modules.common
 import qs.modules.common.functions
-
+import qs.modules.common.widgets
 import "widgets"
 
 PanelWindow {
@@ -33,6 +33,9 @@ PanelWindow {
     property real cardOffsetX: 0
     property real cardOffsetY: 0
     property string focusedAppDescription: ""
+    readonly property string toolsFile: Directories.root + "/quickshell/modules/launcher/internal-tools.json"
+    property var internalTools: []
+    property bool toolsLoaded: false
 
     function run(command) { Quickshell.execDetached(["sh", "-c", command]); }
 
@@ -48,6 +51,12 @@ PanelWindow {
                 Directories.root + "/bin/omd-settings",
                 "open", "overview"
             ]);
+            return;
+        }
+        if (desktopEntry._toolCommand && desktopEntry._toolCommand.length > 0) {
+            launcher.open = false;
+            Quickshell.execDetached(desktopEntry._toolCommand);
+            console.log("[AppLauncher] Launched internal tool " + desktopEntry.id);
             return;
         }
         const detach = Directories.root + "/bin/omd-detach";
@@ -66,6 +75,7 @@ PanelWindow {
 
     function iconSource(icon) {
         if (!icon) return "";
+        if (icon.startsWith("nerd:")) return icon;
         if (icon.startsWith("/")) return "file://" + icon;
         const resolved = Quickshell.iconPath(icon, true);
         if (resolved.startsWith("/")) return "file://" + resolved;
@@ -203,6 +213,38 @@ PanelWindow {
         }
     }
 
+    function loadToolsFromManifest(text) {
+        try {
+            const tools = JSON.parse(text);
+            if (!Array.isArray(tools) || tools.length === 0) return false;
+            const entries = tools.map(t => ({
+                id: t.id,
+                desktopId: t.id,
+                desktopFile: "",
+                name: t.name,
+                icon: "nerd:" + t.icon,
+                execString: "",
+                genericName: "",
+                comment: t.description || "",
+                keywords: t.keywords || [],
+                _toolCommand: t.command || []
+            }));
+            launcher.internalTools = entries;
+            return true;
+        } catch (e) {
+            console.error("[AppLauncher] Failed to parse internal tools manifest:", e);
+            return false;
+        }
+    }
+
+    function mergeInternalTools() {
+        if (launcher.internalTools.length === 0) return;
+        const merged = allApps.concat(launcher.internalTools);
+        if (!sameAppList(allApps, merged)) {
+            allApps = merged;
+        }
+    }
+
     Process {
         id: cacheRefreshProcess
         onExited: (exitCode, exitStatus) => {
@@ -273,6 +315,17 @@ PanelWindow {
         }
     }
 
+
+    FileView {
+        id: toolsFileView
+        path: launcher.toolsFile
+        onLoaded: {
+            launcher.loadToolsFromManifest(text());
+        }
+        onLoadFailed: error => {
+            console.warn("[AppLauncher] Internal tools manifest not found at", launcher.toolsFile);
+        }
+    }
     function savePinnedIds() {
         const ids = [];
         for (const id in pinnedIds) {
@@ -320,6 +373,7 @@ PanelWindow {
 
     onAllAppsChanged: if (pinnedIdsLoaded) buildFilteredList()
     onPinnedIdsChanged: if (appsLoaded) buildFilteredList()
+    onInternalToolsChanged: mergeInternalTools()
 
     Loader {
         id: runningAppsLoader
@@ -381,6 +435,7 @@ PanelWindow {
         if (!appsLoaded) {
             cacheFileView.reload();
         }
+        toolsFileView.reload();
         if (onDemand) {
             onDemandReadyTimer.start();
             // If data already loaded (hot-reload), open immediately.
@@ -662,9 +717,35 @@ PanelWindow {
                             anchors.topMargin: 12
                             width: 48; height: 48
 
-                            // Fallback: only show when icon truly doesn't exist
+                            readonly property bool isNerdIcon: appItem.resolvedIconSource.startsWith("nerd:")
+
+                            // Nerd Font icon (internal tools)
+                            NerdIcon {
+                                anchors.centerIn: parent
+                                iconSize: 28
+                                text: {
+                                    if (!appItem.resolvedIconSource || !appItem.resolvedIconSource.startsWith("nerd:")) return "";
+                                    const prop = appItem.resolvedIconSource.substring(5);
+                                    return NerdIconMap[prop] || "";
+                                }
+                                color: ma.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                                visible: iconWrapper.isNerdIcon
+                            }
+
+                            // Desktop icon file
+                            IconImage {
+                                id: appIcon
+                                anchors.fill: parent
+                                source: appItem.resolvedIconSource
+                                implicitSize: 48
+                                asynchronous: true
+                                mipmap: true
+                                visible: !iconWrapper.isNerdIcon
+                            }
+
+                            // Fallback letter (desktop icons only, when icon missing)
                             Rectangle {
-                                visible: appItem.resolvedIconSource === "" || appIcon.status === Image.Error
+                                visible: !iconWrapper.isNerdIcon && (appItem.resolvedIconSource === "" || appIcon.status === Image.Error)
                                 anchors.fill: parent
                                 radius: 8
                                 color: "#222222"
@@ -678,15 +759,6 @@ PanelWindow {
                                     font.weight: Font.DemiBold
                                     color: TuiStyle.fg
                                 }
-                            }
-
-                            IconImage {
-                                id: appIcon
-                                anchors.fill: parent
-                                source: appItem.resolvedIconSource
-                                implicitSize: 48
-                                asynchronous: true
-                                mipmap: true
                             }
 
                             // Hover tint overlay
