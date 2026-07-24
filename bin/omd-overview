@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+app_dir="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/overview"
+if [ ! -d "$app_dir" ]; then
+    printf 'omd-overview: overview module not found at %s\n' "$app_dir" >&2
+    exit 1
+fi
+
+exec "$app_dir/bin/omd-overview" "$@"

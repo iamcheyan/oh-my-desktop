@@ -140,7 +140,7 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
 
         # Check SUMIKA_MODULES_HOME fallback for external modules.
         if [ ! -x "$resolved_cmd" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
-            _fallback="$SUMIKA_MODULES_HOME/$instance/bin/$instance"
+            _fallback="$SUMIKA_MODULES_HOME/$module_id/bin/$instance"
             if [ -x "$_fallback" ]; then
                 resolved_cmd="$_fallback"
             fi
