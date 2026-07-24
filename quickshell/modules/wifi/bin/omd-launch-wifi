@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the OMD WiFi manager TUI
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+WIFI_TUI="${SCRIPT_DIR}/omd-wifi-tui"
+
+if [[ ! -f "$WIFI_TUI" ]]; then
+  echo "omd-wifi-tui not found at $WIFI_TUI" >&2
+  exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 not found" >&2
+  exit 1
+fi
+
+# Best-effort unblock (optional)
+if command -v rfkill >/dev/null 2>&1; then
+  rfkill unblock wifi 2>/dev/null || true
+  rfkill unblock wlan 2>/dev/null || true
+fi
+
+run_tui() {
+  exec python3 "$WIFI_TUI"
+}
+
+if command -v uwsm-app >/dev/null 2>&1 && command -v xdg-terminal-exec >/dev/null 2>&1; then
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=org.omd.wifitui -e python3 "$WIFI_TUI"
+fi
+
+if command -v xdg-terminal-exec >/dev/null 2>&1; then
+  exec xdg-terminal-exec --app-id=org.omd.wifitui -e python3 "$WIFI_TUI"
+fi
+
+# foot / kitty / alacritty / gnome-terminal fallbacks
+for term in foot kitty alacritty gnome-terminal konsole; do
+  if command -v "$term" >/dev/null 2>&1; then
+    case "$term" in
+      gnome-terminal) exec gnome-terminal -- python3 "$WIFI_TUI" ;;
+      konsole)        exec konsole -e python3 "$WIFI_TUI" ;;
+      *)              exec "$term" -e python3 "$WIFI_TUI" ;;
+    esac
+  fi
+done
+
+run_tui

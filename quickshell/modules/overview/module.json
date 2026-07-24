@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "id": "overview",
+  "name": "Workspace Overview",
+  "description": "Workspace overview with window thumbnails and wallpaper preloading",
+  "version": "2.0.0",
+  "kind": "application",
+  "entry": {
+    "command": ["omd-overview"],
+    "instance": "omd-overview",
+    "readyTimeout": 10,
+    "appId": "org.omd.overview"
+  },
+  "contributes": {
+    "services": ["wallpaper"],
+    "actions": [
+      {"id": "overview.toggle", "name": "Toggle overview", "description": "Open or close the workspace overview"},
+      {"id": "overview.open", "name": "Open overview", "description": "Open the workspace overview"}
+    ]
+  }
+}

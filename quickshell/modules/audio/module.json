@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 2,
+  "id": "audio",
+  "name": "Audio",
+  "version": "2.0.0",
+  "kind": "shared",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "audio",
+        "name": "Audio",
+        "slot": "right",
+        "component": "AudioButton.qml",
+        "order": 40,
+        "alwaysShow": true,
+        "moduleId": "audio"
+      }
+    ],
+    "popupSections": [
+      {
+        "id": "audio",
+        "type": "audio",
+        "name": "Audio Controls",
+        "component": "AudioPopup.qml"
+      }
+    ],
+    "settingsPages": [
+      {
+        "id": "sound",
+        "title": "Sound",
+        "component": "settings/SoundPage.qml",
+        "icon": "volume_up",
+        "order": 25
+      },
+      {
+        "id": "bluetooth",
+        "title": "Bluetooth",
+        "component": "settings/BluetoothPage.qml",
+        "icon": "bluetooth",
+        "order": 26
+      }
+    ]
+  }
+}

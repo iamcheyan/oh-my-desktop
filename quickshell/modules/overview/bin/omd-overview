@@ -1,0 +1,30 @@
+#!/bin/sh
+set -eu
+
+# Overview application entry point.
+# Core infrastructure paths are resolved from OMD repo root.
+
+# Resolve OMD repo root (needed for lib/paths.sh and quickshell launcher)
+if [ -n "${OMD_REPO_ROOT:-}" ] && [ -d "$OMD_REPO_ROOT" ]; then
+    _omd_root="$OMD_REPO_ROOT"
+elif [ -n "${OMD_ROOT:-}" ] && [ -d "$OMD_ROOT" ]; then
+    _omd_root="$OMD_ROOT"
+else
+    _omd_root="$(cd -- "$(dirname "$0")/../../../OMD" 2>/dev/null && pwd)" || true
+fi
+if [ -z "$_omd_root" ] || [ ! -d "$_omd_root" ]; then
+    echo "omd-overview: cannot resolve OMD repo root (set OMD_REPO_ROOT or OMD_ROOT)" >&2
+    exit 1
+fi
+
+. "$_omd_root/lib/paths.sh"
+
+# Module directory
+app_dir="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/overview"
+
+if [ ! -d "$app_dir" ]; then
+    echo "omd-overview: module directory not found at $app_dir" >&2
+    exit 1
+fi
+
+exec "$OMD_ROOT/quickshell/scripts/quickshell" "$app_dir"

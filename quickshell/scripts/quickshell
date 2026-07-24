@@ -239,6 +239,14 @@ fi
 
 
 # Merge all modules from SUMIKA_MODULES_HOME (set by omd-path.sh, defaults to ~/development/sumika-modules)
+
+# Merge core product-floor modules from quickshell/modules/
+if command -v jq >/dev/null 2>&1; then
+    for module_json in "$repo_root/quickshell/modules"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        merge_manifest "$module_json" "$(dirname "$module_json")"
+    done
+fi
 if [ -d "$SUMIKA_MODULES_HOME" ]; then
     for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
         [ -f "$module_json" ] || continue

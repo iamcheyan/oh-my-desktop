@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Emit key=value link details for the primary connected wifi/ethernet device.
+set -euo pipefail
+export LANG=C LC_ALL=C
+
+dev=$(nmcli -t -f DEVICE,TYPE,STATE device status | awk -F: '
+  $2=="wifi" && $3=="connected" { print $1; exit }
+')
+kind=wifi
+if [[ -z "$dev" ]]; then
+  dev=$(nmcli -t -f DEVICE,TYPE,STATE device status | awk -F: '
+    $2=="ethernet" && $3=="connected" { print $1; exit }
+  ')
+  kind=ethernet
+fi
+
+if [[ -z "$dev" ]]; then
+  printf 'device=\nkind=\nconn=\nip=\ngateway=\ndns=\nfreq=\nband=\ntx=\nrx=\nsignal=\n'
+  exit 0
+fi
+
+show=$(nmcli -t device show "$dev" 2>/dev/null || true)
+conn=$(printf '%s\n' "$show" | awk -F: '$1=="GENERAL.CONNECTION"{print $2; exit}')
+ip=$(printf '%s\n' "$show" | awk -F: '$1 ~ /^IP4\.ADDRESS/ { sub(/\/.*/, "", $2); print $2; exit }')
+gw=$(printf '%s\n' "$show" | awk -F: '$1=="IP4.GATEWAY"{print $2; exit}')
+dns=$(printf '%s\n' "$show" | awk -F: '$1 ~ /^IP4\.DNS/ { if (n++) printf ","; printf "%s", $2 } END { printf "\n" }')
+
+freq="" band="" tx="" rx="" signal=""
+if [[ "$kind" == "wifi" ]] && command -v iw >/dev/null 2>&1; then
+  link=$(iw dev "$dev" link 2>/dev/null || true)
+  freq=$(printf '%s\n' "$link" | awk '/freq:/{print $2; exit}')
+  tx=$(printf '%s\n' "$link" | awk -F': ' '/tx bitrate:/{print $2; exit}')
+  rx=$(printf '%s\n' "$link" | awk -F': ' '/rx bitrate:/{print $2; exit}')
+  signal=$(printf '%s\n' "$link" | awk '/signal:/{print $2" "$3; exit}')
+  if [[ -n "$freq" ]]; then
+    fint=${freq%.*}
+    if [[ "$fint" =~ ^[0-9]+$ ]]; then
+      if (( fint >= 6000 )); then band="6 GHz"
+      elif (( fint >= 5000 )); then band="5 GHz"
+      elif (( fint >= 2400 )); then band="2.4 GHz"
+      fi
+    fi
+  fi
+fi
+
+printf 'device=%s\nkind=%s\nconn=%s\nip=%s\ngateway=%s\ndns=%s\nfreq=%s\nband=%s\ntx=%s\nrx=%s\nsignal=%s\n' \
+  "$dev" "$kind" "$conn" "$ip" "$gw" "$dns" "$freq" "$band" "$tx" "$rx" "$signal"

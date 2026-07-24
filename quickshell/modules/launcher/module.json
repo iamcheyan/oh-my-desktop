@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "id": "launcher",
+  "name": "Application Launcher",
+  "description": "Built-in application launcher (bar entry + on-demand Quickshell UI)",
+  "version": "2.0.0",
+  "kind": "application",
+  "actionsProvider": "module-actions.qml",
+  "entry": {
+    "command": ["omd-applauncher", "toggle"],
+    "instance": "omd-applauncher",
+    "readyTimeout": 10,
+    "appId": "org.omd.launcher",
+    "autostart": false
+  },
+  "contributes": {
+    "widgets": [
+      {
+        "id": "appLauncher",
+        "name": "App Launcher",
+        "slot": "left",
+        "component": "AppLauncherButton.qml",
+        "order": 0,
+        "alwaysShow": true,
+        "moduleId": "launcher"
+      }
+    ],
+    "actions": [
+      {
+        "id": "app-launcher.toggle",
+        "name": "Toggle launcher",
+        "description": "Open or close the application launcher"
+      },
+      {
+        "id": "app-launcher.open",
+        "name": "Open launcher",
+        "description": "Open the application launcher"
+      },
+      {
+        "id": "app-launcher.close",
+        "name": "Close launcher",
+        "description": "Close the application launcher"
+      }
+    ]
+  }
+}
