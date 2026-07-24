@@ -252,9 +252,9 @@ Scope {
                                 anchors.centerIn: parent
                                 text: {
                                     const a = GlobalStates.sessionConfirmAction;
-                                    if (a === "session.logout") return NerdIconMap.logout;
-                                    if (a === "session.reboot") return NerdIconMap.restart;
-                                    if (a === "session.shutdown") return NerdIconMap.powerSettingsNew;
+                                    if (a === "logout") return NerdIconMap.logout;
+                                    if (a === "reboot") return NerdIconMap.restart;
+                                    if (a === "poweroff") return NerdIconMap.powerSettingsNew;
                                     return NerdIconMap.warning;
                                 }
                                 iconSize: 22
@@ -271,9 +271,9 @@ Scope {
                                 text: {
                                     const a = GlobalStates.sessionConfirmAction;
                                     const label = GlobalStates.sessionConfirmLabel || a;
-                                    if (a === "session.logout") return "Log out of this session?";
-                                    if (a === "session.reboot") return "Restart this computer?";
-                                    if (a === "session.shutdown") return "Shut down this computer?";
+                                    if (a === "logout") return "Log out of this session?";
+                                    if (a === "reboot") return "Restart this computer?";
+                                    if (a === "poweroff") return "Shut down this computer?";
                                     return `Confirm ${label}`;
                                 }
                                 color: TuiStyle.fg
@@ -286,11 +286,11 @@ Scope {
                                 Layout.fillWidth: true
                                 text: {
                                     const a = GlobalStates.sessionConfirmAction;
-                                    if (a === "session.logout")
+                                    if (a === "logout")
                                         return "Open applications will be closed and the current Hyprland session will end.";
-                                    if (a === "session.reboot")
+                                    if (a === "reboot")
                                         return "The system will restart after running the selected session action.";
-                                    if (a === "session.shutdown")
+                                    if (a === "poweroff")
                                         return "The system will power off after running the selected session action.";
                                     return "This system action will run immediately after confirmation.";
                                 }
@@ -357,9 +357,9 @@ Scope {
                                     anchors.centerIn: parent
                                     text: {
                                         const a = GlobalStates.sessionConfirmAction;
-                                        if (a === "session.logout") return "LOG OUT";
-                                        if (a === "session.reboot") return "RESTART";
-                                        if (a === "session.shutdown") return "SHUT DOWN";
+                                        if (a === "logout") return "LOG OUT";
+                                        if (a === "reboot") return "RESTART";
+                                        if (a === "poweroff") return "SHUT DOWN";
                                         return "CONFIRM";
                                     }
                                     font.pixelSize: 13
@@ -376,8 +376,12 @@ Scope {
                                 onClicked: {
                                     const a = GlobalStates.sessionConfirmAction
                                     GlobalStates.closeSessionConfirm()
-                                    if (a && ActionManager.isAvailable(a))
-                                        ActionManager.invoke(a)
+                                    const actionId = a === "logout" ? "session.logout"
+                                        : a === "reboot" ? "session.reboot"
+                                        : a === "poweroff" ? "session.shutdown"
+                                        : a;
+                                    if (actionId && ActionManager.isAvailable(actionId))
+                                        ActionManager.invoke(actionId)
                                 }
                             }
                         }
