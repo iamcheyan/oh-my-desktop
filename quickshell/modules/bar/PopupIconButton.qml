@@ -32,9 +32,10 @@ Item {
             anchors.centerIn: parent
             spacing: 4
 
-            NerdIcon {
+            MaterialSymbol {
                 Layout.alignment: Qt.AlignHCenter
-                iconSize: 20
+                iconSize: 24
+                fill: 1
                 text: iconBtn.icon
                 color: iconBtn.accent
             }
