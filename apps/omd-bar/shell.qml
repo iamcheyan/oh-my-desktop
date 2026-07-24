@@ -5,6 +5,7 @@
 //@ pragma Env QT_IM_MODULE=fcitx
 
 import qs.core.runtime
+import qs.services
 import qs.modules.common
 import qs
 
@@ -14,6 +15,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Quickshell.Services.Notifications
 
 ShellRoot {
     id: root
@@ -83,15 +85,53 @@ ShellRoot {
         BarDismissLayer {}
         ModuleActionHost {}
         BarStatusPopup {}
-    }
 
-    // Dynamic overlays loaded from module registry.
-    // Modules register via contributes.overlays in their module.json.
-    Repeater {
-        model: ModuleLoader.overlays
-        delegate: Loader {
-            required property var modelData
-            source: modelData.component
+        // NotificationServer MUST be inside ShellRoot context to claim org.freedesktop.Notifications
+        // (nesting inside a Singleton like Services.Notifications doesn't work).
+        // It delegates to the Notifications service singleton for processing.
+        NotificationServer {
+            id: notifServer
+            actionsSupported: true
+            bodyHyperlinksSupported: true
+            bodyImagesSupported: true
+            bodyMarkupSupported: true
+            bodySupported: true
+            imageSupported: true
+            keepOnReload: false
+            persistenceSupported: true
+
+            onNotification: (notification) => {
+                console.log("[BarNotificationServer] Received notification from:", notification.appName, "summary:", notification.summary)
+                Notifications.handleNotification(notification)
+            }
+        }
+        
+        // Dynamic overlays loaded from module registry.
+        // Modules register via contributes.overlays in their module.json.
+        Repeater {
+            id: overlaysRepeater
+            Component.onCompleted: console.log("[Bar] Overlays count:", ModuleLoader.overlays.length, "items:", JSON.stringify(ModuleLoader.overlays.map(o => o.id)))
+            model: ModuleLoader.overlays
+            delegate: Loader {
+                required property var modelData
+                source: modelData.component
+            }
+        }
+        
+        Timer {
+            interval: 5000
+            repeat: true
+            running: true
+            onTriggered: {
+                console.log("[BarDiag] Overlays count:", ModuleLoader.overlays.length, "Repeater children:", overlaysRepeater.count)
+                for (var i = 0; i < overlaysRepeater.count; i++) {
+                    var item = overlaysRepeater.itemAt(i)
+                    console.log("[BarDiag] Overlay", i, "item:", item ? "exists" : "null")
+                    if (item && item.status === Loader.Error) {
+                        console.log("[BarDiag] Overlay", i, "error:", item.errorString())
+                    }
+                }
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 [
   {
     "id": "sumika-keytest.desktop",
-    "name": "Key Test",
+    "name": "Sumika KeyTest",
     "description": "Hardware key capture for keyboard diagnostics and OMD bind string generation",
     "command": ["$root/quickshell/tools/key-test"],
     "icon": "keyboardSettings",

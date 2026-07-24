@@ -174,43 +174,29 @@ Singleton {
     signal discardAll();
     signal timeout(id: var);
 
-	NotificationServer {
-        id: notifServer
-        // actionIconsSupported: true
-        actionsSupported: true
-        bodyHyperlinksSupported: true
-        bodyImagesSupported: true
-        bodyMarkupSupported: true
-        bodySupported: true
-        imageSupported: true
-        keepOnReload: false
-        persistenceSupported: true
+    function handleNotification(notification) {
+        notification.tracked = true
+        const newNotifObject = notifComponent.createObject(root, {
+            "notificationId": notification.id + root.idOffset,
+            "notification": notification,
+            "time": Date.now(),
+        });
+        root.list = [...root.list, newNotifObject];
+        root.trackLatestTime(newNotifObject);
 
-        onNotification: (notification) => {
-            notification.tracked = true
-            const newNotifObject = notifComponent.createObject(root, {
-                "notificationId": notification.id + root.idOffset,
-                "notification": notification,
-                "time": Date.now(),
-            });
-			root.list = [...root.list, newNotifObject];
-            root.trackLatestTime(newNotifObject);
-
-            // Popup
-            if (!root.popupInhibited && !root.isMuted(newNotifObject.appName, newNotifObject.summary, newNotifObject.body)) {
-                newNotifObject.popup = true;
-                if (notification.expireTimeout != 0) {
-                    newNotifObject.timer = notifTimerComponent.createObject(root, {
-                        "notificationId": newNotifObject.notificationId,
-                        "interval": notification.expireTimeout < 0 ? (Config?.options.notifications.timeout ?? 7000) : notification.expireTimeout,
-                    });
-                }
-                root.unread++;
+        // Popup
+        if (!root.popupInhibited && !root.isMuted(newNotifObject.appName, newNotifObject.summary, newNotifObject.body)) {
+            newNotifObject.popup = true;
+            if (notification.expireTimeout != 0) {
+                newNotifObject.timer = notifTimerComponent.createObject(root, {
+                    "notificationId": newNotifObject.notificationId,
+                    "interval": notification.expireTimeout < 0 ? (Config?.options.notifications.timeout ?? 7000) : notification.expireTimeout,
+                });
             }
-            root.notify(newNotifObject);
-            // console.log(notifToString(newNotifObject));
-            root.schedulePersist();
+            root.unread++;
         }
+        root.notify(newNotifObject);
+        root.schedulePersist();
     }
 
     function markAllRead() {
@@ -354,10 +340,11 @@ Singleton {
     function discardNotification(id) {
         console.log("[Notifications] Discarding notification with ID: " + id);
         const index = root.list.findIndex((notif) => notif.notificationId === id);
-        const notifServerIndex = notifServer.trackedNotifications.values.findIndex((notif) => notif.id + root.idOffset === id);
         let discardedAppName = null;
+        let serverNotif = null;
         if (index !== -1) {
             discardedAppName = root.list[index]?.appName ?? null;
+            serverNotif = root.list[index]?.notification ?? null;
             root.list.splice(index, 1);
             triggerListChange()
             root.schedulePersist();
@@ -365,22 +352,39 @@ Singleton {
         if (discardedAppName !== null) {
             root.untrackAppIfStale(discardedAppName);
         }
-        if (notifServerIndex !== -1) {
-            notifServer.trackedNotifications.values[notifServerIndex].dismiss()
+        if (serverNotif !== null) {
+            serverNotif.dismiss()
         }
         root.discard(id); // Emit signal
     }
-
+    
     function discardAllNotifications() {
+        const serverNotifs = root.list.map((notif) => notif.notification).filter((n) => n !== null);
         root.list = []
         root.latestTimeForApp = ({})
         triggerListChange()
         root.schedulePersist();
-        notifServer.trackedNotifications.values.forEach((notif) => {
-            notif.dismiss()
-        })
+        serverNotifs.forEach((notif) => { notif.dismiss() })
         root.discardAll();
     }
+    
+    function attemptInvokeAction(id, notifIdentifier) {
+        console.log("[Notifications] Attempting to invoke action with identifier: " + notifIdentifier + " for notification ID: " + id);
+        const entry = root.list.find((notif) => notif.notificationId === id);
+        const serverNotif = entry?.notification ?? null;
+        if (serverNotif !== null) {
+            const action = serverNotif.actions.find((action) => action.identifier === notifIdentifier);
+            if (action) {
+                action.invoke()
+            } else {
+                console.log("Action not found: " + notifIdentifier)
+            }
+        } else {
+            console.log("Notification not found in server: " + id)
+        }
+        root.discardNotification(id);
+    }
+
 
     function cancelTimeout(id) {
         const index = root.list.findIndex((notif) => notif.notificationId === id);
@@ -404,21 +408,6 @@ Singleton {
         });
     }
 
-    function attemptInvokeAction(id, notifIdentifier) {
-        console.log("[Notifications] Attempting to invoke action with identifier: " + notifIdentifier + " for notification ID: " + id);
-        const notifServerIndex = notifServer.trackedNotifications.values.findIndex((notif) => notif.id + root.idOffset === id);
-        console.log("Notification server index: " + notifServerIndex);
-        if (notifServerIndex !== -1) {
-            const notifServerNotif = notifServer.trackedNotifications.values[notifServerIndex];
-            const action = notifServerNotif.actions.find((action) => action.identifier === notifIdentifier);
-            // console.log("Action found: " + JSON.stringify(action));
-            action.invoke()
-        } 
-        else {
-            console.log("Notification not found in server: " + id)
-        }
-        root.discardNotification(id);
-    }
 
     function triggerListChange() {
         root.list = root.list.slice(0)

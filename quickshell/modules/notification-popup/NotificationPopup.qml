@@ -9,6 +9,8 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 
 Scope {
+
+    Component.onCompleted: console.log("[NotificationPopup] Loaded, popupList length:", ServiceManager.notification.popupList.length)
     id: notificationPopup
 
     PanelWindow {

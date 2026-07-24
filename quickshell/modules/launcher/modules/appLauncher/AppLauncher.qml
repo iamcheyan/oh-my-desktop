@@ -725,17 +725,25 @@ PanelWindow {
 
                             readonly property bool isNerdIcon: appItem.resolvedIconSource.startsWith("nerd:")
 
-                            // Nerd Font icon (internal tools)
-                            NerdIcon {
-                                anchors.centerIn: parent
-                                iconSize: 36
-                                text: {
-                                    if (!appItem.resolvedIconSource || !appItem.resolvedIconSource.startsWith("nerd:")) return "";
-                                    const prop = appItem.resolvedIconSource.substring(5);
-                                    return NerdIconMap[prop] || "";
-                                }
-                                color: ma.containsMouse ? TuiStyle.fg : TuiStyle.dim
+                            // Nerd Font icon (internal tools) — dark circle with border
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: width / 2
+                                color: "#222222"
+                                border.width: 2
+                                border.color: "#444444"
                                 visible: iconWrapper.isNerdIcon
+
+                                NerdIcon {
+                                    anchors.centerIn: parent
+                                    iconSize: 30
+                                    text: {
+                                        if (!appItem.resolvedIconSource || !appItem.resolvedIconSource.startsWith("nerd:")) return "";
+                                        const prop = appItem.resolvedIconSource.substring(5);
+                                        return NerdIconMap[prop] || "";
+                                    }
+                                    color: "#eeeeee"
+                                }
                             }
 
                             // Desktop icon file
@@ -770,7 +778,7 @@ PanelWindow {
                             // Hover tint overlay
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 8
+                                radius: iconWrapper.isNerdIcon ? width / 2 : 8
                                 color: ma.containsMouse ? "#ffffff" : "transparent"
                                 opacity: ma.containsMouse ? 0.15 : 0
                                 visible: ma.containsMouse
