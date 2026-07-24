@@ -61,8 +61,7 @@ Scope {
 
     PanelWindow {
         id: popupWindow
-        screen: root.popupScreen
-        visible: root.open && root.popupScreen
+        visible: root.open && root.activeType !== "voiceModel" && root.activeType !== "voice" && root.popupScreen
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0

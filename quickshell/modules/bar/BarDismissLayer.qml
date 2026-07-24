@@ -27,7 +27,7 @@ Scope {
             required property ShellScreen modelData
 
             screen: modelData
-            visible: ((BarRuntime.dismissLayerActive ?? false) || GlobalStates.voicePopupOpen)
+            visible: (BarRuntime.dismissLayerActive ?? false)
                 && !(BarRuntime.screenshotActive ?? false)
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
@@ -46,12 +46,13 @@ Scope {
                 right: true
             }
             // Gap on the bar side lets clicks reach bar buttons for toggle
-            // (click again to close). Zero gap when a non-barPopup overlay
-            // (e.g. voice model status) is open — any outside click closes it.
+            // (click again to close). Zero gap when a non-toggle popup type
+            // (e.g. voiceModel) is open — any outside click closes it.
             margins {
-                top: (!barOnBottom && !GlobalStates.voicePopupOpen) ? barGap : 0
-                bottom: (barOnBottom && !GlobalStates.voicePopupOpen) ? barGap : 0
+                top: (!barOnBottom && GlobalStates.barPopupType !== "voiceModel" && GlobalStates.barPopupType !== "voice") ? barGap : 0
+                bottom: (barOnBottom && GlobalStates.barPopupType !== "voiceModel" && GlobalStates.barPopupType !== "voice") ? barGap : 0
             }
+
 
             MouseArea {
                 anchors.fill: parent
