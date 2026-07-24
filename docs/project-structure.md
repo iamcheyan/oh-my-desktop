@@ -8,42 +8,42 @@ defined in
 ## Repository Root
 
 | Path | Current responsibility |
-| --- | --- |
-| `apps/` | Remaining standalone Quickshell process roots (`omd-bar`, `omd-settings`, `omd-polkit`) |
-|| `modules/` | 18 modules (active-window, audio, clock, display, input-method, launcher, mpris, notification, notification-popup, on-screen-display, overview, power-indicator, session, settings, systray, wifi, workspaces) + `battery-power` (shared) with module.json manifests; application modules are registry-driven processes |
-| `services/` | Shared QML services (31 Singletons, same module `qs.services` as original) |
-| `shared/` | Shared UI components, TuiStyle, icons, utils — module `qs.shared` / `qs.shared.ui` |
-| `quickshell/` | Single-source QML root — all `qs.core.*`, `qs.services.*`, `qs.shared.*` imports resolve via QML_IMPORT_PATH symlink |
-| `bin/` | User-facing `omd-*` commands and Python TUI programs |
+|---|---|
+| `apps/` | Core Quickshell process roots: `omd-bar` (main shell), `omd-settings` (settings window), `omd-polkit` (auth agent) |
+| `modules/` | Empty (README only) — all feature modules moved to `$SUMIKA_MODULES_HOME` |
+| `quickshell/services/` | Shared QML services (29 singletons, module `qs.services`) — transitional, being consumed into Core |
+| `quickshell/core/` | Core framework: ActionManager, ModuleLoader, ProcessSupervisor, ServiceManager |
+| `quickshell/modules/` | Core shared QML import modules (3): `bar`, `common`, `polkit` |
+| `bin/` | User-facing `omd-*` commands — thin shims delegating to `share/bin/omarchy-*` or Core infrastructure |
 | `scripts/` | Development, reload, diagnostics, and integration helpers |
 | `lib/` | Shared shell/runtime libraries, including the path contract |
 | `hypr/` | Hyprland Lua configuration, bindings, rules, and autostart |
 | `defaults/` | Versioned baseline configuration copied or merged by `Init.sh` |
 | `config/` | Repository-managed integration snippets |
-| `share/` | Themes, desktop entries, helper scripts, and installed data |
+| `share/` | Themes, desktop entries, helper scripts (`share/bin/omarchy-*` implementations), and installed data |
 | `icons/` | Project icon assets |
 | `tests/` | Static and focused integration checks |
 | `docs/` | Maintained architecture and feature documentation; see [`README.md`](README.md) |
 
 ## Current Running Processes
 
-Processes launched at startup, driven by registry module.json `entry` blocks:
+Core processes launched at startup via `bin/omd-restart`:
 
 ```text
 apps/
 ├── omd-bar/         # Main Sumika Shell UI host (hardcoded bridge process)
-├── omd-settings/    # Settings dialog (hardcoded or module entry)
+├── omd-settings/    # Settings dialog (on-demand via bin/omd-settings)
 └── omd-polkit/      # Polkit authentication agent (hardcoded)
 
-modules/              # Registry-driven application modules
+External modules (SUMIKA_MODULES_HOME) provide registry-driven processes:
 ├── launcher/        # Application launcher (entry: launcher/shell.qml)
-├── notification/    # Notification popup (entry: notification/shell.qml)
-└── overview/        # Workspace overview (entry: overview/shell.qml)
+├── overview/        # Workspace overview (entry: overview/shell.qml)
+└── ...              # Other modules with "application" kind
 ```
 
-Former `apps/omd-clipboard` and `apps/omd-screenshot` were moved to modules/
-and now run as `bin/omd-clipboard-store` (compat shim, not a Quickshell process)
-and `bin/omd-screenshot` (standalone Python script).
+All feature modules live in `$SUMIKA_MODULES_HOME` (default `~/development/sumika-modules/`).
+OMD/modules/ is empty — all module.json manifests are external.
+
 ## Core Framework
 
 The Core runtime lives under `quickshell/core/` (single source, not root-level):
@@ -61,22 +61,15 @@ Root-level `core/` was dead drift (no qmldir, no consumers) and was removed
 in Phase B of the migration. All consumers import from `qs.core.*`.
 ## Shared UI Components
 
-```text
-shared/
-├── ui/              # 46 widget QML files (qs.shared.ui)
-├── utils/           # Shared utilities
-├── icons/           # Icon assets
-├── TuiStyle.qml     # Design tokens
-├── Appearance.qml
-├── Config.qml
-├── Directories.qml
-├── Persistent.qml
-└── qmldir           # module qs.shared
-```
+Design tokens live in `quickshell/modules/common/TuiStyle.qml`.
+Shared widgets live in `quickshell/modules/common/widgets/`.
+The `shared/` directory (`qs.shared` module) was removed in the module-split
+refactor — it was dead code with zero runtime consumers.
 
-QML import resolution: repo root is in `QML_IMPORT_PATH` (set by `quickshell/scripts/quickshell`),
-so `import qs.services`, `import qs.core.runtime`, `import qs.shared` all resolve from new root-level directories.
-Original `quickshell/` paths remain as fallback for backward compatibility.
+QML import resolution: `quickshell/scripts/quickshell` sets `QML_IMPORT_PATH`
+to a transient symlink at `$XDG_RUNTIME_DIR/sumika-shell/qml/qs → <repo>/quickshell`,
+so `import qs.core.*` and `import qs.services` resolve from the single QML root.
+External modules are added via `$SUMIKA_MODULES_HOME/*/` added to `QML_IMPORT_PATH`.
 
 ## Data Ownership
 
@@ -112,15 +105,16 @@ Shell code sources `lib/paths.sh` and uses:
 
 | Change | Preferred location |
 | --- | --- |
-| Shared visual token | `shared/TuiStyle.qml` or the relevant shared settings token file |
-| Shared QML service | `services/` (root-level) — also available at `quickshell/services/` for compat |
-| Process entry point | `apps/omd-*/` or `modules/*/` depending on migration status |
-| User command | `bin/omd-*` |
+| Shared visual token | `quickshell/modules/common/TuiStyle.qml` or per-module settings token file |
+| Shared QML service | `quickshell/services/` (module `qs.services`) — Core-owned |
+| Process entry point (Core) | `apps/omd-*/` |
+| Process entry point (module) | `$SUMIKA_MODULES_HOME/<id>/shell.qml` via module.json `entry` |
+| User command | `bin/omd-*` (thin shim delegating to share/bin/omarchy-* or module) |
 | Hyprland behavior | `hypr/*.lua` |
 | Baseline option | `defaults/config/quickshell/config.json` plus its QML schema/default |
 | User-specific option | `~/.config/sumika-shell/sumika.json` |
 | Generated machine state | `~/.local/state/sumika-shell/` |
-| Future module boundary/API | follow the Core/Plugin migration plan before moving files |
+Setting up a module in external repo | `$SUMIKA_MODULES_HOME/<id>/` with `module.json` — not in OMD |
 
 ## Verification
 
@@ -137,19 +131,18 @@ isolation, ownership direction, and removal of feature code from Core must be
 verified against the migration gates in the architecture plan.
 
 ## Bar Widget Registry
-
 All bar widgets are loaded via `ModuleLoader` Repeaters from the unified registry.
-The registry is generated by `scripts/quickshell` from module manifests in
-`modules/*/module.json` and `$SUMIKA_MODULES_HOME/**/module.json`.
+The registry is generated by `quickshell/scripts/quickshell` from module manifests
+in `$SUMIKA_MODULES_HOME/*/module.json`. OMD/modules/ provides no widget manifests.
 
-Every widget component path is relative to its module directory.
+Every widget component path is relative to its module directory in sumika-modules.
 
 ### Registered bar widgets by slot
 
-| Widget ID | Component | Slot | Module |
+| Widget ID | Component | Slot | Module (in sumika-modules) |
 |---|---|---|---|
 | workspaces | `Workspaces.qml` | left | workspaces |
-| appLauncher | `AppLauncherButton.qml` | left | app-launcher |
+| appLauncher | `AppLauncherButton.qml` | left | launcher |
 | clock | `ClockWidget.qml` | right | clock |
 | systray | `SysTray.qml` | right | systray |
 | audio | `AudioButton.qml` | right | audio |
@@ -159,9 +152,8 @@ Every widget component path is relative to its module directory.
 | session-bar-button | `bar/SessionButton.qml` | right | session |
 | powerIndicator | `PowerIndicator.qml` | right | power-indicator |
 
-Former widgets from `modules/bar/` (`activeWindow`, `clipboard`, `tools`, `sidebarIndicators`)
-are no longer registered — the bar module was dissolved; each widget is owned by its
-feature module.
+Former widgets from `ommbar/` are no longer registered — the bar's module content was
+dissolved; each widget is owned by its feature module in sumika-modules.
 
 ### Actions
 
@@ -188,21 +180,19 @@ in `_registerBuiltins()` in `quickshell/core/runtime/ActionManager.qml`:
 Module-contributed actions are registered via `_registerFromRegistry()` which
 reads module manifests from the registry. Contributing modules:
 
-| Module | Actions |
-|--------|--------|
-| clock | `clock.notifications` |
-| launcher | `app-launcher.toggle/open/close` |
-| mpris | `mpris.play-pause/next/previous` |
-| notification-popup | `notifications.dismiss-last/dismiss-all/toggle-silent/edit-muted` |
-| on-screen-display | `osd.volume/brightness/input-method` |
-| overview | `overview.toggle/open` |
-| clipboard (external) | `clipboard.toggle/open/close/paste` |
-| screenshot (external) | `screenshot.capture/capture-ocr/capture-edit` |
-| voice (external) | `voice.toggle` |
-| wifi (external) | `wifi.launch` |
-| input-method (external) | `input-method.cycle` |
-|
-### IPC channels
+| Module | Actions | Location |
+|--------|---------|----------|
+| clock | `clock.notifications` | sumika-modules |
+| launcher | `app-launcher.toggle/open/close` | sumika-modules |
+| mpris | `mpris.play-pause/next/previous` | sumika-modules |
+| notification-popup | `notifications.dismiss-last/dismiss-all/toggle-silent/edit-muted` | sumika-modules |
+| on-screen-display | `osd.volume/brightness/input-method` | sumika-modules |
+| overview | `overview.toggle/open` | sumika-modules |
+| clipboard | `clipboard.toggle/open/close/paste` | sumika-modules |
+| screenshot | `screenshot.capture/capture-ocr/capture-edit` | sumika-modules |
+| voice | `voice.toggle` | sumika-modules |
+| wifi | `wifi.launch` | sumika-modules |
+| input-method | `input-method.cycle` | sumika-modules |
 
 The main bar process (`apps/omd-bar`) provides three IPC targets:
 

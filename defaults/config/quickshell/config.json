@@ -251,7 +251,8 @@
       "systray",
       "wifi",
       "audio",
-      "power-indicator"
+      "power-indicator",
+      "display"
     ],
     "barButtonOrder": {},
     "dir": "~/development/sumika-modules"

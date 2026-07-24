@@ -23,7 +23,7 @@ cd ~/development/OMD && ./Init.sh
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|Core shared QML (bar, common, settings, OSD, overview, polkit)|`OMD/quickshell/modules/` (7 个)|git (主仓库)|
+|Core shared QML (bar, common, polkit)|`OMD/quickshell/modules/` (3 个)|git (主仓库)|
 |External modules (非核心、全部功能模块)|`$SUMIKA_MODULES_HOME` → `~/development/sumika-modules/` (27 个)|git (separate repo)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
@@ -57,7 +57,7 @@ cd ~/development/OMD && ./Init.sh
 - **Shared widgets**: `quickshell/modules/common/widgets/` — QML component library.
 - **Services**: QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- **Core shared QML modules**: `quickshell/modules/<name>/` — 7 common QML import modules (bar, common, settings, overview, onScreenDisplay, notificationPopup, polkit).
+|   - **Core shared QML modules**: `quickshell/modules/<name>/` — 3 shared QML import modules (bar, common, polkit). Settings framework moved to `$SUMIKA_MODULES_HOME/settings/`.|
 - **External modules**: `$SUMIKA_MODULES_HOME/<name>/` — 27 feature modules in separate repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - **Voice**: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
@@ -69,7 +69,7 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- Core shared QML: `quickshell/modules/<name>/` — 7 shared QML import modules.
+|   - Core shared QML: `quickshell/modules/<name>/` — 3 shared QML import modules.
 - External modules: `$SUMIKA_MODULES_HOME/<name>/` — 27 feature modules in separate repo.
 - Bar popups: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - Voice: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
