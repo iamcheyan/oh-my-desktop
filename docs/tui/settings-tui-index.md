@@ -47,7 +47,7 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 
 ## 技术栈
 
-全部 Python TUI 共用以下基础设施（位于 `bin/omd_tui_shared.py`）：
+全部 Python TUI 共用以下基础设施（位于 `bin/omd_tui_framework.py`）：
 
 - **TUI 框架**：Python `curses`，统一窗口管理、鼠标支持、事件循环
 - **视觉系统**：[`tui-style-system.md`](tui-style-system.md) — 颜色、边框、间距约定
@@ -55,7 +55,7 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 - **Python 布局系统**：[`tui-framework-plan.md`](tui-framework-plan.md) — Python TUI 的 Layout 模板类与架构
 - **启动方式**：`bin/omd-settings-tui` bash 路由 → Python 子进程
 
-### 共享模块 `bin/omd_tui_shared.py`
+### 共享模块 `bin/omd_tui_framework.py`
 
 | 组件 | 用途 | 所有 TUI 共用 |
 |---|---|---|

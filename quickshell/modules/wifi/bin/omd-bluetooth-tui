@@ -34,7 +34,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _repo_bin = str(Path(os.path.dirname(os.path.abspath(__file__))).resolve().parent.parent.parent.parent / "bin")
 if _repo_bin not in sys.path:
     sys.path.insert(0, _repo_bin)
-import omd_tui_shared as S
+import omd_tui_framework as S
 
 # English output from bluetoothctl across locales
 _SUBPROC_ENV = {

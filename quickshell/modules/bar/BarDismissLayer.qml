@@ -27,7 +27,7 @@ Scope {
             required property ShellScreen modelData
 
             screen: modelData
-            visible: (BarRuntime.dismissLayerActive ?? false)
+            visible: ((BarRuntime.dismissLayerActive ?? false) || GlobalStates.voicePopupOpen)
                 && !(BarRuntime.screenshotActive ?? false)
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
@@ -45,13 +45,12 @@ Scope {
                 left: true
                 right: true
             }
-            // Leave a gap on the bar side so clicks reach the bar buttons
-            // directly, enabling toggle (click again to close) behavior.
-            // Without this gap the full-screen dismiss layer intercepts the
-            // second click and only closes - never toggles.
+            // Gap on the bar side lets clicks reach bar buttons for toggle
+            // (click again to close). Zero gap when a non-barPopup overlay
+            // (e.g. voice model status) is open — any outside click closes it.
             margins {
-                top: barOnBottom ? 0 : barGap
-                bottom: barOnBottom ? barGap : 0
+                top: (!barOnBottom && !GlobalStates.voicePopupOpen) ? barGap : 0
+                bottom: (barOnBottom && !GlobalStates.voicePopupOpen) ? barGap : 0
             }
 
             MouseArea {

@@ -79,7 +79,11 @@ ColumnLayout {
             GlobalStates.barPopupEphemeral = false;
             ServiceManager.network.enableWifi(checked);
         }
-        onSettingsClicked: ActionManager.invoke("settings.open", {section: "wifi"})
+        onSettingsClicked: {
+            GlobalStates.barPopupType = "";
+            GlobalStates.barPopupEphemeral = false;
+            Quickshell.execDetached(["nm-connection-editor"]);
+        }
     }
 
     StyledText {
@@ -448,7 +452,11 @@ ColumnLayout {
             if (Bluetooth.defaultAdapter)
                 Bluetooth.defaultAdapter.enabled = checked;
         }
-        onSettingsClicked: ActionManager.invoke("settings.open", {section: "bluetooth"})
+        onSettingsClicked: {
+            GlobalStates.barPopupType = "";
+            GlobalStates.barPopupEphemeral = false;
+            Quickshell.execDetached(["blueman-manager"]);
+        }
     }
 
     // ── Bluetooth saved devices list ──
@@ -534,6 +542,7 @@ ColumnLayout {
                 MouseArea {
                     id: btMouse
                     anchors.fill: parent
+
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
@@ -556,4 +565,5 @@ ColumnLayout {
             Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/omd-launch-bluetooth`]);
         }
     }
+
 }

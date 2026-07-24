@@ -3,7 +3,7 @@
 ## 当前架构
 
 Sumika Shell 的 Python TUI 位于 `bin/`，并通过
-`bin/omd_tui_shared.py` 共享布局、绘制和事件循环能力：
+`bin/omd_tui_framework.py` 共享布局、绘制和事件循环能力：
 
 | 脚本 | 类型 | 架构模式 | Layout 模板 |
 |---|---|---|---|
@@ -127,7 +127,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 
 ### 通用运行能力
 
-在 `omd_tui_shared.py` 新增了以下提取物，逐 TUI 替换手写样板：
+在 `omd_tui_framework.py` 新增了以下提取物，逐 TUI 替换手写样板：
 
 | 提取物 | 用途 | 消费者 |
 |---|---|---|
@@ -151,7 +151,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 - theme-tui（`split_threshold=108`, `force_single`, 自定义预览/设置/动作盒）
 ### 表格渲染原语
 
-将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `omd_tui_shared.py`：
+将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `omd_tui_framework.py`：
 
 | 提取物 | 说明 |
 |---|---|
@@ -184,10 +184,10 @@ wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_head
 ```python
 import sys, os, curses, locale, threading
 sys.path.insert(0, os.path.dirname(__file__))
-import omd_tui_shared as S
+import omd_tui_framework as S
 ```
 
-所有 TUI 共用 `bin/omd_tui_shared.py`，不加第三方依赖。
+所有 TUI 共用 `bin/omd_tui_framework.py`，不加第三方依赖。
 
 ### 1. 选骨架
 

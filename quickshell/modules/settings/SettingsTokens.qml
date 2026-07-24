@@ -36,7 +36,7 @@ QtObject {
 
     // Shared settings layout geometry. Pages should compose these tokens
     // instead of compensating locally with one-off margins.
-    readonly property int shellInset: 3
+    readonly property int shellInset: 0
     readonly property int pagePadding: 16
     readonly property int panelPadding: 16
     readonly property int columnGap: 16

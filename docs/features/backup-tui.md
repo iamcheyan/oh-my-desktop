@@ -163,7 +163,7 @@ A Python curses TUI with two-panel layout:
   - `-` deleted in red
   - `=` unchanged in gray
 
-### Shared module: `bin/omd_tui_shared.py`
+### Shared module: `bin/omd_tui_framework.py`
 
 Provides visual primitives used by all 5 TUIs (backup, voice, keyboard, VM, theme):
 

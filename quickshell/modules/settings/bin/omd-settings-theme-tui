@@ -18,7 +18,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import omd_tui_shared as S
+import omd_tui_framework as S
 _THEME_CMD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "omd-settings-theme")
 
 

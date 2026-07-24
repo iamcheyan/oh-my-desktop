@@ -34,7 +34,7 @@ use the finer grayscale ramp.
 
 ## Shared Nearest-Color Mapping
 
-`bin/omd_tui_shared.py::_nearest_xterm_index()` is the general-purpose mapper
+`bin/omd_tui_framework.py::_nearest_xterm_index()` is the general-purpose mapper
 for shared TUI drawing. It uses a perceptual redmean distance and handles
 saturated colors separately so they are not incorrectly mapped to grayscale.
 
