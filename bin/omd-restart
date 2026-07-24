@@ -31,6 +31,7 @@ start_app() {
             --property=KillMode=process \
             --setenv=PATH="$PATH" \
             --setenv=OMD_ROOT="$OMD_ROOT" \
+            --setenv=SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-}" \
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
             --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
             --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
