@@ -102,11 +102,11 @@ Singleton {
         initializeMonitor(0);
     }
 
-    readonly property string displayModuleDir: {
+    readonly property string displayModuleDir: (function() {
         var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return mh + "/display"
         return FileUtils.trimFileProtocol(Directories.root) + "/../sumika-modules/display"
-    }()
+    })()
 
     Process {
         id: ddcProc

@@ -11,12 +11,12 @@ import Quickshell
 
 Singleton {
     id: root
-    readonly property string ocrBinary: {
+    readonly property string ocrBinary: (function() {
         const mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return `${mh}/ocr/bin/omd-ocr`
         console.warn("[ScreenshotAction] SUMIKA_MODULES_HOME not set, OCR unavailable")
         return "omd-ocr"
-    }()
+    })()
     enum Action {
         Copy,
         Edit,

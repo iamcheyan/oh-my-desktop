@@ -21,11 +21,11 @@ import qs.modules.common
 Singleton {
     id: root
 
-    readonly property string wifiModuleDir: {
+    readonly property string wifiModuleDir: (function() {
         var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return mh + "/wifi"
         return FileUtils.trimFileProtocol(Directories.root) + "/../sumika-modules/wifi"
-    }()
+    })()
 
     property bool wifi: true
     property bool ethernet: false

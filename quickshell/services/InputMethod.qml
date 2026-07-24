@@ -11,13 +11,13 @@ import qs.modules.common.functions
 Singleton {
     id: root
 
-    readonly property string helper: {
+    readonly property string helper: (function() {
         const mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return `${mh}/input-method/bin/omd-input-method`
         const fallback = `${FileUtils.trimFileProtocol(Directories.root)}/../sumika-modules/input-method/bin/omd-input-method`
         console.warn("[InputMethod] SUMIKA_MODULES_HOME not set, using fallback:", fallback)
         return fallback
-    }()
+    })()
     property bool available: false
     property bool busy: false
     property string inputMethod: ""

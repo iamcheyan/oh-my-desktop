@@ -12,12 +12,12 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string omdBinDir: {
+    readonly property string omdBinDir: (function() {
         var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return mh + "/wifi/bin"
         var home = Quickshell.env("HOME")
         return home ? home + "/development/sumika-modules/wifi/bin" : ""
-    }()
+    })()
     property bool actionRunning: bluetoothActionProc.running
     property string actionDeviceName: ""
     property string actionAddress: ""
