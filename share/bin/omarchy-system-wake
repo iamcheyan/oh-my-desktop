@@ -2,5 +2,5 @@
 
 # OMD compatibility implementation for omd-wake.
 
-omd-brightness-display on
-omd-brightness-keyboard restore
+"${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-display" on
+"${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-keyboard" restore

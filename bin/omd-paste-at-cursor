@@ -1,2 +1,3 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-paste-at-cursor" "$@"
+# Delegate to canonical copy in sumika-modules/voice/bin/
+exec "${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/voice/bin/omarchy-paste-at-cursor" "$@"

@@ -176,10 +176,10 @@ if python3 -c "import onnxruntime" >/dev/null 2>&1; then
 else
   warn "onnxruntime Python package missing; pip install paddleocr onnxruntime"
 fi
-if [[ -x "$repo/bin/omd-ocr" ]]; then
+if [[ -x "$SUMIKA_MODULES_HOME/ocr/bin/omd-ocr" ]]; then
   ok "omd-ocr helper script"
 else
-  fail "omd-ocr helper script missing"
+  fail "omd-ocr helper script missing at \$SUMIKA_MODULES_HOME/ocr/bin/omd-ocr"
 fi
 
 section "voice input"
@@ -188,12 +188,12 @@ check_optional_cmd ydotool "ydotool auto-paste"
 if [[ -x "$HOME/.cache/omd-voice/venv/bin/python3" ]]; then
   ok "voice venv"
 else
-  warn "voice venv missing: run bin/omd-voice-setup or use the voice popup setup action"
+  warn "voice venv missing: use the voice popup setup action or run $SUMIKA_MODULES_HOME/voice/bin/omd-voice-setup"
 fi
 if [[ -f "$HOME/.cache/omd-voice/sense-voice-small-int8/model.int8.onnx" && -f "$HOME/.cache/omd-voice/sense-voice-small-int8/tokens.txt" ]]; then
   ok "SenseVoice model cache"
 else
-  warn "SenseVoice model missing: run bin/omd-voice-download or use the voice popup download action"
+  warn "SenseVoice model missing: use the voice popup download action or run $SUMIKA_MODULES_HOME/voice/bin/omd-voice-download"
 fi
 
 section "wallpaper"

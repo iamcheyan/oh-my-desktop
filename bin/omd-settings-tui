@@ -22,22 +22,22 @@ Pages:
 EOF
     ;;
   windows|windows-vm|vm)
-    exec python3 "$OMD_ROOT/bin/omd-settings-vm-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/windows-vm/bin/omd-settings-vm-tui"
     ;;
   theme|appearance)
-    exec python3 "$OMD_ROOT/bin/omd-settings-theme-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/settings/bin/omd-settings-theme-tui"
     ;;
   voice|voice-input)
-    exec python3 "$OMD_ROOT/bin/omd-settings-voice-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/voice/bin/omd-settings-voice-tui"
     ;;
   keyboard|keyboard-remap|remap)
-    exec python3 "$OMD_ROOT/bin/omd-settings-keyboard-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/keyboard-remap/bin/omd-settings-keyboard-tui"
     ;;
   ocr|paddleocr|recognition)
-    exec python3 "$OMD_ROOT/bin/omd-settings-ocr-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/ocr/bin/omd-settings-ocr-tui"
     ;;
   backup|file-share|sync)
-    exec python3 "$OMD_ROOT/bin/omd-settings-backup-tui"
+    exec python3 "$SUMIKA_MODULES_HOME/file-backup/bin/omd-settings-backup-tui"
     ;;
   *)
     echo "unknown settings page: $route" >&2

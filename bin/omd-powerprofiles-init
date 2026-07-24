@@ -1,2 +1,4 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-powerprofiles-init" "$@"
+. "$(dirname "$0")/../lib/paths.sh" 2>/dev/null || { echo "paths.sh not found" >&2; exit 1; }
+# Delegate to the battery-power module's canonical copy (external module)
+exec "$SUMIKA_MODULES_HOME/battery-power/bin/omarchy-powerprofiles-init" "$@"

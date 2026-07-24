@@ -1,83 +1,10 @@
 #!/bin/sh
 set -eu
 
-_omd_root=$(cd "$(dirname "$0")/.." && pwd)
-. "$_omd_root/lib/paths.sh"
-. "$_omd_root/scripts/omd-path.sh"
-unset _omd_root
-
-# On-demand App Launcher process.
-# Usage:
-#   omd-applauncher              # toggle: open if not running, close if running
-#   omd-applauncher toggle       # same as above
-#   omd-applauncher open         # open (launch if needed)
-#   omd-applauncher close        # close running instance (no-op if not running)
-#
-# When started fresh, exports OMD_APP_ON_DEMAND=1 so shell.qml auto-opens the
-# launcher and quits the process when the panel closes.
-
-# Built-in launcher lives in OMD/modules/launcher (product-floor module).
-# External SUMIKA_MODULES_HOME is only a last-resort fallback for forks.
-app_dir="$OMD_ROOT/modules/launcher"
+app_dir="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/launcher"
 if [ ! -d "$app_dir" ]; then
-    app_dir="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}/launcher"
-fi
-if [ ! -d "$app_dir" ]; then
-    printf 'omd-applauncher: launcher module not found under %s/modules/launcher\n' "$OMD_ROOT" >&2
+    printf 'omd-applauncher: launcher module not found at %s\n' "$app_dir" >&2
     exit 1
 fi
-qs_launcher="$OMD_ROOT/quickshell/scripts/quickshell"
-cache_script="$OMD_ROOT/bin/omd-applauncher-cache"
 
-# Refresh desktop entry cache in background only if it is missing. Avoid date
-# checks on the hot path; the QML process can rebuild a corrupt cache itself.
-cache_file="$SUMIKA_SHELL_STATE_HOME/applauncher/apps.json"
-if [ ! -s "$cache_file" ]; then
-    "$cache_script" >/dev/null 2>&1 &
-fi
-
-# Detect a running omd-applauncher Quickshell instance. Match the -p path
-# (config dir) to avoid collisions with other omd-* processes.
-is_running() {
-    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
-}
-
-ipc_call() {
-    "${OMD_QS_BIN:-qs}" -p "$app_dir" ipc call appLauncher "$1" 2>/dev/null || true
-}
-launch_direct() {
-    # Always go through quickshell/scripts/quickshell so QML_IMPORT_PATH stages
-    # `qs` (common/services/runtime). Bypassing it breaks import qs.modules.common.
-    if [ ! -x "$qs_launcher" ]; then
-        printf 'omd-applauncher: quickshell launcher missing at %s\n' "$qs_launcher" >&2
-        exit 1
-    fi
-    export OMD_APP_ON_DEMAND=1
-    exec "$qs_launcher" "$app_dir"
-}
-
-case "${1:-toggle}" in
-    toggle)
-        if is_running; then
-            ipc_call toggle
-        else
-            launch_direct
-        fi
-        ;;
-    open)
-        if is_running; then
-            ipc_call open
-        else
-            launch_direct
-        fi
-        ;;
-    close)
-        if is_running; then
-            ipc_call close
-        fi
-        ;;
-    *)
-        echo "usage: omd-applauncher [toggle|open|close]" >&2
-        exit 2
-        ;;
-esac
+exec "$app_dir/bin/omd-applauncher" "$@"
