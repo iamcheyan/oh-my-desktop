@@ -72,11 +72,11 @@ if [ -d "${SUMIKA_MODULES_HOME:-}" ] && [ -n "$stage_namespace" ]; then
         _ext_mod_id=$(basename "$_ext_mod_dir")
         ln -sfn "$_ext_mod_dir" "$ext_qml_dir/qs/modules/$_ext_mod_id"
     done
-    export QML_IMPORT_PATH="$ext_qml_dir${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+    export QML_IMPORT_PATH="$ext_qml_dir:$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 else
     export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
-fi
 
+fi
 # QML URI segments cannot contain '-'.  Older external popup modules used
 # `qs.modules.popup-components`; expose a legal alias and stage only affected
 # modules with that import rewritten.  The source module repository remains
