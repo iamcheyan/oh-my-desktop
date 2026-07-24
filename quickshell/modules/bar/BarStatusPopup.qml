@@ -206,99 +206,179 @@ Scope {
 
         anchors { top: true; left: true; right: true; bottom: true }
 
-        MouseArea {
+        Rectangle {
             anchors.fill: parent
-            onClicked: GlobalStates.closeSessionConfirm()
+            color: Qt.rgba(0, 0, 0, 0.58)
         }
 
-        Rectangle {
-            anchors.centerIn: parent
-            width: 320
-            height: confirmColumn.implicitHeight + 32
-            radius: 12
-            color: TuiStyle.bg
-            border.color: TuiStyle.menuBorder
-            border.width: 1
+        Item {
+            anchors.fill: parent
 
-            ColumnLayout {
-                id: confirmColumn
-                anchors {
-                    left: parent.left; right: parent.right
-                    top: parent.top; margins: 16
-                }
-                spacing: 16
+            MouseArea {
+                anchors.fill: parent
+                onClicked: GlobalStates.closeSessionConfirm()
+            }
 
-                StyledText {
-                    Layout.fillWidth: true
-                    text: GlobalStates.sessionConfirmLabel
-                    font.pixelSize: 16
-                    font.weight: Font.Medium
-                    color: TuiStyle.fg
-                    horizontalAlignment: Qt.AlignHCenter
-                }
+            Rectangle {
+                id: confirmDialog
+                width: Math.min(parent.width - 96, 560)
+                implicitHeight: confirmContent.implicitHeight + 48
+                anchors.centerIn: parent
+                radius: TuiStyle.shellRadius
+                color: TuiStyle.bg
+                border.width: TuiStyle.borderWidth
+                border.color: TuiStyle.shellBorder
+                clip: true
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
+                ColumnLayout {
+                    id: confirmContent
+                    anchors.fill: parent
+                    anchors.margins: 24
+                    spacing: 18
 
-                    Item {
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 44
+                        spacing: 14
 
                         Rectangle {
-                            anchors.fill: parent
-                            radius: 6
-                            color: cancelMouse.containsMouse ? TuiStyle.controlHover : "transparent"
-                            border.width: 1
-                            border.color: TuiStyle.panelAlt
+                            Layout.preferredWidth: 46
+                            Layout.preferredHeight: 46
+                            radius: 23
+                            color: TuiStyle.accentWash(TuiStyle.danger)
+                            border.width: TuiStyle.borderWidth
+                            border.color: TuiStyle.shellBorder
 
-                            StyledText {
+                            NerdIcon {
                                 anchors.centerIn: parent
-                                text: "Cancel"
-                                font.pixelSize: 13
+                                text: {
+                                    const a = GlobalStates.sessionConfirmAction;
+                                    if (a === "session.logout") return NerdIconMap.logout;
+                                    if (a === "session.reboot") return NerdIconMap.restart;
+                                    if (a === "session.shutdown") return NerdIconMap.powerSettingsNew;
+                                    return NerdIconMap.warning;
+                                }
+                                iconSize: 22
                                 color: TuiStyle.fg
                             }
                         }
 
-                        MouseArea {
-                            id: cancelMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: GlobalStates.closeSessionConfirm()
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: {
+                                    const a = GlobalStates.sessionConfirmAction;
+                                    const label = GlobalStates.sessionConfirmLabel || a;
+                                    if (a === "session.logout") return "Log out of this session?";
+                                    if (a === "session.reboot") return "Restart this computer?";
+                                    if (a === "session.shutdown") return "Shut down this computer?";
+                                    return `Confirm ${label}`;
+                                }
+                                color: TuiStyle.fg
+                                font.pixelSize: Appearance.font.pixelSize.large
+                                font.weight: Font.DemiBold
+                                elide: Text.ElideRight
+                            }
+
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: {
+                                    const a = GlobalStates.sessionConfirmAction;
+                                    if (a === "session.logout")
+                                        return "Open applications will be closed and the current Hyprland session will end.";
+                                    if (a === "session.reboot")
+                                        return "The system will restart after running the selected session action.";
+                                    if (a === "session.shutdown")
+                                        return "The system will power off after running the selected session action.";
+                                    return "This system action will run immediately after confirmation.";
+                                }
+                                color: TuiStyle.muted
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                wrapMode: Text.Wrap
+                            }
                         }
                     }
 
-                    Item {
+                    Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 44
+                        Layout.preferredHeight: 1
+                        color: TuiStyle.line
+                        opacity: TuiStyle.dividerOpacity
+                    }
 
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 6
-                            color: confirmMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.accent
-                            border.width: 1
-                            border.color: TuiStyle.panelAlt
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 4
+                        spacing: 12
 
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: "Confirm"
-                                font.pixelSize: 13
-                                font.weight: Font.Medium
-                                color: TuiStyle.bg
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: cancelMouse.containsMouse ? TuiStyle.controlHover : "transparent"
+                                border.width: 1
+                                border.color: TuiStyle.panelAlt
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: "CANCEL"
+                                    font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    color: TuiStyle.fg
+                                }
+                            }
+
+                            MouseArea {
+                                id: cancelMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: GlobalStates.closeSessionConfirm()
                             }
                         }
 
-                        MouseArea {
-                            id: confirmMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                const a = GlobalStates.sessionConfirmAction
-                                GlobalStates.closeSessionConfirm()
-                                if (a && ActionManager.isAvailable(a))
-                                    ActionManager.invoke(a)
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 6
+                                color: confirmMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.danger
+                                border.width: 1
+                                border.color: TuiStyle.panelAlt
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        const a = GlobalStates.sessionConfirmAction;
+                                        if (a === "session.logout") return "LOG OUT";
+                                        if (a === "session.reboot") return "RESTART";
+                                        if (a === "session.shutdown") return "SHUT DOWN";
+                                        return "CONFIRM";
+                                    }
+                                    font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    color: TuiStyle.fg
+                                }
+                            }
+
+                            MouseArea {
+                                id: confirmMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    const a = GlobalStates.sessionConfirmAction
+                                    GlobalStates.closeSessionConfirm()
+                                    if (a && ActionManager.isAvailable(a))
+                                        ActionManager.invoke(a)
+                                }
                             }
                         }
                     }
