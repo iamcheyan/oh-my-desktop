@@ -245,7 +245,9 @@
     "required": [
       "launcher",
       "clock",
+      "notification-popup",
       "workspaces",
+      "overview",
       "systray",
       "wifi",
       "audio",

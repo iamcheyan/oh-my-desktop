@@ -353,17 +353,21 @@ Singleton {
             }
             property JsonObject modules: JsonObject {
                 // Master switch for optional modules. When false, only the product-floor
-                // minimum desktop remains (clock, workspaces, systray, wifi, audio, power).
+                // minimum desktop remains (clock, workspaces, systray, wifi, audio, power,
+                // notification-popup, overview).
                 property bool enabled: true
                 // Per-module exclusion list (optional modules only). Required/floor
                 // modules ignore this list and always stay enabled.
                 property list<var> disabled: []
                 // Extra required module IDs (union with hardcoded product floor).
-                // Cannot shrink below: clock, workspaces, systray, wifi, audio, power-indicator.
+                // Cannot shrink below: launcher, clock, workspace, systray, wifi, audio,
+                // power-indicator, notification-popup, overview.
                 property list<var> required: [
                     "launcher",
                     "clock",
+                    "notification-popup",
                     "workspaces",
+                    "overview",
                     "systray",
                     "wifi",
                     "audio",

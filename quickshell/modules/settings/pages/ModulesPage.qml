@@ -69,7 +69,7 @@ PageBody {
         SettingsToggleRow {
             Layout.fillWidth: true
             label: "Enable optional modules"
-            description: "When off, only the minimum desktop remains: launcher, clock, workspaces, systray, Wi‑Fi, audio, power"
+            description: "When off, only the minimum desktop remains: launcher, clock, notification-popup, workspaces, overview, systray, Wi‑Fi, audio, power"
             checked: page.masterEnabled
             onToggled: page.setMasterEnabled(!page.masterEnabled)
         }

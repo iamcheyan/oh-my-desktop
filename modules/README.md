@@ -18,8 +18,10 @@
 | 模块 ID | 角色 |
 |---|---|
 | `launcher` | 应用启动器（内置：`OMD/modules/launcher`，on-demand 进程） |
-| `workspaces` | 工作区指示 |
 | `clock` | 时钟 |
+| `notification-popup` | 通知弹出窗口（bar 内 overlay） |
+| `workspaces` | 工作区指示 |
+| `overview` | 工作区概览（常驻 application 进程） |
 | `systray` | 系统托盘 |
 | `wifi` | 网络 |
 | `audio` | 音量 |
@@ -31,7 +33,7 @@
 "modules": {
   "enabled": true,
   "disabled": [],
-  "required": ["launcher", "clock", "workspaces", "systray", "wifi", "audio", "power-indicator"]
+  "required": ["launcher", "clock", "notification-popup", "workspaces", "overview", "systray", "wifi", "audio", "power-indicator"]
 }
 ```
 
@@ -45,7 +47,6 @@
 
 | 模块 | 提供 | 依赖服务 |
 |---|---|---|
-| `active-window` | bar 按钮 (left, alwaysShow) | HyprlandData |
 | `audio` | bar 按钮 (right, alwaysShow)、弹出面板、设置页 | Audio |
 | `clock` | bar 按钮 (right, alwaysShow) | DateTime |
 | `display` | bar 按钮 (right)、弹出面板、设置页 | Brightness |
