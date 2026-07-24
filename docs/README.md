@@ -10,6 +10,7 @@ are intentionally not retained.
 - [Current repository structure](project-structure.md)
 - [Core and plugin migration plan](architecture/sumika-core-plugin-migration-plan.md)
 - [Plugin migration execution checklist](architecture/sumika-plugin-migration-execution-checklist.md)
+- [Core post-split audit](architecture/sumika-core-post-split-audit.md)
 - [Third-party dependencies](architecture/third-party-deps.md)
 - [Settings layout contract](settings/settings-layout-system.md)
 - [TUI style system](tui/tui-style-system.md)
