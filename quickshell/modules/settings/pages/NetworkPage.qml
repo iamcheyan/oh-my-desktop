@@ -1,5 +1,4 @@
 import qs
-import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -9,6 +8,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs.core.runtime
 import Quickshell.Io
 
 ColumnLayout {
@@ -28,49 +28,49 @@ ColumnLayout {
     }
 
     readonly property string healthTitle: {
-        if (!Network.wifiEnabled && !Network.ethernet)
-            return Network.wifiEnabled === false ? "Wi‑Fi off" : "Disconnected"
-        if (Network.wifiConnectPhase === "connecting" || Network.wifiConnecting)
+        if (!ServiceManager.network.wifiEnabled && !ServiceManager.network.ethernet)
+            return ServiceManager.network.wifiEnabled === false ? "Wi‑Fi off" : "Disconnected"
+        if (ServiceManager.network.wifiConnectPhase === "connecting" || ServiceManager.network.wifiConnecting)
             return "Connecting…"
-        if (Network.wifiConnectPhase === "need_password")
+        if (ServiceManager.network.wifiConnectPhase === "need_password")
             return "Password required"
-        if (Network.wifiConnectPhase === "failed")
+        if (ServiceManager.network.wifiConnectPhase === "failed")
             return "Connection failed"
-        if (Network.ethernet && Network.connectionKind === "ethernet")
+        if (ServiceManager.network.ethernet && ServiceManager.network.connectionKind === "ethernet")
             return "Ethernet"
-        if (Network.wifiStatus === "connected" || Network.active)
+        if (ServiceManager.network.wifiStatus === "connected" || ServiceManager.network.active)
             return "Connected"
-        if (Network.wifiStatus === "limited")
+        if (ServiceManager.network.wifiStatus === "limited")
             return "Limited"
         return "Disconnected"
     }
 
     readonly property string healthDetail: {
-        if (Network.wifiConnectMessage.length > 0
-                && Network.wifiConnectPhase !== "idle"
-                && Network.wifiConnectPhase !== "success")
-            return Network.wifiConnectMessage
-        const name = Network.active?.ssid || Network.networkName || ""
-        const ip = Network.ipv4Address
+        if (ServiceManager.network.wifiConnectMessage.length > 0
+                && ServiceManager.network.wifiConnectPhase !== "idle"
+                && ServiceManager.network.wifiConnectPhase !== "success")
+            return ServiceManager.network.wifiConnectMessage
+        const name = ServiceManager.network.active?.ssid || ServiceManager.network.networkName || ""
+        const ip = ServiceManager.network.ipv4Address
         if (name && ip)
             return `${name}  ·  ${ip}`
         if (name)
             return name
-        if (Network.wifiEnabled)
-            return `${Network.friendlyWifiNetworks.length} network${Network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`
+        if (ServiceManager.network.wifiEnabled)
+            return `${ServiceManager.network.friendlyWifiNetworks.length} network${ServiceManager.network.friendlyWifiNetworks.length === 1 ? "" : "s"} nearby`
         return "Turn on Wi‑Fi or plug in ethernet"
     }
 
-    readonly property bool healthWarning: Network.wifiConnectPhase === "failed"
-        || Network.wifiConnectPhase === "need_password"
-        || Network.wifiStatus === "limited"
-        || (!Network.wifiEnabled && !Network.ethernet)
+    readonly property bool healthWarning: ServiceManager.network.wifiConnectPhase === "failed"
+        || ServiceManager.network.wifiConnectPhase === "need_password"
+        || ServiceManager.network.wifiStatus === "limited"
+        || (!ServiceManager.network.wifiEnabled && !ServiceManager.network.ethernet)
 
     Component.onCompleted: {
-        Network.update()
-        Network.refreshFirewall()
-        if (Network.wifiEnabled)
-            Network.rescanWifi()
+        ServiceManager.network.update()
+        ServiceManager.network.refreshFirewall()
+        if (ServiceManager.network.wifiEnabled)
+            ServiceManager.network.rescanWifi()
     }
 
     GridLayout {
@@ -120,7 +120,7 @@ ColumnLayout {
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
-                                text: Network.ethernet && Network.connectionKind === "ethernet"
+                                text: ServiceManager.network.ethernet && ServiceManager.network.connectionKind === "ethernet"
                                     ? "lan"
                                     : (pageRoot.healthWarning ? "wifi_off" : "wifi")
                                 iconSize: 25
@@ -168,9 +168,9 @@ ColumnLayout {
                         SettingsToggleRow {
                             Layout.fillWidth: true
                             label: "Wireless"
-                            description: Network.wifiEnabled ? "Adapter enabled" : "Adapter disabled"
-                            checked: Network.wifiEnabled
-                            onToggled: Network.toggleWifi()
+                            description: ServiceManager.network.wifiEnabled ? "Adapter enabled" : "Adapter disabled"
+                            checked: ServiceManager.network.wifiEnabled
+                            onToggled: ServiceManager.network.toggleWifi()
                         }
 
                         Rectangle {
@@ -178,7 +178,7 @@ ColumnLayout {
                             Layout.preferredHeight: 36
                             radius: SettingsTokens.radius
                             color: scanMouse.containsMouse ? SettingsTokens.buttonHover : "transparent"
-                            visible: Network.wifiEnabled
+                            visible: ServiceManager.network.wifiEnabled
 
                             MaterialSymbol {
                                 anchors.centerIn: parent
@@ -186,7 +186,7 @@ ColumnLayout {
                                 iconSize: 18
                                 color: SettingsTokens.muted
                                 RotationAnimator on rotation {
-                                    running: Network.wifiScanning
+                                    running: ServiceManager.network.wifiScanning
                                     loops: Animation.Infinite
                                     from: 0
                                     to: 360
@@ -199,7 +199,7 @@ ColumnLayout {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Network.rescanWifi()
+                                onClicked: ServiceManager.network.rescanWifi()
                             }
                         }
                     }
@@ -207,29 +207,29 @@ ColumnLayout {
 
                 SettingsSection {
                     title: "Available networks"
-                    visible: Network.wifiEnabled
+                    visible: ServiceManager.network.wifiEnabled
 
                     StyledText {
                         Layout.fillWidth: true
                         Layout.leftMargin: 4
-                        visible: Network.wifiScanning && Network.friendlyWifiNetworks.length === 0
+                        visible: ServiceManager.network.wifiScanning && ServiceManager.network.friendlyWifiNetworks.length === 0
                         text: "Scanning…"
                         color: SettingsTokens.dim
                         font.pixelSize: Appearance.font.pixelSize.smaller
                     }
 
                     Repeater {
-                        model: Network.friendlyWifiNetworks.slice(0, 18)
+                        model: ServiceManager.network.friendlyWifiNetworks.slice(0, 18)
                         delegate: ColumnLayout {
                             id: netDelegate
                             required property var modelData
                             readonly property var ap: modelData
                             readonly property bool isActive: ap.active ?? false
-                            readonly property bool isKnown: Network.isKnownWifi(ap)
-                            readonly property bool isConnecting: Network.isConnectingTo(ap)
+                            readonly property bool isKnown: ServiceManager.network.isKnownWifi(ap)
+                            readonly property bool isConnecting: ServiceManager.network.isConnectingTo(ap)
                             readonly property bool showPassword: ap.askingPassword === true
                             readonly property bool isSuggested: {
-                                const list = Network.suggestedWifiList
+                                const list = ServiceManager.network.suggestedWifiList
                                 return list && list.length > 0 && list[0].ssid === ap.ssid && !isActive
                             }
 
@@ -340,7 +340,7 @@ ColumnLayout {
                                     enabled: !netDelegate.isActive && !netDelegate.isConnecting
                                     onClicked: {
                                         if (netDelegate.ap.ssid)
-                                            Network.connectToWifiNetwork(netDelegate.ap)
+                                            ServiceManager.network.connectToWifiNetwork(netDelegate.ap)
                                     }
                                 }
                             }
@@ -367,10 +367,10 @@ ColumnLayout {
 
                                     StyledText {
                                         Layout.fillWidth: true
-                                        text: Network.lastConnectError.length > 0
-                                            ? Network.lastConnectError
+                                        text: ServiceManager.network.lastConnectError.length > 0
+                                            ? ServiceManager.network.lastConnectError
                                             : `Password for ${netDelegate.ap.ssid}`
-                                        color: Network.lastConnectError.length > 0
+                                        color: ServiceManager.network.lastConnectError.length > 0
                                             ? SettingsTokens.danger
                                             : SettingsTokens.muted
                                         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -397,10 +397,10 @@ ColumnLayout {
                                             passwordCharacter: "•"
                                             clip: true
                                             focus: netDelegate.showPassword
-                                            enabled: !Network.wifiConnecting
-                                            Keys.onReturnPressed: Network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
-                                            Keys.onEnterPressed: Network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
-                                            Keys.onEscapePressed: Network.cancelWifiPassword()
+                                            enabled: !ServiceManager.network.wifiConnecting
+                                            Keys.onReturnPressed: ServiceManager.network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
+                                            Keys.onEnterPressed: ServiceManager.network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
+                                            Keys.onEscapePressed: ServiceManager.network.cancelWifiPassword()
                                         }
                                     }
 
@@ -409,18 +409,18 @@ ColumnLayout {
                                         spacing: SettingsTokens.controlGap
                                         SettingsButton {
                                             Layout.fillWidth: true
-                                            label: Network.wifiConnecting ? "Connecting…" : "Connect"
+                                            label: ServiceManager.network.wifiConnecting ? "Connecting…" : "Connect"
                                             iconName: "link"
                                             active: true
-                                            enabledState: !Network.wifiConnecting && passField.text.length > 0
-                                            onClicked: Network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
+                                            enabledState: !ServiceManager.network.wifiConnecting && passField.text.length > 0
+                                            onClicked: ServiceManager.network.connectToWifiNetworkWithPassword(netDelegate.ap, passField.text)
                                         }
                                         SettingsButton {
                                             Layout.fillWidth: true
                                             label: "Cancel"
                                             iconName: "close"
-                                            enabledState: !Network.wifiConnecting
-                                            onClicked: Network.cancelWifiPassword()
+                                            enabledState: !ServiceManager.network.wifiConnecting
+                                            onClicked: ServiceManager.network.cancelWifiPassword()
                                         }
                                     }
                                 }
@@ -431,7 +431,7 @@ ColumnLayout {
                     StyledText {
                         Layout.fillWidth: true
                         Layout.leftMargin: 4
-                        visible: Network.friendlyWifiNetworks.length === 0 && !Network.wifiScanning
+                        visible: ServiceManager.network.friendlyWifiNetworks.length === 0 && !ServiceManager.network.wifiScanning
                         text: "No networks found. Tap refresh to scan."
                         color: SettingsTokens.dim
                         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -440,7 +440,7 @@ ColumnLayout {
 
                 SettingsSection {
                     title: "Saved profiles"
-                    visible: Network.savedWifiProfiles.length > 0
+                    visible: ServiceManager.network.savedWifiProfiles.length > 0
 
                     StyledText {
                         Layout.fillWidth: true
@@ -452,7 +452,7 @@ ColumnLayout {
                     }
 
                     Repeater {
-                        model: Network.savedWifiProfiles.slice(0, 16)
+                        model: ServiceManager.network.savedWifiProfiles.slice(0, 16)
                         delegate: Rectangle {
                             id: savedRow
                             required property var modelData
@@ -493,14 +493,14 @@ ColumnLayout {
 
                                 SettingsIconButton {
                                     iconName: savedRow.modelData.autoconnect ? "link" : "link_off"
-                                    onClicked: Network.setSavedProfileAutoconnect(
+                                    onClicked: ServiceManager.network.setSavedProfileAutoconnect(
                                         savedRow.modelData.name,
                                         !savedRow.modelData.autoconnect)
                                 }
 
                                 SettingsIconButton {
                                     iconName: "delete"
-                                    onClicked: Network.forgetSavedProfile(savedRow.modelData.name)
+                                    onClicked: ServiceManager.network.forgetSavedProfile(savedRow.modelData.name)
                                 }
                             }
 
@@ -554,8 +554,8 @@ ColumnLayout {
                         }
                         StyledText {
                             Layout.fillWidth: true
-                            text: Network.connectionKind.length > 0
-                                ? `${Network.connectionKind} on ${Network.primaryDevice || "—"}`
+                            text: ServiceManager.network.connectionKind.length > 0
+                                ? `${ServiceManager.network.connectionKind} on ${ServiceManager.network.primaryDevice || "—"}`
                                 : "No active interface"
                             color: SettingsTokens.muted
                             font.pixelSize: Appearance.font.pixelSize.small
@@ -574,53 +574,53 @@ ColumnLayout {
 
                     SettingsRow {
                         label: "Network"
-                        value: Network.active?.ssid || Network.networkName || "—"
+                        value: ServiceManager.network.active?.ssid || ServiceManager.network.networkName || "—"
                         clickable: false
                     }
                     SettingsRow {
                         label: "IPv4"
-                        value: Network.ipv4Address || "—"
+                        value: ServiceManager.network.ipv4Address || "—"
                         clickable: false
                     }
                     SettingsRow {
                         label: "Gateway"
-                        value: Network.ipv4Gateway || "—"
+                        value: ServiceManager.network.ipv4Gateway || "—"
                         clickable: false
                     }
                     SettingsRow {
                         label: "DNS"
-                        value: Network.ipv4Dns || "—"
+                        value: ServiceManager.network.ipv4Dns || "—"
                         clickable: false
                     }
                     SettingsRow {
-                        visible: Network.connectionKind === "wifi"
+                        visible: ServiceManager.network.connectionKind === "wifi"
                         label: "Band / freq"
                         value: {
                             const parts = []
-                            if (Network.linkBand)
-                                parts.push(Network.linkBand)
-                            if (Network.linkFreqMHz)
-                                parts.push(`${Network.linkFreqMHz} MHz`)
+                            if (ServiceManager.network.linkBand)
+                                parts.push(ServiceManager.network.linkBand)
+                            if (ServiceManager.network.linkFreqMHz)
+                                parts.push(`${ServiceManager.network.linkFreqMHz} MHz`)
                             return parts.length > 0 ? parts.join(" · ") : "—"
                         }
                         clickable: false
                     }
                     SettingsRow {
-                        visible: Network.connectionKind === "wifi"
+                        visible: ServiceManager.network.connectionKind === "wifi"
                         label: "Link rate"
                         value: {
-                            if (Network.linkTxRate)
-                                return `TX ${Network.linkTxRate}`
+                            if (ServiceManager.network.linkTxRate)
+                                return `TX ${ServiceManager.network.linkTxRate}`
                             return "—"
                         }
-                        description: Network.linkRxRate ? `RX ${Network.linkRxRate}` : ""
+                        description: ServiceManager.network.linkRxRate ? `RX ${ServiceManager.network.linkRxRate}` : ""
                         clickable: false
                     }
                     SettingsRow {
-                        visible: Network.connectionKind === "wifi"
+                        visible: ServiceManager.network.connectionKind === "wifi"
                         label: "Signal"
-                        value: Network.linkSignalDbm
-                            || (Network.active ? `${Network.active.strength}%` : "—")
+                        value: ServiceManager.network.linkSignalDbm
+                            || (ServiceManager.network.active ? `${ServiceManager.network.active.strength}%` : "—")
                         clickable: false
                     }
 
@@ -628,12 +628,12 @@ ColumnLayout {
                         SettingsButton {
                             label: "Copy summary"
                             iconName: "content_copy"
-                            onClicked: Network.copyConnectionSummary()
+                            onClicked: ServiceManager.network.copyConnectionSummary()
                         }
                         SettingsButton {
                             label: "Refresh"
                             iconName: "refresh"
-                            onClicked: Network.update()
+                            onClicked: ServiceManager.network.update()
                         }
                     }
                 }
@@ -644,42 +644,42 @@ ColumnLayout {
                     StyledText {
                         Layout.fillWidth: true
                         Layout.leftMargin: 4
-                        text: Network.diagPhase === "idle"
+                        text: ServiceManager.network.diagPhase === "idle"
                             ? "Ping the gateway and the public internet (1.1.1.1)."
-                            : Network.diagMessage
-                        color: Network.diagPhase === "error"
+                            : ServiceManager.network.diagMessage
+                        color: ServiceManager.network.diagPhase === "error"
                             ? SettingsTokens.danger
-                            : (Network.diagPhase === "done" ? SettingsTokens.accent : SettingsTokens.dim)
+                            : (ServiceManager.network.diagPhase === "done" ? SettingsTokens.accent : SettingsTokens.dim)
                         font.pixelSize: Appearance.font.pixelSize.smaller
                         wrapMode: Text.WordWrap
                     }
 
                     SettingsRow {
-                        visible: Network.diagPhase === "done" || Network.diagPhase === "error"
+                        visible: ServiceManager.network.diagPhase === "done" || ServiceManager.network.diagPhase === "error"
                         label: "Gateway RTT"
-                        value: Network.diagGatewayMs ? `${Network.diagGatewayMs} ms` : "—"
+                        value: ServiceManager.network.diagGatewayMs ? `${ServiceManager.network.diagGatewayMs} ms` : "—"
                         clickable: false
                     }
                     SettingsRow {
-                        visible: Network.diagPhase === "done" || Network.diagPhase === "error"
+                        visible: ServiceManager.network.diagPhase === "done" || ServiceManager.network.diagPhase === "error"
                         label: "Internet RTT"
-                        value: Network.diagExternalMs ? `${Network.diagExternalMs} ms` : "—"
+                        value: ServiceManager.network.diagExternalMs ? `${ServiceManager.network.diagExternalMs} ms` : "—"
                         clickable: false
                     }
 
                     SettingsButton {
                         Layout.fillWidth: true
-                        label: Network.diagPhase === "running" ? "Checking…" : "Run check"
+                        label: ServiceManager.network.diagPhase === "running" ? "Checking…" : "Run check"
                         iconName: "speed"
-                        enabledState: Network.diagPhase !== "running"
-                        active: Network.diagPhase === "running"
-                        onClicked: Network.runLightDiagnostics()
+                        enabledState: ServiceManager.network.diagPhase !== "running"
+                        active: ServiceManager.network.diagPhase === "running"
+                        onClicked: ServiceManager.network.runLightDiagnostics()
                     }
                 }
 
                 SettingsSection {
                     title: "Suggested Wi‑Fi"
-                    visible: Network.wifiEnabled
+                    visible: ServiceManager.network.wifiEnabled
 
                     StyledText {
                         Layout.fillWidth: true
@@ -691,7 +691,7 @@ ColumnLayout {
                     }
 
                     Repeater {
-                        model: (Network.suggestedWifiList || []).slice(0, 4)
+                        model: (ServiceManager.network.suggestedWifiList || []).slice(0, 4)
                         delegate: SettingsRow {
                             required property var modelData
                             iconName: "star"
@@ -700,14 +700,14 @@ ColumnLayout {
                             value: "Connect"
                             valueColor: SettingsTokens.accent
                             showChevron: true
-                            onClicked: Network.connectToWifiNetwork(modelData)
+                            onClicked: ServiceManager.network.connectToWifiNetwork(modelData)
                         }
                     }
 
                     StyledText {
                         Layout.fillWidth: true
                         Layout.leftMargin: 4
-                        visible: !Network.suggestedWifiList || Network.suggestedWifiList.length === 0
+                        visible: !ServiceManager.network.suggestedWifiList || ServiceManager.network.suggestedWifiList.length === 0
                         text: "No saved networks are visible right now."
                         color: SettingsTokens.dim
                         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -720,16 +720,16 @@ ColumnLayout {
                     SettingsRow {
                         label: "Firewall"
                         value: {
-                            if (Network.firewallState === "running")
+                            if (ServiceManager.network.firewallState === "running")
                                 return "Active"
-                            if (Network.firewallState === "inactive")
+                            if (ServiceManager.network.firewallState === "inactive")
                                 return "Inactive"
                             return "Unknown"
                         }
-                        description: Network.firewallDetail.length > 0
-                            ? `${Network.firewallBackend} · ${Network.firewallDetail}`
-                            : (Network.firewallBackend || "—")
-                        valueColor: Network.firewallState === "running"
+                        description: ServiceManager.network.firewallDetail.length > 0
+                            ? `${ServiceManager.network.firewallBackend} · ${ServiceManager.network.firewallDetail}`
+                            : (ServiceManager.network.firewallBackend || "—")
+                        valueColor: ServiceManager.network.firewallState === "running"
                             ? SettingsTokens.accent
                             : SettingsTokens.muted
                         clickable: false
@@ -759,7 +759,7 @@ ColumnLayout {
 
                     SettingsButton {
                         Layout.fillWidth: true
-                        visible: Network.firewallBackend === "firewalld"
+                        visible: ServiceManager.network.firewallBackend === "firewalld"
                         label: "Firewall config"
                         iconName: "open_in_new"
                         onClicked: {
