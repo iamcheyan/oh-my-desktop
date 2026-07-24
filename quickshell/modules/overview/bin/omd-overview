@@ -1,16 +1,59 @@
 #!/bin/sh
 set -eu
 
-_omd_root="${OMD_REPO_ROOT:-$OMD_ROOT}"
-if [ -z "$_omd_root" ] || [ ! -d "$_omd_root" ]; then
-    _omd_root="$(cd -- "$(dirname "$0")/../../.." 2>/dev/null && pwd -P)" || true
-fi
+script_dir="$(cd "$(dirname "$0")/.." && pwd)"
+app_dir="$script_dir"
 
-if [ -z "$_omd_root" ] || [ ! -d "$_omd_root" ]; then
-    echo "omd-overview: cannot resolve OMD repo root" >&2
+if [ ! -d "$app_dir" ] || [ ! -f "$app_dir/module.json" ]; then
+    echo "omd-overview: overview module not found at $app_dir" >&2
     exit 1
 fi
 
-. "$_omd_root/lib/paths.sh"
+if [ -z "$app_dir" ] || [ ! -d "$app_dir" ]; then
+    echo "omd-overview: module directory not found" >&2
+    exit 1
+fi
 
-exec "$OMD_ROOT/quickshell/scripts/quickshell" "$_omd_root/quickshell/modules/overview"
+: "${OMD_REPO_ROOT:=${OMD_ROOT:-$HOME/development/OMD}}"
+qs_launcher="$OMD_REPO_ROOT/quickshell/scripts/quickshell"
+
+is_running() {
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+ipc_call() {
+    "${OMD_QS_BIN:-qs}" -p "$app_dir" ipc call overview "$1" 2>/dev/null || true
+}
+
+launch_direct() {
+    exec "$qs_launcher" "$app_dir"
+}
+
+case "${1:-toggle}" in
+    toggle)
+        if is_running; then
+            ipc_call toggle
+        else
+            launch_direct
+        fi
+        ;;
+    open)
+        if is_running; then
+            ipc_call open
+        else
+            launch_direct
+        fi
+        ;;
+    close)
+        if is_running; then
+            ipc_call close
+        fi
+        ;;
+    *)
+        if is_running; then
+            ipc_call toggle
+        else
+            launch_direct
+        fi
+        ;;
+esac
