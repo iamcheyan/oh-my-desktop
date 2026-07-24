@@ -1,5 +1,5 @@
 import qs
-import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -18,24 +18,24 @@ PageBody {
     // ── Battery Status ───────────────────────────────────────────
             SettingsCard {
                 title: "Battery Status"
-                subtitle: Battery.isCharging ? "Charging" : Battery.isPluggedIn ? "Plugged in" : "On battery"
-                visible: Battery.available
+                subtitle: ServiceManager.power.battery.isCharging ? "Charging" : ServiceManager.power.battery.isPluggedIn ? "Plugged in" : "On battery"
+                visible: ServiceManager.power.battery.available
 
-                SettingsMeter { value: Battery.percentage * 100 }
-                SettingsRow { label: "Level"; value: `${Math.round(Battery.percentage * 100)}%` }
+                SettingsMeter { value: ServiceManager.power.battery.percentage * 100 }
+                SettingsRow { label: "Level"; value: `${Math.round(ServiceManager.power.battery.percentage * 100)}%` }
                 SettingsRow {
-                    label: Battery.isCharging ? "Time to full" : "Time to empty"
-                    value: settingsRoot.formatBatteryTime(Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty)
+                    label: ServiceManager.power.battery.isCharging ? "Time to full" : "Time to empty"
+                    value: settingsRoot.formatBatteryTime(ServiceManager.power.battery.isCharging ? ServiceManager.power.battery.timeToFull : ServiceManager.power.battery.timeToEmpty)
                 }
-                SettingsRow { label: "Power"; value: Battery.energyRate > 0.01 ? `${Battery.energyRate.toFixed(1)}W` : "--" }
-                SettingsRow { label: "Health"; value: Battery.healthPercentage > 0 ? `${Battery.healthPercentage.toFixed(1)}%` : "--" }
+                SettingsRow { label: "Power"; value: ServiceManager.power.battery.energyRate > 0.01 ? `${ServiceManager.power.battery.energyRate.toFixed(1)}W` : "--" }
+                SettingsRow { label: "Health"; value: ServiceManager.power.battery.healthPercentage > 0 ? `${ServiceManager.power.battery.healthPercentage.toFixed(1)}%` : "--" }
             }
 
             // ── Battery Protection ───────────────────────────────────────
             SettingsCard {
                 title: "Battery Protection & Charging"
                 subtitle: "Charge limit and low battery alerts"
-                visible: Battery.available
+                visible: ServiceManager.power.battery.available
 
                 SettingsSliderRow {
                     label: "Charge limit"
@@ -123,12 +123,12 @@ PageBody {
             // ── Power Profile ────────────────────────────────────────────
             SettingsCard {
                 title: "Power Profile"
-                subtitle: PowerProfiles.available ? PowerProfiles.currentProfile : "Not available"
+                subtitle: ServiceManager.power.powerProfiles.available ? ServiceManager.power.powerProfiles.currentProfile : "Not available"
 
                 ButtonRow {
-                    SettingsButton { label: "Saver"; active: PowerProfiles.currentProfile === "power-saver"; enabledState: PowerProfiles.available; onClicked: PowerProfiles.setProfile("power-saver") }
-                    SettingsButton { label: "Balanced"; active: PowerProfiles.currentProfile === "balanced"; enabledState: PowerProfiles.available; onClicked: PowerProfiles.setProfile("balanced") }
-                    SettingsButton { label: "Performance"; active: PowerProfiles.currentProfile === "performance"; enabledState: PowerProfiles.available; onClicked: PowerProfiles.setProfile("performance") }
+                    SettingsButton { label: "Saver"; active: ServiceManager.power.powerProfiles.currentProfile === "power-saver"; enabledState: ServiceManager.power.powerProfiles.available; onClicked: ServiceManager.power.powerProfiles.setProfile("power-saver") }
+                    SettingsButton { label: "Balanced"; active: ServiceManager.power.powerProfiles.currentProfile === "balanced"; enabledState: ServiceManager.power.powerProfiles.available; onClicked: ServiceManager.power.powerProfiles.setProfile("balanced") }
+                    SettingsButton { label: "Performance"; active: ServiceManager.power.powerProfiles.currentProfile === "performance"; enabledState: ServiceManager.power.powerProfiles.available; onClicked: ServiceManager.power.powerProfiles.setProfile("performance") }
                 }
             }
 
@@ -136,7 +136,7 @@ PageBody {
             SettingsCard {
                 title: "Power Profile Auto-Switching"
                 subtitle: "Automatically switch profile on AC/battery"
-                visible: Battery.available && PowerProfiles.available
+                visible: ServiceManager.power.battery.available && ServiceManager.power.powerProfiles.available
 
                 SettingsDropdownRow {
                     label: "Profile when plugged in (AC)"

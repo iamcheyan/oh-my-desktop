@@ -4,7 +4,6 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.modules.bar
-import qs.services
 import qs.core.runtime
 import QtQuick
 import QtQuick.Layouts
@@ -58,8 +57,8 @@ Item {
     }
 
     function pinOpen() { GlobalStates.barPopupEphemeral = false; }
-    function setSinkVolume(value) { audioPanel.pinOpen(); Audio.setSinkVolume(value); }
-    function setSourceVolume(value) { audioPanel.pinOpen(); Audio.setSourceVolume(value); }
+    function setSinkVolume(value) { audioPanel.pinOpen(); ServiceManager.audio.setSinkVolume(value); }
+    function setSourceVolume(value) { audioPanel.pinOpen(); ServiceManager.audio.setSourceVolume(value); }
     function mediaPrev() {
         audioPanel.pinOpen()
         ServiceManager.mpris.previousOrRewind()
@@ -75,7 +74,7 @@ Item {
     function toggleMediaMute() {
         audioPanel.pinOpen()
         if (!audioPanel.usePlayerVolume) {
-            Audio.toggleMute()
+            ServiceManager.audio.toggleMute()
             return
         }
         const volume = audioPanel.activePlayer.volume
@@ -350,7 +349,7 @@ Item {
             value: audioPanel.sinkVolume
             muted: audioPanel.sinkMuted
             onMoved: value => audioPanel.setSinkVolume(value)
-            onIconClicked: { audioPanel.pinOpen(); Audio.toggleMute() }
+            onIconClicked: { audioPanel.pinOpen(); ServiceManager.audio.toggleMute() }
         }
 
         PopupSliderRow {
@@ -358,7 +357,7 @@ Item {
             value: audioPanel.sourceVolume
             muted: audioPanel.sourceMuted
             onMoved: value => audioPanel.setSourceVolume(value)
-            onIconClicked: { audioPanel.pinOpen(); Audio.toggleMicMute() }
+            onIconClicked: { audioPanel.pinOpen(); ServiceManager.audio.toggleMicMute() }
         }
 
         // Thin divider
@@ -387,19 +386,19 @@ Item {
             }
 
             Repeater {
-                model: Audio.typedSinks
+                model: ServiceManager.audio.typedSinks
                 delegate: MouseArea {
                     id: sinkRow
                     required property var modelData
                     readonly property var node: modelData
                     readonly property bool isActive: {
-                        const cur = Audio.sink;
+                        const cur = ServiceManager.audio.sink;
                         if (!cur || !node)
                             return false;
                         if (cur.name && node.name && cur.name === node.name)
                             return true;
-                        return Audio.nodeObjectId(cur) === Audio.nodeObjectId(node)
-                            && Audio.nodeObjectId(node).length > 0;
+                        return ServiceManager.audio.nodeObjectId(cur) === ServiceManager.audio.nodeObjectId(node)
+                            && ServiceManager.audio.nodeObjectId(node).length > 0;
                     }
 
                     Layout.fillWidth: true
@@ -410,9 +409,9 @@ Item {
                     onClicked: {
                         audioPanel.pinOpen();
                         if (node)
-                            Audio.setDefaultSink(node);
+                            ServiceManager.audio.setDefaultSink(node);
                         else if (modelData?.name)
-                            Audio.setDefaultSinkByName(modelData.name);
+                            ServiceManager.audio.setDefaultSinkByName(modelData.name);
                     }
 
                     Rectangle {
@@ -438,7 +437,7 @@ Item {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: Audio.friendlyDeviceName(sinkRow.node)
+                                text: ServiceManager.audio.friendlyDeviceName(sinkRow.node)
                                 color: sinkRow.isActive ? TuiStyle.accent : TuiStyle.fg
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: sinkRow.isActive ? Font.DemiBold : Font.Normal
@@ -455,7 +454,7 @@ Item {
                 Layout.rightMargin: 16
                 Layout.preferredHeight: 36
                 verticalAlignment: Text.AlignVCenter
-                visible: Audio.typedSinks.length === 0
+                visible: ServiceManager.audio.typedSinks.length === 0
                 text: "No output devices"
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: TuiStyle.dim
@@ -480,19 +479,19 @@ Item {
             }
 
             Repeater {
-                model: Audio.typedSources
+                model: ServiceManager.audio.typedSources
                 delegate: MouseArea {
                     id: sourceRow
                     required property var modelData
                     readonly property var node: modelData
                     readonly property bool isActive: {
-                        const cur = Audio.source;
+                        const cur = ServiceManager.audio.source;
                         if (!cur || !node)
                             return false;
                         if (cur.name && node.name && cur.name === node.name)
                             return true;
-                        return Audio.nodeObjectId(cur) === Audio.nodeObjectId(node)
-                            && Audio.nodeObjectId(node).length > 0;
+                        return ServiceManager.audio.nodeObjectId(cur) === ServiceManager.audio.nodeObjectId(node)
+                            && ServiceManager.audio.nodeObjectId(node).length > 0;
                     }
 
                     Layout.fillWidth: true
@@ -503,9 +502,9 @@ Item {
                     onClicked: {
                         audioPanel.pinOpen();
                         if (node)
-                            Audio.setDefaultSource(node);
+                            ServiceManager.audio.setDefaultSource(node);
                         else if (modelData?.name)
-                            Audio.setDefaultSourceByName(modelData.name);
+                            ServiceManager.audio.setDefaultSourceByName(modelData.name);
                     }
 
                     Rectangle {
@@ -531,7 +530,7 @@ Item {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: Audio.friendlyDeviceName(sourceRow.node)
+                                text: ServiceManager.audio.friendlyDeviceName(sourceRow.node)
                                 color: sourceRow.isActive ? TuiStyle.accent : TuiStyle.fg
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: sourceRow.isActive ? Font.DemiBold : Font.Normal
@@ -549,7 +548,7 @@ Item {
                 Layout.preferredHeight: 36
                 Layout.bottomMargin: 8
                 verticalAlignment: Text.AlignVCenter
-                visible: Audio.typedSources.length === 0
+                visible: ServiceManager.audio.typedSources.length === 0
                 text: "No input devices"
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: TuiStyle.dim
@@ -558,7 +557,7 @@ Item {
             Item {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 8
-                visible: Audio.typedSources.length > 0
+                visible: ServiceManager.audio.typedSources.length > 0
             }
         }
     }
@@ -572,8 +571,8 @@ Item {
             const r = WheelUtils.getSteps(event.angleDelta.y, audioPanel.wheelAccum)
             audioPanel.wheelAccum = r.accum
             for (let i = 0; i < Math.abs(r.steps); i++) {
-                if (r.steps > 0) Audio.incrementVolume()
-                else if (r.steps < 0) Audio.decrementVolume()
+                if (r.steps > 0) ServiceManager.audio.incrementVolume()
+                else if (r.steps < 0) ServiceManager.audio.decrementVolume()
             }
             event.accepted = true
         }

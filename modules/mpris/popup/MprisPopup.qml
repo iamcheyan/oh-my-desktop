@@ -1,6 +1,5 @@
 // MPRIS media player controls — loads as a popup section inside the audio popup.
 // Shown when an active MPRIS player is detected; hidden otherwise.
-import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions
