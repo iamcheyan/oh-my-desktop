@@ -24,7 +24,7 @@ Singleton {
     readonly property string wifiModuleDir: {
         var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return mh + "/wifi"
-        return FileUtils.trimFileProtocol(Directories.root) + "/modules/wifi"
+        return FileUtils.trimFileProtocol(Directories.root) + "/../sumika-modules/wifi"
     }()
 
     property bool wifi: true

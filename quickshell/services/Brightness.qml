@@ -105,7 +105,7 @@ Singleton {
     readonly property string displayModuleDir: {
         var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         if (mh) return mh + "/display"
-        return FileUtils.trimFileProtocol(Directories.root) + "/modules/display"
+        return FileUtils.trimFileProtocol(Directories.root) + "/../sumika-modules/display"
     }()
 
     Process {
