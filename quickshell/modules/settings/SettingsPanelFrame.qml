@@ -24,8 +24,8 @@ Item {
 
     Rectangle {
         anchors.fill: parent
+        radius: TuiStyle.shellRadius
         color: TuiStyle.bg
-        radius: 0
         border.width: TuiStyle.borderWidth
         border.color: TuiStyle.shellBorder
         clip: true
