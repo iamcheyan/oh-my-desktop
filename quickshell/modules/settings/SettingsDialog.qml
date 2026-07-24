@@ -202,20 +202,11 @@ WindowDialog {
             iconName: root.pageIcon(root.currentPage)
             pageComponent: root.pageComponent(root.currentPage)
         }
-        // ── Key editor overlay (floating layer for remap-type presets) ──
-
-        KeyboardEditorOverlay {
-            anchors.fill: parent
-            settingsRoot: root
-            visible: root.currentPage === "keyremap" && root.keyremapEditingPreset !== ""
-            z: 55
-        }
-
         WallpaperSettings.WallpaperPickerDialog {
             id: wallpaperPicker
             onAccepted: (mode, path) => {
                 const action = mode === "folder" ? "set-folder" : "set-file";
-                Quickshell.execDetached(["bash", "-lc", `${Directories.root}/bin/omd-wallpaper ` + action + " " + root.shellQuote(path)]);
+                Quickshell.execDetached(["bash", "-lc", "omd-wallpaper " + action + " " + root.shellQuote(path)]);
                 root.wallpaperRefreshNonce += 1;
             }
         }
