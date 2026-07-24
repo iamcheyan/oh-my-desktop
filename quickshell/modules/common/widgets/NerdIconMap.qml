@@ -150,6 +150,7 @@ QtObject {
     readonly property string eyeDropper: "\uF1FB"              // fa-eye-dropper U+F1FB
     readonly property string video: "\uF03D"                   // fa-video U+F03D
     readonly property string keyboard: "\uF11C"                // fa-keyboard U+F11C
+    readonly property string keyboardSettings: "\uDB82\uDDF9"   // mdi-keyboard-settings U+F09F9
     readonly property string wrench: "\uF0AD"                  // fa-wrench U+F0AD
     readonly property string hourglass: "\uF254"               // fa-hourglass U+F254
     readonly property string inputMethod: "\uDB82\uDC81"       // mdi-onepassword U+F0881

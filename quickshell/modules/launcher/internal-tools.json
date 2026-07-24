@@ -4,7 +4,7 @@
     "name": "Key Test",
     "description": "Hardware key capture for keyboard diagnostics and OMD bind string generation",
     "command": ["$root/quickshell/tools/key-test"],
-    "icon": "inputMethod",
+    "icon": "keyboardSettings",
     "keywords": ["keyboard", "test", "diagnostic", "key", "capture", "evdev"]
   }
 ]
