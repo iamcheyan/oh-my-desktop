@@ -192,6 +192,12 @@ if [ -d "$extensions_dir" ] && command -v jq >/dev/null 2>&1; then
         if merge_manifest "$ext_mod_json" "$ext_mod_dir"; then
             # Symlink extension QML into the import path
             ln -sfn "$ext_mod_dir" "$ext_qml_root/qs/modules/$ext_id"
+            if [ -f "$ext_mod_dir/qmldir" ]; then
+                qml_mod_name=$(grep -E '^module\s+' "$ext_mod_dir/qmldir" 2>/dev/null | awk '{print $2}' | awk -F'.' '{print $NF}' || true)
+                if [ -n "$qml_mod_name" ] && [ "$qml_mod_name" != "$ext_id" ]; then
+                    ln -sfn "$ext_mod_dir" "$ext_qml_root/qs/modules/$qml_mod_name"
+                fi
+            fi
 
             # Add bin/ to PATH if it exists
             if [ -d "$ext_mod_dir/bin" ]; then

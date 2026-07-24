@@ -205,8 +205,10 @@ PanelWindow {
                 comment: "Open OMD themes and advanced tools",
                 keywords: ["tools", "theme", "voice", "keyboard", "windows", "vm", "omd"]
             });
-            if (!sameAppList(allApps, apps)) {
-                allApps = apps;
+            // Merge internal tools into the desktop app list
+            const merged = apps.concat(launcher.internalTools || []);
+            if (!sameAppList(allApps, merged)) {
+                allApps = merged;
             }
             if (!appsLoaded) {
                 appsLoaded = true;
@@ -375,7 +377,6 @@ PanelWindow {
         list.sort(byPriority);
         if (!sameAppList(filteredApps, list)) filteredApps = list;
     }
-
     onAllAppsChanged: if (pinnedIdsLoaded) buildFilteredList()
     onPinnedIdsChanged: if (appsLoaded) buildFilteredList()
     onInternalToolsChanged: mergeInternalTools()

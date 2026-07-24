@@ -193,4 +193,126 @@ Scope {
         }
     }
 
+    // ── Session action confirmation dialog ──────────────────────────────
+    PanelWindow {
+        id: confirmWindow
+        screen: root.popupScreen
+        visible: GlobalStates.sessionConfirmOpen && root.popupScreen
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
+        WlrLayershell.namespace: "quickshell:sessionConfirm"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+
+        anchors { top: true; left: true; right: true; bottom: true }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: GlobalStates.closeSessionConfirm()
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 320
+            height: confirmColumn.implicitHeight + 32
+            radius: 12
+            color: TuiStyle.bg
+            border.color: TuiStyle.menuBorder
+            border.width: 1
+
+            ColumnLayout {
+                id: confirmColumn
+                anchors {
+                    left: parent.left; right: parent.right
+                    top: parent.top; margins: 16
+                }
+                spacing: 16
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: GlobalStates.sessionConfirmLabel
+                    font.pixelSize: 16
+                    font.weight: Font.Medium
+                    color: TuiStyle.fg
+                    horizontalAlignment: Qt.AlignHCenter
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 44
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: cancelMouse.containsMouse ? TuiStyle.controlHover : "transparent"
+                            border.width: 1
+                            border.color: TuiStyle.panelAlt
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: "Cancel"
+                                font.pixelSize: 13
+                                color: TuiStyle.fg
+                            }
+                        }
+
+                        MouseArea {
+                            id: cancelMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: GlobalStates.closeSessionConfirm()
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 44
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 6
+                            color: confirmMouse.containsMouse ? TuiStyle.controlHover : TuiStyle.accent
+                            border.width: 1
+                            border.color: TuiStyle.panelAlt
+
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: "Confirm"
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                                color: TuiStyle.bg
+                            }
+                        }
+
+                        MouseArea {
+                            id: confirmMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                const a = GlobalStates.sessionConfirmAction
+                                GlobalStates.closeSessionConfirm()
+                                if (a && ActionManager.isAvailable(a))
+                                    ActionManager.invoke(a)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape) {
+                GlobalStates.closeSessionConfirm()
+                event.accepted = true
+            }
+        }
+    }
+
 }

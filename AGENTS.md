@@ -25,9 +25,10 @@ cd ~/development/OMD && ./Init.sh
 |Code + QML + assets|`~/development/OMD/`|git|
 |All modules (bar, wifi, settings, launcher, audio, display, overview, etc.)|`OMD/quickshell/modules/` (14 个)|git (主仓库)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
-|Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
+|Extensions|`~/.local/share/sumika-shell/extensions/<id>/`|user-installed, discovered at startup|
 |Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
 |Terminal configs (foot/kitty/alacritty/ghostty)|`~/.config/{foot,kitty,...}/`|chezmoi|
+|Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
 
 ### chezmoi: `~/.config/sumika-shell/` 规则
 
@@ -55,7 +56,7 @@ cd ~/development/OMD && ./Init.sh
 - **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
-- **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — user-installed extensions discovered at startup. Core modules always win on ID conflict.
+- **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — see [Extensions](#extensions) section below.
 
 ## Editing
 
@@ -69,7 +70,21 @@ cd ~/development/OMD && ./Init.sh
 
 ### Extensions
 
-Third-party modules go in `~/.local/share/sumika-shell/extensions/<id>/`:
+Overview of the extension (external module) system:
+
+|方面|具体|
+|---|---|
+|安装目录|`~/.local/share/sumika-shell/extensions/<id>/`|
+|约定文件|`module.json`、`qmldir`、`bin/`（可选）|
+|发现时机|Quickshell 启动时，core 模块扫描之后|
+|冲突策略|core 模块永远优先，同名扩展静默跳过|
+|QML import|自动 symlink 到运行时 import root|
+|`bin/`|自动加入 `PATH`|
+|CLI|`omd-modules extensions`|
+|诊断|`omd-doctor` + extensions section|
+
+### Extension Directory Structure
+
 ```
 <id>/
   module.json       # v2 manifest (required)
@@ -77,12 +92,15 @@ Third-party modules go in `~/.local/share/sumika-shell/extensions/<id>/`:
   *.qml             # QML source files
   bin/              # Optional: executables auto-added to PATH at startup
 ```
+
+**Rules:**
 - Extensions are scanned at Quickshell startup, after core modules.
 - **Core modules always win** on ID conflict — extension is silently skipped.
 - Extension QML imports (`import qs.modules.<id>`) work automatically via runtime symlink.
 - Extension `bin/` is added to `PATH` each startup.
 - Use `omd-modules extensions` to list installed extensions.
-
+- Run `omd-doctor` to diagnose extension issues.
+- **External module services MUST NOT** live in `quickshell/services/`. Service files for a module must be placed inside the module's own directory and registered via its `qmldir` as a singleton (`singleton <Type> 1.0 <File>.qml`). The former `InputMethod.qml`, `KeyboardRemap.qml` and any screenshot-session service are examples that should follow this pattern — core services only for core singletons.
 ### Omarchy / Hyprland
 
 - Config: `hypr/*.lua`. Autostart: `hypr/autostart.lua`. Reload: `hyprctl reload`.
