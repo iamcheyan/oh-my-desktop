@@ -18,6 +18,7 @@ Item {
     property bool identifying: false
     property bool userEdited: false
     property int revision: 0
+    readonly property string displayConfigBin: Directories.root + "/bin/omd-display-config"
 
     readonly property var visibleOutputs: (revision, outputs.filter(output => output.connected !== false && !draftFor(output.name).disabled))
     readonly property bool hasPendingChanges: userEdited
@@ -510,7 +511,7 @@ Item {
 
     function applyCommand() {
         return [
-            "omd-display-config",
+            displayConfigBin,
             "apply",
             JSON.stringify(monitorSpecs())
         ];
@@ -596,7 +597,7 @@ Item {
 
     Process {
         id: monitorProc
-        command: ["omd-display-config", "get"]
+        command: [displayConfigBin, "get"]
         stdout: StdioCollector {
             id: monitorCollector
             onStreamFinished: {

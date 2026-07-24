@@ -29,7 +29,6 @@ start_app() {
             --property=KillMode=process \
             --setenv=PATH="$PATH" \
             --setenv=OMD_ROOT="$OMD_ROOT" \
-            --setenv=SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-}" \
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
             --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
             --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
@@ -136,15 +135,6 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         elif echo "$first_cmd" | grep -qv '^/' && [ ! -x "$resolved_cmd" ]; then
             resolved_cmd="$OMD_ROOT/bin/$instance"
         fi
-
-        # Check SUMIKA_MODULES_HOME fallback for external modules.
-        if [ ! -x "$resolved_cmd" ] && [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
-            _fallback="$SUMIKA_MODULES_HOME/$module_id/bin/$instance"
-            if [ -x "$_fallback" ]; then
-                resolved_cmd="$_fallback"
-            fi
-        fi
-
         start_app "$instance" "$resolved_cmd"
     done
 elif [ -f "$_registry_file" ]; then

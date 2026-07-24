@@ -7,7 +7,7 @@ import qs.modules.common
 
 Singleton {
     id: root
-    readonly property string autoSavePrefix: Quickshell.env("SUMIKA_MODULES_HOME") ? `"${Quickshell.env("SUMIKA_MODULES_HOME")}/session/bin/omd-session" save-auto >/tmp/omd-session-auto-save.log 2>&1; ` : ""
+    readonly property string autoSavePrefix: ""
 
     function closeAllWindows() {
         // Use Hyprland's Lua dispatch so applications get a chance to save

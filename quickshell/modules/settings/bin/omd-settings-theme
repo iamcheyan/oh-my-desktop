@@ -1,0 +1,559 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+USER_THEMES_DIR="$OMD_ROOT/themes"
+SYSTEM_THEMES_DIR="$OMD_ROOT/share/themes"
+STATE_BASE="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+CURRENT_DIR="$STATE_BASE/theme"
+CURRENT_THEME_DIR="$CURRENT_DIR/current"
+CURRENT_NAME_FILE="$CURRENT_DIR/current-name"
+WALLPAPER_STATE_DIR="$STATE_BASE/wallpaper"
+QS_STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/states.json"
+WALLPAPER_INTERVAL_FILE="$WALLPAPER_STATE_DIR/interval"
+
+slug_to_title() {
+  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$1"
+}
+
+theme_preview() {
+  printf '\n'
+}
+
+kv() {
+  local key="$1" value="${2:-}"
+  value="${value//$'\n'/ }"
+  printf '%s=%s\n' "$key" "$value"
+}
+
+theme_base() {
+  local slug="$1"
+  if [[ -d "$USER_THEMES_DIR/$slug" ]]; then
+    printf '%s\n' "$USER_THEMES_DIR/$slug"
+  elif [[ -d "$SYSTEM_THEMES_DIR/$slug" ]]; then
+    printf '%s\n' "$SYSTEM_THEMES_DIR/$slug"
+  fi
+}
+
+color_from_toml() {
+  local toml="$1"
+  local key="$2"
+  [[ -f "$toml" ]] || return 0
+  awk -F= -v key="$key" '
+    $1 ~ "^[[:space:]]*" key "[[:space:]]*$" {
+      value = $2
+      gsub(/[[:space:]"\047]/, "", value)
+      print value
+      exit
+    }
+  ' "$toml"
+}
+
+hex_strip() {
+  local hex="$1"
+  hex="${hex#\#}"
+  printf '%s\n' "$hex"
+}
+
+hex_to_rgb() {
+  local hex
+  hex="$(hex_strip "$1")"
+  [[ ${#hex} -eq 6 ]] || { printf '0,0,0'; return; }
+  printf '%d,%d,%d' "0x${hex:0:2}" "0x${hex:2:2}" "0x${hex:4:2}"
+}
+
+theme_color() {
+  local slug="$1"
+  local key="$2"
+  local base
+
+  base="$(theme_base "$slug")"
+  if [[ -n "$base" ]]; then
+    color_from_toml "$base/colors.toml" "$key"
+    return
+  fi
+
+  printf '\n'
+}
+
+# Theme packs ship colors.toml only. After Omarchy cleanup removed
+# omarchy-theme-set-templates, OMD must generate runtime artifacts here.
+generate_theme_derivatives() {
+  local dir="${1:-$CURRENT_THEME_DIR}"
+  local toml="$dir/colors.toml"
+  local accent background foreground cursor selection_foreground selection_background
+  local c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 c10 c11 c12 c13 c14 c15
+
+  [[ -d "$dir" && -f "$toml" ]] || return 0
+
+  accent="$(color_from_toml "$toml" accent)"
+  background="$(color_from_toml "$toml" background)"
+  foreground="$(color_from_toml "$toml" foreground)"
+  cursor="$(color_from_toml "$toml" cursor)"
+  selection_foreground="$(color_from_toml "$toml" selection_foreground)"
+  selection_background="$(color_from_toml "$toml" selection_background)"
+
+  c0="$(color_from_toml "$toml" color0)"
+  c1="$(color_from_toml "$toml" color1)"
+  c2="$(color_from_toml "$toml" color2)"
+  c3="$(color_from_toml "$toml" color3)"
+  c4="$(color_from_toml "$toml" color4)"
+  c5="$(color_from_toml "$toml" color5)"
+  c6="$(color_from_toml "$toml" color6)"
+  c7="$(color_from_toml "$toml" color7)"
+  c8="$(color_from_toml "$toml" color8)"
+  c9="$(color_from_toml "$toml" color9)"
+  c10="$(color_from_toml "$toml" color10)"
+  c11="$(color_from_toml "$toml" color11)"
+  c12="$(color_from_toml "$toml" color12)"
+  c13="$(color_from_toml "$toml" color13)"
+  c14="$(color_from_toml "$toml" color14)"
+  c15="$(color_from_toml "$toml" color15)"
+
+  # Apply defaults if empty
+  [[ -n "$accent" ]] || accent="#eeeeee"
+  [[ -n "$background" ]] || background="#050505"
+  [[ -n "$foreground" ]] || foreground="#f4f4f4"
+  [[ -n "$cursor" ]] || cursor="$foreground"
+  [[ -n "$selection_foreground" ]] || selection_foreground="$background"
+  [[ -n "$selection_background" ]] || selection_background="$accent"
+
+  [[ -n "$c0" ]] || c0="#000000"
+  [[ -n "$c1" ]] || c1="#cc0403"
+  [[ -n "$c2" ]] || c2="#19cb00"
+  [[ -n "$c3" ]] || c3="#cecb00"
+  [[ -n "$c4" ]] || c4="#0d73cc"
+  [[ -n "$c5" ]] || c5="#cb1ed1"
+  [[ -n "$c6" ]] || c6="#0dcdcd"
+  [[ -n "$c7" ]] || c7="#dddddd"
+  [[ -n "$c8" ]] || c8="#767676"
+  [[ -n "$c9" ]] || c9="#f2201f"
+  [[ -n "$c10" ]] || c10="#23fd00"
+  [[ -n "$c11" ]] || c11="#fffd00"
+  [[ -n "$c12" ]] || c12="#1a8fff"
+  [[ -n "$c13" ]] || c13="#fd28ff"
+  [[ -n "$c14" ]] || c14="#14ffff"
+  [[ -n "$c15" ]] || c15="#ffffff"
+
+  if [[ ! -f "$dir/quickshell.json" ]]; then
+    cat >"$dir/quickshell.json" <<EOF
+{
+  "primary": "$accent",
+  "background": "$background",
+  "backgroundText": "$foreground"
+}
+EOF
+  fi
+
+  if [[ ! -f "$dir/hyprland.lua" ]]; then
+    local accent_strip
+    accent_strip="$(hex_strip "$accent")"
+    cat >"$dir/hyprland.lua" <<EOF
+local active_border_color = "rgb(${accent_strip})"
+
+hl.config({
+  general = {
+    col = {
+      active_border = active_border_color,
+    },
+  },
+
+  group = {
+    col = {
+      border_active = active_border_color,
+    },
+  },
+})
+EOF
+  fi
+
+  if [[ ! -f "$dir/foot.ini" ]]; then
+    local bg_s fg_s c0_s c1_s c2_s c3_s c4_s c5_s c6_s c7_s c8_s c9_s c10_s c11_s c12_s c13_s c14_s c15_s cur_s s_bg_s s_fg_s
+    bg_s="$(hex_strip "$background")"
+    fg_s="$(hex_strip "$foreground")"
+    cur_s="$(hex_strip "$cursor")"
+    s_fg_s="$(hex_strip "$selection_foreground")"
+    s_bg_s="$(hex_strip "$selection_background")"
+    c0_s="$(hex_strip "$c0")"
+    c1_s="$(hex_strip "$c1")"
+    c2_s="$(hex_strip "$c2")"
+    c3_s="$(hex_strip "$c3")"
+    c4_s="$(hex_strip "$c4")"
+    c5_s="$(hex_strip "$c5")"
+    c6_s="$(hex_strip "$c6")"
+    c7_s="$(hex_strip "$c7")"
+    c8_s="$(hex_strip "$c8")"
+    c9_s="$(hex_strip "$c9")"
+    c10_s="$(hex_strip "$c10")"
+    c11_s="$(hex_strip "$c11")"
+    c12_s="$(hex_strip "$c12")"
+    c13_s="$(hex_strip "$c13")"
+    c14_s="$(hex_strip "$c14")"
+    c15_s="$(hex_strip "$c15")"
+
+    cat >"$dir/foot.ini" <<EOF
+[colors]
+background=${bg_s}
+foreground=${fg_s}
+regular0=${c0_s}
+regular1=${c1_s}
+regular2=${c2_s}
+regular3=${c3_s}
+regular4=${c4_s}
+regular5=${c5_s}
+regular6=${c6_s}
+regular7=${c7_s}
+bright0=${c8_s}
+bright1=${c9_s}
+bright2=${c10_s}
+bright3=${c11_s}
+bright4=${c12_s}
+bright5=${c13_s}
+bright6=${c14_s}
+bright7=${c15_s}
+EOF
+  fi
+
+  if [[ ! -f "$dir/alacritty.toml" ]]; then
+    cat >"$dir/alacritty.toml" <<EOF
+[colors.primary]
+background = "${background}"
+foreground = "${foreground}"
+
+[colors.cursor]
+text = "${background}"
+cursor = "${cursor}"
+
+[colors.vi_mode_cursor]
+text = "${background}"
+cursor = "${cursor}"
+
+[colors.search.matches]
+foreground = "${background}"
+background = "${c3}"
+
+[colors.search.focused_match]
+foreground = "${background}"
+background = "${c1}"
+
+[colors.footer_bar]
+foreground = "${background}"
+background = "${foreground}"
+
+[colors.selection]
+text = "${selection_foreground}"
+background = "${selection_background}"
+
+[colors.normal]
+black = "${c0}"
+red = "${c1}"
+green = "${c2}"
+yellow = "${c3}"
+blue = "${c4}"
+magenta = "${c5}"
+cyan = "${c6}"
+white = "${c7}"
+
+[colors.bright]
+black = "${c8}"
+red = "${c9}"
+green = "${c10}"
+yellow = "${c11}"
+blue = "${c12}"
+magenta = "${c13}"
+cyan = "${c14}"
+white = "${c15}"
+EOF
+  fi
+
+  if [[ ! -f "$dir/kitty.conf" ]]; then
+    cat >"$dir/kitty.conf" <<EOF
+foreground ${foreground}
+background ${background}
+selection_foreground ${selection_foreground}
+selection_background ${selection_background}
+
+cursor ${cursor}
+cursor_text_color ${background}
+
+active_border_color ${accent}
+active_tab_background ${accent}
+
+color0 ${c0}
+color1 ${c1}
+color2 ${c2}
+color3 ${c3}
+color4 ${c4}
+color5 ${c5}
+color6 ${c6}
+color7 ${c7}
+color8 ${c8}
+color9 ${c9}
+color10 ${c10}
+color11 ${c11}
+color12 ${c12}
+color13 ${c13}
+color14 ${c14}
+color15 ${c15}
+EOF
+  fi
+
+  if [[ ! -f "$dir/ghostty.conf" ]]; then
+    cat >"$dir/ghostty.conf" <<EOF
+background = ${background}
+foreground = ${foreground}
+cursor-color = ${cursor}
+selection-background = ${selection_background}
+selection-foreground = ${selection_foreground}
+
+palette = 0=${c0}
+palette = 1=${c1}
+palette = 2=${c2}
+palette = 3=${c3}
+palette = 4=${c4}
+palette = 5=${c5}
+palette = 6=${c6}
+palette = 7=${c7}
+palette = 8=${c8}
+palette = 9=${c9}
+palette = 10=${c10}
+palette = 11=${c11}
+palette = 12=${c12}
+palette = 13=${c13}
+palette = 14=${c14}
+palette = 15=${c15}
+EOF
+  fi
+}
+
+list_themes() {
+  local current
+  current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+
+  {
+    find "$USER_THEMES_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null || true
+    find "$SYSTEM_THEMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null || true
+  } | sort -u | while IFS= read -r slug; do
+    [[ -n "$slug" ]] || continue
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$slug" \
+      "$(slug_to_title "$slug")" \
+      "$(theme_preview "$slug")" \
+      "$([[ "$slug" == "$current" ]] && printf current || printf available)" \
+      "$(theme_color "$slug" accent)" \
+      "$(theme_color "$slug" background)" \
+      "$(theme_color "$slug" foreground)"
+  done
+}
+
+current_theme() {
+  local current
+  current="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+  if [[ -n "$current" ]]; then
+    printf 'slug=%s\nname=%s\npreview=%s\naccent=%s\nbackground=%s\nforeground=%s\n' \
+      "$current" \
+      "$(slug_to_title "$current")" \
+      "$(theme_preview "$current")" \
+      "$(theme_color "$current" accent)" \
+      "$(theme_color "$current" background)" \
+      "$(theme_color "$current" foreground)"
+  else
+    printf 'slug=\nname=Unknown\npreview=\naccent=\nbackground=\nforeground=\n'
+  fi
+}
+
+wallpaper_image_count() {
+  local source="$1"
+  [[ -d "$source" ]] || { printf '0\n'; return; }
+  find -L "$source" -maxdepth 1 -type f \( \
+    -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o \
+    -iname '*.bmp' -o -iname '*.gif' \
+  \) 2>/dev/null | wc -l | awk '{print $1}'
+}
+
+wallpaper_status() {
+  local status mode source current interval count
+  status="$("$OMD_ROOT/bin/omd-wallpaper" status 2>/dev/null || true)"
+  mode="$(printf '%s\n' "$status" | awk -F= '$1=="mode"{print $2; exit}')"
+  source="$(printf '%s\n' "$status" | awk -F= '$1=="source"{print $2; exit}')"
+  current="$(printf '%s\n' "$status" | awk -F= '$1=="current"{print $2; exit}')"
+  interval="$(cat "$WALLPAPER_INTERVAL_FILE" 2>/dev/null || printf '%s' "$(printf '%s\n' "$status" | awk -F= '$1=="interval"{print $2; exit}')")"
+  [[ -n "$mode" ]] || mode=file
+  [[ -n "$interval" ]] || interval=3600
+  count=0
+  if [[ "$mode" == "folder" && -n "$source" ]]; then
+    count="$(wallpaper_image_count "$source")"
+  fi
+  kv wallpaper.mode "$mode"
+  kv wallpaper.source "$source"
+  kv wallpaper.current "$current"
+  kv wallpaper.interval "$interval"
+  kv wallpaper.imageCount "$count"
+}
+
+effect_mode() {
+  python3 - "$QS_STATE_FILE" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    print(data.get("display", {}).get("optimization", "balanced") or "balanced")
+except Exception:
+    print("balanced")
+PY
+}
+
+write_effect_mode() {
+  local mode="$1"
+  mkdir -p "$(dirname "$QS_STATE_FILE")"
+  python3 - "$QS_STATE_FILE" "$mode" <<'PY'
+import json, os, sys
+path, mode = sys.argv[1], sys.argv[2]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    data = {}
+display = data.setdefault("display", {})
+display["optimization"] = mode
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+}
+
+apply_effect_mode() {
+  local mode="$1" eval_str=""
+  case "$mode" in
+    performance)
+      eval_str='hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })'
+      ;;
+    balanced)
+      eval_str='hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })'
+      ;;
+    visuals)
+      eval_str='hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })'
+      ;;
+    *)
+      echo "usage: omd-settings-theme effects <performance|balanced|visuals>" >&2
+      exit 2
+      ;;
+  esac
+  write_effect_mode "$mode"
+  hyprctl eval "$eval_str" >/dev/null 2>&1 || true
+  kv result "effects-set"
+  kv effects.mode "$mode"
+}
+
+appearance_status() {
+  current_theme
+  wallpaper_status
+  kv effects.mode "$(effect_mode)"
+}
+
+copy_theme() {
+  local source="$1"
+  mkdir -p "$CURRENT_DIR"
+  rm -rf "$CURRENT_THEME_DIR"
+  cp -a "$source" "$CURRENT_THEME_DIR"
+  generate_theme_derivatives "$CURRENT_THEME_DIR"
+}
+
+refresh_running_apps() {
+  local app qs_cmd="${QS_CMD:-qs}"
+  local apps=(omd-bar omd-overview omd-applauncher omd-clipboard)
+
+  for app in "${apps[@]}"; do
+    [[ -d "$OMD_ROOT/apps/$app" ]] || continue
+    "$qs_cmd" -p "$OMD_ROOT/apps/$app" ipc call theme reload >/dev/null 2>&1 || true
+  done
+  local wallpaper_mode
+  wallpaper_mode="$(cat "$WALLPAPER_STATE_DIR/mode" 2>/dev/null || echo "file")"
+  if [[ "$wallpaper_mode" == "color" ]]; then
+    "$OMD_ROOT/bin/omd-wallpaper" set-color >/dev/null 2>&1 || true
+  fi
+
+  # Hyprland border colors come from current/theme/hyprland.lua
+  hyprctl reload >/dev/null 2>&1 || true
+
+  # Reload terminal configs and live terminal colors.
+  "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
+
+  # Reload Helix instances
+  if pgrep -x helix >/dev/null; then
+    pkill -USR1 helix >/dev/null 2>&1 || true
+  fi
+
+  # Reload Neovim instances via remote server socket IPC
+  local socket_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  if [[ -d "$socket_dir" ]]; then
+    local sockets
+    sockets=($(find "$socket_dir" -name "nvim.*" 2>/dev/null || true))
+    local socket
+    for socket in "${sockets[@]}"; do
+      if [[ -S "$socket" ]]; then
+        sh -c 'nvim --server "$1" --remote-send "<C-\><C-N>:OmarchyThemeReload<CR>" >/dev/null 2>&1; true' _ "$socket" >/dev/null 2>&1 || true
+      fi
+    done
+  fi
+}
+
+apply_theme() {
+  local slug="${1:-}"
+  local base
+
+  [[ -n "$slug" ]] || { echo "usage: omd-settings-theme apply <theme-slug>" >&2; exit 2; }
+  base="$(theme_base "$slug")"
+  [[ -n "$base" ]] || { echo "theme not found: $slug" >&2; exit 1; }
+
+  copy_theme "$base"
+  printf '%s\n' "$slug" >"$CURRENT_NAME_FILE"
+  refresh_running_apps
+}
+
+repair_current_theme() {
+  local slug
+  slug="$(cat "$CURRENT_NAME_FILE" 2>/dev/null || true)"
+  if [[ -z "$slug" ]]; then
+    echo "no active theme in $CURRENT_NAME_FILE" >&2
+    exit 1
+  fi
+  if [[ ! -d "$CURRENT_THEME_DIR" || ! -f "$CURRENT_THEME_DIR/colors.toml" ]]; then
+    apply_theme "$slug"
+    return
+  fi
+  generate_theme_derivatives "$CURRENT_THEME_DIR"
+  refresh_running_apps
+}
+
+case "${1:-list}" in
+  list) list_themes ;;
+  current) current_theme ;;
+  appearance-status) appearance_status ;;
+  wallpaper-status) wallpaper_status ;;
+  wallpaper-set-color) "$OMD_ROOT/bin/omd-wallpaper" set-color; wallpaper_status ;;
+  wallpaper-next) "$OMD_ROOT/bin/omd-wallpaper" random; wallpaper_status ;;
+  wallpaper-stop) "$OMD_ROOT/bin/omd-wallpaper" stop; wallpaper_status ;;
+  wallpaper-pick-file) "$OMD_ROOT/bin/omd-wallpaper" pick-file; wallpaper_status ;;
+  wallpaper-pick-folder) "$OMD_ROOT/bin/omd-wallpaper" pick-folder; wallpaper_status ;;
+  wallpaper-interval)
+    [[ -n "${2:-}" ]] || { echo "usage: omd-settings-theme wallpaper-interval <seconds>" >&2; exit 2; }
+    [[ "$2" =~ ^[0-9]+$ ]] && (( "$2" > 0 )) || { echo "wallpaper interval must be a positive number of seconds" >&2; exit 2; }
+    mkdir -p "$(dirname "$WALLPAPER_INTERVAL_FILE")"
+    printf '%s\n' "$2" >"$WALLPAPER_INTERVAL_FILE"
+    # Restart the folder timer without using `stop`: stop intentionally
+    # changes the persistent mode to file and used to disable rotation here.
+    "$OMD_ROOT/bin/omd-wallpaper" restart >/dev/null 2>&1 || true
+    wallpaper_status
+    ;;
+  effects) apply_effect_mode "${2:-}" ;;
+  apply) apply_theme "${2:-}" ;;
+  repair) repair_current_theme ;;
+  *)
+    echo "usage: omd-settings-theme list|current|appearance-status|wallpaper-status|wallpaper-next|wallpaper-stop|wallpaper-pick-file|wallpaper-pick-folder|wallpaper-interval <seconds>|effects <mode>|apply <theme-slug>|repair" >&2
+    exit 2
+    ;;
+esac

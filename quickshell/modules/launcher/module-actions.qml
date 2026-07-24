@@ -6,12 +6,9 @@ import Quickshell
 /// Loaded by ModuleActionHost when the launcher module is enabled.
 Item {
     Component.onCompleted: {
-        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
         var omdRoot = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
         var cmd
-        if (mh) {
-            cmd = [mh + "/launcher/bin/omd-applauncher"]
-        } else if (omdRoot) {
+        if (omdRoot) {
             cmd = [omdRoot + "/bin/omd-applauncher"]
         } else {
             cmd = ["omd-applauncher"]

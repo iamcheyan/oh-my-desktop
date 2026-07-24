@@ -23,12 +23,11 @@ cd ~/development/OMD && ./Init.sh
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|Core shared QML (bar, common, polkit)|`OMD/quickshell/modules/` (3 个)|git (主仓库)|
-|External modules (非核心、全部功能模块)|`$SUMIKA_MODULES_HOME` → `~/development/sumika-modules/` (27 个)|git (separate repo)|
+|All modules (bar, wifi, settings, launcher, audio, display, overview, etc.)|`OMD/quickshell/modules/` (13 个)|git (主仓库)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
 |Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
-| Terminal configs (foot/kitty/alacritty/ghostty) | `~/.config/{foot,kitty,...}/` | chezmoi |
+|Terminal configs (foot/kitty/alacritty/ghostty)|`~/.config/{foot,kitty,...}/`|chezmoi|
 
 ### chezmoi: `~/.config/sumika-shell/` 规则
 
@@ -52,13 +51,9 @@ cd ~/development/OMD && ./Init.sh
 * **Quickshell config**: user override at `~/.config/sumika-shell/sumika.json` (unified config via sumika.json), baseline at `defaults/config/quickshell/config.json`.
 - **Themes**: `OmarchyTheme.qml` reads `~/.local/state/sumika-shell/theme/current/colors.toml`; 22 themes in `share/themes/`.
 - **Wallpaper**: `swaybg` via autostart; `bin/omd-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
-## Quickshell (shell UI)
-  
-- **Shared widgets**: `quickshell/modules/common/widgets/` — QML component library.
-- **Services**: QML singletons via `import qs.services`.
+- **Quickshell Shell UI**: `quickshell/` root with `modules/` subdirectories for each component.
+- **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-|   - **Core shared QML modules**: `quickshell/modules/<name>/` — 3 shared QML import modules (bar, common, polkit). Settings framework moved to `$SUMIKA_MODULES_HOME/settings/`.|
-- **External modules**: `$SUMIKA_MODULES_HOME/<name>/` — 27 feature modules in separate repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - **Voice**: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
 
@@ -69,8 +64,7 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-|   - Core shared QML: `quickshell/modules/<name>/` — 3 shared QML import modules.
-- External modules: `$SUMIKA_MODULES_HOME/<name>/` — 27 feature modules in separate repo.
+- Default module QML: `modules/<name>/` — 13 modules in this repo.
 - Bar popups: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - Voice: `AudioButton.qml` + `BarStatusPopup.qml`, hotkey ALT+A. Trigger via `qs -p ~/.config/omd/apps/omd-bar ipc call voice toggle`.
 
@@ -88,14 +82,13 @@ cd ~/development/OMD && ./Init.sh
 
 ## Path API
 
-| Env var | Fallback | Used by |
-|---------|----------|---------|
-| `SUMIKA_SHELL_CONFIG_HOME` | `$XDG_CONFIG_HOME/sumika-shell` → `~/.config/sumika-shell` | Shell scripts |
-| `SUMIKA_SHELL_STATE_HOME` | `$XDG_STATE_HOME/sumika-shell` → `~/.local/state/sumika-shell` | Shell scripts |
-| `SUMIKA_SHELL_ROOT` | `$OMD_ROOT` → `~/.config/omd` (symlink to repo) | Shell scripts |
-| `Directories.config + "/sumika-shell"` | — | QML (config path) |
-| `Directories.sumikaStateHome` | `$XDG_STATE_HOME/sumika-shell` | QML (state path) |
-|`SUMIKA_MODULES_HOME`|`~/development/sumika-modules/` (also configurable via `quickshell/config.json:modules.dir`)|Shell scripts, Python tools|All feature modules live here; OMD/quickshell/ provides shared QML imports
+|Env var|Fallback|Used by|
+|---|---|---|
+|`SUMIKA_SHELL_CONFIG_HOME`|`$XDG_CONFIG_HOME/sumika-shell` → `~/.config/sumika-shell`|Shell scripts|
+|`SUMIKA_SHELL_STATE_HOME`|`$XDG_STATE_HOME/sumika-shell` → `~/.local/state/sumika-shell`|Shell scripts|
+|`SUMIKA_SHELL_ROOT`|`$OMD_ROOT` → `~/.config/omd` (symlink to repo)|Shell scripts|
+|`Directories.config + "/sumika-shell"`|—|QML (config path)|
+|`Directories.sumikaStateHome`|`$XDG_STATE_HOME/sumika-shell`|QML (state path)|
 
 **Shell**: `. "$_omd_root/lib/paths.sh"` → all vars.
 **Lua**: `local paths = require("default.hypr.paths")` → `paths.omd_root`, `paths.config_home`, `paths.state_home`.

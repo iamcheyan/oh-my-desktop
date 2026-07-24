@@ -58,13 +58,11 @@ SUMIKA_SHELL_CONFIG_HOME="${SUMIKA_SHELL_CONFIG_HOME:-$_xdg_config/sumika-shell}
 SUMIKA_SHELL_STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-$_xdg_state/sumika-shell}"
 SUMIKA_SHELL_DATA_HOME="${SUMIKA_SHELL_DATA_HOME:-$_xdg_data/sumika-shell}"
 SUMIKA_SHELL_RUNTIME_DIR="${SUMIKA_SHELL_RUNTIME_DIR:-$_xdg_runtime/sumika-shell}"
-SUMIKA_MODULES_HOME="${SUMIKA_MODULES_HOME:-$HOME/development/sumika-modules}"
 
 export SUMIKA_SHELL_CONFIG_HOME
 export SUMIKA_SHELL_STATE_HOME
 export SUMIKA_SHELL_DATA_HOME
 export SUMIKA_SHELL_RUNTIME_DIR
-export SUMIKA_MODULES_HOME
 
 unset _xdg_config _xdg_state _xdg_data _xdg_runtime
 

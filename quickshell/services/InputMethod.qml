@@ -12,11 +12,12 @@ Singleton {
     id: root
 
     readonly property string helper: (function() {
-        const mh = Quickshell.env("SUMIKA_MODULES_HOME")
-        if (mh) return `${mh}/input-method/bin/omd-input-method`
-        const fallback = `${FileUtils.trimFileProtocol(Directories.root)}/../sumika-modules/input-method/bin/omd-input-method`
-        console.warn("[InputMethod] SUMIKA_MODULES_HOME not set, using fallback:", fallback)
-        return fallback
+        const root = FileUtils.trimFileProtocol(Directories.root)
+        const imDir = root + "/quickshell/modules/input-method"
+        if (FileUtils.exists(imDir))
+            return imDir + "/bin/omd-input-method"
+        console.warn("[InputMethod] input-method module not in core, input method agent unavailable")
+        return ""
     })()
     property bool available: false
     property bool busy: false

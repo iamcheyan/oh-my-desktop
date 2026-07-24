@@ -13,8 +13,6 @@ Singleton {
     id: root
 
     readonly property string omdBinDir: (function() {
-        var mh = Quickshell.env("SUMIKA_MODULES_HOME")
-        if (mh) return mh + "/wifi/bin"
         var root = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
         if (root) return root + "/quickshell/modules/wifi/bin"
         return FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi/bin"

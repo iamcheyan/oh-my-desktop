@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Route settings TUI pages to the Python curses implementations.
+# Route settings TUI pages — only routes with core binaries are active.
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
 
-route="${1:-windows}"
+route="${1:-help}"
 
 case "$route" in
   -h|--help|help)
@@ -13,36 +13,15 @@ case "$route" in
 Usage: omd-settings-tui [page]
 
 Pages:
-  windows    Windows VM settings and connection controls
   theme      Theme picker and active theme info
-  voice      Voice input setup, model, and keybindings
-  keyboard   Keyboard Remap settings, presets, and visual key picker
-  ocr        OCR engine setup, test, and diagnostic
-  backup     File share / Backup settings
 EOF
-    ;;
-  windows|windows-vm|vm)
-    exec python3 "$SUMIKA_MODULES_HOME/windows-vm/bin/omd-settings-vm-tui"
+    exit 0
     ;;
   theme|appearance)
-    exec python3 "$SUMIKA_MODULES_HOME/settings/bin/omd-settings-theme-tui"
-    ;;
-  voice|voice-input)
-    exec python3 "$SUMIKA_MODULES_HOME/voice/bin/omd-settings-voice-tui"
-    ;;
-  keyboard|keyboard-remap|remap)
-    exec python3 "$SUMIKA_MODULES_HOME/keyboard-remap/bin/omd-settings-keyboard-tui"
-    ;;
-  ocr|paddleocr|recognition)
-    exec python3 "$SUMIKA_MODULES_HOME/ocr/bin/omd-settings-ocr-tui"
-    ;;
-  backup|file-share|sync)
-    exec python3 "$SUMIKA_MODULES_HOME/file-backup/bin/omd-settings-backup-tui"
+    exec python3 "$OMD_ROOT/quickshell/modules/settings/bin/omd-settings-theme-tui"
     ;;
   *)
-    echo "unknown settings page: $route" >&2
-    echo >&2
-    exec "$0" help >&2
+    echo "omd-settings-tui: unknown page '$route' (only 'theme' available in core)" >&2
     exit 2
     ;;
 esac

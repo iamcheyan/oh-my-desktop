@@ -27,7 +27,14 @@ Singleton {
     property bool functionRowBusy: false
     property string functionRowError: ""
 
-    readonly property string shareDir: FileUtils.trimFileProtocol(`${Quickshell.env("SUMIKA_MODULES_HOME")}/keyboard-remap/bin`)
+    readonly property string shareDir: (function() {
+        const root = FileUtils.trimFileProtocol(Directories.root)
+        const kbDir = root + "/quickshell/modules/keyboard-remap"
+        if (FileUtils.exists(kbDir))
+            return kbDir + "/bin"
+        console.warn("[KeyboardRemap] keyboard-remap module not in core, binaries unavailable")
+        return ""
+    })()
     // Sumika Shell config home (user-authored data lives here)
     readonly property string sumikaConfigHome: `${FileUtils.trimFileProtocol(Directories.config)}/sumika-shell`
     // Canonical write path (new location)

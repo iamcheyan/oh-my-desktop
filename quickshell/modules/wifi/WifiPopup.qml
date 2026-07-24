@@ -340,23 +340,60 @@ ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
 
-                                SettingsButton {
+                                Rectangle {
                                     Layout.fillWidth: true
-                                    label: ServiceManager.network.wifiConnecting ? "…" : "Connect"
-                                    iconName: "link"
-                                    active: true
-                                    enabledState: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0
-                                    onClicked: {
-                                        GlobalStates.barPopupEphemeral = false;
-                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                    Layout.preferredHeight: 34
+                                    radius: 6
+                                    color: {
+                                        if (!ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 && wifiPassMouse.containsMouse)
+                                            return TuiStyle.accent;
+                                        return TuiStyle.control;
+                                    }
+                                    opacity: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 ? 1 : 0.5
+
+                                    StyledText {
+                                        anchors.centerIn: parent
+                                        text: ServiceManager.network.wifiConnecting ? "Connecting…" : "Connect"
+                                        color: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 ? TuiStyle.fg : TuiStyle.muted
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                    }
+
+                                    MouseArea {
+                                        id: wifiPassMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0
+                                        onClicked: {
+                                            GlobalStates.barPopupEphemeral = false;
+                                            ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
+                                        }
                                     }
                                 }
-                                SettingsButton {
+                                Rectangle {
                                     Layout.fillWidth: true
-                                    label: "Cancel"
-                                    iconName: "close"
-                                    enabledState: !ServiceManager.network.wifiConnecting
-                                    onClicked: ServiceManager.network.cancelWifiPassword()
+                                    Layout.preferredHeight: 34
+                                    radius: 6
+                                    color: cancelBtnMouse.containsMouse ? TuiStyle.surfaceHover : TuiStyle.control
+                                    opacity: !ServiceManager.network.wifiConnecting ? 1 : 0.5
+                                    border.width: 1
+                                    border.color: TuiStyle.line
+
+                                    StyledText {
+                                        anchors.centerIn: parent
+                                        text: "Cancel"
+                                        color: !ServiceManager.network.wifiConnecting ? TuiStyle.fg : TuiStyle.muted
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                    }
+
+                                    MouseArea {
+                                        id: cancelBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: !ServiceManager.network.wifiConnecting
+                                        onClicked: ServiceManager.network.cancelWifiPassword()
+                                    }
                                 }
                             }
                         }

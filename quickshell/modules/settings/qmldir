@@ -1,0 +1,4 @@
+module qs.modules.settings
+singleton SettingsTokens 1.0 SettingsTokens.qml
+SettingsDialog 1.0 SettingsDialog.qml
+SettingsPanelFrame 1.0 SettingsPanelFrame.qml

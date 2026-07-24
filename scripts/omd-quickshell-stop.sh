@@ -65,9 +65,6 @@ WATCHERS
     # previous unit names, failed stops, or path-based launches). Do not use a
     # bare `pkill quickshell` — only configs under this repo / known roots.
     pkill -f "/usr/bin/quickshell -p ${omd_root}/" 2>/dev/null || true
-    if [ -n "${SUMIKA_MODULES_HOME:-}" ]; then
-        pkill -f "/usr/bin/quickshell -p ${SUMIKA_MODULES_HOME}/" 2>/dev/null || true
-    fi
     sleep 0.15
 
     for app in $apps; do

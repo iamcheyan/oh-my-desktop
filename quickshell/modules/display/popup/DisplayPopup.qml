@@ -1,14 +1,13 @@
+import qs.core.runtime
 import qs.modules.common.widgets
 import qs
 import qs.modules.bar
 import qs.modules.common
-import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import qs.modules.common.widgets
 
 PopupColumn {
     id: displayPanel
@@ -37,6 +36,12 @@ PopupColumn {
         tone: !canControlBrightness
             ? TuiStyle.warning
             : (Hyprsunset.temperatureActive ? TuiStyle.warning : TuiStyle.accent)
+        actionIcon: "settings"
+        actionTooltip: "显示器设置"
+        onActionClicked: {
+            var repoRoot = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root);
+            Quickshell.execDetached([repoRoot + "/bin/omd-settings", "open", "display"]);
+        }
     }
 
     // Brightness slider — only this monitor (same rules as omd-brightness-display)
@@ -82,34 +87,4 @@ PopupColumn {
         }
     }
 
-    ToolLauncherRow {
-        Layout.fillWidth: true
-        icon: "palette"
-        title: "Themes"
-        subtitle: "Colors, fonts and desktop appearance"
-        onClicked: {
-            GlobalStates.barPopupType = "";
-            const rootDir = FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT") || Directories.root)
-            Quickshell.execDetached([`${rootDir}/bin/omd-settings`, "open", "themes"]);
-        }
-    }
-    SettingsButton {
-        label: qsTr("Display Settings")
-        iconName: "desktop_windows"
-        onClicked: {
-            GlobalStates.barPopupType = "";
-            const rootDir = FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT") || Directories.root)
-            Quickshell.execDetached([`${rootDir}/bin/omd-settings`, "open", "display"]);
-        }
-    }
-
-    PopupFooterLink {
-        Layout.fillWidth: true
-        label: "Display settings…"
-        onClicked: {
-            GlobalStates.barPopupType = "";
-            const rootDir = FileUtils.trimFileProtocol(Quickshell.env("OMD_REPO_ROOT") || Directories.root)
-            Quickshell.execDetached([`${rootDir}/bin/omd-settings`, "open", "display"]);
-        }
-    }
 }

@@ -181,8 +181,9 @@ Singleton {
                 case "process":
                     if (Array.isArray(h.command) && h.command.length > 0) {
                         var cmd = h.command
-                        if (params && params.page) {
-                            cmd = h.command.concat([params.page])
+                        var pageArg = params ? (params.page || params.section || params.requestedPage || "") : ""
+                        if (pageArg) {
+                            cmd = h.command.concat([pageArg])
                         }
                         Quickshell.execDetached(cmd)
                     } else {
@@ -344,13 +345,14 @@ Singleton {
         }, {description: "Reload the Quickshell UI"})
 
         // Settings
+        var omdBinDir = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || (Quickshell.env("HOME") + "/development/OMD")
+        var settingsCmd = omdBinDir + "/bin/omd-settings"
         this.register("settings.open", "core", "Open settings", {
             type: "process",
-            command: [Quickshell.env("OMD_REPO_ROOT") + "/bin/omd-settings", "open"]
+            command: [settingsCmd, "open"]
         }, {description: "Open system settings", paramsSchema: {type: "object", properties: {page: {type: "string"}}}})
 
         // Overview — uses canonical omd-overview script
-        var omdBinDir = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || (Quickshell.env("HOME") + "/development/OMD")
         var overviewCmd = omdBinDir + "/bin/omd-overview"
         this.register("overview.open", "core", "Open overview", {
             type: "process",
@@ -641,6 +643,34 @@ Singleton {
         }
 
         console.log("[ActionManager] registered " + actions.length + " actions from registry")
+    }
+
+    IpcHandler {
+        target: "action"
+
+        function call(id: string, paramsStr: string): void {
+            var params = null
+            if (paramsStr && paramsStr.length > 0) {
+                try {
+                    params = JSON.parse(paramsStr)
+                } catch (e) {
+                    params = { page: paramsStr, section: paramsStr }
+                }
+            }
+            manager.invoke(id, params)
+        }
+
+        function list(): var {
+            return manager.getActionList()
+        }
+
+        function query(id: string): var {
+            return manager.query(id)
+        }
+
+        function isAvailable(id: string): bool {
+            return manager.isAvailable(id)
+        }
     }
 
     Component.onCompleted: {

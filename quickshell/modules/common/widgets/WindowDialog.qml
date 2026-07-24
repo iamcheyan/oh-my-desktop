@@ -32,15 +32,22 @@ Rectangle {
     color: "transparent"
     visible: dialogBackground.implicitHeight > 0
 
+    Timer {
+        id: dismissGuardTimer
+        interval: 200
+        repeat: false
+    }
+
     onShowChanged: {
         dialogBackgroundHeightAnimation.easing.bezierCurve = (show ? Appearance.animationCurves.emphasizedDecel : Appearance.animationCurves.emphasizedAccel)
+        if (show) dismissGuardTimer.restart()
     }
 
     radius: 0
 
     MouseArea {
         anchors.fill: parent
-        enabled: root.dismissOnBackgroundPress
+        enabled: root.dismissOnBackgroundPress && root.show && !dismissGuardTimer.running
         acceptedButtons: Qt.AllButtons
         hoverEnabled: true
         onPressed: root.dismiss()

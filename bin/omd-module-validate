@@ -407,16 +407,9 @@ def validate_all() -> int:
 
     # Scan repo default modules first (OMD/modules/)
     manifests = []
-    repo_modules = os.path.join(omd_root, "modules")
+    repo_modules = os.path.join(omd_root, "quickshell", "modules")
     if os.path.isdir(repo_modules):
         manifests += scan_manifests(repo_modules)
-
-    # Then scan SUMIKA_MODULES_HOME for external/override modules
-    modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
-    if not modules_home:
-        modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
-    if os.path.isdir(modules_home):
-        manifests += scan_manifests(modules_home)
     if not manifests:
         print("No module manifests found")
         return 0
@@ -441,12 +434,11 @@ def validate_all() -> int:
     return 0 if failed == 0 else 1
 
 def count_v1():
-
     count = 0
     omd_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     # Scan repo default modules
-    repo_modules = os.path.join(omd_root, "modules")
+    repo_modules = os.path.join(omd_root, "quickshell", "modules")
     if os.path.isdir(repo_modules):
         for m in scan_manifests(repo_modules):
             try:
@@ -456,31 +448,9 @@ def count_v1():
                     count += 1
             except (json.JSONDecodeError, OSError):
                 pass
-
-    # Scan SUMIKA_MODULES_HOME
-    modules_home = os.environ.get("SUMIKA_MODULES_HOME", "")
-    if not modules_home:
-        modules_home = os.path.join(os.path.expanduser("~"), "development", "sumika-modules")
-    if os.path.isdir(modules_home):
-        for m in scan_manifests(modules_home):
-            try:
-                with open(m) as f:
-                    data = json.load(f)
-                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
-                    count += 1
-            except (json.JSONDecodeError, OSError):
-                pass
-
     return count
 
-
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: omd-module-validate <manifest.json | module-dir/>", file=sys.stderr)
-        print("       omd-module-validate --all", file=sys.stderr)
-        print("       omd-module-validate --v1-count", file=sys.stderr)
-        sys.exit(2)
-
     arg = sys.argv[1]
 
     if arg == "--all":

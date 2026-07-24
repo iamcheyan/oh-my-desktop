@@ -12,7 +12,7 @@ REPO="$(cd "$(dirname "$0")" && pwd -P)"
 #   git clone git@github.com:iamcheyan/sumika-modules.git ~/development/sumika-modules
 #
 # Init.sh creates runtime symlinks and installs system dependencies.
-# External modules auto-resolve via $SUMIKA_MODULES_HOME (default ~/development/sumika-modules).
+# No external module repo — all modules live in quickshell/modules/
 # ── Color helpers ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1391,10 +1391,9 @@ print_summary() {
         login_manager="SDDM"
     elif systemctl is-enabled gdm.service >/dev/null 2>&1; then
         login_manager="GDM"
-    echo "  0. Clone external modules: git clone git@github.com:iamcheyan/sumika-modules.git ~/development/sumika-modules"
-    echo "     (Skip if already cloned; \$SUMIKA_MODULES_HOME defaults to ~/development/sumika-modules)"
+    fi
     echo "  1. Log out"
-    echo "  2. In \${login_manager}, choose \"Oh My Desktop\" from the session menu"
+    echo "  2. In ${login_manager}, choose \"Oh My Desktop\" from the session menu"
     echo "  3. Log in; Hyprland will load hypr/hyprland.lua and autostart Quickshell"
     echo
     echo "Useful commands:"

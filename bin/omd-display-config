@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+export OMD_REPO_ROOT="$repo_root"
+
+. "$repo_root/lib/paths.sh"
+
+display_bin="$repo_root/quickshell/modules/display/bin/omd-display-config"
+
+if [ -x "$display_bin" ]; then
+    exec "$display_bin" "$@"
+else
+    printf 'omd-display-config: binary not found at %s\n' "$display_bin" >&2
+    exit 1
+fi

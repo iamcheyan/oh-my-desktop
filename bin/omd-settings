@@ -6,16 +6,65 @@ export OMD_REPO_ROOT="$repo_root"
 
 . "$repo_root/lib/paths.sh"
 
-# Find the settings module: core path first, then external.
-# bin/omd-settings is a CLI dispatcher, same pattern as omd-screenshot, omd-restart, etc.
-app_dir="$repo_root/quickshell/modules/settings"
-if [ ! -d "$app_dir" ]; then
-    if [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/settings" ]; then
-        app_dir="$SUMIKA_MODULES_HOME/settings"
-    else
-        printf 'omd-settings: settings module not found — install sumika-modules or add settings to quickshell/modules/\n' >&2
-        exit 1
-    fi
+# Determine app_dir: core settings module or apps/omd-settings
+app_dir=""
+if [ -d "$repo_root/apps/omd-settings" ]; then
+    app_dir="$repo_root/apps/omd-settings"
+elif [ -d "$repo_root/quickshell/modules/settings" ]; then
+    app_dir="$repo_root/quickshell/modules/settings"
 fi
 
-exec "$app_dir/bin/omd-settings" "$@"
+if [ -z "$app_dir" ] || [ ! -d "$app_dir" ]; then
+    printf 'omd-settings: settings app not found\n' >&2
+    exit 1
+fi
+
+if [ -x "$app_dir/bin/omd-settings" ]; then
+    exec "$app_dir/bin/omd-settings" "$@"
+fi
+
+cmd="${1:-open}"
+page="${2:-display}"
+
+is_running() {
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+ipc_call() {
+    "${OMD_QS_BIN:-qs}" -p "$app_dir" ipc call settings "$1" "$2" 2>/dev/null || true
+}
+
+launch_direct() {
+    export OMD_SETTINGS_PAGE="$page"
+    export OMD_SETTINGS_ON_DEMAND=1
+    exec "$OMD_ROOT/quickshell/scripts/quickshell" "$app_dir"
+}
+
+case "$cmd" in
+    open)
+        if is_running; then
+            ipc_call open "$page"
+        else
+            launch_direct
+        fi
+        ;;
+    toggle)
+        if is_running; then
+            ipc_call toggle "$page"
+        else
+            launch_direct
+        fi
+        ;;
+    close)
+        if is_running; then
+            ipc_call close ""
+        fi
+        ;;
+    *)
+        if is_running; then
+            ipc_call open "$page"
+        else
+            launch_direct
+        fi
+        ;;
+esac

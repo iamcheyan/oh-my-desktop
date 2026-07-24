@@ -1,0 +1,5 @@
+module qs.modules.settings.pages
+OverviewPage 1.0 OverviewPage.qml
+AppearancePage 1.0 AppearancePage.qml
+SystemPage 1.0 SystemPage.qml
+KeyboardEditorOverlay 1.0 KeyboardEditorOverlay.qml

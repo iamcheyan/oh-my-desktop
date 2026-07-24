@@ -16,15 +16,13 @@ set -eu
 # Re-invoking while open cancels the current selection (toggle).
 
 repo_root="${OMD_REPO_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
-. "$repo_root/scripts/omd-path.sh"
-# app_dir: prefer repo default modules, fallback to SUMIKA_MODULES_HOME
-if [ -d "$repo_root/modules/screenshot" ]; then
-    app_dir="$repo_root/modules/screenshot"
-elif [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/screenshot" ]; then
-    app_dir="$SUMIKA_MODULES_HOME/screenshot"
+. "$repo_root/lib/paths.sh"
+# app_dir: no screenshot module exists in core — placeholder for future
+if [ -d "$repo_root/quickshell/modules/screenshot" ]; then
+    app_dir="$repo_root/quickshell/modules/screenshot"
 else
-    # Legacy fallback
-    app_dir="$repo_root/modules/screenshot"
+    # Legacy fallback (screenshot module not in core)
+    app_dir="$repo_root/quickshell/modules/screenshot"
 fi
 log_file="${OMD_SCREENSHOT_LOG:-/tmp/omd-screenshot.log}"
 action="${1:-screenshot}"

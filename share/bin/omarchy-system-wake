@@ -1,6 +1,5 @@
 #!/bin/bash
 
 # OMD compatibility implementation for omd-wake.
-
-"${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-display" on
-"${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-keyboard" restore
+# Brightness gamma module not available in single-repo architecture.
+exit 0

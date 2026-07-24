@@ -18,7 +18,7 @@ if [[ ${OMD_LOCK_ONLY:-false} != "true" ]]; then
     sleep 3
     # Wait for lock screen to be active
     sleep 2
-    "${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-keyboard" off
-    "${SUMIKA_MODULES_HOME}/brightness-gamma/bin/omd-brightness-display" off
+    # Brightness gamma module not available in single-repo architecture
+    true
   ) &
 fi

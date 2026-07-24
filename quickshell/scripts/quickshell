@@ -36,110 +36,23 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 export OMD_REPO_ROOT="$repo_root"
 export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
 
-# Unique staging namespace per config directory so concurrent modules (bar,
-# overview, polkit, etc.) don't race on shared temp paths during reload.
-stage_namespace="$(basename "$config_dir" | tr -c 'A-Za-z0-9._-' '_')"
+# Runtime directory for generated state (module registry, QML symlinks, etc.)
+registry_dir="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
+mkdir -p "$registry_dir"
 
-# QML resolves `import qs.services` as <import-root>/qs/services.  The source
-# tree is named `quickshell`, so adding the repository itself to
-# QML_IMPORT_PATH is not sufficient once the old per-app `services` and
-# `modules` symlinks have been removed.  Build one transient import root for
-# every Sumika process instead of recreating those application-local mirrors.
-runtime_base="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
-qml_import_root="$runtime_base/qml"
-if ! mkdir -p "$qml_import_root" 2>/dev/null; then
-    runtime_base="${TMPDIR:-/tmp}/sumika-shell-$(id -u)"
-    qml_import_root="$runtime_base/qml"
-    mkdir -p "$qml_import_root"
-fi
-if [ -e "$qml_import_root/qs" ] && [ ! -L "$qml_import_root/qs" ]; then
-    printf 'Invalid Sumika QML import path: %s is not a symlink\n' "$qml_import_root/qs" >&2
-    exit 1
-fi
+# QML engine resolves `import qs` by searching each QML_IMPORT_PATH entry
+# for `qs/qmldir`. The repo tree is named `quickshell/`, not `qs/`, so
+# create a transient symlink to bridge the namespace.
+qml_import_root="${registry_dir}/qml"
+mkdir -p "$qml_import_root"
 ln -sfn "$repo_root/quickshell" "$qml_import_root/qs"
-
-# Create staging symlinks for external module QML imports.
-# import qs.modules.<id> resolves to <ext_qml_root>/qs/modules/<id> →
-# $SUMIKA_MODULES_HOME/<id>/ so that moved-out modules (overview, settings,
-# etc.) remain importable after they were removed from OMD/quickshell/modules/.
-# The staging dir lives under /run (runtime) — never touches the repo tree.
-if [ -d "${SUMIKA_MODULES_HOME:-}" ] && [ -n "$stage_namespace" ]; then
-    ext_qml_dir="$runtime_base/staging/$stage_namespace/external-qml"
-    mkdir -p "$ext_qml_dir/qs/modules"
-    for _ext_mod_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
-        [ -f "$_ext_mod_json" ] || continue
-        _ext_mod_dir=$(dirname "$_ext_mod_json")
-        _ext_mod_id=$(basename "$_ext_mod_dir")
-        ln -sfn "$_ext_mod_dir" "$ext_qml_dir/qs/modules/$_ext_mod_id"
-    done
-    export QML_IMPORT_PATH="$ext_qml_dir:$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
-else
-    export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
-
-fi
-# QML URI segments cannot contain '-'.  Older external popup modules used
-# `qs.modules.popup-components`; expose a legal alias and stage only affected
-# modules with that import rewritten.  The source module repository remains
-# untouched.
-external_qml_root="$runtime_base/staging/$stage_namespace/external-qml"
-external_module_stage="$runtime_base/staging/$stage_namespace/external-modules"
-prepare_popup_components_alias() {
-    popup_components_dir="${SUMIKA_MODULES_HOME:-}/popup-components"
-    [ -d "$popup_components_dir" ] || return 0
-
-    alias_dir="$external_qml_root/qs/modules/popupComponents"
-    rm -rf "$alias_dir"
-    mkdir -p "$alias_dir"
-    cp -a "$popup_components_dir/." "$alias_dir/"
-    if [ -f "$alias_dir/qmldir" ]; then
-        sed -i 's/^module qs\.modules\.popup-components$/module qs.modules.popupComponents/' "$alias_dir/qmldir"
-    fi
-    export QML_IMPORT_PATH="$external_qml_root:$QML_IMPORT_PATH"
-}
-
-stage_external_module() {
-    source_dir="$1"
-    module_id="$2"
-
-    if ! grep -Rqs --include='*.qml' '^import qs\.modules\.popup-components$' "$source_dir"; then
-        printf '%s\n' "$source_dir"
-        return 0
-    fi
-
-    staged_dir="$external_module_stage/$module_id"
-    rm -rf "$staged_dir"
-    mkdir -p "$staged_dir"
-    cp -a "$source_dir/." "$staged_dir/"
-    find "$staged_dir" -type f -name '*.qml' -exec \
-        sed -i 's/^import qs\.modules\.popup-components$/import qs.modules.popupComponents/' {} +
-    printf '%s\n' "$staged_dir"
-}
-
-prepare_popup_components_alias
-
-
-sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
-config_file="$sumika_config/sumika.json"
-
-
-if [ -d "$SUMIKA_MODULES_HOME" ]; then
-    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
-        [ -f "$module_json" ] || continue
-        module_dir=$(dirname "$module_json")
-        export QML_IMPORT_PATH="${QML_IMPORT_PATH:+$QML_IMPORT_PATH:}$module_dir"
-        if [ -d "$module_dir/bin" ]; then
-            export PATH="$module_dir/bin:$PATH"
-        fi
-    done
-fi
+export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 
 # ---------------------------------------------------------------
 # Registry generation — always generated, independent of master switch.
 # Outputs v2 schema (schemaVersion=2) with contributes.widgets/popupSections/
 # settingsPages/services/actions/overviewProviders.
 # ---------------------------------------------------------------
-registry_dir="$runtime_base"
-mkdir -p "$registry_dir"
 registry_file="$registry_dir/modules.json"
 
 # v2 empty template
@@ -220,6 +133,10 @@ merge_manifest() {
 # (clock, workspaces, systray, wifi, audio, power-indicator) still works when
 # optional modules are off.
 modules_enabled=true
+_sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+config_file="$_sumika_config/quickshell/config.json"
+# Legacy fallback
+[ -f "$config_file" ] || config_file="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/config.json"
 if command -v jq >/dev/null 2>&1 && [ -f "$config_file" ]; then
     # jq's alternative operator treats both null and false as missing.  Do not
     # use `.modules.enabled // true` here: it turns an explicit false back on.
@@ -238,24 +155,11 @@ fi
 
 
 
-# Merge all modules from SUMIKA_MODULES_HOME (set by omd-path.sh, defaults to ~/development/sumika-modules)
-
 # Merge core product-floor modules from quickshell/modules/
 if command -v jq >/dev/null 2>&1; then
     for module_json in "$repo_root/quickshell/modules"/*/module.json; do
         [ -f "$module_json" ] || continue
         merge_manifest "$module_json" "$(dirname "$module_json")"
-    done
-fi
-if [ -d "$SUMIKA_MODULES_HOME" ]; then
-    for module_json in "$SUMIKA_MODULES_HOME"/*/module.json; do
-        [ -f "$module_json" ] || continue
-        source_module_dir=$(dirname "$module_json")
-        if command -v jq >/dev/null 2>&1; then
-            module_id=$(jq -r '.id // empty' "$module_json" 2>/dev/null || true)
-            module_dir=$(stage_external_module "$source_module_dir" "$module_id")
-            merge_manifest "$module_json" "$module_dir"
-        fi
     done
 fi
 
