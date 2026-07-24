@@ -364,7 +364,7 @@ Scope {
                                     }
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
-                                    color: TuiStyle.fg
+                                    color: TuiStyle.bg
                                 }
                             }
 
