@@ -4,10 +4,17 @@ set -eu
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 export OMD_REPO_ROOT="$repo_root"
 
+. "$repo_root/lib/paths.sh"
+
+# Check core path first, then external module path
 app_dir="$repo_root/quickshell/modules/settings"
 
 if [ ! -d "$app_dir" ]; then
-    printf 'omd-settings: settings module not found at %s — install sumika-modules or add settings to quickshell/modules/\n' "$app_dir" >&2
+    # Fall back to external sumika-modules
+    if [ -n "${SUMIKA_MODULES_HOME:-}" ] && [ -d "$SUMIKA_MODULES_HOME/settings/bin" ]; then
+        exec "$SUMIKA_MODULES_HOME/settings/bin/omd-settings" "$@"
+    fi
+    printf 'omd-settings: settings module not found at %s nor in $SUMIKA_MODULES_HOME/settings — install sumika-modules\n' "$app_dir" >&2
     exit 1
 fi
 
