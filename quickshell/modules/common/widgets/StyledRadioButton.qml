@@ -1,5 +1,4 @@
 import qs.modules.common
-import qs.modules.common.widgets
 import Qt5Compat.GraphicalEffects
 import QtQuick
 import QtQuick.Controls
@@ -14,7 +13,11 @@ RadioButton {
     property color activeColor: Appearance?.colors.colPrimary ?? "#685496"
     property color inactiveColor: Appearance?.m3colors.m3onSurfaceVariant ?? "#45464F"
 
-    PointingHandInteraction {}
+    MouseArea {
+        anchors.fill: parent
+        onPressed: (mouse) => mouse.accepted = false
+        cursorShape: Qt.PointingHandCursor
+    }
 
     indicator: Item{}
     
