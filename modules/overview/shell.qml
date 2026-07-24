@@ -7,6 +7,7 @@
 import qs.modules.common
 
 import qs.modules.overview
+import qs.services
 
 import QtQuick
 import Quickshell

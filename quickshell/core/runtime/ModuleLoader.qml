@@ -27,12 +27,13 @@ Singleton {
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
 
     /// Product-floor minimum desktop. Cannot be smaller than this set.
-    /// launcher + clock / notification-popup / workspaces / systray / wifi / audio / power.
+    /// launcher + clock / notification-popup / workspaces / overview / systray / wifi / audio / power.
     readonly property var productFloorModuleIds: [
         "launcher",
         "clock",
         "notification-popup",
         "workspaces",
+        "overview",
         "systray",
         "wifi",
         "audio",

@@ -261,7 +261,7 @@ Singleton {
         var count = 0
         for (var mi = 0; mi < mods.length; mi++) {
             var m = mods[mi]
-            if (!m.enabled) continue
+            if (!ModuleLoader.isEnabled(m.id)) continue
             var svcs = m.contributes ? m.contributes.services : null
             if (!svcs || svcs.length === 0) continue
 

@@ -46,7 +46,7 @@ _registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/
 # Product-floor minimum desktop (must match ModuleLoader.productFloorModuleIds).
 # modules.enabled=false still starts these if they ever gain application entries;
 # optional application modules are skipped when disabled or master is off.
-_PRODUCT_FLOOR="launcher clock workspaces systray wifi audio power-indicator"
+_PRODUCT_FLOOR="launcher clock workspaces overview systray wifi audio power-indicator"
 
 _sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json"
 _modules_master=true
