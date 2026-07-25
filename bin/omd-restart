@@ -100,16 +100,17 @@ start_app omd-polkit
 # subject to the same enable rules as ModuleLoader (product floor + master switch).
 if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
     # Note: jq's // treats false as missing — never use `.autostart // true`.
-    jq -r '
-      .modules[] |
-      select(.kind == "application" and (.entry | length > 0)) |
-      [
-        .id,
-        (.entry.instance // .id),
-        (.entry.command[0] // ""),
-        (if (.entry | has("autostart")) then (.entry.autostart | tostring) else "true" end)
-      ] | @tsv
-    ' "$_registry_file" 2>/dev/null | while IFS="	" read -r module_id instance first_cmd autostart; do
+      jq -r '
+        .modules[] |
+        select(.kind == "application" and (.entry | length > 0)) |
+        [
+          .path,
+          .id,
+          (.entry.instance // .id),
+          (.entry.command[0] // ""),
+          (if (.entry | has("autostart")) then (.entry.autostart | tostring) else "true" end)
+        ] | @tsv
+      ' "$_registry_file" 2>/dev/null | while IFS="	" read -r module_path module_id instance first_cmd autostart; do
         [ -z "$instance" ] && continue
         [ -z "$module_id" ] && module_id="$instance"
 
@@ -129,7 +130,13 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         # Resolve ${OMD_ROOT} in the command path via sed.
         resolved_cmd=$(echo "$first_cmd" | sed "s|\${OMD_ROOT}|$OMD_ROOT|g")
 
-        # If the result is empty or a relative path not found, fallback to bin/.
+        # For external modules with a relative command (e.g. "bin/omd-clipboard-store"),
+        # resolve against the module's registry path.
+        # Skip if the command uses ${OMD_ROOT} (already resolved via sed) or starts with /.
+        if [ -n "${module_path:-}" ] && echo "$first_cmd" | grep -qv '^/' && echo "$first_cmd" | grep -qv '\$\{OMD_ROOT\}'; then
+            resolved_cmd="$module_path/$first_cmd"
+        fi
+        # Fallback to OMD_ROOT/bin/ if still unresolved or not executable.
         if [ -z "$resolved_cmd" ]; then
             resolved_cmd="$OMD_ROOT/bin/$instance"
         elif echo "$first_cmd" | grep -qv '^/' && [ ! -x "$resolved_cmd" ]; then

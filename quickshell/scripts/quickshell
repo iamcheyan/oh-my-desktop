@@ -260,7 +260,12 @@ repair_config_json() {
 
 repair_config_json
 
-if pgrep -af "(quickshell|qs).* -p ${config_dir}$" >/dev/null 2>&1; then
+# Guard against duplicate instances: match any process whose command line
+# contains the config dir path (catches both the final `quickshell -p <dir>`
+# process and the intermediate `sh .../scripts/quickshell <dir>` script).
+# Exclude our own PID so we don't match ourselves.
+own_pid=$$
+if pgrep -af "${config_dir}( |$)" 2>/dev/null | grep -v "^${own_pid} " >/dev/null 2>&1; then
     exit 0
 fi
 

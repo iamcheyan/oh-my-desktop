@@ -30,10 +30,10 @@ RippleButton {
     buttonRadius: 6
     horizontalPadding: 8
     implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
-    implicitHeight: menuEntry.isSeparator ? 1 : 36
-    Layout.minimumHeight: menuEntry.isSeparator ? 1 : 36
-    Layout.preferredHeight: menuEntry.isSeparator ? 1 : 36
-    Layout.maximumHeight: menuEntry.isSeparator ? 1 : 36
+    implicitHeight: menuEntry.isSeparator ? 1 : 32
+    Layout.minimumHeight: menuEntry.isSeparator ? 1 : 32
+    Layout.preferredHeight: menuEntry.isSeparator ? 1 : 32
+    Layout.maximumHeight: menuEntry.isSeparator ? 1 : 32
     Layout.topMargin: menuEntry.isSeparator ? 4 : 0
     Layout.bottomMargin: menuEntry.isSeparator ? 4 : 0
     Layout.fillWidth: true
@@ -72,8 +72,8 @@ RippleButton {
         // Interaction: checkbox or radio button
         Item {
             visible: root.hasSpecialInteraction || root.forceSpecialInteractionColumn
-            implicitWidth: 22
-            implicitHeight: 36
+            implicitWidth: 20
+            implicitHeight: 32
 
             Loader {
                 anchors.fill: parent
@@ -92,7 +92,7 @@ RippleButton {
 
                 sourceComponent: NerdIcon {
                     text: root.menuEntry.checkState === Qt.PartiallyChecked ? NerdIconMap.circle : NerdIconMap.check
-                    iconSize: 20
+                    iconSize: 18
                     color: TuiStyle.fg
                 }
             }
@@ -101,8 +101,8 @@ RippleButton {
         // Button icon
         Item {
             visible: root.hasIcon || root.forceIconColumn
-            implicitWidth: 22
-            implicitHeight: 36
+            implicitWidth: 20
+            implicitHeight: 32
 
             Loader {
                 anchors.centerIn: parent
@@ -110,7 +110,7 @@ RippleButton {
                 sourceComponent: IconImage {
                     asynchronous: true
                     source: root.menuEntry.icon
-                    implicitSize: 16
+                    implicitSize: 18
                     mipmap: true
                 }
             }
@@ -120,7 +120,7 @@ RippleButton {
             id: label
             text: root.menuEntry.text
             font.family: Appearance.font.family.main
-            font.pixelSize: Appearance.font.pixelSize.small
+            font.pixelSize: 13
             font.weight: Font.Medium
             color: TuiStyle.fg
             Layout.fillWidth: true
@@ -131,7 +131,7 @@ RippleButton {
 
             sourceComponent: NerdIcon {
                 text: NerdIconMap.chevronRight
-                iconSize: 20
+                iconSize: 18
                 color: TuiStyle.muted
             }
         }

@@ -302,6 +302,7 @@ Singleton {
                 property bool invertPinnedItems: false
                 property list<var> pinnedItems: []
                 property bool filterPassive: false
+                property int trayIconSpacing: 8
             }
 
             property JsonObject search: JsonObject {

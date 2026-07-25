@@ -9,7 +9,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-MouseArea {
+Item {
     id: root
     required property SystemTrayItem item
     property bool targetMenuOpen: false
@@ -20,35 +20,53 @@ MouseArea {
         item.tooltipDescription
     ].join(" ").toLowerCase()
     readonly property string itemIconName: String(item.icon ?? "")
+    readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
+    readonly property bool hasValidIcon: itemIconName.length > 0
+    readonly property string tooltipText: {
+        var parts = [];
+        var t = root.item.title || root.item.tooltipTitle || "";
+        if (t) parts.push(t);
+        if (root.item.tooltipDescription) parts.push(root.item.tooltipDescription);
+        return parts.join("\n");
+    }
+
+
     readonly property bool useArrowIcon: searchableIdentity.includes("search")
         || searchableIdentity.includes("walker")
         || searchableIdentity.includes("main-tray")
-    readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
 
-    hoverEnabled: true
-    acceptedButtons: Qt.LeftButton | Qt.RightButton
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
-    onPressed: (event) => {
-        switch (event.button) {
-        case Qt.LeftButton:
+
+    RippleButton {
+        id: button
+        anchors.centerIn: parent
+        width: Config.options.bar.rightIconSlotWidth
+        height: Config.options.bar.rightIconSlotWidth
+        buttonRadius: Config.options.bar.rightIconSlotWidth / 2
+        colBackground: "transparent"
+        colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
+        colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)
+        colBackgroundToggledHover: Qt.rgba(1, 1, 1, 0.26)
+        colRipple: Qt.rgba(1, 1, 1, 0.12)
+        colRippleToggled: Qt.rgba(1, 1, 1, 0.18)
+        toggled: menu.active
+
+        onClicked: {
             item.activate();
-            break;
-        case Qt.RightButton:
-            if (item.hasMenu)
+        }
+
+        altAction: function(event) {
+            if (item.hasMenu) {
                 if (menu.active && menu.item && typeof menu.item.close === "function")
                     menu.item.close();
                 else 
                     menu.open();
-            break;
+            }
         }
-        event.accepted = true;
-    }
-    onEntered: {
-        tooltip.text = TrayService.getTooltipForItem(root.item);
     }
 
     Loader {
@@ -63,7 +81,7 @@ MouseArea {
             trayItemId: root.item.id
             anchor {
                 window: root.QsWindow.window
-                item: root
+                item: button
                 gravity: Config.options.bar.vertical
                     ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
                     : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
@@ -79,38 +97,35 @@ MouseArea {
         }
     }
 
-    Rectangle {
-        id: hoverBg
-        anchors.centerIn: parent
-        width: Config.options.bar.rightIconSlotWidth
-        height: Config.options.bar.rightIconSlotWidth
-        radius: width / 2
-        color: (root.containsMouse || menu.active) ? (menu.active ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.10)) : "transparent"
-
-        Behavior on color {
-            ColorAnimation { duration: 150 }
-        }
-    }
-
     IconImage {
         id: trayIcon
-        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !Config.options.tray.monochromeIcons
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !Config.options.tray.monochromeIcons
         source: visible ? root.itemIconName : ""
-        anchors.centerIn: parent
-        width: Config.options.bar.rightIconSize
-        height: Config.options.bar.rightIconSize
+        anchors.centerIn: button
+        width: Math.round(Config.options.bar.rightIconSize * 0.82)
+        height: Math.round(Config.options.bar.rightIconSize * 0.82)
     }
+
 
     MaterialSymbol {
         visible: root.useArrowIcon || root.useNetworkFallbackIcon
-        anchors.centerIn: parent
+        anchors.centerIn: button
         text: root.useNetworkFallbackIcon ? "sync_alt" : "arrow_forward"
-        iconSize: Config.options.bar.rightIconSize
+        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
+        color: Appearance.colors.colBarText
+    }
+
+    /// Fallback: tray item without valid icon → show downward arrow
+    MaterialSymbol {
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.hasValidIcon
+        anchors.centerIn: button
+        text: "expand_more"
+        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 
     Loader {
-        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && Config.options.tray.monochromeIcons
+        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && Config.options.tray.monochromeIcons
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {
@@ -130,9 +145,10 @@ MouseArea {
 
     PopupToolTip {
         id: tooltip
-        extraVisibleCondition: root.containsMouse
+        extraVisibleCondition: button.hovered && root.tooltipText.length > 0
         alternativeVisibleCondition: extraVisibleCondition
+        text: root.tooltipText
         anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
     }
-
 }
+

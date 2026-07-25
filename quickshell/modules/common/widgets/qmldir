@@ -1,4 +1,7 @@
 module qs.modules.common.widgets
+ContextMenuWindow 1.0 ContextMenuWindow.qml
+ContextMenuItem 1.0 ContextMenuItem.qml
+ContextMenuSeparator 1.0 ContextMenuSeparator.qml
 CosmicIcon 1.0 CosmicIcon.qml
 DashedBorder 1.0 DashedBorder.qml
 DragManager 1.0 DragManager.qml

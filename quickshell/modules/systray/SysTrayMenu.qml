@@ -6,6 +6,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs.services
+
 
 PopupWindow {
     id: root
@@ -56,6 +58,37 @@ PopupWindow {
                 root.close();
             }
             event.accepted = true;
+        }
+    }
+
+    Component.onDestruction: {
+        dismissGuard.stop();
+        GlobalFocusGrab.removeDismissable(root);
+    }
+
+    Timer {
+        id: dismissGuard
+        interval: 180
+        repeat: false
+        onTriggered: {
+            if (root.visible)
+                GlobalFocusGrab.addDismissable(root);
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            dismissGuard.restart();
+        } else {
+            dismissGuard.stop();
+            GlobalFocusGrab.removeDismissable(root);
+        }
+    }
+
+    Connections {
+        target: GlobalFocusGrab
+        function onDismissed() {
+            root.close()
         }
     }
 
@@ -159,7 +192,7 @@ PopupWindow {
             menu: submenu.handle
         }
 
-        spacing: 2
+        spacing: 0
 
         Loader {
             Layout.fillWidth: true
@@ -170,15 +203,14 @@ PopupWindow {
                 buttonRadius: 6
                 horizontalPadding: 8
                 implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
-                implicitHeight: 36
-                Layout.minimumHeight: 36
-                Layout.preferredHeight: 36
-                Layout.maximumHeight: 36
+                implicitHeight: 32
+                Layout.minimumHeight: 32
+                Layout.preferredHeight: 32
+                Layout.maximumHeight: 32
                 colBackground: "transparent"
                 colBackgroundHover: TuiStyle.surfaceHover
                 colRipple: TuiStyle.surfacePressed
                 borderWidth: 0
-                borderColor: TuiStyle.line
 
                 downAction: () => stackView.pop()
 
@@ -192,12 +224,12 @@ PopupWindow {
                     }
                     spacing: 8
                     Item {
-                        Layout.preferredWidth: 22
-                        Layout.preferredHeight: 36
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 32
 
                         NerdIcon {
                             anchors.centerIn: parent
-                            iconSize: 16
+                            iconSize: 18
                             text: NerdIconMap.arrowBack
                             color: TuiStyle.fg
                         }
@@ -206,75 +238,24 @@ PopupWindow {
                         Layout.fillWidth: true
                         text: "Back"
                         font.family: Appearance.font.family.main
-                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.pixelSize: 13
                         font.weight: Font.Medium
                         color: TuiStyle.fg
                     }
                 }
             }
         }
-        RippleButton {
+        ContextMenuItem {
             id: pinEntry
-            buttonRadius: 6
-            horizontalPadding: 8
-            implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
-            implicitHeight: 36
-            Layout.minimumHeight: 36
-            Layout.preferredHeight: 36
-            Layout.maximumHeight: 36
-            Layout.topMargin: 0
-            Layout.bottomMargin: 0
-            Layout.fillWidth: true
-            colBackground: "transparent"
-            colBackgroundHover: TuiStyle.surfaceHover
-            colRipple: TuiStyle.surfacePressed
-            borderWidth: 0
-            borderColor: TuiStyle.line
-
             visible: root.trayItemId !== undefined && root.trayItemId.length > 0 && stackView.depth === 1
-            releaseAction: () => TrayService.togglePin(root.trayItemId);
-
-            contentItem: RowLayout {
-                anchors {
-                    verticalCenter: parent.verticalCenter
-                    left: parent.left
-                    right: parent.right
-                    leftMargin: pinEntry.horizontalPadding
-                    rightMargin: pinEntry.horizontalPadding
-                }
-                spacing: 8
-
-                Item {
-                    Layout.preferredWidth: 22
-                    Layout.preferredHeight: 36
-
-                    NerdIcon {
-                        anchors.centerIn: parent
-                        iconSize: 16
-                        text: NerdIconMap.pushPin
-                        color: TuiStyle.fg
-                    }
-                }
-
-                StyledText {
-                    Layout.fillWidth: true
-                    text: TrayService.isPinned(root.trayItemId) ? "Unpin" : "Pin"
-                    font.family: Appearance.font.family.main
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    font.weight: Font.Medium
-                    color: TuiStyle.fg
-                }
+            nerdIcon: NerdIconMap.pushPin
+            labelText: TrayService.isPinned(root.trayItemId) ? "Unpin" : "Pin"
+            onClicked: {
+                TrayService.togglePin(root.trayItemId);
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 1
-            color: TuiStyle.line
-            opacity: TuiStyle.dividerOpacity
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
-        }
+        ContextMenuSeparator {}
 
         Repeater {
             id: menuEntriesRepeater

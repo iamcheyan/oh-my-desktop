@@ -23,7 +23,7 @@ cd ~/development/OMD && ./Init.sh
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|All modules (bar, wifi, settings, launcher, audio, display, overview, etc.)|`OMD/quickshell/modules/` (14 个)|git (主仓库)|
+|All modules (bar, wifi, settings, launcher, audio, display, overview, systray, power-indicator, etc.)|`OMD/quickshell/modules/` (17 core modules)|git (main repo)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Extensions|`~/.local/share/sumika-shell/extensions/<id>/`|user-installed, discovered at startup|
 |Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
@@ -57,6 +57,7 @@ cd ~/development/OMD && ./Init.sh
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — see [Extensions](#extensions) section below.
+- **Core modules vs Extensions**: 17 core modules live in `quickshell/modules/` and are always available. External extensions cannot override core modules — they are silently skipped on ID conflict.
 
 ## Editing
 
@@ -65,8 +66,35 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- Default module QML: `modules/<name>/` — 14 modules in this repo.
+- Default module QML: `modules/<name>/` — 17 core modules in this repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
+
+### Core Modules (Product Floor)
+
+The following modules are part of the core product floor and require no external installation:
+
+|Module|Function|Dependencies|
+|---|---|---|
+|`bar`|Main bar container (left/right slots, popups)|—|
+|`clock`|Clock widget (far-right bar)|—|
+|`workspaces`|Workspace indicators (left bar)|—|
+|`systray`|System Tray (SNI icons, right bar)|Quickshell.Services.SystemTray (built-in), TrayService|
+|`power-indicator`|Power + XKB indicator (far-right bar)|Battery, PowerProfiles, HyprlandXkb services|
+|`wifi`|Wi-Fi button + popup|Network service|
+|`audio`|Audio button + popup|Audio service|
+|`display`|Display (brightness) button + popup|Brightness service|
+|`overview`|Window overview / search|OverviewWidget|
+|`launcher`|App launcher button (left bar)|AppSearch service|
+|`settings`|Settings dialog (app)|—|
+|`notification-popup`|Notification popup display|Notifications service|
+
+**Rules:**
+- Core modules are always enabled (cannot be disabled through `modules.disabled` config).
+- External extensions with the same ID are silently skipped at startup.
+- New core modules must be added to `ModuleLoader.productFloorModuleIds`.
+- Core service singletons live in `quickshell/services/` (e.g. `TrayService`).
+- Core module QML files live in `quickshell/modules/<id>/` with a `module.json` manifest.
+
 
 ### Extensions
 

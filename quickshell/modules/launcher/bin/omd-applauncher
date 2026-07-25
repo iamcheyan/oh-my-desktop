@@ -31,10 +31,13 @@ if [ ! -s "$cache_file" ]; then
     "$cache_script" >/dev/null 2>&1 &
 fi
 
-# Detect a running omd-applauncher Quickshell instance. Match the -p path
-# (config dir) to avoid collisions with other omd-* processes.
+# Detect a running or launching omd-applauncher instance. Match the app
+# directory path to catch both the final `quickshell -p <dir>` process AND
+# the intermediate `sh .../scripts/quickshell <dir>` launcher script, which
+# runs for ~100ms during startup before exec'ing quickshell. Without matching
+# the intermediate script, rapid clicks spawn multiple launcher processes.
 is_running() {
-    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+    pgrep -af "${app_dir}( |$)" >/dev/null 2>&1
 }
 
 ipc_call() {
