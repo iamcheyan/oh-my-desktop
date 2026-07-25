@@ -51,8 +51,6 @@ Singleton {
     readonly property var workspace: (_tick, _providers["workspace.v1"] ? _providers["workspace.v1"].provider : null)
     /// Brightness service provider (Services.Brightness singleton)
     readonly property var brightness: (_tick, _providers["brightness.v1"] ? _providers["brightness.v1"].provider : null)
-    /// InputMethod service provider (Services.InputMethod singleton)
-    readonly property var inputmethod: (_tick, _providers["inputmethod.v1"] ? _providers["inputmethod.v1"].provider : null)
     /// Tray service provider (TrayService singleton)
     readonly property var tray: (_tick, _providers["tray.v1"] ? _providers["tray.v1"].provider : null)
     /// Bluetooth service provider (Services.BluetoothStatus singleton)
@@ -203,9 +201,6 @@ Singleton {
         // ── Brightness: wrap Brightness singleton (always available) ──
         this.register("brightness.v1", "1.0.0", "core", Services.Brightness)
         this.setAvailable("brightness.v1", true, "")
-        // ── InputMethod: wrap InputMethod singleton (always available) ──
-        this.register("inputmethod.v1", "1.0.0", "core", Services.InputMethod)
-        this.setAvailable("inputmethod.v1", true, "")
         // ── Tray: wrap TrayService singleton (always available) ──
         // ── Bluetooth: wrap BluetoothStatus singleton ──
         this.register("bluetooth.v1", "1.0.0", "core", Services.BluetoothStatus)
@@ -226,7 +221,7 @@ Singleton {
             Services.MprisController.availablePlayers.length > 0,
             Services.MprisController.availablePlayers.length === 0
                 ? "no MPRIS players found" : "")
-        console.log("[ServiceManager] Registered 10 providers (audio, network, power, workspace, brightness, notification, mpris, inputmethod, tray, bluetooth)")
+        console.log("[ServiceManager] Registered 9 providers (audio, network, power, workspace, brightness, notification, mpris, tray, bluetooth)")
     }
     /// Watch MPRIS player changes to update availability dynamically.
     readonly property Connections _mprisWatcher: Connections {
