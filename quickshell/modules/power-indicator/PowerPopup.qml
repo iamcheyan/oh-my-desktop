@@ -343,6 +343,34 @@ Item {
                 }
             }
 
+            // ── Snapshot section ────────────────────────────────
+            SectionLabel {
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                text: "SNAPSHOT"
+                topInset: 6
+                bottomInset: 2
+            }
+
+            IconActionRow {
+                PopupIconButtonDark {
+                    icon: "archive"
+                    label: "Save Snapshot"
+                    onClicked: {
+                        GlobalStates.barPopupType = "";
+                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
+                    }
+                }
+                PopupIconButtonDark {
+                    icon: "restart_alt"
+                    label: "Restore Snapshot"
+                    onClicked: {
+                        GlobalStates.barPopupType = "";
+                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "restore"]);
+                    }
+                }
+            }
+
             // Bottom spacer — consistent with top padding
             Item {
                 Layout.preferredHeight: 12

@@ -7,7 +7,6 @@ import qs.modules.common
 
 Singleton {
     id: root
-    readonly property string autoSavePrefix: ""
 
     function closeAllWindows() {
         // Use Hyprland's Lua dispatch so applications get a chance to save
@@ -32,7 +31,7 @@ Singleton {
     }
 
     function withOptionalSessionSave(command, saveCurrentSession) {
-        return (saveCurrentSession ? autoSavePrefix : "") + command;
+        return (saveCurrentSession ? `"${Directories.root}/bin/omd-session" save-auto && ` : "") + command;
     }
 
     function logout(saveCurrentSession) {

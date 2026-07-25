@@ -301,6 +301,70 @@ Scope {
                         }
                     }
 
+                    // ── Save session checkbox ───────────────────
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: saveSessionRow.implicitHeight
+                        Layout.topMargin: 2
+                        visible: GlobalStates.sessionConfirmAction === "logout"
+                            || GlobalStates.sessionConfirmAction === "reboot"
+                            || GlobalStates.sessionConfirmAction === "poweroff"
+
+                        MouseArea {
+                            id: sessionCheckHitArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: sessionSaveCbx.checked = !sessionSaveCbx.checked
+                        }
+
+                        RowLayout {
+                            id: saveSessionRow
+                            anchors.fill: parent
+                            spacing: 12
+
+                            Rectangle {
+                                id: sessionSaveCbx
+                                property bool checked: true
+                                Layout.preferredWidth: 22
+                                Layout.preferredHeight: 22
+                                radius: 5
+                                color: checked ? TuiStyle.accentWash(TuiStyle.accent) : TuiStyle.surfaceSubtle
+                                border.width: TuiStyle.borderWidth
+                                border.color: checked ? TuiStyle.accent : TuiStyle.line
+
+                                NerdIcon {
+                                    anchors.centerIn: parent
+                                    text: NerdIconMap.check
+                                    iconSize: 14
+                                    color: TuiStyle.fg
+                                    visible: sessionSaveCbx.checked
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: "Save current session"
+                                    color: TuiStyle.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.Medium
+                                }
+
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: "Automatically restore workspaces and windows on next startup."
+                                    color: TuiStyle.muted
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+                        }
+                    }
+
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 1
@@ -375,13 +439,15 @@ Scope {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     const a = GlobalStates.sessionConfirmAction
+                                    const sc = sessionSaveCbx.checked
                                     GlobalStates.closeSessionConfirm()
-                                    const actionId = a === "logout" ? "session.logout"
-                                        : a === "reboot" ? "session.reboot"
-                                        : a === "poweroff" ? "session.shutdown"
-                                        : a;
-                                    if (actionId && ActionManager.isAvailable(actionId))
-                                        ActionManager.invoke(actionId)
+                                    if (a === "logout") {
+                                        Session.logout(sc);
+                                    } else if (a === "reboot") {
+                                        Session.reboot(sc);
+                                    } else if (a === "poweroff") {
+                                        Session.poweroff(sc);
+                                    }
                                 }
                             }
                         }

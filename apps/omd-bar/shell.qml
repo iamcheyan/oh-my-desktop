@@ -11,6 +11,8 @@ import qs
 
 import qs.modules.bar
 
+import qs.modules.power-indicator
+
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -87,6 +89,8 @@ ShellRoot {
         BarDismissLayer {}
         ModuleActionHost {}
         BarStatusPopup {}
+
+        SessionAutoRestore {}
 
         // NotificationServer MUST be inside ShellRoot context to claim org.freedesktop.Notifications
         // (nesting inside a Singleton like Services.Notifications doesn't work).
