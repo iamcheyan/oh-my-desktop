@@ -347,7 +347,7 @@ Item {
             opacity: TuiStyle.dividerOpacity
         }
 
-        // ── Output devices ─────────────────────────────────────────────
+        // ── Output devices ────────────────────────────────────────────
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 0
@@ -539,6 +539,7 @@ Item {
                 visible: ServiceManager.audio.typedSources.length > 0
             }
         }
+
     }
 
     // Prefer WheelHandler over a full-panel MouseArea so device rows
