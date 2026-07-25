@@ -174,9 +174,11 @@ cmd_extensions() {
     local count=0
     for mod_dir in "$ext_dir"/*/; do
         [ -d "$mod_dir" ] || continue
+        [ -f "$mod_dir/module.json" ] || continue
         count=$((count + 1))
         local id name version
-        id=$(basename "$mod_dir")
+        id=$(jq -r '.id // empty' "$mod_dir/module.json" 2>/dev/null || true)
+        [ -n "$id" ] || id=$(basename "$mod_dir")
         name=$(jq -r '.name // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
         version=$(jq -r '.version // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
         printf "  %-22s %-24s %s\n" "$id" "$name" "v$version"
