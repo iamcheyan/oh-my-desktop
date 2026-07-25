@@ -1,9 +1,0 @@
-#!/bin/sh
-# reload-quickshell — compatibility wrapper; delegates to omd-restart.
-#
-# Usage: reload-quickshell [--quickshell-only]
-#
-# This script exists only for callers that haven't been migrated to
-# omd-restart yet.  New code should call `omd-restart` directly.
-
-exec "$(cd "$(dirname "$0")/.." && pwd)/bin/omd-restart" "$@"

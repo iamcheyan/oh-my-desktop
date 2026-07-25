@@ -233,7 +233,7 @@ If you encounter a black screen or missing panels after entering from SDDM:
    If you made changes to `hypr/monitors.lua` or QuickShell QML files:
    ```sh
    hyprctl reload                         # Reload Hyprland
-   bash scripts/reload-quickshell          # Restart all QuickShell panels
+   omd-restart                               # Restart all QuickShell panels
    ```
 
 ---

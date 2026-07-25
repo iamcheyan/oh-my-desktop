@@ -82,7 +82,7 @@ inspect `quickshell/registry/builtin/bar.json` for the effective order.
 ## Verification
 
 ```sh
-bash scripts/reload-quickshell
+pushd "$(dirname "$0")/.." >/dev/null && ./bin/omd-restart && popd >/dev/null
 qs -p ~/.config/omd/apps/omd-bar ipc call bar open
 ```
 

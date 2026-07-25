@@ -262,7 +262,7 @@ The footer uses an edit-session dirty flag: it starts disabled, remains enabled
 after any user edit even when a control is returned to its original value, and
 is cleared only by Apply or Discard. After a verified display transaction, the
 applied values become the new baseline and the settings process runs
-`scripts/reload-quickshell --quickshell-only`. Display changes invalidate
+*`omd-restart --quickshell-only`. Display changes invalidate
 layer-shell geometry, so all persistent OMD Quickshell processes are recreated
 against the new output layout; Hyprland is not reloaded a second time and the
 on-demand settings window is intentionally closed by that reload.

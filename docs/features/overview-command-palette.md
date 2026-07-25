@@ -61,7 +61,7 @@ The button to the right of the search field contains:
 The first three actions call the `session confirm` IPC exposed by
 `apps/omd-bar/shell.qml`. The bar process owns `SessionConfirmOverlay`, so all
 entry points reuse the same confirmation and optional session-save behavior.
-Reload Shell calls `scripts/reload-quickshell` directly after closing Overview.
+*Reload Shell calls `omd-restart` directly after closing Overview.
 
 ## Files
 
