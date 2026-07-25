@@ -74,32 +74,11 @@ Item {
             }
         }
 
-        Item {
-            Layout.preferredWidth: 36
-            Layout.preferredHeight: 36
+        PopupActionButton {
             Layout.alignment: Qt.AlignVCenter
+            icon: root.actionIcon
             visible: root.actionIcon.length > 0
-
-            Rectangle {
-                anchors.fill: parent
-                radius: 8
-                color: actionMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-            }
-
-            MaterialSymbol {
-                anchors.centerIn: parent
-                text: root.actionIcon
-                iconSize: 22
-                color: actionMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
-            }
-
-            MouseArea {
-                id: actionMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.actionClicked()
-            }
+            onClicked: root.actionClicked()
         }
     }
 

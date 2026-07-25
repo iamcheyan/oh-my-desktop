@@ -30,64 +30,19 @@ ColumnLayout {
             Layout.alignment: Qt.AlignVCenter
             spacing: 12
 
-            // Settings gear
-            Item {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                Layout.alignment: Qt.AlignVCenter
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 8
-                    color: mutedSettingsMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-                }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "settings"
-                    iconSize: 22
-                    color: mutedSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
-                }
-
-                MouseArea {
-                    id: mutedSettingsMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        GlobalStates.barPopupType = "";
-                        ServiceManager.notification.openMutedAppsEditor();
-                    }
+            PopupActionButton {
+                icon: "settings"
+                onClicked: {
+                    GlobalStates.barPopupType = "";
+                    ServiceManager.notification.openMutedAppsEditor();
                 }
             }
 
-            // Broom button to clear notifications
-            Item {
-                Layout.preferredWidth: 36
-                Layout.preferredHeight: 36
-                Layout.alignment: Qt.AlignVCenter
+            PopupActionButton {
+                icon: "delete_sweep"
+                colorHover: TuiStyle.danger
                 visible: ServiceManager.notification.list.length > 0
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 8
-                    color: clearMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-                }
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "delete_sweep"
-                    iconSize: 22
-                    color: clearMouse.containsMouse ? TuiStyle.danger : TuiStyle.muted
-                }
-
-                MouseArea {
-                    id: clearMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: ServiceManager.notification.discardAllNotifications()
-                }
+                onClicked: ServiceManager.notification.discardAllNotifications()
             }
 
             // DND Toggle Switch - unified size

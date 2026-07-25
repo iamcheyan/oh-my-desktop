@@ -301,33 +301,12 @@ Item {
                     }
 
                     // Settings Gear (always shown)
-                    Item {
-                        Layout.preferredWidth: 36
-                        Layout.preferredHeight: 36
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 8
-                            color: headerSettingsMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
-                        }
-
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "settings"
-                            iconSize: 22
-                            color: headerSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
-                        }
-
-                        MouseArea {
-                            id: headerSettingsMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                GlobalStates.barPopupType = ""
-                                GlobalStates.barPopupEphemeral = false
-                                Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"])
-                            }
+                    PopupActionButton {
+                        icon: "settings"
+                        onClicked: {
+                            GlobalStates.barPopupType = ""
+                            GlobalStates.barPopupEphemeral = false
+                            Quickshell.execDetached(["env", "GDK_SCALE=1", "GDK_DPI_SCALE=0.5", "pavucontrol"])
                         }
                     }
                 }
