@@ -23,7 +23,7 @@ cd ~/development/OMD && ./Init.sh
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|All modules (bar, wifi, settings, launcher, audio, display, overview, systray, power-indicator, etc.)|`OMD/quickshell/modules/` (17 core modules)|git (main repo)|
+|All core modules (bar, wifi, settings, launcher, audio, display, overview, systray, power-indicator, etc.)|`OMD/quickshell/modules/` (11 core modules)|git (main repo)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Extensions|`~/.local/share/sumika-shell/extensions/<id>/`|user-installed, discovered at startup|
 |Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
@@ -57,7 +57,7 @@ cd ~/development/OMD && ./Init.sh
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — see [Extensions](#extensions) section below.
-- **Core modules vs Extensions**: 17 core modules live in `quickshell/modules/` and are always available. External extensions cannot override core modules — they are silently skipped on ID conflict.
+- **Core modules vs Extensions**: 11 core modules live in `quickshell/modules/` and are always available. External extensions cannot override core modules — they are silently skipped on ID conflict. The manifest ID is canonical; a QML-safe directory name may differ (for example `notification-popup` uses `notificationPopup/`).
 
 ## Editing
 
@@ -66,7 +66,7 @@ cd ~/development/OMD && ./Init.sh
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- Default module QML: `modules/<name>/` — 17 core modules in this repo.
+- Default module QML: `modules/<name>/` — 11 core modules in this repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 
 ### Core Modules (Product Floor)
