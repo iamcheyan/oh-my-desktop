@@ -11,6 +11,35 @@ set -eu
 #
 # Callers: power-popup reload button, launcher, overview, settings,
 #          chezmoi post-update hooks, and direct terminal use.
+# ── Cgroup escape ─────────────────────────────────────────────────────────
+# omd-restart is typically spawned by the bar's Quickshell (execDetached),
+# so it runs inside omd-bar.service's cgroup. When we stop omd-bar below,
+# systemd would kill the entire cgroup — including this script — before
+# start_app omd-bar runs, leaving the bar dead.
+# Re-exec ourselves in a fresh transient scope to escape the cgroup.
+# OMD_ALREADY_ESCAPED breaks the re-exec loop.
+if [ "${OMD_ALREADY_ESCAPED:-0}" != "1" ] \
+    && [ -n "${XDG_RUNTIME_DIR:-}" ] \
+    && command -v systemd-run >/dev/null 2>&1 \
+    && systemctl --user is-active default.target >/dev/null 2>&1; then
+    # Detect if we're inside an omd-* service cgroup.
+    _cgroup=$(cat /proc/self/cgroup 2>/dev/null | head -1)
+    case "$_cgroup" in
+        *omd-bar.service*|*omd-polkit.service*|*omd-overview.service*)
+            exec systemd-run --user --unit=omd-restart-scope --collect \
+                --property=KillMode=mixed \
+                --setenv=OMD_ALREADY_ESCAPED=1 \
+                --setenv=OMD_ROOT="${OMD_ROOT:-}" \
+                --setenv=SUMIKA_SHELL_ROOT="${SUMIKA_SHELL_ROOT:-}" \
+                --setenv=SUMIKA_SHELL_CONFIG_HOME="${SUMIKA_SHELL_CONFIG_HOME:-}" \
+                --setenv=SUMIKA_SHELL_STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-}" \
+                --setenv=SUMIKA_MODULE_REGISTRY="${SUMIKA_MODULE_REGISTRY:-}" \
+                --setenv=SUMIKA_SHELL_RUNTIME_DIR="${SUMIKA_SHELL_RUNTIME_DIR:-}" \
+                --setenv=PATH="$PATH" \
+                /bin/sh "$0" "$@"
+            ;;
+    esac
+fi
 
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"

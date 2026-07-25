@@ -26,13 +26,12 @@ $(jq -r '
 ' "$_registry_file" 2>/dev/null || true)
 EOF
     fi
-
     # ── Stop all units (parallel, capped, force-killed) ─────────────────
-    # omd-bar must be stopped synchronously and WITHOUT SIGKILL to avoid
-    # a self-kill race: omd-restart runs in omd-bar's cgroup (spawned by
-    # the bar's Quickshell).  KillMode=mixed ensures systemctl stop only
-    # SIGTERMs the main PID; our child process survives as an orphan.
-    # Start all OTHER units in parallel first, then handle omd-bar.
+    # omd-bar is stopped synchronously. KillMode=mixed (set by start_app)
+    # limits SIGTERM to the main PID so children (like omd-restart itself
+    # when spawned from the bar) survive. SIGKILL only for other units.
+    # NOTE: omd-restart must escape omd-bar's cgroup BEFORE calling this
+    # function — see the cgroup-escape block at the top of bin/omd-restart.
     for app in $apps; do
         if [ "$app" = "omd-bar" ]; then
             continue
@@ -42,10 +41,11 @@ EOF
             systemctl --user kill --signal=SIGKILL --kill-who=all "$app.service" 2>/dev/null || true
         ) &
     done
-    # omd-bar — synchronous, no SIGKILL (would kill omd-restart itself)
+    # omd-bar — synchronous, no SIGKILL (would kill omd-restart itself).
     timeout 3 systemctl --user stop omd-bar.service 2>/dev/null || true
     wait
     sleep 0.2
+
 
     # ── Orphan process cleanup (survived reparenting or never in cgroup) ─
     pkill -f "wl-paste --watch" 2>/dev/null || true
