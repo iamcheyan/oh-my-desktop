@@ -4,8 +4,9 @@ import Quickshell
 import Quickshell.Io
 import qs.modules.common
 
-/// All modules live in quickshell/modules/<id>/ within the repo.
-/// The startup script discovers them and writes $XDG_RUNTIME_DIR/sumika-shell/modules.json.
+/// Core modules live in quickshell/modules/ within the repo. Optional
+/// extensions are discovered separately by the startup script, which writes
+/// $XDG_RUNTIME_DIR/sumika-shell/modules.json.
 /// This singleton parses that JSON (v2 schema) and exposes contributions
 /// for dynamic loading via Repeater + Loader.
 /// Registry access helpers for module contributes.
@@ -31,7 +32,8 @@ Singleton {
     readonly property bool modulesEnabled: Config.options.modules?.enabled !== false
 
     /// Product-floor minimum desktop. Cannot be smaller than this set.
-    /// launcher + clock / notification-popup / workspaces / overview / systray / wifi / audio / power / display.
+    /// launcher + clock / notification-popup / workspaces / overview / systray
+    /// / wifi / audio / power / display / settings.
     readonly property var productFloorModuleIds: [
         "launcher",
         "clock",
@@ -42,7 +44,8 @@ Singleton {
         "wifi",
         "audio",
         "power-indicator",
-        "display"
+        "display",
+        "settings"
     ]
 
     /// Required module IDs = product floor ∪ config modules.required (extras only expand).
