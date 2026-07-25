@@ -22,15 +22,22 @@ PopupWindow {
     implicitHeight: popupBackground.implicitHeight + root.outerPadding * 2
 
     function open() {
+        if (ContextMenuTracker.activeMenu && ContextMenuTracker.activeMenu !== root)
+            ContextMenuTracker.activeMenu.close();
+        ContextMenuTracker.activeMenu = root;
         root.visible = true;
     }
 
     function close() {
+        if (ContextMenuTracker.activeMenu === root)
+            ContextMenuTracker.activeMenu = null;
         root.visible = false;
         root.menuClosed();
     }
 
     Component.onDestruction: {
+        if (ContextMenuTracker.activeMenu === root)
+            ContextMenuTracker.activeMenu = null;
         dismissGuard.stop();
         GlobalFocusGrab.removeDismissable(root);
     }
@@ -49,6 +56,8 @@ PopupWindow {
         if (visible) {
             dismissGuard.restart();
         } else {
+            if (ContextMenuTracker.activeMenu === root)
+                ContextMenuTracker.activeMenu = null;
             dismissGuard.stop();
             GlobalFocusGrab.removeDismissable(root);
         }
