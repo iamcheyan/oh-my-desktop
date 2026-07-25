@@ -51,4 +51,4 @@ PopupColumn 1.0 PopupColumn.qml
 TuiDetailRow 1.0 TuiDetailRow.qml
 TuiMeterBar 1.0 TuiMeterBar.qml
 SectionLabel 1.0 SectionLabel.qml
-ModuleHideMenu 1.0 ModuleHideMenu.qml
+singleton ContextMenuTracker 1.0 ContextMenuTracker.qml

@@ -70,41 +70,4 @@ Item {
             wheel.accepted = true
         }
     }
-
-    // ── Right-click: hide menu ─────────────────────────────────
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.RightButton
-        z: 10
-        onPressed: event => {
-            if (event.button === Qt.RightButton)
-                hideMenuLoader.open();
-        }
-    }
-
-    Loader {
-        id: hideMenuLoader
-        function open() {
-            if (hideMenuLoader.item)
-                hideMenuLoader.item.open();
-            else
-                hideMenuLoader.active = true;
-        }
-        active: false
-        sourceComponent: ModuleHideMenu {
-            moduleId: root.moduleId
-            anchor {
-                window: actionButton.QsWindow.window
-                item: actionButton
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            Component.onCompleted: hideMenuLoader.open()
-            onMenuClosed: hideMenuLoader.active = false
-        }
-    }
 }

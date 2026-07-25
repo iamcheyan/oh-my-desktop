@@ -155,7 +155,6 @@ Singleton {
                     property int swapWarningThreshold: 85
                     property int cpuWarningThreshold: 90
                 }
-                property list<string> hiddenIcons: []
                 property list<string> screenList: [] // Non-empty: show bar only on these monitors (hyprctl monitors)
             }
 

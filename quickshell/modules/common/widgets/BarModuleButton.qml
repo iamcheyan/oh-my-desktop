@@ -48,36 +48,6 @@ Item {
         onClicked: {
             root.clicked();
         }
-
-        altAction: function(event) {
-            hideMenuLoader.open();
-        }
-    }
-
-    Loader {
-        id: hideMenuLoader
-        function open() {
-            if (hideMenuLoader.item)
-                hideMenuLoader.item.open();
-            else
-                hideMenuLoader.active = true;
-        }
-        active: false
-        sourceComponent: ModuleHideMenu {
-            moduleId: root.moduleId
-            anchor {
-                window: button.QsWindow.window
-                item: button
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            Component.onCompleted: hideMenuLoader.open()
-            onMenuClosed: hideMenuLoader.active = false
-        }
     }
 
     BarNerdIcon {
