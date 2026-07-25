@@ -182,7 +182,13 @@ if [ -d "$extensions_dir" ] && command -v jq >/dev/null 2>&1; then
     for ext_mod_json in "$extensions_dir"/*/module.json; do
         [ -f "$ext_mod_json" ] || continue
         ext_mod_dir=$(dirname "$ext_mod_json")
-        ext_id=$(basename "$ext_mod_dir")
+        # The manifest ID is canonical. The directory is only an install
+        # location and may differ from the QML-safe package name.
+        ext_id=$(jq -r '.id // empty' "$ext_mod_json" 2>/dev/null || true)
+        if [ -z "$ext_id" ]; then
+            echo "[sumika] WARN: skipping $ext_mod_json — no id field" >&2
+            continue
+        fi
 
         # Skip if already registered by core (core always wins)
         if echo "$registry" | jq -e --arg mid "$ext_id" '.modules | any(.id == $mid)' >/dev/null 2>&1; then
