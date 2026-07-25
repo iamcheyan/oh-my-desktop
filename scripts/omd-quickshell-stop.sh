@@ -29,10 +29,10 @@ $(jq -r '
 EOF
     fi
 
-    # Quickshell Process children can survive `systemctl --user kill --kill-who=main`
-    # because we intentionally avoid tearing down the whole unit cgroup. Clean up
-    # known watcher processes from module manifests so repeated `omd-restart` calls
-    # do not stack them.
+    # Quickshell Process children can survive a bare `systemctl stop` because
+    # we use `systemctl stop` which properly signals the unit.  Clean up
+    # known watcher processes from module manifests so repeated `omd-restart`
+    # calls do not stack them.
     #
     # Registry-driven cleanup: modules declare `watchers: ["cmd1", "cmd2"]` in their
     # module.json entry. If the registry file is unavailable, fall back to known
@@ -56,8 +56,13 @@ WATCHERS
         pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
         pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
     fi
+
+    # Use `systemctl stop` (not `kill --kill-who=main`) so systemd properly
+    # transitions the unit state to "stopped".  With Restart=on-failure
+    # (set by omd-restart), `kill` leaves the unit "active" and the
+    # process death would trigger an automatic restart.
     for app in $apps; do
-        systemctl --user kill --kill-who=main "$app.service" 2>/dev/null || true
+        systemctl --user stop --timeout=5 "$app.service" 2>/dev/null || true
     done
     sleep 0.2
 
