@@ -13,8 +13,12 @@ import qs.modules.common.functions
 Item {
     id: root
 
-    property alias trayModel: trayRepeater.model
+    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+    Layout.fillHeight: true
+    implicitWidth: trayRow.implicitWidth
+    implicitHeight: Config.options.bar.rightIconSlotWidth
 
+    property alias trayModel: trayRepeater.model
     readonly property var trayItems: TrayService.trayItems ?? []
     readonly property var trayFiltered: {
         const items = root.trayItems;
