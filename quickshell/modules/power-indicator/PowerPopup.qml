@@ -301,41 +301,63 @@ Item {
                 }
             }
 
-            // ── Action buttons: row 1 — session ─────────────────
+            // ── Section 1: Power Controls (4-Column Equal-Width Row) ──
+            SectionLabel {
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                text: "SYSTEM CONTROLS"
+                topInset: 6
+                bottomInset: 2
+            }
+
             IconActionRow {
                 PopupIconButtonDark {
                     icon: "lock"
                     label: "Lock"
                     visible: LockService.lockHandler !== null
+                    hoverAccent: TuiStyle.accent
                     onClicked: batteryStack.requestAction("lock", "Lock")
                 }
                 PopupIconButtonDark {
                     icon: "dark_mode"
                     label: "Sleep"
+                    hoverAccent: TuiStyle.info
                     onClicked: batteryStack.requestAction("sleep", "Sleep")
                 }
                 PopupIconButtonDark {
-                    icon: "logout"
-                    label: "Log Out"
-                    onClicked: batteryStack.requestAction("logout", "Logout")
-                }
-            }
-
-            // ── Action buttons: row 2 — power ───────────────────
-            IconActionRow {
-                PopupIconButtonDark {
                     icon: "restart_alt"
                     label: "Reboot"
+                    hoverAccent: TuiStyle.warning
+                    hoverColor: Qt.rgba(0.95, 0.6, 0.1, 0.15)
                     onClicked: batteryStack.requestAction("reboot", "Reboot")
                 }
                 PopupIconButtonDark {
                     icon: "power_settings_new"
                     label: "Shut Down"
+                    hoverAccent: TuiStyle.danger
+                    hoverColor: Qt.rgba(0.95, 0.25, 0.25, 0.18)
                     onClicked: batteryStack.requestAction("poweroff", "Shutdown")
+                }
+            }
+
+            // ── Section 2: Session & Utilities (2-Column Grid) ──
+            SectionLabel {
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                text: "SESSION & UTILITIES"
+                topInset: 6
+                bottomInset: 2
+            }
+
+            IconActionRow {
+                PopupIconButtonDark {
+                    icon: "logout"
+                    label: "Log Out"
+                    onClicked: batteryStack.requestAction("logout", "Logout")
                 }
                 PopupIconButtonDark {
                     icon: "refresh"
-                    label: "Reload"
+                    label: "Reload Shell"
                     onClicked: {
                         Quickshell.execDetached(["bash", `${Directories.root}/bin/omd-restart`]);
                         GlobalStates.barPopupType = "";
@@ -343,33 +365,7 @@ Item {
                 }
             }
 
-            // ── Snapshot section ────────────────────────────────
-            SectionLabel {
-                Layout.leftMargin: 20
-                Layout.rightMargin: 20
-                text: "SNAPSHOT"
-                topInset: 6
-                bottomInset: 2
-            }
 
-            IconActionRow {
-                PopupIconButtonDark {
-                    icon: "archive"
-                    label: "Save Snapshot"
-                    onClicked: {
-                        GlobalStates.barPopupType = "";
-                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
-                    }
-                }
-                PopupIconButtonDark {
-                    icon: "restart_alt"
-                    label: "Restore Snapshot"
-                    onClicked: {
-                        GlobalStates.barPopupType = "";
-                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "restore"]);
-                    }
-                }
-            }
 
             // Bottom spacer — consistent with top padding
             Item {
