@@ -6,6 +6,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 Scope {
@@ -43,11 +44,17 @@ Scope {
         command: [root.sessionCommand, "status"]
         running: false
         stdout: StdioCollector {
-            id: statusOut
             onStreamFinished: {
                 try {
                     const data = JSON.parse(statusOut.text);
                     if (data.autoRestore === true && data.saved === true) {
+                        // Don't restore if windows are already open — this is
+                        // a reload, not a cold boot. Only restore on empty workspace.
+                        const openWindows = ToplevelManager.toplevels.values?.length ?? 0;
+                        if (openWindows > 0) {
+                            console.log("[SessionAutoRestore] Skipping auto-restore:", openWindows, "windows already open");
+                            return;
+                        }
                         root.expectedCount = data.count || 0;
                         root.expectedMonitorCount = data.monitorCount || 0;
                         // Start monitor readiness check.
