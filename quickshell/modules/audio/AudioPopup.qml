@@ -302,8 +302,8 @@ Item {
 
                     // Settings Gear (always shown)
                     Item {
-                        Layout.preferredWidth: 32
-                        Layout.preferredHeight: 32
+                        Layout.preferredWidth: 36
+                        Layout.preferredHeight: 36
 
                         Rectangle {
                             anchors.fill: parent
@@ -314,7 +314,7 @@ Item {
                         MaterialSymbol {
                             anchors.centerIn: parent
                             text: "settings"
-                            iconSize: 20
+                            iconSize: 22
                             color: headerSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
                         }
 

@@ -30,11 +30,24 @@ ColumnLayout {
             Layout.alignment: Qt.AlignVCenter
             spacing: 12
 
-            MaterialSymbol {
+            // Settings gear
+            Item {
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
                 Layout.alignment: Qt.AlignVCenter
-                text: "settings"
-                iconSize: 20
-                color: mutedSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.dim
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: mutedSettingsMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "settings"
+                    iconSize: 22
+                    color: mutedSettingsMouse.containsMouse ? TuiStyle.fg : TuiStyle.muted
+                }
 
                 MouseArea {
                     id: mutedSettingsMouse
@@ -49,12 +62,24 @@ ColumnLayout {
             }
 
             // Broom button to clear notifications
-            MaterialSymbol {
+            Item {
+                Layout.preferredWidth: 36
+                Layout.preferredHeight: 36
                 Layout.alignment: Qt.AlignVCenter
-                text: "delete_sweep"
-                iconSize: 20
-                color: clearMouse.containsMouse ? TuiStyle.danger : TuiStyle.dim
                 visible: ServiceManager.notification.list.length > 0
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 8
+                    color: clearMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
+                }
+
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    text: "delete_sweep"
+                    iconSize: 22
+                    color: clearMouse.containsMouse ? TuiStyle.danger : TuiStyle.muted
+                }
 
                 MouseArea {
                     id: clearMouse
