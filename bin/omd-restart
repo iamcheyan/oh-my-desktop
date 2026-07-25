@@ -88,11 +88,14 @@ start_app() {
             --property=Restart=on-failure \
             --property=RestartSec=2 \
             --setenv=PATH="$PATH" \
+            --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+            --setenv=XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
             --setenv=OMD_ROOT="$OMD_ROOT" \
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
             --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
             --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
             /bin/sh -c 'exec "$1" >"$2" 2>&1' sh "$executable" "/tmp/$app.log" >/dev/null
+
     else
         setsid "$executable" >"/tmp/$app.log" 2>&1 < /dev/null &
     fi
@@ -208,4 +211,20 @@ fi
 # ── Terminal reload ───────────────────────────────────────────────────────
 if [ -x "$OMD_ROOT/scripts/reload-terminals" ]; then
     OMD_ROOT="$OMD_ROOT" "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
+fi
+
+# ── Flatpak SNI tray icon stability ────────────────────────────────────
+# Flatpak apps register StatusNotifierItems through xdg-dbus-proxy, which
+# may lose the registration across D-Bus reconnects.  Re-register WeChat's
+# SNI once on reload so the icon reappears without a polling daemon.
+if busctl --user status "org.kde.StatusNotifierItem-2-1" >/dev/null 2>&1; then
+    if ! busctl --user get-property org.kde.StatusNotifierWatcher \
+        /StatusNotifierWatcher org.kde.StatusNotifierWatcher \
+        RegisteredStatusNotifierItems 2>/dev/null \
+        | grep -qF "org.kde.StatusNotifierItem-2-1/StatusNotifierItem"; then
+        gdbus call --session --dest org.kde.StatusNotifierWatcher \
+            --object-path /StatusNotifierWatcher \
+            --method org.kde.StatusNotifierWatcher.RegisterStatusNotifierItem \
+            "org.kde.StatusNotifierItem-2-1" >/dev/null 2>&1 || true
+    fi
 fi
