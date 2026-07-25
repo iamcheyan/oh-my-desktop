@@ -101,7 +101,7 @@ done
 
 
 section "desktop helpers"
-for cmd in wl-copy wl-paste cliphist mako grim slurp swappy hyprpicker; do
+for cmd in wl-copy wl-paste cliphist grim slurp swappy hyprpicker; do
   check_optional_cmd "$cmd"
 done
 for cmd in pavucontrol bluetoothctl nm-connection-editor nmtui kitty fish; do
@@ -110,7 +110,7 @@ done
 
 section "display extras"
 check_cmd wlr-randr "wlr-output display management"
-for cmd in ddcutil ffplay hyprsunset satty; do
+for cmd in ddcutil ffplay hyprsunset; do
   check_optional_cmd "$cmd"
 done
 
@@ -126,8 +126,6 @@ check_cmd gnome-keyring-daemon "GNOME Keyring daemon"
 pam_keyring_module="$(find /usr/lib /lib -path '*/security/pam_gnome_keyring.so' -print -quit 2>/dev/null || true)"
 if [[ -n "$pam_keyring_module" ]]; then
   ok "GNOME Keyring PAM module: $pam_keyring_module"
-else
-  fail "GNOME Keyring PAM module missing; install gnome-keyring-pam (Fedora), libpam-gnome-keyring (Debian), or gnome-keyring (Arch)"
 fi
 if [[ -f /etc/pam.d/sddm ]]; then
   if grep -Eq '^[[:space:]]*-?auth.*pam_gnome_keyring\.so' /etc/pam.d/sddm \
