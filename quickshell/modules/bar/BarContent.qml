@@ -25,8 +25,21 @@ Item { // Bar content region
         var result = [];
         var all = ModuleLoader.rightBarButtons;
         for (var i = 0; i < all.length; i++) {
-            if (root._fixedWidgetIds.indexOf(all[i].moduleId) < 0)
+            if (root._fixedWidgetIds.indexOf(all[i].moduleId) < 0) {
+                // Skip hidden icons (QML list is not JS Array — manual iteration)
+                var hidden = Config.options.bar.hiddenIcons;
+                if (hidden && hidden.length > 0) {
+                    var skip = false;
+                    for (var h = 0; h < hidden.length; h++) {
+                        if (hidden[h] === all[i].moduleId) {
+                            skip = true;
+                            break;
+                        }
+                    }
+                    if (skip) continue;
+                }
                 result.push(all[i]);
+            }
         }
         return result;
     }

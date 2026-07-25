@@ -158,10 +158,9 @@ Item {
                 subtitle: batteryStack.headerStatus() + (batteryStack.showTimeEstimate() ? "  ·  " + batteryStack.timeEstimateValue() + " remaining" : "")
                 tone: batteryStack.headerTone()
                 actionIcon: "settings"
-                actionTooltip: "电源设置"
+                actionTooltip: "编辑配置文件"
                 onActionClicked: {
-                    var repoRoot = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root);
-                    Quickshell.execDetached([repoRoot + "/bin/omd-settings", "open", "power"]);
+                    Quickshell.execDetached(["omd-config-edit"]);
                 }
             }
 

@@ -17,6 +17,23 @@ Item {
 
     property alias trayModel: trayRepeater.model
     readonly property var trayItems: TrayService.trayItems ?? []
+    readonly property var visibleTrayItems: {
+        var items = root.trayItems;
+        var hidden = Config.options.tray.hiddenAppIds;
+        if (!hidden || hidden.length === 0) return items;
+        var result = [];
+        for (var i = 0; i < items.length; i++) {
+            var skip = false;
+            for (var h = 0; h < hidden.length; h++) {
+                if (hidden[h] === items[i].id) {
+                    skip = true;
+                    break;
+                }
+            }
+            if (!skip) result.push(items[i]);
+        }
+        return result;
+    }
 
     Binding on visible {
         value: root.trayItems.length > 0
@@ -32,7 +49,7 @@ Item {
 
         Repeater {
             id: trayRepeater
-            model: root.trayItems
+            model: root.visibleTrayItems
             delegate: SysTrayItem {
                 required property var modelData
                 item: modelData

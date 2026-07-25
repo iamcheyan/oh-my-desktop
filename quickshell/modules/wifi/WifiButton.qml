@@ -4,7 +4,6 @@ import qs
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
 
@@ -14,6 +13,7 @@ Item {
     Layout.fillHeight: true
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
+    property string moduleId: "wifi"
 
     RippleButton {
         id: wifiButton
@@ -39,5 +39,42 @@ Item {
         anchors.centerIn: wifiButton
         text: ServiceManager.network?.nerdIcon ?? NerdIconMap.wifi
         color: Appearance.colors.colBarText
+    }
+
+    // ── Right-click: hide menu ─────────────────────────────────
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        z: 10
+        onPressed: event => {
+            if (event.button === Qt.RightButton)
+                hideMenuLoader.open();
+        }
+    }
+
+    Loader {
+        id: hideMenuLoader
+        function open() {
+            if (hideMenuLoader.item)
+                hideMenuLoader.item.open();
+            else
+                hideMenuLoader.active = true;
+        }
+        active: false
+        sourceComponent: ModuleHideMenu {
+            moduleId: root.moduleId
+            anchor {
+                window: wifiButton.QsWindow.window
+                item: wifiButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            Component.onCompleted: hideMenuLoader.open()
+            onMenuClosed: hideMenuLoader.active = false
+        }
     }
 }

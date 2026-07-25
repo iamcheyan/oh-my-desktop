@@ -245,13 +245,38 @@ PopupWindow {
                 }
             }
         }
+        function _inHiddenList(trayId) {
+            var h = Config.options.tray.hiddenAppIds;
+            for (var i = 0; i < h.length; i++) {
+                if (h[i] === trayId) return true;
+            }
+            return false;
+        }
+
         ContextMenuItem {
-            id: pinEntry
+            id: hideEntry
             visible: root.trayItemId !== undefined && root.trayItemId.length > 0 && stackView.depth === 1
-            nerdIcon: NerdIconMap.pushPin
-            labelText: TrayService.isPinned(root.trayItemId) ? "Unpin" : "Pin"
+            nerdIcon: _inHiddenList(root.trayItemId)
+                ? NerdIconMap.visibility
+                : NerdIconMap.visibilityOff
+            labelText: _inHiddenList(root.trayItemId)
+                ? "Show"
+                : "Hide"
             onClicked: {
-                TrayService.togglePin(root.trayItemId);
+                var hidden = Config.options.tray.hiddenAppIds;
+                var newHidden = [];
+                var found = false;
+                for (var i = 0; i < hidden.length; i++) {
+                    if (hidden[i] === root.trayItemId) {
+                        found = true;
+                    } else {
+                        newHidden.push(hidden[i]);
+                    }
+                }
+                if (!found) {
+                    newHidden.push(root.trayItemId);
+                }
+                Config.setNestedValue("tray.hiddenAppIds", newHidden);
             }
         }
 

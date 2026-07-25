@@ -14,6 +14,7 @@ Item {
     implicitWidth: Config.options.bar.rightIconSlotWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
+    property string moduleId: "audio"
 
     readonly property string volumeIcon: {
         if (ServiceManager.audio?.sink?.audio?.muted) return NerdIconMap.volumeOff
@@ -67,6 +68,43 @@ Item {
                     ServiceManager.audio?.decrementVolume?.()
             }
             wheel.accepted = true
+        }
+    }
+
+    // ── Right-click: hide menu ─────────────────────────────────
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        z: 10
+        onPressed: event => {
+            if (event.button === Qt.RightButton)
+                hideMenuLoader.open();
+        }
+    }
+
+    Loader {
+        id: hideMenuLoader
+        function open() {
+            if (hideMenuLoader.item)
+                hideMenuLoader.item.open();
+            else
+                hideMenuLoader.active = true;
+        }
+        active: false
+        sourceComponent: ModuleHideMenu {
+            moduleId: root.moduleId
+            anchor {
+                window: actionButton.QsWindow.window
+                item: actionButton
+                gravity: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+                edges: Config.options.bar.vertical
+                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
+                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
+            }
+            Component.onCompleted: hideMenuLoader.open()
+            onMenuClosed: hideMenuLoader.active = false
         }
     }
 }
