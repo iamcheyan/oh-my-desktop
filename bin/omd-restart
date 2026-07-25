@@ -26,7 +26,7 @@ start_app() {
 
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         systemd-run --user --unit="$app" --collect \
-            --property=KillMode=process \
+            --property=KillMode=mixed \
             --setenv=PATH="$PATH" \
             --setenv=OMD_ROOT="$OMD_ROOT" \
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
