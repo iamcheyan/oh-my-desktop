@@ -17,7 +17,6 @@
         "moduleId": "systray"
       }
     ],
-    "actions": [],
-    "services": ["tray-service"]
+    "actions": []
   }
 }
