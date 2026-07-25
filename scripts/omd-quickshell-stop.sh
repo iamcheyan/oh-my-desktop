@@ -26,34 +26,53 @@ $(jq -r '
 ' "$_registry_file" 2>/dev/null || true)
 EOF
     fi
-    # ── Stop all units (parallel, capped, force-killed) ─────────────────
-    # omd-bar is stopped synchronously. KillMode=mixed (set by start_app)
-    # limits SIGTERM to the main PID so children (like omd-restart itself
-    # when spawned from the bar) survive. SIGKILL only for other units.
-    # NOTE: omd-restart must escape omd-bar's cgroup BEFORE calling this
-    # function — see the cgroup-escape block at the top of bin/omd-restart.
-    for app in $apps; do
-        if [ "$app" = "omd-bar" ]; then
-            continue
+    # ── Preserve user apps: move cgroup children to a holding scope ──────
+    # omd-bar.service's cgroup contains user apps (terminals, Firefox, etc.)
+    # launched from the bar/launcher. `systemctl stop` destroys the cgroup,
+    # killing everything inside. Before stopping, move non-quickshell PIDs
+    # to a transient scope so they survive the reload.
+    _bar_cg="/sys/fs/cgroup$(systemctl --user show omd-bar.service -p ControlGroup --value 2>/dev/null || echo '')"
+    if [ -n "$_bar_cg" ] && [ -f "$_bar_cg/cgroup.procs" ]; then
+        _ts=$(date +%s%N 2>/dev/null || date +%s)
+        _hold_unit="omd-survivors-$_ts"
+        # Create a transient scope that stays alive (sleep) to hold survivors.
+        systemd-run --user --unit="$_hold_unit" \
+            --property=KillMode=process \
+            /bin/sh -c 'exec sleep infinity' >/dev/null 2>&1 || true
+        _hold_cg="/sys/fs/cgroup$(systemctl --user show "$_hold_unit.service" -p ControlGroup --value 2>/dev/null || echo '')"
+        if [ -n "$_hold_cg" ] && [ -d "$_hold_cg" ]; then
+            # Move all non-quickshell PIDs from omd-bar cgroup to the hold scope.
+            while IFS= read -r _pid; do
+                [ -z "$_pid" ] && continue
+                _cmd=$(cat "/proc/$_pid/cmdline" 2>/dev/null | tr '\0' ' ' | head -c 80)
+                case "$_cmd" in
+                    *quickshell*|*nmcli*|"")
+                        # Quickshell main or bar-internal process — let it die.
+                        ;;
+                    *)
+                        # User app — move to holding scope.
+                        echo "$_pid" > "$_hold_cg/cgroup.procs" 2>/dev/null || true
+                        ;;
+                esac
+            done < "$_bar_cg/cgroup.procs"
         fi
-        (
-            timeout 3 systemctl --user stop "$app.service" 2>/dev/null || true
-            systemctl --user kill --signal=SIGKILL --kill-who=all "$app.service" 2>/dev/null || true
-        ) &
+    fi
+
+    # ── Stop all units — now safe, user apps are in the holding scope ────
+    for app in $apps; do
+        timeout 3 systemctl --user stop "$app.service" 2>/dev/null || true
     done
-    # omd-bar — synchronous, no SIGKILL (would kill omd-restart itself).
-    timeout 3 systemctl --user stop omd-bar.service 2>/dev/null || true
     wait
     sleep 0.2
 
-
-    # ── Orphan process cleanup (survived reparenting or never in cgroup) ─
-    pkill -f "wl-paste --watch" 2>/dev/null || true
-    pkill -f "omd-clipboard-store" 2>/dev/null || true
-    # Remove stale PID file so the next daemon instance doesn't see a
-    # "still running" guard hit (race: pkill returns before the killed
-    # process has fully exited).
-    rm -f /tmp/omd-clipboard-store.pid 2>/dev/null || true
+    # ── Orphan process cleanup ──────────────────────────────────────────
+    _clipboard_module=""
+    if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
+        _clipboard_module=$(jq -r '.modules[] | select(.id == "clipboard") | .path // empty' "$_registry_file" 2>/dev/null || true)
+    fi
+    if [ -n "$_clipboard_module" ] && [ -x "$_clipboard_module/bin/omd-clipboard-store" ]; then
+        "$_clipboard_module/bin/omd-clipboard-store" stop >/dev/null 2>&1 || true
+    fi
 
     if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         while IFS="" read -r watcher; do
@@ -70,7 +89,7 @@ WATCHERS
         pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
     fi
 
-    # ── Orphan Quickshell processes ─────────────────────────────────────
+    # Orphan Quickshell processes not in any unit
     pkill -f "/usr/bin/quickshell -p ${omd_root}/" 2>/dev/null || true
     sleep 0.15
 

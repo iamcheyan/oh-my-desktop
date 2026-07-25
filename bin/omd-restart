@@ -91,9 +91,22 @@ start_app() {
         return 0
     fi
 
+    # If the unit is already active or activating (e.g. Restart=on-failure
+    # already kicked in after we SIGTERM'd the main PID), don't start a
+    # duplicate — that would fail with "unit already exists".
+    if command -v systemctl >/dev/null 2>&1; then
+        _state=$(systemctl --user show "$app.service" -p ActiveState --value 2>/dev/null || echo "")
+        case "$_state" in
+            active|activating)
+                printf '[omd-restart] %s already %s — skipping start\n' "$app" "$_state" >&2
+                return 0
+                ;;
+        esac
+    fi
+
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         systemd-run --user --unit="$app" --collect \
-            --property=KillMode=mixed \
+            --property=KillMode=control-group \
             --property=Restart=on-failure \
             --property=RestartSec=2 \
             --setenv=PATH="$PATH" \
