@@ -1,14 +1,16 @@
 #!/bin/sh
 # Stop OMD Quickshell processes — only the quickshell binaries themselves.
 #
-# We do NOT use `systemctl stop` because that destroys the unit's cgroup,
-# killing user apps (terminals, Firefox, etc.) that were launched from the
-# bar and inherited its cgroup. Instead, pkill targets only quickshell
-# processes by their command line, leaving cgroup siblings untouched.
+# We use pkill (not `systemctl stop`) because systemd destroys the unit
+# cgroup when the main process dies, which would kill user apps (terminals,
+# Firefox, etc.) that inherited the bar's cgroup. pkill targets only
+# quickshell processes by command line, leaving everything else untouched.
+#
+# We also don't use systemd-run to start processes (see omd-restart) —
+# setsid processes have no unit cgroup, so pkill is completely safe.
 
 omd_stop_quickshell() {
     omd_root="${OMD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-    runtime_dir="/run/user/$(id -u)"
 
     # ── Kill only quickshell processes ───────────────────────────────────
     # Match by config path so we never hit unrelated quickshell instances.
@@ -44,25 +46,12 @@ WATCHERS
         "$_clipboard_module/bin/omd-clipboard-store" stop >/dev/null 2>&1 || true
     fi
 
-    # ── Reset unit state so omd-restart can create fresh units ───────────
-    # The units are now inactive (main process died). Clean up transient
-    # definitions without touching cgroups (processes already gone).
-    apps="omd-bar omd-polkit"
-    if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
-        while IFS=" " read -r instance module_id; do
-            [ -z "$instance" ] && continue
-            apps="$apps $instance"
-        done <<EOF
-$(jq -r '
-  .modules[] |
-  select(.kind == "application" and (.entry | length > 0)) |
-  "\(.entry.instance // .id) \(.id)"
-' "$_registry_file" 2>/dev/null || true)
-EOF
-    fi
-    for app in $apps; do
-        systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
-        rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
+    # ── Clean up stale systemd units from previous runs ─────────────────
+    # Best-effort: if any omd-* units exist from older versions that used
+    # systemd-run, stop and remove them. Harmless if no units exist.
+    for unit in omd-bar omd-polkit omd-overview omd-applauncher; do
+        systemctl --user stop "$unit.service" 2>/dev/null || true
+        systemctl --user reset-failed "$unit.service" 2>/dev/null || true
     done
-    systemctl --user daemon-reload >/dev/null 2>&1 || true
+    rm -f "/run/user/$(id -u)/systemd/transient/omd-"*.service 2>/dev/null || true
 }

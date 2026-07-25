@@ -11,9 +11,30 @@ set -eu
 #
 # Callers: power-popup reload button, launcher, overview, settings,
 #          chezmoi post-update hooks, and direct terminal use.
-#
 # Stop strategy: pkill quickshell binaries only (not systemctl stop),
 # so user apps in the bar's cgroup survive the reload.
+#
+# CRITICAL: omd-restart is spawned by the bar's Quickshell.execDetached,
+# so it runs inside omd-bar.service's cgroup. When pkill kills the
+# quickshell process, systemd destroys the cgroup (KillMode=control-group),
+# killing this script too. We MUST escape to a fresh scope before pkill.
+if [ "${OMD_RESTART_ESCAPED:-0}" != "1" ] && command -v systemd-run >/dev/null 2>&1; then
+    _cg=$(cat /proc/self/cgroup 2>/dev/null | head -1)
+    case "$_cg" in
+        *omd-bar.service*|*omd-polkit.service*|*omd-overview.service*)
+            exec systemd-run --user --unit=omd-restart --collect \
+                --setenv=OMD_RESTART_ESCAPED=1 \
+                --setenv=OMD_ROOT="${OMD_ROOT:-}" \
+                --setenv=SUMIKA_SHELL_ROOT="${SUMIKA_SHELL_ROOT:-}" \
+                --setenv=SUMIKA_SHELL_CONFIG_HOME="${SUMIKA_SHELL_CONFIG_HOME:-}" \
+                --setenv=SUMIKA_SHELL_STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-}" \
+                --setenv=SUMIKA_MODULE_REGISTRY="${SUMIKA_MODULE_REGISTRY:-}" \
+                --setenv=SUMIKA_SHELL_RUNTIME_DIR="${SUMIKA_SHELL_RUNTIME_DIR:-}" \
+                --setenv=PATH="$PATH" \
+                /bin/sh "$0" "$@"
+            ;;
+    esac
+fi
 
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
@@ -56,6 +77,10 @@ fi
 pkill -x waybar 2>/dev/null || true
 
 # ── Application entry-point API ───────────────────────────────────────────
+# Use setsid, NOT systemd-run. systemd units destroy their cgroup when
+# the main process dies — killing user apps (terminals, Firefox) that
+# inherited the bar's cgroup. setsid processes live in user@1000.service
+# cgroup; pkill only kills the quickshell binary, no cgroup is destroyed.
 start_app() {
     app="$1"
     executable="${2:-$OMD_ROOT/bin/$app}"
@@ -65,33 +90,13 @@ start_app() {
         return 0
     fi
 
-    # If the unit is already active or activating (e.g. Restart=on-failure
-    # already kicked in after we SIGTERM'd the main PID), don't start a
-    # duplicate — that would fail with "unit already exists".
-    if command -v systemctl >/dev/null 2>&1; then
-        _state=$(systemctl --user show "$app.service" -p ActiveState --value 2>/dev/null || echo "")
-        case "$_state" in
-            active|activating)
-                printf '[omd-restart] %s already %s — skipping start\n' "$app" "$_state" >&2
-                return 0
-                ;;
-        esac
+    # Skip if already running (avoids duplicates on rapid reload).
+    if pgrep -f "/usr/bin/quickshell -p.*${app}" >/dev/null 2>&1; then
+        printf '[omd-restart] %s already running — skipping\n' "$app" >&2
+        return 0
     fi
 
-    if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
-        systemd-run --user --unit="$app" --collect \
-            --property=KillMode=control-group \
-            --property=Restart=on-failure \
-            --property=RestartSec=2 \
-            --setenv=PATH="$PATH" \
-            --setenv=OMD_ROOT="$OMD_ROOT" \
-            --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
-            --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \
-            --setenv=SUMIKA_SHELL_STATE_HOME="$SUMIKA_SHELL_STATE_HOME" \
-            /bin/sh -c 'exec "$1" >"$2" 2>&1' sh "$executable" "/tmp/$app.log" >/dev/null
-    else
-        setsid "$executable" >"/tmp/$app.log" 2>&1 < /dev/null &
-    fi
+    setsid "$executable" >"/tmp/$app.log" 2>&1 < /dev/null &
 }
 
 # ── Resolve runtime registry path ─────────────────────────────────────────
