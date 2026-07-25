@@ -1,20 +1,78 @@
 #!/bin/sh
 set -eu
 
-# Resolve repo root from this script's location (works without ~/.config/omd symlink).
+# omd-restart — Restart Quickshell processes (bar, polkit, overview, etc.)
+#
+# Usage: omd-restart [--quickshell-only]
+#
+# Callers: power-popup reload button, launcher, overview, settings,
+#          hypr/autostart.lua, and direct terminal use.
+
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
 unset _omd_root
 
-# shellcheck source=../scripts/omd-quickshell-stop.sh
-. "$OMD_ROOT/scripts/omd-quickshell-stop.sh"
-
-# Skip stop if already called by caller (e.g. reload-quickshell) to avoid
-# double-stop race that kills freshly started processes.
-if [ "${OMD_SKIP_STOP:-0}" != "1" ]; then
-    omd_stop_quickshell
+# ── Lockscreen guard ──────────────────────────────────────────────────────
+if pgrep -f "wl-session-lock\|WlSessionLock" >/dev/null 2>&1; then
+    printf 'Screen is locked — refusing to reload.\n' >&2
+    exit 1
 fi
 
+# ── Argument parsing ──────────────────────────────────────────────────────
+quickshell_only=0
+case "${1:-}" in
+    --quickshell-only) quickshell_only=1 ;;
+    "") ;;
+    *) printf 'Usage: %s [--quickshell-only]\n' "$0" >&2; exit 2 ;;
+esac
+
+# ── Kill old quickshell processes ─────────────────────────────────────────
+# pkill targets only quickshell binaries by command line.
+# Do NOT use `systemctl stop` — it destroys the unit cgroup, killing user
+# apps (terminals, Firefox) that inherited the bar's cgroup.
+pkill -f "/usr/bin/quickshell -p ${OMD_ROOT}/" 2>/dev/null || true
+sleep 0.3
+pkill -9 -f "/usr/bin/quickshell -p ${OMD_ROOT}/" 2>/dev/null || true
+sleep 0.2
+
+# ── Watcher cleanup (nmcli, cliphist, etc.) ───────────────────────────────
+_registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
+if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
+    while IFS="" read -r watcher; do
+        [ -z "$watcher" ] && continue
+        pkill -f "$watcher" 2>/dev/null || true
+    done <<WATCHERS
+$(jq -r '
+  .modules[] |
+  select(.contributes.watchers? // [] | length > 0) |
+  .contributes.watchers[]
+' "$_registry_file" 2>/dev/null || true)
+WATCHERS
+else
+    pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
+fi
+
+# Clipboard daemon has its own stop subcommand
+_clipboard_module=""
+if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
+    _clipboard_module=$(jq -r '.modules[] | select(.id == "clipboard") | .path // empty' "$_registry_file" 2>/dev/null || true)
+fi
+if [ -n "$_clipboard_module" ] && [ -x "$_clipboard_module/bin/omd-clipboard-store" ]; then
+    "$_clipboard_module/bin/omd-clipboard-store" stop >/dev/null 2>&1 || true
+fi
+
+# ── Reset stale systemd unit state ─────────────────────────────────────────
+_runtime_dir="/run/user/$(id -u)"
+for unit in omd-bar omd-polkit omd-overview omd-applauncher; do
+    systemctl --user reset-failed "$unit.service" >/dev/null 2>&1 || true
+    rm -f "$_runtime_dir/systemd/transient/$unit.service" 2>/dev/null || true
+done
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+
+# Kill waybar if present
+pkill -x waybar 2>/dev/null || true
+
+# ── Start app helper ──────────────────────────────────────────────────────
 start_app() {
     app="$1"
     executable="${2:-$OMD_ROOT/bin/$app}"
@@ -40,12 +98,7 @@ start_app() {
     fi
 }
 
-# Resolve the runtime registry path.
-_registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
-
-# Product-floor minimum desktop (must match ModuleLoader.productFloorModuleIds).
-# modules.enabled=false still starts these if they ever gain application entries;
-# optional application modules are skipped when disabled or master is off.
+# ── Module enablement rules ───────────────────────────────────────────────
 _PRODUCT_FLOOR="launcher clock notification-popup workspaces overview systray wifi audio power-indicator display"
 
 _sumika_config="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}/sumika.json"
@@ -54,7 +107,6 @@ _modules_disabled=""
 _modules_required="$_PRODUCT_FLOOR"
 
 if command -v jq >/dev/null 2>&1 && [ -f "$_sumika_config" ]; then
-    # jq's // treats false as missing — do NOT use `.modules.enabled // true`.
     _modules_master=$(jq -r '
         try (
             if (.modules | type) == "object" and (.modules | has("enabled"))
@@ -92,16 +144,12 @@ module_is_enabled() {
     return 0
 }
 
-# ── Core host processes (always required) ──────────────────────────────────
-# omd-bar and omd-polkit are Core host processes, not discovered modules.
+# ── Start core processes ──────────────────────────────────────────────────
 start_app omd-bar
 start_app omd-polkit
 
-# ── Registry-driven application modules ────────────────────────────────────
-# Every module with kind=application and an entry block contributes a process,
-# subject to the same enable rules as ModuleLoader (product floor + master switch).
+# ── Start registry-driven application modules ─────────────────────────────
 if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
-    # Note: jq's // treats false as missing — never use `.autostart // true`.
       jq -r '
         .modules[] |
         select(.kind == "application" and (.entry | length > 0)) |
@@ -121,7 +169,6 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
             continue
         fi
 
-        # On-demand apps (e.g. launcher) stay cold until Action/CLI invokes them.
         case "$autostart" in
             false|False|0)
                 printf 'Skipping application module %s (entry.autostart=false, on-demand)\n' "$module_id" >&2
@@ -129,16 +176,11 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
                 ;;
         esac
 
-        # Resolve ${OMD_ROOT} in the command path via sed.
         resolved_cmd=$(echo "$first_cmd" | sed "s|\${OMD_ROOT}|$OMD_ROOT|g")
 
-        # For external modules with a relative command (e.g. "bin/omd-clipboard-store"),
-        # resolve against the module's registry path.
-        # Skip if the command uses ${OMD_ROOT} (already resolved via sed) or starts with /.
-        if [ -n "${module_path:-}" ] && echo "$first_cmd" | grep -qv '^/' && echo "$first_cmd" | grep -qv '\$\{OMD_ROOT\}'; then
+        if [ -n "${module_path:-}" ] && echo "$first_cmd" | grep -qv '^/' && ! echo "$first_cmd" | grep -qF '${OMD_ROOT}'; then
             resolved_cmd="$module_path/$first_cmd"
         fi
-        # Fallback to OMD_ROOT/bin/ if still unresolved or not executable.
         if [ -z "$resolved_cmd" ]; then
             resolved_cmd="$OMD_ROOT/bin/$instance"
         elif echo "$first_cmd" | grep -qv '^/' && [ ! -x "$resolved_cmd" ]; then
@@ -147,9 +189,23 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         start_app "$instance" "$resolved_cmd"
     done
 elif [ -f "$_registry_file" ]; then
-    echo "[omd-restart] WARNING: jq not available — cannot parse registry for application modules" >&2
-    echo "[omd-restart] Only Core processes (omd-bar, omd-polkit) were started." >&2
+    echo "[omd-restart] WARNING: jq not available — cannot parse registry" >&2
 else
     echo "[omd-restart] WARNING: registry not found at $_registry_file" >&2
-    echo "[omd-restart] Starting Core processes only." >&2
+fi
+
+# ── Hyprland reload ───────────────────────────────────────────────────────
+if [ "$quickshell_only" -eq 0 ]; then
+    if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        hyprctl reload >/dev/null
+        errors=$(hyprctl configerrors 2>/dev/null || true)
+        if [ -n "$errors" ]; then
+            printf 'Hyprland configuration still has errors:\n%s\n' "$errors" >&2
+        fi
+    fi
+fi
+
+# ── Terminal reload ───────────────────────────────────────────────────────
+if [ -x "$OMD_ROOT/scripts/reload-terminals" ]; then
+    OMD_ROOT="$OMD_ROOT" "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
 fi
