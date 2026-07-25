@@ -45,7 +45,8 @@ Singleton {
         "audio",
         "power-indicator",
         "display",
-        "settings"
+        "settings",
+        "on-screen-display"
     ]
 
     /// Required module IDs = product floor ∪ config modules.required (extras only expand).

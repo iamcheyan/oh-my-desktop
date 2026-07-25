@@ -11,8 +11,9 @@ import qs
 
 import qs.modules.bar
 
-import qs.modules.power-indicator
+import qs.modules.power_indicator
 
+import qs.modules.onScreenDisplay
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -160,5 +161,6 @@ ShellRoot {
                 popup: true
             }
         }
+        OnScreenDisplay {}
     }
 }

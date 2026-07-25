@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "id": "on-screen-display",
+  "name": "On-Screen Display",
+  "description": "Volume, brightness and input method OSD overlays",
+  "version": "2.0.0",
+  "kind": "shared",
+  "actionsProvider": "module-actions.qml",
+  "contributes": {
+    "overlays": [
+      {"id": "on-screen-display", "name": "On-Screen Display", "priority": 100, "component": "OnScreenDisplay.qml"}
+    ]
+  }
+}

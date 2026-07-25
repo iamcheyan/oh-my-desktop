@@ -13,6 +13,7 @@ Singleton {
     property bool clipboardOpen: false
     property bool osdBrightnessOpen: false
     property bool osdVolumeOpen: false
+    property bool osdInputMethodOpen: false
     property real osdBrightnessValue: -1
     // Monitor name the brightness OSD should pin to (empty = focused screen).
     property string osdBrightnessScreen: ""
