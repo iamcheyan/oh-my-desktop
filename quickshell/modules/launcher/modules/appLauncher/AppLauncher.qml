@@ -286,15 +286,19 @@ PanelWindow {
         interval: 400
         repeat: false
         onTriggered: {
-            if (launcher.onDemand && !launcher.open)
+            if (launcher.onDemand && !launcher.open && !launcher._onDemandOpened) {
+                launcher._onDemandOpened = true;
                 launcher.open = true;
+            }
         }
     }
 
+    property bool _onDemandOpened: false
     function tryOpenOnDemand() {
-        if (!onDemand || open) return;
+        if (!onDemand || open || _onDemandOpened) return;
         if (appsLoaded && pinnedIdsLoaded) {
             onDemandReadyTimer.stop();
+            _onDemandOpened = true;
             launcher.open = true;
         }
     }
@@ -445,8 +449,10 @@ PanelWindow {
         if (onDemand) {
             onDemandReadyTimer.start();
             // If data already loaded (hot-reload), open immediately.
-            if (appsLoaded && pinnedIdsLoaded)
+            if (appsLoaded && pinnedIdsLoaded) {
+                _onDemandOpened = true;
                 launcher.open = true;
+            }
         }
     }
 
