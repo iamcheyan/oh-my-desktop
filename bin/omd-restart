@@ -84,7 +84,7 @@ start_app() {
 
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         systemd-run --user --unit="$app" --collect \
-            --property=KillMode=mixed \
+            --property=KillMode=process \
             --property=Restart=on-failure \
             --property=RestartSec=2 \
             --setenv=PATH="$PATH" \
