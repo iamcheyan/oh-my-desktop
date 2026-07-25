@@ -59,9 +59,9 @@ registry_file="$registry_dir/modules.json"
 registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}'
 
 # Helper: merge a single manifest into the registry.
-# Args: $1 = module.json path, $2 = module root dir
+# Args: $1 = module.json path, $2 = module root dir, $3 = module source
 merge_manifest() {
-    local manifest="$1" mod_dir="$2"
+    local manifest="$1" mod_dir="$2" source="${3:-core}"
     local id
     id=$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)
     [ -n "$id" ] || { echo "[sumika] WARN: skipping $manifest — no id field" >&2; return 1; }
@@ -90,32 +90,33 @@ merge_manifest() {
         --slurpfile mod "$manifest" \
         --arg mdir "$mod_dir" \
         --arg mid "$id" \
-        '.modules += [{"id": $mid, "path": $mdir, "kind": ($mod[0].kind // ""), "entry": ($mod[0].entry // null), "actionsProvider": ($mod[0].actionsProvider // null)}] |
+        --arg msource "$source" \
+        '.modules += [{"id": $mid, "path": $mdir, "source": $msource, "kind": ($mod[0].kind // ""), "entry": ($mod[0].entry // null), "actionsProvider": ($mod[0].actionsProvider // null)}] |
          .contributes.widgets += (
           ($mod[0].contributes.widgets // ($mod[0].capabilities // {}).barButtons // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}
-                | .moduleId = (.moduleId // $mid))
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
          ) |
          .contributes.popupSections += (
           ($mod[0].contributes.popupSections // ($mod[0].capabilities // {}).popupSections // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}
-                | .moduleId = (.moduleId // $mid))
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
          ) |
          .contributes.settingsPages += (
           ($mod[0].contributes.settingsPages // ($mod[0].capabilities // {}).settingsPages // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}
-                | .moduleId = (.moduleId // $mid))
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
          ) |
          .contributes.services += (
           ($mod[0].contributes.services // ($mod[0].capabilities // {}).services // [])
          ) |
-         .contributes.actions += ($mod[0].contributes.actions // [] | map(.moduleId = (.moduleId // $mid))) |
+         .contributes.actions += ($mod[0].contributes.actions // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource)) |
          .contributes.overlays += (
            ($mod[0].contributes.overlays // [])
            | map(. + {component: ("file://" + $mdir + "/" + .component)}
-                | .moduleId = (.moduleId // $mid))
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
          ) |
-         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid)))' \
+         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource))' \
         "$tmp_reg" 2>&1); then
         registry="$new_reg"
     else
@@ -160,7 +161,7 @@ if command -v jq >/dev/null 2>&1; then
     for module_json in "$repo_root/quickshell/modules"/*/module.json; do
         [ -f "$module_json" ] || continue
         mod_dir=$(dirname "$module_json")
-        merge_manifest "$module_json" "$mod_dir"
+        merge_manifest "$module_json" "$mod_dir" "core"
     done
 fi
 
@@ -190,7 +191,7 @@ if [ -d "$extensions_dir" ] && command -v jq >/dev/null 2>&1; then
         fi
 
         # Merge manifest into registry
-        if merge_manifest "$ext_mod_json" "$ext_mod_dir"; then
+        if merge_manifest "$ext_mod_json" "$ext_mod_dir" "extension"; then
             # Symlink extension QML into the import path
             ln -sfn "$ext_mod_dir" "$ext_qml_root/qs/modules/$ext_id"
             if [ -f "$ext_mod_dir/qmldir" ]; then

@@ -202,12 +202,12 @@ Singleton {
         const singletonTypes = {battery: 1, inputMethod: 1, keyboard: 1, voice: 1}
         // Track original registrant for conflict reporting
         const seenSingletonOwners = {}
-        // Sort: OMD core modules (path contains "OMD/") before external
-        // modules. This ensures stable singleton popup ownership — the first
-        // module wins, and core modules should be preferred.
+        // Sort by the explicit registry source. Do not infer ownership from
+        // filesystem paths: installs, symlinks, and other users' checkouts
+        // must not change Core/Extension precedence.
         const sorted = [...sections].sort((a, b) => {
-            const aIsCore = (a.path && a.path.indexOf("OMD/") >= 0) ? 0 : 1
-            const bIsCore = (b.path && b.path.indexOf("OMD/") >= 0) ? 0 : 1
+            const aIsCore = a.source === "core" ? 0 : 1
+            const bIsCore = b.source === "core" ? 0 : 1
             return aIsCore - bIsCore
         })
         return sorted.filter(s => {
