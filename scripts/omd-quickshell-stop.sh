@@ -28,12 +28,22 @@ EOF
     fi
 
     # ── Stop all units (parallel, capped, force-killed) ─────────────────
+    # omd-bar must be stopped synchronously and WITHOUT SIGKILL to avoid
+    # a self-kill race: omd-restart runs in omd-bar's cgroup (spawned by
+    # the bar's Quickshell).  KillMode=mixed ensures systemctl stop only
+    # SIGTERMs the main PID; our child process survives as an orphan.
+    # Start all OTHER units in parallel first, then handle omd-bar.
     for app in $apps; do
+        if [ "$app" = "omd-bar" ]; then
+            continue
+        fi
         (
             timeout 3 systemctl --user stop "$app.service" 2>/dev/null || true
             systemctl --user kill --signal=SIGKILL --kill-who=all "$app.service" 2>/dev/null || true
         ) &
     done
+    # omd-bar — synchronous, no SIGKILL (would kill omd-restart itself)
+    timeout 3 systemctl --user stop omd-bar.service 2>/dev/null || true
     wait
     sleep 0.2
 
