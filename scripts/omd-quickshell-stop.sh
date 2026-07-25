@@ -29,14 +29,9 @@ $(jq -r '
 EOF
     fi
 
-    # Quickshell Process children can survive a bare `systemctl stop` because
-    # we use `systemctl stop` which properly signals the unit.  Clean up
-    # known watcher processes from module manifests so repeated `omd-restart`
-    # calls do not stack them.
-    #
-    # Registry-driven cleanup: modules declare `watchers: ["cmd1", "cmd2"]` in their
-    # module.json entry. If the registry file is unavailable, fall back to known
-    # legacy watchers for backwards compatibility.
+    # Registry-driven watcher cleanup: modules can declare `watchers: ["cmd1"]`
+    # in their module.json entry. Fall back to known legacy watchers if the
+    # registry file is unavailable.
     _cleaned=false
     if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         while IFS="" read -r watcher; do
@@ -57,12 +52,20 @@ WATCHERS
         pkill -f "wl-paste --watch.*cliphist" 2>/dev/null || true
     fi
 
-    # Use `systemctl stop` (not `kill --kill-who=main`) so systemd properly
-    # transitions the unit state to "stopped".  With Restart=on-failure
-    # (set by omd-restart), `kill` leaves the unit "active" and the
-    # process death would trigger an automatic restart.
+    # Stop every discovered app unit.  Use `systemctl stop` (not `kill
+    # --kill-who=main`) so systemd properly transitions the unit state to
+    # "stopped" — with Restart=on-failure (set by omd-restart), `kill` leaves
+    # the unit "active" and the process death would trigger an automatic
+    # restart.
+    #
+    # Cap each stop at 3 seconds because some daemons (clipboard store's
+    # wl-paste --watch) block on Wayland reads and won't respond to SIGTERM
+    # quickly.  One stuck unit shouldn't delay the whole reload.
     for app in $apps; do
-        systemctl --user stop --timeout=5 "$app.service" 2>/dev/null || true
+        timeout 3 systemctl --user stop "$app.service" 2>/dev/null || true
+        # Force-kill remaining cgroup processes if the 3s graceful stop
+        # didn't finish (e.g. wl-paste stuck on Wayland read).
+        systemctl --user kill --signal=SIGKILL --kill-who=all "$app.service" 2>/dev/null || true
     done
     sleep 0.2
 
@@ -72,6 +75,7 @@ WATCHERS
     pkill -f "/usr/bin/quickshell -p ${omd_root}/" 2>/dev/null || true
     sleep 0.15
 
+    # Reset unit state so the next `omd-restart` can create fresh units.
     for app in $apps; do
         systemctl --user reset-failed "$app.service" >/dev/null 2>&1 || true
         rm -f "$runtime_dir/systemd/transient/$app.service" 2>/dev/null || true
