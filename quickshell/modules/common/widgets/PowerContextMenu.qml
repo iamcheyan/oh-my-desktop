@@ -20,6 +20,28 @@ ContextMenuWindow {
         }
     }
 
+    // ── Snapshot group ──
+    ContextMenuItem {
+        nerdIcon: NerdIconMap.archive
+        labelText: "Save Snapshot"
+        onClicked: {
+            root.close();
+            Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
+        }
+    }
+
+    ContextMenuItem {
+        nerdIcon: NerdIconMap.unarchive
+        labelText: "Restore Snapshot"
+        onClicked: {
+            root.close();
+            Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "restore"]);
+        }
+    }
+
+    ContextMenuSeparator {}
+
+    // ── Power actions ──
     ContextMenuItem {
         visible: root.hibernateAvailable
         nerdIcon: NerdIconMap.download
@@ -61,23 +83,13 @@ ContextMenuWindow {
         }
     }
 
-    ContextMenuSeparator {}
-
-    ContextMenuItem {
-        nerdIcon: NerdIconMap.settings
-        labelText: "Settings"
-        onClicked: {
-            root.close();
-            ActionManager.invoke("settings.open", {section: "overview"});
-        }
-    }
 
     ContextMenuItem {
         nerdIcon: NerdIconMap.refresh
         labelText: "Reload Shell"
         onClicked: {
             root.close();
-            ActionManager.invoke("shell.reload");
+            Quickshell.execDetached(["bash", `${Directories.root}/bin/omd-restart`]);
         }
     }
 }
