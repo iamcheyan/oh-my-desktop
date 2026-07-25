@@ -103,7 +103,7 @@ PanelWindow {
     function reloadShell() {
         launcher.sessionMenuOpen = false;
         Quickshell.execDetached([
-            "bash", Directories.root + "/scripts/reload-quickshell"
+            Directories.root + "/bin/omd-restart"
         ]);
         launcher.open = false;
     }

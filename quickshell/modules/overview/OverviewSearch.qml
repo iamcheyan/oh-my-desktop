@@ -119,7 +119,7 @@ Item {
         menuOpen = false;
         GlobalStates.overviewOpen = false;
         Quickshell.execDetached([
-            "qs", "-p", `${Directories.scriptPath}/reload-quickshell`
+            `${Directories.root}/bin/omd-restart`
         ]);
     }
 

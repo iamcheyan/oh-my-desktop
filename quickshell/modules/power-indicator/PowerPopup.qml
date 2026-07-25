@@ -337,7 +337,7 @@ Item {
                     icon: "refresh"
                     label: "Reload"
                     onClicked: {
-                        Quickshell.execDetached(["bash", `${FileUtils.trimFileProtocol(Directories.config)}/omd/scripts/reload-quickshell`]);
+                        Quickshell.execDetached(["bash", `${Directories.root}/bin/omd-restart`]);
                         GlobalStates.barPopupType = "";
                     }
                 }

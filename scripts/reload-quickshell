@@ -1,78 +1,9 @@
 #!/bin/sh
-set -eu
+# reload-quickshell — compatibility wrapper; delegates to omd-restart.
+#
+# Usage: reload-quickshell [--quickshell-only]
+#
+# This script exists only for callers that haven't been migrated to
+# omd-restart yet.  New code should call `omd-restart` directly.
 
-omd_root="${OMD_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-quickshell_only=0
-
-case "${1:-}" in
-    "") ;;
-    --quickshell-only) quickshell_only=1 ;;
-    *)
-        printf 'Usage: %s [--quickshell-only]\n' "$0" >&2
-        exit 2
-        ;;
-esac
-
-# shellcheck source=omd-quickshell-stop.sh
-. "$omd_root/scripts/omd-quickshell-stop.sh"
-
-# Refuse to reload while the screen is locked — killing the bar process
-# during an active Wayland session lock causes Hyprland to show the
-# "lockscreen app died" error and leaves the screen in an unusable state.
-if pgrep -f "wl-session-lock\|WlSessionLock" >/dev/null 2>&1; then
-    printf 'Screen is locked — refusing to reload Quickshell.\n' >&2
-    printf 'Unlock first, then run reload again.\n' >&2
-    exit 1
-fi
-
-stop_quickshell() {
-    omd_stop_quickshell
-}
-
-stop_waybar() {
-    pkill -x waybar 2>/dev/null || true
-}
-
-start_quickshell() {
-    if [ -x "$omd_root/bin/omd-restart" ]; then
-        OMD_SKIP_STOP=1 "$omd_root/bin/omd-restart"
-    else
-        printf 'No Quickshell launcher found at %s/bin/omd-restart\n' "$omd_root" >&2
-        exit 1
-    fi
-}
-
-reload_hyprland() {
-    if [ "$quickshell_only" -eq 1 ]; then
-        return
-    fi
-    if ! command -v hyprctl >/dev/null 2>&1 || [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-        return
-    fi
-
-    # A git pull/reset replaces files one at a time. Hyprland may hot-reload
-    # while that operation is in progress and retain an error from the
-    # temporary, incomplete tree. Reload once more after the tree is stable.
-    hyprctl reload >/dev/null
-
-    errors=$(hyprctl configerrors 2>/dev/null || true)
-    if [ -n "$errors" ]; then
-        printf 'Hyprland configuration still has errors:\n%s\n' "$errors" >&2
-        return 1
-    fi
-}
-
-reload_terminals() {
-    if [ -x "$omd_root/scripts/reload-terminals" ]; then
-        OMD_ROOT="$omd_root" "$omd_root/scripts/reload-terminals" >/dev/null 2>&1 || true
-    fi
-}
-
-stop_quickshell
-stop_waybar
-start_quickshell
-reload_hyprland
-reload_terminals
-
-sleep 1
-pgrep -af '(quickshell|qs|wl-paste)' || true
+exec "$(cd "$(dirname "$0")/.." && pwd)/bin/omd-restart" "$@"

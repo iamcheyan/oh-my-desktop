@@ -674,8 +674,7 @@ Item {
         interval: 900
         repeat: false
         onTriggered: Quickshell.execDetached([
-            "/bin/sh",
-            Directories.root + "/scripts/reload-quickshell",
+            Directories.root + "/bin/omd-restart",
             "--quickshell-only"
         ])
     }

@@ -1,7 +1,17 @@
 #!/bin/sh
 set -eu
 
-# Resolve repo root from this script's location (works without ~/.config/omd symlink).
+# omd-restart — Unified reload entry point for Sumika Shell.
+#
+# Stop all OMD systemd units, start them again, reload Hyprland,
+# reload terminal configs, and clean up orphan processes.
+#
+# Usage: omd-restart [--quickshell-only]
+#   --quickshell-only   skip Hyprland reload (for display/settings changes)
+#
+# Callers: power-popup reload button, launcher, overview, settings,
+#          chezmoi post-update hooks, and direct terminal use.
+
 _omd_root=$(cd "$(dirname "$0")/.." && pwd)
 . "$_omd_root/lib/paths.sh"
 unset _omd_root
@@ -9,12 +19,40 @@ unset _omd_root
 # shellcheck source=../scripts/omd-quickshell-stop.sh
 . "$OMD_ROOT/scripts/omd-quickshell-stop.sh"
 
-# Skip stop if already called by caller (e.g. reload-quickshell) to avoid
-# double-stop race that kills freshly started processes.
+# ── Lockscreen guard (from reload-quickshell) ──────────────────────────────
+# Refuse to reload while the screen is locked — killing the bar process
+# during an active Wayland session lock causes Hyprland to show the
+# "lockscreen app died" error and leaves the screen in an unusable state.
+if pgrep -f "wl-session-lock\|WlSessionLock" >/dev/null 2>&1; then
+    printf 'Screen is locked — refusing to reload Quickshell.\n' >&2
+    printf 'Unlock first, then run omd-restart again.\n' >&2
+    exit 1
+fi
+
+# ── Argument parsing ──────────────────────────────────────────────────────
+quickshell_only=0
+case "${1:-}" in
+    --quickshell-only) quickshell_only=1 ;;
+    "")
+        # normal full reload
+        ;;
+    *)
+        printf 'Usage: %s [--quickshell-only]\n' "$0" >&2
+        exit 2
+        ;;
+esac
+
+# ── Stop existing processes ───────────────────────────────────────────────
+# OMD_SKIP_STOP=1 allows callers (e.g. the reload-quickshell wrapper or
+# some external scripts) to manage stop themselves to avoid double-stop races.
 if [ "${OMD_SKIP_STOP:-0}" != "1" ]; then
     omd_stop_quickshell
 fi
 
+# Kill waybar (was stop_waybar in reload-quickshell)
+pkill -x waybar 2>/dev/null || true
+
+# ── Application entry-point API ───────────────────────────────────────────
 start_app() {
     app="$1"
     executable="${2:-$OMD_ROOT/bin/$app}"
@@ -40,7 +78,7 @@ start_app() {
     fi
 }
 
-# Resolve the runtime registry path.
+# ── Resolve runtime registry path ─────────────────────────────────────────
 _registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
 
 # Product-floor minimum desktop (must match ModuleLoader.productFloorModuleIds).
@@ -93,15 +131,11 @@ module_is_enabled() {
 }
 
 # ── Core host processes (always required) ──────────────────────────────────
-# omd-bar and omd-polkit are Core host processes, not discovered modules.
 start_app omd-bar
 start_app omd-polkit
 
 # ── Registry-driven application modules ────────────────────────────────────
-# Every module with kind=application and an entry block contributes a process,
-# subject to the same enable rules as ModuleLoader (product floor + master switch).
 if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
-    # Note: jq's // treats false as missing — never use `.autostart // true`.
       jq -r '
         .modules[] |
         select(.kind == "application" and (.entry | length > 0)) |
@@ -121,7 +155,6 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
             continue
         fi
 
-        # On-demand apps (e.g. launcher) stay cold until Action/CLI invokes them.
         case "$autostart" in
             false|False|0)
                 printf 'Skipping application module %s (entry.autostart=false, on-demand)\n' "$module_id" >&2
@@ -135,7 +168,7 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
         # For external modules with a relative command (e.g. "bin/omd-clipboard-store"),
         # resolve against the module's registry path.
         # Skip if the command uses ${OMD_ROOT} (already resolved via sed) or starts with /.
-        if [ -n "${module_path:-}" ] && echo "$first_cmd" | grep -qv '^/' && echo "$first_cmd" | grep -qv '\$\{OMD_ROOT\}'; then
+        if [ -n "${module_path:-}" ] && echo "$first_cmd" | grep -qv '^/' && ! echo "$first_cmd" | grep -qF '${OMD_ROOT}'; then
             resolved_cmd="$module_path/$first_cmd"
         fi
         # Fallback to OMD_ROOT/bin/ if still unresolved or not executable.
@@ -152,4 +185,23 @@ elif [ -f "$_registry_file" ]; then
 else
     echo "[omd-restart] WARNING: registry not found at $_registry_file" >&2
     echo "[omd-restart] Starting Core processes only." >&2
+fi
+
+# ── Hyprland reload (from reload-quickshell's reload_hyprland) ────────────
+if [ "$quickshell_only" -eq 0 ]; then
+    if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        # A git pull/reset replaces files one at a time. Hyprland may hot-reload
+        # while that operation is in progress and retain an error from the
+        # temporary, incomplete tree. Reload once more after the tree is stable.
+        hyprctl reload >/dev/null
+        errors=$(hyprctl configerrors 2>/dev/null || true)
+        if [ -n "$errors" ]; then
+            printf 'Hyprland configuration still has errors:\n%s\n' "$errors" >&2
+        fi
+    fi
+fi
+
+# ── Terminal reload (from reload-quickshell's reload_terminals) ───────────
+if [ -x "$OMD_ROOT/scripts/reload-terminals" ]; then
+    OMD_ROOT="$OMD_ROOT" "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
 fi
