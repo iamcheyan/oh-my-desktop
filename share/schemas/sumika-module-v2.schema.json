@@ -195,6 +195,42 @@
               "moduleId": { "type": "string" }
             }
           }
+        },
+        "launchers": {
+          "description": "Desktop application entries to install in ~/.local/share/applications/",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "exec"],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "description": "Launcher ID — must start with 'sumika-'; becomes <id>.desktop",
+                "type": "string",
+                "pattern": "^sumika-[a-z][a-z0-9-]*$"
+              },
+              "name": { "type": "string", "minLength": 1 },
+              "comment": { "type": "string" },
+              "exec": {
+                "description": "Command line to execute (may reference bin/ scripts which are on PATH)",
+                "type": "string",
+                "minLength": 1
+              },
+              "icon": {
+                "description": "Icon path — relative to module root or absolute",
+                "type": "string",
+                "pattern": "^(?!\\.\\./)"
+              },
+              "categories": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "terminal": { "type": "boolean", "default": false },
+              "startupWmClass": { "type": "string" },
+              "noDisplay": { "type": "boolean", "default": false },
+              "moduleId": { "type": "string" }
+            }
+          }
         }
       }
     },

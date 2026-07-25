@@ -33,3 +33,4 @@ keyboard-remap/keyd.generated.conf
 
 # Runtime module state (pinned apps, config caches — generated, not source)
 modules/**/.state/
+json

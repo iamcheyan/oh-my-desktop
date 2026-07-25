@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Wayland
+import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -625,11 +626,10 @@ PanelWindow {
                         radius: TuiStyle.radius
                         border.width: 0
 
-                        StyledText {
+                        NerdIcon {
                             anchors.centerIn: parent
-                            text: "\uDB80\uDFDB"
-                            font.pixelSize: Appearance.font.pixelSize.normal
-                            font.family: Appearance.font.family.main
+                            iconSize: Appearance.font.pixelSize.normal
+                            text: NerdIconMap.menu
                             color: launcher.sessionMenuOpen ? TuiStyle.accent : TuiStyle.fg
                         }
 
@@ -712,11 +712,10 @@ PanelWindow {
                             border.width: 0
                             z: 2
 
-                            StyledText {
+                            NerdIcon {
                                 anchors.centerIn: parent
-                                text: "\uDB81\uDC03"
-                                font.pixelSize: 12
-                                font.family: Appearance.font.family.main
+                                iconSize: 12
+                                text: NerdIconMap.pushPin
                                 color: appItem.isPinned ? TuiStyle.bg : TuiStyle.dim
                             }
                         }

@@ -129,6 +129,12 @@ Overview of the extension (external module) system:
 - Use `omd-modules extensions` to list installed extensions.
 - Run `omd-doctor` to diagnose extension issues.
 - **External module services MUST NOT** live in `quickshell/services/`. Service files for a module must be placed inside the module's own directory and registered via its `qmldir` as a singleton (`singleton <Type> 1.0 <File>.qml`). The former `InputMethod.qml`, `KeyboardRemap.qml` and any screenshot-session service are examples that should follow this pattern — core services only for core singletons.
+
+### Desktop Launchers (`contributes.launchers`)
+
+扩展通过 `module.json` 的 `contributes.launchers` 声明桌面快捷方式，由 shell 框架**自动同步**。**不要写 QML 管理 .desktop。**
+
+👉 完整参考：[docs/launchers-contract.md](docs/launchers-contract.md)
 ### Omarchy / Hyprland
 
 - Config: `hypr/*.lua`. Autostart: `hypr/autostart.lua`. Reload: `hyprctl reload`.

@@ -13,15 +13,7 @@ Item {
     property var altAction: null
     signal clicked()
 
-    readonly property string effectiveIcon: {
-        if (moduleId === "file-backup")
-            return NerdIconMap.cloudUpload
-        if (moduleId === "ocr")
-            return NerdIconMap.textDocument
-        if (moduleId === "windows-vm")
-            return NerdIconMap.windows
-        return icon
-    }
+    readonly property string effectiveIcon: icon
 
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true

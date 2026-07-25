@@ -11,7 +11,7 @@ import qs
 
 import qs.modules.bar
 
-import qs.modules.power_indicator
+import qs.modules.powerIndicator
 
 import qs.modules.onScreenDisplay
 import QtQuick

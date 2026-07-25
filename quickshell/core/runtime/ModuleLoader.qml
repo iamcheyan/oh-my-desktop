@@ -144,6 +144,19 @@ Singleton {
         return true
     }
 
+    /// Reactively sync desktop launchers when module enablement changes.
+    /// Delegates to bin/omd-sync-launchers (declarative .desktop lifecycle).
+    readonly property var _disabledModules: Config.options.modules?.disabled ?? []
+    on_DisabledModulesChanged: loader.syncLaunchers()
+    readonly property bool _modulesEnabled: Config.options.modules?.enabled !== false
+    on_ModulesEnabledChanged: loader.syncLaunchers()
+
+    function syncLaunchers() {
+        const bin = Quickshell.env("OMD_REPO_ROOT")
+        if (!bin) return
+        Quickshell.execDetached([bin + "/bin/omd-sync-launchers", "--quiet"])
+    }
+
     /// Resolve a module's absolute directory path from the registry.
     /// Returns empty string if module or registry unavailable.
     function modulePath(moduleId) {
@@ -255,6 +268,13 @@ Singleton {
         return []
     }
 
+    /// Desktop launchers from the registry, filtered by module enablement.
+    /// Each entry: { id, name, comment, exec, icon, categories, terminal,
+    /// startupWmClass, noDisplay, moduleId, source }
+    readonly property var launchers: {
+        const all = _contributes("launchers")
+        return all.filter(l => loader.isEnabled(l.moduleId))
+    }
     function _emptyRegistry() {
         return {
             schemaVersion: 2,
@@ -266,7 +286,8 @@ Singleton {
                 services: [],
                 actions: [],
                 overviewProviders: [],
-                overlays: []
+                overlays: [],
+                launchers: []
             }
         }
     }
@@ -285,6 +306,7 @@ Singleton {
                     }
                     loader._registry = parsed
                     const c = parsed.contributes || {}
+                    loader.syncLaunchers()
                     const wCount = (c.widgets || []).length
                     const pCount = (c.popupSections || []).length
                     const sCount = (c.settingsPages || []).length

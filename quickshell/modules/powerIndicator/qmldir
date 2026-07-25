@@ -1,2 +1,2 @@
-module qs.modules.power_indicator
+module qs.modules.powerIndicator
 SessionAutoRestore 1.0 SessionAutoRestore.qml

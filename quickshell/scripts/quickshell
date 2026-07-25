@@ -56,7 +56,7 @@ export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 registry_file="$registry_dir/modules.json"
 
 # v2 empty template
-registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}'
+registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[],"launchers":[]}}'
 
 # Helper: merge a single manifest into the registry.
 # Args: $1 = module.json path, $2 = module root dir, $3 = module source
@@ -111,12 +111,11 @@ merge_manifest() {
           ($mod[0].contributes.services // ($mod[0].capabilities // {}).services // [])
          ) |
          .contributes.actions += ($mod[0].contributes.actions // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource)) |
-         .contributes.overlays += (
-           ($mod[0].contributes.overlays // [])
-           | map(. + {component: ("file://" + $mdir + "/" + .component)}
-                | .moduleId = (.moduleId // $mid) | .source = $msource)
-         ) |
-         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource))' \
+         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource)) |
+         .contributes.launchers += (
+          ($mod[0].contributes.launchers // [])
+           | map(.moduleId = (.moduleId // $mid) | .source = $msource)
+         )' \
         "$tmp_reg" 2>&1); then
         registry="$new_reg"
     else
@@ -236,6 +235,14 @@ if command -v jq >/dev/null 2>&1; then
     echo "[sumika] Registry: $registry_file (widgets: $widget_count, popupSections: $popup_count, settingsPages: $settings_count)"
 else
     echo "[sumika] Registry: $registry_file"
+fi
+
+# ── Desktop launcher sync ──
+# Reconcile ~/.local/share/applications/sumika-*.desktop with the registry's
+# contributes.launchers. Creates entries for enabled modules, removes entries
+# for disabled/uninstalled modules. See bin/omd-sync-launchers.
+if [ -x "$repo_root/bin/omd-sync-launchers" ]; then
+    "$repo_root/bin/omd-sync-launchers" --quiet || true
 fi
 repair_config_json() {
     # User config path (new Sumika Shell location)

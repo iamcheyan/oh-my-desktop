@@ -9,7 +9,8 @@
     "command": ["${OMD_ROOT}/bin/omd-settings", "open"],
     "instance": "omd-settings",
     "readyTimeout": 15,
-    "appId": "org.omd.settings"
+    "appId": "org.omd.settings",
+    "autostart": false
   },
   "contributes": {
     "actions": [

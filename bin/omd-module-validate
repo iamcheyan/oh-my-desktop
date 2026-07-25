@@ -32,7 +32,7 @@ WIDGET_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
 INSTANCE_PATTERN = re.compile(r'^omd-[a-z][a-z0-9-]*$')
 HANDLER_PATTERN = re.compile(r'^(ipc:|action:)[a-zA-Z0-9._-]+$')
 PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
-SERVICE_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
+LAUNCHER_ID_PATTERN = re.compile(r'^sumika-[a-z][a-z0-9-]*$')
 
 _KINDS = frozenset({"application", "overlay", "qml-singleton", "service-provider", "shared"})
 
@@ -235,6 +235,31 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
             seen_svc_ids.add(svc)
             if not SERVICE_ID_PATTERN.match(str(svc)):
                 errors.append(error(module_id, f"#contributes.services[{i}]", f"invalid service id '{svc}'"))
+        # Launchers (desktop entries)
+        seen_launcher_ids = set()
+        for i, ln in enumerate(contributes.get("launchers", [])):
+            lid = ln.get("id", f"#{i}")
+            if lid in seen_launcher_ids:
+                errors.append(error(module_id, f"#contributes.launchers[{i}]", f"duplicate launcher id '{lid}'"))
+            seen_launcher_ids.add(lid)
+
+            if not LAUNCHER_ID_PATTERN.match(str(lid)):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].id", f"invalid id '{lid}' — must match sumika-[a-z][a-z0-9-]*"))
+
+            if not ln.get("name"):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].name", "required"))
+            if not ln.get("exec"):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].exec", "required"))
+
+            # Validate relative icon path if present
+            icon = ln.get("icon", "")
+            if icon and not icon.startswith("/") and not icon.startswith("file:"):
+                if ".." in icon:
+                    errors.append(error(module_id, f"#contributes.launchers[{i}].icon", f"path traversal: '{icon}'"))
+                else:
+                    full_path = os.path.join(module_root, icon)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.launchers[{i}].icon", f"file not found: {icon}"))
 
     # -- trustedInProcess (boolean, default false) --
     tip = data.get("trustedInProcess")
