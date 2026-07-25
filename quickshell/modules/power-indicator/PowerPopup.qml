@@ -157,6 +157,12 @@ Item {
                 title: ServiceManager?.power?.battery?.available ? "Power & Battery" : "Power"
                 subtitle: batteryStack.headerStatus() + (batteryStack.showTimeEstimate() ? "  ·  " + batteryStack.timeEstimateValue() + " remaining" : "")
                 tone: batteryStack.headerTone()
+                actionIcon: "settings"
+                actionTooltip: "电源设置"
+                onActionClicked: {
+                    var repoRoot = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root);
+                    Quickshell.execDetached([repoRoot + "/bin/omd-settings", "open", "power"]);
+                }
             }
 
             // ── Battery meter bar ────────────────────────────────
@@ -179,31 +185,6 @@ Item {
                     Layout.alignment: Qt.AlignVCenter
                     text: `${Math.round(ServiceManager.power.battery.percentage * 100)}%`
                     color: ServiceManager.power.battery.isLowAndNotCharging ? TuiStyle.danger : TuiStyle.fg
-                }
-
-                // Settings gear button
-                RippleButton {
-                    Layout.preferredWidth: 22
-                    Layout.preferredHeight: 22
-                    Layout.alignment: Qt.AlignVCenter
-                    Layout.leftMargin: 4
-                    buttonRadius: 11
-                    colBackground: "transparent"
-                    colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
-                    colRipple: Qt.rgba(1, 1, 1, 0.12)
-                    borderWidth: 0
-
-                    contentItem: NerdIcon {
-                        anchors.centerIn: parent
-                        iconSize: 14
-                        text: NerdIconMap.settings
-                        color: TuiStyle.dim
-                    }
-
-                    onClicked: {
-                        GlobalStates.barPopupType = "";
-                        Quickshell.execDetached(["omd-launch-settings-power"]);
-                    }
                 }
             }
 
