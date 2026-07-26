@@ -160,6 +160,7 @@ Scope {
                     anchors.fill: parent
                     contentWidth: width
                     contentHeight: panelContent.implicitHeight
+                    interactive: root.activeType !== "notifications"
                     clip: true
 
                     ColumnLayout {

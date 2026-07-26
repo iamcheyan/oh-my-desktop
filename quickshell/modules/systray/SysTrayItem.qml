@@ -22,6 +22,10 @@ Item {
     readonly property string itemIconName: String(item.icon ?? "")
     readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
     readonly property bool hasValidIcon: itemIconName.length > 0
+    // Some SNI providers publish a non-empty icon name that is not resolvable
+    // by IconImage. Keep the item visible and use a neutral fallback instead
+    // of leaving an empty slot in the bar.
+    readonly property bool iconLoadFailed: root.hasValidIcon && trayIcon.status === Image.Error
     readonly property string tooltipText: {
         var parts = [];
         var t = root.item.title || root.item.tooltipTitle || "";
@@ -82,8 +86,11 @@ Item {
 
     IconImage {
         id: trayIcon
-        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !Config.options.tray.monochromeIcons
-        source: visible ? root.itemIconName : ""
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !root.iconLoadFailed
+        // Keep the source visible. The monochrome effect is rendered by the
+        // overlay below; hiding the source makes that overlay blank as well.
+        opacity: 1
+        source: root.itemIconName
         anchors.centerIn: button
         width: Math.round(Config.options.bar.rightIconSize * 0.82)
         height: Math.round(Config.options.bar.rightIconSize * 0.82)
@@ -108,7 +115,7 @@ Item {
     }
 
     Loader {
-        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && Config.options.tray.monochromeIcons
+        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !root.iconLoadFailed && Config.options.tray.monochromeIcons
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {
@@ -124,6 +131,16 @@ Item {
                 color: Appearance.colors.colBarText
             }
         }
+    }
+
+    // Also covers invalid icon names, not only providers that omit an icon.
+    MaterialSymbol {
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon
+            && (!root.hasValidIcon || root.iconLoadFailed)
+        anchors.centerIn: button
+        text: "apps"
+        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
+        color: Appearance.colors.colBarText
     }
 
     PopupToolTip {

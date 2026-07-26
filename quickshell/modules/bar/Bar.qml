@@ -29,6 +29,10 @@ Scope {
             required property ShellScreen modelData
             component: PanelWindow { // Bar window
                 id: barRoot
+                readonly property bool _effectiveBgp: Config.options.bar.showBackground
+                    && !(Config.options.bar.transparentOnEmptyDesktop && !barContent.workspaceHasWindows)
+                // Shadows bar.showBarBackground to account for transparentOnEmptyDesktop
+                readonly property bool showBarBackground: barRoot._effectiveBgp
                 screen: barLoader.modelData
 
                 exclusionMode: ExclusionMode.Ignore

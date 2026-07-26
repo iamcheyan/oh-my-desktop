@@ -15,22 +15,13 @@ Singleton {
     /// of bindings that depend on trayModel.values (which has no notify signal).
     property bool _refreshTrigger: false
 
-    Component.onCompleted: {
-        if (trayModel && typeof trayModel.objectAdded === "object" && typeof trayModel.objectAdded.connect === "function") {
-            trayModel.objectAdded.connect(() => _refreshTrigger = !_refreshTrigger);
-            trayModel.objectRemoved.connect(() => _refreshTrigger = !_refreshTrigger);
-        }
-        if (typeof SystemTray.itemRegistered === "object" && typeof SystemTray.itemRegistered.connect === "function") {
-            SystemTray.itemRegistered.connect(() => _refreshTrigger = !_refreshTrigger);
-            SystemTray.itemUnregistered.connect(() => _refreshTrigger = !_refreshTrigger);
-        }
-    }
-
-
-    /// Polling fallback — ensures reactivity even if signal connections fail
+    /// Polling keeps the derived list in sync across Quickshell versions.
+    /// SystemTray.items is an ObjectModel whose mutation signal names have
+    /// changed between releases, so binding to guessed signals is brittle.
+    /// The tray is tiny and this avoids losing newly registered SNI items.
     Timer {
         id: _pollTimer
-        interval: 2000
+        interval: 500
         running: true
         repeat: true
         onTriggered: _refreshTrigger = !_refreshTrigger
@@ -42,9 +33,14 @@ Singleton {
         return trayModel.values ?? [];
     }
 
-    property bool smartTray: Config.options.tray.filterPassive
-    property list<var> itemsInUserList: root.allItems.filter(i => (Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || i.status !== Status.Passive)))
-    property list<var> itemsNotInUserList: root.allItems.filter(i => (!Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || i.status !== Status.Passive)))
+    function isPassiveItem(item) {
+        if (!item) return false;
+        return item.status === "Passive" || item.status === 0 || item.status === SystemTrayItem.Passive;
+    }
+
+    property bool smartTray: Config.options.tray.filterPassive ?? false
+    property list<var> itemsInUserList: root.allItems.filter(i => (Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || !root.isPassiveItem(i))))
+    property list<var> itemsNotInUserList: root.allItems.filter(i => (!Config.options.tray.pinnedItems.includes(i.id) && (!smartTray || !root.isPassiveItem(i))))
 
     property bool invertPins: Config.options.tray.invertPinnedItems
     property list<var> pinnedItems: invertPins ? itemsNotInUserList : itemsInUserList

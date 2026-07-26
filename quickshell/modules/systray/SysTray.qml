@@ -12,6 +12,10 @@ Item {
 
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
+    // The tray is a core product-floor widget. Keep its slot mounted even
+    // while the SNI model is empty or still connecting to D-Bus.
+    visible: true
+    width: trayRow.implicitWidth
     implicitWidth: trayRow.implicitWidth
     implicitHeight: Config.options.bar.rightIconSlotWidth
 
@@ -33,11 +37,6 @@ Item {
             if (!skip) result.push(items[i]);
         }
         return result;
-    }
-
-    Binding on visible {
-        value: root.trayItems.length > 0
-        when: !Config.options.tray.showOnlyWhenVisible
     }
 
     RowLayout {
