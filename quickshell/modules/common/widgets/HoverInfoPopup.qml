@@ -37,12 +37,15 @@ Item {
     /// Extra margin inside the popup background.
     property real padding: 8
 
-    readonly property var _providerComponent: moduleId.length > 0
-        ? HoverInfoService.provider(moduleId)
-        : null
+    // NOTE: No cached _providerComponent!  HoverInfoService.provider() is
+    // called inline so that _visible picks up the value freshly on every
+    // re-evaluation.  The module registers in Component.onCompleted, which
+    // runs after this item's construction — caching the result would yield
+    // null permanently.
 
     readonly property bool _visible: hoverTarget !== null
-        && _providerComponent !== null
+        && moduleId.length > 0
+        && HoverInfoService.provider(moduleId) !== null
         && (hoverTarget.hovered !== undefined
             ? hoverTarget.hovered
             : hoverTarget.containsMouse === true)
@@ -172,7 +175,7 @@ Item {
                             fill: parent
                             margins: 8
                         }
-                        sourceComponent: root._providerComponent
+                        sourceComponent: HoverInfoService.provider(root.moduleId)
                     }
                 }
             }
