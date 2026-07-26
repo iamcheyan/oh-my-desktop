@@ -1,7 +1,7 @@
 import qs.modules.common
 import QtQuick
 
-StyledText {
+Text {
     id: root
     property real iconSize: Appearance?.font.pixelSize.small ?? 16
     renderType: Text.NativeRendering
@@ -12,3 +12,4 @@ StyledText {
         pixelSize: iconSize
     }
 }
+

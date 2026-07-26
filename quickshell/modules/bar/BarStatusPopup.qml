@@ -88,9 +88,9 @@ Scope {
         }
 
         margins {
-            top: barOnBottom ? 0 : Appearance.sizes.barHeight + 4
-            bottom: barOnBottom ? Appearance.sizes.barHeight + 4 : 0
-            right: 4
+            top: barOnBottom ? 0 : BarPopupGeometry.windowTopMargin
+            bottom: barOnBottom ? BarPopupGeometry.windowTopMargin : 0
+            right: BarPopupGeometry.rightGap
         }
 
         implicitWidth: panel.implicitWidth
@@ -154,9 +154,7 @@ Scope {
                 color: TuiStyle.bg
                 border.width: TuiStyle.borderWidth
                 border.color: TuiStyle.menuBorder
-                radius: TuiStyle.shellRadius
                 clip: true
-
                 StyledFlickable {
                     id: popupFlick
                     anchors.fill: parent

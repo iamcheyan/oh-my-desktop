@@ -12,7 +12,16 @@ Item { // Bar content region
     id: root
 
     readonly property int barSidePadding: 10
-    readonly property color barOpaqueColor: "#000000"
+    readonly property color barOpaqueColor: {
+        const base = Config.options.bar.backgroundColor === "white" ? "#FFFFFF" : "#000000"
+        const alpha = Math.round((Config.options.bar.backgroundOpacity ?? 100) / 100 * 255)
+        return Qt.rgba(
+            base === "#FFFFFF" ? 1 : 0,
+            base === "#FFFFFF" ? 1 : 0,
+            base === "#FFFFFF" ? 1 : 0,
+            alpha / 255
+        )
+    }
 
     property var screen: root.QsWindow.window?.screen
     readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)

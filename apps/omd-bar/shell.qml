@@ -136,9 +136,9 @@ ShellRoot {
             }
 
             margins {
-                top: notifPopup.barOnBottom ? 0 : Appearance.sizes.barHeight + 4
-                bottom: notifPopup.barOnBottom ? Appearance.sizes.barHeight + 4 : 0
-                right: 4
+                top: notifPopup.barOnBottom ? 0 : BarPopupGeometry.windowTopMargin
+                bottom: notifPopup.barOnBottom ? BarPopupGeometry.windowTopMargin : 0
+                right: BarPopupGeometry.rightGap
             }
 
             mask: Region {

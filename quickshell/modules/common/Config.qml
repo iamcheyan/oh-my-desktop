@@ -142,6 +142,8 @@ Singleton {
                 property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle == 1 (Float)
                 property bool borderless: false // true for no grouping of items
                 property bool showBackground: true
+                property string backgroundColor: "black" // "black" or "white"
+                property int backgroundOpacity: 100 // 0-100, applies when showBackground is true
                 property bool vertical: false
                 property int rightModuleSpacing: 8 // pixels between right-side modules
                 property int centerModuleSpacing: 8 // pixels between center modules

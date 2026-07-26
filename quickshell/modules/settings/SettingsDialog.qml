@@ -119,7 +119,6 @@ WindowDialog {
         if (page === "theme") return "appearance";
         if (page === "themes") return "appearance";
         if (page === "font") return "appearance";
-        if (page === "wallpaper") return "appearance";
         if (page === "sounds") return "sound";
         if (page === "autostart") return "system";
         if (page === "windowrules") return "system";
@@ -139,12 +138,16 @@ WindowDialog {
 
     function pageTitle(page) {
         const match = pages.find(item => item.key === page);
-        return match ? match.title : "Overview";
+        if (match) return match.title;
+        if (page === "wallpaper") return "Wallpaper";
+        return "Overview";
     }
 
     function pageIcon(page) {
         const match = pages.find(item => item.key === page);
-        return match ? match.icon : "settings";
+        if (match) return match.icon;
+        if (page === "wallpaper") return "wallpaper";
+        return "settings";
     }
 
     function pageComponent(page) {
@@ -155,6 +158,7 @@ WindowDialog {
         // Core pages (always built-in)
         if (page === "overview") return overviewPageComponent;
         if (page === "appearance") return appearancePageComponent;
+        if (page === "wallpaper") return wallpaperPageComponent;
         if (page === "system") return systemPageComponent;
 
         // No hardcoded fallback for module-owned pages — if the module isn't
@@ -218,6 +222,8 @@ WindowDialog {
     Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
 
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
+
+    Component { id: wallpaperPageComponent; WallpaperSettings.WallpaperPage { settingsRoot: root } }
 
 
 

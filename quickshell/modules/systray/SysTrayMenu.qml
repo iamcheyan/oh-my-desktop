@@ -20,7 +20,7 @@ PopupWindow {
 
     color: "transparent"
 
-    property real padding: Appearance.sizes.elevationMargin + 2
+    property real padding: Appearance.sizes.elevationMargin
 
     implicitHeight: {
         let result = 0;

@@ -1,0 +1,508 @@
+#!/usr/bin/env python3
+"""omd-settings-wallpaper-tui — Wallpaper settings TUI (standalone).
+
+Single-column stacked layout matching the wifi/bluetooth TUI pattern:
+  Hero → large Preview → compact Controls → Help bar.
+
+Controls
+  Tab        Switch focus (preview / controls)
+  j / ↓      Move down (in controls)
+  k / ↑      Move up (in controls)
+  Enter      Apply / select highlighted action
+  f          Pick file
+  d          Pick folder
+  c          Solid color
+  w          Next wallpaper (folder mode)
+  x          Stop rotation
+  [ / -      Decrease interval
+  ] / =      Increase interval
+  r          Refresh
+  q / Esc    Quit
+"""
+
+import curses
+import os
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.normpath(os.path.join(SCRIPT_DIR, "../../../.."))
+sys.path.insert(0, os.path.join(REPO_ROOT, "bin"))
+import omd_tui_framework as S
+
+_THEME_CMD = os.path.join(SCRIPT_DIR, "omd-settings-theme")
+
+# ── image preview ──────────────────────────────────────────────────────────
+_image_preview_cache = {"path": "", "width": 0, "height": 0, "mtime": 0, "size": 0, "view": ""}
+
+_QUADRANT_CHARS = {
+    0x0: " ", 0x1: "▘", 0x2: "▝", 0x3: "▀",
+    0x4: "▖", 0x5: "▌", 0x6: "▞", 0x7: "▛",
+    0x8: "▗", 0x9: "▚", 0xA: "▐", 0xB: "▜",
+    0xC: "▄", 0xD: "▙", 0xE: "▟", 0xF: "█",
+}
+
+
+def _hex_to_rgb(hex6):
+    h = hex6.lstrip("#")
+    if len(h) != 6:
+        return None
+    try:
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except ValueError:
+        return None
+
+
+def _distance_sq(a, b):
+    return sum((a[i] - b[i]) ** 2 for i in range(3))
+
+
+def _average_rgb(colors):
+    if not colors:
+        return (0, 0, 0)
+    count = len(colors)
+    return tuple(round(sum(color[i] for color in colors) / count) for i in range(3))
+
+
+def _quadrant_cell(pixels):
+    """Reduce four RGB pixels to a two-color Unicode quadrant cell."""
+    first = pixels[0]
+    second = max(pixels[1:], key=lambda c: _distance_sq(first, c))
+    foreground, background = first, second
+    assignments = [False] * 4
+    for _ in range(3):
+        assignments = [
+            _distance_sq(p, foreground) <= _distance_sq(p, background)
+            for p in pixels
+        ]
+        fg = [p for p, a in zip(pixels, assignments) if a]
+        bg = [p for p, a in zip(pixels, assignments) if not a]
+        if fg:
+            foreground = _average_rgb(fg)
+        if bg:
+            background = _average_rgb(bg)
+    mask = sum(1 << i for i, a in enumerate(assignments) if a)
+    if mask == 0xF:
+        background = foreground
+        mask = 0
+    return (_QUADRANT_CHARS[mask], *foreground, *background)
+
+
+# Color pair pool for wallpaper image preview
+_C_IMG_BASE = 11
+_MAX_IMG_PAIRS = 240
+_color_pair_map = {}
+_next_pair_idx = [_C_IMG_BASE]
+_XTERM_LEVELS = (0, 95, 135, 175, 215, 255)
+
+
+def _xterm_rgb(index):
+    if 16 <= index <= 231:
+        v = index - 16
+        return (_XTERM_LEVELS[v // 36], _XTERM_LEVELS[(v // 6) % 6], _XTERM_LEVELS[v % 6])
+    if 232 <= index <= 255:
+        lv = 8 + (index - 232) * 10
+        return (lv, lv, lv)
+    return (0, 0, 0)
+
+
+def _rgb_to_xterm_index(r, g, b):
+    ch = max(r, g, b) - min(r, g, b)
+    if ch <= 12:
+        gray = round((r + g + b) / 3 * 23 / 255)
+        return 232 + min(23, max(0, gray))
+    r6 = round(r * 5 / 255)
+    g6 = round(g * 5 / 255)
+    b6 = round(b * 5 / 255)
+    if g > r and g > b:
+        if g6 <= r6 and g6 < 5: g6 += 1
+        if g6 <= b6 and g6 < 5: g6 += 1
+    if r > g and r > b:
+        if r6 <= g6 and r6 < 5: r6 += 1
+        if r6 <= b6 and r6 < 5: r6 += 1
+    if b > r and b > g:
+        if b6 <= r6 and b6 < 5: b6 += 1
+        if b6 <= g6 and b6 < 5: b6 += 1
+    r6 = min(5, max(0, r6))
+    g6 = min(5, max(0, g6))
+    b6 = min(5, max(0, b6))
+    return 16 + 36 * r6 + 6 * g6 + b6
+
+
+def _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    if not _color_pair_map:
+        return 0
+    req_fg = (r_fg, g_fg, b_fg)
+    req_bg = (r_bg, g_bg, b_bg)
+    key = min(
+        _color_pair_map,
+        key=lambda p: _distance_sq(req_fg, _xterm_rgb(p[0]))
+                     + _distance_sq(req_bg, _xterm_rgb(p[1])),
+    )
+    return _color_pair_map[key]
+
+
+def _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    fi = _rgb_to_xterm_index(r_fg, g_fg, b_fg)
+    bi = _rgb_to_xterm_index(r_bg, g_bg, b_bg)
+    key = (fi, bi)
+    if key in _color_pair_map:
+        return _color_pair_map[key]
+    lim = min(_C_IMG_BASE + _MAX_IMG_PAIRS, max(_C_IMG_BASE, getattr(curses, "COLOR_PAIRS", 0)))
+    if getattr(curses, "COLORS", 0) < 256 or _next_pair_idx[0] >= lim:
+        return _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg)
+    pid = _next_pair_idx[0]
+    _next_pair_idx[0] += 1
+    try:
+        curses.init_pair(pid, fi, bi)
+    except curses.error:
+        return 0
+    _color_pair_map[key] = pid
+    return pid
+
+
+def _render_image_preview(path, width, height):
+    """Render an image file as half-block Unicode characters.
+    Falls back to ImageMagick quadrant approach when PIL is unavailable.
+    """
+    global _image_preview_cache
+    if not path or width <= 0 or height <= 0:
+        return []
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+    if (_image_preview_cache["path"] == path and
+            _image_preview_cache["width"] == width and
+            _image_preview_cache["height"] == height and
+            _image_preview_cache["mtime"] == mtime and
+            _image_preview_cache["size"] == fsize):
+        return _image_preview_cache["view"]
+    if _image_preview_cache["path"] != path:
+        _color_pair_map.clear()
+        _next_pair_idx[0] = _C_IMG_BASE
+    try:
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        src_w, src_h = img.size
+        if src_w <= 0 or src_h <= 0:
+            return []
+        sw, sh = width, height * 2
+        ta = sw / sh
+        ia = src_w / src_h
+        if ia > ta:
+            nw = int(src_h * ta)
+            ox = (src_w - nw) // 2
+            ic = img.crop((ox, 0, ox + nw, src_h))
+        else:
+            nh = int(src_w / ta)
+            oy = (src_h - nh) // 2
+            ic = img.crop((0, oy, src_w, oy + nh))
+        rs = (Image.Resampling.LANCZOS if hasattr(Image, "Resampling")
+               else getattr(Image, "ANTIALIAS", Image.BICUBIC))
+        ir = ic.resize((sw, sh), rs)
+        rows = []
+        for row in range(height):
+            cols = []
+            ty = row * 2
+            by = row * 2 + 1
+            for col in range(width):
+                tp = ir.getpixel((col, ty))
+                bp = ir.getpixel((col, by))
+                cols.append(("▀", *tp, *bp))
+            rows.append(cols)
+        _image_preview_cache = {"path": path, "width": width, "height": height,
+                                "mtime": mtime, "size": fsize, "view": rows}
+        return rows
+    except ImportError:
+        return _render_image_preview_via_magick(path, width, height)
+    except Exception:
+        return []
+
+
+def _render_image_preview_via_magick(path, width, height):
+    """Fallback: ImageMagick + quadrant chars when PIL is unavailable."""
+    global _image_preview_cache
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+    try:
+        import struct, subprocess
+        sw, sh = width * 2, height * 2
+        raw = subprocess.check_output(
+            ["magick", path, "-resize", f"{sw}x{sh}!", "-depth", "8", "rgb:-"],
+            timeout=10,
+        )
+    except Exception:
+        return []
+    expected = sw * sh * 3
+    if len(raw) < expected:
+        return []
+    pixels = struct.unpack(f"{sw*sh*3}B", raw[:expected])
+    rows = []
+    for ri in range(height):
+        cols = []
+        for ci in range(width):
+            sx, sy = ci * 2, ri * 2
+            quad = []
+            for dy in range(2):
+                for dx in range(2):
+                    pi = ((sy + dy) * sw + (sx + dx)) * 3
+                    if pi + 2 < len(pixels):
+                        quad.append((pixels[pi], pixels[pi + 1], pixels[pi + 2]))
+            if len(quad) == 4:
+                cols.append(_quadrant_cell(quad))
+        if len(cols) == width:
+            rows.append(cols)
+    _image_preview_cache = {"path": path, "width": width, "height": height,
+                            "mtime": mtime, "size": fsize, "view": rows}
+    return rows
+
+
+def _render_image_view(stdscr, y, x, rows):
+    """Render previously computed image rows at (y, x) using curses color pairs."""
+    if not rows:
+        return
+    for ri, row in enumerate(rows):
+        for ci, px in enumerate(row):
+            if len(px) != 7:
+                continue
+            ch, *rgb = px
+            pid = _get_image_color_pair(*rgb)
+            S.safe_addstr(stdscr, y + ri, x + ci, ch, curses.color_pair(pid))
+
+
+# ── helpers ────────────────────────────────────────────────────────────────
+
+def interval_label(s):
+    sec = S.parse_int(s)
+    if sec == 0:
+        sec = 3600
+    if sec >= 3600:
+        return f"{sec // 3600}h"
+    if sec >= 60:
+        return f"{sec // 60}m"
+    return f"{sec}s"
+
+
+def action_message(action):
+    mapping = {
+        "wallpaper-next": "Wallpaper changed",
+        "wallpaper-stop": "Wallpaper rotation stopped",
+        "wallpaper-pick-file": "Wallpaper selected",
+        "wallpaper-pick-folder": "Wallpaper folder selected",
+        "wallpaper-set-color": "Solid color set",
+    }
+    if action.startswith("wallpaper-interval"):
+        return "Wallpaper interval updated"
+    return mapping.get(action, "Done")
+
+
+# ── model ──────────────────────────────────────────────────────────────────
+
+F_PREVIEW = 0
+F_CONTROLS = 1
+
+
+class Model(S.StatusModel):
+    def __init__(self):
+        super().__init__()
+        self.focus = F_CONTROLS
+        self.refresh()
+
+    def refresh(self):
+        if self.refreshing:
+            return
+        self.refreshing = True
+        self.dirty = True
+
+        def cb(lines, err):
+            if err:
+                self.err = f"Status refresh failed: {err}"
+            else:
+                self.status = S.parse_kv(lines)
+            self.refreshing = False
+            self.dirty = True
+        S.run_cmd_bg(_THEME_CMD, "appearance-status", callback=cb)
+
+    def run_action(self, action, *extra):
+        self.busy = True
+        self.message = f"{action}…"
+        self.dirty = True
+
+        def cb(lines, err):
+            self.busy = False
+            if err:
+                self.message = "Done"
+                self.err = str(err) if err else ""
+            else:
+                self.message = action_message(action)
+                self.err = ""
+            self.dirty = True
+            self.refresh()
+        S.run_cmd_bg(_THEME_CMD, action, *extra, callback=cb)
+
+    def interval(self, delta):
+        cur = S.parse_int(self.val("wallpaper.interval", "3600"))
+        if cur == 0:
+            cur = 3600
+        nv = cur + delta
+        if nv < 300:
+            nv = 300
+        if nv > 7200:
+            nv = 7200
+        self.run_action("wallpaper-interval", str(nv))
+
+
+# ── rendering ──────────────────────────────────────────────────────────────
+
+def _hero(model):
+    mode = model.val("wallpaper.mode", "file")
+    wp = model.val("wallpaper.current", "")
+    wp_name = os.path.basename(wp) if wp else "No wallpaper"
+    if mode == "folder":
+        interval = interval_label(model.val("wallpaper.interval", "3600"))
+        subtitle = f"{wp_name} · rotating every {interval}"
+    elif mode == "color":
+        subtitle = f"Solid color · #{model.val('accent', '000000')}"
+    else:
+        subtitle = f"{wp_name} · single image"
+    msg = ""
+    if model.err:
+        msg = model.err
+    elif model.message and not model.busy:
+        msg = model.message
+    return S.hero_line("Wallpaper", subtitle, "ok", model.busy, msg, "")
+
+
+def _help_line(model, width):
+    """Single help line: mode selector + per-mode extras + generic keys."""
+    mode = model.val("wallpaper.mode", "file")
+    mode_labels = {"file": "File", "folder": "Folder", "color": "Color"}
+    mode_keys = {"file": "f", "folder": "d", "color": "c"}
+    mode_parts = []
+    for val in ("file", "folder", "color"):
+        circle = "●" if mode == val else "○"
+        mode_parts.append(f"{circle} {mode_labels[val]}({mode_keys[val]})")
+
+    extras = {
+        "folder": [("w", "next"), ("x", "stop"), ("[/]", "interval")],
+        "color": [("enter", "apply")],
+    }
+    extra_parts = [f"{k}:{l}" for k, l in extras.get(mode, [])]
+
+    line = "  ".join(mode_parts)
+    if extra_parts:
+        line += "   │  " + "  ".join(extra_parts)
+    line += "   │  tab:switch  q:quit  r:refresh"
+    return S.truncate(line, width)
+
+
+def _view(stdscr, m):
+    h, w = stdscr.getmaxyx()
+    stdscr.erase()
+
+    if not S.require_terminal_size(stdscr, 60, 14):
+        return
+
+    margin = 0
+    hero_h = 2
+    help_h = 1
+    content_top = hero_h + 1
+    content_h = h - content_top - help_h - 1
+    box_w = w - margin * 2
+
+    preview_h = content_h
+
+    y = margin
+
+    # ── Hero ──
+    S.draw_hero(stdscr, _hero(m))
+    y = content_top
+
+    # ── Preview (no border — full area for wallpaper) ──
+    mode = m.val("wallpaper.mode", "file")
+    if mode == "color":
+        bg_hex = m.val("accent", "000000")
+        rgb = _hex_to_rgb(bg_hex) or (0, 0, 0)
+        idx = _rgb_to_xterm_index(*rgb)
+        try:
+            curses.init_pair(9, idx, idx)
+            swatch_attr = curses.color_pair(9)
+        except curses.error:
+            swatch_attr = 0
+        for row in range(preview_h):
+            S.safe_addstr(stdscr, y + row, margin, " " * box_w, swatch_attr)
+    else:
+        inner_h = preview_h
+        inner_w = box_w
+        if inner_h > 0 and inner_w > 0:
+            wp_path = m.val("wallpaper.current", "")
+            if wp_path.startswith("~/"):
+                wp_path = os.path.expanduser(wp_path)
+            rows = _render_image_preview(wp_path, inner_w, inner_h)
+            if rows:
+                _render_image_view(stdscr, y, margin, rows)
+            else:
+                fname = os.path.basename(wp_path) if wp_path else "No wallpaper"
+                S.safe_addstr(stdscr, y, margin,
+                              S.truncate(fname, inner_w), S.ATTR_MUTED)
+
+    # ── Help bar (single line at bottom: mode + actions + keys) ──
+    S.safe_addstr(stdscr, h - 1, 0, _help_line(m, box_w), S.ATTR_SUBTLE)
+    S.finish_frame(stdscr)
+
+# ── key handler ──────────────────────────────────────────────────────────
+
+def _handle_key(stdscr, m, key):
+    if key in (ord('q'), 27):
+        return False
+    if m.busy:
+        return True
+
+    # Tab: switch between preview and controls
+    if S.handle_tab(key, m, count=2):
+        return True
+
+    # Global action keys (work in either focus)
+    if key == ord('r'):
+        m.refresh()
+        m.dirty = True
+        return True
+    if key == ord('f') and not m.busy:
+        m.run_action("wallpaper-pick-file")
+        return True
+    if key == ord('d') and not m.busy:
+        m.run_action("wallpaper-pick-folder")
+        return True
+    if key == ord('c') and not m.busy:
+        m.run_action("wallpaper-set-color")
+        return True
+    if key == ord('w') and not m.busy:
+        m.run_action("wallpaper-next")
+        return True
+    if key == ord('x') and not m.busy:
+        m.run_action("wallpaper-stop")
+        return True
+    if key in (ord('['), ord('-')) and not m.busy:
+        m.interval(-300)
+        return True
+    if key in (ord(']'), ord('=')) and not m.busy:
+        m.interval(300)
+        return True
+
+    # (controls bar has no arrow navigation — actions are direct key presses)
+
+    m.dirty = True
+    return True
+
+
+def main(stdscr):
+    S.run_tui_loop(stdscr, Model(), _view, _handle_key, poll_timeout=200)
+
+
+if __name__ == "__main__":
+    curses.wrapper(main)

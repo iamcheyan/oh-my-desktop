@@ -35,7 +35,15 @@ ContextMenuWindow {
         labelText: "Restore Snapshot"
         onClicked: {
             root.close();
-            Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "restore"]);
+            // Consistent with SessionAutoRestore: only restore when no app
+            // windows are open (hyprctl clients, not ToplevelManager which
+            // also counts shell surfaces like the bar itself).
+            Quickshell.execDetached(["bash", "-c",
+                `clients=$(hyprctl -j clients | jq 'length') && ` +
+                `if [ "$clients" -gt 0 ]; then ` +
+                `echo "Workspace not empty ($clients windows) — restore cancelled"; ` +
+                `else ${Directories.root}/bin/omd-session restore; fi`
+            ]);
         }
     }
 

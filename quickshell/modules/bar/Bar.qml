@@ -25,7 +25,7 @@ Scope {
         }
         LazyLoader {
             id: barLoader
-            active: GlobalStates.barOpen && !GlobalStates.screenLocked
+            active: GlobalStates.barOpen && !GlobalStates.screenLocked && Config.ready
             required property ShellScreen modelData
             component: PanelWindow { // Bar window
                 id: barRoot

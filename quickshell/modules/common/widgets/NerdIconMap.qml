@@ -103,8 +103,9 @@ QtObject {
     readonly property string add: "\uDB80\uDC2F"              // mdi-plus U+F002F
     readonly property string remove: "\uDB81\uDC47"           // mdi-minus U+F0447
     readonly property string stop: "\uDB81\uDCB3"             // mdi-stop U+F04B3
-    readonly property string menu: "\uDB80\uDFDB"             // mdi-menu U+F03DB
+    readonly property string menu: "\uF0C9"                // fa-bars U+F0C9 (3 horizontal lines menu)
     readonly property string menuOpen: "\uDB80\uDFDC"         // mdi-menu-open U+F03DC
+    readonly property string dotsVertical: "\uF142"          // fa-ellipsis-v U+F142
     readonly property string settings: "\uDB81\uDC93"         // mdi-cog U+F0493
 
     // Status / Feedback

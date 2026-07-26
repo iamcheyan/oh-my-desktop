@@ -28,21 +28,21 @@ hl.layer_rule({ match = { namespace = "quickshell:appLauncher" }, no_anim = true
 hl.layer_rule({ match = { namespace = "quickshell:clipboard" }, no_anim = true })
 
 -- Float and center transient TUI / GUI settings managers
-o.window("org.omarchy.omarchy-wifi-tui", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omd.impala", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omarchy.omarchy-wifi-tui", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.impala", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.wifitui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.bluetui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.keyboardtui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.windowsvmtui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.backuptui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.voice-test-tui", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omd.omd-edit-voice-bindings", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omd.config-edit", { float = true, center = true, size = { 1000, 700 } })
-o.window("org.omarchy.key-test", { float = true, center = true, size = { 980, 620 } })
-o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.voice-test-tui", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.omd-edit-voice-bindings", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.config-edit", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.ocr-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.omd-settings-voice-tui", { float = true, center = true, size = { 1000, 700 } })
+o.window("org.omd.omd-settings-voice-tui", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
 
 -- Native wallpaper pickers are separate Wayland clients rather than true
 -- children of the settings terminal. Keep these specifically titled dialogs

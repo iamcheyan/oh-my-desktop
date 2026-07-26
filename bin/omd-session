@@ -680,6 +680,7 @@ def save():
             "count": 0,
             "path": str(LAST_FILE),
         }))
+        subprocess.run(["notify-send", "Session saved (empty)", "No windows to save — nothing was written", "-a", "Session", "-i", "archive"], stderr=subprocess.DEVNULL)
         return None
 
     data = {
@@ -711,6 +712,18 @@ def save():
         "terminalSessionCount": len(terminal_sessions),
         "path": str(LAST_FILE),
     }))
+    # Build notification with details
+    notify_summary = f"Session saved: {len(data['clients'])} windows"
+    notify_parts = [f"{len(workspace_keys)} workspaces"]
+    if len(monitor_workspaces) > 1:
+        notify_parts.append(f"{len(monitor_workspaces)} monitors")
+    if terminal_clients:
+        term_info = f"{len(terminal_clients)} terminals"
+        if terminal_sessions:
+            term_info += f", {len(terminal_sessions)} sessions"
+        notify_parts.append(term_info)
+    notify_body = " · ".join(notify_parts)
+    subprocess.run(["notify-send", notify_summary, notify_body, "-a", "Session", "-i", "archive"], stderr=subprocess.DEVNULL)
     return data
 
 

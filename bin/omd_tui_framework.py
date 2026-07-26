@@ -1091,7 +1091,7 @@ class Layout:
         # defaults (override before calling compute())
         self.pad = 2
         self.hero_h = 2
-        self.help_h = 1
+        self.help_h = 2
         self.gap = 1
         self.left_w = 34
         self.right_min = 28

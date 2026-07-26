@@ -90,7 +90,7 @@ PanelWindow {
     }
 
     // ── Session action menu (copied from OverviewSearch) ──
-    property bool sessionMenuOpen: false
+    property bool sessionMenuOpen: true
 
     function requestSessionAction(action, label) {
         launcher.sessionMenuOpen = false;
@@ -626,10 +626,11 @@ PanelWindow {
                         radius: TuiStyle.radius
                         border.width: 0
 
-                        NerdIcon {
+                        StyledText {
                             anchors.centerIn: parent
-                            iconSize: Appearance.font.pixelSize.normal
-                            text: NerdIconMap.menu
+                            text: "\uF0C9"
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.family: Appearance.font.family.iconNerd
                             color: launcher.sessionMenuOpen ? TuiStyle.accent : TuiStyle.fg
                         }
 
@@ -962,63 +963,96 @@ PanelWindow {
             onClicked: launcher.sessionMenuOpen = false
         }
 
+        StyledRectangularShadow {
+            target: sessionMenu
+            visible: launcher.sessionMenuOpen
+        }
+
         Rectangle {
             id: sessionMenu
             z: 51
             visible: launcher.sessionMenuOpen
             anchors {
                 top: parent.top
-                topMargin: 42
+                topMargin: 44
                 right: parent.right
                 rightMargin: 8
             }
-            width: 210
-            height: sessionMenuColumn.implicitHeight + 12
+            implicitWidth: sessionMenuColumn.implicitWidth + 8
+            implicitHeight: sessionMenuColumn.implicitHeight + 8
             color: TuiStyle.bg
-            radius: 10
-            border.width: 1
-            border.color: TuiStyle.line
+            radius: TuiStyle.shellRadius
+            border.width: TuiStyle.borderWidth
+            border.color: TuiStyle.menuBorder
             clip: true
 
             ColumnLayout {
                 id: sessionMenuColumn
                 anchors.fill: parent
-                anchors.margins: 6
-                spacing: 2
+                anchors.margins: 4
+                spacing: 0
 
-                SessionMenuItem {
-                    Layout.fillWidth: true
-                    symbol: "\uF08B"
-                    label: "Log out"
-                    onActivated: launcher.requestSessionAction("logout", "Logout")
-                }
-                SessionMenuItem {
-                    Layout.fillWidth: true
-                    symbol: "\uF01E"
-                    label: "Restart"
-                    onActivated: launcher.requestSessionAction("reboot", "Reboot")
-                }
-                SessionMenuItem {
-                    Layout.fillWidth: true
-                    symbol: "\uF011"
-                    label: "Shut down"
-                    onActivated: launcher.requestSessionAction("poweroff", "Shutdown")
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.archive
+                    labelText: "Save Snapshot"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
+                    }
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    Layout.bottomMargin: 4
-                    implicitHeight: 1
-                    color: TuiStyle.line
-                    opacity: 0.35
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.unarchive
+                    labelText: "Restore Snapshot"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        Quickshell.execDetached(["bash", "-c",
+                            `clients=$(hyprctl -j clients | jq 'length') && ` +
+                            `if [ "$clients" -gt 0 ]; then ` +
+                            `echo "Workspace not empty ($clients windows) — restore cancelled"; ` +
+                            `else ${Directories.root}/bin/omd-session restore; fi`
+                        ]);
+                    }
                 }
 
-                SessionMenuItem {
-                    Layout.fillWidth: true
-                    symbol: "\uF021"
-                    label: "Reload Shell"
-                    onActivated: launcher.reloadShell()
+                ContextMenuSeparator {}
+
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.logout
+                    labelText: "Logout"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        launcher.requestSessionAction("logout", "Logout");
+                    }
+                }
+
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.restart
+                    labelText: "Reboot"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        launcher.requestSessionAction("reboot", "Reboot");
+                    }
+                }
+
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.powerSettingsNew
+                    labelText: "Shutdown"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        launcher.requestSessionAction("poweroff", "Shutdown");
+                    }
+                }
+
+                ContextMenuSeparator {}
+
+                ContextMenuItem {
+                    nerdIcon: NerdIconMap.refresh
+                    labelText: "Reload Shell"
+                    onClicked: {
+                        launcher.sessionMenuOpen = false;
+                        launcher.reloadShell();
+                    }
                 }
             }
         }
@@ -1037,46 +1071,6 @@ PanelWindow {
 
         function open(): void {
             launcher.open = true;
-        }
-    }
-
-    component SessionMenuItem: Rectangle {
-        id: menuItem
-        required property string symbol
-        required property string label
-        signal activated()
-
-        implicitHeight: 38
-        radius: 6
-        color: menuItemArea.containsMouse ? "#2a2a2a" : "transparent"
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 11
-            anchors.rightMargin: 11
-            spacing: 11
-
-            StyledText {
-                text: menuItem.symbol
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.family: Appearance.font.family.main
-                color: TuiStyle.fg
-            }
-            StyledText {
-                Layout.fillWidth: true
-                text: menuItem.label
-                color: TuiStyle.fg
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.family: Appearance.font.family.main
-            }
-        }
-
-        MouseArea {
-            id: menuItemArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: menuItem.activated()
         }
     }
 }

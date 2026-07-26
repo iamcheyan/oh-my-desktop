@@ -69,31 +69,14 @@ Item {
         }
     }
 
-    Loader {
+    BarContextMenu {
         id: menu
-        function open() {
-            menu.active = true;
-        }
-        active: false
+        anchorItem: button
         sourceComponent: SysTrayMenu {
-            Component.onCompleted: this.open();
             trayItemMenuHandle: root.item.menu
             trayItemId: root.item.id
-            anchor {
-                window: root.QsWindow.window
-                item: button
-                gravity: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-                edges: Config.options.bar.vertical
-                    ? (Config.options.bar.bottom ? Edges.Left : Edges.Right)
-                    : (Config.options.bar.bottom ? Edges.Top : Edges.Bottom)
-            }
-            onMenuOpened: (window) => root.menuOpened(window);
-            onMenuClosed: {
-                root.menuClosed();
-                menu.active = false;
-            }
+            onMenuOpened: (window) => root.menuOpened(window)
+            onMenuClosed: () => root.menuClosed()
         }
     }
 
@@ -151,4 +134,3 @@ Item {
         anchorEdges: (!Config.options.bar.bottom && !Config.options.bar.vertical) ? Edges.Bottom : Edges.Top
     }
 }
-
