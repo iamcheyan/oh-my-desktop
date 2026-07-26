@@ -1184,3 +1184,245 @@ def handle_tab(key, model, field="focus", count=2):
         model.dirty = True
         return True
     return False
+
+
+
+# ── image preview (half-block + quadrant rendering) ───────────────────────
+# Provides a reusable terminal image preview for TUIs that need to show
+# wallpaper/artwork thumbnails. Supports PIL (half-block) and ImageMagick
+# (quadrant) backends, with a dynamic color-pair pool for 256-color terminals.
+
+_QUADRANT_CHARS = {
+    0x0: " ", 0x1: "▘", 0x2: "▝", 0x3: "▀",
+    0x4: "▖", 0x5: "▌", 0x6: "▞", 0x7: "▛",
+    0x8: "▗", 0x9: "▚", 0xA: "▐", 0xB: "▜",
+    0xC: "▄", 0xD: "▙", 0xE: "▟", 0xF: "█",
+}
+
+_C_IMG_BASE = 11
+_MAX_IMG_PAIRS = 240
+_color_pair_map = {}
+_next_pair_idx = [_C_IMG_BASE]
+_image_preview_cache = {"path": "", "width": 0, "height": 0, "mtime": 0, "size": 0, "view": ""}
+
+
+def _distance_sq(a, b):
+    return sum((a[i] - b[i]) ** 2 for i in range(3))
+
+
+def _average_rgb(colors):
+    if not colors:
+        return (0, 0, 0)
+    count = len(colors)
+    return tuple(round(sum(color[i] for color in colors) / count) for i in range(3))
+
+
+def _quadrant_cell(pixels):
+    """Reduce four RGB pixels to a two-color Unicode quadrant cell."""
+    first = pixels[0]
+    second = max(pixels[1:], key=lambda c: _distance_sq(first, c))
+    foreground, background = first, second
+    assignments = [False] * 4
+    for _ in range(3):
+        assignments = [
+            _distance_sq(p, foreground) <= _distance_sq(p, background)
+            for p in pixels
+        ]
+        fg = [p for p, a in zip(pixels, assignments) if a]
+        bg = [p for p, a in zip(pixels, assignments) if not a]
+        if fg:
+            foreground = _average_rgb(fg)
+        if bg:
+            background = _average_rgb(bg)
+    mask = sum(1 << i for i, a in enumerate(assignments) if a)
+    if mask == 0xF:
+        background = foreground
+        mask = 0
+    return (_QUADRANT_CHARS[mask], *foreground, *background)
+
+
+def _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    if not _color_pair_map:
+        return 0
+    req_fg = (r_fg, g_fg, b_fg)
+    req_bg = (r_bg, g_bg, b_bg)
+    key = min(
+        _color_pair_map,
+        key=lambda p: _distance_sq(req_fg, _xterm_rgb(p[0]))
+                     + _distance_sq(req_bg, _xterm_rgb(p[1])),
+    )
+    return _color_pair_map[key]
+
+
+def _get_image_color_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg):
+    fi = _nearest_xterm_index(r_fg, g_fg, b_fg)
+    bi = _nearest_xterm_index(r_bg, g_bg, b_bg)
+    key = (fi, bi)
+    if key in _color_pair_map:
+        return _color_pair_map[key]
+    lim = min(_C_IMG_BASE + _MAX_IMG_PAIRS, max(_C_IMG_BASE, getattr(curses, "COLOR_PAIRS", 0)))
+    if getattr(curses, "COLORS", 0) < 256 or _next_pair_idx[0] >= lim:
+        return _closest_image_pair(r_fg, g_fg, b_fg, r_bg, g_bg, b_bg)
+    pid = _next_pair_idx[0]
+    _next_pair_idx[0] += 1
+    try:
+        curses.init_pair(pid, fi, bi)
+    except curses.error:
+        return 0
+    _color_pair_map[key] = pid
+    return pid
+
+
+def _render_image_preview(path, width, height):
+    """Render an image file as half-block Unicode characters.
+    Falls back to ImageMagick quadrant approach when PIL is unavailable.
+    Returns a list of rows; each row is a list of (char, r_fg, g_fg, b_fg, r_bg, g_bg, b_bg) tuples.
+    """
+    global _image_preview_cache
+    if not path or width <= 0 or height <= 0:
+        return []
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+    if (_image_preview_cache["path"] == path and
+            _image_preview_cache["width"] == width and
+            _image_preview_cache["height"] == height and
+            _image_preview_cache["mtime"] == mtime and
+            _image_preview_cache["size"] == fsize):
+        return _image_preview_cache["view"]
+    if _image_preview_cache["path"] != path:
+        _color_pair_map.clear()
+        _next_pair_idx[0] = _C_IMG_BASE
+    try:
+        from PIL import Image
+        img = Image.open(path).convert("RGB")
+        src_w, src_h = img.size
+        if src_w <= 0 or src_h <= 0:
+            return []
+        sw, sh = width, height * 2
+        ta = sw / sh
+        ia = src_w / src_h
+        if ia > ta:
+            nw = int(src_h * ta)
+            ox = (src_w - nw) // 2
+            ic = img.crop((ox, 0, ox + nw, src_h))
+        else:
+            nh = int(src_w / ta)
+            oy = (src_h - nh) // 2
+            ic = img.crop((0, oy, src_w, oy + nh))
+        rs = (Image.Resampling.LANCZOS if hasattr(Image, "Resampling")
+               else getattr(Image, "ANTIALIAS", Image.BICUBIC))
+        ir = ic.resize((sw, sh), rs)
+        rows = []
+        for row in range(height):
+            cols = []
+            ty = row * 2
+            by = row * 2 + 1
+            for col in range(width):
+                tp = ir.getpixel((col, ty))
+                bp = ir.getpixel((col, by))
+                cols.append(("▀", *tp, *bp))
+            rows.append(cols)
+        _image_preview_cache = {"path": path, "width": width, "height": height,
+                                "mtime": mtime, "size": fsize, "view": rows}
+        return rows
+    except ImportError:
+        return _render_image_preview_via_magick(path, width, height)
+    except Exception:
+        return []
+
+
+def _render_image_preview_via_magick(path, width, height):
+    """Fallback: ImageMagick + quadrant chars when PIL is unavailable."""
+    global _image_preview_cache
+    try:
+        mtime = os.path.getmtime(path)
+        fsize = os.path.getsize(path)
+    except OSError:
+        return []
+    try:
+        import struct, subprocess
+        sw, sh = width * 2, height * 2
+        raw = subprocess.check_output(
+            ["magick", path, "-resize", f"{sw}x{sh}!", "-depth", "8", "rgb:-"],
+            timeout=10,
+        )
+    except Exception:
+        return []
+    expected = sw * sh * 3
+    if len(raw) < expected:
+        return []
+    pixels = struct.unpack(f"{sw*sh*3}B", raw[:expected])
+    rows = []
+    for ri in range(height):
+        cols = []
+        for ci in range(width):
+            sx, sy = ci * 2, ri * 2
+            quad = []
+            for dy in range(2):
+                for dx in range(2):
+                    pi = ((sy + dy) * sw + (sx + dx)) * 3
+                    if pi + 2 < len(pixels):
+                        quad.append((pixels[pi], pixels[pi + 1], pixels[pi + 2]))
+            if len(quad) == 4:
+                cols.append(_quadrant_cell(quad))
+        if len(cols) == width:
+            rows.append(cols)
+    _image_preview_cache = {"path": path, "width": width, "height": height,
+                            "mtime": mtime, "size": fsize, "view": rows}
+    return rows
+
+
+def hex_to_rgb(hex6):
+    """Parse a hex color string (#RRGGBB or RRGGBB) to an (r, g, b) tuple."""
+    h = hex6.lstrip("#")
+    if len(h) != 6:
+        return None
+    try:
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    except ValueError:
+        return None
+
+
+def draw_image_preview(stdscr, path, y, x, w, h):
+    """Render an image file at (y, x) with size (w, h) in terminal cells.
+
+    Uses half-block (PIL) or quadrant (ImageMagick) rendering with a dynamic
+    256-color pair pool. Safe to call every frame — results are cached by
+    path + size + mtime.
+
+    Returns True if the image was rendered, False if it failed or path is empty.
+    """
+    if not path or w <= 0 or h <= 0:
+        return False
+    if path.startswith("~/"):
+        path = os.path.expanduser(path)
+    rows = _render_image_preview(path, w, h)
+    if not rows:
+        return False
+    for ri, row in enumerate(rows):
+        for ci, px in enumerate(row):
+            if len(px) != 7:
+                continue
+            ch, *rgb = px
+            pid = _get_image_color_pair(*rgb)
+            safe_addstr(stdscr, y + ri, x + ci, ch, curses.color_pair(pid))
+    return True
+
+
+def draw_color_swatch(stdscr, y, x, w, h, hex_color):
+    """Fill a rectangular area with a solid color from a hex string.
+
+    Uses xterm-256 color pairs.  Safe to call every frame.
+    """
+    rgb = hex_to_rgb(hex_color) or (0, 0, 0)
+    idx = _nearest_xterm_index(*rgb)
+    try:
+        curses.init_pair(9, idx, idx)
+        attr = curses.color_pair(9)
+    except curses.error:
+        attr = 0
+    for row in range(h):
+        safe_addstr(stdscr, y + row, x, " " * w, attr)

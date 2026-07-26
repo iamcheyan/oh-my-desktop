@@ -27,8 +27,9 @@ import os
 import re
 import select
 import subprocess
+import threading
+import time
 from shutil import which
-import sys
 from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _repo_bin = str(Path(os.path.dirname(os.path.abspath(__file__))).resolve().parent.parent.parent.parent / "bin")
@@ -514,7 +515,7 @@ def get_adapter_info() -> dict | None:
     }
 
 
-# ── curses app ────────────────────────────────────────────────────────
+# ── curses app ──
 
 # Focus section indices
 F_PAIRED = 0
@@ -522,16 +523,17 @@ F_DISCOVERED = 1
 F_ADAPTER = 2
 
 
-class BluetoothTUI:
-    def __init__(self, stdscr: curses.window):
-        self.stdscr = stdscr
+class BluetoothModel:
+    dirty = True
+
+    def __init__(self):
         self.devices: list[dict] = []
-        self.adapter_info: dict | None = None
+        self.adapter_info: dict | None = {}
         self.focus = F_PAIRED
-        self.selected = 0          # index into self.devices
-        self.scanning = False
+        self.selected = 0
         self.busy = False
-        self.status_msg = "Press s to scan, Enter to pair"
+        self.scanning = False
+        self.status_msg = "Press s to scan, Enter to pair/connect"
         self.log_lines: list[str] = []
         self.pin_prompt = None
         self.confirm_prompt = None
@@ -539,81 +541,31 @@ class BluetoothTUI:
         self._pair_proc = None
         self._pair_addr = None
         self._pair_state = ""
+        self._sent_yes = False
         self._recent = ""
         self._line_buf = ""
-        self._sent_yes = False
-        self._quit = False
-        self._pair_started_at = 0
-        self._connect_started_at = 0
-        self._tick = 0             # frame counter for spinner
+        self._async_msg = None
+        self._pair_started_at = None
+        self._connect_started_at = None
+        self._tick = 0
 
-    # ── lifecycle ──
-
-    def run(self):
-        self._init_curses()
-        prepare_bluetooth()
-        self.refresh_devices()
-        self.refresh_adapter()
-        while not self._quit:
-            self._draw()
-            self._poll()
-            self._handle_input()
-            self._tick += 1
-        self._cleanup()
-
-    def _init_curses(self):
-        try:
-            curses.curs_set(0)
-        except curses.error:
-            pass
-        curses.noecho()
-        curses.cbreak()
-        self.stdscr.keypad(True)
-        S.init_colors()
-        self.stdscr.timeout(200)
-
-    def _cleanup(self):
-        self._stop_scan()
-        self._stop_pair()
-
-    def _hero_info(self):
-        subtitle_parts = []
-        if self.adapter_info:
-            a = self.adapter_info
-            if a.get("alias") and a["alias"] != "?":
-                subtitle_parts.append(a["alias"])
-            subtitle_parts.append(f"powered {a.get('powered', '?').lower()}")
-        paired = [d for d in self.devices if d["status"] != "available"]
-        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Bluetooth"
-        # Append status message to subtitle
-        extra = ""
+    def run_bg(self, label, fn, *args):
         if self.busy:
-            extra = "working…"
-        elif self.status_msg and not self.status_msg.startswith("Press"):
-            extra = self.status_msg.strip()
-        if extra:
-            subtitle = subtitle + (" · " + extra if subtitle else extra)
-        status_text = ""
-        tone = "muted"
-        if self.busy:
-            status_text = "Working…"
-            tone = "warn"
-        elif self.scanning:
-            status_text = "Scanning"
-            tone = "warn"
-        elif paired:
-            status_text = f"{len(paired)} paired"
-            tone = "ok"
-        elif self.adapter_info and self.adapter_info.get("powered") == "Off":
-            status_text = "Off"
-            tone = "muted"
-        else:
-            status_text = "No devices"
-            tone = "muted"
-        msg = ""
-        if self.busy:
-            msg = "working…"
-        return S.hero_line("Bluetooth", subtitle, tone, self.busy, msg, status_text)
+            return
+        self.busy = True
+        self.status_msg = label
+        self.dirty = True
+
+        def worker():
+            try:
+                _ok, msg = fn(*args)
+                self._async_msg = msg
+            except Exception as exc:
+                self._async_msg = f"Error: {exc}"
+            finally:
+                self.busy = False
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # ── data ──
 
@@ -621,7 +573,6 @@ class BluetoothTUI:
         self.devices = get_devices_info()
         if self.selected >= len(self.devices):
             self.selected = max(0, len(self.devices) - 1)
-        # Clamp focus to valid section
         if self.focus == F_DISCOVERED and not self._has_discovered():
             self.focus = F_PAIRED
 
@@ -629,7 +580,6 @@ class BluetoothTUI:
         self.adapter_info = get_adapter_info()
 
     def _has_discovered(self) -> bool:
-        # bluetui only shows the New Devices panel while scanning
         return self.scanning
 
     def _paired_devices(self) -> list[dict]:
@@ -923,44 +873,7 @@ class BluetoothTUI:
             self.status_msg = "Trusted."
         self.refresh_devices()
 
-    # ── input ──
-
-    def _handle_input(self):
-        key = self.stdscr.getch()
-        if key == -1:
-            return
-        if key in (ord("q"), 27):
-            self._quit = True
-        elif key == ord("s"):
-            if self.scanning:
-                self._stop_scan()
-                self.refresh_devices()
-                self.refresh_adapter()
-                self.status_msg = "Scan stopped."
-            else:
-                self.start_scan()
-        elif key in (ord("j"), curses.KEY_DOWN):
-            self._move_sel(1)
-        elif key in (ord("k"), curses.KEY_UP):
-            self._move_sel(-1)
-        elif key == ord("\t"):           # Tab
-            self._focus_next()
-        elif key == curses.KEY_BTAB:     # Shift+Tab
-            self._focus_prev()
-        elif key == ord("l"):
-            self._focus_next()
-        elif key == ord("h"):
-            self._focus_prev()
-        elif key == ord("\n") or key == curses.KEY_ENTER:
-            self._action_enter()
-        elif key == ord("d"):
-            self._action_disconnect()
-        elif key == ord("f"):
-            self._action_forget()
-        elif key == ord("u"):
-            self._action_unpair()
-        elif key == ord("t"):
-            self._action_toggle_trust()
+    # ── navigation ──
 
     def _move_sel(self, delta: int):
         if self.focus == F_ADAPTER:
@@ -973,7 +886,6 @@ class BluetoothTUI:
             return
         if total <= 0:
             return
-        # self.selected is always a local index within the focused section
         self.selected = max(0, min(self.selected + delta, total - 1))
 
     def _focus_next(self):
@@ -1005,6 +917,8 @@ class BluetoothTUI:
         if self.focus == F_DISCOVERED:
             return len(self._paired_devices()) + self.selected
         return 0
+
+    # ── actions ──
 
     def _action_enter(self):
         if self.focus == F_ADAPTER:
@@ -1061,263 +975,345 @@ class BluetoothTUI:
         if d["status"] != "available":
             self.do_toggle_trust(d["addr"])
 
-    # ── poll ──
 
-    def _poll(self):
-        self._poll_scan()
-        self._poll_pair()
+# ── poll ──
 
-    # ── drawing (layout mirrors bluetui / ratatui) ──
+def _poll(model):
+    if model._async_msg is not None:
+        model.status_msg = model._async_msg
+        model._async_msg = None
+        model.dirty = True
+        model.refresh_devices()
+        model.refresh_adapter()
+    model._poll_scan()
+    model._poll_pair()
+    model._tick += 1
 
-    def _draw(self):
-        h, w = self.stdscr.getmaxyx()
-        self.stdscr.erase()
-        if h < 12 or w < 40:
-            try:
-                self.stdscr.addnstr(0, 0, "Terminal too small (min 40x12)", w)
-            except curses.error:
-                pass
-            self.stdscr.refresh()
-            return
-        margin = 1
-        hero_h = 2
 
-        paired = self._paired_devices()
-        discovered = self._discovered_devices()
-        # bluetui only shows the new-devices panel while scanning
-        has_disc = self.scanning
+# ── drawing (layout mirrors bluetui / ratatui) ──
 
-        # Heights match bluetui: adapters = len+4, paired = len+4 when scanning else Fill
-        adapter_h = 1 + 4  # one adapter row + header/margin/borders ≈ controllers.len + 4
-        help_h = 0
-        usable = h - hero_h - margin * 2 + 1
+def _hero_info(m):
+    subtitle_parts = []
+    if m.adapter_info:
+        a = m.adapter_info
+        if a.get("alias") and a["alias"] != "?":
+            subtitle_parts.append(a["alias"])
+        subtitle_parts.append(f"powered {a.get('powered', '?').lower()}")
+    paired = [d for d in m.devices if d["status"] != "available"]
+    subtitle = " · ".join(subtitle_parts) if subtitle_parts else "Bluetooth"
+    extra = ""
+    if m.busy:
+        extra = "working…"
+    elif m.status_msg and not m.status_msg.startswith("Press"):
+        extra = m.status_msg.strip()
+    if extra:
+        subtitle = subtitle + (" · " + extra if subtitle else extra)
+    status_text = ""
+    tone = "muted"
+    if m.busy:
+        status_text = "Working…"
+        tone = "warn"
+    elif m.scanning:
+        status_text = "Scanning"
+        tone = "warn"
+    elif paired:
+        status_text = f"{len(paired)} paired"
+        tone = "ok"
+    elif m.adapter_info and m.adapter_info.get("powered") == "Off":
+        status_text = "Off"
+        tone = "muted"
+    else:
+        status_text = "No devices"
+        tone = "muted"
+    msg = ""
+    if m.busy:
+        msg = "working…"
+    return S.hero_line("Bluetooth", subtitle, tone, m.busy, msg, status_text)
 
-        if has_disc:
-            paired_raw = min(len(paired) + 4, max(4, usable // 3))
-            paired_h = max(4, paired_raw - 1)
-            remaining = usable - paired_raw - adapter_h - help_h
-            disc_h = max(4, remaining)
+
+def _view(stdscr, m):
+    h, w = stdscr.getmaxyx()
+    stdscr.erase()
+    if not S.require_terminal_size(stdscr, 40, 12):
+        return
+    margin = 1
+    hero_h = 2
+
+    paired = m._paired_devices()
+    discovered = m._discovered_devices()
+    has_disc = m.scanning
+
+    adapter_h = 1 + 4
+    help_h = 0
+    usable = h - hero_h - margin * 2 + 1
+
+    if has_disc:
+        paired_raw = min(len(paired) + 4, max(4, usable // 3))
+        paired_h = max(4, paired_raw - 1)
+        remaining = usable - paired_raw - adapter_h - help_h
+        disc_h = max(4, remaining)
+    else:
+        disc_h = 0
+        paired_h = max(4, usable - adapter_h - help_h - 1)
+
+    total = paired_h + disc_h + adapter_h + help_h
+    if total > usable:
+        overflow = total - usable
+        if disc_h > 4:
+            cut = min(overflow, disc_h - 4)
+            disc_h -= cut
+            overflow -= cut
+        if overflow > 0 and paired_h > 4:
+            paired_h = max(4, paired_h - overflow)
+
+    y = margin + hero_h - 1
+    box_w = w - margin * 2
+
+    # ── Hero ──
+    S.draw_hero(stdscr, _hero_info(m))
+
+    # ── Paired Devices ──
+    S.draw_focus_border(stdscr, m.focus == F_PAIRED, y, margin, paired_h, box_w, "Paired Devices")
+    _draw_paired_table(stdscr, m, y + 1, margin + 1, paired_h - 2, box_w - 2, paired)
+    y += paired_h
+
+    # ── Discovered / Scanning ──
+    if has_disc and disc_h >= 4:
+        spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[m._tick % 10]
+        title = f"Scanning {spin}" if m.scanning else "Discovered devices"
+        S.draw_focus_border(stdscr, m.focus == F_DISCOVERED, y, margin, disc_h, box_w, title)
+        _draw_discovered_table(stdscr, m, y + 1, margin + 1, disc_h - 2, box_w - 2, discovered)
+        y += disc_h
+
+    # ── Adapter ──
+    S.draw_focus_border(stdscr, m.focus == F_ADAPTER, y, margin, adapter_h, box_w, "Adapter")
+    _draw_adapter_table(stdscr, m, y + 1, margin + 1, adapter_h - 2, box_w - 2)
+    y += adapter_h
+
+    # ── Help bar ──
+    if m.focus == F_PAIRED:
+        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+        tool = [("enter", "dis/connect"), ("s", "scan on/off"), ("u", "unpair"), ("t", "un/trust"), ("f", "forget")]
+    elif m.focus == F_DISCOVERED:
+        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+        tool = [("enter", "pair"), ("s", "scan on/off")]
+    else:
+        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
+        tool = [("s", "scan on/off")]
+    S.draw_help_bar(stdscr, gen, tool)
+
+    # ── PIN / confirm overlay ──
+    if m.pin_prompt or m.confirm_prompt:
+        _draw_prompt(stdscr, m, h, w)
+
+    stdscr.refresh()
+
+
+def _draw_paired_table(stdscr, m, y, x, h, w, paired: list[dict]):
+    """Render Paired Devices table (10 cols: fav | name | addr | trusted | conn | batt | type | blocked | rssi | hci)."""
+    if h < 1 or w < 8:
+        return
+    star_w = 1
+    name_base = 10
+    addr_base = 13
+    trusted_w = 7
+    connected_w = 8
+    battery_w = 7
+    type_base = 9
+    blocked_w = 7
+    rssi_w = 7
+    adapter_w = 5
+    base_total = (star_w + name_base + addr_base + trusted_w + connected_w
+                  + battery_w + type_base + blocked_w + rssi_w + adapter_w)  # 74
+
+    extra = w - base_total
+    if extra >= 0:
+        add_name = extra * 5 // 10
+        add_addr = extra * 3 // 10
+        add_type = extra - add_name - add_addr
+        widths = [star_w, name_base + add_name, addr_base + add_addr,
+                  trusted_w, connected_w, battery_w, type_base + add_type,
+                  blocked_w, rssi_w, adapter_w]
+        diff = w - sum(widths)
+        if diff:
+            widths[1] += diff
+    else:
+        widths = [star_w, name_base, addr_base, trusted_w, connected_w,
+                  battery_w, type_base, blocked_w, rssi_w, adapter_w]
+        while sum(widths) > w:
+            if widths[1] > 6:
+                widths[1] -= 1
+            elif widths[6] > 5:
+                widths[6] -= 1
+            elif widths[2] > 8:
+                widths[2] -= 1
+            elif widths[4] > 5:
+                widths[4] -= 1
+            elif widths[5] > 4:
+                widths[5] -= 1
+            elif widths[7] > 4:
+                widths[7] -= 1
+            elif widths[8] > 4:
+                widths[8] -= 1
+            elif widths[3] > 4:
+                widths[3] -= 1
+            elif widths[9] > 3:
+                widths[9] -= 1
+            else:
+                break
+
+    headers = ["", "Name", "Address", "Trustd", "Conn.", "Batt.", "Type", "Blockd", "RSSI", "HCI"]
+    total_w = sum(widths)
+    margin = (w - total_w) // 2
+    offsets = [margin]
+    for cw in widths[:-1]:
+        offsets.append(offsets[-1] + cw)
+
+    focused = m.focus == F_PAIRED
+    S.draw_row(stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
+    row_start = y + 2 if h >= 3 else y + 1
+    max_rows = max(0, (y + h) - row_start)
+
+    for i, d in enumerate(paired[:max_rows]):
+        is_sel = focused and i == m.selected
+        attr = S.sel_attr(is_sel, focused)
+        fav = "★" if d.get("favorite") else ""
+        name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
+        cells = [
+            fav,
+            name,
+            d["addr"],
+            "true" if d.get("trusted") else "false",
+            "true" if d["status"] == "connected" else "false",
+            d.get("battery", ""),
+            d.get("type_label", ""),
+            d.get("blocked", ""),
+            d.get("rssi", ""),
+            d.get("adapter", ""),
+        ]
+        S.draw_row(stdscr, row_start + i, x, w, cells, widths, offsets, attr)
+
+
+def _draw_discovered_table(stdscr, m, y, x, h, w, discovered: list[dict]):
+    if h < 1 or w < 8:
+        return
+    headers = ["Address", "Name"]
+    widths = [20, min(20, max(10, w - 24))]
+    while sum(widths) > w and widths[1] > 8:
+        widths[1] -= 1
+
+    focused = m.focus == F_DISCOVERED
+    S.put_row_cells(stdscr, y, x, w, headers, widths, S.header_attr(focused))
+    row_start = y + 2 if h >= 3 else y + 1
+    max_rows = max(0, (y + h) - row_start)
+
+    for i, d in enumerate(discovered[:max_rows]):
+        is_sel = focused and i == m.selected
+        attr = S.sel_attr(is_sel, focused)
+        name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
+        S.put_row_cells(stdscr, row_start + i, x, w, [d["addr"], name], widths, attr)
+
+
+def _draw_adapter_table(stdscr, m, y, x, h, w):
+    if h < 1 or w < 8:
+        return
+    headers = ["Name", "Alias", "Power", "Pairable", "Discoverable"]
+    widths = [10, 10, 5, 8, 12]
+    while sum(widths) > w and widths[1] > 4:
+        widths[1] -= 1
+
+    focused = m.focus == F_ADAPTER
+    S.put_row_cells(stdscr, y, x, w, headers, widths, S.header_attr(focused))
+    if h < 3:
+        return
+    if m.adapter_info:
+        a = m.adapter_info
+        cells = [
+            a.get("name", ""),
+            a.get("alias", ""),
+            a.get("powered", ""),
+            a.get("pairable", ""),
+            a.get("discoverable", ""),
+        ]
+        attr = S.sel_attr(True, focused) if focused else curses.A_NORMAL
+        S.put_row_cells(stdscr, y + 2, x, w, cells, widths, attr)
+
+
+def _draw_prompt(stdscr, m, h: int, w: int):
+    if m.pin_prompt:
+        lines = [
+            "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+            "┃       PIN Code from device       ┃",
+            f"┃         {m.pin_prompt:>10}          ┃",
+            "┃ Type this on your keyboard + Enter┃",
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
+        ]
+    else:
+        lines = [
+            "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
+            "┃        Confirm Passkey           ┃",
+            f"┃         {m.confirm_prompt:>10}          ┃",
+            "┃     Auto-confirming...           ┃",
+            "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
+        ]
+    S.draw_dialog(stdscr, lines)
+
+
+# ── input ──
+
+def _handle_key(stdscr, m, key):
+    if key == -1:
+        return True
+    if key in (ord("q"), 27):
+        return False
+    elif key == ord("s"):
+        if m.scanning:
+            m._stop_scan()
+            m.refresh_devices()
+            m.refresh_adapter()
+            m.status_msg = "Scan stopped."
         else:
-            disc_h = 0
-            paired_h = max(4, usable - adapter_h - help_h - 1)
-
-        # Clamp so nothing overflows
-        total = paired_h + disc_h + adapter_h + help_h
-        if total > usable:
-            overflow = total - usable
-            if disc_h > 4:
-                cut = min(overflow, disc_h - 4)
-                disc_h -= cut
-                overflow -= cut
-            if overflow > 0 and paired_h > 4:
-                paired_h = max(4, paired_h - overflow)
-
-        y = margin + hero_h - 1
-        box_w = w - margin * 2
-
-        # ── Hero ──
-        S.draw_hero(self.stdscr, self._hero_info())
-
-        # ── Paired Devices (fills most of the screen when not scanning) ──
-        S.draw_focus_border(self.stdscr, self.focus == F_PAIRED, y, margin, paired_h, box_w, "Paired Devices")
-        self._draw_paired_table(y + 1, margin + 1, paired_h - 2, box_w - 2, paired)
-        y += paired_h
-
-        # ── Discovered / Scanning ──
-        if has_disc and disc_h >= 4:
-            spin = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"[self._tick % 10]
-            title = f"Scanning {spin}" if self.scanning else "Discovered devices"
-            S.draw_focus_border(self.stdscr, self.focus == F_DISCOVERED, y, margin, disc_h, box_w, title)
-            self._draw_discovered_table(y + 1, margin + 1, disc_h - 2, box_w - 2, discovered)
-            y += disc_h
-
-        # ── Adapter (fixed at bottom, above help) ──
-        S.draw_focus_border(self.stdscr, self.focus == F_ADAPTER, y, margin, adapter_h, box_w, "Adapter")
-        self._draw_adapter_table(y + 1, margin + 1, adapter_h - 2, box_w - 2)
-        y += adapter_h
-
-        # ── Help bar ──
-        if self.focus == F_PAIRED:
-            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
-            tool = [("enter", "dis/connect"), ("s", "scan on/off"), ("u", "unpair"), ("t", "un/trust"), ("f", "forget")]
-        elif self.focus == F_DISCOVERED:
-            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
-            tool = [("enter", "pair"), ("s", "scan on/off")]
-        else:
-            gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
-            tool = [("s", "scan on/off")]
-        S.draw_help_bar(self.stdscr, gen, tool)
-
-        # ── PIN / confirm overlay ──
-        if self.pin_prompt or self.confirm_prompt:
-            self._draw_prompt(h, w)
+            m.start_scan()
+    elif key in (ord("j"), curses.KEY_DOWN):
+        m._move_sel(1)
+    elif key in (ord("k"), curses.KEY_UP):
+        m._move_sel(-1)
+    elif key == ord("\t"):
+        m._focus_next()
+    elif key == curses.KEY_BTAB:
+        m._focus_prev()
+    elif key == ord("l"):
+        m._focus_next()
+    elif key == ord("h"):
+        m._focus_prev()
+    elif key == ord("\n") or key == curses.KEY_ENTER:
+        m._action_enter()
+    elif key == ord("d"):
+        m._action_disconnect()
+    elif key == ord("f"):
+        m._action_forget()
+    elif key == ord("u"):
+        m._action_unpair()
+    elif key == ord("t"):
+        m._action_toggle_trust()
+    return True
 
 
-
-        self.stdscr.refresh()
-
-
-
-
-    def _draw_paired_table(self, y, x, h, w, paired: list[dict]):
-        """Render Paired Devices table (10 cols: fav | name | addr | trusted | conn | batt | type | blocked | rssi | hci)."""
-        if h < 1 or w < 8:
-            return
-        # Balanced column distribution: base widths that work well together
-        star_w = 1
-        name_base = 10
-        addr_base = 13      # truncated MAC still unique
-        trusted_w = 7
-        connected_w = 8
-        battery_w = 7
-        type_base = 9
-        blocked_w = 7
-        rssi_w = 7
-        adapter_w = 5
-        base_total = (star_w + name_base + addr_base + trusted_w + connected_w
-                      + battery_w + type_base + blocked_w + rssi_w + adapter_w)  # 74
-
-        extra = w - base_total
-        if extra >= 0:
-            # Distribute proportionally: name 50%, address 30%, type 20%
-            add_name = extra * 5 // 10
-            add_addr = extra * 3 // 10
-            add_type = extra - add_name - add_addr
-            widths = [star_w, name_base + add_name, addr_base + add_addr,
-                      trusted_w, connected_w, battery_w, type_base + add_type,
-                      blocked_w, rssi_w, adapter_w]
-            # Adjust rounding: add/subtract leftover from name
-            diff = w - sum(widths)
-            if diff:
-                widths[1] += diff
-        else:
-            # Shrink from base on narrow terminals
-            widths = [star_w, name_base, addr_base, trusted_w, connected_w,
-                      battery_w, type_base, blocked_w, rssi_w, adapter_w]
-            while sum(widths) > w:
-                if widths[1] > 6:         # Name
-                    widths[1] -= 1
-                elif widths[6] > 5:       # Type
-                    widths[6] -= 1
-                elif widths[2] > 8:       # Address
-                    widths[2] -= 1
-                elif widths[4] > 5:       # Connected
-                    widths[4] -= 1
-                elif widths[5] > 4:       # Battery
-                    widths[5] -= 1
-                elif widths[7] > 4:       # Blocked
-                    widths[7] -= 1
-                elif widths[8] > 4:       # RSSI
-                    widths[8] -= 1
-                elif widths[3] > 4:       # Trusted
-                    widths[3] -= 1
-                elif widths[9] > 3:       # HCI
-                    widths[9] -= 1
-                else:
-                    break
-
-        headers = ["", "Name", "Address", "Trustd", "Conn.", "Batt.", "Type", "Blockd", "RSSI", "HCI"]
-        total_w = sum(widths)
-        margin = (w - total_w) // 2
-        offsets = [margin]
-        for cw in widths[:-1]:
-            offsets.append(offsets[-1] + cw)
-
-        focused = self.focus == F_PAIRED
-        S.draw_row(self.stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
-        row_start = y + 2 if h >= 3 else y + 1
-        max_rows = max(0, (y + h) - row_start)
-
-        for i, d in enumerate(paired[:max_rows]):
-            is_sel = focused and i == self.selected
-            attr = S.sel_attr(is_sel, focused)
-            fav = "★" if d.get("favorite") else ""
-            name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
-            cells = [
-                fav,
-                name,
-                d["addr"],
-                "true" if d.get("trusted") else "false",
-                "true" if d["status"] == "connected" else "false",
-                d.get("battery", ""),
-                d.get("type_label", ""),
-                d.get("blocked", ""),
-                d.get("rssi", ""),
-                d.get("adapter", ""),
-            ]
-            S.draw_row(self.stdscr, row_start + i, x, w, cells, widths, offsets, attr)
-
-    def _draw_discovered_table(self, y, x, h, w, discovered: list[dict]):
-        if h < 1 or w < 8:
-            return
-        headers = ["Address", "Name"]
-        widths = [20, min(20, max(10, w - 24))]
-        while sum(widths) > w and widths[1] > 8:
-            widths[1] -= 1
-
-        focused = self.focus == F_DISCOVERED
-        S.put_row_cells(self.stdscr, y, x, w, headers, widths, S.header_attr(focused))
-        row_start = y + 2 if h >= 3 else y + 1
-        max_rows = max(0, (y + h) - row_start)
-
-        for i, d in enumerate(discovered[:max_rows]):
-            is_sel = focused and i == self.selected
-            attr = S.sel_attr(is_sel, focused)
-            name = f"{d.get('icon', ICON_UNKNOWN)} {d['name']}"
-            S.put_row_cells(self.stdscr, row_start + i, x, w, [d["addr"], name], widths, attr)
-
-    def _draw_adapter_table(self, y, x, h, w):
-        if h < 1 or w < 8:
-            return
-        # bluetui widths: 10, 10, 5, 8, 12
-        headers = ["Name", "Alias", "Power", "Pairable", "Discoverable"]
-        widths = [10, 10, 5, 8, 12]
-        while sum(widths) > w and widths[1] > 4:
-            widths[1] -= 1
-
-        focused = self.focus == F_ADAPTER
-        S.put_row_cells(self.stdscr, y, x, w, headers, widths, S.header_attr(focused))
-        if h < 3:
-            return
-        # blank line under header (bottom_margin 1)
-        if self.adapter_info:
-            a = self.adapter_info
-            cells = [
-                a.get("name", ""),
-                a.get("alias", ""),
-                a.get("powered", ""),
-                a.get("pairable", ""),
-                a.get("discoverable", ""),
-            ]
-            attr = S.sel_attr(True, focused) if focused else curses.A_NORMAL
-            S.put_row_cells(self.stdscr, y + 2, x, w, cells, widths, attr)
-
-
-    def _draw_prompt(self, h: int, w: int):
-        if self.pin_prompt:
-            lines = [
-                "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
-                "┃       PIN Code from device       ┃",
-                f"┃         {self.pin_prompt:>10}          ┃",
-                "┃ Type this on your keyboard + Enter┃",
-                "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
-            ]
-        else:
-            lines = [
-                "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
-                "┃        Confirm Passkey           ┃",
-                f"┃         {self.confirm_prompt:>10}          ┃",
-                "┃     Auto-confirming...           ┃",
-                "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
-            ]
-        S.draw_dialog(self.stdscr, lines)
-
-
-# ── main ──────────────────────────────────────────────────────────────
+# ── main ──
 
 def _force_narrow_ambiguous_locale():
     """Must run before curses.initscr(). Delegates to shared setup."""
     S.setup_locale()
+
+
+def _bootstrap(stdscr):
+    m = BluetoothModel()
+    m.refresh_devices()
+    m.refresh_adapter()
+    S.run_tui_loop(stdscr, m, _view, _handle_key,
+                   poll_timeout=200,
+                   refresh_interval=0.1,
+                   refresh_callback=_poll)
 
 
 def main():
@@ -1335,7 +1331,7 @@ def main():
         return 1
     prepare_bluetooth()
     try:
-        return curses.wrapper(lambda stdscr: BluetoothTUI(stdscr).run())
+        return curses.wrapper(lambda stdscr: _bootstrap(stdscr))
     except KeyboardInterrupt:
         return 0
 
