@@ -76,12 +76,16 @@ ColumnLayout {
                 }
             }
         }
+
+        WheelHandler {
+            onWheel: (event) => notifList.scrollByDelta(event.angleDelta.y)
+        }
     }
 
     TuiNotificationList {
+        id: notifList
         Layout.fillWidth: true
-        Layout.topMargin: visible ? 12 : 0
-        visible: !ServiceManager.notification.silent
+        Layout.topMargin: 12
         Layout.bottomMargin: 16
         showHeader: false
         showFooter: false

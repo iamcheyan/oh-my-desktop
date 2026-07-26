@@ -27,7 +27,7 @@ Item {
     readonly property int footerGap: showFooter ? 10 : 0
     readonly property int listHeight: Math.min(maxListHeight, listView.contentHeight)
 
-    implicitHeight: (ServiceManager.notification.list.length === 0 && !ServiceManager.notification.silent) ? 100 : (listHeight + headerGap + footerGap)
+    implicitHeight: ServiceManager.notification.list.length === 0 ? 100 : (listHeight + headerGap + footerGap)
     implicitWidth: 360
 
     onVisibleChanged: {
@@ -51,6 +51,12 @@ Item {
 
     function sortedNotifications() {
         return ServiceManager.notification.list.slice().sort((a, b) => b.time - a.time);
+    }
+
+    function scrollByDelta(deltaY) {
+        if (listView) {
+            listView.flick(0, deltaY * 3);
+        }
     }
 
     ColumnLayout {
@@ -334,7 +340,7 @@ Item {
         readonly property bool hasBody: (notificationObject?.body || "").length > 0
         readonly property bool hasActions: (notificationObject?.actions?.length ?? 0) > 0
         readonly property string displayApp: notificationObject?.appName || "System"
-        readonly property bool interactive: row.hasBody || row.hasActions
+        readonly property bool interactive: !ServiceManager.notification.silent && (row.hasBody || row.hasActions)
 
         function bodyText() {
             return NotificationUtils.processNotificationBody(
@@ -360,6 +366,7 @@ Item {
         radius: 6
         color: "transparent"
         border.width: 0
+        opacity: ServiceManager.notification.silent ? 0.65 : 1.0
 
         Behavior on color {
             ColorAnimation { duration: 120 }
@@ -374,6 +381,7 @@ Item {
             id: rowTap
             acceptedButtons: Qt.LeftButton | Qt.MiddleButton
             onTapped: (eventPoint, button) => {
+                if (ServiceManager.notification.silent) return;
                 if (button === Qt.MiddleButton)
                     row.discard();
                 else if (row.interactive)
@@ -392,15 +400,20 @@ Item {
             anchors.rightMargin: 8
             spacing: 8
 
-            NotificationAppIcon {
+            Item {
                 Layout.preferredWidth: 22
                 Layout.preferredHeight: 22
                 Layout.alignment: Qt.AlignVCenter
-                scale: 22 / 38
-                appIcon: notificationObject?.appIcon || ""
-                image: notificationObject?.image || ""
-                summary: notificationObject?.summary || ""
-                urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+
+                NotificationAppIcon {
+                    anchors.fill: parent
+                    scale: 22 / 38
+                    appIcon: notificationObject?.appIcon || ""
+                    image: notificationObject?.image || ""
+                    summary: notificationObject?.summary || ""
+                    urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+                }
+
             }
 
             StyledText {
@@ -446,16 +459,21 @@ Item {
             spacing: 10
 
             // Left: icon
-            NotificationAppIcon {
+            Item {
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 40
                 Layout.alignment: Qt.AlignTop
                 Layout.topMargin: 2
-                scale: 40 / 38
-                appIcon: notificationObject?.appIcon || ""
-                image: notificationObject?.image || ""
-                summary: notificationObject?.summary || ""
-                urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+
+                NotificationAppIcon {
+                    anchors.fill: parent
+                    scale: 40 / 38
+                    appIcon: notificationObject?.appIcon || ""
+                    image: notificationObject?.image || ""
+                    summary: notificationObject?.summary || ""
+                    urgency: row.critical ? NotificationUrgency.Critical : NotificationUrgency.Normal
+                }
+
             }
 
             // Middle: summary + body
@@ -487,7 +505,6 @@ Item {
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     font.family: Appearance.font.family.main
                     color: TuiStyle.dim
-                    textFormat: Text.PlainText
                 }
             }
 
@@ -503,7 +520,7 @@ Item {
 
                     StyledText {
                         anchors.centerIn: parent
-                        visible: !rowHover.hovered
+                        visible: !rowHover.hovered || ServiceManager.notification.silent
                         text: NotificationUtils.getFriendlyNotifTimeString(notificationObject?.time)
                         font.family: Appearance.font.family.monospace
                         font.pixelSize: 9
@@ -514,7 +531,7 @@ Item {
                     RowLayout {
                         id: timeOrButtons
                         anchors.centerIn: parent
-                        visible: rowHover.hovered
+                        visible: rowHover.hovered && !ServiceManager.notification.silent
                         spacing: 4
 
                         IconButton {

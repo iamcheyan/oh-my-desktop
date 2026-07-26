@@ -193,8 +193,8 @@ Singleton {
                     "interval": notification.expireTimeout < 0 ? (Config?.options.notifications.timeout ?? 7000) : notification.expireTimeout,
                 });
             }
-            root.unread++;
         }
+        root.unread++;
         root.notify(newNotifObject);
         root.schedulePersist();
     }
