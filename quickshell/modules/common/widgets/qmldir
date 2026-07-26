@@ -26,6 +26,7 @@ WindowDialogTitle 1.0 WindowDialogTitle.qml
 WindowDialogToolbar 1.0 WindowDialogToolbar.qml
 NerdIcon 1.0 NerdIcon.qml
 FullscreenPolkitWindow 1.0 FullscreenPolkitWindow.qml
+HoverInfoPopup 1.0 HoverInfoPopup.qml
 MaterialSymbol 1.0 MaterialSymbol.qml
 PopupToolTip 1.0 PopupToolTip.qml
 singleton NerdIconMap 1.0 NerdIconMap.qml

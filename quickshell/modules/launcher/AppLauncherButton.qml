@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -8,6 +9,7 @@ import Quickshell
 
 Item {
     id: root
+    property string moduleId: "launcher"
 
     function toggleAppLauncher() {
         // Prefer ActionManager when registered; fallback to CLI.
@@ -28,5 +30,18 @@ Item {
         id: button
         text: "Applications"
         onTriggered: root.toggleAppLauncher()
+    }
+
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
+        hoverTarget: button
     }
 }

@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
@@ -21,10 +22,8 @@ Item {
 
     component IconSlot: Item {
         default property alias contents: slotContent.data
-
         implicitWidth: Config.options.bar.rightIconSlotWidth
         implicitHeight: Config.options.bar.rightIconSlotWidth
-
         Item {
             id: slotContent
             anchors.centerIn: parent
@@ -34,7 +33,6 @@ Item {
     component BarIconButton: RippleButton {
         id: iconButton
         property string popupType: ""
-
         Layout.preferredWidth: Config.options.bar.rightIconSlotWidth
         Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
         buttonRadius: Config.options.bar.rightIconSlotWidth / 2
@@ -45,7 +43,6 @@ Item {
         colRipple: Qt.rgba(1, 1, 1, 0.12)
         colRippleToggled: Qt.rgba(1, 1, 1, 0.18)
         toggled: GlobalStates.barPopupType === iconButton.popupType
-
         onClicked: {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             GlobalStates.barPopupType = GlobalStates.barPopupType === iconButton.popupType
@@ -53,6 +50,14 @@ Item {
                 : iconButton.popupType;
         }
     }
+
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register("power-indicator", hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister("power-indicator")
 
     RowLayout {
         id: indicatorsRowLayout
@@ -97,6 +102,13 @@ Item {
                 powerContextMenuLoader.open();
             }
         }
+    }
+
+    // Hover info — outside the layout to avoid affecting RowLayout sizing
+    HoverInfoPopup {
+        id: powerHoverPopup
+        moduleId: "power-indicator"
+        hoverTarget: powerButton
     }
 
     BarContextMenu {

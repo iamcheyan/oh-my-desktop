@@ -14,6 +14,7 @@ singleton Audio 1.0 Audio.qml
 singleton Brightness 1.0 Brightness.qml
 singleton DateTime 1.0 DateTime.qml
 singleton GlobalFocusGrab 1.0 GlobalFocusGrab.qml
+singleton HoverInfoService 1.0 HoverInfoService.qml
 singleton MprisController 1.0 MprisController.qml
 singleton Network 1.0 Network.qml
 singleton Notifications 1.0 Notifications.qml

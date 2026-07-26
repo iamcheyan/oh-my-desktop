@@ -1,5 +1,6 @@
 import Quickshell
 import qs
+import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
@@ -45,6 +46,19 @@ Item {
             GlobalStates.barPopupEphemeral = false
             GlobalStates.barPopupType = opening ? "audio" : ""
         }
+    }
+
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
+        hoverTarget: actionButton
     }
 
     BarNerdIcon {

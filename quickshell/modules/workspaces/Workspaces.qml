@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
@@ -8,6 +9,7 @@ import Quickshell
 
 Item {
     id: root
+    property string moduleId: "workspaces"
 
     function toggleOverview() {
         ActionManager.invoke("overview.open");
@@ -20,5 +22,18 @@ Item {
         id: workspacesButton
         text: "Workspaces"
         onTriggered: root.toggleOverview()
+    }
+
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
+        hoverTarget: workspacesButton
     }
 }

@@ -1,5 +1,6 @@
 import qs
 import qs.services
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -36,6 +37,19 @@ Item {
         }
     }
 
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
+        hoverTarget: actionButton
+    }
+
     BarNerdIcon {
         anchors.centerIn: actionButton
         text: NerdIconMap.desktop
@@ -59,4 +73,3 @@ Item {
         }
     }
 }
-

@@ -1,3 +1,9 @@
+// DEPRECATED: Use the HoverInfoService/HoverInfoPopup system instead.
+// Each module registers its own hover content via HoverInfoService.register().
+// See:
+//   quickshell/services/HoverInfoService.qml
+//   quickshell/modules/common/widgets/HoverInfoPopup.qml
+//   Each module's HoverInfo.qml
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
@@ -91,3 +97,4 @@ StyledPopup {
         }
     }
 }
+// END DEPRECATED ClockHoverPopup

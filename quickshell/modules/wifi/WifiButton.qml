@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import qs
+import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
@@ -33,6 +34,19 @@ Item {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             GlobalStates.barPopupType = GlobalStates.barPopupType === "wifi" ? "" : "wifi";
         }
+    }
+
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
+        hoverTarget: wifiButton
     }
 
     BarNerdIcon {

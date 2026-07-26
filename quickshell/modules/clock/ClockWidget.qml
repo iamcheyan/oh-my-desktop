@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -9,6 +10,7 @@ Item {
     id: root
     implicitWidth: clockText.implicitWidth + 16
     implicitHeight: Appearance.sizes.barHeight
+    property string moduleId: "clock"
 
     readonly property var weekdays: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     readonly property var months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -62,8 +64,16 @@ Item {
         }
     }
 
-    ClockHoverPopup {
-        id: clockHoverPopup
+    Component {
+        id: hoverComponent
+        HoverInfo {}
+    }
+
+    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
+    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+
+    HoverInfoPopup {
+        moduleId: root.moduleId
         hoverTarget: mouseArea
     }
 }
