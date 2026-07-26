@@ -54,3 +54,5 @@ SectionLabel 1.0 SectionLabel.qml
 singleton ContextMenuTracker 1.0 ContextMenuTracker.qml
 BarContextMenu 1.0 BarContextMenu.qml
 singleton BarPopupGeometry 1.0 BarPopupGeometry.qml
+
+ManagedPopupWindow 1.0 ManagedPopupWindow.qml
