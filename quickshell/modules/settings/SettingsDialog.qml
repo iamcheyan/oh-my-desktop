@@ -42,7 +42,6 @@ WindowDialog {
         { key: "network", icon: "wifi", title: "Network", keywords: "wifi wireless internet lan ethernet dns firewall connection" },
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
-        { key: "appearance", icon: "palette", title: "Appearance", keywords: "theme wallpaper font color look style themes" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
         { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
         { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
@@ -115,10 +114,9 @@ WindowDialog {
         if (page === "audio") return "sound";
         if (page === "battery") return "power";
         if (page === "settings") return "overview";
-        if (page === "control") return "overview";
-        if (page === "theme") return "appearance";
-        if (page === "themes") return "appearance";
-        if (page === "font") return "appearance";
+        if (page === "theme") return "overview";
+        if (page === "themes") return "overview";
+        if (page === "font") return "overview";
         if (page === "sounds") return "sound";
         if (page === "autostart") return "system";
         if (page === "windowrules") return "system";
@@ -157,7 +155,6 @@ WindowDialog {
 
         // Core pages (always built-in)
         if (page === "overview") return overviewPageComponent;
-        if (page === "appearance") return appearancePageComponent;
         if (page === "wallpaper") return wallpaperPageComponent;
         if (page === "system") return systemPageComponent;
 
@@ -219,7 +216,6 @@ WindowDialog {
 
 
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
-    Component { id: appearancePageComponent; AppearancePage { settingsRoot: root } }
 
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
 

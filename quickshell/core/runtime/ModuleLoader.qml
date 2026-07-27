@@ -188,7 +188,15 @@ Singleton {
             // alwaysShow controls visibility within an enabled module, not
             // a bypass of the module enable/disable system.
             if (loader.isEnabled(b.moduleId)) {
-                result.push(b)
+                // Keep the input-method indicator mounted while its external
+                // backend is starting. Older installed manifests did not
+                // declare alwaysShow, so preserve the compatibility default
+                // here instead of making the extension UI own startup policy.
+                if (b.moduleId === "inputmethod" && b.alwaysShow === undefined) {
+                    result.push(Object.assign({}, b, {alwaysShow: true}))
+                } else {
+                    result.push(b)
+                }
             }
         }
         result.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))

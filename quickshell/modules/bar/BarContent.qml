@@ -113,6 +113,10 @@ Item { // Bar content region
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Left bar module load failed:", modelData.component)
                 }
+                onLoaded: {
+                    if (modelData.alwaysShow === true && item)
+                        item.visible = true
+                }
             }
         }
     }
@@ -168,6 +172,11 @@ Item { // Bar content region
                     onLoaded: {
                         if (item && typeof item.moduleId !== "undefined")
                             item.moduleId = modelData.moduleId
+                        // A widget may temporarily report unavailable while
+                        // its backend is starting. alwaysShow keeps the entry
+                        // present so the widget can recover in place.
+                        if (modelData.alwaysShow === true && item)
+                            item.visible = true
                     }
                     onStatusChanged: if (status === Loader.Error) {
                         console.warn("[Module] Bar button load failed:", modelData.component)

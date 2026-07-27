@@ -43,6 +43,7 @@ Scope {
         command: [root.sessionCommand, "status"]
         running: false
         stdout: StdioCollector {
+            id: statusOut
             onStreamFinished: {
                 try {
                     const data = JSON.parse(statusOut.text);
@@ -68,6 +69,7 @@ Scope {
         command: ["bash", "-c", "hyprctl -j clients | jq 'length'"]
         running: false
         stdout: StdioCollector {
+            id: clientCountOut
             onStreamFinished: {
                 try {
                     const openWindows = parseInt(clientCountOut.text.trim()) ?? 0;

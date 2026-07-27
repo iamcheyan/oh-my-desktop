@@ -19,10 +19,12 @@ Singleton {
     property var workspaces: []
     property var workspaceIds: []
     property var workspaceById: ({})
-    property var activeWorkspace: null
+    // activeWorkspace: derived from the native Quickshell.Hyprland model so it
+    // updates the instant Hyprland reports a focus change — no hyprctl poll.
+    // Only `.id` is consumed, which the native HyprlandWorkspace provides.
+    readonly property var activeWorkspace: Hyprland.focusedWorkspace ?? null
     property var activeWindow: null
     property var monitors: []
-    property var layers: ({})
     property int dataSerial: 0
     // Cached overview model recomputed only when the data dirty-flag
     // (dataSerial) or the overview refresh serial changes. Consumers bind to
@@ -340,17 +342,12 @@ Singleton {
         getClients.running = true;
     }
 
-    function updateLayers() {
-        getLayers.running = true;
-    }
-
     function updateMonitors() {
         getMonitors.running = true;
     }
 
     function updateWorkspaces() {
         getWorkspaces.running = true;
-        getActiveWorkspace.running = true;
     }
 
     function updateActiveWindow() {
@@ -360,9 +357,24 @@ Singleton {
     function updateAll() {
         updateWindowList();
         updateMonitors();
-        updateLayers();
         updateWorkspaces();
         updateActiveWindow();
+    }
+
+    // Debounce the heavy re-fetch. Hyprland fires many raw events in a burst
+    // (e.g. when the overview layer appears: activewindow, focusedmon,
+    // movewindow, …). Without coalescing, each event spawned 6 hyprctl
+    // children that raced the overview's own render + ScreencopyView capture.
+    // Restarting this timer collapses a burst into a single updateAll().
+    Timer {
+        id: dataRefreshTimer
+        interval: 60
+        repeat: false
+        onTriggered: root.updateAll()
+    }
+
+    function scheduleRefresh() {
+        dataRefreshTimer.restart()
     }
 
     function markDataChanged() {
@@ -386,12 +398,21 @@ Singleton {
         target: Hyprland
 
         function onRawEvent(event) {
-            // console.log("Hyprland raw event:", event.name);
+            // Layer/screencast events don't change clients/workspaces/monitors.
             if (["openlayer", "closelayer", "screencast"].includes(event.name)) return;
+            // activeWindow is cheap (tiny JSON) and feeds focusedClientForWorkspace,
+            // so refresh it immediately for responsiveness; coalesce the rest.
             if (["activewindow", "activewindowv2", "windowtitlev2", "focusedmon", "focusedmonv2"].includes(event.name)) {
                 updateActiveWindow();
             }
-            updateAll()
+            root.scheduleRefresh()
+        }
+
+        // activeWorkspace is now derived from the native focusedWorkspace model
+        // (no hyprctl poll). Bump the dirty flag so the overview model
+        // re-evaluates when focus moves.
+        function onFocusedWorkspaceChanged() {
+            root.markDataChanged()
         }
     }
 
@@ -438,17 +459,6 @@ Singleton {
         }
     }
 
-    Process {
-        id: getLayers
-        command: ["hyprctl", "layers", "-j"]
-        stdout: StdioCollector {
-            id: layersCollector
-            onStreamFinished: {
-                root.layers = JSON.parse(layersCollector.text);
-                root.markDataChanged();
-            }
-        }
-    }
 
     Process {
         id: getWorkspaces
@@ -480,18 +490,6 @@ Singleton {
                         !root.pendingWorkspaceSettled(entry)
                     );
                 }
-                root.markDataChanged();
-            }
-        }
-    }
-
-    Process {
-        id: getActiveWorkspace
-        command: ["hyprctl", "activeworkspace", "-j"]
-        stdout: StdioCollector {
-            id: activeWorkspaceCollector
-            onStreamFinished: {
-                root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
                 root.markDataChanged();
             }
         }

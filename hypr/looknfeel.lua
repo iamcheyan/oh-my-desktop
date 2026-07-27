@@ -43,6 +43,7 @@ o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1180,
 o.window("org.omd.ocr-tui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.omd-settings-voice-tui", { float = true, center = true, size = { 1180, 760 } })
 o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
+o.window("org.omd.themetui", { float = true, center = true, size = { 1180, 760 } })
 
 -- Native wallpaper pickers are separate Wayland clients rather than true
 -- children of the settings terminal. Keep these specifically titled dialogs

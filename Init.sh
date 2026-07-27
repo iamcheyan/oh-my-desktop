@@ -1190,9 +1190,16 @@ repair_runtime_config() {
     local wp_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/wallpaper"
     mkdir -p "$wp_dir"
     if [[ ! -f "$wp_dir/wallpaper" ]]; then
-        cp "$REPO/share/themes/last-horizon/backgrounds/4-new-horizons.jpg" "$wp_dir/wallpaper"
-        chmod 0644 "$wp_dir/wallpaper"
-        ok "  seeded wallpaper from the default theme"
+        local ext_themes="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}/theme-settings/themes"
+        local seed="$ext_themes/last-horizon/backgrounds/4-new-horizons.jpg"
+        [[ -f "$seed" ]] || seed="$REPO/share/themes/last-horizon/backgrounds/4-new-horizons.jpg"
+        if [[ -f "$seed" ]]; then
+            cp "$seed" "$wp_dir/wallpaper"
+            chmod 0644 "$wp_dir/wallpaper"
+            ok "  seeded wallpaper from the default theme"
+        else
+            warn "  default theme wallpaper not found; skipping seed"
+        fi
     fi
     ln -sfn "wallpaper" "$wp_dir/background"
     ok "  wallpaper/background -> wallpaper"

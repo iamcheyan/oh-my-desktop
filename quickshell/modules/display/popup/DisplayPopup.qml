@@ -92,7 +92,7 @@ PopupColumn {
         label: "Wallpaper settings…"
         onClicked: {
             GlobalStates.barPopupType = "";
-            Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/settings/bin/omd-launch-settings-wallpaper-tui`]);
+            Quickshell.execDetached(["omd-launch-tui", "omd-settings-tui", "wallpaper"]);
         }
     }
 

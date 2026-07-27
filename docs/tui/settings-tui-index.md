@@ -22,7 +22,7 @@ OMD 的设置工具集中在 `bin/` 下，按入口分三类：
 | `bin/omd-settings-keyboard-tui` | 键盘按键映射 TUI。视觉按键拾取器、Fn 模式切换、预置管理、多面板布局。 | `keyboard` |
 | `bin/omd-settings-voice-tui` | 语音输入设置 TUI。录音试讲、语音检测、峰值电平、最近录音列表、状态显示。 | `voice` |
 | `bin/omd-settings-vm-tui` | Windows 虚拟机设置 TUI。按状态显示的详细视图（安装/启动/就绪/停止/修复）、环境依赖检查。 | `windows-vm` |
-| `bin/omd-settings-theme-tui` | 主题与外观设置 TUI。壁纸 ASCII 预览、主题色板显示、模式/特效选择、鼠标支持。 | `theme` |
+| `bin/omd-settings-theme-tui` | 主题选择 TUI。色板网格、当前主题高亮、键盘/鼠标导航。详见 [主题系统文档](../features/theme-system.md)。 | `theme` |
 | `bin/omd-settings-backup-tui` | 文件共享/备份设置 TUI。SMB 备份配置、连接测试、手动备份执行。双列布局。 | `backup` |
 | `bin/omd-settings-ocr-tui` | OCR 设置 TUI。检测 PaddleOCR/ONNX Runtime/模型缓存状态、安装向导、测试功能。 | `ocr` |
 

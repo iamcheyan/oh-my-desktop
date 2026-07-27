@@ -1,0 +1,84 @@
+#!/bin/sh
+# Live-reload terminal colors after a theme switch.
+# Triggered by omd-settings-theme's refresh_running_apps().
+
+set -eu
+
+current_theme_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/theme/current"
+
+have() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+reload_alacritty() {
+    # Alacritty live-reloads when the config file mtime changes.
+    if [ -f "$HOME/.config/alacritty/alacritty.toml" ]; then
+        touch "$HOME/.config/alacritty/alacritty.toml" 2>/dev/null || true
+    fi
+}
+
+reload_kitty() {
+    have kitty || return 0
+
+    # Kitty's explicit remote-control reload is safer than signals and works
+    # across multiple kitty processes when each has a listen_on socket.
+    found=0
+    for sock in /tmp/mykitty /tmp/mykitty-*; do
+        [ -S "$sock" ] || continue
+        found=1
+        kitty @ --to "unix:$sock" load-config --no-response >/dev/null 2>&1 || true
+    done
+
+    # If no socket exists but the script is running inside kitty,
+    # KITTY_LISTEN_ON / controlling-terminal remote control may still work.
+    if [ "$found" -eq 0 ]; then
+        kitty @ load-config --no-response >/dev/null 2>&1 || true
+    fi
+}
+
+reload_ghostty() {
+    # Ghostty documents runtime reload via app/menu/keybind; the current OMD
+    # theme helper used SIGUSR2, so keep it as a best-effort compatibility path.
+    if pgrep -x ghostty >/dev/null 2>&1; then
+        pkill -SIGUSR2 -x ghostty >/dev/null 2>&1 || true
+    fi
+}
+
+reload_foot() {
+    # foot has no full config reload signal. SIGUSR1 selects [colors], and the
+    # OSC writes below update colors in existing terminals without restarting.
+    if pgrep -x foot >/dev/null 2>&1; then
+        pkill -SIGUSR1 -x foot >/dev/null 2>&1 || true
+    fi
+    if pgrep -x footclient >/dev/null 2>&1; then
+        pkill -SIGUSR1 -x footclient >/dev/null 2>&1 || true
+    fi
+
+    foot_theme="$current_theme_dir/foot.ini"
+    [ -f "$foot_theme" ] || return 0
+
+    foot_osc=$(
+        awk -F= '
+            function color(value) { return "#" value }
+            /^background=/ { printf "\033]11;%s\007", color($2) }
+            /^foreground=/ { printf "\033]10;%s\007", color($2) }
+            /^regular[0-7]=/ { split($1, parts, "regular"); printf "\033]4;%d;%s\007", parts[2], color($2) }
+            /^bright[0-7]=/ { split($1, parts, "bright"); printf "\033]4;%d;%s\007", parts[2] + 8, color($2) }
+        ' "$foot_theme" 2>/dev/null || true
+    )
+    [ -n "$foot_osc" ] || return 0
+
+    for foot_pid in $(pgrep -x foot 2>/dev/null || true); do
+        for child_pid in $(pgrep -P "$foot_pid" 2>/dev/null || true); do
+            tty=$(readlink "/proc/$child_pid/fd/1" 2>/dev/null || true)
+            case "$tty" in
+                /dev/pts/*) printf '%b' "$foot_osc" >"$tty" 2>/dev/null || true ;;
+            esac
+        done
+    done
+}
+
+reload_alacritty
+reload_kitty
+reload_ghostty
+reload_foot

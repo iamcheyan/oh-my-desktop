@@ -502,7 +502,7 @@ PanelWindow {
         y: (parent.height - height) / 2 + launcher.cardOffsetY
         width: Math.min(parent.width * 0.72, 960)
         height: Math.min(parent.height * 0.80, 720)
-        color: "#0f0f14"
+        color: TuiStyle.bg
         radius: 18
         border.color: TuiStyle.shellBorder
         border.width: TuiStyle.borderWidth
@@ -558,7 +558,7 @@ PanelWindow {
                         Layout.preferredWidth: 280
                         Layout.preferredHeight: 34
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                        color: "#181818"
+                        color: TuiStyle.surfaceSubtle
                         radius: TuiStyle.radius
                         border.width: 0
 
@@ -622,7 +622,7 @@ PanelWindow {
                         Layout.preferredWidth: 34
                         Layout.preferredHeight: 34
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                        color: sessionMenuMouse.containsMouse || launcher.sessionMenuOpen ? "#2a2a2a" : "#181818"
+                        color: sessionMenuMouse.containsMouse || launcher.sessionMenuOpen ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle
                         radius: TuiStyle.radius
                         border.width: 0
 
@@ -709,7 +709,7 @@ PanelWindow {
                             anchors.rightMargin: 3
                             width: 18; height: 18
                             radius: 9
-                            color: appItem.isPinned ? TuiStyle.accent : "#222222"
+                            color: appItem.isPinned ? TuiStyle.accent : TuiStyle.controlMuted
                             border.width: 0
                             z: 2
 
@@ -735,9 +735,9 @@ PanelWindow {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: width / 2
-                                color: "#222222"
+                                color: TuiStyle.controlMuted
                                 border.width: 2
-                                border.color: "#444444"
+                                border.color: TuiStyle.menuBorder
                                 visible: iconWrapper.isNerdIcon
 
                                 NerdIcon {
@@ -748,7 +748,7 @@ PanelWindow {
                                         const prop = appItem.resolvedIconSource.substring(5);
                                         return NerdIconMap[prop] || "";
                                     }
-                                    color: "#eeeeee"
+                                    color: TuiStyle.fg
                                 }
                             }
 
@@ -768,7 +768,7 @@ PanelWindow {
                                 visible: !iconWrapper.isNerdIcon && (appItem.resolvedIconSource === "" || appIcon.status === Image.Error)
                                 anchors.fill: parent
                                 radius: 8
-                                color: "#222222"
+                                color: TuiStyle.controlMuted
                                 border.width: 0
 
                                 StyledText {
@@ -785,7 +785,7 @@ PanelWindow {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: iconWrapper.isNerdIcon ? width / 2 : 8
-                                color: ma.containsMouse ? "#ffffff" : "transparent"
+                                color: ma.containsMouse ? TuiStyle.accent : "transparent"
                                 opacity: ma.containsMouse ? 0.15 : 0
                                 visible: ma.containsMouse
                             }
@@ -797,8 +797,8 @@ PanelWindow {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: 8; height: 8
                             radius: 4
-                            color: "#ffc23a"
-                            border.color: "#803a2400"
+                            color: TuiStyle.runningIndicator
+                            border.color: TuiStyle.accentBorder
                             border.width: 1
                             opacity: appItem.isRunning ? 1 : 0
                             z: 1

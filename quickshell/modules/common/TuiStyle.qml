@@ -27,7 +27,7 @@ QtObject {
     readonly property color shellGradientMid: "#080808"
     readonly property color shellGradientBottom: "#161616"
     readonly property color shellBorder: OmarchyTheme.accentBorder
-    readonly property color menuBorder: "#4a4a4a"
+    readonly property color menuBorder: Qt.rgba(accent.r, accent.g, accent.b, 0.48)
 
     // Interior surfaces
     readonly property color surfaceSubtle: "#181818"
@@ -40,6 +40,10 @@ QtObject {
     readonly property color controlHover: "#4d4d4d"
     readonly property color controlMuted: "#222222"
     readonly property color controlActiveBorder: OmarchyTheme.accentActiveBorder
+    // Theme-aware low-emphasis chrome. Keep inactive surfaces readable while
+    // still following the active theme when a theme extension is installed.
+    readonly property color inactiveBorder: Qt.rgba(accent.r, accent.g, accent.b, 0.36)
+    readonly property color runningIndicator: accent
     readonly property color miniControlHover: "#303030"
     readonly property color miniControlPressed: "#3a3a3a"
     readonly property real accentWashOpacity: 0.14

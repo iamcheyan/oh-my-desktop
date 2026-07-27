@@ -314,3 +314,40 @@ The helper requires access to the user's session bus. A sandboxed agent shell
 may not be allowed to open `/run/user/$UID/bus`, even though the live
 Quickshell process can. Validate actual switching from the running desktop
 session.
+
+### Releasing Super after `Super+Space` opens the workspace overview
+
+This means the `superInterrupt` bind for `SPACE` is missing. The repo's
+`hypr/bindings.lua` registers, for every `SUPER+<key>` chord, a transparent
+`bindnd` (`non_consuming`) bind that fires the `quickshell:superInterrupt`
+Quickshell GlobalShortcut. That shortcut clears `GlobalStates.superReleaseMightTrigger`,
+so that releasing the Super key afterward does NOT toggle the overview
+(see `quickshell/GlobalStates.qml` `workspaceNumber` / `superInterrupt`).
+
+A user override at `~/.config/sumika-shell/hypr/bindings.lua` that does:
+
+```lua
+hl.unbind("SUPER + SPACE")
+o.bind("SUPER + SPACE", "Next input language", ...)
+```
+
+wipes the interrupt bind (`hl.unbind` removes *all* binds for that key+mods,
+including the transparent `bindnd`), then re-adds only the input-method `bindd`.
+The result: `superReleaseMightTrigger` stays `true`, and the next Super release
+pops the overview.
+
+The repo default (`hypr/bindings.lua`) already binds `Super+Space` /
+`Super+Shift+Space` to `omd-action input-method.cycle`, so a user override
+that only re-creates the same binds is redundant and harmful. Do **not**
+`hl.unbind` a `SUPER+<key>` that the repo already binds; if you must rebind
+it, re-register the interrupt bind too, or leave it to the repo default.
+
+Verify the interrupt bind is registered:
+
+```sh
+hyprctl binds | awk 'BEGIN{RS=""} /bindnd/ && /key: SPACE/ {print "interrupt present"}'
+```
+
+If the command prints nothing, the interrupt bind for `SPACE` is missing —
+remove the redundant `hl.unbind("SUPER + SPACE")` override and reload
+(`hyprctl reload`).

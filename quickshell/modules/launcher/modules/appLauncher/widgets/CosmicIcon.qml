@@ -7,7 +7,7 @@ Item {
 
     property string name: ""
     property real iconSize: Appearance.font.pixelSize.small
-    property color color: "#c5c8c6"
+    property color color: TuiStyle.fg
 
     readonly property string source: name !== ""
         ? ("file://" + Directories.cosmicIcons + "/" + name + ".svg")

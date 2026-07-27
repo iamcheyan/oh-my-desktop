@@ -52,6 +52,14 @@ launch_direct() {
     for _mod_dir in "$repo_root/quickshell/modules/"*/; do
         [ -d "$_mod_dir/bin" ] && export PATH="$PATH:$_mod_dir/bin"
     done
+
+    # Add extension bin dirs to PATH so spawned processes resolve
+    _ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+    if [ -d "$_ext_dir" ]; then
+        for _ext_mod_dir in "$_ext_dir"/*/; do
+            [ -d "${_ext_mod_dir}bin" ] && export PATH="$PATH:${_ext_mod_dir}bin"
+        done
+    fi
     runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
     if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
         for candidate in "$runtime_dir"/hypr/*/hyprland.lock; do
@@ -87,6 +95,10 @@ action="${1:-open}"
 page="${2:-overview}"
 
 if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
+    # Redirect theme/appearance to TUI — no QML settings page exists
+    if [ "$page" = "appearance" ] || [ "$page" = "theme" ] || [ "$page" = "themes" ] || [ "$page" = "font" ]; then
+        exec omd-launch-tui omd-settings-tui theme
+    fi
     if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
         # Keep GTK4's Wayland output scaling automatic, but compensate for
         # the high gtk-xft-dpi written by the KDE/Asahi desktop settings.
@@ -116,7 +128,7 @@ case "$action" in
         fi
         ;;
     *)
-        echo "  panel: overview|network|bluetooth|sound|display|appearance|power|system"
+        echo "  panel: overview|network|bluetooth|sound|display|power|system"
         exit 2
         ;;
 esac

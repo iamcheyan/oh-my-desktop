@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Route settings TUI pages — only routes with core binaries are active.
+# Route settings TUI pages to the owning extension binaries.
 set -euo pipefail
 
 OMD_ROOT="${OMD_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export OMD_ROOT
+
+_ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}/theme-settings"
 
 route="${1:-help}"
 
@@ -13,15 +15,19 @@ case "$route" in
 Usage: omd-settings-tui [page]
 
 Pages:
+  theme      Theme & appearance settings (theme picker, effects)
   wallpaper  Wallpaper settings (picker, rotation, color)
 EOF
     exit 0
     ;;
+  theme)
+    exec python3 "$_ext_dir/bin/omd-settings-theme-tui"
+    ;;
   wallpaper)
-    exec python3 "$OMD_ROOT/quickshell/modules/settings/bin/omd-settings-wallpaper-tui"
+    exec python3 "$_ext_dir/bin/omd-settings-wallpaper-tui"
     ;;
   *)
-    echo "omd-settings-tui: unknown page '$route' (only 'wallpaper' available)" >&2
+    echo "omd-settings-tui: unknown page '$route' (available: theme, wallpaper)" >&2
     exit 2
     ;;
 esac

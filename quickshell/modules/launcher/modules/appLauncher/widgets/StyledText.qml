@@ -17,8 +17,8 @@ Text {
         family: defaultFont
         pixelSize: Appearance.font.pixelSize.small
     }
-    color: "#f4f4f4"
-    linkColor: "#00cc88"
+    color: TuiStyle.fg
+    linkColor: TuiStyle.accent
 
     component Anim: NumberAnimation {
         target: root

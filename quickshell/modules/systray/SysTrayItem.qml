@@ -19,13 +19,26 @@ Item {
         item.tooltipTitle,
         item.tooltipDescription
     ].join(" ").toLowerCase()
-    readonly property string itemIconName: String(item.icon ?? "")
+    readonly property var itemIconSource: item.icon ?? item.iconName ?? ""
+    readonly property string itemIconName: typeof itemIconSource === "string" ? itemIconSource : String(item.iconName ?? "")
     readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
-    readonly property bool hasValidIcon: itemIconName.length > 0
-    // Some SNI providers publish a non-empty icon name that is not resolvable
-    // by IconImage. Keep the item visible and use a neutral fallback instead
-    // of leaving an empty slot in the bar.
-    readonly property bool iconLoadFailed: root.hasValidIcon && trayIcon.status === Image.Error
+    readonly property bool hasValidIcon: itemIconSource !== null && itemIconSource !== undefined && (typeof itemIconSource !== "string" || itemIconSource.length > 0)
+    // Detect icon load failure.
+    // Two paths:
+    //   1. image://icon/X  — Qt 6 built-in handler runs QIcon::fromTheme(X)
+    //      → theme miss produces Image.Error (catches WeChat et al.)
+    //   2. image://qspixmap/... — via TrayImageHandle → createPixmap()
+    //      → failure returns missingPixmap (valid full-size pixmap) → Image.Ready
+    //      → QML cannot distinguish this from a real icon.
+    //      Guard only the extreme case (provider returns sub-2px pixmap).
+    readonly property bool iconLoadFailed: {
+        if (!root.hasValidIcon) return false;
+        if (trayIcon.status === Image.Error) return true;
+        if (trayIcon.status === Image.Ready
+            && (trayIcon.sourceSize.width <= 2 || trayIcon.sourceSize.height <= 2))
+            return true;
+        return false;
+    }
     readonly property string tooltipText: {
         var parts = [];
         var t = root.item.title || root.item.tooltipTitle || "";
@@ -90,7 +103,7 @@ Item {
         // Keep the source visible. The monochrome effect is rendered by the
         // overlay below; hiding the source makes that overlay blank as well.
         opacity: 1
-        source: root.itemIconName
+        source: root.itemIconSource
         anchors.centerIn: button
         width: Math.round(Config.options.bar.rightIconSize * 0.82)
         height: Math.round(Config.options.bar.rightIconSize * 0.82)

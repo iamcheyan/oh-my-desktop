@@ -22,7 +22,7 @@ PageBody {
                 iconName: "palette"
                 onClicked: {
                     if (settingsRoot) settingsRoot.dismiss();
-                    Quickshell.execDetached([`${FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/settings/bin/omd-launch-settings-theme-tui`]);
+                    Quickshell.execDetached(["omd-launch-tui", "omd-settings-tui", "theme"]);
                 }
             }
         }

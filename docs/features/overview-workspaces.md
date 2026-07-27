@@ -82,6 +82,49 @@ empty workspaces.
 - `quickshell/services/HyprlandData.qml`
 - `quickshell/modules/common/GlobalStates.qml`
 
+## Performance And Startup Latency
+
+Overview must feel instant on both entry paths — the Super-alone release
+(`workspaceNumber` GlobalShortcut) and the bar Workspaces button (`overview.open`
+action → `omd-overview` → Quickshell IPC). Three rules hold the latency down:
+
+### 1. Coalesce Hyprland event bursts (HyprlandData.qml)
+
+`HyprlandData` re-fetches `clients`, `monitors`, `workspaces`, and
+`activewindow` from `hyprctl -j`. The `Connections` on `Hyprland.onRawEvent`
+restarts a ~60 ms debounce timer instead of calling `updateAll()` directly.
+Hyprland emits many events in a burst when the overview layer appears
+(`activewindow`, `focusedmon`, `movewindow`, …); without coalescing each event
+spawned 4+ `hyprctl` children that raced the overview's own render and
+`ScreencopyView` capture. `activeWindow` is still refreshed immediately for
+`focusedClientForWorkspace` responsiveness — only the heavy re-fetch is
+debounced.
+
+`getLayers` was removed (its `layers` property was never read). `activeWorkspace`
+is derived from the native `Hyprland.focusedWorkspace` model (only `.id` is
+consumed), so `getActiveWorkspace` polling was removed too.
+
+Do **not** add `updateAll()` calls from event handlers without the debounce
+timer, and do not re-introduce `getLayers`/`getActiveWorkspace` polling.
+
+### 2. Asynchronous, keep-alive widget tree (Overview.qml)
+
+The `OverviewWidget` `Loader` uses `asynchronous: true` so the scrim paints on
+the first frame while the Repeater/ScreencopyView tree incubates, instead of
+blocking the render thread. After the first open it stays `active` (gated by a
+`wasOpened` flag); repeat opens only flip the component's `visible` and are
+instant. Qt does not render invisible items, and `ScreencopyView` with
+live:true only captures while visible, so holding the tree costs nothing while
+closed.
+
+### 3. The `omd-overview` launcher must detect the live process
+
+`bin/omd-overview` decides between an IPC toggle and a cold `launch_direct`.
+`is_running` resolves the module directory with `pwd -P` so the `pgrep` pattern
+matches the running process's cmdline even when it was launched through the
+`~/.config/omd` symlink. A mismatch makes every click-path `open` fall through
+to `launch_direct` and stall for seconds.
+
 ## Verification
 
 Test both directions of every cross-monitor operation:

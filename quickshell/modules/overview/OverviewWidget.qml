@@ -544,7 +544,7 @@ Item {
                 border.width: focusedGroup ? 2 : 1
                 border.color: focusedGroup
                     ? TuiStyle.controlActiveBorder
-                    : ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
+                    : TuiStyle.inactiveBorder
 
                 StyledText {
                     anchors {
@@ -888,7 +888,7 @@ Item {
                     bottomLeftRadius: root.largeWorkspaceRadius
                     bottomRightRadius: root.largeWorkspaceRadius
                     border.width: 2
-                    border.color: isFocusedEntry ? root.activeBorderColor : "#66AAAAAA"
+                    border.color: isFocusedEntry ? root.activeBorderColor : TuiStyle.inactiveBorder
                 }
             }
         }

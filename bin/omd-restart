@@ -147,6 +147,12 @@ module_is_enabled() {
     return 0
 }
 
+# Start the input-method backend before the bar. This is bounded and
+# conditional; a missing or broken Fcitx5 must not block the shell.
+if [ -x "$OMD_ROOT/bin/omd-input-method-ensure" ]; then
+    "$OMD_ROOT/bin/omd-input-method-ensure" || true
+fi
+
 # ── Start core processes ──────────────────────────────────────────────────
 start_app omd-bar
 start_app omd-polkit
@@ -213,18 +219,10 @@ if [ -x "$OMD_ROOT/scripts/reload-terminals" ]; then
     OMD_ROOT="$OMD_ROOT" "$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
 fi
 
-# ── Flatpak SNI tray icon stability ────────────────────────────────────
-# Flatpak apps register StatusNotifierItems through xdg-dbus-proxy, which
-# may lose the registration across D-Bus reconnects.  Re-register WeChat's
-# SNI once on reload so the icon reappears without a polling daemon.
-if busctl --user status "org.kde.StatusNotifierItem-2-1" >/dev/null 2>&1; then
-    if ! busctl --user get-property org.kde.StatusNotifierWatcher \
-        /StatusNotifierWatcher org.kde.StatusNotifierWatcher \
-        RegisteredStatusNotifierItems 2>/dev/null \
-        | grep -qF "org.kde.StatusNotifierItem-2-1/StatusNotifierItem"; then
-        gdbus call --session --dest org.kde.StatusNotifierWatcher \
-            --object-path /StatusNotifierWatcher \
-            --method org.kde.StatusNotifierWatcher.RegisterStatusNotifierItem \
-            "org.kde.StatusNotifierItem-2-1" >/dev/null 2>&1 || true
-    fi
+# Keep late/restarted StatusNotifierItems synchronized with the watcher.
+# This is protocol-level repair, not an application-specific registration.
+if [ -x "$OMD_ROOT/bin/omd-sni-reconcile" ]; then
+    OMD_SNI_RECONCILE_INTERVAL=2 \
+        nohup "$OMD_ROOT/bin/omd-sni-reconcile" \
+        >/tmp/omd-sni-reconcile.log 2>&1 </dev/null &
 fi

@@ -11,9 +11,10 @@ Singleton {
     /// Stable reference to the SystemTray model (pointer never changes)
     readonly property var trayModel: SystemTray.items
 
-    /// Refresh trigger — toggled by mutation signals to force re-evaluation
-    /// of bindings that depend on trayModel.values (which has no notify signal).
-    property bool _refreshTrigger: false
+    /// Snapshot of the ObjectModel contents. ObjectModel.values is not a
+    /// reliable QML binding source across Quickshell releases, so keep a
+    /// normal JS array that is replaced on every refresh.
+    property var allItems: []
 
     /// Polling keeps the derived list in sync across Quickshell versions.
     /// SystemTray.items is an ObjectModel whose mutation signal names have
@@ -24,13 +25,24 @@ Singleton {
         interval: 500
         running: true
         repeat: true
-        onTriggered: _refreshTrigger = !_refreshTrigger
+        onTriggered: root.refreshItems()
     }
 
-    /// All current tray items, reactively re-read on model mutations
-    readonly property var allItems: {
-        _refreshTrigger;
-        return trayModel.values ?? [];
+    function refreshItems() {
+        const values = root.trayModel ? root.trayModel.values : [];
+        const next = [];
+        if (values) {
+            for (let i = 0; i < values.length; i++) {
+                if (values[i]) next.push(values[i]);
+            }
+        }
+        root.allItems = next;
+    }
+
+    Component.onCompleted: {
+        // The watcher may finish connecting after the singleton is created.
+        // The timer continues to pick up late registrations.
+        root.refreshItems();
     }
 
     function isPassiveItem(item) {

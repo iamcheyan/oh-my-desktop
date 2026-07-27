@@ -384,16 +384,30 @@ Scope {
                 Loader {
                     id: overviewLoader
                     anchors.fill: parent
-                    // Keep ScreencopyView resources scoped to the visible
-                    // overview. Holding them while closed gives nicer instant
-                    // thumbnails, but it also keeps GPU/DRM buffers alive and
-                    // can amplify driver instability during hot reload.
+                    // Build the heavy OverviewWidget tree asynchronously so
+                    // the scrim paints immediately on first open instead of
+                    // blocking the render thread on Repeater/ScreencopyView
+                    // instantiation. Once built, keep it alive (active stays
+                    // true) and gate visibility via the component's own
+                    // `visible` so repeat opens are instant — Qt does not
+                    // render invisible items, and ScreencopyView with
+                    // live:true only captures while visible, so holding the
+                    // tree costs nothing while closed.
+                    asynchronous: true
                     active: (Config?.options.overview.enable ?? true)
-                        && GlobalStates.overviewOpen
+                        && (GlobalStates.overviewOpen || overviewLoader.wasOpened)
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         searchQuery: ""
                         visible: GlobalStates.overviewOpen
+                    }
+                    property bool wasOpened: false
+                    Connections {
+                        target: GlobalStates
+                        function onOverviewOpenChanged() {
+                            if (GlobalStates.overviewOpen)
+                                overviewLoader.wasOpened = true
+                        }
                     }
                 }
 
