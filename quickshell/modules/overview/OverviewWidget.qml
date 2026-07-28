@@ -872,6 +872,7 @@ Item {
             Repeater { // Workspace entry borders (on top of windows)
                 model: root.overviewEntries
                 delegate: Rectangle {
+                    id: workspaceBorder
                     required property var modelData
                     required property int index
                     readonly property int entryIndex: root.indexForWorkspaceId(modelData.id)
@@ -889,6 +890,39 @@ Item {
                     bottomRightRadius: root.largeWorkspaceRadius
                     border.width: 2
                     border.color: isFocusedEntry ? root.activeBorderColor : TuiStyle.inactiveBorder
+
+                    // The number shown here is the same global visual slot
+                    // addressed by Super+1…0. Keep the raw Hyprland ID visible
+                    // as well: IDs are intentionally sparse and are not the
+                    // shortcut number.
+                    Rectangle {
+                        anchors {
+                            top: parent.top
+                            right: parent.right
+                            topMargin: 10
+                            rightMargin: 10
+                        }
+                        visible: !OverviewSwitchingController.grabbed
+                        width: slotLabel.implicitWidth + 20
+                        height: 34
+                        radius: 5
+                        color: TuiStyle.bg
+                        border.width: 1
+                        border.color: workspaceBorder.isFocusedEntry
+                            ? TuiStyle.controlActiveBorder
+                            : TuiStyle.inactiveBorder
+
+                        StyledText {
+                            id: slotLabel
+                            anchors.centerIn: parent
+                            text: `Slot ${workspaceBorder.index + 1} · ID ${workspaceBorder.modelData.id}`
+                            color: workspaceBorder.isFocusedEntry
+                                ? TuiStyle.accent
+                                : Appearance.colors.colOnLayer1
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.DemiBold
+                        }
+                    }
                 }
             }
         }
