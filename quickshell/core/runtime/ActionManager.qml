@@ -345,7 +345,7 @@ Singleton {
         // Shell actions
         this.register("shell.reload", "core", "Reload shell", {
             type: "process",
-            command: [sumikaRoot + "/bin/sumika-restart", "sumika-bar"]
+            command: [sumikaRoot + "/bin/sumika-restart", "--quickshell-only"]
         }, {description: "Reload the Quickshell UI"})
 
         // Settings
@@ -359,7 +359,7 @@ Singleton {
         var overviewCmd = sumikaRoot + "/bin/sumika-overview"
         this.register("overview.open", "core", "Open overview", {
             type: "process",
-            command: [overviewCmd]
+            command: [overviewCmd, "open"]
         }, {description: "Open or close the overview/workspace view"})
 
         this.register("overview.toggle", "core", "Toggle overview", {

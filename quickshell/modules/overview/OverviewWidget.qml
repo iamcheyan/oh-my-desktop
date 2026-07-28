@@ -245,6 +245,15 @@ Item {
         return -1;
     }
 
+    function globalSlotForWorkspaceId(wsId) {
+        const entries = ServiceManager.workspace.overviewWorkspaceEntries ?? [];
+        for (let i = 0; i < entries.length; ++i) {
+            if (entries[i].id === wsId)
+                return i + 1;
+        }
+        return 0;
+    }
+
     function groupLength(group) {
         if (!group)
             return 0;
@@ -902,7 +911,6 @@ Item {
                             topMargin: 10
                             rightMargin: 10
                         }
-                        visible: !OverviewSwitchingController.grabbed
                         width: slotLabel.implicitWidth + 20
                         height: 34
                         radius: 5
@@ -915,7 +923,10 @@ Item {
                         StyledText {
                             id: slotLabel
                             anchors.centerIn: parent
-                            text: `Slot ${workspaceBorder.index + 1} · ID ${workspaceBorder.modelData.id}`
+                            readonly property int globalSlot: root.globalSlotForWorkspaceId(workspaceBorder.modelData.id)
+                            text: globalSlot > 0
+                                ? `Slot ${globalSlot} · ID ${workspaceBorder.modelData.id}`
+                                : `ID ${workspaceBorder.modelData.id}`
                             color: workspaceBorder.isFocusedEntry
                                 ? TuiStyle.accent
                                 : Appearance.colors.colOnLayer1
