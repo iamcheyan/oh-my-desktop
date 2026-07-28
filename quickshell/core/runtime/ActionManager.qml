@@ -676,12 +676,10 @@ Singleton {
     IpcHandler {
         target: "action"
 
-        function call(id: string, paramsStr: var): void {
+        function call(id: string, paramsStr: string): void {
             var params = null
             if (paramsStr) {
-                if (typeof paramsStr === "object") {
-                    params = paramsStr
-                } else if (typeof paramsStr === "string" && paramsStr.length > 0) {
+                if (paramsStr.length > 0) {
                     try {
                         params = JSON.parse(paramsStr)
                     } catch (e) {
