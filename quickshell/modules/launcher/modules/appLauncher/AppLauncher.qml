@@ -28,7 +28,7 @@ PanelWindow {
     readonly property string stateFile: stateDir + "/pinned-apps"
     readonly property string cacheFile: `${Quickshell.env("SUMIKA_SHELL_STATE_HOME") ?? Quickshell.env("HOME") + "/.local/state/sumika-shell"}/applauncher/apps.json`
     readonly property string cacheScript: (function() {
-        return Directories.root + "/bin/omd-applauncher-cache"
+        return Directories.root + "/bin/sumika-applauncher-cache"
     })()
     property bool open: false
     property real cardOffsetX: 0
@@ -46,10 +46,10 @@ PanelWindow {
 
     function launchApp(desktopEntry) {
         if (!desktopEntry) return;
-        if (desktopEntry.id === "omd-tools.desktop") {
+        if (desktopEntry.id === "sumika-tools.desktop") {
             launcher.open = false;
             Quickshell.execDetached([
-                Directories.root + "/bin/omd-settings",
+                Directories.root + "/bin/sumika-settings",
                 "open", "overview"
             ]);
             return;
@@ -65,7 +65,7 @@ PanelWindow {
             console.log("[AppLauncher] Launched internal tool " + desktopEntry.id);
             return;
         }
-        const detach = Directories.root + "/bin/omd-detach";
+        const detach = Directories.root + "/bin/sumika-detach";
         const appId = desktopEntry.desktopId || desktopEntry.id || "";
         if (appId.length === 0) return;
 
@@ -90,11 +90,13 @@ PanelWindow {
     }
 
     // ── Session action menu (copied from OverviewSearch) ──
-    property bool sessionMenuOpen: true
+    // The session menu is opt-in.  A launcher instance can be cold-started
+    // by the IPC toggle, so it must never appear as a side effect of launch.
+    property bool sessionMenuOpen: false
 
     function requestSessionAction(action, label) {
         launcher.sessionMenuOpen = false;
-        const barConfig = Directories.root + "/apps/omd-bar";
+        const barConfig = Directories.root + "/apps/sumika-bar";
         Quickshell.execDetached([
             "qs", "-p", barConfig, "ipc", "call", "session", "confirm", action, label
         ]);
@@ -104,7 +106,7 @@ PanelWindow {
     function reloadShell() {
         launcher.sessionMenuOpen = false;
         Quickshell.execDetached([
-            Directories.root + "/bin/omd-restart"
+            Directories.root + "/bin/sumika-restart"
         ]);
         launcher.open = false;
     }
@@ -116,6 +118,9 @@ PanelWindow {
     property bool pinnedIdsLoaded: false
     property bool appsLoaded: false
     property bool cacheRebuildRequested: false
+    // Avoid a full desktop-file scan on every launcher open.
+    property double lastCacheRefreshAt: 0
+    readonly property int cacheRefreshCooldownMs: 30000
 
     function sameAppList(a, b) {
         if (!a || !b || a.length !== b.length) return false;
@@ -137,7 +142,7 @@ PanelWindow {
 
     function isAppRunning(app) {
         if (!app) return false;
-        if (app.id === "omd-tools.desktop") return false;
+        if (app.id === "sumika-tools.desktop") return false;
 
         const set = launcher.runningSet;
         if (!set) return false;
@@ -169,23 +174,46 @@ PanelWindow {
     }
 
     function requestCacheRebuild() {
+        const now = Date.now();
+        if (launcher.lastCacheRefreshAt > 0 &&
+            now - launcher.lastCacheRefreshAt < launcher.cacheRefreshCooldownMs) {
+            return;
+        }
         if (cacheRebuildRequested) {
             appsLoaded = true;
             if (pinnedIdsLoaded) buildFilteredList();
             tryOpenOnDemand();
             return;
         }
+        launcher.lastCacheRefreshAt = now;
         cacheRebuildRequested = true;
         cacheRefreshProcess.running = false;
         cacheRefreshProcess.command = [launcher.cacheScript];
         cacheRefreshProcess.running = true;
     }
 
+    function searchableText(app) {
+        if (!app) return "";
+        return [
+            app.name || "",
+            app.id || "",
+            app.execString || "",
+            app.genericName || "",
+            app.comment || "",
+            (app.keywords || []).join(" ")
+        ].join(" ").toLowerCase();
+    }
+
+    function prepareApp(app) {
+        if (app && !app._searchText) app._searchText = searchableText(app);
+        return app;
+    }
+
     function loadAppsFromCache(text) {
         try {
             const cached = JSON.parse(text);
             if (!Array.isArray(cached) || cached.length === 0) return false;
-            const apps = cached.map(app => ({
+            const apps = cached.map(app => prepareApp({
                 id: app.id,
                 desktopId: app.desktopId || app.id,
                 desktopFile: app.desktopFile || "",
@@ -197,15 +225,15 @@ PanelWindow {
                 keywords: (app.keywords || "").split(";").filter(k => k.length > 0),
                 workingDirectory: app.workingDirectory || ""
             }));
-            apps.push({
-                id: "omd-tools.desktop",
-                desktopId: "omd-tools.desktop",
-                name: "OMD Tools",
+            apps.push(prepareApp({
+                id: "sumika-tools.desktop",
+                desktopId: "sumika-tools.desktop",
+                name: "Sumika Tools",
                 icon: "applications-utilities",
                 genericName: "Desktop Tools",
-                comment: "Open OMD themes and advanced tools",
-                keywords: ["tools", "theme", "voice", "keyboard", "windows", "vm", "omd"]
-            });
+                comment: "Open Sumika themes and advanced tools",
+                keywords: ["tools", "theme", "voice", "keyboard", "windows", "vm", "sumika"]
+            }));
             // Merge internal tools into the desktop app list
             const merged = apps.concat(launcher.internalTools || []);
             if (!sameAppList(allApps, merged)) {
@@ -225,7 +253,7 @@ PanelWindow {
         try {
             const tools = JSON.parse(text);
             if (!Array.isArray(tools) || tools.length === 0) return false;
-            const entries = tools.map(t => ({
+            const entries = tools.map(t => prepareApp({
                 id: t.id,
                 desktopId: t.id,
                 desktopFile: "",
@@ -362,14 +390,9 @@ PanelWindow {
         for (let i = 0; i < allApps.length; i++) {
             const app = allApps[i];
             if (!app || !app.id || !app.name) continue;
-            const haystack = [
-                app.name,
-                app.id,
-                app.execString || "",
-                app.genericName || "",
-                app.comment || "",
-                (app.keywords || []).join(" ")
-            ].join(" ").toLowerCase();
+            // Search text is prepared once when the cache is loaded. This is
+            // important because this function runs for every query change.
+            const haystack = app._searchText || launcher.searchableText(app);
             if (q !== "" && haystack.indexOf(q) < 0) continue;
             list.push(app);
         }
@@ -410,6 +433,14 @@ PanelWindow {
         onTriggered: runningAppsLoader.active = true
     }
 
+    // Coalesce fast typing/pasting into one filtering pass.
+    Timer {
+        id: searchDebounceTimer
+        interval: 60
+        repeat: false
+        onTriggered: launcher.buildFilteredList()
+    }
+
     FileView {
         id: pinnedFileView
         path: launcher.stateFile
@@ -435,7 +466,8 @@ PanelWindow {
         }
     }
 
-    readonly property bool onDemand: (Quickshell.env("OMD_APP_ON_DEMAND") ?? "") === "1"
+    readonly property bool onDemand: (Quickshell.env("SUMIKA_APP_ON_DEMAND")
+        ?? "") === "1"
 
     Component.onCompleted: {
         // Kick off all data loading synchronously before anything renders.
@@ -458,6 +490,9 @@ PanelWindow {
     }
 
     onOpenChanged: {
+        // Do not carry menu state across launcher sessions.  The menu must be
+        // opened explicitly through the menu button.
+        sessionMenuOpen = false;
         if (onDemand && !open) {
             // Keep process alive for instant re-show on next toggle.
             // Just hiding via visible: launcher.open is sufficient.
@@ -599,7 +634,7 @@ PanelWindow {
                                     font.pixelSize: Appearance.font.pixelSize.normal
                                     verticalAlignment: TextInput.AlignVCenter
                                     renderType: Text.NativeRendering
-                                    onTextChanged: launcher.buildFilteredList()
+                                    onTextChanged: searchDebounceTimer.restart()
                                     Keys.onEscapePressed: {
                                         if (launcher.sessionMenuOpen)
                                             launcher.sessionMenuOpen = false;
@@ -607,6 +642,10 @@ PanelWindow {
                                             launcher.open = false;
                                     }
                                     Keys.onReturnPressed: {
+                                        // Enter can arrive before the debounce
+                                        // timer fires, so always use the latest
+                                        // query for activation.
+                                        launcher.buildFilteredList();
                                         if (launcher.filteredApps.length > 0) {
                                             launcher.launchApp(launcher.filteredApps[0]);
                                             launcher.open = false;
@@ -997,7 +1036,7 @@ PanelWindow {
                     labelText: "Save Snapshot"
                     onClicked: {
                         launcher.sessionMenuOpen = false;
-                        Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
+                        Quickshell.execDetached([`${Directories.root}/bin/sumika-session`, "save"]);
                     }
                 }
 
@@ -1010,7 +1049,7 @@ PanelWindow {
                             `clients=$(hyprctl -j clients | jq 'length') && ` +
                             `if [ "$clients" -gt 0 ]; then ` +
                             `echo "Workspace not empty ($clients windows) — restore cancelled"; ` +
-                            `else ${Directories.root}/bin/omd-session restore; fi`
+                            `else ${Directories.root}/bin/sumika-session restore; fi`
                         ]);
                     }
                 }

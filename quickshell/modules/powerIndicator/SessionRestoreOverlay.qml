@@ -13,7 +13,7 @@ import Quickshell.Wayland
 Scope {
     id: root
 
-    property string sessionCommand: Directories.root + "/bin/omd-session"
+    property string sessionCommand: Directories.root + "/bin/sumika-session"
     property string restoreAction: "restore"
     property int expectedCount: 0
     property int restoredCount: 0

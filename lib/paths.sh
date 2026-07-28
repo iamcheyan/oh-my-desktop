@@ -3,7 +3,7 @@
 #
 # Resolves the repository root and exports XDG-compliant path variables.
 # All components (shell, Lua, QML) must use these variables instead of
-# hard-coding ~/.config/omd paths.
+# hard-coding repository paths.
 #
 # Usage:
 #   . "$REPO/lib/paths.sh"        # from a script that knows the repo root
@@ -16,14 +16,9 @@
 #   SUMIKA_SHELL_EXTENSIONS_DIR — user-installed extensions directory
 #   SUMIKA_SHELL_DATA_HOME    — installed/shared data
 #   SUMIKA_SHELL_RUNTIME_DIR  — sockets, locks, transient files
-#   OMD_ROOT                  — compatibility alias for SUMIKA_SHELL_ROOT
-#
-# During migration, OMD_ROOT is kept as an alias so existing code continues
-# to work.  OMD_ROOT must always mean "repository root", never the user
-# configuration directory.
 
 # ── Resolve repository root ──────────────────────────────────────────────
-# Priority: existing SUMIKA_SHELL_ROOT > script location > OMD_ROOT > fail
+# Priority: existing SUMIKA_SHELL_ROOT > script location > fail
 
 if [ -z "${SUMIKA_SHELL_ROOT:-}" ] || [ ! -d "$SUMIKA_SHELL_ROOT" ]; then
     # Try resolving from this file's location: lib/ -> repo root
@@ -38,13 +33,8 @@ if [ -z "${SUMIKA_SHELL_ROOT:-}" ] || [ ! -d "$SUMIKA_SHELL_ROOT" ]; then
 fi
 
 if [ -z "${SUMIKA_SHELL_ROOT:-}" ] || [ ! -d "$SUMIKA_SHELL_ROOT" ]; then
-    # Fallback: use OMD_ROOT if it points to a valid directory
-    if [ -n "${OMD_ROOT:-}" ] && [ -d "$OMD_ROOT" ]; then
-        SUMIKA_SHELL_ROOT="$OMD_ROOT"
-    else
-        echo "paths.sh: cannot resolve SUMIKA_SHELL_ROOT" >&2
-        return 1 2>/dev/null || exit 1
-    fi
+    echo "paths.sh: cannot resolve SUMIKA_SHELL_ROOT" >&2
+    return 1 2>/dev/null || exit 1
 fi
 
 export SUMIKA_SHELL_ROOT
@@ -67,9 +57,3 @@ export SUMIKA_SHELL_RUNTIME_DIR
 
 unset _xdg_config _xdg_state _xdg_data _xdg_runtime
 export SUMIKA_SHELL_EXTENSIONS_DIR
-# OMD_ROOT must always mean repository root, never the user config directory.
-# Always resolve to the physical path so that IPC callers (using paths.lua,
-# which also resolves symlinks) and Quickshell processes (using $OMD_ROOT from
-# lib/paths.sh) use the same path string for instance discovery.
-OMD_ROOT=$(cd -P "$SUMIKA_SHELL_ROOT" && pwd -P)
-export OMD_ROOT

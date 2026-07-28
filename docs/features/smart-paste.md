@@ -8,7 +8,7 @@ behavior.
 
 - Selecting text in the clipboard menu pastes the decoded text.
 - Selecting an image while a terminal is the target creates
-  `/tmp/omd-clip-<timestamp>.<ext>` and pastes that path.
+  `/tmp/sumika-clip-<timestamp>.<ext>` and pastes that path.
 - Selecting an image for a GUI application pastes its image MIME data.
 - The explicit path action always converts the image to a path.
 - Kitty `Ctrl+V` remains native; its configured smart-paste chord delegates to
@@ -19,7 +19,7 @@ behavior.
 Every programmatic paste must call:
 
 ```sh
-~/.config/omd/bin/omd-paste-at-cursor
+$SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor
 ```
 
 Feature code must not directly add `kitty @ send-text`, `wtype`, `ydotool`, or
@@ -33,8 +33,8 @@ Prefer an immutable file payload:
 payload=$(mktemp)
 trap 'rm -f "$payload"' EXIT
 printf '%s' "$text" > "$payload"
-OMD_PASTE_SOURCE=my-feature \
-  ~/.config/omd/bin/omd-paste-at-cursor --file "$payload" auto
+SUMIKA_PASTE_SOURCE=my-feature \
+  $SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor --file "$payload" auto
 ```
 
 The clipboard service decodes cliphist entries before invoking the helper. It
@@ -56,11 +56,11 @@ The detailed Kitty/OMP constraints and diagnostics are maintained in
 
 ## Key Files
 
-- `apps/omd-clipboard/services/Cliphist.qml`
-- `apps/omd-clipboard/modules/clipboard/ClipboardDialog.qml`
-- `apps/omd-clipboard/modules/clipboard/widgets/ClipboardItem.qml`
-- `bin/omd-paste-at-cursor`
-- `bin/omd-kitty-smart-paste`
+- `apps/sumika-clipboard/services/Cliphist.qml`
+- `apps/sumika-clipboard/modules/clipboard/ClipboardDialog.qml`
+- `apps/sumika-clipboard/modules/clipboard/widgets/ClipboardItem.qml`
+- `bin/sumika-paste-at-cursor`
+- `bin/sumika-kitty-smart-paste`
 
 ## Verification
 

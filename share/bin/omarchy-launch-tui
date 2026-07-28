@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-# OMD compatibility implementation for omd-launch-tui.
+# Sumika Shell implementation for terminal TUI launchers.
 
-app_id="org.omd.$(basename "$1")"
+component_id="$(basename "$1" | tr -cd '[:alnum:]_')"
+app_id="io.github.iamcheyan.sumika.${component_id}"
 
 if command -v xdg-terminal-exec >/dev/null 2>&1; then
   launch=(xdg-terminal-exec --app-id="$app_id" -e "$1" "${@:2}")

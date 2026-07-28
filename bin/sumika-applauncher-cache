@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+app_dir="$repo_root/quickshell/modules/launcher"
+if [ ! -d "$app_dir" ]; then
+    printf 'sumika-applauncher-cache: launcher module not found at %s\n' "$app_dir" >&2
+    exit 1
+fi
+
+exec "$app_dir/bin/sumika-applauncher-cache" "$@"

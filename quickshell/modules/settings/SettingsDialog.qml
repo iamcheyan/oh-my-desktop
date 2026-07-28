@@ -38,7 +38,7 @@ WindowDialog {
     backgroundHeight: defaultDialogHeight
 
     readonly property var primaryPages: [
-        { key: "overview", icon: "build", title: "OMD Tools", keywords: "tools advanced theme voice keyboard vm" },
+        { key: "overview", icon: "build", title: "Sumika Tools", keywords: "tools advanced theme voice keyboard vm" },
         { key: "network", icon: "wifi", title: "Network", keywords: "wifi wireless internet lan ethernet dns firewall connection" },
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
@@ -207,7 +207,7 @@ WindowDialog {
             id: wallpaperPicker
             onAccepted: (mode, path) => {
                 const action = mode === "folder" ? "set-folder" : "set-file";
-                Quickshell.execDetached(["bash", "-lc", "omd-wallpaper " + action + " " + root.shellQuote(path)]);
+                Quickshell.execDetached(["bash", "-lc", "sumika-wallpaper " + action + " " + root.shellQuote(path)]);
                 root.wallpaperRefreshNonce += 1;
             }
         }

@@ -42,7 +42,7 @@
           "properties": {
             "command": {
               "type": "array",
-              "description": "Command argv to execute (${OMD_ROOT} is resolved at runtime)",
+              "description": "Command argv to execute (${SUMIKA_SHELL_ROOT} is the repository root)",
               "items": { "type": "string" },
               "minItems": 1
             },
@@ -57,7 +57,7 @@
             },
             "appId": {
               "type": "string",
-              "description": "Hyprland app-id matching rule (e.g. org.omd.settings)"
+              "description": "Hyprland app-id matching rule (e.g. io.github.iamcheyan.sumika.settings)"
             }
           }
         }

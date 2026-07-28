@@ -427,7 +427,7 @@ ColumnLayout {
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;
-            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/omd-launch-wifi`]);
+            Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/sumika-launch-wifi`]);
         }
     }
 
@@ -562,7 +562,7 @@ ColumnLayout {
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;
-            Quickshell.execDetached(["/bin/bash", "-c", `${Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/omd-launch-bluetooth`]);
+            Quickshell.execDetached(["/bin/bash", "-c", `${FileUtils.trimFileProtocol(Directories.root)}/quickshell/modules/wifi/bin/sumika-launch-bluetooth`]);
         }
     }
 

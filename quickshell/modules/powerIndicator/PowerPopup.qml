@@ -160,7 +160,7 @@ Item {
                 actionIcon: "settings"
                 actionTooltip: "编辑配置文件"
                 onActionClicked: {
-                    Quickshell.execDetached(["omd-config-edit"]);
+                    Quickshell.execDetached(["sumika-config-edit"]);
                 }
             }
 
@@ -359,7 +359,7 @@ Item {
                     icon: "refresh"
                     label: "Reload Shell"
                     onClicked: {
-                        Quickshell.execDetached(["bash", `${Directories.root}/bin/omd-restart`]);
+                        Quickshell.execDetached(["bash", `${Directories.root}/bin/sumika-restart`]);
                         GlobalStates.barPopupType = "";
                     }
                 }

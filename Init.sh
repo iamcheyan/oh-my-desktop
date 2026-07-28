@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eu
 
-# oh-my-desktop setup script.
+# Sumika Shell setup script.
 # Installs dependencies and creates runtime symlinks from ~ into this repo.
 # Run after cloning:  git clone ... ~/development/OMD && cd ~/development/OMD && ./Init.sh
 
@@ -92,8 +92,8 @@ PACKAGES_AUDIO=(
 )
 
 # Network + Bluetooth
-# WiFi TUI (omd-wifi-tui) needs NetworkManager + nmcli.
-# Bluetooth TUI (omd-bluetooth-tui) needs BlueZ + bluetoothctl.
+# WiFi TUI (sumika-wifi-tui) needs NetworkManager + nmcli.
+# Bluetooth TUI (sumika-bluetooth-tui) needs BlueZ + bluetoothctl.
 # nmtui stays as a fallback; blueman is intentionally omitted (agent conflicts).
 PACKAGES_NETWORK=(
     network-manager
@@ -201,7 +201,7 @@ PACKAGES_QT_GTK=(
     kvantum
 )
 
-# Desktop extras (optional but used by OMD)
+# Desktop extras (optional but used by Sumika Shell)
 PACKAGES_DESKTOP_EXTRAS=(
     hyprsunset
     keyd
@@ -447,7 +447,7 @@ install_packages() {
         done
 
         if ((failed)); then
-            warn "Some packages were unavailable. Continuing; run bin/omd-doctor afterward for exact gaps."
+            warn "Some packages were unavailable. Continuing; run bin/sumika-doctor afterward for exact gaps."
         fi
     }
 
@@ -489,19 +489,19 @@ install_nixos_system_config() {
     local backup_file
     local stamp
     stamp="$(date +%Y%m%d_%H%M%S)"
-    backup_file="${config_file}.bak-omd-${stamp}"
+    backup_file="${config_file}.bak-sumika-${stamp}"
 
     if [[ ! -f "$config_file" ]]; then
         err "NixOS configuration not found: $config_file"
         exit 1
     fi
 
-    if grep -q "Codex/OMD: Hyprland + Quickshell desktop" "$config_file"; then
-        ok "NixOS OMD system configuration already present"
+    if grep -Eq "Sumika Shell: Hyprland|Codex/OMD: Hyprland" "$config_file"; then
+        ok "NixOS Sumika Shell system configuration already present"
         return 0
     fi
 
-    info "Adding OMD Hyprland/Quickshell configuration to $config_file..."
+    info "Adding Sumika Shell Hyprland/Quickshell configuration to $config_file..."
     sudo cp "$config_file" "$backup_file"
 
     local tmp_file
@@ -509,7 +509,7 @@ install_nixos_system_config() {
     tmp_file="$(mktemp)"
     packages_file="$(mktemp)"
     cat >"$packages_file" <<'EOF'
-    # OMD / Hyprland runtime
+    # Sumika Shell / Hyprland runtime
     hyprland
     hypridle
     hyprpicker
@@ -585,7 +585,7 @@ EOF
     ' "$config_file" | sed '$d' >"$tmp_file"
     cat >>"$tmp_file" <<'EOF'
 
-  # Codex/OMD: Hyprland + Quickshell desktop
+  # Sumika Shell: Hyprland + Quickshell desktop
   programs.hyprland = {
     enable = true;
     xwayland.enable = true;
@@ -604,7 +604,7 @@ EOF
   services.power-profiles-daemon.enable = true;
   programs.dconf.enable = true;
 
-  # OMD WiFi / Bluetooth TUIs (nmcli + bluetoothctl)
+  # Sumika Shell WiFi / Bluetooth TUIs (nmcli + bluetoothctl)
   networking.networkmanager.enable = true;
   hardware.bluetooth.enable = true;
   hardware.bluetooth.powerOnBoot = true;
@@ -625,27 +625,26 @@ EOF
 
   services.displayManager.sessionPackages = [
     (pkgs.stdenvNoCC.mkDerivation {
-      pname = "oh-my-desktop-session";
+      pname = "sumika-shell-session";
       version = "1";
       dontUnpack = true;
-      passthru.providedSessions = [ "oh-my-desktop" ];
+      passthru.providedSessions = [ "sumika-shell" ];
       installPhase = ''
         mkdir -p $out/bin $out/share/wayland-sessions
-        cp ${pkgs.writeShellScript "omd-hyprland-session" ''
-          export OMD_ROOT="__REPO_ROOT__"
+        cp ${pkgs.writeShellScript "sumika-hyprland-session" ''
           export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
-          export OMD_FORCE_NO_UWSM=1
+          export SUMIKA_FORCE_NO_UWSM=1
           export XDG_CURRENT_DESKTOP=Hyprland
-          export XDG_SESSION_DESKTOP=oh-my-desktop
+          export XDG_SESSION_DESKTOP=sumika-shell
           export XDG_SESSION_TYPE=wayland
           export QT_QPA_PLATFORM=wayland
           export GDK_BACKEND=wayland,x11
           export MOZ_ENABLE_WAYLAND=1
-          export PATH="''${HOME}/.local/bin:''${OMD_ROOT}/bin:${pkgs.hyprland}/bin:${pkgs.quickshell}/bin:${pkgs.coreutils}/bin:${pkgs.bash}/bin:/run/current-system/sw/bin:''${PATH}"
+          export PATH="''${HOME}/.local/bin:''${SUMIKA_SHELL_ROOT}/bin:${pkgs.hyprland}/bin:${pkgs.quickshell}/bin:${pkgs.coreutils}/bin:${pkgs.bash}/bin:/run/current-system/sw/bin:''${PATH}"
 
-          config="''${OMD_ROOT}/hypr/hyprland.lua"
+          config="''${SUMIKA_SHELL_ROOT}/hypr/hyprland.lua"
           if [[ ! -f "$config" ]]; then
-            echo "OMD Hyprland config not found: $config" >&2
+            echo "Sumika Shell Hyprland config not found: $config" >&2
             exit 1
           fi
 
@@ -654,16 +653,16 @@ EOF
           fi
 
           exec ${pkgs.hyprland}/bin/Hyprland -c "$config"
-        ''} $out/bin/omd-hyprland-session
+        ''} $out/bin/sumika-hyprland-session
         printf '%s\n' \
           '[Desktop Entry]' \
-          'Name=Oh My Desktop' \
-          'Comment=OMD Hyprland session with Quickshell' \
-          "Exec=$out/bin/omd-hyprland-session" \
+          'Name=Sumika Shell' \
+          'Comment=Sumika Shell Hyprland session with Quickshell' \
+          "Exec=$out/bin/sumika-hyprland-session" \
           'Type=Application' \
           'DesktopNames=Hyprland' \
           'Keywords=tiling;wayland;compositor;' \
-          > $out/share/wayland-sessions/oh-my-desktop.desktop
+          > $out/share/wayland-sessions/sumika-shell.desktop
       '';
     })
   ];
@@ -686,7 +685,7 @@ EOF
         sudo install -m 0644 "$backup_file" "$config_file"
         exit 1
     fi
-    ok "NixOS OMD system configuration applied"
+    ok "NixOS Sumika Shell system configuration applied"
 }
 
 # ── Hyprland PPA/source installation helpers ──────────────────────────────────
@@ -731,15 +730,15 @@ font_family_resolves() {
 install_nerd_font_zip() {
     local family="$1"
     local url="$2"
-    local dest="$HOME/.local/share/fonts/omd/$family"
-    local tmp_zip="/tmp/omd-${family// /-}.zip"
+    local dest="$HOME/.local/share/fonts/sumika-shell/$family"
+    local tmp_zip="/tmp/sumika-${family// /-}.zip"
 
     if font_family_resolves "$family"; then
         ok "  $family"
         return 0
     fi
 
-    info "Installing $family into ~/.local/share/fonts/omd..."
+    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
     mkdir -p "$dest"
     if curl -fL "$url" -o "$tmp_zip"; then
         unzip -o "$tmp_zip" '*.ttf' -d "$dest" >/dev/null || warn "Could not extract $family"
@@ -752,7 +751,7 @@ install_nerd_font_zip() {
 
 install_material_symbols_font() {
     local family="Material Symbols Rounded"
-    local dest="$HOME/.local/share/fonts/omd/material-symbols"
+    local dest="$HOME/.local/share/fonts/sumika-shell/material-symbols"
     local file="$dest/MaterialSymbolsRounded.ttf"
     local url="https://github.com/google/material-design-icons/raw/master/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf"
 
@@ -761,7 +760,7 @@ install_material_symbols_font() {
         return 0
     fi
 
-    info "Installing $family into ~/.local/share/fonts/omd..."
+    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
     mkdir -p "$dest"
     curl -fL "$url" -o "$file" || {
         warn "Could not download $family"
@@ -771,15 +770,15 @@ install_material_symbols_font() {
 
 install_symbols_nerd_font() {
     local family="Symbols Nerd Font"
-    local dest="$HOME/.local/share/fonts/omd/symbols-nerd"
-    local tmp_zip="/tmp/omd-symbols-nerd.zip"
+    local dest="$HOME/.local/share/fonts/sumika-shell/symbols-nerd"
+    local tmp_zip="/tmp/sumika-symbols-nerd.zip"
 
     if font_family_resolves "$family"; then
         ok "  $family"
         return 0
     fi
 
-    info "Installing $family into ~/.local/share/fonts/omd..."
+    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
     mkdir -p "$dest"
     if curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip" -o "$tmp_zip"; then
         unzip -o "$tmp_zip" '*.ttf' -d "$dest" >/dev/null || warn "Could not extract $family"
@@ -792,15 +791,15 @@ install_symbols_nerd_font() {
 
 install_ia_writer_font() {
     local family="iA Writer Mono S"
-    local dest="$HOME/.local/share/fonts/omd/ia-writer"
-    local tmp_zip="/tmp/omd-ia-writer.zip"
+    local dest="$HOME/.local/share/fonts/sumika-shell/ia-writer"
+    local tmp_zip="/tmp/sumika-ia-writer.zip"
 
     if font_family_resolves "$family"; then
         ok "  $family"
         return 0
     fi
 
-    info "Installing $family into ~/.local/share/fonts/omd..."
+    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
     mkdir -p "$dest"
     if curl -fL "https://github.com/iaolo/iA-Fonts/archive/refs/heads/master.zip" -o "$tmp_zip"; then
         unzip -o "$tmp_zip" 'iA-Fonts-master/iA Writer Mono/Static/*.ttf' -d "$dest" >/dev/null 2>&1 || {
@@ -821,7 +820,7 @@ install_ia_writer_font() {
 }
 
 install_user_fonts() {
-    info "Checking OMD UI fonts..."
+    info "Checking Sumika Shell UI fonts..."
 
     install_nerd_font_zip "JetBrainsMono Nerd Font Mono" \
         "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip" || true
@@ -832,7 +831,7 @@ install_user_fonts() {
     install_ia_writer_font || true
 
     if command -v fc-cache >/dev/null 2>&1; then
-        fc-cache -f "$HOME/.local/share/fonts/omd" >/dev/null 2>&1 || true
+        fc-cache -f "$HOME/.local/share/fonts/sumika-shell" >/dev/null 2>&1 || true
     fi
 
     for family in "Cantarell" "Noto Color Emoji" "JetBrainsMono Nerd Font Mono" "MesloLGS Nerd Font Mono" "Material Symbols Rounded" "Symbols Nerd Font" "iA Writer Mono S"; do
@@ -845,7 +844,7 @@ install_user_fonts() {
 }
 
 # ── DDC/CI for external monitor brightness (ddcutil / i2c) ───────────────────
-# Without this, omd-brightness-display and the bar Display slider cannot talk to
+# Without this, sumika-brightness-display and the bar Display slider cannot talk to
 # external panels — /dev/i2c-* stays root:root 600 on many distros (incl. Fedora/Asahi).
 setup_ddcutil_permissions() {
     info "Configuring DDC/CI access for external monitor brightness..."
@@ -854,7 +853,7 @@ setup_ddcutil_permissions() {
     if command -v modprobe >/dev/null 2>&1; then
         sudo modprobe i2c-dev 2>/dev/null || true
         if [[ -d /etc/modules-load.d ]]; then
-            echo "i2c-dev" | sudo tee /etc/modules-load.d/omd-i2c-dev.conf >/dev/null
+            echo "i2c-dev" | sudo tee /etc/modules-load.d/sumika-i2c-dev.conf >/dev/null
             ok "  i2c-dev module load-on-boot"
         fi
     fi
@@ -885,9 +884,9 @@ setup_ddcutil_permissions() {
 
     # udev: group+mode so ddcutil works even when uaccess tags do not (common on Asahi).
     # Also keep ddcutil's class filter as a secondary rule if packaged.
-    local rule_file="/etc/udev/rules.d/60-omd-ddcutil-i2c.rules"
+    local rule_file="/etc/udev/rules.d/60-sumika-ddcutil-i2c.rules"
     sudo tee "$rule_file" >/dev/null <<'EOF'
-# OMD: allow members of group i2c to use ddcutil for monitor brightness (VCP 10).
+# Sumika Shell: allow members of group i2c to use ddcutil for monitor brightness (VCP 10).
 # See docs/tui/wifi-bluetooth-tui.md / multi-monitor brightness notes.
 KERNEL=="i2c-[0-9]*", GROUP="i2c", MODE="0660"
 # ddcutil vendor hint (harmless if ATTRS unsupported on some buses)
@@ -922,7 +921,8 @@ EOF
     fi
 
     # Drop stale DDC cache so Brightness service re-probes buses after permissions fix
-    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/omd/ddc-detect-brief.txt" \
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/sumika-shell/ddc-detect-brief.txt" \
+          "${XDG_CACHE_HOME:-$HOME/.cache}/omd/ddc-detect-brief.txt" \
           "${XDG_CACHE_HOME:-$HOME/.cache}/omd/ddc-bus-map.txt" 2>/dev/null || true
 
     # Non-fatal probe
@@ -930,14 +930,14 @@ EOF
         if ddcutil detect --brief >/dev/null 2>&1; then
             ok "  ddcutil can probe displays"
         else
-            warn "  ddcutil still cannot open i2c — log out/in (i2c group), re-plug the monitor, then: omd-restart"
+            warn "  ddcutil still cannot open i2c — log out/in (i2c group), re-plug the monitor, then: sumika-restart"
         fi
     else
         warn "  ddcutil not installed — external brightness needs the ddcutil package"
     fi
 }
 
-# ── Enable WiFi/Bluetooth backends for omd-*-tui ─────────────────────────────
+# ── Enable WiFi/Bluetooth backends for sumika-*-tui ──────────────────────────
 enable_network_bluetooth_services() {
     info "Enabling NetworkManager + bluetooth services..."
 
@@ -969,14 +969,14 @@ enable_network_bluetooth_services() {
 
     # Quick sanity for TUI backends
     if command -v nmcli >/dev/null 2>&1; then
-        ok "  nmcli ready (omd-wifi-tui)"
+        ok "  nmcli ready (sumika-wifi-tui)"
     else
-        warn "  nmcli missing after install — omd-wifi-tui will not work"
+        warn "  nmcli missing after install — sumika-wifi-tui will not work"
     fi
     if command -v bluetoothctl >/dev/null 2>&1; then
-        ok "  bluetoothctl ready (omd-bluetooth-tui)"
+        ok "  bluetoothctl ready (sumika-bluetooth-tui)"
     else
-        warn "  bluetoothctl missing after install — omd-bluetooth-tui will not work"
+        warn "  bluetoothctl missing after install — sumika-bluetooth-tui will not work"
     fi
 }
 
@@ -1015,7 +1015,7 @@ install_all_dependencies() {
     install_packages "${PACKAGES_AUDIO[@]}"
     echo
 
-    # Network + Bluetooth (omd-wifi-tui / omd-bluetooth-tui)
+    # Network + Bluetooth (sumika-wifi-tui / sumika-bluetooth-tui)
     info "═══ Network & Bluetooth ═══"
     install_packages "${PACKAGES_NETWORK[@]}"
     enable_network_bluetooth_services
@@ -1086,7 +1086,7 @@ install_all_dependencies() {
     install_packages "${PACKAGES_FILES[@]}"
     echo
 
-    # Desktop extras (optional tools used by OMD)
+    # Desktop extras (optional tools used by Sumika Shell)
     info "═══ Desktop Extras ═══"
     install_packages "${PACKAGES_DESKTOP_EXTRAS[@]}"
     echo
@@ -1098,10 +1098,16 @@ install_all_dependencies() {
 create_symlinks() {
     local LINKS=(
         "$HOME/.config/quickshell|$REPO/quickshell"
-        "$HOME/.config/omd|$REPO"
     )
 
     local backup_dir=""
+
+    # The repository root is now supplied through SUMIKA_SHELL_ROOT. Remove
+    # the retired technical namespace symlink after user data migration.
+    if [[ -L "$HOME/.config/omd" ]]; then
+        rm -f "$HOME/.config/omd"
+        ok "  removed retired ~/.config/omd symlink"
+    fi
 
     make_backup() {
         local target="$1"
@@ -1114,7 +1120,7 @@ create_symlinks() {
             echo "  removed existing symlink $target"
         elif [[ -e "$target" ]]; then
             if [[ -z "$backup_dir" ]]; then
-                backup_dir="$HOME/.config/omd-backup-${stamp}"
+                backup_dir="$HOME/.config/sumika-backup-${stamp}"
                 mkdir -p "$backup_dir"
                 echo "Backups will be stored in $backup_dir"
             fi
@@ -1232,7 +1238,7 @@ install_session_files() {
 #!/bin/bash
 set -e
 
-if [[ ${OMD_FORCE_NO_UWSM:-0} == 1 ]]; then
+if [[ ${SUMIKA_FORCE_NO_UWSM:-0} == 1 ]]; then
     [[ ${1:-} == -- ]] && shift
     exec "$@"
 fi
@@ -1247,25 +1253,24 @@ EOF
     chmod +x "$HOME/.local/bin/uwsm-app"
     ok "  $HOME/.local/bin/uwsm-app"
 
-    sudo tee /usr/local/bin/omd-hyprland-session >/dev/null <<'EOF'
+    sudo tee /usr/local/bin/sumika-hyprland-session >/dev/null <<'EOF'
 #!/bin/bash
 set -e
 
-export OMD_ROOT="__REPO_ROOT__"
 export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
-export OMD_FORCE_NO_UWSM=1
+export SUMIKA_FORCE_NO_UWSM=1
 export XDG_CURRENT_DESKTOP=Hyprland
-export XDG_SESSION_DESKTOP=oh-my-desktop
+export XDG_SESSION_DESKTOP=sumika-shell
 export XDG_SESSION_TYPE=wayland
 export QT_QPA_PLATFORM=wayland
 export GDK_BACKEND=wayland,x11
 export MOZ_ENABLE_WAYLAND=1
-export PATH="${HOME}/.local/bin:${OMD_ROOT}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
+export PATH="${HOME}/.local/bin:${SUMIKA_SHELL_ROOT}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
 
-config="${OMD_ROOT}/hypr/hyprland.lua"
+config="${SUMIKA_SHELL_ROOT}/hypr/hyprland.lua"
 
 if [[ ! -f "$config" ]]; then
-    echo "OMD Hyprland config not found: $config" >&2
+    echo "Sumika Shell Hyprland config not found: $config" >&2
     exit 1
 fi
 
@@ -1284,20 +1289,22 @@ fi
 echo "Hyprland is not installed or not in PATH." >&2
 exit 127
 EOF
-    sudo sed -i "s|__REPO_ROOT__|$REPO|g" /usr/local/bin/omd-hyprland-session
-    sudo chmod +x /usr/local/bin/omd-hyprland-session
-    ok "  /usr/local/bin/omd-hyprland-session"
+    sudo sed -i "s|__REPO_ROOT__|$REPO|g" /usr/local/bin/sumika-hyprland-session
+    sudo chmod +x /usr/local/bin/sumika-hyprland-session
+    ok "  /usr/local/bin/sumika-hyprland-session"
 
-    sudo tee /usr/share/wayland-sessions/oh-my-desktop.desktop >/dev/null <<'EOF'
+    sudo tee /usr/share/wayland-sessions/sumika-shell.desktop >/dev/null <<'EOF'
 [Desktop Entry]
-Name=Oh My Desktop
-Comment=OMD Hyprland session with Quickshell
-Exec=/usr/local/bin/omd-hyprland-session
+Name=Sumika Shell
+Comment=Sumika Shell Hyprland session with Quickshell
+Exec=/usr/local/bin/sumika-hyprland-session
 Type=Application
 DesktopNames=Hyprland
 Keywords=tiling;wayland;compositor;
 EOF
-    ok "  /usr/share/wayland-sessions/oh-my-desktop.desktop"
+    sudo rm -f /usr/share/wayland-sessions/oh-my-desktop.desktop \
+        /usr/local/bin/omd-hyprland-session
+    ok "  /usr/share/wayland-sessions/sumika-shell.desktop"
 
     if [[ -f /etc/gdm/custom.conf ]] && grep -Eq '^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false' /etc/gdm/custom.conf; then
         warn "GDM has WaylandEnable=false; enabling Wayland sessions."
@@ -1307,14 +1314,14 @@ EOF
 
 install_nixos_session_files() {
     echo
-    info "Installing NixOS-compatible OMD helper scripts..."
+    info "Installing NixOS-compatible Sumika Shell helper scripts..."
 
     mkdir -p "$HOME/.local/bin"
     cat >"$HOME/.local/bin/uwsm-app" <<'EOF'
 #!/bin/bash
 set -e
 
-if [[ ${OMD_FORCE_NO_UWSM:-0} == 1 ]]; then
+if [[ ${SUMIKA_FORCE_NO_UWSM:-0} == 1 ]]; then
     [[ ${1:-} == -- ]] && shift
     exec "$@"
 fi
@@ -1328,7 +1335,7 @@ exec "$@"
 EOF
     chmod +x "$HOME/.local/bin/uwsm-app"
     ok "  $HOME/.local/bin/uwsm-app"
-    ok "  Oh My Desktop session is managed by NixOS services.displayManager.sessionPackages"
+    ok "  Sumika Shell session is managed by NixOS services.displayManager.sessionPackages"
 }
 
 # ── Custom launcher installation ────────────────────────────────────────────────────
@@ -1367,7 +1374,7 @@ build_go_tools() {
     local required="${1:-1}"
 
     echo
-    info "Building OMD Go tools..."
+    info "Building Sumika Shell Go tools..."
     if [[ ! -x "$REPO/scripts/build-go-tools" ]]; then
         if [[ "$required" == 1 ]]; then
             err "scripts/build-go-tools is missing or not executable"
@@ -1378,12 +1385,12 @@ build_go_tools() {
     fi
 
     if "$REPO/scripts/build-go-tools"; then
-        ok "OMD Go tools ready"
+        ok "Sumika Shell Go tools ready"
     elif [[ "$required" == 1 ]]; then
-        err "OMD Go tools could not be built"
+        err "Sumika Shell Go tools could not be built"
         return 1
     else
-        warn "OMD Go tools could not be refreshed; run the full ./Init.sh"
+        warn "Sumika Shell Go tools could not be refreshed; run the full ./Init.sh"
     fi
 }
 
@@ -1396,14 +1403,14 @@ print_summary() {
         login_manager="GDM"
     fi
     echo "  1. Log out"
-    echo "  2. In ${login_manager}, choose \"Oh My Desktop\" from the session menu"
+    echo "  2. In ${login_manager}, choose \"Sumika Shell\" from the session menu"
     echo "  3. Log in; Hyprland will load hypr/hyprland.lua and autostart Quickshell"
     echo
     echo "Useful commands:"
     echo "  hyprctl reload                              # Reload Hyprland config"
-    echo "  ~/.config/omd/bin/omd-restart               # (Re)start Quickshell apps"
-    echo "  ~/.config/omd/bin/omd-doctor                # Check runtime dependencies"
-    echo "  journalctl --user -b | rg 'omd|quickshell|Hyprland|hyprland'  # Runtime logs"
+    echo "  $REPO/bin/sumika-restart               # (Re)start Quickshell apps"
+    echo "  $REPO/bin/sumika-doctor                # Check runtime dependencies"
+    echo "  journalctl --user -b | rg 'sumika|quickshell|Hyprland|hyprland'  # Runtime logs"
 }
 
 migrate_sumika_data() {
@@ -1440,7 +1447,7 @@ main() {
 
     echo
     echo -e "${CYAN}════════════════════════════════════════════════════════════════${NC}"
-    echo -e "${CYAN}  oh-my-desktop installer${NC}"
+    echo -e "${CYAN}  Sumika Shell installer${NC}"
     echo -e "${CYAN}════════════════════════════════════════════════════════════════${NC}"
     echo
 
@@ -1463,7 +1470,7 @@ main() {
     echo "  - Hyprland ecosystem (compositor, lock, idle, portal)"
     echo "  - Quickshell dependencies"
     echo "  - Audio (PipeWire, WirePlumber)"
-    echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — omd-wifi-tui / omd-bluetooth-tui)"
+    echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — sumika-wifi-tui / sumika-bluetooth-tui)"
     echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, swaybg, grim, slurp, swappy, satty)"
     echo "  - Clipboard (cliphist, wl-clipboard)"
     echo "  - Notifications (mako)"
@@ -1486,10 +1493,10 @@ main() {
     install_all_dependencies
     build_go_tools 1
     # Migrate user data to Sumika Shell config/state directories FIRST,
-    # before replacing ~/.config/omd with the repo symlink (if it's a real dir).
-    # FAILURE IS FATAL: if migration fails the old config data may be lost when
-    # the symlink is created.
+    # before removing a retired ~/.config/omd repository symlink.
+    # FAILURE IS FATAL so existing user data is never discarded.
     migrate_sumika_data || exit 1
+    "$REPO/scripts/migrate-sumika-namespace"
     create_symlinks
     repair_runtime_config
     install_custom_launchers

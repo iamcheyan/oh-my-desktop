@@ -22,7 +22,7 @@ PageBody {
                 iconName: "palette"
                 onClicked: {
                     if (settingsRoot) settingsRoot.dismiss();
-                    Quickshell.execDetached(["omd-launch-tui", "omd-settings-tui", "theme"]);
+                    Quickshell.execDetached(["sumika-launch-tui", "sumika-settings-tui", "theme"]);
                 }
             }
         }

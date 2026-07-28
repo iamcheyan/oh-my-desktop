@@ -7,7 +7,7 @@ A terminal user interface for managing SMB/CIFS file share backups. Uses `mount.
 ## Quick Start
 
 ```
-~/.config/omd/bin/omd-settings-backup-tui
+$SUMIKA_SHELL_ROOT/bin/sumika-settings-backup-tui
 ```
 
 Or press the backup button in the system bar.
@@ -88,7 +88,7 @@ The hero line shows a right-aligned status dot:
 
 ## Architecture
 
-### Backend: `bin/omd-backup`
+### Backend: `bin/sumika-backup`
 
 A bash script that manages the full backup lifecycle:
 
@@ -112,7 +112,7 @@ A bash script that manages the full backup lifecycle:
 | `status` | Report config state + mount state as JSON |
 | `save-config` / `load-config` | Read/write JSON config from stdin |
 
-### Frontend: `bin/omd-settings-backup-tui`
+### Frontend: `bin/sumika-settings-backup-tui`
 
 A Python curses TUI with two-panel layout:
 
@@ -163,7 +163,7 @@ A Python curses TUI with two-panel layout:
   - `-` deleted in red
   - `=` unchanged in gray
 
-### Shared module: `bin/omd_tui_framework.py`
+### Shared module: `bin/sumika_tui_framework.py`
 
 Provides visual primitives used by all 5 TUIs (backup, voice, keyboard, VM, theme):
 
@@ -226,7 +226,7 @@ Install the provided rule to skip the password prompt for `mount.cifs`:
 
 ```bash
 sudo install -m 0644 \
-  ~/.config/omd/share/polkit-1/rules.d/50-omd-backup.rules \
+  $SUMIKA_SHELL_ROOT/share/polkit-1/rules.d/50-sumika-backup.rules \
   /etc/polkit-1/rules.d/
 ```
 
@@ -261,7 +261,7 @@ When a terminal window is needed (e.g. `e` edit or `l` browse), the TUI uses thi
 2. `foot` (fallback)
 3. `kitty` (last resort)
 
-Each terminal action uses a unique `org.omd.<purpose>` app-id/class so Hyprland can apply a custom floating window rule (defined in `hypr/looknfeel.lua`). The terminal process is detached via `subprocess.Popen(..., start_new_session=True)`.
+Each terminal action uses a unique `io.github.iamcheyan.sumika.<purpose>` app-id/class so Hyprland can apply a custom floating window rule (defined in `hypr/looknfeel.lua`). The terminal process is detached via `subprocess.Popen(..., start_new_session=True)`.
 
 See full convention in `AGENTS.md` under *TUI Terminal Action Pattern*.
 

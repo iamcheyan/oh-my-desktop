@@ -1,6 +1,6 @@
 # Settings Panel Layout System
 
-OMD settings panels share one layout contract. Feature pages provide content;
+Sumika Shell settings panels share one layout contract. Feature pages provide content;
 the settings shell owns window padding, scrolling, the footer, and global
 control geometry. This keeps independent settings panels visually consistent
 without copying margins into every page.
@@ -234,7 +234,7 @@ structure even when they also include a selection indicator or edit action.
 Open a panel through the real cold-start entry point:
 
 ```sh
-~/.config/omd/bin/omd-settings open display
+$SUMIKA_SHELL_ROOT/bin/sumika-settings open display
 ```
 
 Check that:
@@ -244,4 +244,4 @@ Check that:
 - all footer buttons share one vertical center and height;
 - visual space above and below the footer buttons is equal;
 - adjacent action buttons use the same gap and height;
-- no QML errors appear in `/tmp/omd-settings.log`.
+- no QML errors appear in `/tmp/sumika-settings.log`.

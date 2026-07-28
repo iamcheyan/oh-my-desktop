@@ -4,8 +4,8 @@ Lightweight curses frontends for everyday Linux desktops.
 
 | Tool | Backend | Launch |
 |------|---------|--------|
-| `bin/omd-wifi-tui` | NetworkManager (`nmcli`) | `bin/omd-launch-wifi` |
-| `bin/omd-bluetooth-tui` | BlueZ (`bluetoothctl`) | `bin/omd-launch-bluetooth` |
+| `bin/sumika-wifi-tui` | NetworkManager (`nmcli`) | `bin/sumika-launch-wifi` |
+| `bin/sumika-bluetooth-tui` | BlueZ (`bluetoothctl`) | `bin/sumika-launch-bluetooth` |
 
 ## Requirements
 
@@ -17,8 +17,8 @@ Lightweight curses frontends for everyday Linux desktops.
 ## Quick test
 
 ```sh
-python3 bin/omd-wifi-tui
-python3 bin/omd-bluetooth-tui
+python3 bin/sumika-wifi-tui
+python3 bin/sumika-bluetooth-tui
 ```
 
 Missing deps print an install hint and exit non-zero (no traceback).
@@ -44,11 +44,11 @@ Missing deps print an install hint and exit non-zero (no traceback).
 
 - installs **ddcutil** + loads **i2c-dev**
 - creates **i2c** group, adds the install user
-- installs `/etc/udev/rules.d/60-omd-ddcutil-i2c.rules` (`GROUP=i2c`, `MODE=0660`)
+- installs `/etc/udev/rules.d/60-sumika-ddcutil-i2c.rules` (`GROUP=i2c`, `MODE=0660`)
 - best-effort `setfacl` on current `/dev/i2c-*` (works before re-login)
 
 Brightness keys and the bar **Display** popup only change the **focused / bar’s monitor**.  
-After first install: log out/in once (group membership), then `omd-restart` if needed.
+After first install: log out/in once (group membership), then `sumika-restart` if needed.
 
 ## Keys (both)
 

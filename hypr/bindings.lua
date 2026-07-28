@@ -1,19 +1,19 @@
 local paths = require("default.hypr.paths")
 
 -- Application bindings.
-o.bind("SUPER + RETURN", "Application launcher", paths.omd_root .. "/bin/omd-action app-launcher.toggle")
-o.bind("SUPER + A", "Toggle application launcher", paths.omd_root .. "/bin/omd-action app-launcher.toggle")
-o.bind("SUPER + Q", "Terminal", { omd = "terminal" })
-o.bind("SUPER + ALT + RETURN", "Tmux", { omd = "terminal-tmux" })
-o.bind("SUPER + SHIFT + RETURN", "Browser", { omd = "browser" })
-o.bind("SUPER + SHIFT + B", "Browser", { omd = "browser" })
-o.bind("SUPER + SHIFT + ALT + B", "Browser (private)", { omd = "browser --private" })
-o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
+o.bind("SUPER + RETURN", "Application launcher", paths.root .. "/bin/sumika-action app-launcher.toggle")
+o.bind("SUPER + A", "Toggle application launcher", paths.root .. "/bin/sumika-action app-launcher.toggle")
+o.bind("SUPER + Q", "Terminal", { sumika = "terminal" })
+o.bind("SUPER + ALT + RETURN", "Tmux", { sumika = "terminal-tmux" })
+o.bind("SUPER + SHIFT + RETURN", "Browser", { sumika = "browser" })
+o.bind("SUPER + SHIFT + B", "Browser", { sumika = "browser" })
+o.bind("SUPER + SHIFT + ALT + B", "Browser (private)", { sumika = "browser --private" })
+o.bind("SUPER + SHIFT + N", "Editor", { sumika = "editor" })
 
 -- App-specific bindings (uncomment and adjust to your installed apps).
--- o.bind("SUPER + SHIFT + F", "File manager", { omd = "nautilus" })
--- o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { omd = "nautilus-cwd" })
--- o.bind("SUPER + SHIFT + M", "Music", { omd = "or-focus spotify" })
+-- o.bind("SUPER + SHIFT + F", "File manager", { sumika = "nautilus" })
+-- o.bind("SUPER + ALT + SHIFT + F", "File manager (cwd)", { sumika = "nautilus-cwd" })
+-- o.bind("SUPER + SHIFT + M", "Music", { sumika = "or-focus spotify" })
 -- o.bind("SUPER + SHIFT + ALT + M", "Music TUI", { tui = "cliamp", focus = true })
 -- o.bind("SUPER + SHIFT + D", "Docker", { tui = "lazydocker" })
 -- o.bind("SUPER + SHIFT + G", "Signal", { launch = "signal-desktop", focus = "^signal$" })
@@ -33,9 +33,9 @@ o.bind("SUPER + SHIFT + N", "Editor", { omd = "editor" })
 
 o.bind("SUPER + R", "Reload Hyprland config", "hyprctl reload")
 
-o.bind("SUPER + CTRL + B", "Bluetooth", paths.omd_root .. "/bin/omd-action bluetooth.launch")
+o.bind("SUPER + CTRL + B", "Bluetooth", paths.root .. "/bin/sumika-action bluetooth.launch")
 
-o.bind("SUPER + CTRL + W", "WiFi", paths.omd_root .. "/bin/omd-action wifi.launch")
+o.bind("SUPER + CTRL + W", "WiFi", paths.root .. "/bin/sumika-action wifi.launch")
 
 -- Change window move/resize modifier from SUPER to ALT.
 hl.unbind("SUPER + mouse:272")
@@ -44,10 +44,10 @@ o.bind("ALT + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("ALT + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
 -- Input method schema cycling via ActionManager.
-o.bind("SUPER + SPACE", "Next input language", paths.omd_root .. "/bin/omd-action input-method.cycle")
-o.bind("SUPER + SHIFT + SPACE", "Previous input language", paths.omd_root .. "/bin/omd-action input-method.cycle -- -1")
+o.bind("SUPER + SPACE", "Next input language", paths.root .. "/bin/sumika-action input-method.cycle")
+o.bind("SUPER + SHIFT + SPACE", "Previous input language", paths.root .. "/bin/sumika-action input-method.cycle -- -1")
 hl.unbind("SUPER + CTRL + SPACE")
-o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", paths.omd_root .. "/bin/omd-action bar.toggle")
+o.bind("SUPER + CTRL + SPACE", "Toggle Quickshell bar", paths.root .. "/bin/sumika-action bar.toggle")
 
 hl.unbind("SUPER + TAB")
 hl.unbind("SUPER + SHIFT + TAB")
@@ -63,8 +63,20 @@ hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = 
 hl.bind("SUPER_L", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), { ignore_mods = true, transparent = true, release = true })
 
+-- Overview exposes a global dynamic list of occupied workspaces plus one
+-- trailing empty slot per monitor. Real Hyprland workspace IDs may contain
+-- gaps, so SUPER+number targets the global visible slot instead of assuming
+-- Slot N has raw ID N.
+for slot = 1, 10 do
+  local key = "code:" .. tostring(slot + 9)
+  hl.unbind("SUPER + " .. key)
+  hl.bind("SUPER + " .. key, hl.dsp.global("quickshell:workspaceSlot" .. tostring(slot)), {
+    description = "Switch to workspace slot " .. tostring(slot)
+  })
+end
+
 -- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
-hl.bind("ESCAPE", hl.dsp.exec_cmd(paths.omd_root .. '/bin/omd-action menus.close 2>/dev/null'), {
+hl.bind("ESCAPE", hl.dsp.exec_cmd(paths.root .. '/bin/sumika-action menus.close 2>/dev/null'), {
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
 })
 
@@ -107,11 +119,11 @@ if #voice_bindings == 0 then
 end
 
 for _, key in ipairs(voice_bindings) do
-    o.bind(key, "Voice input toggle", paths.omd_root .. "/bin/omd-action voice.toggle")
+    o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action voice.toggle")
 end
-o.bind("ALT + S", "Region screenshot", paths.omd_root .. "/bin/omd-action screenshot.capture")
-o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.omd_root .. "/bin/omd-action screenshot.capture-edit")
+o.bind("ALT + S", "Region screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
+o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.root .. "/bin/sumika-action screenshot.capture-edit")
 
-o.bind("ALT + V", "Clipboard manager", paths.omd_root .. "/bin/omd-action clipboard.toggle")
+o.bind("ALT + V", "Clipboard manager", paths.root .. "/bin/sumika-action clipboard.toggle")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")
 hl.unbind("SUPER + CTRL + V")

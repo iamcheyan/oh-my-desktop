@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""Migrate Sumika user config and extensions away from the retired omd namespace."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+from pathlib import Path
+
+
+TEXT_SUFFIXES = {
+    "", ".conf", ".desktop", ".json", ".lua", ".md", ".py", ".qml",
+    ".rules", ".service", ".sh", ".toml", ".txt", ".yaml", ".yml",
+}
+
+REPLACEMENTS = (
+    ("OMD_REPO_ROOT", "SUMIKA_SHELL_ROOT"),
+    ("OMD_ROOT", "SUMIKA_SHELL_ROOT"),
+    ("org.omd.edit-file-share-backup", "io.github.iamcheyan.sumika.editfilesharebackup"),
+    ("org.omd.flatpak-install", "io.github.iamcheyan.sumika.flatpakinstall"),
+    ("org.omd.list-file-share-backup", "io.github.iamcheyan.sumika.listfilesharebackup"),
+    ("org.omd.omd-edit-voice-bindings", "io.github.iamcheyan.sumika.editvoicebindings"),
+    ("org.omd.ocr-tui", "io.github.iamcheyan.sumika.ocrtui"),
+    ("org.omd.voice-settings", "io.github.iamcheyan.sumika.voicesettings"),
+    ("org.omd.", "io.github.iamcheyan.sumika."),
+    ("apps/omd-", "apps/sumika-"),
+    (".config/omd", ".config/sumika-shell"),
+    ("paths.omd_root", "paths.root"),
+    ("/tmp/omd-", "/tmp/sumika-"),
+    ("/tmp/omd_", "/tmp/sumika_"),
+    ("/etc/keyd/omd.conf", "/etc/keyd/sumika.conf"),
+    ("99-omd-", "99-sumika-"),
+    ("50-omd-", "50-sumika-"),
+    ("60-omd-", "60-sumika-"),
+    ("omd_tui_framework", "sumika_tui_framework"),
+)
+
+
+def rewrite_text(path: Path) -> bool:
+    if path.suffix.lower() not in TEXT_SUFFIXES:
+        return False
+    try:
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+
+    updated = text
+    for old, new in REPLACEMENTS:
+        updated = updated.replace(old, new)
+    updated = re.sub(r"\bOMD_([A-Z0-9_]+)", r"SUMIKA_\1", updated)
+    updated = re.sub(r"\bomd_([a-zA-Z0-9_]+)", r"sumika_\1", updated)
+    updated = re.sub(r"\bomd-([a-zA-Z0-9_-]+)", r"sumika-\1", updated)
+    updated = re.sub(r"\bOMD\b", "Sumika Shell", updated)
+
+    if updated == text:
+        return False
+    path.write_text(updated, encoding="utf-8")
+    return True
+
+
+def renamed_name(name: str) -> str:
+    name = name.replace("omd_tui_framework", "sumika_tui_framework")
+    name = name.replace("apps/omd-", "apps/sumika-")
+    name = re.sub(r"^omd-", "sumika-", name)
+    name = re.sub(r"^(\d+-)omd-", r"\1sumika-", name)
+    return name
+
+
+def migrate_root(root: Path) -> tuple[int, int]:
+    if not root.is_dir():
+        raise SystemExit(f"not a directory: {root}")
+
+    changed = 0
+    for path in sorted(root.rglob("*")):
+        if ".git" in path.parts or not path.is_file() or path.is_symlink():
+            continue
+        changed += int(rewrite_text(path))
+
+    renamed = 0
+    paths = [p for p in root.rglob("*") if ".git" not in p.parts]
+    for path in sorted(paths, key=lambda p: len(p.parts), reverse=True):
+        new_name = renamed_name(path.name)
+        if new_name == path.name:
+            continue
+        target = path.with_name(new_name)
+        if target.exists():
+            raise SystemExit(f"rename collision: {path} -> {target}")
+        path.rename(target)
+        renamed += 1
+
+    return changed, renamed
+
+
+def main() -> int:
+    default_roots = [
+        Path(os.environ.get("SUMIKA_SHELL_CONFIG_HOME", "~/.config/sumika-shell")).expanduser(),
+        Path(os.environ.get(
+            "SUMIKA_SHELL_EXTENSIONS_DIR",
+            "~/.local/share/sumika-shell/extensions",
+        )).expanduser(),
+    ]
+    chezmoi_source = Path(os.environ.get(
+        "SUMIKA_CHEZMOI_SOURCE",
+        "~/chezmoi/dot_config/sumika-shell",
+    )).expanduser()
+    if chezmoi_source.is_dir():
+        default_roots.append(chezmoi_source)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "roots",
+        nargs="*",
+        type=Path,
+        default=[],
+    )
+    args = parser.parse_args()
+    using_default_roots = not args.roots
+    roots = args.roots or default_roots
+
+    for root in roots:
+        changed, renamed = migrate_root(root.resolve())
+        print(f"{root}: rewrote {changed} files; renamed {renamed} paths")
+
+    retired_root_link = Path("~/.config/omd").expanduser()
+    if using_default_roots and retired_root_link.is_symlink():
+        retired_root_link.unlink()
+        print(f"{retired_root_link}: removed retired repository symlink")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -3,8 +3,10 @@
 # omarchy:summary=Watch Hyprland monitor events and repair monitor and wallpaper state
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
-WALLPAPER_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omd-wallpaper-output-refresh.lock"
+WALLPAPER_LOCK="${XDG_RUNTIME_DIR:-/tmp}/sumika-wallpaper-output-refresh.lock"
 MONITOR_TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+EXTENSIONS_DIR="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+WALLPAPER_BIN="$EXTENSIONS_DIR/theme-settings/bin/sumika-wallpaper"
 
 refresh_wallpaper_outputs() {
   # Output geometry is not stable at the instant Hyprland publishes the event.
@@ -12,7 +14,7 @@ refresh_wallpaper_outputs() {
   (
     flock -n 9 || exit 0
     sleep 0.45
-    "$HOME/.config/omd/bin/omd-wallpaper" refresh-outputs >/dev/null 2>&1 || true
+    "$WALLPAPER_BIN" refresh-outputs >/dev/null 2>&1 || true
   ) 9>"$WALLPAPER_LOCK" &
 }
 
@@ -23,7 +25,7 @@ recover_internal_monitor() {
   # the laptop panel unavailable. The vendored Omarchy recovery scripts depend
   # on toggle helpers that are not present in this repository, so repair the two
   # concrete state files directly and reload Hyprland once when needed.
-  "$HOME/.config/omd/bin/omd-hw-external-monitors" && return 0
+  "${SUMIKA_SHELL_ROOT:?SUMIKA_SHELL_ROOT is required}/bin/sumika-hw-external-monitors" && return 0
 
   for toggle in internal-monitor-disable internal-monitor-mirror; do
     if [[ -e "$MONITOR_TOGGLE_DIR/$toggle.lua" ]]; then

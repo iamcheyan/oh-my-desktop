@@ -39,12 +39,12 @@ PopupColumn {
         actionIcon: "settings"
         actionTooltip: "显示器设置"
         onActionClicked: {
-            var repoRoot = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root);
-            Quickshell.execDetached([repoRoot + "/bin/omd-settings", "open", "display"]);
+            var repoRoot = FileUtils.trimFileProtocol(Directories.root);
+            Quickshell.execDetached([repoRoot + "/bin/sumika-settings", "open", "display"]);
         }
     }
 
-    // Brightness slider — only this monitor (same rules as omd-brightness-display)
+    // Brightness slider — only this monitor (same rules as sumika-brightness-display)
     PopupSliderRow {
         icon: NerdIconMap.brightness6
         value: brightnessValue
@@ -92,7 +92,7 @@ PopupColumn {
         label: "Wallpaper settings…"
         onClicked: {
             GlobalStates.barPopupType = "";
-            Quickshell.execDetached(["omd-launch-tui", "omd-settings-tui", "wallpaper"]);
+            Quickshell.execDetached(["sumika-launch-tui", "sumika-settings-tui", "wallpaper"]);
         }
     }
 

@@ -11,8 +11,8 @@ local function command_from(value, description)
     return value
   end
 
-  if value.omd then
-    return "omd-launch-" .. value.omd
+  if value.sumika then
+    return "sumika-launch-profile " .. shell_quote(value.sumika)
   elseif value.focus and value.launch then
     return o.launch_sole(value.focus, value.launch)
   elseif value.launch then
@@ -25,9 +25,9 @@ local function command_from(value, description)
     end
   elseif value.tui then
     if value.focus then
-      return "omd-launch-or-focus-tui " .. shell_quote(value.tui)
+      return "sumika-launch-or-focus-tui " .. shell_quote(value.tui)
     else
-      return "omd-launch-tui " .. shell_quote(value.tui)
+      return "sumika-launch-tui " .. shell_quote(value.tui)
     end
   end
 
@@ -65,15 +65,15 @@ function o.launch_on_start(command)
 end
 
 function o.launch_webapp(url)
-  return "omd-launch-webapp " .. shell_quote(url)
+  return "sumika-launch-webapp " .. shell_quote(url)
 end
 
 function o.launch_webapp_sole(name, url)
-  return "omd-launch-or-focus-webapp " .. shell_quote(name) .. " " .. shell_quote(url)
+  return "sumika-launch-or-focus-webapp " .. shell_quote(name) .. " " .. shell_quote(url)
 end
 
 function o.launch_sole(match, command)
-  return "omd-launch-or-focus " .. shell_quote(match) .. " " .. shell_quote(o.launch(command))
+  return "sumika-launch-or-focus " .. shell_quote(match) .. " " .. shell_quote(o.launch(command))
 end
 
 function o.notify(message)

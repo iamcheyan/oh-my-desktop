@@ -1,0 +1,503 @@
+#!/usr/bin/env python3
+"""
+sumika-module-validate — Validate Sumika module manifest v2 (and v1 compat).
+
+Usage:
+  sumika-module-validate path/to/module.json
+  sumika-module-validate path/to/module/dir/
+  sumika-module-validate --all          (validate all modules)
+
+Exit codes:
+  0 = valid
+  1 = validation error
+  2 = usage error
+"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+SCHEMA_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "share", "schemas", "sumika-module-v2.schema.json"
+)
+
+# -- Pattern caches -- 
+ID_PATTERN = re.compile(r'^[a-z][a-z0-9-]*$')
+ACTION_ID_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
+SEMVER_PATTERN = re.compile(r'^\d+\.\d+\.\d+')
+APP_ID_PATTERN = re.compile(r'^[a-zA-Z0-9._-]+$')
+WIDGET_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
+INSTANCE_PATTERN = re.compile(r'^sumika-[a-z][a-z0-9-]*$')
+HANDLER_PATTERN = re.compile(r'^(ipc:|action:)[a-zA-Z0-9._-]+$')
+PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
+LAUNCHER_ID_PATTERN = re.compile(r'^sumika-[a-z][a-z0-9-]*$')
+
+_KINDS = frozenset({"application", "overlay", "qml-singleton", "service-provider", "shared"})
+
+def error(module_id: str, path: str, msg: str) -> str:
+    return f"  [{module_id}] {path}: {msg}"
+
+def warn(module_id: str, path: str, msg: str) -> str:
+    return f"  [{module_id}] ⚠ {path}: {msg}"
+
+def validate_json_syntax(manifest_path: str) -> tuple:
+    """Parse JSON, return (data, errors)."""
+    try:
+        with open(manifest_path) as f:
+            data = json.load(f)
+        return data, []
+    except json.JSONDecodeError as e:
+        return None, [f"  JSON syntax error: {e}"]
+    except FileNotFoundError:
+        return None, [f"  File not found: {manifest_path}"]
+
+def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
+    """Validate v2 manifest. Returns (errors, warnings)."""
+    errors = []
+    warnings = []
+
+    # -- Required fields --
+    for field in ("schemaVersion", "id", "name", "kind"):
+        if field not in data:
+            errors.append(error(module_id, f"#{field}", "missing required field"))
+
+    # -- schemaVersion --
+    sv = data.get("schemaVersion")
+    if sv is not None and sv != 2:
+        errors.append(error(module_id, "#schemaVersion", f"must be 2, got {sv}"))
+
+    # -- id --
+    mid = data.get("id", module_id)
+    if not ID_PATTERN.match(str(mid)):
+        errors.append(error(module_id, "#id", f"invalid id '{mid}' — must match [a-z][a-z0-9-]*"))
+
+    # -- kind --
+    kind = data.get("kind")
+    if kind and kind not in _KINDS:
+        errors.append(error(module_id, "#kind", f"invalid kind '{kind}' — must be one of {sorted(_KINDS)}"))
+
+    # -- version (optional but must be semver if present) --
+    version = data.get("version")
+    if version and not SEMVER_PATTERN.match(str(version)):
+        warnings.append(warn(module_id, "#version", f"'{version}' doesn't look like semver (X.Y.Z)"))
+
+    # -- description max length --
+    desc = data.get("description")
+    if desc and len(desc) > 512:
+        warnings.append(warn(module_id, "#description", f"truncated to 512 chars (got {len(desc)})"))
+
+    # -- entry (required for application kind) --
+    if kind == "application":
+        entry = data.get("entry")
+        if not entry:
+            errors.append(error(module_id, "#entry", "required for kind=application"))
+        else:
+            cmd = entry.get("command")
+            if not cmd or not isinstance(cmd, list) or len(cmd) == 0:
+                errors.append(error(module_id, "#entry.command", "must be a non-empty array"))
+            elif any(" " in str(c) for c in cmd):
+                errors.append(error(module_id, "#entry.command", f"contains spaces: use array form, not shell strings"))
+
+            instance = entry.get("instance")
+            if instance and not INSTANCE_PATTERN.match(str(instance)):
+                errors.append(error(module_id, "#entry.instance", f"invalid '{instance}' — must match sumika-[a-z][a-z0-9-]*"))
+
+            app_id = entry.get("appId")
+            if app_id and not APP_ID_PATTERN.match(str(app_id)):
+                errors.append(error(module_id, "#entry.appId", f"invalid '{app_id}'"))
+
+    # -- contributes validation --
+    contributes = data.get("contributes", {})
+    if contributes:
+        all_action_ids = []
+
+        # Widgets
+        seen_widget_ids = set()
+        for i, w in enumerate(contributes.get("widgets", [])):
+            wid = w.get("id", f"#{i}")
+            if wid in seen_widget_ids:
+                errors.append(error(module_id, f"#contributes.widgets[{i}]", f"duplicate widget id '{wid}'"))
+            seen_widget_ids.add(wid)
+
+            if not WIDGET_ID_PATTERN.match(str(wid)):
+                errors.append(error(module_id, f"#contributes.widgets[{i}].id", f"invalid id '{wid}'"))
+
+            slot = w.get("slot")
+            if slot and slot not in ("left", "right"):
+                errors.append(error(module_id, f"#contributes.widgets[{i}].slot", f"invalid slot '{slot}'"))
+
+            # Check component path — MUST exist in module root
+            wcomp = w.get("component", "")
+            if wcomp:
+                if ".." in str(wcomp):
+                    errors.append(error(module_id, f"#contributes.widgets[{i}].component", f"path traversal detected: '{wcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, wcomp)
+                    if not os.path.exists(full_path):
+                        errors.append(error(module_id, f"#contributes.widgets[{i}].component", f"file not found: {wcomp}"))
+
+            # Check descriptor path if present
+            descriptor = w.get("descriptor")
+            if descriptor:
+                if ".." in str(descriptor):
+                    errors.append(error(module_id, f"#contributes.widgets[{i}].descriptor", f"path traversal detected: '{descriptor}'"))
+                else:
+                    full_path = os.path.join(module_root, descriptor)
+                    if not os.path.exists(full_path):
+                        errors.append(error(module_id, f"#contributes.widgets[{i}].descriptor", f"file not found: '{descriptor}'"))
+        # Actions
+        seen_action_ids = set()
+        for i, a in enumerate(contributes.get("actions", [])):
+            aid = a.get("id", f"#{i}")
+            if aid in seen_action_ids:
+                errors.append(error(module_id, f"#contributes.actions[{i}]", f"duplicate action id '{aid}'"))
+            seen_action_ids.add(aid)
+            all_action_ids.append(aid)
+
+            if not ACTION_ID_PATTERN.match(str(aid)):
+                errors.append(error(module_id, f"#contributes.actions[{i}].id", f"invalid action id '{aid}'"))
+
+            handler = a.get("handler")
+            if handler and not HANDLER_PATTERN.match(str(handler)):
+                errors.append(error(module_id, f"#contributes.actions[{i}].handler", f"invalid handler '{handler}' — must start with 'ipc:' or 'action:'"))
+
+        # Overview providers
+        seen_ovp_ids = set()
+        for i, p in enumerate(contributes.get("overviewProviders", [])):
+            pid = p.get("id", f"#{i}")
+            if pid in seen_ovp_ids:
+                errors.append(error(module_id, f"#contributes.overviewProviders[{i}]", f"duplicate provider id '{pid}'"))
+            seen_ovp_ids.add(pid)
+
+            # Validate component path
+            ovpcomp = p.get("component", "")
+            if ovpcomp:
+                if ".." in str(ovpcomp):
+                    errors.append(error(module_id, f"#contributes.overviewProviders[{i}].component", f"path traversal: '{ovpcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, ovpcomp)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.overviewProviders[{i}].component", f"component file not found: {ovpcomp}"))
+
+
+            handler = p.get("handler")
+            if handler and not HANDLER_PATTERN.match(str(handler)):
+                errors.append(error(module_id, f"#contributes.overviewProviders[{i}].handler", f"invalid handler '{handler}'"))
+
+
+        # Overlays
+        seen_ovl_ids = set()
+        for i, ovl in enumerate(contributes.get("overlays", [])):
+            ovlid = ovl.get("id", f"#{i}")
+            if ovlid in seen_ovl_ids:
+                errors.append(error(module_id, f"#contributes.overlays[{i}]", f"duplicate overlay id '{ovlid}'"))
+            seen_ovl_ids.add(ovlid)
+
+            ovlcomp = ovl.get("component", "")
+            if ovlcomp:
+                if ".." in str(ovlcomp):
+                    errors.append(error(module_id, f"#contributes.overlays[{i}].component", f"path traversal: '{ovlcomp}'"))
+                else:
+                    full_path = os.path.join(module_root, ovlcomp)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.overlays[{i}].component", f"component file not found: {ovlcomp}"))
+        # Settings pages
+        seen_sp_ids = set()
+        for i, sp in enumerate(contributes.get("settingsPages", [])):
+            spid = sp.get("id", f"#{i}")
+            if spid in seen_sp_ids:
+                errors.append(error(module_id, f"#contributes.settingsPages[{i}]", f"duplicate settings page id '{spid}'"))
+            seen_sp_ids.add(spid)
+
+            component = sp.get("component", "")
+            if ".." in str(component):
+                errors.append(error(module_id, f"#contributes.settingsPages[{i}].component", f"path traversal detected: '{component}'"))
+            full_path = os.path.join(module_root, component)
+            if component and not os.path.exists(full_path):
+                warnings.append(warn(module_id, f"#contributes.settingsPages[{i}].component", f"file not found: {component}"))
+
+        # Popup sections
+        for i, ps in enumerate(contributes.get("popupSections", [])):
+            component = ps.get("component", "")
+            if ".." in str(component):
+                errors.append(error(module_id, f"#contributes.popupSections[{i}].component", f"path traversal detected: '{component}'"))
+            full_path = os.path.join(module_root, component)
+            if component and not os.path.exists(full_path):
+                warnings.append(warn(module_id, f"#contributes.popupSections[{i}].component", f"file not found: {component}"))
+
+        # Service IDs
+        seen_svc_ids = set()
+        for i, svc in enumerate(contributes.get("services", [])):
+            if svc in seen_svc_ids:
+                warnings.append(warn(module_id, f"#contributes.services[{i}]", f"duplicate service '{svc}'"))
+            seen_svc_ids.add(svc)
+            if not SERVICE_ID_PATTERN.match(str(svc)):
+                errors.append(error(module_id, f"#contributes.services[{i}]", f"invalid service id '{svc}'"))
+        # Launchers (desktop entries)
+        seen_launcher_ids = set()
+        for i, ln in enumerate(contributes.get("launchers", [])):
+            lid = ln.get("id", f"#{i}")
+            if lid in seen_launcher_ids:
+                errors.append(error(module_id, f"#contributes.launchers[{i}]", f"duplicate launcher id '{lid}'"))
+            seen_launcher_ids.add(lid)
+
+            if not LAUNCHER_ID_PATTERN.match(str(lid)):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].id", f"invalid id '{lid}' — must match sumika-[a-z][a-z0-9-]*"))
+
+            if not ln.get("name"):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].name", "required"))
+            if not ln.get("exec"):
+                errors.append(error(module_id, f"#contributes.launchers[{i}].exec", "required"))
+
+            # Validate relative icon path if present
+            icon = ln.get("icon", "")
+            if icon and not icon.startswith("/") and not icon.startswith("file:"):
+                if ".." in icon:
+                    errors.append(error(module_id, f"#contributes.launchers[{i}].icon", f"path traversal: '{icon}'"))
+                else:
+                    full_path = os.path.join(module_root, icon)
+                    if not os.path.exists(full_path):
+                        warnings.append(warn(module_id, f"#contributes.launchers[{i}].icon", f"file not found: {icon}"))
+
+    # -- trustedInProcess (boolean, default false) --
+    tip = data.get("trustedInProcess")
+    if tip is not None and not isinstance(tip, bool):
+        errors.append(error(module_id, "#trustedInProcess", f"must be boolean, got {type(tip).__name__}"))
+
+    # -- Permissions --
+    perms = data.get("permissions", [])
+    for p in perms:
+        if not PERMISSION_PATTERN.match(str(p)):
+            warnings.append(warn(module_id, f"#permissions", f"unusual permission pattern: '{p}'"))
+
+    # -- Config --
+    cfg = data.get("config")
+    if cfg:
+        rel = cfg.get("relativePath")
+        if rel and ".." in str(rel):
+            errors.append(error(module_id, "#config.relativePath", f"path traversal in '{rel}'"))
+
+    return errors, warnings
+
+
+def validate_v1_as_v2(data: dict, module_root: str, module_id: str) -> tuple:
+    """Validate a v1 manifest by promoting it to v2 semantics. Returns (errors, warnings)."""
+    errors = []
+    warnings = []
+
+    # v1 has no schemaVersion — that's fine, treat as v1 compat
+    warnings.append(warn(module_id, "#schemaVersion", "v1 manifest (no schemaVersion) — using compat mode"))
+
+    # v1 requires id
+    if "id" not in data:
+        errors.append(error(module_id, "#id", "missing in v1 manifest"))
+
+    mid = data.get("id", module_id)
+    if not ID_PATTERN.match(str(mid)):
+        errors.append(error(module_id, "#id", f"invalid id '{mid}'"))
+
+    # v1 may not have kind — that's not an error in compat mode
+    # Add a note about missing kind
+    if "kind" not in data:
+        warnings.append(warn(module_id, "#kind", "missing from v1 manifest — defaulting to 'qml-singleton'"))
+
+    # Validate capabilities (v1)
+    caps = data.get("capabilities", {})
+    if isinstance(caps, dict):
+        for i, bb in enumerate(caps.get("barButtons", [])):
+            wid = bb.get("id", f"#{i}")
+            if not WIDGET_ID_PATTERN.match(str(wid)):
+                errors.append(error(module_id, f"#capabilities.barButtons[{i}].id", f"invalid id '{wid}'"))
+            slot = bb.get("slot")
+            if slot and slot not in ("left", "right"):
+                errors.append(error(module_id, f"#capabilities.barButtons[{i}].slot", f"invalid slot '{slot}'"))
+            component = bb.get("component", "")
+            if ".." in str(component):
+                errors.append(error(module_id, f"#capabilities.barButtons[{i}].component", f"path traversal: '{component}'"))
+            full_path = os.path.join(module_root, component)
+            if component and not os.path.exists(full_path):
+                warnings.append(warn(module_id, f"#capabilities.barButtons[{i}].component", f"file not found: {component}"))
+
+        for i, ps in enumerate(caps.get("popupSections", [])):
+            component = ps.get("component", "")
+            if ".." in str(component):
+                errors.append(error(module_id, f"#capabilities.popupSections[{i}].component", f"path traversal: '{component}'"))
+            full_path = os.path.join(module_root, component)
+            if component and not os.path.exists(full_path):
+                warnings.append(warn(module_id, f"#capabilities.popupSections[{i}].component", f"file not found: {component}"))
+
+        for i, sp in enumerate(caps.get("settingsPages", [])):
+            component = sp.get("component", "")
+            if ".." in str(component):
+                errors.append(error(module_id, f"#capabilities.settingsPages[{i}].component", f"path traversal: '{component}'"))
+            full_path = os.path.join(module_root, component)
+            if component and not os.path.exists(full_path):
+                warnings.append(warn(module_id, f"#capabilities.settingsPages[{i}].component", f"file not found: {component}"))
+
+        apps = caps.get("apps", [])
+        if apps:
+            warnings.append(warn(module_id, "#capabilities.apps", "uses apps[] — migrate to contributes + entry"))
+
+    return errors, warnings
+
+
+def validate_module(manifest_path: str) -> int:
+    """Validate a single module manifest. Returns exit code."""
+    manifest_abs = os.path.abspath(manifest_path)
+    module_root = os.path.dirname(manifest_abs)
+    module_id = os.path.basename(module_root)
+
+    # Parse JSON
+    data, errs = validate_json_syntax(manifest_path)
+    if errs:
+        for e in errs:
+            print(e)
+        return 1
+
+    # Auto-detect root dir: builtin manifests resolve component paths relative
+    # to the quickshell root (parent of registry/builtin/), not the manifest location.
+    module_id = data.get("id", module_id)
+    manifest_dir = os.path.dirname(manifest_abs)
+    manifest_parent = os.path.dirname(manifest_dir)
+    # Check if we're inside registry/builtin/
+    if os.path.basename(manifest_dir) == "builtin" and os.path.basename(manifest_parent) == "registry":
+        quickshell_root = os.path.dirname(manifest_parent)
+        if os.path.isdir(quickshell_root):
+            module_root = quickshell_root
+
+    sv = data.get("schemaVersion")
+    if sv == 2:
+        errors, warnings = validate_v2(data, module_root, module_id)
+    elif sv is None or sv == 1:
+        errors, warnings = validate_v1_as_v2(data, module_root, module_id)
+    else:
+        errors = [error(module_id, "#schemaVersion", f"unknown schema version: {sv}")]
+        warnings = []
+
+    # Report
+    all_ok = True
+    for w in warnings:
+        print(w)
+    for e in errors:
+        print(e)
+        all_ok = False
+
+    if all_ok and not warnings:
+        print(f"  [{module_id}] ✅ valid {( 'v2' if sv == 2 else 'v1 compat' )}")
+    elif all_ok:
+        print(f"  [{module_id}] ⚠️ valid with warnings")
+    else:
+        print(f"  [{module_id}] ❌ {len(errors)} error(s)")
+    return 0 if all_ok else 1
+
+
+def scan_manifests(root_dir: str) -> list:
+    """Scan a directory for module.json files (single-dir or builtin-registry style)."""
+    results = []
+    if not os.path.isdir(root_dir):
+        return results
+    # Check if this looks like a builtin registry dir (flat *.json files)
+    has_json = False
+    for entry in sorted(os.listdir(root_dir)):
+        if entry.endswith(".json"):
+            has_json = True
+            break
+    if has_json:
+        # builtin style: each .json is a separate manifest, resolved relative to repo
+        for entry in sorted(os.listdir(root_dir)):
+            if entry.endswith(".json"):
+                results.append(os.path.join(root_dir, entry))
+    else:
+        # module.json style: each subdir contains a module.json
+        for entry in sorted(os.listdir(root_dir)):
+            entry_path = os.path.join(root_dir, entry)
+            if not os.path.isdir(entry_path):
+                continue
+            manifest_path = os.path.join(entry_path, "module.json")
+            if os.path.isfile(manifest_path):
+                results.append(manifest_path)
+    return results
+
+
+def validate_all() -> int:
+    """Validate all modules — repo-local and external."""
+    total = 0
+    passed = 0
+    failed = 0
+    warned = 0
+    v1_count = 0
+    sumika_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Scan bundled core modules first.
+    manifests = []
+    repo_modules = os.path.join(sumika_root, "quickshell", "modules")
+    if os.path.isdir(repo_modules):
+        manifests += scan_manifests(repo_modules)
+    if not manifests:
+        print("No module manifests found")
+        return 0
+
+    for manifest_path in manifests:
+        total += 1
+        rc = validate_module(manifest_path)
+        if rc == 0:
+            passed += 1
+        else:
+            failed += 1
+        # Track v1 manifests for compat diagnostic
+        try:
+            with open(manifest_path) as f:
+                data = json.load(f)
+            if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                v1_count += 1
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    print(f"\nSummary: {passed} passed, {warned} warned, {failed} failed ({total} total, {v1_count} v1 compat)")
+    return 0 if failed == 0 else 1
+
+def count_v1():
+    count = 0
+    sumika_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    # Scan repo default modules
+    repo_modules = os.path.join(sumika_root, "quickshell", "modules")
+    if os.path.isdir(repo_modules):
+        for m in scan_manifests(repo_modules):
+            try:
+                with open(m) as f:
+                    data = json.load(f)
+                if data.get("schemaVersion") is None or data.get("schemaVersion") == 1:
+                    count += 1
+            except (json.JSONDecodeError, OSError):
+                pass
+    return count
+
+def main():
+    arg = sys.argv[1]
+
+    if arg == "--all":
+        rc = validate_all()
+    elif arg == "--v1-count":
+        print(count_v1())
+        rc = 0
+    elif os.path.isdir(arg):
+        manifest_path = os.path.join(arg, "module.json")
+        if os.path.isfile(manifest_path):
+            rc = validate_module(manifest_path)
+        else:
+            print(f"No module.json in {arg}", file=sys.stderr)
+            rc = 1
+    elif os.path.isfile(arg):
+        rc = validate_module(arg)
+    else:
+        print(f"Not found: {arg}", file=sys.stderr)
+        rc = 2
+
+    sys.exit(rc)
+
+
+if __name__ == "__main__":
+    main()

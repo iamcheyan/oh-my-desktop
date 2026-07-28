@@ -26,9 +26,9 @@ Singleton {
         }
     }
     function openAppLauncher() {
-        var rootDir = Quickshell.env("OMD_REPO_ROOT") || FileUtils.trimFileProtocol(Directories.root)
+        var rootDir = FileUtils.trimFileProtocol(Directories.root)
         Quickshell.execDetached([
-            rootDir + "/bin/omd-applauncher", "open"
+            rootDir + "/bin/sumika-applauncher", "open"
         ]);
     }
     function overviewModel() {
@@ -39,9 +39,11 @@ Singleton {
 
     function switchingModeModel() {
         const monitorName = GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "";
-        let model = ServiceManager.workspace.overviewWorkspaceEntriesForMonitor(monitorName, true);
+        // Win+Tab is a transient switcher, so it intentionally keeps MRU order.
+        // The persistent overview grid uses numeric ID order instead.
+        let model = ServiceManager.workspace.overviewWorkspaceEntriesForMonitor(monitorName, true, {}, true);
         if (model.length === 0)
-            model = ServiceManager.workspace.overviewWorkspaceEntriesGlobal().filter(entry => !entry.isTrailingEmpty);
+            model = ServiceManager.workspace.overviewWorkspaceEntriesGlobal(true).filter(entry => !entry.isTrailingEmpty);
         return model;
     }
 

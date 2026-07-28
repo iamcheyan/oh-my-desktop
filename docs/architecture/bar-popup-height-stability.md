@@ -1,7 +1,7 @@
 # Bar Status Popup — Height Stability & Flash
 
 Why volume / display (and similar) bar popups flash when their content height
-changes, and how OMD avoids that flash.
+changes, and how Sumika Shell avoids that flash.
 
 Related code:
 
@@ -104,7 +104,7 @@ Most stable for long always-visible lists. No accordion chrome.
 
 ---
 
-## Practical ranking (OMD)
+## Practical ranking (Sumika Shell)
 
 | Goal | Approach |
 | --- | --- |

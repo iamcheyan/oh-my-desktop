@@ -31,11 +31,10 @@ Singleton {
         Quickshell.env("SUMIKA_SHELL_STATE_HOME")
         ?? `${Directories.stateHome}/sumika-shell`
     )
-    // Repository root: resolved from SUMIKA_SHELL_ROOT env var (set by session wrapper
-    // or lib/paths.sh), falling back to the ~/.config/omd -> repo symlink.
+    // Repository root is exported by the session wrapper or lib/paths.sh.
     readonly property string root: FileUtils.trimFileProtocol(
         Quickshell.env("SUMIKA_SHELL_ROOT")
-        ?? `${Directories.config}/omd`
+        ?? "/dev/null/SUMIKA_SHELL_ROOT_UNSET"
     )
     readonly property string cosmicIcons: "/usr/share/icons/Cosmic/scalable"
     property string assetsPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/assets`)

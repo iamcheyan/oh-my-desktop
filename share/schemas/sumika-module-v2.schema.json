@@ -51,9 +51,9 @@
           "minItems": 1
         },
         "instance": {
-          "description": "Process instance name — must match omd-[a-z][a-z0-9-]*",
+          "description": "Process instance name in the Sumika technical namespace",
           "type": "string",
-          "pattern": "^omd-[a-z][a-z0-9-]*$"
+          "pattern": "^sumika-[a-z][a-z0-9-]*$"
         },
         "appId": {
           "description": "Hyprland app-id / Wayland app_id",

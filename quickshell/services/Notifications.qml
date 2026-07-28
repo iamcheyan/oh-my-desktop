@@ -80,8 +80,6 @@ Singleton {
     readonly property string sumikaConfigHome: `${FileUtils.trimFileProtocol(Directories.config)}/sumika-shell`
     // Canonical write path (new location)
     property string mutedAppsFilePath: `${sumikaConfigHome}/notifications/muted_apps.cfg`
-    // Legacy read fallback (old location, removed in Phase 7)
-    readonly property string mutedAppsFilePathLegacy: `${FileUtils.trimFileProtocol(Directories.config)}/omd/notifications/muted_apps.cfg`
     property bool openMutedEditorAfterWrite: false
     property int unread: 0
     property var filePath: Directories.notificationsPath
@@ -291,7 +289,7 @@ Singleton {
         writeMutedFile.command = [
             "bash", "-c",
             `mkdir -p "$(dirname "$2")" && printf '%s' "$1" > "$2"`,
-            "omd-muted-apps-write", text, root.mutedAppsFilePath
+            "sumika-muted-apps-write", text, root.mutedAppsFilePath
         ];
         writeMutedFile.running = true;
     }
@@ -305,8 +303,8 @@ Singleton {
             root.openMutedEditorAfterWrite = false;
             editMutedAppsProc.command = [
                 "bash", "-c",
-                `if command -v xdg-terminal-exec >/dev/null 2>&1; then exec xdg-terminal-exec --app-id=org.omd.edit-muted-apps --title="Muted notification apps" -- vi "$1"; elif command -v foot >/dev/null 2>&1; then exec foot --app-id=org.omd.edit-muted-apps --title="Muted notification apps" -e vi "$1"; else exec kitty --class=org.omd.edit-muted-apps --title="Muted notification apps" -- vi "$1"; fi`,
-                "omd-muted-apps-editor", root.mutedAppsFilePath
+                `if command -v xdg-terminal-exec >/dev/null 2>&1; then exec xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.editmutedapps --title="Muted notification apps" -- vi "$1"; elif command -v foot >/dev/null 2>&1; then exec foot --app-id=io.github.iamcheyan.sumika.editmutedapps --title="Muted notification apps" -e vi "$1"; else exec kitty --class=io.github.iamcheyan.sumika.editmutedapps --title="Muted notification apps" -- vi "$1"; fi`,
+                "sumika-muted-apps-editor", root.mutedAppsFilePath
             ];
             editMutedAppsProc.running = true;
         }
@@ -320,7 +318,7 @@ Singleton {
 
     Process {
         id: readMutedAppsProc
-        command: ["bash", "-c", `cat "$1" 2>/dev/null || cat "$2" 2>/dev/null || true`, "omd-muted-apps-read", root.mutedAppsFilePath, root.mutedAppsFilePathLegacy]
+        command: ["bash", "-c", `cat "$1" 2>/dev/null || true`, "sumika-muted-apps-read", root.mutedAppsFilePath]
         running: false
         stdout: StdioCollector {
             id: mutedAppsCollector

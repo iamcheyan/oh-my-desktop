@@ -19,8 +19,8 @@ Item {
         }
 
         // Fallback: launch via canonical entry script
-        var rootDir = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        Quickshell.execDetached([rootDir + "/bin/omd-applauncher", "toggle"])
+        var rootDir = FileUtils.trimFileProtocol(Directories.root)
+        Quickshell.execDetached([rootDir + "/bin/sumika-applauncher", "toggle"])
     }
 
     implicitWidth: button.implicitWidth

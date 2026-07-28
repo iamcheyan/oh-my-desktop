@@ -1,14 +1,14 @@
-# OMD Voice Input — Design & Implementation
+# Sumika Shell Voice Input — Design & Implementation
 
 ## Overview
 
-OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspired by [kazamo](https://github.com/iamcheyan/kazamo). It records audio via PulseAudio, transcribes using SenseVoice (sherpa-onnx), and auto-pastes text through OMD's unified paste helper.
+Sumika Shell Voice Input is a voice-to-text module for the Quickshell status bar, inspired by [kazamo](https://github.com/iamcheyan/kazamo). It records audio via PulseAudio, transcribes using SenseVoice (sherpa-onnx), and auto-pastes text through Sumika Shell's unified paste helper.
 
 **Key design goals:**
 - Zero-install for the user: first use triggers automatic dependency + model download
 - Fast after warmup: long-lived Python daemon keeps model loaded in memory
 - Clean, focused feedback: three-state color system on the bar icon with transparent background
-- Unified TUI style & layout: terminal companion tools utilize OMD's TUI design system and open as floating window dialogs
+- Unified TUI style & layout: terminal companion tools utilize Sumika Shell's TUI design system and open as floating window dialogs
 
 ---
 
@@ -16,7 +16,7 @@ OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspire
 
 [kazamo](https://github.com/iamcheyan/kazamo) is a standalone voice input tool that we forked concepts from. Key differences in our implementation:
 
-| Aspect | kazamo | OMD Voice |
+| Aspect | kazamo | Sumika Shell Voice |
 |--------|--------|-----------|
 | UI | CLI + optional tray icon | Quickshell bar button + popup panel |
 | Architecture | per-arch binaries (ARM vs x86) | single Python codebase via sherpa-onnx |
@@ -24,7 +24,7 @@ OMD Voice Input is a voice-to-text module for the Quickshell status bar, inspire
 | Inference | direct Python call each time | long-lived Unix socket daemon |
 | Auto-paste | `wl-copy` + synthetic paste key | immutable payload + unified helper; Kitty uses direct remote injection |
 | Feedback | terminal stdout | button colors + hover tooltip + history panel |
-| Integration | standalone binary | integrated into OMD bar module system |
+| Integration | standalone binary | integrated into Sumika Shell bar module system |
 
 We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
 1. Single wheel works on both ARM (Asahi) and x86 — no per-arch logic
@@ -62,17 +62,17 @@ We chose **sherpa-onnx** (instead of faster-whisper/whisper.cpp) because:
 ┌─────────────────────────────────────────────────────────────┐
 │           omarchy-voice-transcribe (Python daemon)           │
 │  Fork model: first caller starts daemon, waits for socket    │
-│  Socket: /tmp/omd-voice.sock                                 │
+│  Socket: /tmp/sumika-voice.sock                                 │
 │  Loop: accept → recv wav_path → transcribe → send JSON       │
 │  Output: {"text": "..."} or {"error": "..."}                  │
 └──────────────────────┬──────────────────────────────────────┘
-                       │ parecord /tmp/omd-voice-rec.wav
+                       │ parecord /tmp/sumika-voice-rec.wav
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              System Layer (PulseAudio / PipeWire)            │
 │  parecord --format=s16le --rate=16000 --channels=1           │
 │  WAV → sherpa_onnx.OfflineRecognizer.from_sense_voice()      │
-│  → immutable payload + omd-paste-at-cursor (auto-paste)    │
+│  → immutable payload + sumika-paste-at-cursor (auto-paste)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -189,7 +189,7 @@ To resolve this, `scripts/key-test --hotkey` is written as a native **GTK4 / Lib
 
 **Key features:**
 - **Wayland Shortcut Inhibition**: Calls `surface.inhibit_system_shortcuts(None)` on realize so the compositor passes system events to the window.
-- **Dynamic Hotkey Suspension**: When focused (`is-active = True`), it temporarily runs `hl.unbind` for conflicting OMD hotkeys (`ALT + A`, `code:472`, `ALT + S`, `CTRL + SHIFT + V`, `SUPER + SPACE`, `SUPER + V`) to prevent them from intercepting test keys.
+- **Dynamic Hotkey Suspension**: When focused (`is-active = True`), it temporarily runs `hl.unbind` for conflicting Sumika Shell hotkeys (`ALT + A`, `code:472`, `ALT + S`, `CTRL + SHIFT + V`, `SUPER + SPACE`, `SUPER + V`) to prevent them from intercepting test keys.
 - **Automatic Restore via `atexit`**: When the window loses focus or the process exits (via window close, pressing Q/ESC, or being killed), a Python exit-hook runs `hyprctl reload` to restore all keybinds instantly.
 - **Clipboard Output**: Formats the captured keys (e.g. `ALT + A` or `code:472`) and runs `wl-copy` to copy them to the clipboard automatically.
 
@@ -233,13 +233,13 @@ hyprctl reload
 
 ## Diagnostic Tool (`scripts/voice-diagnose`)
 
-A curses-based terminal application designed to troubleshoot the voice input environment. It runs in a floating window matching OMD's TUI design system.
+A curses-based terminal application designed to troubleshoot the voice input environment. It runs in a floating window matching Sumika Shell's TUI design system.
 
 It runs automated tests for the following components:
-1. **Python Virtual Environment**: Checks that `~/.cache/omd-voice/venv` is present.
+1. **Python Virtual Environment**: Checks that `~/.cache/sumika-voice/venv` is present.
 2. **Required Libraries**: Assures `sherpa-onnx` and `numpy` import properly.
 3. **Model Files**: Verifies `model.int8.onnx` and `tokens.txt` integrity.
-4. **Unix Socket Daemon**: Connects to `/tmp/omd-voice.sock` to check engine responsiveness.
+4. **Unix Socket Daemon**: Connects to `/tmp/sumika-voice.sock` to check engine responsiveness.
 5. **Recording Utilities**: Confirms presence of `parecord`.
 6. **Audio Helper**: Confirms `ffmpeg` is available for audio resampling.
 7. **Clipboard & Paste Support**: Assures `wl-copy` and `ydotool` are configured.
@@ -320,7 +320,7 @@ Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
 The bar also exposes `barPopup` IPC for opening the settings panel:
 
 ```bash
-qs -p $HOME/.config/omd/apps/omd-bar ipc call barPopup open voice
+qs -p $SUMIKA_SHELL_ROOT/apps/sumika-bar ipc call barPopup open voice
 ```
 
 ---
@@ -344,13 +344,13 @@ function onTranscriptionResult(text) {
     Quickshell.execDetached(["bash", "-c",
         `payload=$(mktemp); trap 'rm -f "$payload"' EXIT; ` +
         `printf '%s' '${StringUtils.shellSingleQuoteEscape(text)}' > "$payload" && ` +
-        `wl-copy < "$payload" && OMD_PASTE_SOURCE=voice ` +
+        `wl-copy < "$payload" && SUMIKA_PASTE_SOURCE=voice ` +
         `'${root.pasteScript}' --file "$payload" auto ` +
         `'${root.focusedWindowClass}' '${target}'`])
 }
 ```
 
-Transport selection is owned by `omd-paste-at-cursor`, not by
+Transport selection is owned by `sumika-paste-at-cursor`, not by
 `VoiceInput.qml`:
 
 | 窗口 class                              | paste 命令               | 原因                    |
@@ -387,14 +387,14 @@ Even if auto-paste fails (no focused text field), the text is already in the cli
 
 | Path | Purpose |
 |------|---------|
-| `~/.cache/omd-voice/` | Root cache dir |
-| `~/.cache/omd-voice/venv/` | Python venv with sherpa-onnx |
-| `~/.cache/omd-voice/sense-voice-small-int8/` | ONNX model + tokens |
-| `~/.cache/omd-voice/transcribe.log` | Per-call timing log (JSON lines) |
-| `/tmp/omd-voice.sock` | Unix socket for daemon |
-| `/tmp/omd-voice-rec.wav` | Temporary recording file |
-| `/tmp/omd-voice-rec.pid` | parecord PID file |
-| `/tmp/omd-voice.pid` | Daemon PID file |
+| `~/.cache/sumika-voice/` | Root cache dir |
+| `~/.cache/sumika-voice/venv/` | Python venv with sherpa-onnx |
+| `~/.cache/sumika-voice/sense-voice-small-int8/` | ONNX model + tokens |
+| `~/.cache/sumika-voice/transcribe.log` | Per-call timing log (JSON lines) |
+| `/tmp/sumika-voice.sock` | Unix socket for daemon |
+| `/tmp/sumika-voice-rec.wav` | Temporary recording file |
+| `/tmp/sumika-voice-rec.pid` | parecord PID file |
+| `/tmp/sumika-voice.pid` | Daemon PID file |
 
 ---
 
@@ -410,14 +410,14 @@ target window" is the sum of several stages:
 | Recording stop (`omarchy-voice-record stop`) | 100–200ms | kill parecord + `sleep 0.1` for WAV finalization |
 | FFmpeg preprocessing | 40–50ms | resample to 16kHz mono + 20dB gain |
 | sherpa-onnx inference (decode) | 350–450ms | for 3–5s audio on Intel i5-10310U (4 threads) |
-| Paste delay (`OMD_PASTE_DELAY`) | 150ms | sleep before simulating Ctrl+V / Shift+Insert |
+| Paste delay (`SUMIKA_PASTE_DELAY`) | 150ms | sleep before simulating Ctrl+V / Shift+Insert |
 | wtype / ydotool key dispatch | ~50ms | Wayland virtual-keyboard paste |
 | **Total** | **~700–900ms** | from stop-press to text-in-window |
 
 ### Inference benchmarks (Intel i5-10310U 1.70GHz, 8 cores)
 
 Measured on the actual development machine using the long-lived daemon
-(`~/.cache/omd-voice/transcribe.log`):
+(`~/.cache/sumika-voice/transcribe.log`):
 
 | Audio duration | ffmpeg_ms | load_ms | decode_ms | total_ms | RTF |
 |---------------|-----------|---------|-----------|----------|-----|
@@ -458,7 +458,7 @@ on the 4 physical cores and actually slow down inference.
 - **Recording stop sleep**: 100ms `sleep 0.1` in `omarchy-voice-record` to
   ensure parecord flushes the WAV header. Could be reduced but risks
   truncated audio.
-- **Paste delay**: 150ms `OMD_PASTE_DELAY` before sending the paste
+- **Paste delay**: 150ms `SUMIKA_PASTE_DELAY` before sending the paste
   keystroke, to ensure `wl-copy` has propagated. Could be tuned down.
 
 ### Conclusion
@@ -484,7 +484,7 @@ is currently viable for SenseVoice on this platform.
 ## Known Limitations
 
 1. **Language:** Default is `auto` (SenseVoice auto-detects zh/en/ja/ko/yue).
-   Override with `OMD_VOICE_LANG` env var (e.g. `zh`, `en`, `ja`, `ko`, `yue`).
+   Override with `SUMIKA_VOICE_LANG` env var (e.g. `zh`, `en`, `ja`, `ko`, `yue`).
 2. **wtype dependency:** Auto-paste uses `wtype` (Wayland virtual-keyboard) for
    reliable paste across keyboard layouts. `ydotool` is a fallback. If both
    fail, text is still copied to clipboard.

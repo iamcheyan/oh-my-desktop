@@ -30,11 +30,11 @@ esac
 
 export QS_CONFIG_DIR="$config_dir"
 export QS_COMPOSITOR=hyprland
-export OMD_APP_DIR="$config_dir"
+export SUMIKA_APP_DIR="$config_dir"
 
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-export OMD_REPO_ROOT="$repo_root"
-export OMD_QUICKSHELL_DIR="$repo_root/quickshell"
+export SUMIKA_SHELL_ROOT="$repo_root"
+export SUMIKA_QUICKSHELL_DIR="$repo_root/quickshell"
 
 # Runtime directory for generated state (module registry, QML symlinks, etc.)
 registry_dir="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
@@ -66,8 +66,8 @@ merge_manifest() {
     id=$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)
     [ -n "$id" ] || { echo "[sumika] WARN: skipping $manifest — no id field" >&2; return 1; }
 
-    # Validate via omd-module-validate if available
-    local validator="$OMD_REPO_ROOT/bin/omd-module-validate"
+    # Validate via sumika-module-validate if available
+    local validator="$SUMIKA_SHELL_ROOT/bin/sumika-module-validate"
     if [ -x "$validator" ]; then
         if ! "$validator" "$manifest" >/dev/null 2>&1; then
             echo "[sumika] WARN: manifest validation failed for $id — skipping" >&2
@@ -128,7 +128,7 @@ merge_manifest() {
 
 
 # Master switch (modules.enabled) does NOT skip registry generation.
-# Discovery always records installed modules; ModuleLoader / omd-restart apply
+# Discovery always records installed modules; ModuleLoader / sumika-restart apply
 # product-floor + enable/disable rules at runtime so the minimum desktop
 # (clock, workspaces, systray, wifi, audio, power-indicator) still works when
 # optional modules are off.
@@ -240,9 +240,9 @@ fi
 # ── Desktop launcher sync ──
 # Reconcile ~/.local/share/applications/sumika-*.desktop with the registry's
 # contributes.launchers. Creates entries for enabled modules, removes entries
-# for disabled/uninstalled modules. See bin/omd-sync-launchers.
-if [ -x "$repo_root/bin/omd-sync-launchers" ]; then
-    "$repo_root/bin/omd-sync-launchers" --quiet || true
+# for disabled/uninstalled modules. See bin/sumika-sync-launchers.
+if [ -x "$repo_root/bin/sumika-sync-launchers" ]; then
+    "$repo_root/bin/sumika-sync-launchers" --quiet || true
 fi
 repair_config_json() {
     # User config path (new Sumika Shell location)

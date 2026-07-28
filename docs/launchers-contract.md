@@ -14,11 +14,11 @@
         "id": "sumika-file-backup",
         "name": "Sumika File Backup",
         "comment": "One-shot file backup to external storage",
-        "exec": "omd-launch-settings-backup-tui",
+        "exec": "sumika-launch-settings-backup-tui",
         "icon": "icon.png",
         "categories": ["System", "FileTools"],
         "terminal": false,
-        "startupWmClass": "org.omd.backuptui",
+        "startupWmClass": "io.github.iamcheyan.sumika.backuptui",
         "noDisplay": false
       }
     ]
@@ -48,7 +48,7 @@
 ## 生命周期
 
 ```
-扩展启用 ──→ startup ──→ omd-sync-launchers ──→ 生成 sumika-<id>.desktop
+扩展启用 ──→ startup ──→ sumika-sync-launchers ──→ 生成 sumika-<id>.desktop
                                                        │
 扩展禁用 ──→ ModuleLoader.syncLaunchers() ──→ 删除对应 .desktop
                                                        │
@@ -59,14 +59,14 @@
 
 |场景|行为|触发机制|
 |---|---|---|
-|**启用**|写/刷新 .desktop|bar 启动 `omd-sync-launchers` + QML config watch|
+|**启用**|写/刷新 .desktop|bar 启动 `sumika-sync-launchers` + QML config watch|
 |**禁用**（`modules.disabled`）|删除 .desktop|`ModuleLoader` reactive watcher + 下次 startup|
 |**卸载**（删目录）|僵尸自动清理|startup 扫描时发现 .desktop 无 registry 对应|
 
 ### 同步触发点
 
-- **Bar 每次启动** → `quickshell/scripts/quickshell` 中调用 `omd-sync-launchers --quiet`
-- **`sumika.json` 的 `modules.disabled` / `modules.enabled` 变化** → `ModuleLoader.qml` 的 `on_DisabledModulesChanged` / `on_ModulesEnabledChanged` 调用 `syncLaunchers()` → 拉起 `omd-sync-launchers --quiet`
+- **Bar 每次启动** → `quickshell/scripts/quickshell` 中调用 `sumika-sync-launchers --quiet`
+- **`sumika.json` 的 `modules.disabled` / `modules.enabled` 变化** → `ModuleLoader.qml` 的 `on_DisabledModulesChanged` / `on_ModulesEnabledChanged` 调用 `syncLaunchers()` → 拉起 `sumika-sync-launchers --quiet`
 - **registry 加载完成** → `ModuleLoader.registryLoaded()` 调用 `loader.syncLaunchers()`
 
 ---
@@ -86,7 +86,7 @@
 │              modules.json (runtime registry)                 │
 │  contributes.launchers: [ { ..., moduleId, source } ]       │
 └──────────────┬───────────────────────────────────────────────┘
-               │ omd-sync-launchers — 读 registry + sumika.json
+               │ sumika-sync-launchers — 读 registry + sumika.json
                ▼
 ┌──────────────────────────────────────────────────────────────┐
 │     ~/.local/share/applications/sumika-*.desktop            │
@@ -100,9 +100,9 @@
 |---|---|---|
 |**声明**|扩展的 `module.json`|`"contributes.launchers"` 数组，每个元素是一个 launcher 描述|
 |**合并**|`quickshell/scripts/quickshell`|`jq` 将各模块的 launchers 注入 registry 的 `contributes.launchers[]`，注入 `moduleId`、`source`|
-|**同步**|`bin/omd-sync-launchers`|**核心** Python 脚本：读 registry → 读 sumika.json → 对比磁盘 → 写/删/清僵尸|
+|**同步**|`bin/sumika-sync-launchers`|**核心** Python 脚本：读 registry → 读 sumika.json → 对比磁盘 → 写/删/清僵尸|
 |**Reactive**|`quickshell/core/runtime/ModuleLoader.qml`|`launchers` 属性 + `syncLaunchers()` 方法 + config watcher|
-|**校验**|`bin/omd-module-validate`|检查 id 格式、必填字段、icon 路径是否存在（相对路径带 `..` 报错）|
+|**校验**|`bin/sumika-module-validate`|检查 id 格式、必填字段、icon 路径是否存在（相对路径带 `..` 报错）|
 |**Schema**|`share/schemas/sumika-module-v2.schema.json`|JSON Schema 约束 `contributes.launchers` 结构|
 
 ---
@@ -114,7 +114,7 @@
 迁移步骤：
 1. `module.json` 加 `contributes.launchers` 声明
 2. 删除 QML 中 `syncDesktopFile()` 函数、`desktopFilePath` 属性、`extensionRoot` 属性、两个 config watcher、`Component.onCompleted` 的相关调用
-3. `omd-module-validate` 通过后即可
+3. `sumika-module-validate` 通过后即可
 
 **新扩展不需要写任何 .desktop 管理代码。**
 
@@ -122,7 +122,7 @@
 
 ## 环境变量
 
-`omd-sync-launchers` 遵循 AGENTS.md 的 Path API：
+`sumika-sync-launchers` 遵循 AGENTS.md 的 Path API：
 
 |环境变量|默认值|用途|
 |---|---|---|
@@ -139,16 +139,16 @@
 ls -la ~/.local/share/applications/sumika-*.desktop
 
 # 手动同步（带统计信息）
-omd-sync-launchers
+sumika-sync-launchers
 
 # 预览改动但不执行
-omd-sync-launchers --dry-run
+sumika-sync-launchers --dry-run
 
 # 静默模式
-omd-sync-launchers --quiet
+sumika-sync-launchers --quiet
 
 # 校验模块 manifest
-omd-module-validate ~/.local/share/sumika-shell/extensions/<id>/
+sumika-module-validate ~/.local/share/sumika-shell/extensions/<id>/
 
 # 编辑器 JSON Schema 补全
 # VS Code: 在模块目录放 .vscode/settings.json:

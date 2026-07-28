@@ -17,17 +17,17 @@ left near the screen edge. The menu itself is clamped to the current screen.
 
 ## Runtime Structure
 
-- `apps/omd-clipboard/shell.qml` owns the overlay window. It reads
+- `apps/sumika-clipboard/shell.qml` owns the overlay window. It reads
   `hyprctl cursorpos -j` and `hyprctl monitors -j`, selects the matching
   Quickshell screen, and only then shows the menu.
-- `apps/omd-clipboard/modules/clipboard/ClipboardDialog.qml` owns search,
+- `apps/sumika-clipboard/modules/clipboard/ClipboardDialog.qml` owns search,
   keyboard navigation, menu placement, and the side preview.
-- `apps/omd-clipboard/modules/clipboard/widgets/ClipboardItem.qml` renders one
+- `apps/sumika-clipboard/modules/clipboard/widgets/ClipboardItem.qml` renders one
   compact text or image menu row.
-- `apps/omd-clipboard/services/Cliphist.qml` remains the data and action layer.
+- `apps/sumika-clipboard/services/Cliphist.qml` remains the data and action layer.
   UI code must not reimplement cliphist decoding or paste commands.
 
-The process remains cold-started through `bin/omd-clipboard` and exits when the
+The process remains cold-started through `bin/sumika-clipboard` and exits when the
 menu closes.
 
 ## Interaction
@@ -51,9 +51,9 @@ Clicking a row pastes it. Image rows expose a folder action for path paste.
 The existing image-to-path behavior is intentionally preserved. Calling
 `Cliphist.pasteImagePath(entry)`:
 
-1. decodes the image to `/tmp/omd-clip-<timestamp>.png`;
+1. decodes the image to `/tmp/sumika-clip-<timestamp>.png`;
 2. writes that path plus a trailing space to the clipboard;
-3. calls `omd-paste-at-cursor auto` to paste into the previously focused
+3. calls `sumika-paste-at-cursor auto` to paste into the previously focused
    application.
 
 Do not call `ydotool Ctrl+V` directly from the clipboard UI. Some machines do
@@ -66,13 +66,13 @@ Do not replace this with ordinary image paste. Both actions are useful:
 clicking the row pastes image data, while the row action or `Ctrl+Enter` pastes
 the generated file path.
 
-Kitty also maps `Ctrl+V` to `bin/omd-kitty-smart-paste`. When the clipboard
-contains an image, that helper decodes it to `/tmp/omd-clip-*`, replaces the
+Kitty also maps `Ctrl+V` to `bin/sumika-kitty-smart-paste`. When the clipboard
+contains an image, that helper decodes it to `/tmp/sumika-clip-*`, replaces the
 active Wayland clipboard payload with the generated path, and sends the same
 path to Kitty as bracketed paste. Keeping both payloads identical is required
 for image-aware terminal applications such as OpenCode: if the clipboard is
 left as an image while the terminal receives a path, OpenCode imports both and
-shows the image twice (`omd-clip-*.png` plus `clipboard`). The original image
+shows the image twice (`sumika-clip-*.png` plus `clipboard`). The original image
 remains available in cliphist history.
 
 ## Performance Rules
@@ -82,7 +82,7 @@ remains available in cliphist history.
 - Keep preview decoding delayed so pointer movement across the list does not
   launch a process for every transient row.
 - Refresh is driven solely by `cliphistService update` IPC from
-  `bin/omd-clipboard-store` (the `wl-paste --watch` layer). Do not add a
+  `bin/sumika-clipboard-store` (the `wl-paste --watch` layer). Do not add a
   `Quickshell.onClipboardTextChanged` listener — it fires for our own
-  `/tmp/omd-clip-*` path writes and causes redundant refreshes.
+  `/tmp/sumika-clip-*` path writes and causes redundant refreshes.
 - History is capped at 40 entries (`Cliphist.maxEntries`).

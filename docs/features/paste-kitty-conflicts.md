@@ -1,6 +1,6 @@
 # Paste Pipeline and Kitty/TUI Conflicts
 
-This document records how OMD sends clipboard and voice text into applications,
+This document records how Sumika Shell sends clipboard and voice text into applications,
 why duplicate insertion can occur, and the contract all paste features must
 follow.
 
@@ -9,7 +9,7 @@ follow.
 All programmatic paste operations must use:
 
 ```sh
-~/.config/omd/bin/omd-paste-at-cursor
+$SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor
 ```
 
 Do not add another direct `kitty @ send-text`, `wtype`, `ydotool`, or Hyprland
@@ -31,8 +31,8 @@ payload=$(mktemp)
 trap 'rm -f "$payload"' EXIT
 printf '%s' "$text" > "$payload"
 wl-copy < "$payload"
-OMD_PASTE_SOURCE=my-feature \
-  omd-paste-at-cursor --file "$payload" auto "$window_class" "$window_target"
+SUMIKA_PASTE_SOURCE=my-feature \
+  sumika-paste-at-cursor --file "$payload" auto "$window_class" "$window_target"
 ```
 
 The helper also accepts `--stdin`. Calling it without either option remains
@@ -76,12 +76,12 @@ ms, before another helper process can be spawned. Voice input accepts only the
 first meaningful final result from each recording. Together these guards catch
 duplicate QML signals, repeated process output, focus races, and overlapping
 terminal paste handlers without blocking a normal later paste. Override the
-helper interval with `OMD_PASTE_DEDUPE_MS` only for diagnostics.
+helper interval with `SUMIKA_PASTE_DEDUPE_MS` only for diagnostics.
 
 Runtime records are stored under:
 
 ```text
-$XDG_RUNTIME_DIR/omd-paste/events.log
+$XDG_RUNTIME_DIR/sumika-paste/events.log
 ```
 
 Each record includes source, action (`inject` or `deduped`), mode, target,
@@ -89,7 +89,7 @@ payload size, and fingerprint. When duplicate insertion is reported, inspect
 this log first:
 
 - two `inject` records mean the caller/target differs and needs investigation;
-- one `inject` plus one `deduped` means OMD suppressed a repeated request;
+- one `inject` plus one `deduped` means Sumika Shell suppressed a repeated request;
 - one `inject` but two visible insertions means the receiving application or
   terminal interpreted one transport event twice. Check the recorded mode and
   transport next; GUI injection should normally use `wtype`, not Hyprland.
@@ -100,11 +100,11 @@ Current mappings:
 
 ```ini
 map ctrl+v paste_from_clipboard
-map ctrl+shift+v launch --type=background ~/.config/omd/bin/omd-kitty-smart-paste
+map ctrl+shift+v launch --type=background $SUMIKA_SHELL_ROOT/bin/sumika-kitty-smart-paste
 ```
 
-`Ctrl+V` stays native. `Ctrl+Shift+V` provides OMD image-to-path behavior, but
-the helper script must delegate injection to `omd-paste-at-cursor`.
+`Ctrl+V` stays native. `Ctrl+Shift+V` provides Sumika Shell image-to-path behavior, but
+the helper script must delegate injection to `sumika-paste-at-cursor`.
 
 ### `send-text` exit status lies
 
@@ -123,7 +123,7 @@ focus states (notably when the OS-window keyboard focus and kitty's internal
 "focused" flag diverge — e.g. a remote-control `focus-window` was issued, or a
 second kitty window/tmux pane shares the focused OS window) `state:focused`
 matches **more than one window** and `send-text` writes the payload into *all*
-of them. One `omd-paste-at-cursor` invocation (one `inject` line in
+of them. One `sumika-paste-at-cursor` invocation (one `inject` line in
 `events.log`) then produces two visible insertions. This is the root cause of
 the long-standing "voice and clipboard paste twice" report.
 
@@ -192,12 +192,12 @@ listen on `/tmp/mykitty-$pid` instead. The helper must probe
 
 ## OMP/OpenCode
 
-OMP has its own clipboard actions and Kitty enhanced-paste support. OMD must not
+OMP has its own clipboard actions and Kitty enhanced-paste support. Sumika Shell must not
 patch files under `~/.bun`, `~/.omp`, or another application's installation to
 solve a desktop integration problem; those edits are machine-local and are
 lost on upgrades.
 
-Instead, OMD sends one bracketed payload through the terminal and keeps the
+Instead, Sumika Shell sends one bracketed payload through the terminal and keeps the
 Wayland clipboard synchronized with that same payload. Application-specific
 keybindings remain the application's responsibility. If OMP binds the same
 manual chord as Kitty, configure one owner for that chord rather than adding a
@@ -209,16 +209,16 @@ Static checks:
 
 ```sh
 sh -n share/bin/omarchy-paste-at-cursor
-sh -n bin/omd-kitty-smart-paste
+sh -n bin/sumika-kitty-smart-paste
 ```
 
 Runtime checks:
 
 1. Paste text from the clipboard menu into a plain shell and OMP.
 2. Paste an image from the clipboard menu into both; terminal targets should
-   receive one `/tmp/omd-clip-*` path.
+   receive one `/tmp/sumika-clip-*` path.
 3. Run voice auto-paste in both targets.
-4. Inspect `$XDG_RUNTIME_DIR/omd-paste/events.log` and confirm one `inject` per
+4. Inspect `$XDG_RUNTIME_DIR/sumika-paste/events.log` and confirm one `inject` per
    user action.
 5. **Multi-window regression:** with two kitty windows in the same OS window
    (e.g. a second omp or shell tab), trigger one paste and verify the payload

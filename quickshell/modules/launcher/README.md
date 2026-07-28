@@ -12,8 +12,8 @@ launcher/
 ├── shell.qml                 # Quickshell 入口
 ├── internal-tools.json       # 内置工具清单
 ├── bin/
-│   ├── omd-applauncher       # CLI
-│   └── omd-applauncher-cache # 桌面应用缓存构建脚本
+│   ├── sumika-applauncher       # CLI
+│   └── sumika-applauncher-cache # 桌面应用缓存构建脚本
 ├── modules/appLauncher/
 │   ├── AppLauncher.qml       # 主界面 UI (网格 + 搜索)
 │   ├── RunningApps.qml       # 运行中的应用检测
@@ -29,8 +29,8 @@ launcher/
 ### 打开启动器
 
 - 点击工具栏 **"Applications"**
-- 键盘绑定 `Super+Space`（由 omd-action 转发到 `app-launcher.toggle`）
-- IPC: `qs -p apps/omd-bar ipc call action call 'app-launcher.toggle' ''`
+- 键盘绑定 `Super+Space`（由 sumika-action 转发到 `app-launcher.toggle`）
+- IPC: `qs -p apps/sumika-bar ipc call action call 'app-launcher.toggle' ''`
 
 ### 搜索
 
@@ -71,7 +71,7 @@ launcher/
 ## 架构要点
 
 - App 来源分两个：
-  1. **桌面应用** — `omd-applauncher-cache` 扫描 `.desktop` 文件生成的 JSON 缓存
+  1. **桌面应用** — `sumika-applauncher-cache` 扫描 `.desktop` 文件生成的 JSON 缓存
   2. **内置工具** — `internal-tools.json` 中声明的本机工具
 - 两者合并后按 "已固定优先 + 名称排序" 显示
 - 内置工具使用 `Quickshell.execDetached(command)` 直接启动；桌面应用走 `gtk-launch` / `gio launch`

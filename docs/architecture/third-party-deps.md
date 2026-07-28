@@ -1,7 +1,7 @@
 # Third-Party Dependencies
 
 All external programs used by Sumika Shell, grouped by feature. Technical
-commands and package identifiers retain the `omd` prefix.
+commands and package identifiers use the `sumika` prefix.
 
 ## Hyprland Core
 

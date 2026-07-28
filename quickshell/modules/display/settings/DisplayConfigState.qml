@@ -18,7 +18,7 @@ Item {
     property bool identifying: false
     property bool userEdited: false
     property int revision: 0
-    readonly property string displayConfigBin: Directories.root + "/bin/omd-display-config"
+    readonly property string displayConfigBin: Directories.root + "/bin/sumika-display-config"
 
     readonly property var visibleOutputs: (revision, outputs.filter(output => output.connected !== false && !draftFor(output.name).disabled))
     readonly property bool hasPendingChanges: userEdited
@@ -558,7 +558,7 @@ Item {
             const parsed = JSON.parse(raw);
             const list = Array.isArray(parsed) ? parsed : [];
             return list.map(item => {
-                // omd-display-config exposes wlr-output-management data as
+                // sumika-display-config exposes wlr-output-management data as
                 // `currentMode`/`modes`. Keep the Hyprland field as a fallback
                 // so this adapter also accepts direct hyprctl monitor data.
                 const fallbackMode = `${item.width || 1920}x${item.height || 1080}@${Number(item.refreshRate || 60).toFixed(3)}Hz`;
@@ -674,7 +674,7 @@ Item {
         interval: 900
         repeat: false
         onTriggered: Quickshell.execDetached([
-            Directories.root + "/bin/omd-restart",
+            Directories.root + "/bin/sumika-restart",
             "--quickshell-only"
         ])
     }

@@ -13,7 +13,7 @@ Quickshell UI（bar、overview、launcher）、编辑器等。切换主题时，
 │  themes/<slug>/colors.toml  ← 唯一的颜色来源                      │
 │         │                                                       │
 │         ▼                                                       │
-│  omd-settings-theme apply <slug>                                 │
+│  sumika-settings-theme apply <slug>                                 │
 │         │                                                       │
 │         ├─→ copy_theme()                                        │
 │         │     cp -a themes/<slug> → state/theme/current/         │
@@ -74,9 +74,9 @@ Quickshell UI（bar、overview、launcher）、编辑器等。切换主题时，
 
 | 文件 | 作用 |
 |---|---|
-| `extensions/theme-settings/bin/omd-settings-theme` | 主题后端：列表、应用、状态查询 |
-| `extensions/theme-settings/bin/omd-settings-theme-tui` | 主题选择 TUI（Python curses） |
-| `extensions/theme-settings/bin/omd-launch-settings-theme-tui` | TUI 启动器（设置 app-id） |
+| `extensions/theme-settings/bin/sumika-settings-theme` | 主题后端：列表、应用、状态查询 |
+| `extensions/theme-settings/bin/sumika-settings-theme-tui` | 主题选择 TUI（Python curses） |
+| `extensions/theme-settings/bin/sumika-launch-settings-theme-tui` | TUI 启动器（设置 app-id） |
 | `OMD/scripts/reload-terminals` | 终端颜色实时重载（foot OSC / kitty remote / alacritty touch / ghostty SIGUSR2） |
 | `OMD/quickshell/services/OmarchyTheme.qml` | Quickshell 主题单例（读取 quickshell.json） |
 | `OMD/hypr/default/hypr/base.lua` | Hyprland 启动时加载 theme/current/hyprland.lua |
@@ -194,8 +194,8 @@ black = "#3d5d6d"
 ### 1. Quickshell UI（bar / overview / launcher / clipboard）
 
 ```bash
-for app in (omd-bar omd-overview omd-applauncher omd-clipboard); do
-    qs -p "$OMD_ROOT/apps/$app" ipc call theme reload
+for app in (sumika-bar sumika-overview sumika-applauncher sumika-clipboard); do
+    qs -p "$SUMIKA_SHELL_ROOT/apps/$app" ipc call theme reload
 done
 ```
 
@@ -217,7 +217,7 @@ Hyprland 配置加载链：`hyprland.lua` → `default/hypr/base.lua` →
 ### 3. 终端颜色实时重载
 
 ```bash
-"$OMD_ROOT/scripts/reload-terminals"
+"$SUMIKA_SHELL_ROOT/scripts/reload-terminals"
 ```
 
 这是最关键的一步——终端不会自动监听配置文件变化（除了 alacritty）。
@@ -289,11 +289,11 @@ config-file = ~/.local/state/sumika-shell/theme/current/ghostty.conf
 
 | 入口 | 路径 |
 |---|---|
-| 桌面条目 | `sumika-theme-settings.desktop` → `omd-launch-settings-theme-tui` |
-| Settings 重定向 | `omd-settings appearance` → `omd-launch-tui omd-settings-tui theme` |
-| 直接命令 | `omd-settings-tui theme` |
+| 桌面条目 | `sumika-theme-settings.desktop` → `sumika-launch-settings-theme-tui` |
+| Settings 重定向 | `sumika-settings appearance` → `sumika-launch-tui sumika-settings-tui theme` |
+| 直接命令 | `sumika-settings-tui theme` |
 
-`omd-launch-settings-theme-tui` 使用 `xdg-terminal-exec --app-id=org.omd.themetui`
+`sumika-launch-settings-theme-tui` 使用 `xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.themetui`
 打开终端，使 Hyprland 窗口规则（float + center + 1180×760）生效。
 
 ### TUI 功能
@@ -307,16 +307,16 @@ config-file = ~/.local/state/sumika-shell/theme/current/ghostty.conf
 
 ### TUI 与后端的交互
 
-TUI 是纯前端，所有主题操作通过 `omd-settings-theme` 后端执行：
+TUI 是纯前端，所有主题操作通过 `sumika-settings-theme` 后端执行：
 
 | TUI 动作 | 后端命令 | 说明 |
 |---|---|---|
-| 初始化 | `omd-settings-theme appearance-status` | 获取当前主题名、颜色、状态 |
-| 初始化 | `omd-settings-theme list` | 获取所有主题列表（slug/name/status/accent/bg/fg） |
-| 应用主题 | `omd-settings-theme apply <slug>` | 复制主题包 + 生成衍生配置 + 通知所有组件 |
-| 刷新 | `omd-settings-theme appearance-status` + `list` | 重新获取状态 |
+| 初始化 | `sumika-settings-theme appearance-status` | 获取当前主题名、颜色、状态 |
+| 初始化 | `sumika-settings-theme list` | 获取所有主题列表（slug/name/status/accent/bg/fg） |
+| 应用主题 | `sumika-settings-theme apply <slug>` | 复制主题包 + 生成衍生配置 + 通知所有组件 |
+| 刷新 | `sumika-settings-theme appearance-status` + `list` | 重新获取状态 |
 
-后台命令通过 `omd_tui_framework.py::run_cmd_bg()` 异步执行，完成后通过回调
+后台命令通过 `sumika_tui_framework.py::run_cmd_bg()` 异步执行，完成后通过回调
 队列更新 Model。`Model.__init__()` 调用 `self.refresh()` 启动初始数据加载。
 
 ## 添加新主题
@@ -337,10 +337,10 @@ TUI 是纯前端，所有主题操作通过 `omd-settings-theme` 后端执行：
 ### 切换主题后只有边框颜色变了
 
 `refresh_running_apps()` 中缺少 `reload-terminals` 调用。检查
-`omd-settings-theme` 的 `refresh_running_apps()` 函数是否包含：
+`sumika-settings-theme` 的 `refresh_running_apps()` 函数是否包含：
 
 ```bash
-"$OMD_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
+"$SUMIKA_SHELL_ROOT/scripts/reload-terminals" >/dev/null 2>&1 || true
 ```
 
 ### 终端颜色不变化
@@ -361,6 +361,6 @@ general.import = [ "~/.local/state/sumika-shell/theme/current/alacritty.toml" ]
 
 ### Quickshell bar 颜色不更新
 
-检查 `omd-bar` 是否在 `$OMD_ROOT/apps/` 下存在，且 `qs` 命令可用。
+检查 `sumika-bar` 是否在 `$SUMIKA_SHELL_ROOT/apps/` 下存在，且 `qs` 命令可用。
 `OmarchyTheme.qml` 的 `FileView` 监听 `quickshell.json` 的变化，
 IPC `theme reload` 触发重载。

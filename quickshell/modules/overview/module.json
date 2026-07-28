@@ -6,10 +6,10 @@
   "version": "2.0.0",
   "kind": "application",
   "entry": {
-    "command": ["omd-overview"],
-    "instance": "omd-overview",
+    "command": ["sumika-overview"],
+    "instance": "sumika-overview",
     "readyTimeout": 10,
-    "appId": "org.omd.overview"
+    "appId": "io.github.iamcheyan.sumika.overview"
   },
   "contributes": {
     "actions": [

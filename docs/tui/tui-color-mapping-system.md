@@ -2,7 +2,7 @@
 
 This document describes how Sumika Shell maps wallpaper and theme RGB colors
 to xterm-256 colors. The implementation is used by
-`bin/omd-settings-theme-tui` and the shared Python TUI helpers.
+`bin/sumika-settings-theme-tui` and the shared Python TUI helpers.
 
 ## Palette Constraints
 
@@ -17,7 +17,7 @@ portable between terminal themes.
 
 ## Theme Preview Mapping
 
-`bin/omd-settings-theme-tui::_rgb_to_xterm_index()` uses a chroma-aware direct
+`bin/sumika-settings-theme-tui::_rgb_to_xterm_index()` uses a chroma-aware direct
 mapping:
 
 1. Compute `chroma = max(r, g, b) - min(r, g, b)`.
@@ -34,7 +34,7 @@ use the finer grayscale ramp.
 
 ## Shared Nearest-Color Mapping
 
-`bin/omd_tui_framework.py::_nearest_xterm_index()` is the general-purpose mapper
+`bin/sumika_tui_framework.py::_nearest_xterm_index()` is the general-purpose mapper
 for shared TUI drawing. It uses a perceptual redmean distance and handles
 saturated colors separately so they are not incorrectly mapped to grayscale.
 

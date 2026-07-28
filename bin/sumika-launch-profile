@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve the small set of application profiles used by Hyprland bindings.
+# User-configured commands come from sumika.json; sensible desktop defaults
+# keep the bindings useful when a profile is not configured.
+
+profile_string="${1:-}"
+[[ -n "$profile_string" ]] || {
+    echo "usage: sumika-launch-profile <terminal|terminal-tmux|browser [--private]|editor>" >&2
+    exit 2
+}
+
+read -r profile option _ <<<"$profile_string"
+config_home="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+config_file="$config_home/sumika.json"
+
+configured_app() {
+    local key="$1"
+    jq -r --arg key "$key" '.apps[$key] // empty' "$config_file" 2>/dev/null || true
+}
+
+run_configured() {
+    local command="$1"
+    shift
+    # Application commands are explicitly user-authored configuration values.
+    exec bash -lc 'command_string=$1; shift; eval "exec ${command_string} \"\$@\""' \
+        sumika-launch-profile "$command" "$@"
+}
+
+launch_terminal() {
+    local terminal
+    terminal="$(configured_app terminal)"
+    case "$terminal" in
+        ""|xdg-terminal-exec|kitty*)
+            if command -v kitty >/dev/null 2>&1; then
+                exec uwsm-app -- kitty --detach "$@"
+            fi
+            ;;
+        foot*)
+            if command -v foot >/dev/null 2>&1; then
+                exec uwsm-app -- foot "$@"
+            fi
+            ;;
+        *)
+            run_configured "$terminal" "$@"
+            ;;
+    esac
+    exec xdg-terminal-exec "$@"
+}
+
+case "$profile" in
+    terminal)
+        launch_terminal
+        ;;
+    terminal-tmux)
+        launch_terminal tmux new-session -A -s main
+        ;;
+    browser)
+        browser="$(configured_app browser)"
+        if [[ -n "$browser" ]]; then
+            if [[ "$option" == "--private" ]]; then
+                run_configured "$browser" --private-window
+            fi
+            run_configured "$browser"
+        fi
+        if [[ "$option" == "--private" ]]; then
+            desktop="$(xdg-settings get default-web-browser 2>/dev/null || true)"
+            case "$desktop" in
+                *firefox*) exec uwsm-app -- firefox --private-window ;;
+                *chromium*|*chrome*) exec uwsm-app -- gtk-launch "$desktop" --incognito ;;
+            esac
+        fi
+        exec uwsm-app -- xdg-open about:blank
+        ;;
+    editor)
+        editor="$(configured_app editor)"
+        if [[ -n "$editor" ]]; then
+            run_configured "$editor"
+        fi
+        for candidate in gvim zed code codium; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+                exec uwsm-app -- "$candidate"
+            fi
+        done
+        exec uwsm-app -- xdg-terminal-exec -e nvim
+        ;;
+    *)
+        echo "sumika-launch-profile: unknown profile '$profile_string'" >&2
+        exit 2
+        ;;
+esac

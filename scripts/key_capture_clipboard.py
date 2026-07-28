@@ -1,4 +1,4 @@
-"""Shared formatting/parsing helpers for OMD key capture output."""
+"""Shared formatting/parsing helpers for Sumika key capture output."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def build_clipboard_text(
 ) -> str:
     """Return a stable, human-readable clipboard payload for key-test."""
     lines = [
-        "# OMD key capture",
+        "# Sumika key capture",
         f"bind: {raw or ''}",
     ]
     if keyd_name:

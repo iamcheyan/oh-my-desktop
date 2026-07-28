@@ -100,16 +100,19 @@ Singleton {
         return root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden);
     }
 
-    // Overview (工作区概览) / Overview switching (Win+Tab): only workspaces WITH windows
-    // are shown, ordered by MRU (Win11 Alt+Tab Z-order). Empty workspaces are
-    // never displayed — not even the active one if it has no windows. A single
-    // trailing "New workspace" slot (id = highest occupied id + 1) is always
-    // appended last and never participates in ordering, like GNOME/macOS.
+    // Overview (工作区概览): only workspaces WITH windows are shown. The regular
+    // overview grid is ordered by real workspace ID for stable visual slots.
+    // SUPER+number resolves those slots dynamically. Win+Tab switching can
+    // explicitly request MRU ordering (Win11 Alt+Tab Z-order). Empty workspaces are never displayed
+    // — not even the active one if it has no windows. A single trailing
+    // "New workspace" slot (id = highest occupied id + 1) is always appended
+    // last and never participates in ordering, like GNOME/macOS.
     // This guarantees there is exactly ONE empty cell in the grid, always at
     // the very end with the highest ID, so dragging a window to it always
     // places it as the last workspace.
-    function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing, reservedWorkspaceIds) {
+    function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing, reservedWorkspaceIds, orderByMru) {
         const includeTrailing = appendTrailing ?? true;
+        const useMruOrder = orderByMru ?? false;
         const targetMonitor = monitorName ?? "";
         const reservedIds = reservedWorkspaceIds ?? {};
         const monitorData = targetMonitor
@@ -192,10 +195,12 @@ Singleton {
             });
         });
 
-        // Order workspaces with windows by MRU.
+        // The persistent overview grid follows numeric workspace IDs so its
+        // first, second, ... cells correspond to SUPER+1, SUPER+2, ...
+        // Only the transient Win+Tab switcher opts into MRU ordering.
+        let orderedWindows = withWindows.slice().sort((a, b) => a.id - b.id);
         const mru = GlobalStates.overviewWorkspaceMru;
-        let orderedWindows;
-        if (mru && mru.length > 0) {
+        if (useMruOrder && mru && mru.length > 0) {
             const byId = {};
             withWindows.forEach(e => { byId[e.id] = e; });
             orderedWindows = [];
@@ -206,14 +211,12 @@ Singleton {
                     consumed[id] = true;
                 }
             }
-            withWindows.forEach(e => {
+            withWindows.slice().sort((a, b) => a.id - b.id).forEach(e => {
                 if (!consumed[e.id]) {
                     orderedWindows.push(e);
                     consumed[e.id] = true;
                 }
             });
-        } else {
-            orderedWindows = withWindows.slice();
         }
 
         const ordered = orderedWindows.slice();
@@ -252,8 +255,8 @@ Singleton {
         return ordered;
     }
 
-    function overviewWorkspaceEntriesGlobal() {
-        return root.overviewWorkspaceEntriesForMonitor("", true);
+    function overviewWorkspaceEntriesGlobal(orderByMru) {
+        return root.overviewWorkspaceEntriesForMonitor("", true, {}, orderByMru ?? false);
     }
 
     function sortedOverviewMonitors() {

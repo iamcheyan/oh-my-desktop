@@ -275,14 +275,14 @@ ColumnLayout {
                         SettingsButton {
                             label: "Next image"
                             onClicked: {
-                                Quickshell.execDetached(["bash", "-c", `omd-wallpaper random`])
+                                Quickshell.execDetached(["sumika-wallpaper", "random"])
                                 wpRefreshTimer.restart()
                             }
                         }
                         SettingsButton {
                             label: "Stop rotation"
                             onClicked: {
-                                Quickshell.execDetached(["bash", "-c", `omd-wallpaper stop`])
+                                Quickshell.execDetached(["sumika-wallpaper", "stop"])
                                 wpRefreshTimer.restart()
                             }
                         }
@@ -302,7 +302,7 @@ ColumnLayout {
                                 "bash", "-c",
                                 's="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}" && ' +
                                 'echo "' + Math.round(value) + '" > "$s/wallpaper/interval" && ' +
-                                `omd-wallpaper restart`
+                                `sumika-wallpaper restart`
                             ])
                             wpRefreshTimer.restart()
                         }
@@ -332,7 +332,7 @@ ColumnLayout {
 
     Process {
         id: wallpaperStatusProc
-        command: ["bash", "-c", `omd-wallpaper status 2>/dev/null || true`]
+        command: ["bash", "-c", `sumika-wallpaper status 2>/dev/null || true`]
         running: true
         stdout: StdioCollector {
             id: wallpaperStatusCollector

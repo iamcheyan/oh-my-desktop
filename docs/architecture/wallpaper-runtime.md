@@ -22,32 +22,32 @@ All paths honor `SUMIKA_SHELL_STATE_HOME`. User configuration lives in
 
 ## Update Flow
 
-`bin/omd-theme-bg-set <image>`:
+`bin/sumika-theme-bg-set <image>`:
 
 1. validates the selected source;
 2. atomically copies it to the managed `wallpaper` file;
 3. repairs `background -> wallpaper`;
 4. updates `revision` and the user configuration path;
-5. asks `bin/omd-wallpaper` to render the managed image.
+5. asks `bin/sumika-wallpaper` to render the managed image.
 
 Folder rotation uses the same import path for every selected image. It changes
-the managed file and revision, not the public path. `omd-wallpaper restore`
+the managed file and revision, not the public path. `sumika-wallpaper restore`
 recreates both the renderer and the transient rotation timer after login.
 
 ## Renderer Ownership
 
 The desktop is painted by `swaybg` in the dedicated transient user service
-`omd-wallpaper-renderer.service`. Rotation runs separately as
-`omd-wallpaper-random.service`. Keeping the renderer out of the short-lived
+`sumika-wallpaper-renderer.service`. Rotation runs separately as
+`sumika-wallpaper-random.service`. Keeping the renderer out of the short-lived
 rotation cgroup prevents it from being killed as soon as a rotation command
 exits.
 
 If a user systemd manager is unavailable, the script falls back to a detached
 `swaybg`. There must still be one renderer owner. Hyprland autostart calls
-`omd-wallpaper restore`; no second autostart path may launch `swaybg` directly.
+`sumika-wallpaper restore`; no second autostart path may launch `swaybg` directly.
 
 Monitor topology changes destroy layer surfaces. The monitor watcher therefore
-calls `omd-wallpaper refresh-outputs` after output add/remove events settle.
+calls `sumika-wallpaper refresh-outputs` after output add/remove events settle.
 
 ## Consumer Rule
 
@@ -61,7 +61,7 @@ Never introduce:
 - a bundled fallback wallpaper that briefly flashes before the managed image;
 - a direct reference to the imported source file;
 - a second independent wallpaper renderer;
-- state under `~/.config/omd/current` or `~/.local/state/omd`.
+- state under `$SUMIKA_SHELL_ROOT/current` or `~/.local/state/sumika-shell`.
 
 ## Modes
 
@@ -76,8 +76,8 @@ timer refresh operation.
 ## Diagnostics
 
 ```sh
-~/.config/omd/bin/omd-wallpaper status
-systemctl --user status omd-wallpaper-renderer.service
+$SUMIKA_SHELL_ROOT/bin/sumika-wallpaper status
+systemctl --user status sumika-wallpaper-renderer.service
 cat ~/.local/state/sumika-shell/wallpaper/renderer.log
 readlink ~/.local/state/sumika-shell/wallpaper/background
 ```

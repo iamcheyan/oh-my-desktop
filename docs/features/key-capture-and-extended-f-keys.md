@@ -4,7 +4,7 @@ This note records the decisions from the keyboard-remap / voice-hotkey debugging
 
 ## Two Capture Modes
 
-OMD uses one GTK capture tool with two explicit modes:
+Sumika Shell uses one GTK capture tool with two explicit modes:
 
 ```sh
 scripts/key-test --remap-source
@@ -15,7 +15,7 @@ Running `scripts/key-test` without a flag shows a segmented switch in the
 window. **Current key value** is the default and shows the result after active
 keyd remaps. **Original key value** temporarily pauses keyd and shows the
 physical source key. Switching modes clears the previous capture.
-The switch is also visible when another OMD workflow opens the tool with a
+The switch is also visible when another Sumika Shell workflow opens the tool with a
 preferred mode. Results from the other mode are shown for inspection but are
 not exported back to the calling workflow.
 
@@ -29,9 +29,9 @@ Keyboard Remap edits are a draft until the user presses **Apply changes**.
 
 - Add / Update / Remove / Preset edit
   `~/.config/sumika-shell/keyboard-remap/profiles.json`.
-- Apply renders with `~/.config/omd/share/bin/omarchy-keyboard-render`.
-- Apply installs `/etc/keyd/omd.conf` with `omarchy-keyboard-apply`.
-- UI pending state compares render output with `/etc/keyd/omd.conf`.
+- Apply renders with `$SUMIKA_SHELL_ROOT/share/bin/omarchy-keyboard-render`.
+- Apply installs `/etc/keyd/sumika.conf` with `omarchy-keyboard-apply`.
+- UI pending state compares render output with `/etc/keyd/sumika.conf`.
 
 If a deleted remap still works, the draft has not been applied yet.
 
@@ -79,13 +79,13 @@ hyprctl reload
 Check the keyd draft render:
 
 ```sh
-~/.config/omd/share/bin/omarchy-keyboard-render
+$SUMIKA_SHELL_ROOT/share/bin/omarchy-keyboard-render
 ```
 
 Check installed keyd config:
 
 ```sh
-cat /etc/keyd/omd.conf
+cat /etc/keyd/sumika.conf
 ```
 
 Check Hyprland registered Voice bindings:

@@ -1,6 +1,6 @@
 # Settings Panels
 
-OMD settings use focused, independent panels rather than one control center
+Sumika Shell settings use focused, independent panels rather than one control center
 with a permanent category sidebar. Opening display settings shows only display
 controls; opening power settings shows only power controls.
 
@@ -9,20 +9,20 @@ or widget updates every panel.
 
 ## Runtime model
 
-`bin/omd-settings` cold-starts the `apps/omd-settings` Quickshell process.
+`bin/sumika-settings` cold-starts the `apps/sumika-settings` Quickshell process.
 Only one panel is loaded at a time:
 
 ```sh
-omd-settings open network
-omd-settings open bluetooth
-omd-settings open sound
-omd-settings open display
-omd-settings open appearance
-omd-settings open power
-omd-settings open system
-omd-settings open voice
-omd-settings open keyremap
-omd-settings open windows
+sumika-settings open network
+sumika-settings open bluetooth
+sumika-settings open sound
+sumika-settings open display
+sumika-settings open appearance
+sumika-settings open power
+sumika-settings open system
+sumika-settings open voice
+sumika-settings open keyremap
+sumika-settings open windows
 ```
 
 The process exits when its dialog is dismissed. If it is already running, IPC
@@ -36,14 +36,14 @@ Status-related settings are opened directly from their corresponding bar
 popup. Advanced tools are exposed through the wrench icon in the top bar:
 
 ```text
-OMD Tools
+Sumika Shell Tools
 ├── Themes
 ├── Voice Input
 ├── Keyboard Remap
 └── Windows VM
 ```
 
-The application launcher also exposes a lightweight `OMD Tools` entry. It is
+The application launcher also exposes a lightweight `Sumika Shell Tools` entry. It is
 an entry directory, not a settings center and does not own feature state.
 
 The top-bar implementation is:
@@ -65,7 +65,7 @@ quickshell/modules/settings/
 ├── SettingsTokens.qml          # palette mapped from TuiStyle/OmarchyTheme
 ├── widgets/                    # shared controls
 ├── pages/
-│   ├── OverviewPage.qml        # lightweight OMD Tools launcher
+│   ├── OverviewPage.qml        # lightweight Sumika Shell Tools launcher
 │   ├── NetworkPage.qml         # network and Bluetooth modes
 │   ├── AppearancePage.qml
 │   ├── SoundPage.qml
@@ -115,11 +115,11 @@ button chrome in a feature page when a shared token/widget can express it.
 2. Register it in `pages/qmldir`.
 3. Add its metadata and loader mapping to `SettingsDialog.qml`.
 4. Route the owning bar popup or tool entry to
-   `omd-settings open <panel-key>`.
+   `sumika-settings open <panel-key>`.
 5. Keep visible external-program launches behind
    `settingsRoot.dismiss()`, because the settings surface is layer-shell and
    otherwise remains above normal application windows.
-6. Cold-start the panel and check `/tmp/omd-settings.log`.
+6. Cold-start the panel and check `/tmp/sumika-settings.log`.
 
 ## Window behavior
 
@@ -141,7 +141,7 @@ quickshell/modules/settings/display/
 └── OutputDetailPane.qml
 ```
 
-This is an OMD adaptation of DankMaterialShell's display configuration design.
+This is an Sumika Shell adaptation of DankMaterialShell's display configuration design.
 The parts we intentionally ported are:
 
 - monitor preview canvas
@@ -176,16 +176,16 @@ footer on this page.
 
 The original DMS implementation depends on its Go daemon's
 `WlrOutputService`, `CompositorService`, `SettingsData`, display profiles, and
-multiple compositor backends. OMD does not run that daemon stack. Instead,
-`bin/omd-display-config` uses `wlr-randr`, which is a small client for the same
+multiple compositor backends. Sumika Shell does not run that daemon stack. Instead,
+`bin/sumika-display-config` uses `wlr-randr`, which is a small client for the same
 `wlr-output-management` protocol used by the DMS Go backend:
 
 ```text
 DisplayConfigState.qml
-  -> omd-display-config get
+  -> sumika-display-config get
        -> wlr-randr --json
        -> merge Hyprland focused-output metadata
-  -> omd-display-config apply <complete layout>
+  -> sumika-display-config apply <complete layout>
        -> validate every output and value
        -> wlr-randr --dryrun <complete layout>
        -> wlr-randr <complete layout>
@@ -225,7 +225,7 @@ invariant before its compositor dry run.
 Logical boundaries use the same nearest-integer calculation as Hyprland's
 `CMonitor::m_size`. Scale choices start at 100% and stay on the 25% grid. Each
 choice shows both the familiar UI preset and the clean scale Hyprland can
-actually apply, for example `175% · actual 166.67%`. OMD submits the displayed
+actually apply, for example `175% · actual 166.67%`. Sumika Shell submits the displayed
 actual value and computes monitor attachment from that value, so Hyprland does
 not silently change the scale after positions have already been calculated.
 If Hyprland's bounded search cannot find a clean scale, the preset remains
@@ -262,8 +262,8 @@ The footer uses an edit-session dirty flag: it starts disabled, remains enabled
 after any user edit even when a control is returned to its original value, and
 is cleared only by Apply or Discard. After a verified display transaction, the
 applied values become the new baseline and the settings process runs
-*`omd-restart --quickshell-only`. Display changes invalidate
-layer-shell geometry, so all persistent OMD Quickshell processes are recreated
+*`sumika-restart --quickshell-only`. Display changes invalidate
+layer-shell geometry, so all persistent Sumika Shell Quickshell processes are recreated
 against the new output layout; Hyprland is not reloaded a second time and the
 on-demand settings window is intentionally closed by that reload.
 
@@ -273,7 +273,7 @@ as a fallback instead of allowing it to override the persisted layout during a
 configuration reload.
 
 Keep display draft and canvas logic in `DisplayConfigState.qml`, and keep
-protocol/command validation in `bin/omd-display-config`. Do not add monitor
+protocol/command validation in `bin/sumika-display-config`. Do not add monitor
 layout logic directly to `SettingsDialog.qml`.
 
 Current scope:
@@ -303,7 +303,7 @@ Theme selection lives on the **Appearance** page (merged from the former
 standalone Themes page). It is backed by:
 
 ```text
-bin/omd-settings-theme
+bin/sumika-settings-theme
 ```
 
 That helper is intentionally thin. It lists and applies Omarchy themes while
@@ -330,19 +330,19 @@ or wallpaper preview dependencies to the Themes page.
 Applying a theme calls:
 
 ```sh
-~/.config/omd/bin/omd-settings-theme apply <theme-slug>
+$SUMIKA_SHELL_ROOT/bin/sumika-settings-theme apply <theme-slug>
 ```
 
 Theme switching never changes wallpaper. The helper always calls
 `omarchy-theme-set` with `OMARCHY_THEME_SKIP_BACKGROUND=1`. Wallpaper selection
-is owned by the Appearance page and `bin/omd-wallpaper`.
+is owned by the Appearance page and `bin/sumika-wallpaper`.
 
 ## Windows VM Page
 
 The Windows VM page is backed by:
 
 ```text
-bin/omd-settings-windows-vm
+bin/sumika-settings-windows-vm
 ```
 
 This helper is the Windows VM panel backend for the full VM lifecycle:

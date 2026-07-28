@@ -73,7 +73,7 @@ Singleton {
             : 0;
     }
 
-    // OMD's compact player has no stopped-state controls. A stopped session is
+    // Sumika's compact player has no stopped-state controls. A stopped session is
     // therefore unavailable even if a browser retains old metadata.
     function isIdle(player: MprisPlayer): bool {
         return !player || player.playbackState === MprisPlaybackState.Stopped;

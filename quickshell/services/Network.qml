@@ -22,9 +22,7 @@ Singleton {
     id: root
 
     readonly property string wifiModuleDir: (function() {
-        var root = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        if (root) return root + "/quickshell/modules/wifi"
-        return FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi"
+        return Directories.root + "/quickshell/modules/wifi"
     })()
 
     property bool wifi: true
@@ -702,7 +700,7 @@ Singleton {
 
     Process {
         id: linkDetailsProc
-        command: ["bash", "-c", root.wifiModuleDir + "/bin/omd-network-link-details"]
+        command: ["bash", "-c", root.wifiModuleDir + "/bin/sumika-network-link-details"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {};
@@ -728,7 +726,7 @@ Singleton {
     }
 
     Process {
-        command: ["bash", "-c", root.wifiModuleDir + "/bin/omd-network-diag"]
+        command: ["bash", "-c", root.wifiModuleDir + "/bin/sumika-network-diag"]
         stdout: StdioCollector {
             id: diagCollector
             onStreamFinished: {
@@ -764,7 +762,7 @@ Singleton {
     }
 
     Process {
-        command: ["bash", "-c", root.wifiModuleDir + "/bin/omd-network-firewall"]
+        command: ["bash", "-c", root.wifiModuleDir + "/bin/sumika-network-firewall"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const map = {};

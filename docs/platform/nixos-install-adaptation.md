@@ -1,7 +1,7 @@
 # NixOS Installation and Adaptation Guide
 
 This document describes how to install and adapt **Sumika Shell** on NixOS.
-Technical commands still use the `omd` prefix. Since NixOS handles package
+Technical commands use the `sumika` prefix. Since NixOS handles package
 dependencies, environment paths, and system sessions declaratively, the shell
 requires corresponding declarative changes and hardware adjustments.
 
@@ -18,7 +18,7 @@ In particular:
 Update your configuration with the following:
 ```nix
 environment.systemPackages = with pkgs; [
-  # OMD / Hyprland Core
+  # Sumika Shell / Hyprland Core
   hyprland
   hypridle
   quickshell
@@ -30,7 +30,7 @@ environment.systemPackages = with pkgs; [
 
   # Qt / QML Integration (CRITICAL)
   kdePackages.qtwayland
-  kdePackages.qt5compat      # Provides Qt5Compat.GraphicalEffects (needed for OMD UI)
+  kdePackages.qt5compat      # Provides Qt5Compat.GraphicalEffects (needed for Sumika Shell UI)
   kdePackages.qt6ct
   kdePackages.qtstyleplugin-kvantum
 
@@ -77,7 +77,7 @@ wlr-randr
 ```
 
 ### Step 2: Auto-scaling configuration in `hypr/monitors.lua`
-Rather than hardcoding monitor configurations, OMD dynamically queries connected screens from `/sys/class/drm`, detects native resolutions, and automatically assigns industry-standard scaling factors.
+Rather than hardcoding monitor configurations, Sumika Shell dynamically queries connected screens from `/sys/class/drm`, detects native resolutions, and automatically assigns industry-standard scaling factors.
 
 Here is the logic applied in `hypr/monitors.lua`:
 
@@ -93,7 +93,7 @@ Here is the logic applied in `hypr/monitors.lua`:
 Our `hypr/monitors.lua` automatically resolves these rules and arranges multiple connected screens side-by-side:
 
 ```lua
--- ~\.config\omd\hypr\monitors.lua
+-- $SUMIKA_SHELL_CONFIG_HOME/hypr/monitors.lua
 -- Dynamic Monitor Auto-Scaling Configuration for Hyprland
 
 local function get_connected_monitors()
@@ -190,14 +190,14 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
 
 ---
 
-## 3. Dynamic QML Library Pathing (`omd-path.sh`)
+## 3. Dynamic QML Library Pathing (`sumika-path.sh`)
 
 NixOS installs packages into isolated Nix store paths (`/nix/store/...`), which means standard Qt search paths might not automatically discover modules like `Qt5Compat`. 
 
-To prevent "Type ReloadPopup unavailable" or "module Qt5Compat.GraphicalEffects is not installed" errors, OMD uses `scripts/omd-path.sh` to dynamically query the Nix store for `qt5compat` and prepend it to `QML_IMPORT_PATH` before starting Quickshell services:
+To prevent "Type ReloadPopup unavailable" or "module Qt5Compat.GraphicalEffects is not installed" errors, Sumika Shell uses `scripts/sumika-path.sh` to dynamically query the Nix store for `qt5compat` and prepend it to `QML_IMPORT_PATH` before starting Quickshell services:
 
 ```sh
-# scripts/omd-path.sh
+# scripts/sumika-path.sh
 
 # Ensure Qt5Compat.GraphicalEffects QML module is available for Quickshell.
 _qt5compat_qml=$(find /nix/store -maxdepth 1 -name "*qt5compat*" -type d 2>/dev/null | head -1)
@@ -223,17 +223,17 @@ If you encounter a black screen or missing panels after entering from SDDM:
    ```
 
 2. **Examine the error logs of split services:**
-   OMD logs its individual component startups to `/tmp`:
+   Sumika Shell logs its individual component startups to `/tmp`:
    ```sh
-   tail -n 30 /tmp/omd-bar.log
-   tail -n 30 /tmp/omd-desktop.log
+   tail -n 30 /tmp/sumika-bar.log
+   tail -n 30 /tmp/sumika-desktop.log
    ```
 
 3. **Manually trigger reload:**
    If you made changes to `hypr/monitors.lua` or QuickShell QML files:
    ```sh
    hyprctl reload                         # Reload Hyprland
-   omd-restart                               # Restart all QuickShell panels
+   sumika-restart                               # Restart all QuickShell panels
    ```
 
 ---
@@ -245,7 +245,7 @@ Since keyboard remapping (`keyd`) intercepts kernel evdev keypresses, it require
 To enable keyboard remapping on NixOS and avoid configurations locking up during system activation, follow these steps:
 
 ### Step 1: Declare keyd service and packages in `/etc/nixos/configuration.nix`
-In NixOS, you must enable the daemon service **and** explicitly add `keyd` to your system packages list. This ensures the binary is linked into your global `PATH` (`/run/current-system/sw/bin/keyd`), which OMD scripts depend on:
+In NixOS, you must enable the daemon service **and** explicitly add `keyd` to your system packages list. This ensures the binary is linked into your global `PATH` (`/run/current-system/sw/bin/keyd`), which Sumika Shell scripts depend on:
 
 ```nix
 # 1. Add keyd to your environment.systemPackages block:
@@ -273,7 +273,7 @@ Before rebuilding, run the following commands to create the directories and plac
 ```sh
 # Create keyd folder and dummy configuration file
 sudo mkdir -p /etc/keyd
-sudo touch /etc/keyd/omd.conf
+sudo touch /etc/keyd/sumika.conf
 
 # Ensure keyd system user group exists
 sudo groupadd -r keyd 2>/dev/null || true
@@ -292,7 +292,7 @@ sudo nixos-rebuild switch
 ```
 
 ### Step 4: Shebang Portability Patch
-Since NixOS does not have a physical `/bin/bash` path, OMD shell scripts (which default to `#!/bin/bash` in other distros) must use a portable shebang:
+Since NixOS does not have a physical `/bin/bash` path, Sumika Shell shell scripts (which default to `#!/bin/bash` in other distros) must use a portable shebang:
 `#!/usr/bin/env bash`
 
 The scripts under `share/bin/` related to keyboard mapping:
@@ -303,10 +303,10 @@ The scripts under `share/bin/` related to keyboard mapping:
 Have been patched to `#!/usr/bin/env bash` to run seamlessly on NixOS.
 
 ### Step 5: Install Polkit Rules
-Run the OMD setup helper to allow the desktop environment to update `/etc/keyd/omd.conf` and reload mappings dynamically without prompting for root password:
+Run the Sumika Shell setup helper to allow the desktop environment to update `/etc/keyd/sumika.conf` and reload mappings dynamically without prompting for root password:
 ```sh
-# Set up OMD Polkit rules for keyd
-bash ~/.config/omd/share/bin/omarchy-keyboard-setup
+# Set up Sumika Shell Polkit rules for keyd
+bash $SUMIKA_SHELL_ROOT/share/bin/omarchy-keyboard-setup
 ```
 
 If you ever run the apply script manually from the terminal under `sudo`, the script will automatically resolve your original non-root home directory (resolving `$SUDO_USER` instead of `$HOME` which defaults to `/root`), preventing path resolution bugs.
@@ -417,8 +417,8 @@ To prevent system activation lockups on clean installs where `/etc/keyd` is miss
   systemd.services.keyd = {
     preStart = ''
       mkdir -p /etc/keyd
-      if [ ! -f /etc/keyd/omd.conf ]; then
-        echo "# Placeholder config" > /etc/keyd/omd.conf
+      if [ ! -f /etc/keyd/sumika.conf ]; then
+        echo "# Placeholder config" > /etc/keyd/sumika.conf
       fi
     '';
     serviceConfig = {

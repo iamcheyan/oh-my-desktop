@@ -1,16 +1,22 @@
 import importlib.util
 import importlib.machinery
 import os
+import sys
 import threading
 import time
 import unittest
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EXTENSIONS = os.environ.get(
+    "SUMIKA_SHELL_EXTENSIONS_DIR",
+    os.path.expanduser("~/.local/share/sumika-shell/extensions"),
+)
+sys.path.insert(0, os.path.join(ROOT, "bin"))
 
 
 def load_script(name, relative_path):
-    path = os.path.join(ROOT, relative_path)
+    path = relative_path if os.path.isabs(relative_path) else os.path.join(ROOT, relative_path)
     loader = importlib.machinery.SourceFileLoader(name, path)
     spec = importlib.util.spec_from_loader(name, loader)
     module = importlib.util.module_from_spec(spec)
@@ -18,7 +24,7 @@ def load_script(name, relative_path):
     return module
 
 
-S = load_script("omd_tui_framework_test", "bin/omd_tui_framework.py")
+S = load_script("sumika_tui_framework_test", "bin/sumika_tui_framework.py")
 
 
 class SharedRuntimeTests(unittest.TestCase):
@@ -30,8 +36,8 @@ class SharedRuntimeTests(unittest.TestCase):
 
     def test_unknown_hero_tone_has_a_safe_fallback(self):
         hero = S.hero_line("Voice Input", "Idle", "muted", message="ready")
-        self.assertEqual(hero[4], " ready")
-        self.assertIsInstance(hero[5], int)
+        self.assertEqual(hero[2], " ready")
+        self.assertIsInstance(hero[3], int)
 
     def test_command_captures_stderr_and_exit_status(self):
         lines, error = S.run_cmd(
@@ -64,10 +70,22 @@ class SharedRuntimeTests(unittest.TestCase):
 class PageRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.keyboard = load_script(
-            "omd_settings_keyboard_test", "bin/omd-settings-keyboard-tui"
+        keyboard_path = os.path.join(
+            EXTENSIONS, "keyboard-remap/bin/sumika-settings-keyboard-tui"
         )
-        cls.vm = load_script("omd_settings_vm_test", "bin/omd-settings-vm-tui")
+        vm_path = os.path.join(
+            EXTENSIONS, "windows-vm/bin/sumika-settings-vm-tui"
+        )
+        if not os.path.exists(keyboard_path) or not os.path.exists(vm_path):
+            raise unittest.SkipTest("canonical Sumika extension binaries are not installed")
+        cls.keyboard = load_script(
+            "sumika_settings_keyboard_test",
+            keyboard_path,
+        )
+        cls.vm = load_script(
+            "sumika_settings_vm_test",
+            vm_path,
+        )
 
     def test_keyboard_suffix_removal_is_exact(self):
         model = self.keyboard.Model.__new__(self.keyboard.Model)
@@ -90,7 +108,7 @@ class PageRegressionTests(unittest.TestCase):
         finally:
             self.vm.S.run_cmd_bg = original
         self.assertEqual(
-            captured[0][:3], ("omd-settings-windows-vm", "remove", "--yes")
+            captured[0][:3], ("sumika-settings-windows-vm", "remove", "--yes")
         )
 
 

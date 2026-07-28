@@ -1,6 +1,9 @@
 import QtQuick
 
+import qs
 import qs.core.runtime
+import qs.modules.common
+import qs.modules.common.functions
 import Quickshell
 
 /// WiFi action registrations.
@@ -9,13 +12,8 @@ import Quickshell
 /// Loaded by ModuleActionHost when the wifi module is enabled.
 Item {
     Component.onCompleted: {
-        var omdRoot = Quickshell.env("OMD_REPO_ROOT") || ""
-        var wifiBin
-        if (omdRoot) {
-            wifiBin = omdRoot + "/quickshell/modules/wifi/bin/omd-launch-wifi"
-        } else {
-            wifiBin = FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi/bin/omd-launch-wifi"
-        }
+        var sumikaRoot = FileUtils.trimFileProtocol(Directories.root)
+        var wifiBin = sumikaRoot + "/quickshell/modules/wifi/bin/sumika-launch-wifi"
 
         ActionManager.register("wifi.launch", "wifi", "Open WiFi manager", {
             type: "process",

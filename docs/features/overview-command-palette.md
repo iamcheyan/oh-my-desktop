@@ -1,6 +1,6 @@
 # Overview Command Palette
 
-The workspace Overview is OMD's primary navigation surface. Its command
+The workspace Overview is Sumika Shell's primary navigation surface. Its command
 palette keeps workspace navigation, application launching, window lookup, and
 emergency terminal access in one keyboard-first entry point.
 
@@ -44,7 +44,7 @@ A query beginning with `>` is a terminal command:
 > journalctl --user -f
 ```
 
-The command opens in `xdg-terminal-exec --hold` through `bin/omd-detach`.
+The command opens in `xdg-terminal-exec --hold` through `bin/sumika-detach`.
 Consequently the terminal is interactive, displays failures, survives the
 Overview closing, and is not tied to the Overview process cgroup. Commands are
 never inferred from ordinary search text; the `>` prefix is required.
@@ -59,9 +59,9 @@ The button to the right of the search field contains:
 - Reload Shell
 
 The first three actions call the `session confirm` IPC exposed by
-`apps/omd-bar/shell.qml`. The bar process owns `SessionConfirmOverlay`, so all
+`apps/sumika-bar/shell.qml`. The bar process owns `SessionConfirmOverlay`, so all
 entry points reuse the same confirmation and optional session-save behavior.
-*Reload Shell calls `omd-restart` directly after closing Overview.
+*Reload Shell calls `sumika-restart` directly after closing Overview.
 
 ## Files
 
@@ -69,7 +69,7 @@ entry points reuse the same confirmation and optional session-save behavior.
 - `quickshell/modules/overview/OverviewSearch.qml`: palette UI and providers
 - `quickshell/services/AppSearch.qml`: application search and launch
 - `quickshell/modules/common/functions/WorkspaceNavigation.qml`: window focus
-- `apps/omd-bar/shell.qml`: cross-process session confirmation IPC
+- `apps/sumika-bar/shell.qml`: cross-process session confirmation IPC
 
 ## Extension Direction
 

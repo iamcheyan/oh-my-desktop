@@ -1,20 +1,18 @@
 import QtQuick
+import qs
 import qs.core.runtime
+import qs.modules.common
+import qs.modules.common.functions
 import Quickshell
 
 /// Registers process actions for the built-in application launcher.
 /// Loaded by ModuleActionHost when the launcher module is enabled.
 Item {
     Component.onCompleted: {
-        var omdRoot = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        var cmd
-        if (omdRoot) {
-            cmd = [omdRoot + "/bin/omd-applauncher"]
-        } else {
-            cmd = ["omd-applauncher"]
-        }
+        var sumikaRoot = FileUtils.trimFileProtocol(Directories.root)
+        var cmd = [sumikaRoot + "/bin/sumika-applauncher"]
 
-        // Keep stable action IDs used by Hyprland bindings (omd-action app-launcher.toggle).
+        // Keep stable action IDs used by Hyprland bindings (sumika-action app-launcher.toggle).
         ActionManager.register("app-launcher.toggle", "launcher", "Toggle app launcher", {
             type: "process",
             command: cmd

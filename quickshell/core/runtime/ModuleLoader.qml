@@ -145,16 +145,16 @@ Singleton {
     }
 
     /// Reactively sync desktop launchers when module enablement changes.
-    /// Delegates to bin/omd-sync-launchers (declarative .desktop lifecycle).
+    /// Delegates to bin/sumika-sync-launchers (declarative .desktop lifecycle).
     readonly property var _disabledModules: Config.options.modules?.disabled ?? []
     on_DisabledModulesChanged: loader.syncLaunchers()
     readonly property bool _modulesEnabled: Config.options.modules?.enabled !== false
     on_ModulesEnabledChanged: loader.syncLaunchers()
 
     function syncLaunchers() {
-        const bin = Quickshell.env("OMD_REPO_ROOT")
+        const bin = Directories.root
         if (!bin) return
-        Quickshell.execDetached([bin + "/bin/omd-sync-launchers", "--quiet"])
+        Quickshell.execDetached([bin + "/bin/sumika-sync-launchers", "--quiet"])
     }
 
     /// Resolve a module's absolute directory path from the registry.

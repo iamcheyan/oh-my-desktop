@@ -1,18 +1,13 @@
 -- Learn how to configure Hyprland: https://wiki.hypr.land/Configuring/Start/
 
--- Load OMD / Sumika Shell Hyprland modules from the repository.
+-- Load Sumika Shell Hyprland modules from the repository.
 -- Repository root resolution order:
 --   1. SUMIKA_SHELL_ROOT env var (set by updated session wrapper)
---   2. OMD_ROOT env var, with symlinks resolved
---   3. This file's own location (works even if both env vars are stale)
---   4. ~/.config/sumika-shell fallback
+--   2. This file's own location
+--   3. explicit failure sentinel
 local function resolve_root()
-  -- Try env vars first
   local env_root = os.getenv("SUMIKA_SHELL_ROOT")
-  if not env_root or env_root == "" then
-    env_root = os.getenv("OMD_ROOT") or (os.getenv("HOME") .. "/.config/sumika-shell")
-  end
-  -- Resolve symlinks (works when the symlink still exists)
+  -- Resolve symlinks when a session wrapper supplied the root.
   if env_root and env_root ~= "" then
     local pipe = io.popen("readlink -f '" .. env_root .. "' 2>/dev/null")
     if pipe then
@@ -38,18 +33,18 @@ local function resolve_root()
     end
   end
   -- Last resort: raw env var even if unresolvable
-  return env_root or (os.getenv("HOME") .. "/.config/sumika-shell")
+  return env_root or "/dev/null/SUMIKA_SHELL_ROOT_UNSET"
 end
 
-local omd_root = resolve_root()
+local sumika_root = resolve_root()
 
-package.path = omd_root
+package.path = sumika_root
   .. "/hypr/?.lua;"
-  .. omd_root
+  .. sumika_root
   .. "/?.lua;"
   .. package.path
 
--- OMD's current base layer is copied from the old Omarchy Hyprland defaults
+-- Sumika Shell's current base layer is copied from the old Omarchy Hyprland defaults
 -- and is trimmed/migrated in this repo instead of being loaded from ~/.local/share.
 require("default.hypr.base")
 
@@ -57,7 +52,7 @@ require("default.hypr.base")
 -- Monitor layouts are machine-local state and may change while Hyprland is
 -- running. Load this file on every config reload instead of caching it through
 -- require().
-dofile(omd_root .. "/hypr/monitors.lua")
+dofile(sumika_root .. "/hypr/monitors.lua")
 require("input")
 require("bindings")
 require("looknfeel")
@@ -81,7 +76,7 @@ end
 require("default.hypr.toggles")
 
 do
-  local rules = io.open(omd_root .. "/hypr/window_rules.lua", "r")
+  local rules = io.open(sumika_root .. "/hypr/window_rules.lua", "r")
   if rules then
     rules:close()
     require("window_rules")

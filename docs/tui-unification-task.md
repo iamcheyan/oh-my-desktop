@@ -2,7 +2,7 @@
 
 ## 背景
 
-OMD 项目有一个共享 TUI 核心库 `bin/omd_tui_framework.py`，所有 curses TUI 程序都应该从中 import 并使用其统一的事件循环、渲染原语和布局工具。
+Sumika Shell 项目有一个共享 TUI 核心库 `bin/sumika_tui_framework.py`，所有 curses TUI 程序都应该从中 import 并使用其统一的事件循环、渲染原语和布局工具。
 
 目前 8 个 TUI 程序中，6 个已经迁移到统一的 `S.run_tui_loop` 架构，剩余 2 个（wifi-tui 和 bluetooth-tui）仍在使用自定义事件循环。本任务将这两个 TUI 迁移到统一架构。
 
@@ -14,23 +14,23 @@ OMD 项目有一个共享 TUI 核心库 `bin/omd_tui_framework.py`，所有 curs
 
 | TUI | 位置 | 架构 |
 |---|---|---|
-| wallpaper-tui | `quickshell/modules/settings/bin/omd-settings-wallpaper-tui` | `S.run_tui_loop` + 单栏堆叠 |
-| ocr-tui | `~/.local/share/sumika-shell/extensions/screenshot/bin/omd-ocr-tui` | `S.run_tui_loop` + `refresh_callback` + 单栏堆叠 |
-| voice-tui | `~/.local/share/sumika-shell/extensions/voice/bin/omd-settings-voice-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
-| vm-tui | `~/.local/share/sumika-shell/extensions/windows-vm/bin/omd-settings-vm-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
-| keyboard-tui | `~/.local/share/sumika-shell/extensions/keyboard-remap/bin/omd-settings-keyboard-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
-| backup-tui | `~/.local/share/sumika-shell/extensions/file-backup/bin/omd-settings-backup-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
+| wallpaper-tui | `quickshell/modules/settings/bin/sumika-settings-wallpaper-tui` | `S.run_tui_loop` + 单栏堆叠 |
+| ocr-tui | `~/.local/share/sumika-shell/extensions/screenshot/bin/sumika-ocr-tui` | `S.run_tui_loop` + `refresh_callback` + 单栏堆叠 |
+| voice-tui | `~/.local/share/sumika-shell/extensions/voice/bin/sumika-settings-voice-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
+| vm-tui | `~/.local/share/sumika-shell/extensions/windows-vm/bin/sumika-settings-vm-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
+| keyboard-tui | `~/.local/share/sumika-shell/extensions/keyboard-remap/bin/sumika-settings-keyboard-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
+| backup-tui | `~/.local/share/sumika-shell/extensions/file-backup/bin/sumika-settings-backup-tui` | `S.run_tui_loop` + `S.Layout` 双栏 |
 
 ### 需要迁移的 TUI
 
 | TUI | 位置 | 行数 | 问题 |
 |---|---|---|---|
-| wifi-tui | `quickshell/modules/wifi/bin/omd-wifi-tui` | ~1023 | 自定义事件循环、无鼠标支持、已用 `S.require_terminal_size`（尺寸检查已统一） |
-| bluetooth-tui | `quickshell/modules/wifi/bin/omd-bluetooth-tui` | ~1344 | 自定义事件循环、无鼠标支持、已用 `S.require_terminal_size`（尺寸检查已统一） |
+| wifi-tui | `quickshell/modules/wifi/bin/sumika-wifi-tui` | ~1023 | 自定义事件循环、无鼠标支持、已用 `S.require_terminal_size`（尺寸检查已统一） |
+| bluetooth-tui | `quickshell/modules/wifi/bin/sumika-bluetooth-tui` | ~1344 | 自定义事件循环、无鼠标支持、已用 `S.require_terminal_size`（尺寸检查已统一） |
 
 ## 核心库 API 参考
 
-`bin/omd_tui_framework.py` 提供的关键 API（import as `S`）：
+`bin/sumika_tui_framework.py` 提供的关键 API（import as `S`）：
 
 ### 事件循环
 
@@ -140,7 +140,7 @@ S.scroll_key(key, scroll_offset, visible_count, total_count)  # 滚动处理
 
 ### 文件位置
 
-`quickshell/modules/wifi/bin/omd-wifi-tui`
+`quickshell/modules/wifi/bin/sumika-wifi-tui`
 
 ### 当前架构（需要替换的部分）
 
@@ -325,10 +325,10 @@ def _bootstrap(stdscr):
 
 ```bash
 # 语法检查
-python3 -c "import py_compile; py_compile.compile('quickshell/modules/wifi/bin/omd-wifi-tui', doraise=True)"
+python3 -c "import py_compile; py_compile.compile('quickshell/modules/wifi/bin/sumika-wifi-tui', doraise=True)"
 
 # 功能测试（在终端里运行）
-python3 quickshell/modules/wifi/bin/omd-wifi-tui
+python3 quickshell/modules/wifi/bin/sumika-wifi-tui
 # 测试：j/k 导航、Tab 切换 section、Enter 连接、s 扫描、q 退出
 ```
 
@@ -338,7 +338,7 @@ python3 quickshell/modules/wifi/bin/omd-wifi-tui
 
 ### 文件位置
 
-`quickshell/modules/wifi/bin/omd-bluetooth-tui`
+`quickshell/modules/wifi/bin/sumika-bluetooth-tui`
 
 ### 当前架构
 
@@ -622,8 +622,8 @@ ManagedPopupWindow {
 
 ## 验收标准
 
-1. `quickshell/modules/wifi/bin/omd-wifi-tui` 使用 `S.run_tui_loop`，不再有 `WiFiTUI` 类、`_init_curses`、`_cleanup`、`while not _quit` 循环
-2. `quickshell/modules/wifi/bin/omd-bluetooth-tui` 同上
+1. `quickshell/modules/wifi/bin/sumika-wifi-tui` 使用 `S.run_tui_loop`，不再有 `WiFiTUI` 类、`_init_curses`、`_cleanup`、`while not _quit` 循环
+2. `quickshell/modules/wifi/bin/sumika-bluetooth-tui` 同上
 3. 两个 TUI 保留所有原有功能（WiFi 连接/断开/忘记/扫描、蓝牙配对/取消配对/PIN 码）
 4. 两个 TUI 获得鼠标支持（`run_tui_loop` 自动启用）
 5. `ManagedPopupWindow.qml` 创建，`ContextMenuWindow.qml` 和 `VoiceModelStatusPopup.qml` 都继承它
@@ -637,4 +637,4 @@ ManagedPopupWindow {
 - **不要动密码/PIN 输入框逻辑**：只改方法签名和引用方式
 - **保留 `threading.Thread` 模式**：`_run_bg` 不迁移到 `S.run_cmd_bg`（它包装的是 Python 函数不是命令行）
 - **每改一个文件就做语法检查**：`python3 -c "import py_compile; py_compile.compile('path', doraise=True)"`
-- **改完后重启 bar 验证**：`~/development/OMD/bin/omd-restart --quickshell-only`，检查 `/tmp/omd-bar.log` 无错误
+- **改完后重启 bar 验证**：`~/development/OMD/bin/sumika-restart --quickshell-only`，检查 `/tmp/sumika-bar.log` 无错误

@@ -1,6 +1,6 @@
 # lib/config.sh — Read values from sumika.json
 #
-# Source this file: . "$(_omd_root)/lib/config.sh"
+# Source this file: . "$(_sumika_root)/lib/config.sh"
 # Requires jq to read values.
 
 _sumika_config_read() {

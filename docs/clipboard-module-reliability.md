@@ -12,7 +12,7 @@ discovery, process supervision, IPC, and the shared UI/runtime APIs.
 
 The extension must remain optional: when it is disabled or absent, the core
 shell must still start. When it is enabled, its store process is an
-application module supervised by `omd-clipboard-store.service`.
+application module supervised by `sumika-clipboard-store.service`.
 
 ## Data Flow
 
@@ -23,7 +23,7 @@ Wayland clipboard owner
 one wl-paste --watch process
         |
         v
-omd-clipboard-store-event
+sumika-clipboard-store-event
   1. settle MIME types
   2. read image/* or text payload
   3. reject empty/generated-path payloads
@@ -49,7 +49,7 @@ unavailable, the event is ignored. Unknown binary data must never be read via
 the text protocol and stored as text.
 
 Text is stored only when the offer has a non-empty MIME list and contains a
-visible character. Entries containing `/tmp/omd-clip-` are generated paste
+visible character. Entries containing `/tmp/sumika-clip-` are generated paste
 transport payloads and are intentionally ignored to prevent feedback loops.
 
 ### Deduplication
@@ -67,7 +67,7 @@ The state directory is mode `0700` and is not part of the repository.
 
 ### Process lifecycle
 
-`omd-clipboard-store` supports:
+`sumika-clipboard-store` supports:
 
 ```text
 status   report the managed PID or missing dependencies
@@ -78,7 +78,7 @@ repair   ensure a supervised daemon exists
 ```
 
 `repair` first keeps an existing managed systemd unit, then restarts it when
-possible, and can create an `omd-clipboard-store` transient user unit when the
+possible, and can create an `sumika-clipboard-store` transient user unit when the
 registry has not started one yet. The unit uses `Restart=on-failure` and
 `KillMode=mixed`.
 
@@ -100,12 +100,12 @@ never make the storage callback fail.
 
 ## Paste Paths
 
-`bin/omd-clipboard-paste` is the single entry point for image-path and smart
+`bin/sumika-clipboard-paste` is the single entry point for image-path and smart
 paste operations. It decodes one history entry and uses
-`omd-paste-at-cursor` for the actual target-window paste.
+`sumika-paste-at-cursor` for the actual target-window paste.
 
 - Normal text: restore decoded data to the clipboard and paste once.
-- Smart paste to a terminal: write an image to `/tmp/omd-clip-<timestamp>.<ext>`,
+- Smart paste to a terminal: write an image to `/tmp/sumika-clip-<timestamp>.<ext>`,
   put the path in the clipboard, and paste the path once.
 - Smart paste to a GUI application: keep an image as an image.
 - Explicit “paste image as path”: always use path conversion.
@@ -118,8 +118,8 @@ deliberately separate from the clipboard storage watcher.
 When the module is enabled, these checks should pass:
 
 ```sh
-omd-clipboard-store status
-systemctl --user is-active omd-clipboard-store.service
+sumika-clipboard-store status
+systemctl --user is-active sumika-clipboard-store.service
 pgrep -af 'wl-paste --watch'
 ```
 
@@ -127,7 +127,7 @@ There should be one store process and one clipboard watcher. If the service is
 missing or stopped, invoke:
 
 ```sh
-omd-clipboard-store repair
+sumika-clipboard-store repair
 ```
 
 The normal shell reload path also stops the old daemon through the module
@@ -139,10 +139,10 @@ protocol and starts the registry application again.
 
 ```sh
 bash -n \
-  clipboard/bin/omd-clipboard \
-  clipboard/bin/omd-clipboard-store \
-  clipboard/bin/omd-clipboard-store-event \
-  clipboard/bin/omd-clipboard-paste
+  clipboard/bin/sumika-clipboard \
+  clipboard/bin/sumika-clipboard-store \
+  clipboard/bin/sumika-clipboard-store-event \
+  clipboard/bin/sumika-clipboard-paste
 ```
 
 ### Runtime

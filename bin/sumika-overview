@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+. "$repo_root/lib/paths.sh"
+
+app_dir="$repo_root/quickshell/modules/overview"
+
+if [ ! -d "$app_dir" ]; then
+    printf 'sumika-overview: overview module not found at %s\n' "$app_dir" >&2
+    exit 1
+fi
+
+exec "$app_dir/bin/sumika-overview" "$@"

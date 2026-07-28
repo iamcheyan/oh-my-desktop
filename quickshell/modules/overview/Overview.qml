@@ -86,6 +86,36 @@ Scope {
         return WorkspaceNavigation.currentWorkspaceId();
     }
 
+    // Numeric workspace shortcuts address global visual slots, not raw
+    // Hyprland IDs. Use the same monitor-grouped model rendered by Overview so
+    // numbering continues across monitors and every trailing slot keeps the
+    // exact reserved ID shown on screen.
+    function focusWorkspaceSlot(slot) {
+        if (slot < 1)
+            return;
+
+        let entries = ServiceManager.workspace.overviewWorkspaceEntries ?? [];
+        if (entries.length === 0)
+            entries = ServiceManager.workspace.overviewWorkspaceEntriesGlobal();
+
+        const entry = entries[slot - 1];
+        if (!entry)
+            return;
+
+        GlobalStates.superReleaseMightTrigger = false;
+        GlobalStates.overviewOpen = false;
+
+        if ((entry.monitorName ?? "").length > 0)
+            Hyprland.dispatch(`hl.dsp.focus({monitor="${entry.monitorName}"})`);
+
+        Hyprland.dispatch(`hl.dsp.focus({ workspace = ${entry.id} })`);
+        if (entry.isTrailingEmpty && !entry.existingWorkspace && (entry.monitorName ?? "").length > 0)
+            Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${entry.id}", monitor = "${entry.monitorName}" })`);
+
+        if (!entry.isTrailingEmpty && ServiceManager.workspace.workspaceHasVisibleWindows(entry.id))
+            GlobalStates.promoteWorkspaceMru(entry.id);
+    }
+
     Connections {
         target: Hyprland
         function onFocusedMonitorChanged() {
@@ -532,5 +562,56 @@ Scope {
             GlobalStates.superReleaseMightTrigger = false;
             overviewScope.commitGrabbedMode()
         }
+    }
+
+    GlobalShortcut {
+        name: "workspaceSlot1"
+        description: "Focus Overview workspace slot 1"
+        onPressed: overviewScope.focusWorkspaceSlot(1)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot2"
+        description: "Focus Overview workspace slot 2"
+        onPressed: overviewScope.focusWorkspaceSlot(2)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot3"
+        description: "Focus Overview workspace slot 3"
+        onPressed: overviewScope.focusWorkspaceSlot(3)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot4"
+        description: "Focus Overview workspace slot 4"
+        onPressed: overviewScope.focusWorkspaceSlot(4)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot5"
+        description: "Focus Overview workspace slot 5"
+        onPressed: overviewScope.focusWorkspaceSlot(5)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot6"
+        description: "Focus Overview workspace slot 6"
+        onPressed: overviewScope.focusWorkspaceSlot(6)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot7"
+        description: "Focus Overview workspace slot 7"
+        onPressed: overviewScope.focusWorkspaceSlot(7)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot8"
+        description: "Focus Overview workspace slot 8"
+        onPressed: overviewScope.focusWorkspaceSlot(8)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot9"
+        description: "Focus Overview workspace slot 9"
+        onPressed: overviewScope.focusWorkspaceSlot(9)
+    }
+    GlobalShortcut {
+        name: "workspaceSlot10"
+        description: "Focus Overview workspace slot 10"
+        onPressed: overviewScope.focusWorkspaceSlot(10)
     }
 }

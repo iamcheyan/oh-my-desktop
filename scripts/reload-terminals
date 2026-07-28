@@ -1,6 +1,6 @@
 #!/bin/sh
 # Live-reload terminal colors after a theme switch.
-# Triggered by omd-settings-theme's refresh_running_apps().
+# Triggered by sumika-settings-theme's refresh_running_apps().
 
 set -eu
 
@@ -37,7 +37,7 @@ reload_kitty() {
 }
 
 reload_ghostty() {
-    # Ghostty documents runtime reload via app/menu/keybind; the current OMD
+    # Ghostty documents runtime reload via app/menu/keybind; the current Sumika Shell
     # theme helper used SIGUSR2, so keep it as a best-effort compatibility path.
     if pgrep -x ghostty >/dev/null 2>&1; then
         pkill -SIGUSR2 -x ghostty >/dev/null 2>&1 || true

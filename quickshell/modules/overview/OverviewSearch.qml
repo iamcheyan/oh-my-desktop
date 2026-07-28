@@ -91,12 +91,12 @@ Item {
     function executeCommand() {
         if (commandText.length === 0)
             return;
-        const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
+        const detach = FileUtils.trimFileProtocol(`${Directories.root}/bin/sumika-detach`);
         Quickshell.execDetached([
             detach,
             "xdg-terminal-exec",
-            "--app-id=org.omd.overview-command",
-            "--title=OMD Command",
+            "--app-id=io.github.iamcheyan.sumika.overviewcommand",
+            "--title=Sumika Command",
             "--hold",
             "-e",
             "bash",
@@ -109,7 +109,7 @@ Item {
     function requestSessionAction(action, label) {
         menuOpen = false;
         GlobalStates.overviewOpen = false;
-        const barApp = FileUtils.trimFileProtocol(`${Directories.root}/apps/omd-bar`);
+        const barApp = FileUtils.trimFileProtocol(`${Directories.root}/apps/sumika-bar`);
         Quickshell.execDetached([
             "qs", "-p", barApp, "ipc", "call", "session", "confirm", action, label
         ]);
@@ -119,7 +119,7 @@ Item {
         menuOpen = false;
         GlobalStates.overviewOpen = false;
         Quickshell.execDetached([
-            `${Directories.root}/bin/omd-restart`
+            `${Directories.root}/bin/sumika-restart`
         ]);
     }
 

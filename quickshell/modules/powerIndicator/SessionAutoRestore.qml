@@ -11,7 +11,7 @@ import Quickshell.Io
 Scope {
     id: root
 
-    readonly property string sessionCommand: Directories.root + "/bin/omd-session"
+    readonly property string sessionCommand: Directories.root + "/bin/sumika-session"
     property int expectedCount: 0
     property int expectedMonitorCount: 0
     property int monitorReadyAttempts: 0

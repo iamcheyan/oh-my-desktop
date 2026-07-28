@@ -1,5 +1,5 @@
 #!/bin/bash
 
-# OMD compatibility implementation for omd-wake.
+# Sumika Shell implementation for session wake.
 # Brightness gamma module not available in single-repo architecture.
 exit 0

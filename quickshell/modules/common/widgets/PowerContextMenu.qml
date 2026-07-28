@@ -26,7 +26,7 @@ ContextMenuWindow {
         labelText: "Save Snapshot"
         onClicked: {
             root.close();
-            Quickshell.execDetached([`${Directories.root}/bin/omd-session`, "save"]);
+            Quickshell.execDetached([`${Directories.root}/bin/sumika-session`, "save"]);
         }
     }
 
@@ -42,7 +42,7 @@ ContextMenuWindow {
                 `clients=$(hyprctl -j clients | jq 'length') && ` +
                 `if [ "$clients" -gt 0 ]; then ` +
                 `echo "Workspace not empty ($clients windows) — restore cancelled"; ` +
-                `else ${Directories.root}/bin/omd-session restore; fi`
+                `else ${Directories.root}/bin/sumika-session restore; fi`
             ]);
         }
     }
@@ -97,7 +97,7 @@ ContextMenuWindow {
         labelText: "Reload Shell"
         onClicked: {
             root.close();
-            Quickshell.execDetached(["bash", `${Directories.root}/bin/omd-restart`]);
+            Quickshell.execDetached(["bash", `${Directories.root}/bin/sumika-restart`]);
         }
     }
 }

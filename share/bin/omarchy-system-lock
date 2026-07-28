@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# OMD compatibility implementation for omd-lock.
+# Sumika Shell lock implementation.
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
@@ -11,9 +11,9 @@ if pgrep -x "1password" >/dev/null; then
 fi
 
 # Avoid running screensaver when locked
-pkill -f org.omd.screensaver
+pkill -f io.github.iamcheyan.sumika.screensaver
 
-if [[ ${OMD_LOCK_ONLY:-false} != "true" ]]; then
+if [[ ${SUMIKA_LOCK_ONLY:-false} != "true" ]]; then
   (
     sleep 3
     # Wait for lock screen to be active

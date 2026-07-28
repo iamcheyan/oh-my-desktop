@@ -12,11 +12,8 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string omdBinDir: (function() {
-        var root = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        if (root) return root + "/quickshell/modules/wifi/bin"
-        return FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi/bin"
-    })()
+    readonly property string sumikaBinDir:
+        FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/wifi/bin"
     property bool actionRunning: bluetoothActionProc.running
     property string actionDeviceName: ""
     property string actionAddress: ""
@@ -116,7 +113,7 @@ Singleton {
             Bluetooth.defaultAdapter.enabled = true;
 
         bluetoothActionProc.running = false;
-        bluetoothActionProc.command = [`${root.omdBinDir}/omd-bluetooth-connect`, address, action];
+        bluetoothActionProc.command = [`${root.sumikaBinDir}/sumika-bluetooth-connect`, address, action];
         bluetoothActionProc.running = true;
     }
 
@@ -139,7 +136,7 @@ Singleton {
         running: false
         stdout: SplitParser {
             onRead: line => {
-                if (!line.startsWith("OMD_BT\t"))
+                if (!line.startsWith("SUMIKA_BT\t"))
                     return;
                 const parts = line.split("\t");
                 const kind = parts[1] || "";

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Audio volume control for the Sumika bar OSD. Called from ActionManager.
+# MPRIS playback control is available through --playerctl.
+
+_sumika_root="${SUMIKA_SHELL_ROOT:-}"
+if [[ -z "$_sumika_root" ]]; then
+  _sumika_root="$(cd -- "$(dirname "$0")/../../../.." 2>/dev/null && pwd)" || true
+fi
+if [[ -z "$_sumika_root" ]] || [[ ! -d "$_sumika_root/quickshell" ]]; then
+  echo "sumika-swayosd-client: cannot resolve Sumika Shell root (set SUMIKA_SHELL_ROOT)" >&2
+  exit 1
+fi
+
+# shellcheck source=../../../../lib/paths.sh
+. "$_sumika_root/lib/paths.sh"
+notify_volume_osd() {
+  "${SUMIKA_QS_BIN:-qs}" -p "$SUMIKA_SHELL_ROOT/apps/sumika-bar" ipc call osdVolume trigger >/dev/null 2>&1 || true
+}
+case "${1:-}" in
+  --output-volume)
+    case "${2:-}" in
+      raise)       wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+ ;;
+      lower)       wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- ;;
+      mute-toggle) wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle ;;
+      +[0-9]*)     wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ "${2#+}%+" ;;
+      -[0-9]*)     wpctl set-volume @DEFAULT_AUDIO_SINK@ "${2#-}%-" ;;
+      *)
+        echo "unsupported output-volume action: ${2:-}" >&2
+        exit 2
+        ;;
+    esac
+    notify_volume_osd
+    ;;
+  --playerctl)
+    exec playerctl "${2:?missing playerctl action}"
+    ;;
+  *)
+    echo "usage: sumika-swayosd-client --output-volume <raise|lower|mute-toggle|+N|-N>" >&2
+    echo "       sumika-swayosd-client --playerctl <action>" >&2
+    exit 2
+    ;;
+esac

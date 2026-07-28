@@ -61,7 +61,7 @@ Singleton {
         if (!desktopEntry || !desktopEntry.command || desktopEntry.command.length === 0)
             return false;
 
-        const detach = FileUtils.trimFileProtocol(`${Directories.config}/omd/bin/omd-detach`);
+        const detach = FileUtils.trimFileProtocol(`${Directories.root}/bin/sumika-detach`);
         const cmd = desktopEntry.command;
         const program = cmd[0];
         const args = [];

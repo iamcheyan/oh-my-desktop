@@ -15,7 +15,7 @@ Singleton {
     id: root
 
     readonly property string cacheDir: FileUtils.trimFileProtocol(
-        `${Directories.genericCache}/omd/media-art`)
+        `${Directories.genericCache}/sumika-shell/media-art`)
     property MprisPlayer activePlayer: MprisController.activePlayer
     property string requestedUrl: ""
     property string resolvedArtUrl: ""

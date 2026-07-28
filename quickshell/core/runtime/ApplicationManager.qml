@@ -79,7 +79,7 @@ Singleton {
             }
 
             const entry = mod.entry
-            const instanceId = entry.instance || ("omd-" + mod.id)
+            const instanceId = entry.instance || ("sumika-" + mod.id)
 
             ProcessSupervisor.register(mod.id, instanceId, entry.command, {
                 readyTimeout: entry.readyTimeout || 10,

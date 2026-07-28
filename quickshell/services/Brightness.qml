@@ -103,14 +103,12 @@ Singleton {
     }
 
     readonly property string displayModuleDir: (function() {
-        var root = Quickshell.env("OMD_REPO_ROOT") || Quickshell.env("OMD_ROOT") || ""
-        if (root) return root + "/quickshell/modules/display"
         return FileUtils.trimFileProtocol(Directories.root) + "/quickshell/modules/display"
     })()
 
     Process {
         id: ddcProc
-        command: [root.displayModuleDir + "/bin/omd-ddc-detect"]
+        command: [root.displayModuleDir + "/bin/sumika-ddc-detect"]
         stdout: SplitParser {
             splitMarker: "\n\n"
             onRead: data => {

@@ -31,11 +31,11 @@ Singleton {
     }
 
     function withOptionalSessionSave(command, saveCurrentSession) {
-        return (saveCurrentSession ? `"${Directories.root}/bin/omd-session" save-auto && ` : "") + command;
+        return (saveCurrentSession ? `"${Directories.root}/bin/sumika-session" save-auto && ` : "") + command;
     }
 
     function logout(saveCurrentSession) {
-        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`"${Directories.root}/bin/omd-logout"`, saveCurrentSession)]);
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`"${Directories.root}/bin/sumika-logout"`, saveCurrentSession)]);
     }
 
     function launchTaskManager() {

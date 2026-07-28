@@ -1,0 +1,239 @@
+#!/bin/bash
+# sumika-modules — Sumika Shell core module list.
+#
+# Usage: sumika-modules <command> [args]
+#
+# Commands:
+#   list              List core modules and their status
+#   info <id>         Show module details
+#   path              Print the modules directory path
+#   help              Show this help
+
+set -euo pipefail
+
+# ── Path resolution ──
+SUMIKA_SHELL_ROOT="${SUMIKA_SHELL_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+source "$SUMIKA_SHELL_ROOT/lib/paths.sh"
+SUMIKA_CONFIG="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+CONFIG_FILE="$SUMIKA_CONFIG/sumika.json"
+MODULES_DIR="$SUMIKA_SHELL_ROOT/quickshell/modules"
+
+# ── Helpers ──
+
+modules_dir() { echo "$MODULES_DIR"; }
+
+module_field() {
+    local id="$1" field="$2"
+    local json
+    json=$(module_json_for_id "$id")
+    [ -f "$json" ] || return 0
+    jq -r ".$field // empty" "$json" 2>/dev/null || true
+}
+
+module_json_for_id() {
+    local id="$1" candidate manifest manifest_id
+    candidate="$MODULES_DIR/$id/module.json"
+    if [ -f "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+    for manifest in "$MODULES_DIR"/*/module.json; do
+        [ -f "$manifest" ] || continue
+        manifest_id=$(jq -r '.id // empty' "$manifest" 2>/dev/null || true)
+        if [ "$manifest_id" = "$id" ]; then
+            echo "$manifest"
+            return 0
+        fi
+    done
+    return 1
+}
+
+module_capabilities() {
+    local id="$1"
+    local caps=""
+    local json
+    if [ -f "$id/module.json" ]; then
+        json="$id/module.json"
+    else
+        json=$(module_json_for_id "$id") || { echo "—"; return; }
+    fi
+    [ -f "$json" ] || { echo "—"; return; }
+    local bb ps sp
+    bb=$(jq -r '.capabilities.barButtons // [] | length' "$json" 2>/dev/null || echo 0)
+    ps=$(jq -r '.capabilities.popupSections // [] | length' "$json" 2>/dev/null || echo 0)
+    sp=$(jq -r '.capabilities.settingsPages // [] | length' "$json" 2>/dev/null || echo 0)
+    local parts=()
+    [ "$bb" -gt 0 ] 2>/dev/null && parts+=("bar($bb)")
+    [ "$ps" -gt 0 ] 2>/dev/null && parts+=("popup($ps)")
+    [ "$sp" -gt 0 ] 2>/dev/null && parts+=("settings($sp)")
+    if [ "${#parts[@]}" -eq 0 ]; then
+        echo "—"
+    else
+        echo "${parts[*]}"
+    fi
+}
+
+module_file_count() {
+    local target="$1"
+    if [ ! -d "$target" ]; then
+        local json
+        json=$(module_json_for_id "$target") || { echo 0; return; }
+        target=$(dirname "$json")
+    fi
+    find "$target" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+# Read disabled module list from sumika.json
+disabled_modules() {
+    jq -r '.modules.disabled // [] | .[]' "$CONFIG_FILE" 2>/dev/null || true
+}
+
+module_status() {
+    local id="$1"
+    if disabled_modules | grep -qxF "$id"; then
+        echo "disabled"
+    else
+        echo "enabled"
+    fi
+}
+
+cmd_list() {
+    printf "%-22s %-10s %-6s %s\n" "MODULE" "STATUS" "FILES" "CAPABILITIES"
+    printf "%-22s %-10s %-6s %s\n" "──────" "──────" "─────" "───────────"
+    for module_json in "$MODULES_DIR"/*/module.json; do
+        [ -f "$module_json" ] || continue
+        local id name status caps fcount
+        local module_dir
+        module_dir=$(dirname "$module_json")
+        id=$(jq -r '.id // empty' "$module_json" 2>/dev/null || true)
+        [ -n "$id" ] || id=$(basename "$module_dir")
+        name=$(jq -r '.name // empty' "$module_json" 2>/dev/null || true)
+        [ -n "$name" ] || name="$id"
+        status=$(module_status "$id")
+        caps=$(module_capabilities "$module_dir")
+        fcount=$(module_file_count "$module_dir")
+        printf "%-22s %-10s %-6s %s\n" "$id" "$status" "$fcount" "$caps"
+    done
+}
+
+cmd_info() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "Usage: sumika-modules info <id>" >&2; return 2; }
+    local json module_dir
+    json=$(module_json_for_id "$id") || { echo "Module not found: $id" >&2; return 1; }
+    module_dir=$(dirname "$json")
+
+    local name desc version status caps
+    name=$(jq -r '.name // empty' "$json" 2>/dev/null || true)
+    desc=$(jq -r '.description // empty' "$json" 2>/dev/null || true)
+    version=$(jq -r '.version // empty' "$json" 2>/dev/null || true)
+    [ -n "$name" ] || name="$id"
+    status=$(module_status "$id")
+
+    echo "Module: $name"
+    echo "  ID:          $id"
+    echo "  Version:     ${version:-unspecified}"
+    echo "  Description: ${desc:-—}"
+    echo "  Directory:   $module_dir"
+    echo "  Status:      $status"
+    echo "  Files:       $(module_file_count "$module_dir")"
+    echo "  Capabilities:"
+
+    local bb ps sp
+    bb=$(jq -r '.capabilities.barButtons // [] | length' "$json" 2>/dev/null || echo 0)
+    ps=$(jq -r '.capabilities.popupSections // [] | length' "$json" 2>/dev/null || echo 0)
+    sp=$(jq -r '.capabilities.settingsPages // [] | length' "$json" 2>/dev/null || echo 0)
+    [ "$bb" -gt 0 ] 2>/dev/null && echo "    barButtons:    $bb"
+    [ "$ps" -gt 0 ] 2>/dev/null && echo "    popupSections: $ps"
+    [ "$sp" -gt 0 ] 2>/dev/null && echo "    settingsPages: $sp"
+    [ "$bb" -eq 0 ] && [ "$ps" -eq 0 ] && [ "$sp" -eq 0 ] 2>/dev/null && echo "    (none)"
+
+    # Health
+    local health_issues=0
+    echo "  Health:"
+    [ -f "$json" ] && echo "    ✅ module.json valid" || { echo "    ❌ module.json missing"; health_issues=1; }
+    [ -f "$module_dir/qmldir" ] && echo "    ✅ qmldir present" || echo "    ⚠️  no qmldir"
+    for comp in $(jq -r '.contributes.popupSections[].component, .contributes.widgets[].component, .contributes.settingsPages[].component' "$json" 2>/dev/null); do
+        [ -f "$module_dir/$comp" ] && echo "    ✅ $comp" || { echo "    ❌ $comp missing"; health_issues=1; }
+    done
+    [ "$health_issues" -eq 0 ] && echo "    ✅ all checks passed" || echo "    ❌ issues found"
+}
+
+cmd_path() {
+    echo "$MODULES_DIR"
+}
+
+cmd_extensions() {
+    local ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+    if [ ! -d "$ext_dir" ]; then
+        echo "No extensions directory found at $ext_dir"
+        echo "Create one by copying extensions into: $ext_dir"
+        return 0
+    fi
+
+    local count=0
+    for mod_dir in "$ext_dir"/*/; do
+        [ -d "$mod_dir" ] || continue
+        [ -f "$mod_dir/module.json" ] || continue
+        count=$((count + 1))
+        local id name version
+        id=$(jq -r '.id // empty' "$mod_dir/module.json" 2>/dev/null || true)
+        [ -n "$id" ] || id=$(basename "$mod_dir")
+        name=$(jq -r '.name // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
+        version=$(jq -r '.version // empty' "$mod_dir/module.json" 2>/dev/null || echo "?")
+        printf "  %-22s %-24s %s\n" "$id" "$name" "v$version"
+    done
+
+    if [ "$count" -eq 0 ]; then
+        echo "No extensions installed in $ext_dir"
+    else
+        printf "\n%d extension(s) installed in %s\n" "$count" "$ext_dir"
+    fi
+}
+
+cmd_help() {
+    cat <<'EOF'
+Usage: sumika-modules <command> [args]
+
+Commands:
+  list              List core modules and their status
+  info <id>         Show module details
+  extensions        List installed extensions
+  path              Print the modules directory path
+  help              Show this help
+
+Core modules are found in quickshell/modules/ inside the repo.
+Extensions are found in ~/.local/share/sumika-shell/extensions/<id>/
+
+Extension layout:
+  <id>/
+    module.json       # v2 manifest (required)
+    qmldir            # QML module declaration (required for QML imports)
+    *.qml             # QML source files
+    bin/              # Optional executables (auto-added to PATH at startup)
+EOF
+    echo "Module directory: $MODULES_DIR"
+    echo "Extensions directory: ${SUMIKA_SHELL_EXTENSIONS_DIR:-$HOME/.local/share/sumika-shell/extensions}"
+    echo "Config file: ~/.config/sumika-shell/sumika.json"
+}
+
+# ── Main ──
+
+main() {
+    local cmd="${1:-help}"
+    shift 2>/dev/null || true
+
+    case "$cmd" in
+        list)    cmd_list "$@" ;;
+        info)    cmd_info "$@" ;;
+        extensions) cmd_extensions "$@" ;;
+        path)    cmd_path "$@" ;;
+        help|--help|-h) cmd_help ;;
+        doctor|install|update|remove|validate)
+                 echo "sumika-modules: '$cmd' is only available for external modules (removed: single-repo architecture)" >&2
+                 exit 2 ;;
+        *)       echo "Unknown command: $cmd" >&2; cmd_help >&2; exit 2 ;;
+    esac
+}
+
+main "$@"

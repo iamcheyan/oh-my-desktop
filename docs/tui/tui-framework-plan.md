@@ -3,18 +3,18 @@
 ## 当前架构
 
 Sumika Shell 的 Python TUI 位于 `bin/`，并通过
-`bin/omd_tui_framework.py` 共享布局、绘制和事件循环能力：
+`bin/sumika_tui_framework.py` 共享布局、绘制和事件循环能力：
 
 | 脚本 | 类型 | 架构模式 | Layout 模板 |
 |---|---|---|---|
 
-| `omd-wifi-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
-| `omd-bluetooth-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
-| `omd-settings-keyboard-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（自定义高度/堆叠） |
-| `omd-settings-voice-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
-| `omd-settings-vm-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
-| `omd-settings-theme-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（`force_single` + 自定义绘制） |
-| `omd-settings-backup-tui` | 设置中心 | 自建 Model，自建事件循环 | 是 |
+| `sumika-wifi-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
+| `sumika-bluetooth-tui` | 工具盒（bar 弹出） | 独立 OOP，自建事件循环 | 否（用共享 Table 函数） |
+| `sumika-settings-keyboard-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（自定义高度/堆叠） |
+| `sumika-settings-voice-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
+| `sumika-settings-vm-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是 |
+| `sumika-settings-theme-tui` | 设置中心 | `StatusModel` + `run_tui_loop` | 是（`force_single` + 自定义绘制） |
+| `sumika-settings-backup-tui` | 设置中心 | 自建 Model，自建事件循环 | 是 |
 共享模块覆盖以下能力。
 
 ## 架构模式
@@ -127,7 +127,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 
 ### 通用运行能力
 
-在 `omd_tui_framework.py` 新增了以下提取物，逐 TUI 替换手写样板：
+在 `sumika_tui_framework.py` 新增了以下提取物，逐 TUI 替换手写样板：
 
 | 提取物 | 用途 | 消费者 |
 |---|---|---|
@@ -151,7 +151,7 @@ if S.handle_tab(key, m):      # field="focus", count=2
 - theme-tui（`split_threshold=108`, `force_single`, 自定义预览/设置/动作盒）
 ### 表格渲染原语
 
-将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `omd_tui_framework.py`：
+将 wifi/bluetooth 共用的 6 个表格绘制方法提取到 `sumika_tui_framework.py`：
 
 | 提取物 | 说明 |
 |---|---|
@@ -170,7 +170,7 @@ wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_head
 
 ## 不变的边界
 
-1. 不动 `omd-ocr`（纯 CLI，没有 TUI）
+1. 不动 `sumika-ocr`（纯 CLI，没有 TUI）
 2. 不动 theme TUI 的图片预览功能
 3. 不动 backup 的线程模型
 4. 不把 wifi/bluetooth 强行套进 `StatusModel`
@@ -184,10 +184,10 @@ wifi-tui 删除 6 个方法（`_space_around`, `_put_row_cells`, `_clip`, `_head
 ```python
 import sys, os, curses, locale, threading
 sys.path.insert(0, os.path.dirname(__file__))
-import omd_tui_framework as S
+import sumika_tui_framework as S
 ```
 
-所有 TUI 共用 `bin/omd_tui_framework.py`，不加第三方依赖。
+所有 TUI 共用 `bin/sumika_tui_framework.py`，不加第三方依赖。
 
 ### 1. 选骨架
 

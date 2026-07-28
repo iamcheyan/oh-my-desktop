@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# OMD compatibility implementation for omd-logout.
+# Sumika Shell implementation for session logout.
 
 # Close application windows first so apps get a chance to persist state, but do
 # not let a close failure prevent logout.
-omd-hyprland-window-close-all >/dev/null 2>&1 || true
+sumika-hyprland-window-close-all >/dev/null 2>&1 || true
 sleep 0.8
 
 hyprland_alive() {
@@ -12,7 +12,7 @@ hyprland_alive() {
 }
 
 # End only the compositor so the display manager returns to the login screen.
-# Do not call `uwsm stop` here: in OMD's current session that path
+# Do not call `uwsm stop` here: in Sumika Shell's current session that path
 # can escalate into a full system stop instead of a plain graphical logout.
 #
 # In the Lua Hyprland config, `hyprctl dispatch exit` is parsed as Lua and
@@ -20,11 +20,11 @@ hyprland_alive() {
 # path that actually exits the compositor in this session. A successful exit may
 # make hyprctl report a broken socket, so verify by checking whether Hyprland is
 # still alive instead of trusting hyprctl's return code.
-hyprctl dispatch 'hl.dispatch(hl.dsp.exit())' >/tmp/omd-logout-hyprland.log 2>&1 || true
+hyprctl dispatch 'hl.dispatch(hl.dsp.exit())' >/tmp/sumika-logout-hyprland.log 2>&1 || true
 sleep 0.5
 hyprland_alive || exit 0
 
-pkill -TERM -x Hyprland >/tmp/omd-logout-pkill.log 2>&1 || true
+pkill -TERM -x Hyprland >/tmp/sumika-logout-pkill.log 2>&1 || true
 sleep 0.5
 hyprland_alive || exit 0
 

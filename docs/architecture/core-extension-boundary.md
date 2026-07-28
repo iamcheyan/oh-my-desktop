@@ -84,13 +84,13 @@ import `qs.modules.voice`, `qs.modules.clipboard`, `qs.modules.inputMethod`,
 From the repository root:
 
 ```sh
-./bin/omd-module-validate --all
+./bin/sumika-module-validate --all
 for f in ~/.local/share/sumika-shell/extensions/*/module.json; do
-  ./bin/omd-module-validate "$f"
+  ./bin/sumika-module-validate "$f"
 done
-bash -n quickshell/scripts/quickshell bin/omd-modules
-omd-modules list
-omd-modules info notification-popup
+bash -n quickshell/scripts/quickshell bin/sumika-modules
+sumika-modules list
+sumika-modules info notification-popup
 ```
 
 The last command deliberately uses the manifest ID and verifies that IDs and

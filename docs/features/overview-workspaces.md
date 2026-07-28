@@ -1,7 +1,7 @@
 # Overview Workspaces
 
 Overview is a Core surface for inspecting and manipulating Hyprland workspaces.
-The old standalone `omd-switcher` implementation no longer defines a separate
+The old standalone `sumika-switcher` implementation no longer defines a separate
 UI: Win+Tab uses Overview in switching mode.
 
 ## Modes
@@ -35,10 +35,17 @@ while the asynchronous move settles.
 ## Ordering And Selection
 
 - Normal Overview keeps entries grouped by monitor.
+- Within each monitor group, normal Overview sorts entries by real workspace
+  ID and prevents recently visited workspaces from changing position.
+- `Super+number` addresses the corresponding global visual slot, not the raw
+  Hyprland workspace ID. Slot numbering follows the complete monitor-grouped
+  Overview model, continuing across monitors in their visual order. Focusing
+  a slot also focuses the monitor that owns it. Real IDs are global and may
+  contain gaps after empty workspaces disappear.
 - Switching mode uses only the monitor captured in
-  `GlobalStates.overviewAnchorMonitorName`.
-- Existing workspaces follow the maintained MRU/order model; trailing entries
-  are always appended after them.
+  `GlobalStates.overviewAnchorMonitorName` and orders existing workspaces by
+  MRU for Win+Tab cycling.
+- Trailing entries are always appended after existing workspaces in both modes.
 - `GlobalStates.overviewFocusedWorkspaceId` is navigation state, not proof of
   monitor ownership.
 - Each monitor group resolves its own active workspace and selected-window
@@ -86,7 +93,7 @@ empty workspaces.
 
 Overview must feel instant on both entry paths — the Super-alone release
 (`workspaceNumber` GlobalShortcut) and the bar Workspaces button (`overview.open`
-action → `omd-overview` → Quickshell IPC). Three rules hold the latency down:
+action → `sumika-overview` → Quickshell IPC). Three rules hold the latency down:
 
 ### 1. Coalesce Hyprland event bursts (HyprlandData.qml)
 
@@ -117,12 +124,12 @@ instant. Qt does not render invisible items, and `ScreencopyView` with
 live:true only captures while visible, so holding the tree costs nothing while
 closed.
 
-### 3. The `omd-overview` launcher must detect the live process
+### 3. The `sumika-overview` launcher must detect the live process
 
-`bin/omd-overview` decides between an IPC toggle and a cold `launch_direct`.
+`bin/sumika-overview` decides between an IPC toggle and a cold `launch_direct`.
 `is_running` resolves the module directory with `pwd -P` so the `pgrep` pattern
 matches the running process's cmdline even when it was launched through the
-`~/.config/omd` symlink. A mismatch makes every click-path `open` fall through
+`$SUMIKA_SHELL_ROOT` symlink. A mismatch makes every click-path `open` fall through
 to `launch_direct` and stall for seconds.
 
 ## Verification

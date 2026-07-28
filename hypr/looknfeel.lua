@@ -29,21 +29,30 @@ hl.layer_rule({ match = { namespace = "quickshell:clipboard" }, no_anim = true }
 
 -- Float and center transient TUI / GUI settings managers
 o.window("org.omarchy.omarchy-wifi-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.impala", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.wifitui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.bluetui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.keyboardtui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.windowsvmtui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.backuptui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.voice-test-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.voice-bind-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.omd-edit-voice-bindings", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.config-edit", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.voice-diagnose", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.ocr-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.omd-settings-voice-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.omd-settings-tui", { float = true, center = true, size = { 1180, 760 } })
-o.window("org.omd.themetui", { float = true, center = true, size = { 1180, 760 } })
+local tui_rule = { float = true, center = true, size = { 1180, 760 } }
+local sumika_tui_ids = {
+  "impala",
+  "wifitui",
+  "bluetui",
+  "keyboardtui",
+  "windowsvmtui",
+  "backuptui",
+  "voicetesttui",
+  "voicebindtui",
+  "editvoicebindings",
+  "editfilesharebackup",
+  "listfilesharebackup",
+  "configedit",
+  "voicediagnose",
+  "ocrtui",
+  "settingsvoicetui",
+  "voicesettings",
+  "settingstui",
+  "themetui",
+}
+for _, id in ipairs(sumika_tui_ids) do
+  o.window("io.github.iamcheyan.sumika." .. id, tui_rule)
+end
 
 -- Native wallpaper pickers are separate Wayland clients rather than true
 -- children of the settings terminal. Keep these specifically titled dialogs
@@ -54,7 +63,8 @@ o.window({
 }, { float = true, center = true, stay_focused = true })
 
 -- Flatpak install progress terminal (scripts/flatpak-launch) floats and centers
-o.window("org.omd.flatpak-install", { float = true, center = true, size = { 880, 620 } })
+local flatpak_rule = { float = true, center = true, size = { 880, 620 } }
+o.window("io.github.iamcheyan.sumika.flatpakinstall", flatpak_rule)
 
 -- nmtui runs inside foot; float, center, and size it to fit the TUI content
 o.window("^nmtui$", { float = true, center = true, size = { 880, 620 } })
@@ -114,4 +124,3 @@ o.window("org.pulseaudio.pavucontrol", { float = true, center = true, size = { 9
 --     column_width = 0.97,
 --   },
 -- })
-

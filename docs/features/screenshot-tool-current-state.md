@@ -2,7 +2,7 @@
 
 ## Goals
 
-OMD has two screenshot paths with deliberately different priorities:
+Sumika Shell has two screenshot paths with deliberately different priorities:
 
 - Fast capture must open immediately and keep pointer selection smooth.
 - Capture and edit must freeze the desktop before the selector takes focus, so
@@ -18,14 +18,14 @@ OMD has two screenshot paths with deliberately different priorities:
 | `Alt+S` | Fast region capture | `slurp -> grim -> wl-copy` |
 | `Print` | Fast region capture | `slurp -> grim -> wl-copy` |
 | `Alt+Shift+S` | Frozen capture and edit | focused-output `grim` snapshot -> QML selector -> ImageMagick crop -> editor |
-| Bar `Capture Area` | Fast region capture | `bin/omd-screenshot screenshot` |
-| Bar `Capture & Edit` | Frozen capture and edit | `bin/omd-screenshot edit` |
+| Bar `Capture Area` | Fast region capture | `bin/sumika-screenshot screenshot` |
+| Bar `Capture & Edit` | Frozen capture and edit | `bin/sumika-screenshot edit` |
 
 Pressing the same fast-capture shortcut while `slurp` is open cancels it.
 
 ## Fast path
 
-`bin/omd-screenshot screenshot` does not launch Quickshell and does not capture
+`bin/sumika-screenshot screenshot` does not launch Quickshell and does not capture
 the desktop before selection:
 
 1. Record the currently focused Hyprland output.
@@ -42,14 +42,14 @@ QML pointer-frame rendering.
 
 ## Frozen edit path
 
-`bin/omd-screenshot edit` preserves the snapshot-first behavior:
+`bin/sumika-screenshot edit` preserves the snapshot-first behavior:
 
 1. Resolve the focused monitor with `hyprctl monitors -j`.
-2. Tell `omd-bar` that screenshot capture has begun, keeping visible overlays
+2. Tell `sumika-bar` that screenshot capture has begun, keeping visible overlays
    alive long enough to be captured.
 3. Capture only that monitor to a temporary PNG.
-4. Export `OMD_SCREENSHOT_MONITOR` and its snapshot path.
-5. Cold-start `apps/omd-screenshot`.
+4. Export `SUMIKA_SCREENSHOT_MONITOR` and its snapshot path.
+5. Cold-start `apps/sumika-screenshot`.
 6. `RegionSelector.qml` creates exactly one `RegionSelection`, for that output.
 7. The selected area is cropped from the frozen PNG and passed to the existing
    post-capture actions.
@@ -61,11 +61,11 @@ used for ordinary clipboard screenshots.
 ## Architecture overview
 
 ```
-bin/omd-screenshot                    # Shell entry point — dispatches to fast or frozen path
+bin/sumika-screenshot                    # Shell entry point — dispatches to fast or frozen path
   ├── screenshot                      # → fast_capture(): slurp → grim → wl-copy
   └── edit|search|ocr|record          # → launch_direct(): grim snapshot → Quickshell
 
-apps/omd-screenshot/shell.qml         # Cold-start QML process
+apps/sumika-screenshot/shell.qml         # Cold-start QML process
   └── RegionSelector {}               # Module entry point
 
 quickshell/modules/regionSelector/     # Region selector QML modules
@@ -89,16 +89,16 @@ quickshell/modules/common/utils/
 
 ### Pre-capture (shell side)
 
-1. `bin/omd-screenshot` acquires a `flock` lock to serialize rapid clicks.
+1. `bin/sumika-screenshot` acquires a `flock` lock to serialize rapid clicks.
 2. Re-launch while already open = cancel (same mental model as `slurp` toggle).
-3. Touch `/tmp/omd-screenshot-active` and send IPC `screenshot begin` to bar.
+3. Touch `/tmp/sumika-screenshot-active` and send IPC `screenshot begin` to bar.
 4. Snapshot the focused monitor with `grim -o <monitor> <snapshot_dir>/snapshot-<monitor>-<ts>.png`.
-5. Export `OMD_SNAPSHOT_PATH_<MONITOR_ENV>` with the snapshot path.
-6. Launch `apps/omd-screenshot` as a detached `qs` process.
+5. Export `SUMIKA_SNAPSHOT_PATH_<MONITOR_ENV>` with the snapshot path.
+6. Launch `apps/sumika-screenshot` as a detached `qs` process.
 
 ### Snapshot loading (QML side)
 
-1. `RegionSelection.qml` checks for `OMD_SNAPSHOT_PATH_*` pre-captured files.
+1. `RegionSelection.qml` checks for `SUMIKA_SNAPSHOT_PATH_*` pre-captured files.
 2. If pre-captured snapshot exists → use it directly (`preCapSnapshot = true`).
    The shell script captures before QS starts, so bar popups/menus are frozen
    in the image.
@@ -200,7 +200,7 @@ without measuring their frame cost.
 ## Shared action entry points
 
 The bar menu, keyboard bindings, and Screenshot Toolbox call
-`bin/omd-screenshot`; they must not implement separate region-copy or edit
+`bin/sumika-screenshot`; they must not implement separate region-copy or edit
 pipelines. The toolbox may keep specialized external actions such as
 measurement, QR decoding, pinning, and annotation, but ordinary capture and
 capture-and-edit use the shared backend.
@@ -226,8 +226,8 @@ capture or frozen editing.
 
 ## Relevant files
 
-- `bin/omd-screenshot`: shared launcher and capture backend
-- `apps/omd-screenshot/shell.qml`: cold-start QML process
+- `bin/sumika-screenshot`: shared launcher and capture backend
+- `apps/sumika-screenshot/shell.qml`: cold-start QML process
 - `quickshell/modules/regionSelector/RegionSelector.qml`: target-output scope
 - `quickshell/modules/regionSelector/RegionSelection.qml`: selection behavior
 - `quickshell/modules/regionSelector/RectCornersSelectionDetails.qml`: rectangle overlay rendering
@@ -236,6 +236,6 @@ capture or frozen editing.
 - `quickshell/modules/regionSelector/CursorGuide.qml`: drag corner crosshair
 - `quickshell/modules/regionSelector/RegionFunctions.qml`: IoU utility functions
 - `quickshell/modules/common/utils/ScreenshotAction.qml`: post-capture commands
-- `apps/omd-shot-toolbox/`: optional action toolbox
+- `apps/sumika-shot-toolbox/`: optional action toolbox
 - `hypr/bindings.lua`: `Alt+S` and `Alt+Shift+S`
 - `hypr/default/hypr/bindings/utilities.lua`: Print Screen bindings

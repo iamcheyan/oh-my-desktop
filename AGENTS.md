@@ -1,12 +1,13 @@
-# oh-my-desktop / Sumika Shell
+# Sumika Shell
 
 Unified desktop configuration for the current Omarchy + Quickshell session.
 All runtime files — user config, Quickshell UI, and the Omarchy framework —
 live in this single repo.
 
 **Public name**: Sumika Shell.
-**Technical names** (omd-* commands, org.omd.* IDs, systemd units) keep the
-`omd` prefix — rename deferred.
+**Technical namespace**: `sumika-*` commands,
+`io.github.iamcheyan.sumika.*` app IDs, and `sumika-*` systemd units.
+The retired `omd` technical namespace is not supported.
 
 ## Quick Start
 
@@ -15,8 +16,9 @@ git clone git@github.com:iamcheyan/oh-my-desktop.git ~/development/OMD
 cd ~/development/OMD && ./Init.sh
 ```
 
-`Init.sh` creates runtime symlinks (`~/.config/quickshell → repo/quickshell`,
-`~/.config/omd → repo`). Re-run safely after pulls.
+`Init.sh` creates the runtime Quickshell symlink
+(`~/.config/quickshell → repo/quickshell`) and installs the Sumika session.
+Re-run safely after pulls.
 
 ## Data Layout
 
@@ -41,17 +43,18 @@ cd ~/development/OMD && ./Init.sh
 
 ```
 ~/.config/quickshell  → ~/development/OMD/quickshell   # QML root
-~/.config/omd         → ~/development/OMD               # bin/ scripts + apps/ dirs
 ```
 
-`~/.config/omd` 是 QML/shell 找到 `bin/omd-*` 和 `apps/` 的主入口。`~/.config/sumika-shell/` 是并存的真实目录，不放可执行脚本。
+`SUMIKA_SHELL_ROOT` points QML/shell code at the repository root.
+`~/.config/sumika-shell/` is the real user configuration directory and does
+not contain repository executables.
 
 ## Runtime
 
 - **Hyprland**: `hypr/hyprland.lua` loads `hypr/default/` then `hypr/*.lua`.
 * **Quickshell config**: user override at `~/.config/sumika-shell/sumika.json` (unified config via sumika.json), baseline at `defaults/config/quickshell/config.json`.
 - **Themes**: `OmarchyTheme.qml` reads `~/.local/state/sumika-shell/theme/current/colors.toml`; 22 themes in `share/themes/`.
-- **Wallpaper**: `swaybg` via autostart; `bin/omd-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
+- **Wallpaper**: `swaybg` via autostart; `sumika-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
 - **Quickshell Shell UI**: `quickshell/` root with `modules/` subdirectories for each component.
 - **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
@@ -108,8 +111,8 @@ Overview of the extension (external module) system:
 |冲突策略|core 模块永远优先，同名扩展静默跳过|
 |QML import|自动 symlink 到运行时 import root|
 |`bin/`|自动加入 `PATH`|
-|CLI|`omd-modules extensions`|
-|诊断|`omd-doctor` + extensions section|
+|CLI|`sumika-modules extensions`|
+|诊断|`sumika-doctor` + extensions section|
 
 ### Extension Directory Structure
 
@@ -126,8 +129,8 @@ Overview of the extension (external module) system:
 - **Core modules always win** on ID conflict — extension is silently skipped.
 - Extension QML imports (`import qs.modules.<id>`) work automatically via runtime symlink.
 - Extension `bin/` is added to `PATH` each startup.
-- Use `omd-modules extensions` to list installed extensions.
-- Run `omd-doctor` to diagnose extension issues.
+- Use `sumika-modules extensions` to list installed extensions.
+- Run `sumika-doctor` to diagnose extension issues.
 - **External module services MUST NOT** live in `quickshell/services/`. Service files for a module must be placed inside the module's own directory and registered via its `qmldir` as a singleton (`singleton <Type> 1.0 <File>.qml`). The former `InputMethod.qml`, `KeyboardRemap.qml` and any screenshot-session service are examples that should follow this pattern — core services only for core singletons.
 
 ### Desktop Launchers (`contributes.launchers`)
@@ -141,9 +144,9 @@ Overview of the extension (external module) system:
 
 ## TUI Terminal Action Pattern
 
-1. Launcher cascade: `xdg-terminal-exec --app-id=org.omd.<purpose>` → `foot --app-id=...` → `kitty --class=...`
+1. Launcher cascade: `xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.<purpose>` → `foot --app-id=...` → `kitty --class=...`
 2. Unique `app-id`/`class` per purpose for Hyprland floating rules.
-3. Naming: `org.omd.<purpose>` (lowercase, dash-separated).
+3. Naming: `io.github.iamcheyan.sumika.<purpose>` (lowercase, no dashes).
 4. Launch detached: `subprocess.Popen(..., start_new_session=True)` with stdin/stdout/stderr to `/dev/null`.
 5. Add Hyprland window rule in `hypr/looknfeel.lua`.
 
@@ -153,7 +156,7 @@ Overview of the extension (external module) system:
 |---|---|---|
 |`SUMIKA_SHELL_CONFIG_HOME`|`$XDG_CONFIG_HOME/sumika-shell` → `~/.config/sumika-shell`|Shell scripts|
 |`SUMIKA_SHELL_STATE_HOME`|`$XDG_STATE_HOME/sumika-shell` → `~/.local/state/sumika-shell`|Shell scripts|
-|`SUMIKA_SHELL_ROOT`|`$OMD_ROOT` → `~/.config/omd` (symlink to repo)|Shell scripts|
+|`SUMIKA_SHELL_ROOT`|repository root exported by the session wrapper|Shell scripts|
 |`Directories.config + "/sumika-shell"`|—|QML (config path)|
 |`Directories.sumikaStateHome`|`$XDG_STATE_HOME/sumika-shell`|QML (state path)|
 
@@ -164,8 +167,8 @@ Overview of the extension (external module) system:
 
 - Root: `~/development/OMD`.
 - Don't commit: `.migration-backups/`, Quickshell `.state/`, nested `.git`.
-- Run `~/.config/omd/bin/omd-doctor` before pushing.
-- No test framework; verify by `hyprctl reload` + `omd-restart`.
+- Run `bin/sumika-doctor` before pushing.
+- No test framework; verify by `hyprctl reload` + `sumika-restart`.
 
 ## Planning Docs
 

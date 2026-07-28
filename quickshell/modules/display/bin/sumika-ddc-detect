@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+
+# Cache expensive DDC monitor detection across split Quickshell processes.
+# ddcutil serializes access to I2C poorly when several shells start together.
+
+ttl="${SUMIKA_DDC_DETECT_TTL:-300}"
+cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+cache_dir="$cache_home/sumika-shell"
+cache_file="$cache_dir/ddc-detect-brief.txt"
+lock_dir="${XDG_RUNTIME_DIR:-/tmp}/sumika-ddc-detect.lock"
+
+mkdir -p "$cache_dir"
+
+cache_is_fresh() {
+    [ -s "$cache_file" ] || return 1
+    now="$(date +%s)"
+    modified="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+    [ "$((now - modified))" -lt "$ttl" ]
+}
+
+if cache_is_fresh; then
+    cat "$cache_file"
+    exit 0
+fi
+
+if mkdir "$lock_dir" 2>/dev/null; then
+    trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT INT TERM
+    tmp="$cache_file.$$"
+    if command -v ddcutil >/dev/null 2>&1; then
+        ddcutil detect --brief >"$tmp" 2>/dev/null || true
+    else
+        : >"$tmp"
+    fi
+    mv "$tmp" "$cache_file"
+    cat "$cache_file"
+    exit 0
+fi
+
+# Another split shell is probing now. Prefer the previous cache if available;
+# otherwise wait briefly for the fresh probe before returning an empty result.
+if [ -s "$cache_file" ]; then
+    cat "$cache_file"
+    exit 0
+fi
+
+i=0
+while [ "$i" -lt 20 ]; do
+    [ -s "$cache_file" ] && cat "$cache_file" && exit 0
+    sleep 0.1
+    i=$((i + 1))
+done

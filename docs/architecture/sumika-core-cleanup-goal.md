@@ -21,11 +21,11 @@
 - 删除 `sumika-modules` clone 提示
 - 验收：`bash -n Init.sh` 通过；两次运行均成功且幂等
 
-### A2 修复 omd-doctor
-- 文件：`bin/omd-doctor:5`
-- `source "$repo/scripts/omd-path.sh"` → `source "$repo/lib/paths.sh"`
+### A2 修复 sumika-doctor
+- 文件：`bin/sumika-doctor:5`
+- `source "$repo/scripts/sumika-path.sh"` → `source "$repo/lib/paths.sh"`
 - 删除指向已删除模块的硬编码检查
-- 验收：`bin/omd-doctor` 完整执行无 shell 异常
+- 验收：`bin/sumika-doctor` 完整执行无 shell 异常
 
 ### A3 删除 lib/paths.sh 中的 SUMIKA_MODULES_HOME
 - 文件：`lib/paths.sh:61`
@@ -66,17 +66,17 @@
 - 删除行 250-254 的第二轮 `SUMIKA_MODULES_HOME` 扫描
 - 验收：启动后 registry 只包含 core 模块，无 staging 目录
 
-### C2 quickshell/modules/settings/bin/omd-settings
+### C2 quickshell/modules/settings/bin/sumika-settings
 - 删除 `launch_direct()` 中的 staging 逻辑（行 59-66）
 - 删除行 108-123 的 SUMIKA_MODULES_HOME 路由（voice、keyboard、windows-vm）
 - QML import path 改为直接指向 `$repo_root/quickshell`
-- 验收：`omd-settings open display` 正常运行
+- 验收：`sumika-settings open display` 正常运行
 
-### C3 bin/omd-settings（顶层调度器）
-- 文件：`bin/omd-settings`
+### C3 bin/sumika-settings（顶层调度器）
+- 文件：`bin/sumika-settings`
 - 删除行 11-16 的 `SUMIKA_MODULES_HOME` 优先检查
-- 改为只检查 `quickshell/modules/settings/` 和 `apps/omd-settings/`
-- 验收：`bin/omd-settings open display` 工作，日志无 warn
+- 改为只检查 `quickshell/modules/settings/` 和 `apps/sumika-settings/`
+- 验收：`bin/sumika-settings open display` 工作，日志无 warn
 
 ### C4 Settings pages QML 路径修复
 - `quickshell/modules/settings/pages/AppearancePage.qml:118,738,764`
@@ -100,14 +100,14 @@
 - `quickshell/modules/launcher/module-actions.qml:9` — SUMIKA_MODULES_HOME → 走 core 路径
 - `quickshell/modules/wifi/module-actions.qml:12` — 同上
 - `quickshell/modules/common/functions/Session.qml:10` — 删除 autoSavePrefix 中的外部 session 引用（或走 core 路径）
-- `quickshell/modules/launcher/modules/appLauncher/AppLauncher.qml:30` — SUMIKA_MODULES_HOME → core `bin/omd-applauncher-cache`
+- `quickshell/modules/launcher/modules/appLauncher/AppLauncher.qml:30` — SUMIKA_MODULES_HOME → core `bin/sumika-applauncher-cache`
 - `quickshell/services/BluetoothStatus.qml:16` — SUMIKA_MODULES_HOME → core `quickshell/modules/wifi/bin`
 - 验收：所有引用外部模块的路径都改为 core 路径
 
 ### C7 CLI 工具消毒
-- `bin/omd-modules` — 重写为只扫描 `quickshell/modules/*/module.json`；删除 clone/update/install
-- `bin/omd-module-validate` — 删除 `~development/sumika-modules` fallback
-- 验收：`omd-modules list` 只列出 core 模块
+- `bin/sumika-modules` — 重写为只扫描 `quickshell/modules/*/module.json`；删除 clone/update/install
+- `bin/sumika-module-validate` — 删除 `~development/sumika-modules` fallback
+- 验收：`sumika-modules list` 只列出 core 模块
 
 ---
 
@@ -115,12 +115,12 @@
 
 ### D1 Wifi popup "Add new Wi-Fi…" 路径净化
 - 文件：`quickshell/modules/wifi/WifiPopup.qml:389`
-- 当前硬编码 `Quickshell.env("OMD_REPO_ROOT")`，改为 `FileUtils.trimFileProtocol(Directories.root)`
-- 验收：点击后启动 `omd-launch-wifi` TUI
+- 当前硬编码 `Quickshell.env("SUMIKA_SHELL_ROOT")`，改为 `FileUtils.trimFileProtocol(Directories.root)`
+- 验收：点击后启动 `sumika-launch-wifi` TUI
 
 ### D2 Bluetooth section 底部加 TUI 入口
 - 文件：`quickshell/modules/wifi/WifiPopup.qml` — 蓝牙 device 列表区域
-- 在蓝牙设备列表尾部加 "Bluetooth settings…" 按钮，启动 `omd-launch-bluetooth`
+- 在蓝牙设备列表尾部加 "Bluetooth settings…" 按钮，启动 `sumika-launch-bluetooth`
 - 验收：Bluetooth TUI 入口可见且可点击
 
 ---
@@ -155,4 +155,4 @@ Phase A ─── 独立，先做（保证新机器能安装）
     └── Phase E ─── 最后收尾
 ```
 
-每个 Phase 完成后 smoke test：`omd-restart` + bar 日志 zero error。
+每个 Phase 完成后 smoke test：`sumika-restart` + bar 日志 zero error。

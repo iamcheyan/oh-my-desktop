@@ -48,7 +48,7 @@ Muted application names are stored one per line in:
 ~/.config/sumika-shell/notifications/muted_apps.cfg
 ```
 
-The service migrates the old `~/.config/omd/notifications/muted_apps.cfg`
+The service migrates the old `$SUMIKA_SHELL_ROOT/notifications/muted_apps.cfg`
 location when needed. New code must only write the Sumika path.
 
 ## UI Surfaces
@@ -68,13 +68,13 @@ panels. Do not add independent hard-coded screen offsets.
 
 ## Control Interface
 
-The bar exposes the `notifications` IPC target. `bin/omd-notification-control`
+The bar exposes the `notifications` IPC target. `bin/sumika-notification-control`
 is the supported command wrapper:
 
 ```sh
-omd-notification-control dismiss-last
-omd-notification-control dismiss-all
-omd-notification-control toggle-silent
+sumika-notification-control dismiss-last
+sumika-notification-control dismiss-all
+sumika-notification-control toggle-silent
 ```
 
 New notifications enter through the freedesktop notification protocol (for

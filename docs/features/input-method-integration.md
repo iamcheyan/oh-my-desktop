@@ -1,7 +1,7 @@
 # Input Method Integration
 
 This document describes the top-bar input language indicator and switcher,
-its Fcitx5/Rime integration, and the ownership boundary between OMD and the
+its Fcitx5/Rime integration, and the ownership boundary between Sumika Shell and the
 separate Rime configuration repository.
 
 ## Goal
@@ -37,14 +37,14 @@ Rime schemas and are selected through Rime itself.
 
 ## Ownership Boundary
 
-### OMD owns
+### Sumika Shell owns
 
 - The keyboard icon and language badge in the top bar.
 - The unified bar popup containing the language choices.
 - Polling Fcitx5 and mapping a schema ID to a display name and badge.
 - Calling the Fcitx5 Rime D-Bus service to select a schema.
 - Restoring application focus before changing a schema.
-- The `omd-input-method` command-line adapter.
+- The `sumika-input-method` command-line adapter.
 
 ### Fcitx5 owns
 
@@ -60,30 +60,30 @@ Rime schemas and are selected through Rime itself.
 - Rime deployment/build output and user preferences.
 - The files below `~/.local/share/fcitx5/rime/`.
 
-OMD did **not** add, copy, generate, or edit the four Rime schemas listed
-above. They already exist in the user's Rime installation. OMD only refers to
+Sumika Shell did **not** add, copy, generate, or edit the four Rime schemas listed
+above. They already exist in the user's Rime installation. Sumika Shell only refers to
 their stable schema IDs. The Rime repository remains independently managed
-and is not being brought into the OMD repository by this feature.
+and is not being brought into the Sumika Shell repository by this feature.
 
 If a schema is renamed or removed in the Rime repository, update the mapping
-in both `bin/omd-input-method` and the choices displayed by
+in both `bin/sumika-input-method` and the choices displayed by
 `BarStatusPopup.qml`.
 
 ## Files
 
-### `bin/omd-input-method`
+### `bin/sumika-input-method`
 
 Small Python adapter between QML and Fcitx5/Rime.
 
 Commands:
 
 ```sh
-omd-input-method status
-omd-input-method set sbzr
-omd-input-method set sbzr_mix
-omd-input-method set easy_en
-omd-input-method set jaroomaji
-omd-input-method config
+sumika-input-method status
+sumika-input-method set sbzr
+sumika-input-method set sbzr_mix
+sumika-input-method set easy_en
+sumika-input-method set jaroomaji
+sumika-input-method config
 ```
 
 `status` prints JSON:
@@ -179,7 +179,7 @@ to work, but the popup does not become Fcitx's newest keyboard input context.
 
 ```text
 InputMethod.qml timer
-    -> omd-input-method status
+    -> sumika-input-method status
     -> fcitx5-remote -n
     -> org.fcitx.Fcitx5 /rime GetCurrentSchema
     -> JSON
@@ -211,7 +211,7 @@ can target the popup's context instead of the application in which the user
 will type. The UI then appears to accept the click while the original
 application remains unchanged.
 
-OMD prevents this in two ways:
+Sumika Shell prevents this in two ways:
 
 1. The input-method popup does not request keyboard focus.
 2. Selection closes the popup, restores the original application, waits
@@ -238,13 +238,13 @@ unavailable state and uses `?` as its badge.
 
 1. Add and deploy the schema in the separate Rime repository.
 2. Confirm that Rime exposes it through `ListAllSchemas`.
-3. Add its ID and metadata to `SCHEMAS` in `bin/omd-input-method`.
+3. Add its ID and metadata to `SCHEMAS` in `bin/sumika-input-method`.
 4. Add its user-facing row to `inputMethodContent` in
    `BarStatusPopup.qml`.
 5. Test the switch while a text input in a normal application has focus.
 6. Test an external schema change and wait up to two seconds for the badge.
 
-OMD should eventually obtain labels from a data file or from Rime metadata if
+Sumika Shell should eventually obtain labels from a data file or from Rime metadata if
 the list grows. For the current four stable schemas, the explicit mapping is
 small and makes language badges predictable.
 
@@ -253,14 +253,14 @@ small and makes language badges predictable.
 Static checks:
 
 ```sh
-python3 -m py_compile bin/omd-input-method
+python3 -m py_compile bin/sumika-input-method
 git diff --check
 ```
 
 Runtime status:
 
 ```sh
-~/.config/omd/bin/omd-input-method status
+$SUMIKA_SHELL_ROOT/bin/sumika-input-method status
 ```
 
 Manual behavior test:
@@ -305,8 +305,8 @@ gdbus call --session \
   --method org.fcitx.Fcitx.Rime1.ListAllSchemas
 ```
 
-If the ID differs, update the OMD mapping. Do not duplicate the Rime schema
-inside OMD.
+If the ID differs, update the Sumika Shell mapping. Do not duplicate the Rime schema
+inside Sumika Shell.
 
 ### Testing from a restricted shell reports a D-Bus connection error
 
@@ -337,7 +337,7 @@ The result: `superReleaseMightTrigger` stays `true`, and the next Super release
 pops the overview.
 
 The repo default (`hypr/bindings.lua`) already binds `Super+Space` /
-`Super+Shift+Space` to `omd-action input-method.cycle`, so a user override
+`Super+Shift+Space` to `sumika-action input-method.cycle`, so a user override
 that only re-creates the same binds is redundant and harmful. Do **not**
 `hl.unbind` a `SUPER+<key>` that the repo already binds; if you must rebind
 it, re-register the interrupt bind too, or leave it to the repo default.

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+config_file="${SUMIKA_SHELL_CONFIG_HOME:-$HOME/.config/sumika-shell}/sumika.json"
+
+mkdir -p "$(dirname "$config_file")"
+if [[ ! -f "$config_file" ]]; then
+  echo "{}" >"$config_file"
+fi
+
+exec xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.configedit vi "$config_file"

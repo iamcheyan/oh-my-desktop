@@ -32,7 +32,7 @@ Scope {
                 right: true
             }
 
-            WlrLayershell.namespace: "omd:monitor-identify"
+            WlrLayershell.namespace: "sumika:monitor-identify"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 

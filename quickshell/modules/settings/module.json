@@ -6,10 +6,10 @@
   "version": "2.0.0",
   "kind": "application",
   "entry": {
-    "command": ["${OMD_ROOT}/bin/omd-settings", "open"],
-    "instance": "omd-settings",
+    "command": ["${SUMIKA_SHELL_ROOT}/bin/sumika-settings", "open"],
+    "instance": "sumika-settings",
     "readyTimeout": 15,
-    "appId": "org.omd.settings",
+    "appId": "io.github.iamcheyan.sumika.settings",
     "autostart": false
   },
   "contributes": {

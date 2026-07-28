@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-OMD Advanced Key Capture — GTK4 Edition
+Sumika Advanced Key Capture — GTK4 Edition
 Native Wayland window that captures all hardware keys (including Globe/Fn)
-and formats them as OMD bind strings to the system clipboard.
+and formats them as Sumika bind strings to the system clipboard.
 """
 
 
@@ -135,7 +135,7 @@ def copy_to_clipboard(text):
 
 
 def load_ui_colors():
-    """Read the active OMD palette without depending on the Quickshell runtime."""
+    """Read the active Sumika palette without depending on the Quickshell runtime."""
     colors = {
         "accent": "#82fb9c",
         "background": "#0b0c16",
@@ -163,7 +163,7 @@ class KeyTestWindow(Gtk.ApplicationWindow):
     def __init__(self, app, initial_mode="current", mode_locked=False):
         super().__init__(
             application=app,
-            title="OMD Advanced Key Capture",
+            title="Sumika Advanced Key Capture",
         )
         self.capture_mode = initial_mode
         self.initial_mode = initial_mode

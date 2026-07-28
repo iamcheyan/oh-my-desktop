@@ -1,6 +1,6 @@
 # TUI Style System
 
-OMD Quickshell surfaces use `quickshell/modules/common/TuiStyle.qml` as the
+Sumika Shell Quickshell surfaces use `quickshell/modules/common/TuiStyle.qml` as the
 single style token source for the current GNOME Shell inspired dark UI.
 
 Do not add new `Appearance.tiling` usage. Do not hard-code new shell colors in
@@ -149,7 +149,7 @@ Before finishing a style change:
 rg -n "Appearance\\.tiling" quickshell apps -g '*.qml'
 rg -n "#[0-9A-Fa-f]{6,8}|Qt\\.rgba\\(" quickshell/modules apps -g '*.qml'
 git diff --check -- quickshell apps docs
-~/.config/omd/bin/omd-restart
+$SUMIKA_SHELL_ROOT/bin/sumika-restart
 ```
 
 Hard-coded colors in `TuiStyle.qml` itself are expected. Hard-coded colors in

@@ -1,4 +1,4 @@
--- OMD Hyprland setup: helpers, defaults, and current theme overrides.
+-- Sumika Shell Hyprland setup: helpers, defaults, and current theme overrides.
 
 require("default.hypr.helpers")
 

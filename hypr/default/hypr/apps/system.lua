@@ -15,4 +15,4 @@ o.window({ tag = "pop" }, { rounding = 8 })
 o.window({ tag = "noidle" }, { idle_inhibit = "always" })
 
 -- Disable animations for image selector overlay.
-hl.layer_rule({ match = { namespace = "omd-image-selector" }, no_anim = true })
+hl.layer_rule({ match = { namespace = "sumika-image-selector" }, no_anim = true })

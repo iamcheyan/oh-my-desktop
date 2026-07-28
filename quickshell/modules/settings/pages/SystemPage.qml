@@ -17,7 +17,7 @@ PageBody {
     readonly property string autostartDir: `${FileUtils.trimFileProtocol(Directories.home)}/.config/autostart`
     property var autostartEntries: []
     property string errorText: ""
-    readonly property string rulesFile: `${FileUtils.trimFileProtocol(Directories.config)}/omd/hypr/window_rules.lua`
+    readonly property string rulesFile: `${Directories.root}/hypr/window_rules.lua`
     property var rules: []
     property string defaultBrowser: ""
     property string defaultFileManager: ""
@@ -240,7 +240,7 @@ PageBody {
             }
 
             function saveRules() {
-                let content = "-- Window rules managed by OMD Settings Center\n-- Do not edit manually\n\n"
+                let content = "-- Window rules managed by Sumika Settings Center\n-- Do not edit manually\n\n"
                 for (const rule of pageRoot.rules) {
                     content += `o.window("${rule.class}", { ${rule.rules} })\n`
                 }
@@ -263,7 +263,7 @@ PageBody {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: "Define per-application window rules. Rules are written to omd/hypr/window_rules.lua and applied via hyprctl reload."
+                    text: "Define per-application window rules. Rules are written to hypr/window_rules.lua and applied via hyprctl reload."
                     color: SettingsTokens.dim
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     wrapMode: Text.Wrap
@@ -493,11 +493,11 @@ PageBody {
                 }
             }
 
-            // ── OMD App Preferences ──────────────────────────────────────
+            // ── Sumika App Preferences ───────────────────────────────────
             SettingsCard {
-                title: "OMD App Preferences"
+                title: "Sumika App Preferences"
                 // Network, Bluetooth, and volume are configured in their dedicated settings pages.
-                subtitle: "Commands used by OMD shortcuts"
+                subtitle: "Commands used by Sumika shortcuts"
 
                 SettingsTextFieldRow {
                     label: "Terminal"

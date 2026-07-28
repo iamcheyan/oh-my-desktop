@@ -7,10 +7,10 @@
   "kind": "application",
   "actionsProvider": "module-actions.qml",
   "entry": {
-    "command": ["omd-applauncher", "toggle"],
-    "instance": "omd-applauncher",
+    "command": ["sumika-applauncher", "toggle"],
+    "instance": "sumika-applauncher",
     "readyTimeout": 10,
-    "appId": "org.omd.launcher",
+    "appId": "io.github.iamcheyan.sumika.launcher",
     "autostart": false
   },
   "contributes": {

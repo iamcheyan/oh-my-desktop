@@ -1,8 +1,8 @@
 # Theme Runtime System
 
-The public product is Sumika Shell, while the compatibility command names keep
-the `omd`/`omarchy` prefix. The active implementation is owned by
-`bin/omd-settings-theme`; older Omarchy `current/theme` paths are not part of
+The public product and technical command namespace are Sumika Shell. Vendored
+Omarchy helper names retain their upstream prefix. The active implementation is owned by
+`bin/sumika-settings-theme`; older Omarchy `current/theme` paths are not part of
 the Sumika runtime contract.
 
 ## Theme Sources
@@ -39,7 +39,7 @@ must not be committed.
 ## Apply Flow
 
 ```sh
-omd-settings-theme apply <theme-slug>
+sumika-settings-theme apply <theme-slug>
 ```
 
 The command:
@@ -58,7 +58,7 @@ selection and rotation are independent; see
 
 ## Effects
 
-`omd-settings-theme effects` accepts:
+`sumika-settings-theme effects` accepts:
 
 - `performance`: blur and animations disabled;
 - `balanced`: animations enabled, one blur pass;
@@ -81,12 +81,12 @@ superseded Omarchy implementation.
 ## Commands
 
 ```sh
-omd-settings-theme list
-omd-settings-theme current
-omd-settings-theme appearance-status
-omd-settings-theme apply <slug>
-omd-settings-theme effects <performance|balanced|visuals>
-omd-settings-theme repair
+sumika-settings-theme list
+sumika-settings-theme current
+sumika-settings-theme appearance-status
+sumika-settings-theme apply <slug>
+sumika-settings-theme effects <performance|balanced|visuals>
+sumika-settings-theme repair
 ```
 
 `repair` regenerates derivatives for the active slug and refreshes consumers.

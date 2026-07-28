@@ -1,5 +1,5 @@
 -- Require every *.lua file in a directory in sorted order.
--- Used for OMD extension-style folders such as default/hypr/apps,
+-- Used for Sumika extension-style folders such as default/hypr/apps,
 -- default/hypr/bindings, and ~/.local/state/sumika-shell/toggles/hypr.
 -- Pass nil as the prefix when the directory itself has been added to package.path.
 

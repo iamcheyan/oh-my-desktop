@@ -64,7 +64,7 @@ are intentionally not retained.
    design. The target plugin architecture lives only in the migration plan.
 3. Use repository-relative Markdown links.
 4. Use the Sumika path API. Do not document new state under
-   `~/.local/state/omd` or user data under the repository symlink.
+   `~/.local/state/sumika-shell` or user data under the repository symlink.
 5. Delete completed audit and incident documents after their durable findings
    have been incorporated into the relevant reference document.
 6. A planning document remains only while its migration is active. When the

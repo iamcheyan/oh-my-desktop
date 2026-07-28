@@ -1,0 +1,124 @@
+#!/bin/sh
+set -eu
+
+# On-demand single-panel settings process.
+# Usage:
+#   sumika-settings              # open the Sumika tools launcher
+#   sumika-settings open <page>  # open specific page
+#   sumika-settings close         # close running instance
+#   sumika-settings toggle <page> # toggle specific page
+#
+# When started fresh, exports SUMIKA_SETTINGS_ON_DEMAND=1 so shell.qml
+# auto-opens one settings panel and quits when dismissed.
+
+repo_root=$(cd "$(dirname "$0")/../../../.." && pwd -P)
+. "$repo_root/lib/paths.sh"
+app_dir="$repo_root/apps/sumika-settings"
+
+if [ ! -d "$app_dir" ]; then
+    echo "sumika-settings: Sumika settings app not found (apps/sumika-settings/)" >&2
+    echo "Set SUMIKA_SHELL_ROOT to the Sumika Shell repository root." >&2
+    exit 1
+fi
+
+is_running() {
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+ipc_call() {
+    "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call settings "$@" 2>/dev/null || true
+}
+launch_direct() {
+    export SUMIKA_SHELL_ROOT="$repo_root"
+    export SUMIKA_QUICKSHELL_DIR="$repo_root/quickshell"
+    export SUMIKA_APP_DIR="$app_dir"
+    export SUMIKA_SETTINGS_ON_DEMAND=1
+    export QS_CONFIG_DIR="$app_dir"
+    export QS_COMPOSITOR=hyprland
+
+    export QML_IMPORT_PATH="$repo_root/quickshell${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+
+    # Add core module bin dirs to PATH so spawned processes resolve
+    for _mod_dir in "$repo_root/quickshell/modules/"*/; do
+        [ -d "$_mod_dir/bin" ] && export PATH="$PATH:$_mod_dir/bin"
+    done
+
+    # Add extension bin dirs to PATH so spawned processes resolve
+    _ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
+    if [ -d "$_ext_dir" ]; then
+        for _ext_mod_dir in "$_ext_dir"/*/; do
+            [ -d "${_ext_mod_dir}bin" ] && export PATH="$PATH:${_ext_mod_dir}bin"
+        done
+    fi
+    runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        for candidate in "$runtime_dir"/hypr/*/hyprland.lock; do
+            [ -f "$candidate" ] || continue
+            pid="$(sed -n '1p' "$candidate" 2>/dev/null || true)"
+            display="$(sed -n '2p' "$candidate" 2>/dev/null || true)"
+            [ -n "$pid" ] || continue
+            kill -0 "$pid" 2>/dev/null || continue
+            export HYPRLAND_INSTANCE_SIGNATURE="$(basename "$(dirname "$candidate")")"
+            [ -n "$display" ] && export WAYLAND_DISPLAY="$display"
+            break
+        done
+    fi
+
+    if [ -z "${WAYLAND_DISPLAY:-}" ] || [ ! -S "$runtime_dir/${WAYLAND_DISPLAY:-}" ]; then
+        for socket in "$runtime_dir"/wayland-*; do
+            if [ -S "$socket" ]; then
+                export WAYLAND_DISPLAY="$(basename "$socket")"
+                break
+            fi
+        done
+    fi
+
+    if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        echo "No Wayland display socket found. Start this from inside Hyprland." >&2
+        exit 1
+    fi
+
+    nohup "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" >/tmp/sumika-settings.log 2>&1 &
+}
+
+action="${1:-open}"
+page="${2:-overview}"
+
+if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
+    # Redirect theme/appearance to TUI — no QML settings page exists
+    if [ "$page" = "appearance" ] || [ "$page" = "theme" ] || [ "$page" = "themes" ] || [ "$page" = "font" ]; then
+        exec sumika-launch-tui sumika-settings-tui theme
+    fi
+    if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
+        # Keep GTK4's Wayland output scaling automatic, but compensate for
+        # the high gtk-xft-dpi written by the KDE/Asahi desktop settings.
+        # GDK_SCALE=1 breaks output scaling; GDK_DPI_SCALE only adjusts text.
+        exec env -u GDK_SCALE GDK_DPI_SCALE=0.5 pavucontrol
+    fi
+fi
+
+case "$action" in
+    open)
+        if is_running; then
+            ipc_call "open" "$page"
+        else
+            launch_direct "$page"
+        fi
+        ;;
+    close)
+        if is_running; then
+            ipc_call "close"
+        fi
+        ;;
+    toggle)
+        if is_running; then
+            ipc_call "toggle" "$page"
+        else
+            launch_direct "$page"
+        fi
+        ;;
+    *)
+        echo "  panel: overview|network|bluetooth|sound|display|power|system"
+        exit 2
+        ;;
+esac

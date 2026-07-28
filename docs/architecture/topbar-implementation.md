@@ -1,6 +1,6 @@
 # Top Bar Runtime
 
-The top bar runs in the independent `apps/omd-bar` Quickshell process. Core bar
+The top bar runs in the independent `apps/sumika-bar` Quickshell process. Core bar
 layout is implemented under `quickshell/modules/bar/`; feature buttons are
 loaded through the transitional registry.
 
@@ -70,7 +70,7 @@ inspect `quickshell/registry/builtin/bar.json` for the effective order.
 
 | Concern | File |
 | --- | --- |
-| Process entry | `apps/omd-bar/shell.qml` |
+| Process entry | `apps/sumika-bar/shell.qml` |
 | Per-monitor window and IPC | `quickshell/modules/bar/Bar.qml` |
 | Slot layout and failure containment | `quickshell/modules/bar/BarContent.qml` |
 | Built-in contributions | `quickshell/registry/builtin/bar.json` |
@@ -82,8 +82,8 @@ inspect `quickshell/registry/builtin/bar.json` for the effective order.
 ## Verification
 
 ```sh
-pushd "$(dirname "$0")/.." >/dev/null && ./bin/omd-restart && popd >/dev/null
-qs -p ~/.config/omd/apps/omd-bar ipc call bar open
+pushd "$(dirname "$0")/.." >/dev/null && ./bin/sumika-restart && popd >/dev/null
+qs -p $SUMIKA_SHELL_ROOT/apps/sumika-bar ipc call bar open
 ```
 
 Verify every output, equal icon spacing, one-popup-at-a-time behavior, and that

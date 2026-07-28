@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Route settings TUI pages to the owning extension binaries.
+set -euo pipefail
+
+SUMIKA_SHELL_ROOT="${SUMIKA_SHELL_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+source "$SUMIKA_SHELL_ROOT/lib/paths.sh"
+
+_ext_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}/theme-settings"
+
+route="${1:-help}"
+
+case "$route" in
+  -h|--help|help)
+    cat <<'EOF'
+Usage: sumika-settings-tui [page]
+
+Pages:
+  theme      Theme & appearance settings (theme picker, effects)
+  wallpaper  Wallpaper settings (picker, rotation, color)
+EOF
+    exit 0
+    ;;
+  theme)
+    exec python3 "$_ext_dir/bin/sumika-settings-theme-tui"
+    ;;
+  wallpaper)
+    exec python3 "$_ext_dir/bin/sumika-settings-wallpaper-tui"
+    ;;
+  *)
+    echo "sumika-settings-tui: unknown page '$route' (available: theme, wallpaper)" >&2
+    exit 2
+    ;;
+esac
