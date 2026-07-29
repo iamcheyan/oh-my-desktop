@@ -226,7 +226,7 @@ Install the provided rule to skip the password prompt for `mount.cifs`:
 
 ```bash
 sudo install -m 0644 \
-  $SUMIKA_SHELL_ROOT/share/polkit-1/rules.d/50-sumika-backup.rules \
+  $SUMIKA_SHELL_EXTENSIONS_DIR/file-backup/polkit/50-sumika-backup.rules \
   /etc/polkit-1/rules.d/
 ```
 

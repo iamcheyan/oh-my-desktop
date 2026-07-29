@@ -290,8 +290,8 @@ config-file = ~/.local/state/sumika-shell/theme/current/ghostty.conf
 | 入口 | 路径 |
 |---|---|
 | 桌面条目 | `sumika-theme-settings.desktop` → `sumika-launch-settings-theme-tui` |
-| Settings 重定向 | `sumika-settings appearance` → `sumika-launch-tui sumika-settings-tui theme` |
-| 直接命令 | `sumika-settings-tui theme` |
+| Settings 重定向 | `sumika-settings appearance` → `sumika-launch-settings-theme-tui` |
+| 直接命令 | `sumika-launch-settings-theme-tui` |
 
 `sumika-launch-settings-theme-tui` 使用 `xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.themetui`
 打开终端，使 Hyprland 窗口规则（float + center + 1180×760）生效。

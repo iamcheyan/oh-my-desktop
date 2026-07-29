@@ -9,7 +9,7 @@ follow.
 All programmatic paste operations must use:
 
 ```sh
-$SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor
+sumika-paste-at-cursor
 ```
 
 Do not add another direct `kitty @ send-text`, `wtype`, `ydotool`, or Hyprland
@@ -100,7 +100,7 @@ Current mappings:
 
 ```ini
 map ctrl+v paste_from_clipboard
-map ctrl+shift+v launch --type=background $SUMIKA_SHELL_ROOT/bin/sumika-kitty-smart-paste
+map ctrl+shift+v launch --type=background sumika-kitty-smart-paste
 ```
 
 `Ctrl+V` stays native. `Ctrl+Shift+V` provides Sumika Shell image-to-path behavior, but
@@ -209,7 +209,7 @@ Static checks:
 
 ```sh
 sh -n share/bin/omarchy-paste-at-cursor
-sh -n bin/sumika-kitty-smart-paste
+sh -n "$SUMIKA_SHELL_EXTENSIONS_DIR/clipboard/bin/sumika-kitty-smart-paste"
 ```
 
 Runtime checks:

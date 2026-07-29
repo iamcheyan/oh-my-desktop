@@ -1,289 +1,103 @@
-# Third-Party Dependencies
+# Core Third-Party Dependencies
 
-All external programs used by Sumika Shell, grouped by feature. Technical
-commands and package identifiers use the `sumika` prefix.
+This document is the dependency contract for the Sumika Shell Core product
+floor. `Init.sh` installs only these dependencies. Optional extensions under
+`~/.local/share/sumika-shell/extensions/` own their packages, Python modules,
+daemons, permissions, and setup instructions.
 
-## Hyprland Core
+## Required Core Commands
 
-| Program | Purpose | Required |
+|Capability|Commands|Why Core needs them|
 |---|---|---|
-| `hyprland` | Wayland compositor | Yes |
-| `hyprctl` | Hyprland control CLI | Yes |
-| `hypridle` | Idle management | Yes |
-| `hyprpicker` | Color picker | Yes |
-| `swaybg` | Wallpaper renderer | Yes |
-| `xdg-desktop-portal-hyprland` | Portal backend | Yes |
+|Session|`Hyprland`, `hyprctl`, `hypridle`|Compositor, IPC, and idle handling|
+|Shell|`qs` / `quickshell`|Runs the bar, Overview, settings, and polkit agent|
+|Audio|`wpctl`|Volume and mute actions; PipeWire is the audio backend|
+|Network|`nmcli`, `bluetoothctl`|Wi-Fi and Bluetooth services and TUIs|
+|Display|`brightnessctl`, `wlr-randr`, `grim`, `hyprpicker`|Brightness, output configuration, display previews, and color picking|
+|Clipboard transport|`wl-copy`|Core Wi-Fi password copy action|
+|Desktop integration|`foot`, `zenity`, `notify-send`, `secret-tool`|Core TUI host, browser picker, notifications, and keyring storage|
+|Runtime tooling|`jq`, `curl`, `python3`, `systemd-run`|Registry/config processing, media artwork, Core Python TUIs, and process supervision|
 
-## Network
+PipeWire, WirePlumber, NetworkManager, BlueZ, polkit, GNOME Keyring, and the
+desktop portals are required services even when their command-line tools are
+not called directly from QML.
 
-| Program | Purpose | Required |
-|---|---|---|
-| `nmcli` | NetworkManager CLI (WiFi scan/connect) | Yes |
-| `nmtui` | NetworkManager TUI (WiFi config) | Optional |
-| `nm-connection-editor` | NetworkManager GUI editor | Optional |
-| `bluetoothctl` | Bluetooth control CLI | Optional |
-| `blueman-manager` | Bluetooth GUI manager | Optional |
+## Optional Core Capabilities
 
-## Audio
+These are installed by default because they complete a Core feature, but Core
+starts without them:
 
-| Program | Purpose | Required |
-|---|---|---|
-| `pamixer` | PulseAudio volume control | Yes |
-| `playerctl` | Media player control | Yes |
-| `pavucontrol` | PulseAudio volume GUI | Optional |
-| `ffplay` | System sound playback (from ffmpeg) | Optional |
-| `parecord` | Audio recording (voice input) | Optional |
-
-## Display / Brightness
-
-| Program | Purpose | Required |
-|---|---|---|
-| `brightnessctl` | Backlight brightness control | Yes |
-| `ddcutil` | External monitor brightness (DDC/CI) | Optional |
-| `wlr-randr` | Transactional output mode, scale, rotation, and layout control | Yes |
-
-## Screenshot / Screen Record
-
-| Program | Purpose | Required |
-|---|---|---|
-| `grim` | Wayland screenshot tool | Yes |
-| `slurp` | Region selector | Yes |
-| `swappy` | Screenshot annotation | Optional |
-| `satty` | Screenshot annotation (alt to swappy) | Optional |
-| `wl-screenrec` | Screen recording | Optional |
-
-## Clipboard
-
-| Program | Purpose | Required |
-|---|---|---|
-| `wl-copy` | Wayland clipboard write | Yes |
-| `wl-paste` | Wayland clipboard read | Yes |
-| `cliphist` | Clipboard history manager | Yes |
-
-## Input / Keyboard
-
-| Program | Purpose | Required |
-|---|---|---|
-| `ydotool` | Input simulation (auto-paste) | Optional |
-| `keyd` | Keyboard remapping daemon | Optional |
-
-## Terminal
-
-| Program | Purpose | Required |
-|---|---|---|
-| `foot` | Default terminal emulator | Yes |
-| `kitty` | Alternative terminal | Optional |
-
-## Session / Power
-
-| Program | Purpose | Required |
-|---|---|---|
-| `systemctl` | Systemd control (suspend/hibernate) | Yes |
-| `loginctl` | Login session control | Yes |
-| `polkit-gnome` | Polkit authentication agent | Yes |
-
-## Nightlight
-
-| Program | Purpose | Required |
-|---|---|---|
-| `hyprsunset` | Blue light filter | Optional |
-
-## Utilities
-
-| Program | Purpose | Required |
-|---|---|---|
-| `jq` | JSON processing | Yes |
-| `curl` | HTTP requests | Yes |
-| `git` | Version control | Yes |
-| `ripgrep` | Fast text search | Yes |
-| `fish` | Default shell | Yes |
-| `xdg-open` | Open files/URLs | Yes |
-| `notify-send` | Desktop notifications | Yes |
-| `zenity` | GTK dialog boxes | Optional |
-| `kdialog` | KDE dialog boxes | Optional |
-| `mkdir` | Directory creation | Yes |
-| `rm` | File deletion | Yes |
-| `cat` | File reading | Yes |
-| `cp` / `mv` | File copy/move | Yes |
-| `date` | Date/time formatting | Yes |
-| `sleep` | Delay | Yes |
-| `pidof` | Process detection | Yes |
-| `pkill` | Process termination | Yes |
-| `killall` | Kill all instances | Yes |
-| `cmp` | File comparison | Yes |
-| `tee` | Split output | Yes |
-| `awk` | Text processing | Yes |
-
-## Fonts
-
-| Font | Purpose |
+|Command|Capability without it|
 |---|---|
-| Cantarell | Main UI font |
-| Noto Sans | Fallback UI font |
-| Noto Sans CJK | CJK support |
-| Noto Color Emoji | Emoji support |
-| JetBrainsMono Nerd Font | Monospace + icons |
-| MesloLGS Nerd Font | Monospace UI |
-| Material Symbols | Material icons |
-| Font Awesome | Awesome icons |
+|`ddcutil`|External-monitor DDC/CI brightness is unavailable|
+|`hyprsunset`|Night-light controls are unavailable|
+|`pavucontrol`|The advanced audio mixer link is unavailable|
+|`ffplay`|UI event sounds are silent|
+|`nmtui`|Enterprise/fallback network configuration is unavailable|
+|`nm-connection-editor`|The advanced network editor link is unavailable|
 
-## Package Names by Distro
+`grim` is a Core dependency, not a screenshot-extension dependency: the
+brightness service uses it for per-output preview frames.
 
-### Fedora
+## Core Fonts
 
-| Normalized Name | Fedora Package |
+Core QML directly requests:
+
+- `MesloLGS Nerd Font Mono`
+- `JetBrainsMono Nerd Font Mono`
+- `Material Symbols Rounded`
+- Noto Sans/CJK and Noto Color Emoji as fallbacks
+
+`Init.sh` uses distribution packages for Noto and installs the three
+project-specific UI fonts into `~/.local/share/fonts/sumika-shell/` when the
+requested families are not already available.
+
+## Extension-Owned Dependencies
+
+The Core installer deliberately does not install the following. They belong to
+the extension that uses them:
+
+|Extension|Typical dependencies excluded from Core|
 |---|---|
-| network-manager | NetworkManager |
-| network-manager-wifi | NetworkManager-wifi |
-| network-manager-tui | NetworkManager-tui |
-| network-manager-editor | nm-connection-editor |
-| pavucontrol | pavucontrol |
-| brightnessctl | brightnessctl |
-| ddcutil | ddcutil |
-| wlr-randr | wlr-randr |
-| swaybg | swaybg |
-| grim | grim |
-| slurp | slurp |
-| swappy | swappy |
-| satty | satty |
-| wl-clipboard | wl-clipboard |
-| cliphist | cliphist |
-| foot | foot |
-| kitty | kitty |
-| ffplay | ffmpeg-free |
-| hyprsunset | hyprsunset |
-| keyd | keyd |
-| blueman | blueman |
-| jq | jq |
-| curl | curl |
-| git | git |
-| ripgrep | ripgrep |
-| fish | fish |
-| ydotool | ydotool |
-| python3 | python3 |
-| python3-pip | python3-pip |
-| fontconfig | fontconfig |
-| unzip | unzip |
-| cantarell-fonts | abattis-cantarell-vf-fonts |
-| noto-fonts | google-noto-sans-vf-fonts |
-| noto-cjk-fonts | google-noto-sans-cjk-vf-fonts |
-| noto-emoji-fonts | google-noto-color-emoji-fonts |
-| jetbrains-mono-nerd-fonts | jetbrains-mono-fonts-all |
-| font-awesome | fontawesome-6-free-fonts |
-| qt6-wayland | qt6-qtwayland |
-| qt5-wayland | qt5-qtwayland |
-| adwaita-qt5 | adwaita-qt5 |
-| gnome-themes-extra | gnome-themes-extra |
-| xdg-desktop-portal-gtk | xdg-desktop-portal-gtk |
-| kdialog | kdialog |
-| zenity | zenity |
-| qt6ct | qt6ct |
-| kvantum | kvantum |
-| nautilus | nautilus |
-| evince | evince |
-| plasma-systemmonitor | plasma-systemmonitor |
-| power-profiles-daemon | power-profiles-daemon |
-| polkit-gnome | polkit-gnome |
-| gnome-keyring | gnome-keyring |
-| mako | mako |
+|Clipboard|`cliphist`, smart-paste helpers|
+|Input method|Fcitx5 and its GTK/Qt frontends|
+|Keyboard remap|`keyd`, GTK key-capture dependencies, polkit rule|
+|Screenshot/OCR|`slurp`, `swappy`/`satty`, OCR Python packages|
+|Voice input|`parecord`, `ydotool`/`wtype`, speech-model Python packages|
+|File backup|`rsync`, Samba tools, backup polkit rule|
+|Windows VM|QEMU/libvirt, RDP/Looking Glass tools|
+|Theme settings|Wallpaper/theme assets and `swaybg`|
 
-### Debian / Ubuntu
+An extension may reuse a Core dependency such as `python3`, `curl`, `grim`, or
+`wl-copy`, but that does not make its additional dependency set part of Core.
 
-| Normalized Name | Debian Package |
-|---|---|
-| network-manager | network-manager |
-| network-manager-wifi | network-manager |
-| network-manager-tui | network-manager-tui |
-| network-manager-editor | network-manager-gnome |
-| pavucontrol | pavucontrol |
-| brightnessctl | brightnessctl |
-| ddcutil | ddcutil |
-| wlr-randr | wlr-randr |
-| swaybg | swaybg |
-| grim | grim |
-| slurp | slurp |
-| swappy | swappy |
-| satty | satty |
-| wl-clipboard | wl-clipboard |
-| cliphist | cliphist |
-| foot | foot |
-| kitty | kitty |
-| ffmpeg | ffmpeg |
-| hyprsunset | hyprsunset |
-| keyd | keyd |
-| blueman | blueman |
-| jq | jq |
-| curl | curl |
-| git | git |
-| ripgrep | ripgrep |
-| fish | fish |
-| ydotool | ydotool |
-| python3 | python3 |
-| python3-pip | python3-pip |
-| fontconfig | fontconfig |
-| unzip | unzip |
-| cantarell-fonts | fonts-cantarell |
-| noto-fonts | fonts-noto-core |
-| noto-cjk-fonts | fonts-noto-cjk |
-| noto-emoji-fonts | fonts-noto-color-emoji |
-| jetbrains-mono-nerd-fonts | fonts-jetbrains-mono |
-| font-awesome | fonts-font-awesome |
-| qt6-wayland | qt6-wayland |
-| qt5-wayland | libqt5waylandclient5 |
-| adwaita-qt5 | adwaita-qt |
-| gnome-themes-extra | gnome-themes-extra |
-| xdg-desktop-portal-gtk | xdg-desktop-portal-gtk |
-| kdialog | kdialog |
-| zenity | zenity |
-| qt6ct | qt6ct |
-| kvantum | qt5-style-kvantum |
-| nautilus | nautilus |
-| evince | evince |
-| plasma-systemmonitor | plasma-systemmonitor |
-| power-profiles-daemon | power-profiles-daemon |
-| polkit-gnome | polkit-gnome |
-| gnome-keyring | gnome-keyring |
-| mako | mako |
+## Distribution Support
 
-### Arch Linux
+`Init.sh` normalizes packages for these families:
 
-| Normalized Name | Arch Package |
-|---|---|
-| network-manager | networkmanager |
-| network-manager-wifi | networkmanager |
-| network-manager-tui | networkmanager |
-| network-manager-editor | nm-connection-editor |
-| pavucontrol | pavucontrol |
-| brightnessctl | brightnessctl |
-| ddcutil | ddcutil |
-| wlr-randr | wlr-randr |
-| swaybg | swaybg |
-| grim | grim |
-| slurp | slurp |
-| swappy | swappy |
-| satty | satty |
-| wl-clipboard | wl-clipboard |
-| cliphist | cliphist |
-| foot | foot |
-| kitty | kitty |
-| ffmpeg | ffmpeg |
-| hyprsunset | hyprsunset |
-| keyd | keyd |
-| blueman | blueman |
-| jq | jq |
-| curl | curl |
-| git | git |
-| ripgrep | ripgrep |
-| fish | fish |
-| ydotool | ydotool |
-| python3 | python3 |
-| python3-pip | python-pip |
-| fontconfig | fontconfig |
-| unzip | unzip |
-| cantarell-fonts | cantarell-fonts |
-| noto-fonts | noto-fonts |
-| noto-cjk-fonts | noto-fonts-cjk |
-| noto-emoji-fonts | noto-fonts-emoji |
-| jetbrains-mono-nerd-fonts | ttf-jetbrains-mono-nerd |
-| font-awesome | ttf-font-awesome |
-| kvantum | kvantum-qt5 |
+|Family|Package manager|Status|
+|---|---|---|
+|Arch, Manjaro, EndeavourOS, CachyOS|`pacman`|Supported|
+|Fedora/RHEL family|`dnf`|Supported; repositories are added only when the required package is absent|
+|Debian/Ubuntu family|`apt`|Best effort; recent Hyprland and Quickshell packages may require a newer release or an external repository|
+|openSUSE Tumbleweed/Slowroll|`zypper`|Best effort; some Hyprland ecosystem packages may require `X11:Wayland`|
+|NixOS|declarative configuration|Supported through the generated NixOS block|
+
+The installer verifies commands after package installation. It stops with an
+explicit missing-command list instead of reporting success after a package
+manager silently skipped an unavailable package.
+
+Package names that intentionally differ by family include:
+
+|Normalized|Debian/Ubuntu|Fedora|Arch|openSUSE|
+|---|---|---|---|---|
+|NetworkManager|`network-manager`|`NetworkManager`|`networkmanager`|`NetworkManager`|
+|PipeWire Pulse|`pipewire-pulse`|`pipewire-pulseaudio`|`pipewire-pulse`|`pipewire-pulseaudio`|
+|Power Profiles API|`power-profiles-daemon`|`tuned-ppd`|`power-profiles-daemon`|`power-profiles-daemon`|
+|Qt Wayland|`qt6-wayland`|`qt6-qtwayland`|`qt6-wayland`|`libqt6-qtwayland`|
+|Kvantum Qt6|`qt-style-kvantum`|`kvantum`|`kvantum`|`kvantum-qt6`|
+|Keyring CLI|`libsecret-tools`|`libsecret`|`libsecret`|`libsecret-tools`|
+
+Run `bin/sumika-doctor` after installation. Its required checks cover only
+Core; it reports installed extensions without treating their private
+dependencies as Core failures.

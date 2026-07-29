@@ -7,11 +7,11 @@ This note records the decisions from the keyboard-remap / voice-hotkey debugging
 Sumika Shell uses one GTK capture tool with two explicit modes:
 
 ```sh
-scripts/key-test --remap-source
-scripts/key-test --hotkey
+$SUMIKA_SHELL_EXTENSIONS_DIR/keyboard-remap/scripts/key-test --remap-source
+$SUMIKA_SHELL_EXTENSIONS_DIR/keyboard-remap/scripts/key-test --hotkey
 ```
 
-Running `scripts/key-test` without a flag shows a segmented switch in the
+Running the keyboard-remap extension's `scripts/key-test` without a flag shows a segmented switch in the
 window. **Current key value** is the default and shows the result after active
 keyd remaps. **Original key value** temporarily pauses keyd and shows the
 physical source key. Switching modes clears the previous capture.

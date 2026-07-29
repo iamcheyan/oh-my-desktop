@@ -3,7 +3,7 @@
 Sumika Shell 的设置工具集中在 `bin/` 下，按入口分三类：
 
 - **工具盒（bar 弹出菜单）**：WiFi、蓝牙
-- **设置中心（`sumika-settings-tui` 路由）**：键盘、语音、虚拟机、主题、备份、OCR
+- **设置中心**：Core 页面直接启动 Core TUI；扩展页面由对应扩展直接启动
 - **独立命令行工具**：OCR 识别
 
 ## 工具盒类
@@ -15,7 +15,9 @@ Sumika Shell 的设置工具集中在 `bin/` 下，按入口分三类：
 
 ## 设置中心类
 
-由 `bin/sumika-settings-tui`（bash 路由）按子命令分派到各个 Python TUI：
+Core 不再提供中央 `sumika-settings-tui` 路由。Wi-Fi、蓝牙等 Core TUI
+位于各自模块目录；主题、键盘、语音、虚拟机、备份、OCR 等可选页面由对应扩展
+提供并直接启动自己的命令。
 
 | 文件 | 说明 | 路由键 |
 |---|---|---|
@@ -53,7 +55,7 @@ Sumika Shell 的设置工具集中在 `bin/` 下，按入口分三类：
 - **视觉系统**：[`tui-style-system.md`](tui-style-system.md) — 颜色、边框、间距约定
 - **布局系统**：[`../settings/settings-layout-system.md`](../settings/settings-layout-system.md) — QML 面板布局契约
 - **Python 布局系统**：[`tui-framework-plan.md`](tui-framework-plan.md) — Python TUI 的 Layout 模板类与架构
-- **启动方式**：`bin/sumika-settings-tui` bash 路由 → Python 子进程
+- **启动方式**：Core 模块或扩展直接启动其自身的 TUI 命令
 
 ### 共享模块 `bin/sumika_tui_framework.py`
 

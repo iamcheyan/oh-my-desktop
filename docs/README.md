@@ -8,9 +8,7 @@ are intentionally not retained.
 ## Start Here
 
 - [Current repository structure](project-structure.md)
-- [Core and plugin migration plan](architecture/sumika-core-plugin-migration-plan.md)
-- [Plugin migration execution checklist](architecture/sumika-plugin-migration-execution-checklist.md)
-- [Core post-split audit](architecture/sumika-core-post-split-audit.md)
+- [Core and extension boundary](architecture/core-extension-boundary.md)
 - [Third-party dependencies](architecture/third-party-deps.md)
 - [Settings layout contract](settings/settings-layout-system.md)
 - [TUI style system](tui/tui-style-system.md)
@@ -61,7 +59,8 @@ are intentionally not retained.
 1. One topic has one authoritative document. Update it instead of adding a new
    report with a date or round number.
 2. Architecture documents distinguish current implementation from target
-   design. The target plugin architecture lives only in the migration plan.
+   design. The current ownership contract lives in the Core/extension boundary
+   document.
 3. Use repository-relative Markdown links.
 4. Use the Sumika path API. Do not document new state under
    `~/.local/state/sumika-shell` or user data under the repository symlink.

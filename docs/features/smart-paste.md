@@ -19,7 +19,7 @@ behavior.
 Every programmatic paste must call:
 
 ```sh
-$SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor
+sumika-paste-at-cursor
 ```
 
 Feature code must not directly add `kitty @ send-text`, `wtype`, `ydotool`, or
@@ -34,7 +34,7 @@ payload=$(mktemp)
 trap 'rm -f "$payload"' EXIT
 printf '%s' "$text" > "$payload"
 SUMIKA_PASTE_SOURCE=my-feature \
-  $SUMIKA_SHELL_ROOT/bin/sumika-paste-at-cursor --file "$payload" auto
+  sumika-paste-at-cursor --file "$payload" auto
 ```
 
 The clipboard service decodes cliphist entries before invoking the helper. It
@@ -59,8 +59,8 @@ The detailed Kitty/OMP constraints and diagnostics are maintained in
 - `apps/sumika-clipboard/services/Cliphist.qml`
 - `apps/sumika-clipboard/modules/clipboard/ClipboardDialog.qml`
 - `apps/sumika-clipboard/modules/clipboard/widgets/ClipboardItem.qml`
-- `bin/sumika-paste-at-cursor`
-- `bin/sumika-kitty-smart-paste`
+- `$SUMIKA_SHELL_EXTENSIONS_DIR/clipboard/bin/sumika-paste-at-cursor`
+- `$SUMIKA_SHELL_EXTENSIONS_DIR/clipboard/bin/sumika-kitty-smart-paste`
 
 ## Verification
 

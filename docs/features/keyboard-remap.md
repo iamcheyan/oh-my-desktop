@@ -118,7 +118,13 @@ capslock = escape
 leftalt = leftmeta
 ```
 
-Devices with remaps but no `keydId` are skipped with a `## WARN` comment and surfaced in the UI. Disabled profiles are omitted. Apply runs `pkexec` to install `/etc/keyd/sumika.conf` and `systemctl restart keyd`. A polkit rule (`share/polkit-1/rules.d/50-sumika-keyboard.rules`) allows active users to apply without a password; install it via `omarchy-keyboard-setup`.
+Devices with remaps but no `keydId` are skipped with a `## WARN` comment and
+surfaced in the UI. Disabled profiles are omitted. Apply runs `pkexec` to
+install `/etc/keyd/sumika.conf` and `systemctl restart keyd`. The extension's
+polkit rule
+(`$SUMIKA_SHELL_EXTENSIONS_DIR/keyboard-remap/share/polkit-1/rules.d/50-sumika-keyboard.rules`)
+allows active users to apply without a password; install it with
+`sumika-keyboard-setup`.
 
 The left column is only the keyboard selector. Device-specific controls and
 the Apple HID Fn-row mode control live in the right detail column. Fn mode is
@@ -127,10 +133,10 @@ keyboard navigation, Enter/Space, mouse click, or the `f` shortcut.
 
 Generation is shared by:
 
-- `share/bin/omarchy-keyboard-render` — renders the expected keyd config from `profiles.json`.
-- `share/bin/omarchy-keyboard-apply` — writes the rendered config to `keyboard-remap/keyd.generated.conf`, installs it to `/etc/keyd/sumika.conf`, and restarts keyd.
+- `sumika-keyboard-render` — renders the expected keyd config from `profiles.json`.
+- `sumika-keyboard-apply` — writes the rendered config, installs it to `/etc/keyd/sumika.conf`, and restarts keyd.
 
-The UI compares `omarchy-keyboard-render` with `/etc/keyd/sumika.conf` to decide whether it should show `pending changes`.
+The UI compares `sumika-keyboard-render` with `/etc/keyd/sumika.conf` to decide whether it should show `pending changes`.
 
 ## UI (bar popup)
 
@@ -191,7 +197,7 @@ This is the intended workflow for changing a remap; users should not have to rem
 Press-to-capture is implemented. Keyboard Remap must capture the **physical source key**, not the key after current remaps. Use it from **Settings → Keyboard Remap → Capture**, or run:
 
 ```sh
-$SUMIKA_SHELL_ROOT/scripts/key-test --remap-source
+$SUMIKA_SHELL_EXTENSIONS_DIR/keyboard-remap/scripts/key-test --remap-source
 ```
 
 In `--remap-source` mode, `key-test` temporarily stops keyd before the GTK window captures a key, then restores keyd when the window exits. This prevents an existing remap from polluting the source capture. For example, if `leftmeta = f13` is active, Keyboard Remap still captures the physical key as `leftmeta`.
@@ -307,7 +313,7 @@ This differs from keyboards that emit `KEY_FN` (e.g. MacBook Globe → Hypr `cod
 
 ```sh
 # 1. Open capture, press 全角/半角 — expect keyd-name: grave
-$SUMIKA_SHELL_ROOT/scripts/key-test --remap-source
+$SUMIKA_SHELL_EXTENSIONS_DIR/keyboard-remap/scripts/key-test --remap-source
 
 # 2. Monitor — press each Fn alone; expect silence
 sudo keyd monitor -t
@@ -332,7 +338,8 @@ Poll every 5s; when the main keyboard changes, UI highlights it.
 | Remap active | `keyd` installed + `keyd` service running |
 | Apply | `pkexec` (polkit) for writing `/etc/keyd/sumika.conf` |
 
-`omarchy-keyboard-setup` installs keyd when missing (Fedora: build from upstream or COPR). Until setup completes, profiles can still be edited locally.
+`sumika-keyboard-setup` installs keyd when missing. Until setup completes,
+profiles can still be edited locally.
 
 ## Bar integration
 

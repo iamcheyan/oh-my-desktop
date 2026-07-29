@@ -40,10 +40,11 @@ Optional extensions are installed below:
 ~/.local/share/sumika-shell/extensions/<id>/
 ```
 
-The current installed extensions are `clipboard`, `input-method`, `screenshot`,
-and `voice`. Each extension owns its QML, application entry points, helpers,
-and any module-local service files. It must remain functional when copied to a
-different machine with the same public Core API.
+Each extension owns its QML, application entry points, helpers, system
+dependencies, permissions, and any module-local service files. The Core
+installer and doctor must not install or require extension-private
+dependencies. An extension must remain functional when copied to a different
+machine with the same public Core API and its own prerequisites installed.
 
 The startup registry records `source: "core"` or `source: "extension"` on
 modules and UI contributions. Core is loaded first and wins duplicate IDs.
