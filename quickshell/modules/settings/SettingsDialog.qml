@@ -9,7 +9,6 @@ import QtQuick.Layouts
 import Quickshell
 import qs.core.runtime
 import Quickshell.Io
-import "wallpaper" as WallpaperSettings
 import qs.modules.settings
 import qs.modules.settings.widgets
 import qs.modules.settings.pages
@@ -21,7 +20,6 @@ WindowDialog {
     property string currentPage: normalizePage(requestedPage)
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
-    property int wallpaperRefreshNonce: 0
     property bool keyremapDetailOpen: false
     property string keyremapEditingPreset: ""
 
@@ -43,8 +41,7 @@ WindowDialog {
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
         { key: "power", icon: "battery_charging_full", title: "Power & Battery", keywords: "energy charging profile battery idle sleep" },
-        { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" },
-        { key: "keyremap", icon: "keyboard", title: "Keyboard Remap", keywords: "keyboard remap keyd map caps ctrl modifier bluetooth wired device profile" }
+        { key: "system", icon: "settings_applications", title: "System", keywords: "autostart startup window rules default apps applications" }
     ]
 
     // Lazy-created Component cache for module settings pages
@@ -130,21 +127,18 @@ WindowDialog {
         // Hardcoded fallback redirects (non-module pages only)
         if (page === "windows-vm") return "overview";
         if (page === "voice" || page === "voice-input" || page === "speech") return "overview";
-        if (page === "keyboard" || page === "keymap" || page === "remap") return "keyremap";
         return page && page.length > 0 ? page : "overview";
     }
 
     function pageTitle(page) {
         const match = pages.find(item => item.key === page);
         if (match) return match.title;
-        if (page === "wallpaper") return "Wallpaper";
         return "Overview";
     }
 
     function pageIcon(page) {
         const match = pages.find(item => item.key === page);
         if (match) return match.icon;
-        if (page === "wallpaper") return "wallpaper";
         return "settings";
     }
 
@@ -155,7 +149,6 @@ WindowDialog {
 
         // Core pages (always built-in)
         if (page === "overview") return overviewPageComponent;
-        if (page === "wallpaper") return wallpaperPageComponent;
         if (page === "system") return systemPageComponent;
 
         // No hardcoded fallback for module-owned pages — if the module isn't
@@ -165,14 +158,6 @@ WindowDialog {
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    function shellQuote(value) {
-        return "'" + String(value || "").replace(/'/g, "'\\''") + "'";
-    }
-
-    function openWallpaperPicker(mode) {
-        wallpaperPicker.open(mode);
     }
 
     onRequestedPageChanged: currentPage = normalizePage(requestedPage)
@@ -203,14 +188,6 @@ WindowDialog {
             iconName: root.pageIcon(root.currentPage)
             pageComponent: root.pageComponent(root.currentPage)
         }
-        WallpaperSettings.WallpaperPickerDialog {
-            id: wallpaperPicker
-            onAccepted: (mode, path) => {
-                const action = mode === "folder" ? "set-folder" : "set-file";
-                Quickshell.execDetached(["bash", "-lc", "sumika-wallpaper " + action + " " + root.shellQuote(path)]);
-                root.wallpaperRefreshNonce += 1;
-            }
-        }
     }
 
 
@@ -218,12 +195,5 @@ WindowDialog {
     Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
 
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
-
-    Component { id: wallpaperPageComponent; WallpaperSettings.WallpaperPage { settingsRoot: root } }
-
-
-
-
-
 
 }

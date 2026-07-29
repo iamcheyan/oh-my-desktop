@@ -87,7 +87,7 @@ page="${2:-overview}"
 if [ "$action" = "open" ] || [ "$action" = "toggle" ]; then
     # Redirect theme/appearance to TUI — no QML settings page exists
     if [ "$page" = "appearance" ] || [ "$page" = "theme" ] || [ "$page" = "themes" ] || [ "$page" = "font" ]; then
-        exec sumika-launch-tui sumika-settings-tui theme
+        exec sumika-launch-settings-theme-tui
     fi
     if [ "$page" = "sound" ] || [ "$page" = "audio" ] || [ "$page" = "sounds" ]; then
         # Keep GTK4's Wayland output scaling automatic, but compensate for

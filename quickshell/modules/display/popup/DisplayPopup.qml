@@ -92,7 +92,7 @@ PopupColumn {
         label: "Wallpaper settings…"
         onClicked: {
             GlobalStates.barPopupType = "";
-            Quickshell.execDetached(["sumika-launch-tui", "sumika-settings-tui", "wallpaper"]);
+            Quickshell.execDetached(["sumika-launch-tui", "sumika-settings-wallpaper-tui"]);
         }
     }
 
