@@ -1,6 +1,0 @@
-#!/bin/sh
-# Paste helper — voice module not available in single-repo architecture.
-# The omarchy-paste-at-cursor binary lives in the voice module which has been
-# removed from this repo.
-notify-send -u critical "Paste Helper" "Voice/paste module not available" 2>/dev/null || true
-exit 1

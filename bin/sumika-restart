@@ -151,12 +151,6 @@ module_is_enabled() {
     return 0
 }
 
-# Start the input-method backend before the bar. This is bounded and
-# conditional; a missing or broken Fcitx5 must not block the shell.
-if [ -x "$SUMIKA_SHELL_ROOT/bin/sumika-input-method-ensure" ]; then
-    "$SUMIKA_SHELL_ROOT/bin/sumika-input-method-ensure" || true
-fi
-
 # ── Start core processes ──────────────────────────────────────────────────
 start_app sumika-bar
 start_app sumika-polkit

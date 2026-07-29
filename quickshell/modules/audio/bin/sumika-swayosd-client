@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # Audio volume control for the Sumika bar OSD. Called from ActionManager.
-# MPRIS playback control is available through --playerctl.
 
 _sumika_root="${SUMIKA_SHELL_ROOT:-}"
 if [[ -z "$_sumika_root" ]]; then
@@ -33,12 +32,8 @@ case "${1:-}" in
     esac
     notify_volume_osd
     ;;
-  --playerctl)
-    exec playerctl "${2:?missing playerctl action}"
-    ;;
   *)
     echo "usage: sumika-swayosd-client --output-volume <raise|lower|mute-toggle|+N|-N>" >&2
-    echo "       sumika-swayosd-client --playerctl <action>" >&2
     exit 2
     ;;
 esac

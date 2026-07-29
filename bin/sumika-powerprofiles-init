@@ -1,4 +1,0 @@
-#!/bin/sh
-# Power profiles init — battery-power module not available in single-repo architecture.
-notify-send -u critical "Power Profiles" "Battery/power module not available" 2>/dev/null || true
-exit 1

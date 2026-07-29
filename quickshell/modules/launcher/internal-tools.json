@@ -1,10 +1,1 @@
-[
-  {
-    "id": "sumika-keytest.desktop",
-    "name": "Sumika KeyTest",
-    "description": "Hardware key capture for keyboard diagnostics and Sumika bind string generation",
-    "command": ["$root/quickshell/tools/key-test"],
-    "icon": "keyboardSettings",
-    "keywords": ["keyboard", "test", "diagnostic", "key", "capture", "evdev"]
-  }
-]
+[]
