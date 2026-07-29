@@ -6,4 +6,8 @@ local ext_dir = (os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or data_home .. "/sumi
 local shell_root = require("default.hypr.paths").root
 o.exec_on_start(shell_root .. "/bin/sumika-restart")
 local wallpaper = ext_dir .. "/bin/sumika-wallpaper"
-o.exec_on_start(wallpaper .. " restore")
+local wallpaper_file = io.open(wallpaper, "r")
+if wallpaper_file then
+  wallpaper_file:close()
+  o.exec_on_start(wallpaper .. " restore")
+end

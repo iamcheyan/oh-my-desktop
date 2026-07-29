@@ -89,41 +89,31 @@ if [[ "$SUMIKA_SHELL_ROOT" == "$repo" ]]; then
 else
   fail "SUMIKA_SHELL_ROOT does not resolve to $repo"
 fi
-section "terminal configs"
-for tc in foot kitty alacritty ghostty; do
-  if [[ -d "$HOME/.config/$tc" ]]; then
-    ok "$HOME/.config/$tc exists"
-  else
-    fail "$HOME/.config/$tc is missing"
-  fi
-done
-
 section "core commands"
-for cmd in qs quickshell hyprctl jq curl swaybg systemd-run; do
+if command -v qs >/dev/null 2>&1 || command -v quickshell >/dev/null 2>&1; then
+  ok "Quickshell CLI"
+else
+  fail "Quickshell CLI missing: qs/quickshell"
+fi
+if command -v Hyprland >/dev/null 2>&1 || command -v hyprland >/dev/null 2>&1; then
+  ok "Hyprland compositor"
+else
+  fail "Hyprland compositor missing: Hyprland/hyprland"
+fi
+for cmd in hyprctl jq curl python3 systemd-run; do
   check_cmd "$cmd"
 done
 
-
-section "desktop helpers"
-for cmd in wl-copy wl-paste cliphist grim slurp swappy hyprpicker; do
-  check_optional_cmd "$cmd"
-done
-for cmd in pavucontrol bluetoothctl nm-connection-editor nmtui kitty fish; do
-  check_optional_cmd "$cmd"
+section "core backends"
+for cmd in wpctl nmcli bluetoothctl brightnessctl wlr-randr grim wl-copy \
+  hyprpicker foot zenity secret-tool notify-send; do
+  check_cmd "$cmd"
 done
 
-section "display extras"
-check_cmd wlr-randr "wlr-output display management"
-for cmd in ddcutil ffplay hyprsunset; do
+section "optional core capabilities"
+for cmd in pavucontrol nm-connection-editor nmtui ddcutil ffplay hyprsunset; do
   check_optional_cmd "$cmd"
 done
-
-section "pickers"
-if command -v kdialog >/dev/null 2>&1 || command -v zenity >/dev/null 2>&1; then
-  ok "file/folder picker available"
-else
-  warn "file/folder picker missing: install kdialog or zenity"
-fi
 
 section "login keyring"
 check_cmd gnome-keyring-daemon "GNOME Keyring daemon"
@@ -143,26 +133,10 @@ else
 fi
 
 section "fonts"
-check_font "Cantarell" "main UI font"
 check_font "Noto Color Emoji" "emoji font"
 check_font "JetBrainsMono Nerd Font Mono" "Nerd Font icons"
 check_font "MesloLGS Nerd Font Mono" "monospace UI font"
 check_font "Material Symbols Rounded" "Material Symbols icons"
-
-
-section "voice input"
-check_cmd parecord "parecord"
-check_optional_cmd ydotool "ydotool auto-paste"
-if [[ -x "$HOME/.cache/sumika-voice/venv/bin/python3" ]]; then
-  ok "voice venv"
-else
-  warn "voice venv missing"
-fi
-if [[ -f "$HOME/.cache/sumika-voice/sense-voice-small-int8/model.int8.onnx" && -f "$HOME/.cache/sumika-voice/sense-voice-small-int8/tokens.txt" ]]; then
-  ok "SenseVoice model cache"
-else
-  warn "SenseVoice model missing"
-fi
 
 section "wallpaper"
 _sumika_cfg="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
@@ -170,11 +144,11 @@ _cfg_file="$_sumika_cfg/sumika.json"
 [ -f "$_cfg_file" ] || _cfg_file="$repo/quickshell/config.json"
 wallpaper="$(jq -r '.background.wallpaperPath // ""' "$_cfg_file" 2>/dev/null || true)"
 if [[ -n "$wallpaper" ]]; then
-  expanded="${wallpaper/#\~/$HOME}"
-  if [[ -f "$expanded" ]]; then
-    ok "configured wallpaper exists"
-  else
-    fail "configured wallpaper missing: $wallpaper"
+    expanded="${wallpaper/#\~/$HOME}"
+    if [[ -f "$expanded" ]]; then
+      ok "configured wallpaper exists"
+    else
+      warn "configured wallpaper missing: $wallpaper (Core will use its fallback background)"
   fi
 else
   warn "no configured wallpaperPath"
@@ -187,13 +161,19 @@ else
   if [[ -f "$repo/current/background" ]]; then
     ok "current Sumika background resolves to an image"
   else
-    fail "Sumika Shell wallpaper background is missing or broken; run sumika-theme-bg-set or choose a wallpaper"
+    warn "wallpaper background is not configured; Core will use its fallback background"
   fi
 fi
 
 section "privacy scan"
 home_re="$(printf '%s' "$HOME" | sed 's/[.[\*^$()+?{}|]/\\&/g')"
-if rg -n --hidden -S "$home_re" "$repo" -g '!.git/**' -g '!docs/**' >/tmp/sumika-doctor-home-paths 2>/dev/null; then
+if command -v rg >/dev/null 2>&1; then
+  privacy_matches="$(rg -n --hidden -S "$home_re" "$repo" -g '!.git/**' -g '!docs/**' 2>/dev/null || true)"
+else
+  privacy_matches="$(grep -RnsF --exclude-dir=.git --exclude-dir=docs "$HOME" "$repo" 2>/dev/null || true)"
+fi
+if [[ -n "$privacy_matches" ]]; then
+  printf '%s\n' "$privacy_matches" >/tmp/sumika-doctor-home-paths
   warn "tracked files may contain this machine's absolute home path; see /tmp/sumika-doctor-home-paths"
 else
   ok "no current home path outside docs"
@@ -207,7 +187,7 @@ if [ -d "$_ext_dir" ]; then
         [ -f "$_ext_json" ] || continue
         _ext_count=$((_ext_count + 1))
     done
-    ok "extensions directory: $_ext_dir ($_ext_count installed)"
+    ok "extensions directory: $_ext_dir ($_ext_count installed; dependencies are extension-owned)"
 else
     ok "extensions directory not present — no extensions installed"
 fi

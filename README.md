@@ -2,6 +2,19 @@
 
 Personal Omarchy + Quickshell desktop configuration.
 
+## Install
+
+```sh
+git clone git@github.com:iamcheyan/oh-my-desktop.git ~/development/OMD
+cd ~/development/OMD
+./Init.sh
+```
+
+The installer sets up the Core desktop only. Optional extensions are discovered
+from `~/.local/share/sumika-shell/extensions/` and manage their own
+dependencies; installing an extension does not expand the Core package set.
+See [Core dependencies](docs/architecture/third-party-deps.md).
+
 ## Runtime
 
 ```sh
@@ -29,6 +42,8 @@ All core module manifests use v2 and the `sumika-*` technical namespace.
 Core modules live in `quickshell/modules/<id>/`. User extensions live under
 `~/.local/share/sumika-shell/extensions/`.
 
-**ServiceManager**: 10 providers (audio, network, power, workspace, brightness, notification, mpris, inputmethod, tray, bluetooth). All providers are QML singletons in Core process — NOT a full hot-pluggable provider architecture.
+**ServiceManager**: Core providers cover audio, network, power, workspaces,
+brightness, notifications, MPRIS, tray, and Bluetooth. Extension-local
+services remain inside their extension.
 
 **Bar**: all widgets loaded via registry `ModuleLoader`, zero hardcoded feature branches.

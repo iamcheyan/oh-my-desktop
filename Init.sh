@@ -7,8 +7,8 @@ set -eu
 
 REPO="$(cd "$(dirname "$0")" && pwd -P)"
 
-# Init.sh creates runtime symlinks and installs system dependencies.
-# No external module repo — all modules live in quickshell/modules/
+# Init.sh creates runtime symlinks and installs dependencies for the Core
+# product floor only. Optional extensions own and document their dependencies.
 # ── Color helpers ──────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -86,9 +86,8 @@ PACKAGES_AUDIO=(
     pipewire-alsa
     pipewire-utils
     wireplumber
-    pamixer
-    playerctl
     pavucontrol
+    ffmpeg
 )
 
 # Network + Bluetooth
@@ -110,22 +109,9 @@ PACKAGES_DISPLAY=(
     brightnessctl
     ddcutil
     wlr-randr
-    swaybg
     grim
-    slurp
-    swappy
-    satty
     wl-clipboard
-)
-
-# Clipboard
-PACKAGES_CLIPBOARD=(
-    cliphist
-)
-
-# Notification
-PACKAGES_NOTIFICATION=(
-    mako
+    hyprsunset
 )
 
 # Quickshell runtime
@@ -133,85 +119,44 @@ PACKAGES_QUICKSHELL=(
     quickshell
 )
 
-# Input method
-PACKAGES_INPUT=(
-    fcitx5
-    fcitx5-gtk
-    fcitx5-qt
-)
-
 # Power/polkit
 PACKAGES_POWER=(
     power-profiles-daemon
-    polkit-gnome
+    polkit
     gnome-keyring
     gnome-keyring-pam
+    libsecret-tools
 )
 
 # Terminal
 PACKAGES_TERMINAL=(
     foot
-    kitty
 )
 
 # Essential tools
 PACKAGES_TOOLS=(
-    go
     jq
     curl
-    git
-    ripgrep
-    fish
     fontconfig
+    libnotify-tools
     unzip
     python3
-    python3-pip
-    ydotool
-    ffmpeg
 )
 
-# Fonts used by Quickshell, Walker, terminals, and MaterialSymbol widgets
+# Fonts used directly by Core QML.
 PACKAGES_FONTS=(
-    cantarell-fonts
     noto-fonts
     noto-cjk-fonts
     noto-emoji-fonts
-    jetbrains-mono-nerd-fonts
-    meslo-nerd-fonts
-    material-symbols-fonts
-    font-awesome
-)
-
-# Fedora-specific nerd font packages (cascadia provides nerd symbols)
-PACKAGES_FONTS_FEDORA=(
-    cascadia-code-nf-fonts
-    cascadia-mono-nf-fonts
 )
 
 # Qt/GTK integration
 PACKAGES_QT_GTK=(
     qt6-wayland
-    qt5-wayland
-    adwaita-qt5
-    gnome-themes-extra
     xdg-desktop-portal-gtk
-    kdialog
     zenity
     qt6ct
     kvantum
-)
-
-# Desktop extras (optional but used by Sumika Shell)
-PACKAGES_DESKTOP_EXTRAS=(
-    hyprsunset
-    keyd
-)
-
-# File managers
-PACKAGES_FILES=(
-    nautilus
-    evince
-    plasma-systemmonitor
 )
 
 # ── Package name mapping ──────────────────────────────────────────────────────
@@ -226,12 +171,10 @@ get_debian_pkg() {
         pipewire-alsa)          echo "pipewire-alsa" ;;
         pipewire-utils)         echo "pipewire-bin" ;;
         wireplumber)            echo "wireplumber" ;;
-        pamixer)                echo "pamixer" ;;
-        playerctl)              echo "playerctl" ;;
         pavucontrol)            echo "pavucontrol" ;;
         network-manager)        echo "network-manager" ;;
         network-manager-wifi)   echo "network-manager" ;;
-        network-manager-tui)    echo "network-manager-tui" ;;
+        network-manager-tui)    echo "network-manager" ;; # nmtui ships in network-manager
         network-manager-editor) echo "network-manager-gnome" ;;
         bluez)                  echo "bluez" ;;
         bluez-utils)            echo "bluez" ;;  # bluetoothctl ships in bluez on Debian
@@ -239,58 +182,31 @@ get_debian_pkg() {
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
-        swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
-        slurp)                  echo "slurp" ;;
-        swappy)                 echo "swappy" ;;
-        satty)                  echo "satty" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
-        cliphist)               echo "cliphist" ;;
-        mako)                   echo "mako" ;;
         quickshell)             echo "quickshell" ;;
-        fcitx5)                 echo "fcitx5" ;;
-        fcitx5-gtk)             echo "fcitx5-frontend-gtk3" ;;
-        fcitx5-qt)              echo "fcitx5-frontend-qt5" ;;
         power-profiles-daemon)  echo "power-profiles-daemon" ;;
-        polkit-gnome)           echo "polkit-gnome" ;;
+        polkit)                 echo "policykit-1" ;;
         gnome-keyring)          echo "gnome-keyring" ;;
         gnome-keyring-pam)      echo "libpam-gnome-keyring" ;;
+        libsecret-tools)        echo "libsecret-tools" ;;
         foot)                   echo "foot" ;;
-        kitty)                  echo "kitty" ;;
-        go)                     echo "golang-go" ;;
         jq)                     echo "jq" ;;
         curl)                   echo "curl" ;;
-        git)                    echo "git" ;;
-        ripgrep)                echo "ripgrep" ;;
-        fish)                   echo "fish" ;;
         fontconfig)             echo "fontconfig" ;;
+        libnotify-tools)        echo "libnotify-bin" ;;
         unzip)                  echo "unzip" ;;
         python3)                echo "python3" ;;
-        python3-pip)            echo "python3-pip" ;;
-        ydotool)                echo "ydotool" ;;
         ffmpeg)                 echo "ffmpeg" ;;
         hyprsunset)             echo "hyprsunset" ;;
-        keyd)                   echo "keyd" ;;
-        cantarell-fonts)        echo "fonts-cantarell" ;;
         noto-fonts)             echo "fonts-noto-core" ;;
         noto-cjk-fonts)         echo "fonts-noto-cjk" ;;
         noto-emoji-fonts)       echo "fonts-noto-color-emoji" ;;
-        jetbrains-mono-nerd-fonts) echo "fonts-jetbrains-mono" ;;
-        meslo-nerd-fonts)       echo "fonts-meslo" ;;
-        material-symbols-fonts) echo "fonts-material-design-icons-iconfont" ;;
-        font-awesome)           echo "fonts-font-awesome" ;;
         qt6-wayland)            echo "qt6-wayland" ;;
-        qt5-wayland)            echo "libqt5waylandclient5" ;;
-        adwaita-qt5)            echo "adwaita-qt" ;;
-        gnome-themes-extra)     echo "gnome-themes-extra" ;;
         xdg-desktop-portal-gtk) echo "xdg-desktop-portal-gtk" ;;
-        kdialog)                echo "kdialog" ;;
         zenity)                 echo "zenity" ;;
         qt6ct)                  echo "qt6ct" ;;
-        kvantum)                echo "qt5-style-kvantum" ;;
-        nautilus)               echo "nautilus" ;;
-        evince)                 echo "evince" ;;
-        plasma-systemmonitor)   echo "plasma-systemmonitor" ;;
+        kvantum)                echo "qt-style-kvantum" ;;
         *)                      echo "$1" ;;
     esac
 }
@@ -306,8 +222,6 @@ get_fedora_pkg() {
         pipewire-alsa)          echo "pipewire-alsa" ;;
         pipewire-utils)         echo "pipewire-utils" ;;
         wireplumber)            echo "wireplumber" ;;
-        pamixer)                echo "pamixer" ;;
-        playerctl)              echo "playerctl" ;;
         pavucontrol)            echo "pavucontrol" ;;
         network-manager)        echo "NetworkManager" ;;
         network-manager-wifi)   echo "NetworkManager-wifi" ;;
@@ -319,65 +233,38 @@ get_fedora_pkg() {
         brightnessctl)          echo "brightnessctl" ;;
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
-        swaybg)                 echo "swaybg" ;;
         grim)                   echo "grim" ;;
-        slurp)                  echo "slurp" ;;
-        swappy)                 echo "swappy" ;;
-        satty)                  echo "satty" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
-        cliphist)               echo "cliphist" ;;
-        mako)                   echo "mako" ;;
         quickshell)             echo "quickshell" ;;
-        fcitx5)                 echo "fcitx5" ;;
-        fcitx5-gtk)             echo "fcitx5-gtk3" ;;
-        fcitx5-qt)              echo "fcitx5-qt5" ;;
-        power-profiles-daemon)  echo "power-profiles-daemon" ;;
-        polkit-gnome)           echo "polkit-gnome" ;;
+        power-profiles-daemon)  echo "tuned-ppd" ;; # Fedora's PPD-compatible service
+        polkit)                 echo "polkit" ;;
         gnome-keyring)          echo "gnome-keyring" ;;
         gnome-keyring-pam)      echo "gnome-keyring-pam" ;;
+        libsecret-tools)        echo "libsecret" ;;
         foot)                   echo "foot" ;;
-        kitty)                  echo "kitty" ;;
-        go)                     echo "golang" ;;
         jq)                     echo "jq" ;;
         curl)                   echo "curl" ;;
-        git)                    echo "git" ;;
-        ripgrep)                echo "ripgrep" ;;
-        fish)                   echo "fish" ;;
         fontconfig)             echo "fontconfig" ;;
+        libnotify-tools)        echo "libnotify" ;;
         unzip)                  echo "unzip" ;;
         python3)                echo "python3" ;;
-        python3-pip)            echo "python3-pip" ;;
-        ydotool)                echo "ydotool" ;;
         ffmpeg)                 echo "ffmpeg-free" ;;
         hyprsunset)             echo "hyprsunset" ;;
-        keyd)                   echo "keyd" ;;
-        cantarell-fonts)        echo "abattis-cantarell-vf-fonts" ;;
         noto-fonts)             echo "google-noto-sans-vf-fonts" ;;
         noto-cjk-fonts)         echo "google-noto-sans-cjk-vf-fonts" ;;
         noto-emoji-fonts)       echo "google-noto-color-emoji-fonts" ;;
-        jetbrains-mono-nerd-fonts) echo "jetbrains-mono-fonts-all" ;;
-        meslo-nerd-fonts)       echo "meslo-nerd-fonts" ;; # not in Fedora repos; handled by install_user_fonts fallback
-        material-symbols-fonts) echo "material-symbols-fonts" ;; # not in Fedora repos; handled by install_user_fonts fallback
-        font-awesome)           echo "fontawesome-6-free-fonts" ;;
         qt6-wayland)            echo "qt6-qtwayland" ;;
-        qt5-wayland)            echo "qt5-qtwayland" ;;
-        adwaita-qt5)            echo "adwaita-qt5" ;;
-        gnome-themes-extra)     echo "gnome-themes-extra" ;;
         xdg-desktop-portal-gtk) echo "xdg-desktop-portal-gtk" ;;
-        kdialog)                echo "kdialog" ;;
         zenity)                 echo "zenity" ;;
         qt6ct)                  echo "qt6ct" ;;
         kvantum)                echo "kvantum" ;;
-        nautilus)               echo "nautilus" ;;
-        evince)                 echo "evince" ;;
-        plasma-systemmonitor)   echo "plasma-systemmonitor" ;;
         *)                      echo "$1" ;;
     esac
 }
 
 get_arch_pkg() {
     case "$1" in
-        go)                     echo "go" ;;
+        pipewire-utils)         echo "pipewire" ;;
         network-manager)        echo "networkmanager" ;;
         network-manager-wifi)   echo "networkmanager" ;;
         network-manager-tui)    echo "networkmanager" ;;
@@ -385,17 +272,34 @@ get_arch_pkg() {
         bluez)                  echo "bluez" ;;
         bluez-utils)            echo "bluez-utils" ;;  # bluetoothctl on Arch
         gnome-keyring-pam)      echo "gnome-keyring" ;; # PAM module ships in the main package
+        libsecret-tools)        echo "libsecret" ;;
+        libnotify-tools)        echo "libnotify" ;;
         rfkill)                 echo "util-linux" ;;
         ffmpeg)                 echo "ffmpeg" ;;
-        cantarell-fonts)        echo "cantarell-fonts" ;;
         noto-fonts)             echo "noto-fonts" ;;
         noto-cjk-fonts)         echo "noto-fonts-cjk" ;;
         noto-emoji-fonts)       echo "noto-fonts-emoji" ;;
-        jetbrains-mono-nerd-fonts) echo "ttf-jetbrains-mono-nerd" ;;
-        meslo-nerd-fonts)       echo "ttf-meslo-nerd" ;;
-        material-symbols-fonts) echo "ttf-material-symbols-variable-git" ;;
-        font-awesome)           echo "ttf-font-awesome" ;;
-        kvantum)                echo "kvantum-qt5" ;;
+        kvantum)                echo "kvantum" ;;
+        *)                      echo "$1" ;;
+    esac
+}
+
+get_suse_pkg() {
+    case "$1" in
+        pipewire-pulse)         echo "pipewire-pulseaudio" ;;
+        pipewire-utils)         echo "pipewire-tools" ;;
+        network-manager)        echo "NetworkManager" ;;
+        network-manager-wifi)   echo "NetworkManager" ;;
+        network-manager-tui)    echo "NetworkManager-tui" ;;
+        network-manager-editor) echo "NetworkManager-connection-editor" ;;
+        bluez-utils)            echo "bluez" ;;
+        gnome-keyring-pam)      echo "pam_gnome_keyring" ;;
+        libnotify-tools)        echo "libnotify-tools" ;;
+        noto-fonts)             echo "google-noto-fonts" ;;
+        noto-cjk-fonts)         echo "google-noto-sans-cjk-fonts" ;;
+        noto-emoji-fonts)       echo "google-noto-coloremoji-fonts" ;;
+        qt6-wayland)            echo "libqt6-qtwayland" ;;
+        kvantum)                echo "kvantum-qt6" ;;
         *)                      echo "$1" ;;
     esac
 }
@@ -416,6 +320,9 @@ install_packages() {
                 ;;
             arch)
                 mapped_pkgs+=("$(get_arch_pkg "$pkg")")
+                ;;
+            suse)
+                mapped_pkgs+=("$(get_suse_pkg "$pkg")")
                 ;;
             *)
                 warn "Unknown distro family, trying package name as-is: $pkg"
@@ -442,6 +349,9 @@ install_packages() {
                     ;;
                 arch)
                     sudo pacman -S --noconfirm --needed "$single" || failed=1
+                    ;;
+                suse)
+                    sudo zypper --non-interactive install --no-recommends "$single" || failed=1
                     ;;
             esac
         done
@@ -472,6 +382,13 @@ install_packages() {
         arch)
             info "Installing packages with pacman..."
             sudo pacman -Syu --noconfirm --needed "${mapped_pkgs[@]}" || {
+                retry_packages_individually
+            }
+            ;;
+        suse)
+            info "Installing packages with zypper..."
+            sudo zypper --non-interactive refresh
+            sudo zypper --non-interactive install --no-recommends "${mapped_pkgs[@]}" || {
                 retry_packages_individually
             }
             ;;
@@ -515,62 +432,39 @@ install_nixos_system_config() {
     hyprpicker
     xdg-desktop-portal-hyprland
     quickshell
-    cliphist
     wl-clipboard
-    mako
 
-    # Audio, display, screenshot, power and session tools
-    pamixer
-    playerctl
+    # Core audio, network, display, power and session tools
     pavucontrol
-    pulseaudio
+    wireplumber
     networkmanager
-    networkmanagerapplet
     networkmanager-tui
     bluez
     brightnessctl
     ddcutil
     wlr-randr
-    swaybg
     grim
-    slurp
-    swappy
-    satty
-    ydotool
     ffmpeg
     hyprsunset
-    keyd
-    libqalculate
-    imagemagick
     power-profiles-daemon
     gnome-keyring
-    polkit_gnome
+    libsecret
+    libnotify
 
-    # Terminals and shell/tooling
+    # Terminal and Core tooling
     foot
-    kitty
-    go
     jq
     curl
-    git
-    ripgrep
-    fish
     fontconfig
     unzip
     python3
-    python3Packages.pip
 
-    # Qt/GTK integration and file tools
+    # Qt/GTK integration
     kdePackages.qtwayland
     kdePackages.qt6ct
     kdePackages.qtstyleplugin-kvantum
-    adwaita-qt
-    gnome-themes-extra
     xdg-desktop-portal-gtk
     zenity
-    nautilus
-    evince
-    kdePackages.plasma-systemmonitor
 EOF
 
     awk -v pkgfile="$packages_file" '
@@ -600,6 +494,12 @@ EOF
   };
 
   security.polkit.enable = true;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    pulse.enable = true;
+  };
   services.gnome.gnome-keyring.enable = true;
   services.power-profiles-daemon.enable = true;
   programs.dconf.enable = true;
@@ -613,14 +513,12 @@ EOF
   hardware.i2c.enable = true;
 
   fonts.packages = with pkgs; [
-    cantarell-fonts
     noto-fonts
     noto-fonts-cjk-sans
     noto-fonts-color-emoji
     nerd-fonts.jetbrains-mono
     meslo-lgs-nf
     material-symbols
-    font-awesome
   ];
 
   services.displayManager.sessionPackages = [
@@ -690,32 +588,52 @@ EOF
 
 # ── Hyprland PPA/source installation helpers ──────────────────────────────────
 setup_hyprland_repo_debian() {
-    info "Adding Hyprland repository for Debian/Ubuntu..."
-    sudo apt install -y apt-transport-https
-
-    # Add hyprland PPA
-    if ! grep -q "hyprland" /etc/apt/sources.list.d/*.list 2>/dev/null; then
-        sudo add-apt-repository -y ppa:hyprland/stable || {
-            warn "Could not add Hyprland PPA. You may need to add it manually."
-            return 1
-        }
-        sudo apt update
+    if apt-cache show hyprland >/dev/null 2>&1; then
+        ok "Hyprland is available from the configured APT repositories"
+        return 0
     fi
+
+    case "$DISTRO_ID" in
+        ubuntu|linuxmint|pop|elementary|zorin)
+            info "Hyprland is unavailable in the configured repositories; trying the Ubuntu PPA..."
+            sudo apt install -y software-properties-common
+            if ! grep -Rqs "hyprland/stable" /etc/apt/sources.list.d 2>/dev/null; then
+                sudo add-apt-repository -y ppa:hyprland/stable || {
+                    warn "Could not add the Hyprland PPA. Install Hyprland using your distribution's supported source."
+                    return 1
+                }
+                sudo apt update
+            fi
+            ;;
+        *)
+            warn "Hyprland is unavailable in the configured Debian repositories."
+            warn "An Ubuntu PPA will not be added to Debian. Enable a repository appropriate for $DISTRO_NAME."
+            return 1
+            ;;
+    esac
 }
 
 setup_hyprland_repo_rhel() {
-    info "Adding Hyprland repository for Fedora..."
-    # Fedora 43 does not ship the Hyprland compositor in the official repos.
-    # This COPR provides Fedora 43 builds with vendored Hyprland libraries.
+    if rpm -q hyprland >/dev/null 2>&1 || dnf -q list --available hyprland >/dev/null 2>&1; then
+        ok "Hyprland is available from the configured DNF repositories"
+        return 0
+    fi
+
+    info "Hyprland is unavailable in the configured repositories; trying the Fedora COPR..."
     sudo dnf copr enable -y ashbuk/Hyprland-Fedora || {
-        warn "Could not add Hyprland COPR. You may need to add it manually."
+        warn "Could not add the Hyprland COPR. Install Hyprland using your distribution's supported source."
     }
 }
 
 setup_quickshell_repo_rhel() {
-    info "Adding Quickshell repository for Fedora..."
+    if rpm -q quickshell >/dev/null 2>&1 || dnf -q list --available quickshell >/dev/null 2>&1; then
+        ok "Quickshell is available from the configured DNF repositories"
+        return 0
+    fi
+
+    info "Quickshell is unavailable in the configured repositories; trying the Fedora COPR..."
     sudo dnf copr enable -y errornointernet/quickshell || {
-        warn "Could not add Quickshell COPR. You may need to add it manually."
+        warn "Could not add the Quickshell COPR. Install Quickshell using your distribution's supported source."
     }
 }
 
@@ -768,57 +686,6 @@ install_material_symbols_font() {
     }
 }
 
-install_symbols_nerd_font() {
-    local family="Symbols Nerd Font"
-    local dest="$HOME/.local/share/fonts/sumika-shell/symbols-nerd"
-    local tmp_zip="/tmp/sumika-symbols-nerd.zip"
-
-    if font_family_resolves "$family"; then
-        ok "  $family"
-        return 0
-    fi
-
-    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
-    mkdir -p "$dest"
-    if curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip" -o "$tmp_zip"; then
-        unzip -o "$tmp_zip" '*.ttf' -d "$dest" >/dev/null || warn "Could not extract $family"
-        rm -f "$tmp_zip"
-    else
-        warn "Could not download $family"
-        return 1
-    fi
-}
-
-install_ia_writer_font() {
-    local family="iA Writer Mono S"
-    local dest="$HOME/.local/share/fonts/sumika-shell/ia-writer"
-    local tmp_zip="/tmp/sumika-ia-writer.zip"
-
-    if font_family_resolves "$family"; then
-        ok "  $family"
-        return 0
-    fi
-
-    info "Installing $family into ~/.local/share/fonts/sumika-shell..."
-    mkdir -p "$dest"
-    if curl -fL "https://github.com/iaolo/iA-Fonts/archive/refs/heads/master.zip" -o "$tmp_zip"; then
-        unzip -o "$tmp_zip" 'iA-Fonts-master/iA Writer Mono/Static/*.ttf' -d "$dest" >/dev/null 2>&1 || {
-            # fallback: try underscore variant
-            unzip -o "$tmp_zip" 'iA-Fonts-master/iA_Writer_Mono/Static/*.ttf' -d "$dest" >/dev/null 2>&1 || {
-                # fallback: try extracting all ttf
-                unzip -o "$tmp_zip" '*.ttf' -d "$dest" >/dev/null 2>&1 || warn "Could not extract $family"
-            }
-        }
-        # move fonts out of nested dirs
-        find "$dest" -name '*.ttf' -exec mv -t "$dest" {} + 2>/dev/null || true
-        rm -rf "$dest"/iA-Fonts-master 2>/dev/null || true
-        rm -f "$tmp_zip"
-    else
-        warn "Could not download $family"
-        return 1
-    fi
-}
-
 install_user_fonts() {
     info "Checking Sumika Shell UI fonts..."
 
@@ -827,14 +694,12 @@ install_user_fonts() {
     install_nerd_font_zip "MesloLGS Nerd Font Mono" \
         "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip" || true
     install_material_symbols_font || true
-    install_symbols_nerd_font || true
-    install_ia_writer_font || true
 
     if command -v fc-cache >/dev/null 2>&1; then
         fc-cache -f "$HOME/.local/share/fonts/sumika-shell" >/dev/null 2>&1 || true
     fi
 
-    for family in "Cantarell" "Noto Color Emoji" "JetBrainsMono Nerd Font Mono" "MesloLGS Nerd Font Mono" "Material Symbols Rounded" "Symbols Nerd Font" "iA Writer Mono S"; do
+    for family in "Noto Color Emoji" "JetBrainsMono Nerd Font Mono" "MesloLGS Nerd Font Mono" "Material Symbols Rounded"; do
         if font_family_resolves "$family"; then
             ok "  font available: $family"
         else
@@ -1022,19 +887,9 @@ install_all_dependencies() {
     echo
 
     # Display
-    info "═══ Display & Screenshots ═══"
+    info "═══ Display ═══"
     install_packages "${PACKAGES_DISPLAY[@]}"
     setup_ddcutil_permissions
-    echo
-
-    # Clipboard
-    info "═══ Clipboard ═══"
-    install_packages "${PACKAGES_CLIPBOARD[@]}"
-    echo
-
-    # Notifications
-    info "═══ Notifications ═══"
-    install_packages "${PACKAGES_NOTIFICATION[@]}"
     echo
 
     # Quickshell
@@ -1045,11 +900,6 @@ install_all_dependencies() {
             ;;
     esac
     install_packages "${PACKAGES_QUICKSHELL[@]}"
-    echo
-
-    # Input method
-    info "═══ Input Method ═══"
-    install_packages "${PACKAGES_INPUT[@]}"
     echo
 
     # Power/Polkit
@@ -1070,9 +920,6 @@ install_all_dependencies() {
     # Fonts
     info "═══ Fonts & Icons ═══"
     install_packages "${PACKAGES_FONTS[@]}"
-    if [[ "$DISTRO_FAMILY" == "rhel" ]]; then
-        install_packages "${PACKAGES_FONTS_FEDORA[@]}"
-    fi
     install_user_fonts
     echo
 
@@ -1081,17 +928,32 @@ install_all_dependencies() {
     install_packages "${PACKAGES_QT_GTK[@]}"
     echo
 
-    # File managers
-    info "═══ File Managers ═══"
-    install_packages "${PACKAGES_FILES[@]}"
-    echo
+    ok "All Core dependencies installed!"
+}
 
-    # Desktop extras (optional tools used by Sumika Shell)
-    info "═══ Desktop Extras ═══"
-    install_packages "${PACKAGES_DESKTOP_EXTRAS[@]}"
-    echo
+verify_core_dependencies() {
+    local missing=()
+    local cmd
 
-    ok "All dependencies installed!"
+    for cmd in hyprctl wpctl nmcli bluetoothctl brightnessctl wlr-randr \
+        grim wl-copy hyprpicker foot zenity secret-tool jq curl python3 notify-send; do
+        command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+    done
+    command -v Hyprland >/dev/null 2>&1 \
+        || command -v hyprland >/dev/null 2>&1 \
+        || missing+=("Hyprland/hyprland")
+    command -v qs >/dev/null 2>&1 \
+        || command -v quickshell >/dev/null 2>&1 \
+        || missing+=("qs/quickshell")
+
+    if ((${#missing[@]})); then
+        err "Core dependency verification failed. Missing commands:"
+        printf '  %s\n' "${missing[@]}" >&2
+        err "Your distribution may need an additional repository; see docs/architecture/third-party-deps.md."
+        return 1
+    fi
+
+    ok "Verified all required Core commands"
 }
 
 # ── Symlink creation ──────────────────────────────────────────────────────────
@@ -1173,26 +1035,6 @@ repair_runtime_config() {
     echo
     info "Repairing runtime config..."
 
-    local config_file="$REPO/defaults/config/quickshell/config.json"
-    if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
-        local tmp_file
-        tmp_file="$(mktemp)"
-        if jq 'del(.audio.levels)' "$config_file" >"$tmp_file"; then
-            if ! cmp -s "$config_file" "$tmp_file"; then
-                mv "$tmp_file" "$config_file"
-                ok "  removed runtime-only audio.levels from quickshell/config.json"
-            else
-                rm -f "$tmp_file"
-                ok "  quickshell/config.json"
-            fi
-        else
-            rm -f "$tmp_file"
-            warn "  could not parse quickshell/config.json; leaving it unchanged"
-        fi
-    else
-        warn "  jq unavailable or config missing; skipped config repair"
-    fi
-
     local wp_dir="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}/wallpaper"
     mkdir -p "$wp_dir"
     if [[ ! -f "$wp_dir/wallpaper" ]]; then
@@ -1207,25 +1049,18 @@ repair_runtime_config() {
             warn "  default theme wallpaper not found; skipping seed"
         fi
     fi
-    ln -sfn "wallpaper" "$wp_dir/background"
-    ok "  wallpaper/background -> wallpaper"
-
-    date +%s%N >"$wp_dir/revision"
-
-    if [[ -f "$config_file" ]] && command -v jq >/dev/null 2>&1; then
-        local wallpaper_tmp
-        wallpaper_tmp="$(mktemp)"
-        if jq '.background.wallpaperPath = "~/.local/state/sumika-shell/wallpaper/background" | .background.thumbnailPath = ""' \
-            "$config_file" >"$wallpaper_tmp"; then
-            mv "$wallpaper_tmp" "$config_file"
-            ok "  configured stable wallpaper path"
-        else
-            rm -f "$wallpaper_tmp"
-            warn "  could not configure the stable wallpaper path"
-        fi
+    if [[ -f "$wp_dir/wallpaper" ]]; then
+        ln -sfn "wallpaper" "$wp_dir/background"
+        date +%s%N >"$wp_dir/revision"
+        ok "  wallpaper/background -> wallpaper"
     else
-        warn "  jq unavailable or config missing; skipped wallpaper path config"
+        rm -f "$wp_dir/background"
+        warn "  no wallpaper is available; Core will use its configured fallback color"
     fi
+
+    # User settings live in ~/.config/sumika-shell/sumika.json and are never
+    # rewritten by the installer. Config.qml creates defaults on first launch;
+    # migrations preserve existing user overrides.
 }
 
 # ── Session registration ──────────────────────────────────────────────────────
@@ -1369,31 +1204,6 @@ install_custom_launchers() {
     ok "Installed $count launcher(s)."
 }
 
-# ── Go tools ─────────────────────────────────────────────────────────────────
-build_go_tools() {
-    local required="${1:-1}"
-
-    echo
-    info "Building Sumika Shell Go tools..."
-    if [[ ! -x "$REPO/scripts/build-go-tools" ]]; then
-        if [[ "$required" == 1 ]]; then
-            err "scripts/build-go-tools is missing or not executable"
-            return 1
-        fi
-        warn "scripts/build-go-tools is missing or not executable; skipping"
-        return 0
-    fi
-
-    if "$REPO/scripts/build-go-tools"; then
-        ok "Sumika Shell Go tools ready"
-    elif [[ "$required" == 1 ]]; then
-        err "Sumika Shell Go tools could not be built"
-        return 1
-    else
-        warn "Sumika Shell Go tools could not be refreshed; run the full ./Init.sh"
-    fi
-}
-
 # ── Print summary ─────────────────────────────────────────────────────────────
 print_summary() {
     local login_manager="your display manager"
@@ -1460,27 +1270,25 @@ main() {
         create_symlinks
         repair_runtime_config
         install_custom_launchers
-        build_go_tools 0
         ok "Runtime repair complete."
         exit 0
     fi
 
     # Ask for confirmation
-    echo "This will install the following packages:"
-    echo "  - Hyprland ecosystem (compositor, lock, idle, portal)"
-    echo "  - Quickshell dependencies"
-    echo "  - Audio (PipeWire, WirePlumber)"
-    echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — sumika-wifi-tui / sumika-bluetooth-tui)"
-    echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, swaybg, grim, slurp, swappy, satty)"
-    echo "  - Clipboard (cliphist, wl-clipboard)"
-    echo "  - Notifications (mako)"
+    echo "This installs dependencies for Sumika Core only:"
+    echo "  - Hyprland ecosystem (compositor, idle, portal, color picker)"
     echo "  - Quickshell"
-    echo "  - Input method (fcitx5)"
+    echo "  - Audio (PipeWire, WirePlumber, pavucontrol)"
+    echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — sumika-wifi-tui / sumika-bluetooth-tui)"
+    echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, grim, hyprsunset)"
+    echo "  - Wayland clipboard transport (wl-clipboard)"
+    echo "  - Power, polkit and GNOME Keyring"
     echo "  - Terminal (foot)"
-    echo "  - Essential tools (Go, jq, curl, git, ripgrep, fish, ydotool, ffmpeg)"
-    echo "  - Desktop extras (hyprsunset, keyd)"
-    echo "  - Fonts/icons (Cantarell, Noto, Nerd Fonts, Material Symbols)"
+    echo "  - Core tools (jq, curl, Python, ffmpeg)"
+    echo "  - Fonts/icons (Noto, Nerd Fonts, Material Symbols)"
     echo "  - Qt/GTK integration"
+    echo
+    echo "Optional extensions install their own dependencies separately."
     echo
 
     read -p "Proceed with installation? [Y/n] " -n 1 -r
@@ -1491,7 +1299,7 @@ main() {
     fi
 
     install_all_dependencies
-    build_go_tools 1
+    verify_core_dependencies
     # Migrate user data to Sumika Shell config/state directories FIRST,
     # before removing a retired ~/.config/omd repository symlink.
     # FAILURE IS FATAL so existing user data is never discarded.

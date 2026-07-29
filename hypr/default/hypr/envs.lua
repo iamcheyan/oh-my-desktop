@@ -39,7 +39,7 @@ end
 if has_kde then
   hl.env("QT_QPA_PLATFORMTHEME", "kde")
 else
-  hl.env("QT_QPA_PLATFORMTHEME", "qt5ct")
+  hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 end
 
 hl.env("QT_STYLE_OVERRIDE", "kvantum")
