@@ -146,9 +146,32 @@ Overview of the extension (external module) system:
 
 1. Launcher cascade: `xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.<purpose>` → `foot --app-id=...` → `kitty --class=...`
 2. Unique `app-id`/`class` per purpose for Hyprland floating rules.
-3. Naming: `io.github.iamcheyan.sumika.<purpose>` (lowercase, no dashes).
-4. Launch detached: `subprocess.Popen(..., start_new_session=True)` with stdin/stdout/stderr to `/dev/null`.
-5. Add Hyprland window rule in `hypr/looknfeel.lua`.
+3. **app-id 不能包含下划线**。Wayland / 终端会把下划线静默丢弃（例：`sumika_settings_wallpaper_tui` 变成 `sumikasettingswallpapertui`），导致 Hyprland window 规则匹配不上。只允许 `[:alnum:]`（见 `share/bin/omarchy-launch-tui` 的 `tr -cd '[:alnum:]'`）。
+4. Launch detached: `subprocess.Popen(..., start_new_session=True)` with stdin/stdout/stderr to `/dev/null`。
+5. 在 `hypr/looknfeel.lua` 的 `sumika_tui_ids` 列表里加上 app-id 的**实际 class 名**（终端去下划线后的形式）。`o.window()` 规则统一用 `tui_rule`（`float=true, center=true, size={1180,760}`）。
+
+### `omarchy-launch-tui` 机制
+
+`share/bin/omarchy-launch-tui`（`sumika-launch-tui` 委托给它）负责把 TUI 脚本启动到终端里：
+- 从脚本文件名提取 app-id（去下划线、去扩展名）。
+- 用 `xdg-terminal-exec --app-id=...` 启动，回退到直接调 `foot` / `kitty` 。
+- 通过 `uwsm-app` 包装确保 app-id 正确传递给 compositor。
+- 调用方（QML 的 `Quickshell.execDetached` 或 shell 脚本）直接调 `sumika-launch-tui <script-path> [args...]`，不自行构造终端命令。
+
+**不要在 QML 里自己拼终端命令。** 统一走 `sumika-launch-tui`。
+
+### 添加新 TUI 工具步骤
+
+1. 写脚本到 `bin/`（或扩展的 `bin/`）。
+2. 确认脚本启动方式 —— 如果走 `sumika-launch-tui`（推荐），`omarchy-launch-tui` 从文件名 `tr -cd '[:alnum:]'` 生成 app-id（去下划线）。如果走硬编码 `xdg-terminal-exec --app-id=...`，以实际传的 app-id 为准。
+3. 在 `hypr/looknfeel.lua` 的 `sumika_tui_ids` 里加上**实际 class 名**（无下划线形式）。如果一个 TUI 有多个启动路径（主路径走 `sumika-launch-tui`、回退路径走硬编码 app-id），**两个都要加**，因为哪个路径实际被命中有不确定性。
+4. 在需要启动的地方调 `sumika-launch-tui <script-path>`。
+5. `hyprctl reload` 使规则生效。
+6. 验证：启动 TUI，`hyprctl -j clients` 检查 `floating=true` 和 `size=[1180,760]`。
+
+> ⚠️ **扩展 TUIs 常见陷阱**：扩展的 launcher 脚本可能在 `sumika-launch-tui` 主路径和硬编码回退路径中使用不同的 app-id。例如 voice 扩展：`sumika-launch-tui sumika-settings-voice-tui` 生成 `sumikasettingsvoicetui`，而回退路径用 `voicesettings`。两个 app-id 都需要加到 `sumika_tui_ids` 里。
+>
+> 排查：`grep -r 'app-id=\|--class= \|sumika-launch-tui' ~/.local/share/sumika-shell/extensions/<id>/` 找出所有实际使用的 app-id。
 
 ## Path API
 

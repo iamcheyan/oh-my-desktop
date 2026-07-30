@@ -2,7 +2,7 @@
 
 # Sumika Shell implementation for terminal TUI launchers.
 
-component_id="$(basename "$1" | tr -cd '[:alnum:]_')"
+component_id="$(basename "$1" | tr -cd '[:alnum:]')"
 app_id="io.github.iamcheyan.sumika.${component_id}"
 
 if command -v xdg-terminal-exec >/dev/null 2>&1; then

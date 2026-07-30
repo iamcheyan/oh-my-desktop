@@ -35,6 +35,7 @@ local sumika_tui_ids = {
   "wifitui",
   "bluetui",
   "keyboardtui",
+  "sumikasettingskeyboardtui",
   "windowsvmtui",
   "backuptui",
   "voicetesttui",
@@ -47,12 +48,21 @@ local sumika_tui_ids = {
   "ocrtui",
   "settingsvoicetui",
   "voicesettings",
+  "sumikasettingsvoicetui",
+  "editvoiceconfig",
   "settingstui",
   "themetui",
+  "sumikasettingswallpapertui",
 }
 for _, id in ipairs(sumika_tui_ids) do
   o.window("io.github.iamcheyan.sumika." .. id, tui_rule)
 end
+
+o.window("io.github.iamcheyan.sumika.keytest", {
+  float = true,
+  center = true,
+  size = { 980, 720 },
+})
 
 -- Native wallpaper pickers are separate Wayland clients rather than true
 -- children of the settings terminal. Keep these specifically titled dialogs
