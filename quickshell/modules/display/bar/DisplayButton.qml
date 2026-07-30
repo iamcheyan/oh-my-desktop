@@ -22,7 +22,7 @@ Item {
     FileView {
         path: `${Directories.sumikaStateHome}/wallpaper/mode`
         watchChanges: true
-        onLoaded: root.wallpaperMode = text.trim()
+        onLoaded: root.wallpaperMode = text().trim()
         onLoadFailed: root.wallpaperMode = ""
     }
 
