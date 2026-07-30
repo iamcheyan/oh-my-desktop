@@ -414,30 +414,23 @@ Scope {
                 Loader {
                     id: overviewLoader
                     anchors.fill: parent
-                    // Build the heavy OverviewWidget tree asynchronously so
-                    // the scrim paints immediately on first open instead of
-                    // blocking the render thread on Repeater/ScreencopyView
-                    // instantiation. Once built, keep it alive (active stays
-                    // true) and gate visibility via the component's own
-                    // `visible` so repeat opens are instant — Qt does not
-                    // render invisible items, and ScreencopyView with
-                    // live:true only captures while visible, so holding the
-                    // tree costs nothing while closed.
+                    // Keep the Loader always active so the OverviewWidget tree
+                    // (and all its ScreencopyViews) stays instantiated and holds
+                    // the latest captured frame. This eliminates the
+                    // "wallpaper flash → thumbnail pop" on open: the
+                    // ScreencopyView only starts capturing once it exists, so
+                    // gating the Loader on overviewOpen means the first frame
+                    // isn't ready until a frame or two after open. With live:false
+                    // (performance mode) holding the views costs one snapshot
+                    // each; with live:true Qt only renders visible items, so a
+                    // hidden tree is effectively free. asynchronous:true lets the
+                    // scrim paint while the tree builds the very first time.
                     asynchronous: true
-                    active: (Config?.options.overview.enable ?? true)
-                        && (GlobalStates.overviewOpen || overviewLoader.wasOpened)
+                    active: Config?.options.overview.enable ?? true
                     sourceComponent: OverviewWidget {
                         screen: panelWindow.screen
                         searchQuery: ""
                         visible: GlobalStates.overviewOpen
-                    }
-                    property bool wasOpened: false
-                    Connections {
-                        target: GlobalStates
-                        function onOverviewOpenChanged() {
-                            if (GlobalStates.overviewOpen)
-                                overviewLoader.wasOpened = true
-                        }
                     }
                 }
 

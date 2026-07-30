@@ -87,8 +87,11 @@ Item {
         return root.monitorGroups[0] ?? null;
     }
     readonly property int highlightedWorkspaceId: {
+        // Keyboard navigation takes priority, then hover, then the active ws.
         if (GlobalStates.overviewFocusedWorkspaceId > 0)
             return GlobalStates.overviewFocusedWorkspaceId;
+        if (root.hoveredWorkspaceEntry?.id > 0)
+            return root.hoveredWorkspaceEntry.id;
         const group = root.localMonitorGroup;
         const entry = group ? root.overviewEntries[group.start] : null;
         return entry?.id ?? root.effectiveActiveWorkspaceId;
@@ -775,6 +778,19 @@ Item {
                     }
                     widgetMonitor: ServiceManager.workspace.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
+                    isFocusedWindow: {
+                        // Hover takes priority — the mouse is explicitly on this window.
+                        if (root.hoveredWindowData?.address === address)
+                            return true;
+                        // Otherwise, highlight the focused client of the highlighted
+                        // workspace (keyboard navigation or active workspace).
+                        const wsId = windowData?.workspace?.id;
+                        if (wsId && wsId === root.highlightedWorkspaceId) {
+                            const focused = ServiceManager.workspace.focusedClientForWorkspace(wsId);
+                            return focused?.address === address;
+                        }
+                        return false;
+                    }
 
                     // Offset on the canvas
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
@@ -826,7 +842,16 @@ Item {
                         onEntered: {
                             window.hovered = true
                             root.hoveredWindowData = windowData
-                            root.hoveredWorkspaceEntry = null
+                            // Highlight the workspace this window belongs to so
+                            // the workspace border tracks the mouse too.
+                            const wsId = windowData?.workspace?.id
+                            if (wsId > 0) {
+                                const entry = root.overviewEntries.find(e => e.id === wsId)
+                                if (entry)
+                                    root.hoveredWorkspaceEntry = entry
+                            } else {
+                                root.hoveredWorkspaceEntry = null
+                            }
                         }
                         onExited: {
                             window.hovered = false
@@ -897,7 +922,7 @@ Item {
                     topRightRadius: root.largeWorkspaceRadius
                     bottomLeftRadius: root.largeWorkspaceRadius
                     bottomRightRadius: root.largeWorkspaceRadius
-                    border.width: 2
+                    border.width: isFocusedEntry ? 3 : 2
                     border.color: isFocusedEntry ? root.activeBorderColor : TuiStyle.inactiveBorder
 
                     // The number shown here is the same global visual slot

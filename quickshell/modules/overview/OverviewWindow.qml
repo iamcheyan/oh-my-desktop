@@ -95,7 +95,10 @@ Item { // Window
     property var targetWindowHeight: Math.max(1, Math.min(rawWindowHeight, Math.max(1, workspaceHeight - localY)))
     property bool hovered: false
     property bool pressed: false
-
+    // Focused window gets the highlight border; others get a neutral gray.
+    property bool isFocusedWindow: false
+    property color focusedBorderColor: TuiStyle.controlActiveBorder
+    property color unfocusedBorderColor: TuiStyle.inactiveBorder
     property bool centerIcons: Config.options.overview.centerIcons
     property real iconGapRatio: 0.06
     property real iconToWindowRatio: centerIcons ? 0.35 : 0.15
@@ -242,7 +245,9 @@ Item { // Window
         }
     }
 
-    // Border around the entire workspace thumbnail (sibling of ScreencopyView)
+    // Border around the window preview. Focused window gets the accent
+    // highlight; unfocused windows get a neutral gray so the focused one
+    // stands out clearly within the workspace thumbnail.
     Rectangle {
         anchors.fill: parent
         color: "transparent"
@@ -250,7 +255,9 @@ Item { // Window
         topRightRadius: root.topRightRadius
         bottomRightRadius: root.bottomRightRadius
         bottomLeftRadius: root.bottomLeftRadius
-        border.color: ColorUtils.transparentize(Appearance.m3colors.m3outlineVariant, 1)
-        border.width: 2
+        border.color: root.isFocusedWindow
+            ? root.focusedBorderColor
+            : root.unfocusedBorderColor
+        border.width: root.isFocusedWindow ? 3 : 2
     }
 }
