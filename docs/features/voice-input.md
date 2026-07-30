@@ -268,6 +268,22 @@ target language, token usage, and provider-reported reasoning-token details.
 Use `translate` instead of `benchmark` for the runtime-compatible
 `{"text":"..."}` response.
 
+The first `status` call starts a per-user translation daemon at
+`$SUMIKA_SHELL_STATE_HOME/voice/translation.sock` (normally
+`~/.local/state/sumika-shell/voice/translation.sock`). The daemon caches the
+resolved OpenCode provider/model configuration and keeps the HTTP connection
+alive between translations, avoiding repeated process configuration, DNS,
+TCP, and TLS setup. It notices changes to the Voice, OpenCode, and OpenCode
+authentication files automatically. The socket is mode `0600`; API keys stay
+inside the daemon and are not sent over the socket.
+
+Inspect or stop this daemon during troubleshooting:
+
+```sh
+sumika-voice-translate daemon-status
+sumika-voice-translate daemon-stop
+```
+
 ---
 
 ## Diagnostic Tool (`scripts/voice-diagnose`)
