@@ -225,15 +225,6 @@ PanelWindow {
                 keywords: (app.keywords || "").split(";").filter(k => k.length > 0),
                 workingDirectory: app.workingDirectory || ""
             }));
-            apps.push(prepareApp({
-                id: "sumika-tools.desktop",
-                desktopId: "sumika-tools.desktop",
-                name: "Sumika Tools",
-                icon: "applications-utilities",
-                genericName: "Desktop Tools",
-                comment: "Open Sumika themes and advanced tools",
-                keywords: ["tools", "theme", "voice", "keyboard", "windows", "vm", "sumika"]
-            }));
             // Merge internal tools into the desktop app list
             const merged = apps.concat(launcher.internalTools || []);
             if (!sameAppList(allApps, merged)) {

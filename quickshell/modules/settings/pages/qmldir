@@ -1,4 +1,3 @@
 module qs.modules.settings.pages
-OverviewPage 1.0 OverviewPage.qml
 
 SystemPage 1.0 SystemPage.qml

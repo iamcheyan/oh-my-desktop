@@ -16,7 +16,7 @@ import qs.modules.settings.pages
 WindowDialog {
     id: root
 
-    property string requestedPage: "overview"
+    property string requestedPage: "system"
     property string currentPage: normalizePage(requestedPage)
     property var screen: root.QsWindow.window?.screen
     property var brightnessMonitor: Brightness.getMonitorForScreen(screen) ?? ({ brightness: 0, setBrightness: function(){} })
@@ -36,7 +36,6 @@ WindowDialog {
     backgroundHeight: defaultDialogHeight
 
     readonly property var primaryPages: [
-        { key: "overview", icon: "build", title: "Sumika Tools", keywords: "tools advanced theme voice keyboard vm" },
         { key: "network", icon: "wifi", title: "Network", keywords: "wifi wireless internet lan ethernet dns firewall connection" },
         { key: "bluetooth", icon: "bluetooth", title: "Bluetooth", keywords: "bluetooth bt device pair connect headset keyboard mouse" },
         { key: "display", icon: "desktop_windows", title: "Displays", keywords: "screen brightness night light monitor resolution refresh scale osd" },
@@ -110,30 +109,21 @@ WindowDialog {
         if (page === "nightlight") return "display";
         if (page === "audio") return "sound";
         if (page === "battery") return "power";
-        if (page === "settings") return "overview";
-        if (page === "theme") return "overview";
-        if (page === "themes") return "overview";
-        if (page === "font") return "overview";
+        if (page === "settings" || page === "overview") return "system";
         if (page === "sounds") return "sound";
         if (page === "autostart") return "system";
         if (page === "windowrules") return "system";
         if (page === "apps") return "system";
-        if (page === "windows") return "overview";
-        if (page === "virtualization") return "overview";
-        if (page === "vm") return "overview";
         // Module-managed pages: check aliases before hardcoded redirect
         _ensureModulePage(page)
         if (page in _modulePageEntries) return _modulePageEntries[page].id
-        // Hardcoded fallback redirects (non-module pages only)
-        if (page === "windows-vm") return "overview";
-        if (page === "voice" || page === "voice-input" || page === "speech") return "overview";
-        return page && page.length > 0 ? page : "overview";
+        return page && page.length > 0 ? page : "system";
     }
 
     function pageTitle(page) {
         const match = pages.find(item => item.key === page);
         if (match) return match.title;
-        return "Overview";
+        return "System";
     }
 
     function pageIcon(page) {
@@ -148,12 +138,10 @@ WindowDialog {
         if (page in _modulePageComponents) return _modulePageComponents[page]
 
         // Core pages (always built-in)
-        if (page === "overview") return overviewPageComponent;
         if (page === "system") return systemPageComponent;
 
-        // No hardcoded fallback for module-owned pages — if the module isn't
-        // loaded, the page silently returns overview (graceful degradation).
-        return overviewPageComponent;
+        // Fallback for core/module pages
+        return systemPageComponent;
     }
 
     function clamp(value, min, max) {
@@ -191,8 +179,6 @@ WindowDialog {
     }
 
 
-
-    Component { id: overviewPageComponent; OverviewPage { settingsRoot: root } }
 
     Component { id: systemPageComponent; SystemPage { settingsRoot: root } }
 
