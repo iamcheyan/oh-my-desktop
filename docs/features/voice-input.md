@@ -256,6 +256,18 @@ target language, and translation shortcut under the `translation` object in
 under `voiceInput.bindings` in the same file. API keys are never copied into
 the Sumika configuration.
 
+Test the selected translation model without recording audio:
+
+```sh
+printf '%s' '这是一个翻译速度测试。' |
+  sumika-voice-translate benchmark | jq
+```
+
+The result includes the translated text, total API latency, selected model,
+target language, token usage, and provider-reported reasoning-token details.
+Use `translate` instead of `benchmark` for the runtime-compatible
+`{"text":"..."}` response.
+
 ---
 
 ## Diagnostic Tool (`scripts/voice-diagnose`)
