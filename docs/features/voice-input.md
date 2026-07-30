@@ -284,6 +284,33 @@ sumika-voice-translate daemon-status
 sumika-voice-translate daemon-stop
 ```
 
+For translated dictation, a separate speculative lane watches the growing WAV
+for 500 ms of trailing silence. It snapshots the audio, runs SenseVoice, and
+starts translation while recording is still active. If speech resumes, that
+candidate is cancelled or invalidated. After recording stops, QML accepts the
+candidate only when its Chinese source is exactly equal to the final
+SenseVoice result; otherwise it uses the normal post-recording translation
+path. The primary and speculative API lanes have separate warm HTTP
+connections, so a discarded candidate cannot block the normal fallback.
+When a matching candidate is still in flight at final transcription time, the
+normal lane starts immediately as a hedge and the first successful result
+wins. Speculation therefore never intentionally delays the established path.
+
+Speculation is enabled by default. It can be disabled without reverting code:
+
+```json
+{
+  "translation": {
+    "speculativeEnabled": false
+  }
+}
+```
+
+Each completed translation writes a `[VoiceInput] translation metrics` JSON
+line to the Sumika bar log. It includes the final transcription time,
+translation time, total recording-to-paste time, and whether the speculative
+or normal path won.
+
 ---
 
 ## Diagnostic Tool (`scripts/voice-diagnose`)
