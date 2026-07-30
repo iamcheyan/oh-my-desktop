@@ -419,7 +419,13 @@ def kitty_session_info(pid, argv):
     if child_pid:
         match_args = ["--match", f"pid:{child_pid}"]
     json_command = ["kitty", "@", "--to", socket, "ls", *match_args]
-    session_command = ["kitty", "@", "--to", socket, "ls", "--output-format=session", *match_args]
+    # kitty 0.47.1 ignores --output-format=session whenever a --match filter
+    # is present and falls back to JSON, which then breaks `kitty --session`
+    # ("Unknown command in session file: ["). The session-format dump is only
+    # used for layout/cwd restore, so request the full tree without filtering;
+    # the JSON capture above still carries the per-window cmdline/cwd used for
+    # multiplexer detection.
+    session_command = ["kitty", "@", "--to", socket, "ls", "--output-format=session"]
     try:
         json_result = subprocess.run(json_command, text=True, capture_output=True, timeout=1.5)
         session_result = subprocess.run(session_command, text=True, capture_output=True, timeout=1.5)
