@@ -164,10 +164,10 @@ Design rationale for separate recording vs transcribing icons:
 | `Globe` (MacBook Fn) | Global | Hardware key (keycode `472`) mapped to toggle recording. |
 | `ESC` | Recording-only | Cancels active recording, stops `parecord`, and returns state to `idle` silently. |
 
-Additional bindings are read from:
+Voice bindings and the dedicated translation binding are read from:
 
 ```sh
-~/.config/voice_bindings.txt
+~/.config/sumika-shell/voice/config.json
 ```
 
 Edit them in Settings Center (Voice page) or through
@@ -233,12 +233,28 @@ Correct workflow:
    (`key-test --hotkey`).
 4. Save the captured result, e.g. `XF86Tools`.
 
-Do not manually save `TOOLS`; Hyprland reports `Unknown keysym: "TOOLS"`. If this happens, replace it with `XF86Tools` and reload:
+Do not manually save `TOOLS`; Hyprland reports `Unknown keysym: "TOOLS"`. If
+this happens, use the Voice settings page to recapture the key as `XF86Tools`
+and reload Hyprland.
 
 ```sh
-sed -i 's/^TOOLS$/XF86Tools/' ~/.config/voice_bindings.txt
 hyprctl reload
 ```
+
+### Translated voice input
+
+The translation model catalog, provider endpoint, and credentials come from:
+
+```sh
+~/.config/opencode/opencode.json
+```
+
+The Voice Model Manager TUI lists the models declared under OpenCode providers
+(`m` opens the selector). It remembers only the selected `provider/model`,
+target language, and translation shortcut under the `translation` object in
+`~/.config/sumika-shell/voice/config.json`. Normal dictation shortcuts live
+under `voiceInput.bindings` in the same file. API keys are never copied into
+the Sumika configuration.
 
 ---
 
@@ -314,7 +330,7 @@ Implementation: `quickshell/modules/settings/pages/VoicePage.qml`.
 
 ## Related Files
 
-- `hypr/bindings.lua` — key bindings definitions (reads `~/.config/voice_bindings.txt`)
+- `hypr/bindings.lua` — reads voice bindings from the voice extension helper
 - `hypr/looknfeel.lua` — window floating rules
 - `quickshell/services/VoiceInput.qml` — voice service state machine
 - `quickshell/modules/bar/modules/AudioButton.qml` — combined bar audio/voice button

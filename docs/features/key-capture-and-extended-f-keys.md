@@ -67,10 +67,10 @@ Good binding for the current JP layout:
 XF86Tools
 ```
 
-Fix a broken Voice binding:
+Fix a broken Voice binding by recapturing it in the Voice settings page, then
+reload:
 
 ```sh
-sed -i 's/^TOOLS$/XF86Tools/' ~/.config/voice_bindings.txt
 hyprctl reload
 ```
 

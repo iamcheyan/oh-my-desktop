@@ -98,29 +98,37 @@ for _, key in ipairs(interrupt_keys) do
   })
 end
 
-local function read_voice_bindings(filepath)
-  local file = io.open(filepath, "r")
-  local list = {}
-  if file then
-    for line in file:lines() do
-      local trimmed = line:gsub("^%s*(.-)%s*$", "%1")
-      if trimmed ~= "" and not trimmed:find("^#") then
-        table.insert(list, trimmed)
+local function read_voice_bindings()
+  local data_home = os.getenv("XDG_DATA_HOME") or (paths.home .. "/.local/share")
+  local extensions_dir = os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or (data_home .. "/sumika-shell/extensions")
+  local helper = extensions_dir .. "/voice/bin/sumika-voice-translate"
+  local result = { voice = {}, translation = nil }
+  local process = io.popen("'" .. helper:gsub("'", "'\\''") .. "' hypr-bindings 2>/dev/null")
+  if process then
+    for line in process:lines() do
+      local kind, binding = line:match("^([^\t]+)\t(.+)$")
+      if kind == "voice" and binding and binding ~= "" then
+        table.insert(result.voice, binding)
+      elseif kind == "translation" and binding and binding ~= "" then
+        result.translation = binding
       end
     end
-    file:close()
+    process:close()
   end
-  return list
+  return result
 end
 
-local voice_bindings = read_voice_bindings(paths.home .. "/.config/voice_bindings.txt")
-if #voice_bindings == 0 then
-  voice_bindings = { "ALT + A", "code:472" }
+local voice_config = read_voice_bindings()
+if #voice_config.voice == 0 then
+  voice_config.voice = { "ALT + A", "code:472" }
 end
 
-for _, key in ipairs(voice_bindings) do
+for _, key in ipairs(voice_config.voice) do
     o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action voice.toggle")
 end
+-- Dedicated translation trigger captured by Sumika KeyTest:
+-- bind HANGUL · XKB keycode 130 · evdev 122.
+o.bind(voice_config.translation or "HANGUL", "Translated voice input toggle", paths.root .. "/bin/sumika-action voice.translate-toggle")
 o.bind("ALT + S", "Region screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
 o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.root .. "/bin/sumika-action screenshot.capture-edit")
 
