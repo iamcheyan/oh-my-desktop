@@ -35,6 +35,10 @@ Item {
             if (Date.now() - GlobalStates.barPopupDismissedAt < 200) return;
             GlobalStates.barPopupType = GlobalStates.barPopupType === "display" ? "" : "display";
         }
+
+        altAction: function(event) {
+            displayContextMenu.open();
+        }
     }
 
     Component {
@@ -54,6 +58,12 @@ Item {
         anchors.centerIn: actionButton
         text: NerdIconMap.desktop
         color: Appearance.colors.colBarText
+    }
+
+    BarContextMenu {
+        id: displayContextMenu
+        anchorItem: actionButton
+        sourceComponent: DisplayContextMenu {}
     }
 
     MouseArea {

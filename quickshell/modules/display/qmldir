@@ -1,2 +1,3 @@
 module qs.modules.display
 DisplayButton 1.0 bar/DisplayButton.qml
+DisplayContextMenu 1.0 bar/DisplayContextMenu.qml
