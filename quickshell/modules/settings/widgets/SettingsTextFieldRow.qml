@@ -11,6 +11,7 @@ Rectangle {
     property string text: ""
     property string placeholder: ""
     property int fieldWidth: 200
+    property int echoMode: TextInput.Normal
     signal textEdited(string newText)
 
     Layout.fillWidth: true
@@ -61,6 +62,7 @@ Rectangle {
                 anchors.rightMargin: 10
                 verticalAlignment: Text.AlignVCenter
                 text: root.text
+                echoMode: root.echoMode
                 color: SettingsTokens.fg
                 font.pixelSize: Appearance.font.pixelSize.small
                 clip: true

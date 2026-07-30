@@ -1,5 +1,5 @@
 // PopupHeader — GNOME Quick Settings style header row.
-// Icon (no background badge) + title + subtitle, optional trailing action.
+// Icon (no background badge) + title + subtitle, optional trailing actions.
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -15,10 +15,16 @@ Item {
     property string subtitle: ""
     property color tone: TuiStyle.accent
     property bool showDivider: true
+    // Optional action rendered immediately before the primary trailing action.
+    property string leadingActionIcon: ""
+    property string leadingActionTooltip: ""
+    property bool leadingActionEnabled: true
     // Optional trailing action (e.g. settings gear on Volume header).
     property string actionIcon: ""
     property string actionTooltip: ""
+    property bool actionEnabled: true
 
+    signal leadingActionClicked()
     signal actionClicked()
 
     implicitHeight: 72
@@ -76,7 +82,18 @@ Item {
 
         PopupActionButton {
             Layout.alignment: Qt.AlignVCenter
+            icon: root.leadingActionIcon
+            tooltip: root.leadingActionTooltip
+            enabled: root.leadingActionEnabled
+            visible: root.leadingActionIcon.length > 0
+            onClicked: root.leadingActionClicked()
+        }
+
+        PopupActionButton {
+            Layout.alignment: Qt.AlignVCenter
             icon: root.actionIcon
+            tooltip: root.actionTooltip
+            enabled: root.actionEnabled
             visible: root.actionIcon.length > 0
             onClicked: root.actionClicked()
         }

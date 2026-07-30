@@ -11,6 +11,7 @@ Item {
     id: root
 
     property string icon: ""
+    property string tooltip: ""
     property int iconSize: 22
     property color color: TuiStyle.muted
     property color colorHover: TuiStyle.fg
@@ -19,25 +20,32 @@ Item {
 
     implicitWidth: 36
     implicitHeight: 36
+    opacity: enabled ? 1 : 0.38
 
     Rectangle {
         anchors.fill: parent
         radius: 8
-        color: mouseArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
+        color: root.enabled && mouseArea.containsMouse ? TuiStyle.surfaceHover : "transparent"
     }
 
     MaterialSymbol {
         anchors.centerIn: parent
         text: root.icon
         iconSize: root.iconSize
-        color: mouseArea.containsMouse ? root.colorHover : root.color
+        color: root.enabled && mouseArea.containsMouse ? root.colorHover : root.color
+    }
+
+    StyledToolTip {
+        text: root.tooltip
+        extraVisibleCondition: root.enabled && root.tooltip.length > 0 && mouseArea.containsMouse
     }
 
     MouseArea {
         id: mouseArea
         anchors.fill: parent
+        enabled: root.enabled
         hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: root.clicked()
     }
 }
