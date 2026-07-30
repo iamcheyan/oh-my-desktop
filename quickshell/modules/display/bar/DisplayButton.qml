@@ -6,6 +6,7 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Io
 
 Item {
     id: root
@@ -15,6 +16,15 @@ Item {
     implicitHeight: Config.options.bar.rightIconSlotWidth
     property real wheelAccum: 0
     property string moduleId: "display"
+    property string wallpaperMode: ""
+
+    // Watch wallpaper mode from runtime state (long-lived, pre-read before context menu opens)
+    FileView {
+        path: `${Directories.sumikaStateHome}/wallpaper/mode`
+        watchChanges: true
+        onLoaded: root.wallpaperMode = text.trim()
+        onLoadFailed: root.wallpaperMode = ""
+    }
 
     RippleButton {
         id: actionButton
@@ -63,7 +73,9 @@ Item {
     BarContextMenu {
         id: displayContextMenu
         anchorItem: actionButton
-        sourceComponent: DisplayContextMenu {}
+        sourceComponent: DisplayContextMenu {
+                wallpaperMode: root.wallpaperMode
+            }
     }
 
     MouseArea {

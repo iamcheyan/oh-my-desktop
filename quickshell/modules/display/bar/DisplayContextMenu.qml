@@ -3,22 +3,12 @@ import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
 import Quickshell
-import Quickshell.Io
 
 ContextMenuWindow {
     id: root
 
+    /// Wallpaper mode passed from DisplayButton (long-lived FileView watcher)
     property string wallpaperMode: ""
-
-    // Read wallpaper mode from runtime state file
-    FileView {
-        id: modeFile
-        path: `${Directories.sumikaStateHome}/wallpaper/mode`
-        watchChanges: true
-
-        onLoaded: root.wallpaperMode = text.trim()
-        onLoadFailed: root.wallpaperMode = ""
-    }
 
     // ── Monitor settings ──
     ContextMenuItem {
