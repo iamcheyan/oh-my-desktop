@@ -20,15 +20,32 @@ ContextMenuWindow {
         }
     }
 
+    ContextMenuSeparator {
+        visible: root.wallpaperMode === "folder"
+    }
+
     // ── Next wallpaper (folder mode only) ──
     ContextMenuItem {
         visible: root.wallpaperMode === "folder"
-        nerdIcon: NerdIconMap.shuffle
+        nerdIcon: NerdIconMap.imageMultiple
         labelText: "Next wallpaper"
         onClicked: {
             root.close();
             Quickshell.execDetached([
                 "sumika-settings-theme", "wallpaper-next"
+            ]);
+        }
+    }
+
+    // ── Delete current wallpaper (folder mode only) ──
+    ContextMenuItem {
+        visible: root.wallpaperMode === "folder"
+        nerdIcon: NerdIconMap.trashCan
+        labelText: "Delete current wallpaper"
+        onClicked: {
+            root.close();
+            Quickshell.execDetached([
+                "sumika-wallpaper", "delete-current"
             ]);
         }
     }

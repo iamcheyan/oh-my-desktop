@@ -157,6 +157,8 @@ QtObject {
     readonly property string wrench: "\uF0AD"                  // fa-wrench U+F0AD
     readonly property string hourglass: "\uF254"               // fa-hourglass U+F254
     readonly property string inputMethod: "\uDB82\uDC81"       // mdi-onepassword U+F0881
+    readonly property string imageMultiple: "\uDB80\uDED8"    // mdi-image-multiple U+F02D8
+    readonly property string trashCan: "\uDB81\uDF39"         // mdi-trash-can U+F0739
 
     // Misc
     readonly property string keyboardArrowDown: "\uDB80\uDF47" // mdi-chevron-down U+F0347
