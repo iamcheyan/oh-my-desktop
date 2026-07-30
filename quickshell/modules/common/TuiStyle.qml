@@ -40,9 +40,10 @@ QtObject {
     readonly property color controlHover: "#4d4d4d"
     readonly property color controlMuted: "#222222"
     readonly property color controlActiveBorder: OmarchyTheme.accentActiveBorder
-    // Theme-aware low-emphasis chrome. Keep inactive surfaces readable while
-    // still following the active theme when a theme extension is installed.
-    readonly property color inactiveBorder: Qt.rgba(accent.r, accent.g, accent.b, 0.36)
+    // Inactive chrome: neutral gray (not accent-tinted) so unfocused
+    // workspace/window borders read clearly as "not focused" against the
+    // highlighted focused border.
+    readonly property color inactiveBorder: Qt.rgba(line.r, line.g, line.b, 0.36)
     readonly property color runningIndicator: accent
     readonly property color miniControlHover: "#303030"
     readonly property color miniControlPressed: "#3a3a3a"
