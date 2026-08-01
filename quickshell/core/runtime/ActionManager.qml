@@ -309,13 +309,13 @@ Singleton {
 
         this.register("session.reboot", "core", "Reboot", {
             type: "shell",
-            command: "reboot || loginctl reboot"
-        }, {description: "Restart the computer"})
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && reboot || loginctl reboot`
+        }, {description: "Restart the computer (saves the session snapshot first)"})
 
         this.register("session.shutdown", "core", "Shut down", {
             type: "shell",
-            command: "systemctl poweroff || loginctl poweroff"
-        }, {description: "Power off the computer"})
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && systemctl poweroff || loginctl poweroff`
+        }, {description: "Power off the computer (saves the session snapshot first)"})
 
         this.register("session.suspend", "core", "Suspend", {
             type: "shell",
@@ -334,12 +334,12 @@ Singleton {
 
         this.register("session.reboot.save", "core", "Reboot after saving session", {
             type: "shell",
-            command: "reboot || loginctl reboot"
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && reboot || loginctl reboot`
         }, {description: "Reboot with session save"})
 
         this.register("session.shutdown.save", "core", "Shut down after saving session", {
             type: "shell",
-            command: "systemctl poweroff || loginctl poweroff"
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && systemctl poweroff || loginctl poweroff`
         }, {description: "Power off with session save"})
 
         // Shell actions

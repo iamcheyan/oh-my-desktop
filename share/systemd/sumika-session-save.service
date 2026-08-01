@@ -1,0 +1,32 @@
+# Sumika session snapshot fallback.
+#
+# Arms restore-on-next-start whenever the graphical session ends, no matter
+# how: a terminal `systemctl reboot`/poweroff, the power button, or any
+# external tool never runs the UI's save path, so without this unit the
+# snapshot marker is only armed when the shutdown goes through the power menu
+# confirm dialog (Session.poweroff/reboot with the save checkbox).
+#
+# sumika-restart renders @SUMIKA_SHELL_ROOT@ into the real repo path at every
+# session start and links/enables this unit (see ensure_session_save_unit in
+# bin/sumika-restart). Do not edit the rendered copy under
+# $SUMIKA_SHELL_STATE_HOME/systemd/ — it is regenerated on each login.
+#
+# ExecStop runs during the SIGTERM phase of the user session teardown, before
+# systemd force-kills remaining processes, so hyprctl still sees the running
+# windows. save-auto-if-stale is idempotent: if the UI already saved moments
+# ago it only (re)arms the marker, otherwise it takes a fresh snapshot.
+
+[Unit]
+Description=Sumika session snapshot save on session end
+# Stop this unit before the bar so the snapshot is taken while the session's
+# windows (and Hyprland IPC) are still alive during teardown.
+After=sumika-bar.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=@SUMIKA_SHELL_ROOT@/bin/sumika-session save-auto-if-stale
+
+[Install]
+WantedBy=graphical-session.target

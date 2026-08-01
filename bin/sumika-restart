@@ -228,3 +228,22 @@ if [ -x "$SUMIKA_SHELL_ROOT/bin/sumika-sni-reconcile" ]; then
         nohup "$SUMIKA_SHELL_ROOT/bin/sumika-sni-reconcile" \
         >/tmp/sumika-sni-reconcile.log 2>&1 </dev/null &
 fi
+# ── Session-save fallback unit ───────────────────────────────────────────
+# Arms restore-on-next-start whenever the graphical session ends, even when
+# the shutdown bypasses the UI save path (terminal `systemctl reboot`/
+# poweroff, power button, external tools). Rendered at runtime so the unit
+# carries the real repo path, then linked + enabled at every session start so
+# it self-heals without re-running Init.sh. See the unit file for details.
+ensure_session_save_unit() {
+    _unit_tpl="${SUMIKA_SHELL_ROOT}/share/systemd/sumika-session-save.service"
+    [ -f "$_unit_tpl" ] || return 0
+    _unit_out="${SUMIKA_SHELL_STATE_HOME}/systemd/sumika-session-save.service"
+    mkdir -p "$(dirname "$_unit_out")"
+    sed "s|@SUMIKA_SHELL_ROOT@|${SUMIKA_SHELL_ROOT}|g" "$_unit_tpl" > "$_unit_out"
+    systemctl --user link "$_unit_out" >/dev/null 2>&1 || true
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+    systemctl --user enable --now sumika-session-save.service >/dev/null 2>&1 || true
+    unset _unit_tpl _unit_out
+}
+ensure_session_save_unit
+
