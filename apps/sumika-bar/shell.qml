@@ -80,6 +80,20 @@ ShellRoot {
     Component.onCompleted: {
         ActionManager._registerBuiltins()
         ApplicationManager.initialize()
+        // Overview is a separate on-demand qs process. Without pre-warming,
+        // the first open after boot pays the full cold-start cost (registry
+        // regen + QML compile + per-screen widget tree) and the very first
+        // click only spawns the process hidden. Pre-warm it shortly after
+        // the bar is up so the first user-triggered open is instant. The
+        // overview keepAliveWindow then keeps the process alive.
+        overviewPreWarmTimer.start()
+    }
+
+    Timer {
+        id: overviewPreWarmTimer
+        interval: 1500
+        repeat: false
+        onTriggered: Quickshell.execDetached([Directories.root + "/bin/sumika-overview", "warm"])
     }
 
     // Create top-level windows immediately. Gating this scope on Config.ready

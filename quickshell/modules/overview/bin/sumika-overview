@@ -30,23 +30,57 @@ ipc_call() {
     "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call overview "$1" 2>/dev/null || true
 }
 
+# IPC call whose exit code reflects whether the overview handler responded
+# (ipc_call suppresses it with `|| true`). Used to poll process readiness.
+ipc_probe() {
+    "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call overview "$1" >/dev/null 2>&1
+}
+
 launch_direct() {
+    # Start the overview process hidden (no open intent). Used by `warm`.
     exec "$qs_launcher" "$app_dir"
 }
 
+# Cold-start the overview process and, once its IPC handler is up, deliver
+# the requested action over IPC — the same reliable path used when the process
+# is already warm. Without this, the first click after a cold start would only
+# spawn the process hidden (overviewOpen defaults to false) and require a
+# second click to actually show.
+launch_and_ipc() {
+    action="$1"
+    setsid "$qs_launcher" "$app_dir" >/dev/null 2>&1 &
+    # Wait up to ~10s for the overview IPC handler to come up, then deliver
+    # the action the moment it responds.
+    i=0
+    while [ "$i" -lt 40 ]; do
+        sleep 0.25
+        if ipc_probe "$action"; then
+            return 0
+        fi
+        i=$((i + 1))
+    done
+    return 1
+}
+
 case "${1:-toggle}" in
+    warm)
+        # Pre-warm: start the process hidden if not already running.
+        if ! is_running; then
+            launch_direct
+        fi
+        ;;
     toggle)
         if is_running; then
             ipc_call toggle
         else
-            launch_direct
+            launch_and_ipc toggle
         fi
         ;;
     open)
         if is_running; then
             ipc_call open
         else
-            launch_direct
+            launch_and_ipc open
         fi
         ;;
     close)
@@ -58,7 +92,7 @@ case "${1:-toggle}" in
         if is_running; then
             ipc_call toggle
         else
-            launch_direct
+            launch_and_ipc "${1:-toggle}"
         fi
         ;;
 esac

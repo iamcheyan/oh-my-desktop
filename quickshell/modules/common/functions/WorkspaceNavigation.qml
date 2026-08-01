@@ -40,7 +40,7 @@ Singleton {
     function switchingModeModel() {
         const monitorName = GlobalStates.overviewAnchorMonitorName || Hyprland.focusedMonitor?.name || "";
         // Win+Tab is a transient switcher, so it intentionally keeps MRU order.
-        // The persistent overview grid uses numeric ID order instead.
+        // Normal Overview uses WorkspaceOrder's persistent visual order.
         let model = ServiceManager.workspace.overviewWorkspaceEntriesForMonitor(monitorName, true, {}, true);
         if (model.length === 0)
             model = ServiceManager.workspace.overviewWorkspaceEntriesGlobal(true).filter(entry => !entry.isTrailingEmpty);

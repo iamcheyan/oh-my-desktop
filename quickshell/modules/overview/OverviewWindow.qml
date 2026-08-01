@@ -49,12 +49,18 @@ Item { // Window
     property real monitorLogicalWidth: {
         if (!monitorData) return 1920;
         const w = monitorData.transform & 1 ? monitorData.height : monitorData.width;
-        return w / (monitorData.scale ?? 1);
+        const scale = Math.max(0.01, monitorData.scale ?? 1);
+        return Math.max(1, w / scale
+            - (monitorData.reserved?.[0] ?? 0)
+            - (monitorData.reserved?.[2] ?? 0));
     }
     property real monitorLogicalHeight: {
         if (!monitorData) return 1080;
         const h = monitorData.transform & 1 ? monitorData.width : monitorData.height;
-        return h / (monitorData.scale ?? 1);
+        const scale = Math.max(0.01, monitorData.scale ?? 1);
+        return Math.max(1, h / scale
+            - (monitorData.reserved?.[1] ?? 0)
+            - (monitorData.reserved?.[3] ?? 0));
     }
 
     // Raw coordinate relative to the monitor the window claims to be on.
@@ -95,10 +101,6 @@ Item { // Window
     property var targetWindowHeight: Math.max(1, Math.min(rawWindowHeight, Math.max(1, workspaceHeight - localY)))
     property bool hovered: false
     property bool pressed: false
-    // Focused window gets the highlight border; others get a neutral gray.
-    property bool isFocusedWindow: false
-    property color focusedBorderColor: TuiStyle.controlActiveBorder
-    property color unfocusedBorderColor: TuiStyle.inactiveBorder
     property bool centerIcons: Config.options.overview.centerIcons
     property real iconGapRatio: 0.06
     property real iconToWindowRatio: centerIcons ? 0.35 : 0.15
@@ -245,9 +247,9 @@ Item { // Window
         }
     }
 
-    // Border around the window preview. Focused window gets the accent
-    // highlight; unfocused windows get a neutral gray so the focused one
-    // stands out clearly within the workspace thumbnail.
+    // Window previews keep only a neutral separator. Selection and hover are
+    // represented by the workspace border in OverviewWidget, avoiding two
+    // competing accent outlines when a window nearly fills its workspace.
     Rectangle {
         anchors.fill: parent
         color: "transparent"
@@ -255,9 +257,7 @@ Item { // Window
         topRightRadius: root.topRightRadius
         bottomRightRadius: root.bottomRightRadius
         bottomLeftRadius: root.bottomLeftRadius
-        border.color: root.isFocusedWindow
-            ? root.focusedBorderColor
-            : root.unfocusedBorderColor
-        border.width: root.isFocusedWindow ? 3 : 2
+        border.color: TuiStyle.inactiveBorder
+        border.width: 2
     }
 }

@@ -88,7 +88,8 @@ Item {
     }
     readonly property int highlightedWorkspaceId: {
         // Keyboard navigation takes priority, then hover, then the active ws.
-        if (GlobalStates.overviewFocusedWorkspaceId > 0)
+        if (GlobalStates.overviewFocusedWorkspaceId > 0
+            && root.overviewEntryIds.includes(GlobalStates.overviewFocusedWorkspaceId))
             return GlobalStates.overviewFocusedWorkspaceId;
         if (root.hoveredWorkspaceEntry?.id > 0)
             return root.hoveredWorkspaceEntry.id;
@@ -102,12 +103,11 @@ Item {
     // ── Adaptive scaling ──
     // Overview (工作区概览): full-screen grid, auto-select optimal columns
     // Overview switching mode (Win+Tab): current-monitor preview, use config scale value
-    readonly property real screenW: monitorData?.transform % 2 === 1
-        ? (monitor.height - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
-        : (monitor.width - (monitorData?.reserved[0] ?? 0) - (monitorData?.reserved[2] ?? 0))
-    readonly property real screenH: monitorData?.transform % 2 === 1
-        ? (monitor.width - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
-        : (monitor.height - (monitorData?.reserved[1] ?? 0) - (monitorData?.reserved[3] ?? 0))
+    // Hyprland reports monitor width/height in physical pixels, while its
+    // position, reserved area, and client geometry use logical coordinates.
+    // Convert pixels first, then subtract the logical reserved margins.
+    readonly property real screenW: root.usableLogicalWidth(monitorData, monitor)
+    readonly property real screenH: root.usableLogicalHeight(monitorData, monitor)
 
     readonly property real gridPadding: 24
     readonly property real containerMargin: 64
@@ -162,7 +162,7 @@ Item {
     readonly property real workspaceImplicitWidth: Math.floor(Math.min(thumbByWidth, thumbByHeight / maxWorkspaceAspect))
     readonly property real workspaceImplicitHeight: Math.floor(workspaceImplicitWidth * (screenH / screenW))
 
-    property real scale: workspaceImplicitWidth / (screenW / (monitor.scale ?? 1))
+    property real scale: workspaceImplicitWidth / screenW
 
     property real largeWorkspaceRadius: Appearance.rounding.large
     property real smallWorkspaceRadius: Appearance.rounding.verysmall
@@ -274,20 +274,40 @@ Item {
             ?? root.monitorData;
     }
 
+    function usableLogicalWidth(mon, fallbackMonitor) {
+        const transform = mon?.transform ?? fallbackMonitor?.transform ?? 0;
+        const physicalWidth = (transform & 1)
+            ? (mon?.height ?? fallbackMonitor?.height ?? 1)
+            : (mon?.width ?? fallbackMonitor?.width ?? 1);
+        const scale = Math.max(0.01, mon?.scale ?? fallbackMonitor?.scale ?? 1);
+        const reservedLeft = mon?.reserved?.[0] ?? 0;
+        const reservedRight = mon?.reserved?.[2] ?? 0;
+        return Math.max(1, physicalWidth / scale - reservedLeft - reservedRight);
+    }
+
+    function usableLogicalHeight(mon, fallbackMonitor) {
+        const transform = mon?.transform ?? fallbackMonitor?.transform ?? 0;
+        const physicalHeight = (transform & 1)
+            ? (mon?.width ?? fallbackMonitor?.width ?? 1)
+            : (mon?.height ?? fallbackMonitor?.height ?? 1);
+        const scale = Math.max(0.01, mon?.scale ?? fallbackMonitor?.scale ?? 1);
+        const reservedTop = mon?.reserved?.[1] ?? 0;
+        const reservedBottom = mon?.reserved?.[3] ?? 0;
+        return Math.max(1, physicalHeight / scale - reservedTop - reservedBottom);
+    }
+
     function monitorLogicalWidth(monitorName) {
         const mon = root.monitorDataForName(monitorName);
         if (!mon)
-            return Math.max(1, root.screenW / (root.monitor?.scale ?? 1));
-        const width = (mon.transform & 1) ? mon.height : mon.width;
-        return Math.max(1, (width - (mon.reserved?.[0] ?? 0) - (mon.reserved?.[2] ?? 0)) / (mon.scale ?? 1));
+            return root.screenW;
+        return root.usableLogicalWidth(mon, root.monitor);
     }
 
     function monitorLogicalHeight(monitorName) {
         const mon = root.monitorDataForName(monitorName);
         if (!mon)
-            return Math.max(1, root.screenH / (root.monitor?.scale ?? 1));
-        const height = (mon.transform & 1) ? mon.width : mon.height;
-        return Math.max(1, (height - (mon.reserved?.[1] ?? 0) - (mon.reserved?.[3] ?? 0)) / (mon.scale ?? 1));
+            return root.screenH;
+        return root.usableLogicalHeight(mon, root.monitor);
     }
 
     function monitorAspect(monitorName) {
@@ -431,49 +451,75 @@ Item {
         return root.overviewEntries[group.start] ?? null;
     }
 
-    function hoveredWorkspaceForGroup(group) {
-        if (!root.hoveredWorkspaceEntry)
+    function entryForWorkspaceId(workspaceId) {
+        if (workspaceId < 1)
             return null;
-        return root.hoveredWorkspaceEntry;
+        return root.overviewEntries.find(entry => entry?.id === workspaceId) ?? null;
+    }
+
+    function hoveredWorkspaceForGroup(group) {
+        const workspaceId = root.hoveredWorkspaceEntry?.id ?? -1;
+        if (workspaceId < 1)
+            return null;
+        // Resolve through the current model so title/monitor/trailing state
+        // cannot remain stale after a workspace refresh.
+        return root.entryForWorkspaceId(workspaceId);
     }
 
     function hoveredWindowForGroup(group) {
-        if (!root.hoveredWindowData)
+        const address = root.hoveredWindowData?.address ?? "";
+        if (address.length === 0)
             return null;
-        return root.hoveredWindowData;
+        // windowByAddress is replaced on each Hyprland refresh. Looking up the
+        // current object keeps changing titles live and drops closed windows.
+        const win = root.windowByAddress[address] ?? null;
+        if (!win || !root.entryForWorkspaceId(win.workspace?.id ?? -1))
+            return null;
+        return win;
     }
 
-    function defaultWindowForGroup(group) {
-        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0) {
-            return ServiceManager.workspace.focusedClientForWorkspace(GlobalStates.overviewFocusedWorkspaceId);
-        }
-        const entry = root.firstEntryForGroup(group);
-        if (!entry || entry.isTrailingEmpty)
-            return null;
-        return ServiceManager.workspace.focusedClientForWorkspace(entry.id);
+    function keyboardSelectedEntry() {
+        return root.entryForWorkspaceId(GlobalStates.overviewFocusedWorkspaceId);
     }
 
     function infoEntryForGroup(group) {
-        if (OverviewSwitchingController.grabbed && GlobalStates.overviewFocusedWorkspaceId > 0) {
-            for (let i = group.start; i <= group.end; ++i) {
-                if (root.overviewEntries[i]?.id === GlobalStates.overviewFocusedWorkspaceId)
-                    return root.overviewEntries[i];
-            }
-        }
-        return root.hoveredWorkspaceForGroup(group) ?? root.firstEntryForGroup(group);
+        return root.hoveredWorkspaceForGroup(group)
+            ?? root.keyboardSelectedEntry()
+            ?? root.firstEntryForGroup(group)
+            ?? root.overviewEntries[0]
+            ?? null;
     }
 
     function infoWindowForGroup(group) {
         const hoveredWindow = root.hoveredWindowForGroup(group);
         if (hoveredWindow)
             return hoveredWindow;
+        // Hovering workspace background intentionally shows workspace info,
+        // not that workspace's previously focused client.
         if (root.hoveredWorkspaceForGroup(group))
             return null;
-        return root.defaultWindowForGroup(group);
+
+        const entry = root.infoEntryForGroup(group);
+        if (!entry || entry.isTrailingEmpty)
+            return null;
+        return ServiceManager.workspace.focusedClientForWorkspace(entry.id);
     }
 
     function showingWorkspaceInfoForGroup(group) {
-        return root.hoveredWorkspaceForGroup(group) !== null || root.infoWindowForGroup(group) === null;
+        return root.infoWindowForGroup(group) === null;
+    }
+
+    function reconcileFocusedWorkspace() {
+        if (!GlobalStates.overviewOpen || root.overviewEntries.length === 0)
+            return;
+        if (root.keyboardSelectedEntry())
+            return;
+
+        const fallback = root.firstEntryForGroup(root.localMonitorGroup)
+            ?? root.overviewEntries[0]
+            ?? null;
+        if (fallback?.id > 0)
+            GlobalStates.overviewFocusedWorkspaceId = fallback.id;
     }
 
     function infoTitleForGroup(group) {
@@ -510,12 +556,14 @@ Item {
     Connections {
         target: GlobalStates
         function onOverviewFocusedWorkspaceIdChanged() {
-            if (!OverviewSwitchingController.grabbed)
-                return;
+            // Any keyboard-driven selection (Tab, arrows, H/J/K/L, Win+Tab,
+            // wheel shortcuts) must take over from a stale pointer target.
             root.hoveredWindowData = null;
             root.hoveredWorkspaceEntry = null;
         }
     }
+
+    onOverviewEntriesChanged: Qt.callLater(root.reconcileFocusedWorkspace)
 
     // ── Wheel scroll anywhere cycles workspaces ──
     MouseArea {
@@ -760,37 +808,18 @@ Item {
                         const mon = window.monitor;
                         if (!mon)
                             return root.scale;
-                        const width = (mon.transform & 1) ? mon.height : mon.width;
-                        const reservedStart = mon.reserved?.[0] ?? 0;
-                        const reservedEnd = mon.reserved?.[2] ?? 0;
-                        const logicalWidth = Math.max(1, (width - reservedStart - reservedEnd) / (mon.scale ?? 1));
+                        const logicalWidth = root.usableLogicalWidth(mon, null);
                         return root.entryWidth(workspaceEntryIndex) / logicalWidth;
                     }
                     scaleY: {
                         const mon = window.monitor;
                         if (!mon)
                             return root.scale;
-                        const height = (mon.transform & 1) ? mon.width : mon.height;
-                        const reservedStart = mon.reserved?.[1] ?? 0;
-                        const reservedEnd = mon.reserved?.[3] ?? 0;
-                        const logicalHeight = Math.max(1, (height - reservedStart - reservedEnd) / (mon.scale ?? 1));
+                        const logicalHeight = root.usableLogicalHeight(mon, null);
                         return root.entryHeight(workspaceEntryIndex) / logicalHeight;
                     }
                     widgetMonitor: ServiceManager.workspace.monitors.find(m => m.id == root.monitor.id)
                     windowData: windowByAddress[address]
-                    isFocusedWindow: {
-                        // Hover takes priority — the mouse is explicitly on this window.
-                        if (root.hoveredWindowData?.address === address)
-                            return true;
-                        // Otherwise, highlight the focused client of the highlighted
-                        // workspace (keyboard navigation or active workspace).
-                        const wsId = windowData?.workspace?.id;
-                        if (wsId && wsId === root.highlightedWorkspaceId) {
-                            const focused = ServiceManager.workspace.focusedClientForWorkspace(wsId);
-                            return focused?.address === address;
-                        }
-                        return false;
-                    }
 
                     // Offset on the canvas
                     property int workspaceEntryIndex: root.indexForWorkspaceId(windowData?.workspace.id)
@@ -857,6 +886,8 @@ Item {
                             window.hovered = false
                             if (root.hoveredWindowData?.address === windowData?.address)
                                 root.hoveredWindowData = null
+                            if (root.hoveredWorkspaceEntry?.id === windowData?.workspace?.id)
+                                root.hoveredWorkspaceEntry = null
                         }
                         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
                         drag.target: parent

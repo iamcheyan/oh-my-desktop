@@ -19,6 +19,9 @@ Singleton {
     property var workspaces: []
     property var workspaceIds: []
     property var workspaceById: ({})
+    property bool clientsLoaded: false
+    property bool monitorsLoaded: false
+    property bool workspacesLoaded: false
     // activeWorkspace: derived from the native Quickshell.Hyprland model so it
     // updates the instant Hyprland reports a focus change — no hyprctl poll.
     // Only `.id` is consumed, which the native HyprlandWorkspace provides.
@@ -36,7 +39,8 @@ Singleton {
         // them as binding dependencies.
         const _serial = root.dataSerial;
         const _refresh = GlobalStates.overviewRefreshSerial;
-        void _serial; void _refresh;
+        const _order = WorkspaceOrder.revision;
+        void _serial; void _refresh; void _order;
         return root.overviewWorkspaceEntriesGroupedByMonitor() ?? [];
     }
 
@@ -100,16 +104,89 @@ Singleton {
         return root.windowList.some(win => win.workspace?.id === wsId && win.mapped && !win.hidden);
     }
 
-    // Overview (工作区概览): only workspaces WITH windows are shown. The regular
-    // overview grid is ordered by real workspace ID for stable visual slots.
-    // SUPER+number resolves those slots dynamically. Win+Tab switching can
+    function workspaceOrderMonitorName(workspaceId, fallbackMonitorId) {
+        const pendingMonitor = root.pendingWorkspaceMonitorName(workspaceId);
+        if (pendingMonitor.length > 0)
+            return pendingMonitor;
+        const workspace = root.workspaceById[workspaceId];
+        if ((workspace?.monitor ?? "").length > 0)
+            return workspace.monitor;
+        return root.monitors.find(mon => mon.id === fallbackMonitorId)?.name ?? "";
+    }
+
+    function syncWorkspaceOrder() {
+        const sortedMonitors = root.sortedOverviewMonitors();
+        const monitorNames = sortedMonitors.map(mon => mon.name ?? "").filter(name => name.length > 0);
+        const occupiedByMonitor = ({});
+        for (const name of monitorNames)
+            occupiedByMonitor[name] = [];
+        const occupiedSets = ({});
+        const usedIds = ({});
+
+        for (const workspace of root.workspaces) {
+            if (workspace?.id >= 1 && workspace.id <= 100)
+                usedIds[workspace.id] = true;
+        }
+
+        for (const win of root.windowList) {
+            const workspaceId = win?.workspace?.id ?? -1;
+            if (workspaceId < 1 || workspaceId > 100)
+                continue;
+            usedIds[workspaceId] = true;
+            if (!win.mapped || win.hidden)
+                continue;
+            const monitorName = root.workspaceOrderMonitorName(workspaceId, win.monitor);
+            if (monitorName.length === 0)
+                continue;
+            if (!occupiedByMonitor[monitorName])
+                occupiedByMonitor[monitorName] = [];
+            if (!occupiedSets[monitorName])
+                occupiedSets[monitorName] = ({});
+            if (!occupiedSets[monitorName][workspaceId]) {
+                occupiedSets[monitorName][workspaceId] = true;
+                occupiedByMonitor[monitorName].push(workspaceId);
+            }
+        }
+
+        const pendingMonitorMap = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
+        for (const key of Object.keys(pendingMonitorMap)) {
+            const workspaceId = Number(key);
+            if (workspaceId >= 1 && workspaceId <= 100)
+                usedIds[workspaceId] = true;
+        }
+
+        for (const pending of GlobalStates.overviewPendingOccupiedWorkspaces ?? []) {
+            const workspaceId = pending?.id ?? -1;
+            const monitorName = pending?.monitorName ?? root.pendingWorkspaceMonitorName(workspaceId);
+            if (workspaceId < 1 || workspaceId > 100 || monitorName.length === 0)
+                continue;
+            usedIds[workspaceId] = true;
+            if (!occupiedByMonitor[monitorName])
+                occupiedByMonitor[monitorName] = [];
+            if (!occupiedSets[monitorName])
+                occupiedSets[monitorName] = ({});
+            if (!occupiedSets[monitorName][workspaceId]) {
+                occupiedSets[monitorName][workspaceId] = true;
+                occupiedByMonitor[monitorName].push(workspaceId);
+            }
+        }
+
+        WorkspaceOrder.observe(
+            monitorNames,
+            occupiedByMonitor,
+            usedIds,
+            root.clientsLoaded && root.monitorsLoaded && root.workspacesLoaded);
+    }
+
+    // Overview (工作区概览): only workspaces WITH windows are shown. Normal
+    // Overview follows WorkspaceOrder's persisted visual order; raw Hyprland
+    // IDs are transport identifiers rather than presentation positions.
+    // SUPER+number resolves visual slots dynamically. Win+Tab switching can
     // explicitly request MRU ordering (Win11 Alt+Tab Z-order). Empty workspaces are never displayed
     // — not even the active one if it has no windows. A single trailing
-    // "New workspace" slot (id = highest occupied id + 1) is always appended
-    // last and never participates in ordering, like GNOME/macOS.
-    // This guarantees there is exactly ONE empty cell in the grid, always at
-    // the very end with the highest ID, so dragging a window to it always
-    // places it as the last workspace.
+    // "New workspace" slot is always appended last and never participates in
+    // ordering, like GNOME/macOS. Its raw ID comes from the global recyclable
+    // pool and therefore need not be numerically larger than occupied IDs.
     function overviewWorkspaceEntriesForMonitor(monitorName, appendTrailing, reservedWorkspaceIds, orderByMru) {
         const includeTrailing = appendTrailing ?? true;
         const useMruOrder = orderByMru ?? false;
@@ -195,10 +272,16 @@ Singleton {
             });
         });
 
-        // The persistent overview grid follows numeric workspace IDs so its
-        // first, second, ... cells correspond to SUPER+1, SUPER+2, ...
-        // Only the transient Win+Tab switcher opts into MRU ordering.
-        let orderedWindows = withWindows.slice().sort((a, b) => a.id - b.id);
+        // Normal Overview follows persistent visual order. Only the transient
+        // Win+Tab switcher opts into MRU ordering.
+        const orderedIds = targetMonitor.length > 0
+            ? WorkspaceOrder.orderIdsForMonitor(targetMonitor, withWindows.map(entry => entry.id))
+            : withWindows.map(entry => entry.id).sort((a, b) => a - b);
+        const entriesById = ({});
+        for (const entry of withWindows)
+            entriesById[entry.id] = entry;
+        const visualOrder = orderedIds.map(id => entriesById[id]).filter(entry => !!entry);
+        let orderedWindows = visualOrder.slice();
         const mru = GlobalStates.overviewWorkspaceMru;
         if (useMruOrder && mru && mru.length > 0) {
             const byId = {};
@@ -211,7 +294,7 @@ Singleton {
                     consumed[id] = true;
                 }
             }
-            withWindows.slice().sort((a, b) => a.id - b.id).forEach(e => {
+            visualOrder.forEach(e => {
                 if (!consumed[e.id]) {
                     orderedWindows.push(e);
                     consumed[e.id] = true;
@@ -222,12 +305,9 @@ Singleton {
         const ordered = orderedWindows.slice();
 
         // Trailing "New workspace" slot: show exactly one empty workspace at
-        // the visual end of each monitor group, always with the highest ID.
-        // Using maxId + 1 ensures dragging a window to the new workspace
-        // always places it as the last (highest-numbered) workspace.
-        let maxId = activeId - 1;
-        for (const entry of orderedWindows)
-            maxId = Math.max(maxId, entry.id);
+        // the visual end of each monitor group. The globally unique candidate
+        // may recycle a low raw ID; array position, not ID magnitude, makes it
+        // the final visual slot.
         const globalSeen = {};
         root.workspaces.forEach(ws => {
             if (ws.id >= 1 && ws.id <= 100)
@@ -236,12 +316,27 @@ Singleton {
         withWindows.forEach(e => {
             globalSeen[e.id] = true;
         });
+        for (const win of root.windowList) {
+            const workspaceId = win?.workspace?.id ?? -1;
+            if (workspaceId >= 1 && workspaceId <= 100)
+                globalSeen[workspaceId] = true;
+        }
+        const pendingMonitorMap = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
+        for (const key of Object.keys(pendingMonitorMap)) {
+            const workspaceId = Number(key);
+            if (workspaceId >= 1 && workspaceId <= 100)
+                globalSeen[workspaceId] = true;
+        }
+        for (const pending of GlobalStates.overviewPendingOccupiedWorkspaces ?? []) {
+            const workspaceId = pending?.id ?? -1;
+            if (workspaceId >= 1 && workspaceId <= 100)
+                globalSeen[workspaceId] = true;
+        }
 
-        let trailingId = maxId + 1;
-        while (trailingId <= 100 && (globalSeen[trailingId] || reservedIds[trailingId] || seen[trailingId]))
-            trailingId += 1;
-
-        if (includeTrailing && trailingId >= 1 && trailingId <= 100 && !seen[trailingId]) {
+        const trailingId = includeTrailing
+            ? WorkspaceOrder.allocateId(globalSeen, reservedIds)
+            : -1;
+        if (trailingId >= 1 && !seen[trailingId]) {
             ordered.push({
                 id: trailingId,
                 monitorName: targetMonitor,
@@ -364,6 +459,16 @@ Singleton {
         updateActiveWindow();
     }
 
+    Connections {
+        target: GlobalStates
+        function onOverviewPendingWorkspaceMonitorByIdChanged() {
+            root.syncWorkspaceOrder();
+        }
+        function onOverviewPendingOccupiedWorkspacesChanged() {
+            root.syncWorkspaceOrder();
+        }
+    }
+
     // Debounce the heavy re-fetch. Hyprland fires many raw events in a burst
     // (e.g. when the overview layer appears: activewindow, focusedmon,
     // movewindow, …). Without coalescing, each event spawned 6 hyprctl
@@ -433,6 +538,7 @@ Singleton {
                 }
                 root.windowByAddress = tempWinByAddress;
                 root.addresses = root.windowList.map(win => win.address);
+                root.clientsLoaded = true;
                 const suppressed = root.suppressedEmptyWorkspaceIds();
                 if (suppressed.length > 0) {
                     GlobalStates.overviewSuppressedEmptyWorkspaceIds = suppressed.filter(wsId =>
@@ -445,6 +551,7 @@ Singleton {
                         !root.pendingWorkspaceSettled(entry)
                     );
                 }
+                root.syncWorkspaceOrder();
                 root.markDataChanged();
             }
         }
@@ -457,6 +564,8 @@ Singleton {
             id: monitorsCollector
             onStreamFinished: {
                 root.monitors = JSON.parse(monitorsCollector.text);
+                root.monitorsLoaded = true;
+                root.syncWorkspaceOrder();
                 root.markDataChanged();
             }
         }
@@ -479,6 +588,7 @@ Singleton {
                 }
                 root.workspaceById = tempWorkspaceById;
                 root.workspaceIds = root.workspaces.map(ws => ws.id);
+                root.workspacesLoaded = true;
                 const pending = GlobalStates.overviewPendingWorkspaceMonitorById ?? {};
                 const nextPending = {};
                 for (const wsId in pending) {
@@ -493,6 +603,7 @@ Singleton {
                         !root.pendingWorkspaceSettled(entry)
                     );
                 }
+                root.syncWorkspaceOrder();
                 root.markDataChanged();
             }
         }

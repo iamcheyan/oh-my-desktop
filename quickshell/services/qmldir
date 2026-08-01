@@ -7,6 +7,7 @@ singleton TrayService 1.0 TrayService.qml
 singleton LockService 1.0 LockService.qml
 singleton BluetoothStatus 1.0 BluetoothStatus.qml
 singleton HyprlandData 1.0 HyprlandData.qml
+singleton WorkspaceOrder 1.0 WorkspaceOrder.qml
 singleton Hyprsunset 1.0 Hyprsunset.qml
 singleton SystemInfo 1.0 SystemInfo.qml
 singleton AppSearch 1.0 AppSearch.qml
