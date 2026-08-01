@@ -78,7 +78,7 @@ def product_floor_ids() -> set:
     return {
         "launcher", "clock", "notification-popup", "workspaces", "overview",
         "systray", "wifi", "audio", "power-indicator", "display", "settings",
-        "on-screen-display",
+        "on-screen-display", "clipboard",
     }
 
 def is_module_enabled(module_id: str, config: dict) -> bool:

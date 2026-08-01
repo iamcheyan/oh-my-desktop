@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+# Top-level wrapper so bare-name invocations from outside the bar's PATH
+# (kitty.conf: `map ctrl+v launch ... sumika-kitty-smart-paste`) resolve via
+# the session PATH (Hyprland inherits ~/development/OMD/bin). The module's own
+# bin/ is only on the bar's PATH, not Hyprland's, so a wrapper is required —
+# same pattern as bin/sumika-overview.
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+. "$repo_root/lib/paths.sh"
+
+mod_dir="$repo_root/quickshell/modules/clipboard"
+if [ ! -x "$mod_dir/bin/sumika-kitty-smart-paste" ]; then
+    printf 'sumika-kitty-smart-paste: clipboard module script not found at %s\n' "$mod_dir/bin/sumika-kitty-smart-paste" >&2
+    exit 1
+fi
+
+exec "$mod_dir/bin/sumika-kitty-smart-paste" "$@"

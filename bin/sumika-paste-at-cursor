@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+# Top-level wrapper so bare-name invocations of the central paste helper from
+# outside the bar's PATH resolve via the session PATH. Required because
+# sumika-kitty-smart-paste (launched by kitty with Hyprland's PATH = OMD/bin)
+# calls `sumika-paste-at-cursor` by bare name. The module's own bin/ is only on
+# the bar's PATH, not Hyprland's — same pattern as bin/sumika-overview.
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+. "$repo_root/lib/paths.sh"
+
+mod_dir="$repo_root/quickshell/modules/clipboard"
+if [ ! -x "$mod_dir/bin/sumika-paste-at-cursor" ]; then
+    printf 'sumika-paste-at-cursor: clipboard module script not found at %s\n' "$mod_dir/bin/sumika-paste-at-cursor" >&2
+    exit 1
+fi
+
+exec "$mod_dir/bin/sumika-paste-at-cursor" "$@"

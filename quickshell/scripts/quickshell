@@ -164,6 +164,13 @@ if command -v jq >/dev/null 2>&1; then
     done
 fi
 
+# Add core module bin/ directories to PATH so bare-name invocations of core
+# module scripts (e.g. `sumika-clipboard` from the bar's ClipboardButton)
+# resolve, mirroring the extension bin/ handling below.
+for _mod_dir in "$repo_root/quickshell/modules/"*/; do
+    [ -d "$_mod_dir/bin" ] && export PATH="$PATH:$_mod_dir/bin"
+done
+
 # No hardcoded fallback: if jq is absent, registry stays empty.
 # ModuleLoader handles empty registry gracefully by showing no module-dependent UI.
 if [ "$registry" = '{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[]}}' ]; then

@@ -1,0 +1,2 @@
+module qs.modules.clipboard
+ClipboardButton 1.0 bar/ClipboardButton.qml

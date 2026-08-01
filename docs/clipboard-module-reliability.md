@@ -1,18 +1,18 @@
 # Clipboard Module Reliability
 
-This document describes the clipboard extension at
-`~/.local/share/sumika-shell/extensions/clipboard/` and the reliability rules
-that must be preserved when it is changed.
+This document describes the clipboard core module at
+`quickshell/modules/clipboard/` and the reliability rules that must be
+preserved when it is changed.
 
 ## Ownership
 
-The extension owns the clipboard UI, history watcher, paste transport, image
-path conversion, and its module actions. The core shell only provides module
+The module owns the clipboard UI, history watcher, paste transport, image
+path conversion, and its module actions. The core shell provides module
 discovery, process supervision, IPC, and the shared UI/runtime APIs.
 
-The extension must remain optional: when it is disabled or absent, the core
-shell must still start. When it is enabled, its store process is an
-application module supervised by `sumika-clipboard-store.service`.
+Clipboard is a core product-floor module: it is always enabled (cannot be
+disabled through `modules.disabled`) and lives in the repository. Its store
+process is an application module supervised by `sumika-clipboard-store.service`.
 
 ## Data Flow
 
@@ -83,7 +83,7 @@ registry has not started one yet. The unit uses `Restart=on-failure` and
 `KillMode=mixed`.
 
 The Quickshell stop path must not use a broad `pkill -f 'wl-paste --watch'`:
-that can kill unrelated desktop watchers. It resolves the clipboard extension
+that can kill unrelated desktop watchers. It resolves the clipboard module
 from the module registry and invokes its `stop` protocol instead.
 
 ### UI communication
@@ -163,6 +163,6 @@ the shell; the callback records and ignores the incomplete event rather than
 storing corrupted data. Screenshot tools should keep their clipboard offer
 alive long enough for a consumer to read it.
 
-The extension still depends on `wl-paste`, `cliphist`, `file`, and the standard
+The module still depends on `wl-paste`, `cliphist`, `file`, and the standard
 text-processing commands used by the watcher. `status` reports missing
 required commands instead of silently pretending that storage is healthy.

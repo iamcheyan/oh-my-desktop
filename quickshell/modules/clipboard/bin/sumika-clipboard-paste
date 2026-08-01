@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Decode one cliphist entry and paste it through the shared paste transport.
+# Keeping this in one executable avoids subtly different QML shell snippets for
+# normal paste, smart terminal paste, and explicit image-path paste.
+
+set -u
+IFS=$'\n\t'
+
+mode=auto
+entry=""
+entry_file=""
+force_path=0
+window_class=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --entry) entry="${2:-}"; shift 2 ;;
+        --entry-file) entry_file="${2:-}"; shift 2 ;;
+        --smart) mode=smart; shift ;;
+        --path) force_path=1; shift ;;
+        --class) window_class="${2:-}"; shift 2 ;;
+        *) echo "usage: sumika-clipboard-paste --entry ENTRY [--smart|--path] [--class CLASS]" >&2; exit 2 ;;
+    esac
+done
+
+if [ -n "$entry_file" ]; then
+    [ -r "$entry_file" ] || exit 1
+    entry=$(cat -- "$entry_file")
+fi
+[ -n "$entry" ] || exit 1
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard"
+mkdir -p "$runtime_dir"
+decoded=$(mktemp "$runtime_dir/decoded.XXXXXX")
+payload=$(mktemp "$runtime_dir/payload.XXXXXX")
+cleanup() { rm -f "$decoded" "$payload"; }
+trap cleanup EXIT HUP INT TERM
+
+printf '%s\n' "$entry" | cliphist decode > "$decoded" 2>/dev/null || exit 1
+[ -s "$decoded" ] || exit 1
+
+is_image=0
+if file -b --mime-type "$decoded" 2>/dev/null | grep -q '^image/'; then
+    is_image=1
+fi
+
+# Smart paste is only a path conversion for terminal targets. In GUI apps an
+# image must remain an image. Resolve the active class here as a fallback so
+# QML does not need to duplicate window-detection and terminal allowlists.
+if [ -z "$window_class" ] && command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    window_class=$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)
+fi
+is_terminal=0
+case "$(printf '%s' "$window_class" | tr '[:upper:]' '[:lower:]')" in
+    foot*|kitty*|alacritty*|ghostty*|wezterm*|org.wezfurlong.wezterm*|\
+    xdg-term*|konsole*|gnome-terminal*|org.gnome.terminal*|xterm*|st|\
+    urxvt*|rxvt*|tmux*|org.konsole*|com.mitchellh.ghostty*)
+        is_terminal=1
+        ;;
+esac
+
+if [ "$force_path" -eq 1 ] || { [ "$mode" = smart ] && [ "$is_image" -eq 1 ] && [ "$is_terminal" -eq 1 ]; }; then
+    [ "$is_image" -eq 1 ] || exit 1
+    stamp=$(date +%s%N)
+    extension=$(file -b --extension "$decoded" 2>/dev/null | tr -cd '[:alnum:]' | head -c 8)
+    [ -n "$extension" ] || extension=png
+    image_path="/tmp/sumika-clip-${stamp}.${extension}"
+    cp -- "$decoded" "$image_path" || exit 1
+    printf '%s ' "$image_path" > "$payload"
+    wl-copy < "$payload" || exit 1
+    SUMIKA_PASTE_SOURCE=clipboard SUMIKA_PASTE_DELAY=0.05 \
+        sumika-paste-at-cursor --file "$payload" auto "$window_class" || exit 1
+    notify-send -t 2000 'Clipboard' "Pasted image path: $image_path" 2>/dev/null || true
+    exit 0
+fi
+
+wl-copy < "$decoded" || exit 1
+SUMIKA_PASTE_SOURCE=clipboard SUMIKA_PASTE_DELAY=0.05 \
+    sumika-paste-at-cursor --file "$decoded" auto "$window_class"

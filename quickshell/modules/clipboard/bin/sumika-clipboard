@@ -1,0 +1,117 @@
+#!/bin/sh
+set -eu
+
+# On-demand Clipboard process.
+# Usage:
+#   sumika-clipboard                 # toggle: open if not running, close if running
+#   sumika-clipboard toggle         # same as above (follows cursor)
+#   sumika-clipboard toggle-at-bar  # toggle anchored to the top bar (right side)
+#   sumika-clipboard open           # open (launch if needed, follows cursor)
+#   sumika-clipboard open-at-bar    # open anchored to the top bar
+#   sumika-clipboard close          # close running instance (no-op if not running)
+#
+# When started fresh, exports SUMIKA_CLIPBOARD_ON_DEMAND=1 so shell.qml auto-opens the
+# clipboard dialog and quits the process when the window closes.
+# SUMIKA_CLIPBOARD_POSITION=bar  anchors the dialog to the bar instead of the cursor.
+# SUMIKA_CLIPBOARD_BAR_HEIGHT=n  supplies the bar height for the anchored offset.
+
+script_dir=$(cd "$(dirname "$0")/.." && pwd)
+app_dir="$script_dir/apps/sumika-clipboard"
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard"
+mkdir -p "$runtime_dir"
+
+acquire_launch_lock() {
+    exec 8>"$runtime_dir/launch.lock"
+    if command -v flock >/dev/null 2>&1; then
+        flock -n 8 2>/dev/null || exit 0
+    fi
+}
+
+# Detect a running sumika-clipboard Quickshell instance. Match the -p path
+# (config dir) to avoid collisions with other omd-* processes.
+is_running() {
+    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+}
+
+ipc_call() {
+    "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call clipboard "$@" 2>/dev/null || true
+}
+launch_direct() {
+    # Forward position hints to the fresh Quickshell instance via env.
+    if [ "${SUMIKA_CLIPBOARD_POSITION:-}" = "bar" ]; then
+        export SUMIKA_CLIPBOARD_POSITION=bar
+        export SUMIKA_CLIPBOARD_BAR_HEIGHT="${SUMIKA_CLIPBOARD_BAR_HEIGHT:-32}"
+    fi
+
+    # Extension environment: app_dir is all we need
+    export QS_CONFIG_DIR="$app_dir"
+    export QS_COMPOSITOR=hyprland
+    export SUMIKA_APP_DIR="$app_dir"
+    export SUMIKA_CLIPBOARD_ON_DEMAND=1
+
+    # Ensure Wayland variables are available (fallback if not in environment)
+    if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        for socket in "$runtime_dir"/wayland-*; do
+            if [ -S "$socket" ]; then
+                export WAYLAND_DISPLAY="$(basename "$socket")"
+                break
+            fi
+        done
+    fi
+
+    exec "${SUMIKA_QS_BIN:-qs}" -p "$app_dir"
+}
+
+case "${1:-toggle}" in
+    toggle)
+        if is_running; then
+            ipc_call toggle
+        else
+            acquire_launch_lock
+            is_running || launch_direct
+        fi
+        ;;
+    toggle-at-bar)
+        # $2 = optional bar height from caller (ClipboardButton.qml passes Appearance.sizes.barHeight)
+        if [ -n "${2:-}" ]; then
+            export SUMIKA_CLIPBOARD_BAR_HEIGHT="$2"
+        fi
+        if is_running; then
+            ipc_call toggleAtBar "${SUMIKA_CLIPBOARD_BAR_HEIGHT:-32}"
+        else
+            acquire_launch_lock
+            is_running || SUMIKA_CLIPBOARD_POSITION=bar SUMIKA_CLIPBOARD_BAR_HEIGHT="${SUMIKA_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
+        fi
+        ;;
+    open)
+        if is_running; then
+            ipc_call open
+        else
+            acquire_launch_lock
+            is_running || launch_direct
+        fi
+        ;;
+    open-at-bar)
+        if is_running; then
+            ipc_call openAtBar "${SUMIKA_CLIPBOARD_BAR_HEIGHT:-32}"
+        else
+            acquire_launch_lock
+            is_running || SUMIKA_CLIPBOARD_POSITION=bar SUMIKA_CLIPBOARD_BAR_HEIGHT="${SUMIKA_CLIPBOARD_BAR_HEIGHT:-32}" launch_direct
+        fi
+        ;;
+    close)
+        if is_running; then
+            ipc_call close
+        fi
+        ;;
+    paste)
+        if is_running; then
+            ipc_call paste
+        fi
+        ;;
+    *)
+        echo "usage: sumika-clipboard [toggle|toggle-at-bar|open|open-at-bar|close|paste]" >&2
+        exit 2
+        ;;
+esac

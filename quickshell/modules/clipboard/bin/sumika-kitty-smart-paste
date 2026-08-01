@@ -1,0 +1,111 @@
+#!/bin/sh
+set -eu
+
+# Smart paste for kitty — image→path in terminal.
+# Mapped to Ctrl+Shift+V in kitty.conf:
+#   map ctrl+shift+v launch --type=background sumika-kitty-smart-paste
+#
+# Terminals can't render image clipboard data. So when the Wayland clipboard
+# holds an image, save it to a temp file and type its PATH into the terminal
+# (most CLI tools accept a path argument). Otherwise paste the clipboard text
+# normally.
+#
+# Injection is delegated to the same central helper used by voice input and
+# the clipboard menu. That gives all Sumika Shell paste paths one payload snapshot,
+# one target resolver and one duplicate-suppression gate.
+
+LOG=/tmp/sumika-kitty-smart-paste.log
+log() { echo "$(date '+%H:%M:%S') $*" >> "$LOG" 2>/dev/null || true; }
+
+resolve_socket() {
+  if [ -n "${KITTY_LISTEN_ON:-}" ]; then
+    echo "$KITTY_LISTEN_ON"; return
+  fi
+
+  active_pid=$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)
+  if [ -n "$active_pid" ] && [ -S "/tmp/mykitty-$active_pid" ]; then
+    echo "unix:/tmp/mykitty-$active_pid"; return
+  fi
+
+  p=$$
+  for _ in 1 2 3 4 5 6; do
+    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+    [ -z "$p" ] || [ "$p" = 0 ] && break
+    name=$(ps -o comm= -p "$p" 2>/dev/null | tr -d ' ')
+    if [ "$name" = "kitty" ] && [ -S "/tmp/mykitty-$p" ]; then
+      echo "unix:/tmp/mykitty-$p"; return
+    fi
+  done
+  set -- /tmp/mykitty-*
+  if [ $# -eq 1 ] && [ -S "$1" ]; then
+    echo "unix:$1"; return
+  fi
+  if [ -S /tmp/mykitty ]; then
+    echo "unix:/tmp/mykitty"; return
+  fi
+  for sock in /tmp/mykitty-*; do
+    if [ -S "$sock" ]; then
+      echo "unix:$sock"; return
+    fi
+  done
+  echo "unix:/tmp/mykitty"
+}
+
+KC=$(resolve_socket)
+log "socket=$KC"
+
+if [ "${1:-}" = "--print-socket" ]; then
+  echo "$KC"
+  exit 0
+fi
+
+PASTE_HELPER="sumika-paste-at-cursor"
+paste_payload() {
+  payload_file="$1"
+  SUMIKA_PASTE_SOURCE=kitty-shortcut SUMIKA_PASTE_DELAY=0 \
+    "$PASTE_HELPER" --file "$payload_file" auto kitty activewindow
+}
+
+# First image MIME type offered by the clipboard, if any.
+mime=$(wl-paste -l 2>/dev/null | grep -m1 '^image/' || true)
+
+if [ -n "$mime" ]; then
+  fmt=${mime#image/}
+  case "$fmt" in
+    png|jpeg|webp|gif|bmp|tiff|svg+xml) ;;
+    *) fmt=png ;;
+  esac
+  ext=$fmt
+  [ "$ext" = jpeg ] && ext=jpg
+
+  ts=$(date +%s%N)
+  tmp="/tmp/sumika-clip-${ts}.${ext}"
+
+  if ! wl-paste -t "image/${fmt}" > "$tmp" 2>/dev/null; then
+    wl-paste -t image/png > "$tmp" 2>/dev/null || true
+  fi
+
+  if [ -s "$tmp" ]; then
+    # Keep the Wayland clipboard and the bracketed-paste payload in sync.
+    # Image-aware TUIs such as OpenCode inspect the clipboard when they receive
+    # a paste event. Leaving the original image there makes them attach both
+    # that image and the decoded path sent below.
+    payload=$(mktemp)
+    trap 'rm -f "$payload"' EXIT
+    printf '%s ' "$tmp" > "$payload"
+    wl-copy < "$payload"
+    paste_payload "$payload"
+    log "image->path $tmp"
+    notify-send -t 2000 '📋 已粘贴图片路径' "$tmp" 2>/dev/null || true
+    exit 0
+  fi
+  rm -f "$tmp"
+fi
+
+# No image (or image decode failed): paste the clipboard text normally.
+log "text paste"
+payload=$(mktemp)
+trap 'rm -f "$payload"' EXIT
+wl-paste 2>/dev/null > "$payload"
+[ -s "$payload" ] || exit 0
+paste_payload "$payload"

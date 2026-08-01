@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Sumika clipboard history store.
+#
+# There is deliberately one watcher only.  A text watcher and an image watcher
+# race on the same Wayland clipboard and can store an image as text or lose an
+# update.  Each event is classified by MIME type before it is passed to
+# cliphist.
+
+set -u
+IFS=$'\n\t'
+
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+app_dir="${SUMIKA_CLIPBOARD_APP_DIR:-${script_dir%/*}/apps/sumika-clipboard}"
+state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+state_dir="$state_home/clipboard"
+hash_dir="$state_dir/hashes"
+lock_file="$state_dir/store.lock"
+pid_file="$state_dir/store.pid"
+log_tag="[sumika-clipboard-store]"
+watcher_pid=""
+
+mkdir -p "$state_dir" "$hash_dir"
+chmod 700 "$state_dir" "$hash_dir" 2>/dev/null || true
+
+
+is_running() {
+    [ -s "$pid_file" ] || return 1
+    local pid
+    pid=$(cat "$pid_file" 2>/dev/null || true)
+    [ -n "$pid" ] && [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null
+}
+
+missing_dependencies() {
+    local missing="" dependency
+    for dependency in wl-paste cliphist file md5sum awk grep cut mktemp; do
+        if ! command -v "$dependency" >/dev/null 2>&1; then
+            missing="$missing $dependency"
+        fi
+    done
+    printf '%s' "$missing"
+}
+
+notify_ui() {
+    # IPC is intentionally best-effort. Do not gate this on a pgrep snapshot:
+    # the on-demand UI can be starting or restarting between the process check
+    # and the IPC call. A closed UI simply makes qs return an error.
+    qs -p "$app_dir" ipc call cliphistService update >/dev/null 2>&1 || true
+}
+
+cleanup() {
+    local rc="${1:-0}"
+    trap - EXIT TERM INT HUP
+    if [ -n "$watcher_pid" ]; then
+        # The watcher shell owns the wl-paste child. Kill that child first so
+        # stopping this daemon never leaves an orphan clipboard watcher.
+        pkill -P "$watcher_pid" 2>/dev/null || true
+        kill "$watcher_pid" 2>/dev/null || true
+        wait "$watcher_pid" 2>/dev/null || true
+    fi
+    if [ -f "$pid_file" ] && [ "$(cat "$pid_file" 2>/dev/null || true)" = "$$" ]; then
+        rm -f "$pid_file"
+    fi
+    exit "$rc"
+}
+
+stop_existing() {
+    local pid=""
+    if [ -s "$pid_file" ]; then
+        pid=$(cat "$pid_file" 2>/dev/null || true)
+    fi
+    if [ -n "$pid" ] && [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null; then
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in {1..20}; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+    rm -f "$pid_file"
+}
+
+status() {
+    if is_running; then
+        echo "running $(cat "$pid_file")"
+        return 0
+    fi
+    local missing
+    missing=$(missing_dependencies)
+    if [ -n "$missing" ]; then
+        echo "stopped (missing required commands:$missing)"
+        return 2
+    fi
+    echo "stopped"
+    return 1
+}
+
+case "${1:-start}" in
+    status)
+        status
+        exit $?
+        ;;
+    stop)
+        stop_existing
+        exit 0
+        ;;
+    restart)
+        stop_existing
+        ;;
+    repair)
+        # Prefer the existing managed unit. This keeps a repair inside the
+        # same systemd cgroup and preserves Restart=on-failure.
+        if is_running; then
+            exit 0
+        fi
+        if command -v systemctl >/dev/null 2>&1 \
+            && [ "$(systemctl --user show -P LoadState sumika-clipboard-store.service 2>/dev/null || true)" = "loaded" ]; then
+            systemctl --user restart sumika-clipboard-store.service >/dev/null 2>&1 || true
+            exit 0
+        fi
+        # A user may invoke repair before the module registry has started the
+        # service. Create the same managed unit shape used by sumika-restart so
+        # the daemon is still supervised and restarted after a crash.
+        if command -v systemd-run >/dev/null 2>&1 \
+            && command -v systemctl >/dev/null 2>&1 \
+            && systemctl --user is-active --quiet default.target 2>/dev/null; then
+            systemd-run --user --unit=sumika-clipboard-store \
+                --property=KillMode=mixed \
+                --property=Restart=on-failure \
+                --property=RestartSec=2 \
+                --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+                --setenv=XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
+                --setenv=SUMIKA_CLIPBOARD_APP_DIR="$app_dir" \
+                --setenv=SUMIKA_SHELL_STATE_HOME="$state_home" \
+                /bin/sh -c 'exec "$1" >>"$2" 2>&1' sh "$script_dir/sumika-clipboard-store" "/tmp/sumika-clipboard-store.log" \
+                >/dev/null 2>&1 || true
+
+            exit 0
+        fi
+        ;;
+    start|"")
+        ;;
+    *)
+        echo "usage: sumika-clipboard-store [start|stop|restart|repair|status]" >&2
+        exit 2
+        ;;
+esac
+
+# Keep the descriptor open for the lifetime of the process.  This works across
+# restarts and does not depend on a stale /tmp PID file.
+exec 9>"$lock_file"
+if command -v flock >/dev/null 2>&1; then
+    flock -n 9 || exit 0
+else
+    if is_running; then exit 0; fi
+fi
+
+echo "$$" > "$pid_file"
+trap 'cleanup 143' TERM
+trap 'cleanup 130' INT
+trap 'cleanup 0' EXIT
+trap '' HUP
+
+find "$hash_dir" -type f -mmin +2 -delete 2>/dev/null || true
+
+missing=$(missing_dependencies)
+if [ -n "$missing" ]; then
+    echo "$log_tag Missing required commands:$missing" >&2
+    exit 127
+fi
+
+watch_loop() {
+    while true; do
+        echo "$log_tag Watching clipboard events" >&2
+        # Use the event handler directly. An extra background shell here can
+        # detach the callback from the wl-paste lifecycle and occasionally
+        # lose image offers while a screenshot provider is still publishing
+        # its MIME types. The handler has a bounded settle/retry window, and
+        # systemd owns the whole process tree for clean shutdown.
+        wl-paste --watch "$script_dir/sumika-clipboard-store-event" 2>/dev/null
+        echo "$log_tag watcher exited; retrying in 1s" >&2
+        sleep 1
+    done
+}
+
+echo "$log_tag Started (PID $$) — single MIME-aware watcher active" >&2
+watch_loop &
+watcher_pid=$!
+wait "$watcher_pid"

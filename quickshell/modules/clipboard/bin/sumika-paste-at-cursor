@@ -1,0 +1,441 @@
+#!/bin/sh
+# Paste the current clipboard into a focused (or recorded) window.
+# Uses a targeted native paste action when the terminal exposes one, otherwise
+# one virtual-keyboard chord. Hyprland dispatch is the last fallback because
+# send_key_state can leave synthetic keys repeating.
+#
+# Usage: omarchy-paste-at-cursor [--stdin|--file PATH] [terminal|gui|auto] [window-class] [window-target]
+#   window-target: "activewindow" (default) or "address:0x...."
+# Env: SUMIKA_PASTE_DELAY — seconds to wait after wl-copy (default 0.15)
+#      SUMIKA_PASTE_SOURCE — diagnostic source name (default: unknown)
+#      SUMIKA_PASTE_DEDUPE_MS — duplicate suppression window (default: 500)
+
+set -eu
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
+PAYLOAD_MODE="clipboard"
+PAYLOAD_SOURCE=""
+case "${1:-}" in
+    --stdin)
+        PAYLOAD_MODE="stdin"
+        shift
+        ;;
+    --file)
+        [ "$#" -ge 2 ] || { echo "sumika-paste-at-cursor: --file requires a path" >&2; exit 2; }
+        PAYLOAD_MODE="file"
+        PAYLOAD_SOURCE="$2"
+        shift 2
+        ;;
+esac
+
+MODE="${1:-auto}"
+WIN_CLASS="${2:-}"
+WIN_TARGET="${3:-activewindow}"
+DELAY="${SUMIKA_PASTE_DELAY:-0.15}"
+PASTE_SOURCE="${SUMIKA_PASTE_SOURCE:-unknown}"
+DEDUPE_MS="${SUMIKA_PASTE_DEDUPE_MS:-500}"
+YDOTOOL_SOCKET="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
+TRANSPORT="none"
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/sumika-paste"
+mkdir -p "$RUNTIME_DIR"
+PAYLOAD_FILE="$(mktemp "$RUNTIME_DIR/payload.XXXXXX")"
+cleanup() { rm -f "$PAYLOAD_FILE"; }
+trap cleanup EXIT HUP INT TERM
+
+case "$PAYLOAD_MODE" in
+    stdin) cat > "$PAYLOAD_FILE" ;;
+    file) cat -- "$PAYLOAD_SOURCE" > "$PAYLOAD_FILE" ;;
+    clipboard)
+        command -v wl-paste >/dev/null 2>&1 || exit 1
+        wl-paste 2>/dev/null > "$PAYLOAD_FILE"
+        ;;
+esac
+
+[ -s "$PAYLOAD_FILE" ] || exit 0
+
+if [ -n "$DELAY" ] && [ "$DELAY" != "0" ]; then
+    sleep "$DELAY"
+fi
+
+normalize_class() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+class_prefers_gui() {
+    case "$(normalize_class "$1")" in
+        google-chrome*|chromium*|firefox*|org.mozilla.firefox*|\
+        microsoft-edge*|brave-browser*|vivaldi*|opera*|\
+        code*|cursor*|codium*|vscodium*|\
+        obsidian*|zed*|\
+        telegram*|org.telegram.desktop*|discord*|wechat*|\
+        libreoffice*|soffice*|onlyoffice*|wps*|\
+        org.gnome.eog*|org.gnome.TextEditor*|org.kde.kate*|\
+        gedit*|geany*|sublime_text*|\
+        thunderbird*|evolution*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+class_prefers_terminal() {
+    case "$(normalize_class "$1")" in
+        foot*|kitty*|alacritty*|ghostty*|wezterm*|org.wezfurlong.wezterm*|\
+        xdg-term*|konsole*|gnome-terminal*|org.gnome.Terminal*|\
+        xterm*|st|urxvt*|rxvt*|tmux*|\
+        org.konsole*|com.mitchellh.ghostty*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+resolve_mode() {
+    if [ "$MODE" != "auto" ]; then
+        printf '%s' "$MODE"
+        return
+    fi
+
+    if [ -z "$WIN_CLASS" ] && command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        WIN_CLASS="$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)"
+    fi
+
+    if class_prefers_gui "$WIN_CLASS"; then
+        printf 'gui'
+    elif class_prefers_terminal "$WIN_CLASS"; then
+        printf 'terminal'
+    else
+        printf 'terminal'
+    fi
+}
+
+resolve_window_class() {
+    command -v hyprctl >/dev/null 2>&1 || return
+    command -v jq >/dev/null 2>&1 || return
+
+    case "$WIN_TARGET" in
+        address:*)
+            addr="${WIN_TARGET#address:}"
+            if [ -z "$WIN_CLASS" ]; then
+                WIN_CLASS="$(hyprctl -j clients 2>/dev/null | jq -r --arg a "$addr" '.[] | select(.address == $a) | .class // empty' 2>/dev/null || true)"
+            fi
+            ;;
+        *)
+            if [ -z "$WIN_CLASS" ]; then
+                WIN_CLASS="$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)"
+            fi
+            ;;
+    esac
+}
+
+window_exists() {
+    target="$1"
+    case "$target" in
+        activewindow|"") return 0 ;;
+        address:*)
+            addr="${target#address:}"
+            hyprctl -j clients 2>/dev/null | jq -e --arg a "$addr" '.[] | select(.address == $a)' >/dev/null 2>&1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+resolve_target() {
+    if window_exists "$WIN_TARGET"; then
+        printf '%s' "$WIN_TARGET"
+        return
+    fi
+    printf 'activewindow'
+}
+
+send_hypr() {
+    mods="$1"
+    key="$2"
+    target="$3"
+
+    command -v hyprctl >/dev/null 2>&1 || return 1
+    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"down\", window = \"$target\" })" >/dev/null 2>&1 || return 1
+    sleep 0.05
+    hyprctl dispatch "hl.dsp.send_key_state({ mods = \"$mods\", key = \"$key\", state = \"up\", window = \"$target\" })" >/dev/null 2>&1 || return 1
+    TRANSPORT="hyprland"
+}
+
+send_wtype() {
+    mod="$1"
+    key="$2"
+
+    command -v wtype >/dev/null 2>&1 || return 1
+    wtype -M "$mod" -k "$key" -m "$mod" || return 1
+    TRANSPORT="wtype"
+}
+
+send_ydotool() {
+    combo="$1"
+
+    command -v ydotool >/dev/null 2>&1 || return 1
+    [ -S "$YDOTOOL_SOCKET" ] || return 1
+    YDOTOOL_SOCKET="$YDOTOOL_SOCKET" ydotool key -d 1 $combo >/dev/null 2>&1 || return 1
+    TRANSPORT="ydotool"
+}
+
+paste_shift_insert() {
+    target="$1"
+    send_wtype shift Insert \
+        || send_ydotool "42:1 110:1 110:0 42:0" \
+        || send_hypr SHIFT Insert "$target"
+}
+
+paste_ctrl_shift_v() {
+    target="$1"
+    { command -v wtype >/dev/null 2>&1 && wtype -M ctrl -M shift -k v -m shift -m ctrl && TRANSPORT="wtype"; } \
+        || send_ydotool "29:1 42:1 47:1 47:0 42:0 29:0" \
+        || send_hypr "CTRL SHIFT" V "$target"
+}
+
+paste_ctrl_v() {
+    target="$1"
+    send_wtype ctrl v \
+        || send_ydotool "29:1 47:1 47:0 29:0" \
+        || send_hypr CTRL V "$target"
+}
+
+# Kitty remote control: ask the exact target window to perform one native paste.
+# This preserves bracketed-paste semantics without re-injecting a keyboard
+# shortcut, so TUIs receive the payload as one paste transaction and the smart
+# paste key binding cannot recursively trigger itself.
+paste_kitty_remote() {
+    command -v kitty >/dev/null 2>&1 || return 1
+
+    kitty_pid=""
+    if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        case "$WIN_TARGET" in
+            address:*)
+                addr="${WIN_TARGET#address:}"
+                kitty_pid="$(hyprctl -j clients 2>/dev/null | jq -r --arg a "$addr" '.[] | select(.address == $a and (.class? | test("kitty"; "i"))) | .pid // empty' 2>/dev/null || true)"
+                if [ -z "$kitty_pid" ]; then
+                    return 1
+                fi
+                ;;
+            *)
+                kitty_pid="$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)"
+                ;;
+        esac
+    fi
+
+    # Resolve a single kitty window id from a `kitty @ ls` JSON blob on stdin.
+    # `--match state:focused` is NOT a precise target: it can match several
+    # windows at once (divergent keyboard focus vs kitty-internal focus, or a
+    # second window/tmux pane in the focused OS window) and `send-text` then
+    # writes the payload into every match — one inject, two visible pastes.
+    # `send-text` always exits 0 even when it hits zero or the wrong window, so
+    # we must resolve the exact id ourselves and send with `--match id:$id`.
+    # Selection order: focused OS window -> active tab -> focused window, with
+    # first-item fallbacks at each level. Prints nothing if no window resolves.
+    resolve_kitty_window_id() {
+        jq -r '
+            . as $root |
+            ($root | map(select(.is_focused)) | .[0] // $root[0]) as $osw |
+            ($osw.tabs | map(select(.is_active)) | .[0] // $osw.tabs[0]) as $tab |
+            ($tab.windows | map(select(.is_focused)) | .[0] // $tab.windows[0]) as $w |
+            $w.id // empty
+        ' 2>/dev/null
+    }
+
+    restore_payload_clipboard() {
+        command -v wl-copy >/dev/null 2>&1 || return 1
+        wl-copy < "$PAYLOAD_FILE" 2>/dev/null
+    }
+
+    send_bracketed_to_kitty() {
+        to_arg="$1"
+        win_id="$2"
+
+        # OpenCode/OMP enables Kitty OSC 5522 enhanced paste. A programmatic
+        # bracketed send can therefore make it request the Wayland clipboard
+        # as a second payload. Temporarily clearing the clipboard prevents that
+        # duplicate while retaining one bracketed (bulk) paste transaction.
+        if command -v wl-copy >/dev/null 2>&1; then
+            wl-copy -c 2>/dev/null || true
+        fi
+        send_rc=0
+        if [ -n "$to_arg" ]; then
+            kitty @ --to "$to_arg" send-text --match "id:$win_id" \
+                --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
+        else
+            kitty @ send-text --match "id:$win_id" \
+                --from-file "$PAYLOAD_FILE" --bracketed-paste auto >/dev/null 2>&1 || send_rc=$?
+        fi
+        if command -v wl-copy >/dev/null 2>&1; then
+            sleep 0.05
+            restore_payload_clipboard || true
+        fi
+        return "$send_rc"
+    }
+
+    send_to_kitty() {
+        to_arg="$1"
+        # `send-text` always exits successfully, even for a dead target or a
+        # multi-window match. Capture `ls` once to validate the socket AND
+        # resolve a single window id, so the payload can never land in two
+        # windows from one invocation and we never read a stale tree.
+        ls_out="$(kitty @ --to "$to_arg" ls 2>/dev/null)" || return 1
+        win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
+        [ -n "$win_id" ] || return 1
+
+        # All current callers already publish the immutable payload before
+        # invoking this helper. Publish it here as well so direct --file/--stdin
+        # callers get the same contract.
+        restore_payload_clipboard || return 1
+
+        # Unlike send-text, `action` reports target/action failures. It invokes
+        # Kitty's native paste path and therefore gives shells and TUIs one
+        # bracketed paste instead of a stream of ordinary typed bytes.
+        if kitty @ --to "$to_arg" action --match "id:$win_id" \
+            paste_from_clipboard >/dev/null 2>&1; then
+            TRANSPORT="kitty-native-paste"
+            return 0
+        fi
+
+        # Compatibility fallback for Kitty builds/configurations where the
+        # remote action is unavailable. This remains a bulk bracketed paste;
+        # raw unbracketed text injection is deliberately forbidden.
+        if send_bracketed_to_kitty "$to_arg" "$win_id"; then
+            TRANSPORT="kitty-bracketed-fallback"
+            return 0
+        fi
+        return 1
+    }
+
+    if [ -n "$kitty_pid" ] && [ -S "/tmp/mykitty-$kitty_pid" ]; then
+        send_to_kitty "unix:/tmp/mykitty-$kitty_pid" && return 0
+    fi
+
+    for sock in /tmp/mykitty /tmp/mykitty-* /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+        [ -e "$sock" ] || continue
+        case "$sock" in
+            */kitty-*|*/mykitty-*)
+                send_to_kitty "unix:$sock" && return 0
+                ;;
+            *)
+                send_to_kitty "unix:$sock" && return 0
+                ;;
+        esac
+    done
+
+    # Last resort: default socket ($KITTY_PID / $XDG_RUNTIME_DIR). Still
+    # resolve a single window id — never bare `state:focused`.
+    if ls_out="$(kitty @ ls 2>/dev/null)"; then
+        win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
+        if [ -n "$win_id" ]; then
+            restore_payload_clipboard || return 1
+            if kitty @ action --match "id:$win_id" paste_from_clipboard >/dev/null 2>&1; then
+                TRANSPORT="kitty-native-paste"
+                return 0
+            fi
+            if send_bracketed_to_kitty "" "$win_id"; then
+                TRANSPORT="kitty-bracketed-fallback"
+                return 0
+            fi
+        fi
+    fi
+
+    return 1
+}
+
+# 各终端默认粘贴键不同；hyprctl 可能返回 ok 但应用未绑定该快捷键，因此按类型排序。
+paste_for_terminal() {
+    target="$1"
+    class="$2"
+
+    case "$(normalize_class "$class")" in
+        kitty*)
+            paste_kitty_remote \
+                || paste_shift_insert "$target" \
+                || paste_ctrl_shift_v "$target" \
+                || paste_ctrl_v "$target"
+            ;;
+        foot*)
+            paste_shift_insert "$target" \
+                || paste_ctrl_shift_v "$target" \
+                || paste_ctrl_v "$target"
+            ;;
+        alacritty*|ghostty*|com.mitchellh.ghostty*)
+            paste_ctrl_shift_v "$target" \
+                || paste_shift_insert "$target" \
+                || paste_ctrl_v "$target"
+            ;;
+        *)
+            paste_shift_insert "$target" \
+                || paste_ctrl_v "$target" \
+                || paste_ctrl_shift_v "$target"
+            ;;
+    esac
+}
+
+resolve_window_class
+RESOLVED_MODE="$(resolve_mode)"
+TARGET="$(resolve_target)"
+
+payload_hash() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$PAYLOAD_FILE" | awk '{print $1}'
+    else
+        cksum "$PAYLOAD_FILE" | awk '{print $1 ":" $2}'
+    fi
+}
+
+now_ms() {
+    value="$(date +%s%3N 2>/dev/null || true)"
+    case "$value" in
+        *N*|"") printf '%s000' "$(date +%s)" ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+# QML signals, process output and terminal key handlers are asynchronous. A
+# single user action can therefore reach this helper twice. Focus restoration
+# can make those calls resolve to different classes or targets, so those
+# volatile values must not be part of the duplicate key. The immutable payload
+# is the transaction identity; deliberate later pastes remain possible.
+payload_digest="$(payload_hash)"
+fingerprint="$(printf '%s' "$payload_digest" | cksum | awk '{print $1}')"
+state_file="$RUNTIME_DIR/last-$fingerprint"
+lock_file="$RUNTIME_DIR/dedupe.lock"
+exec 9>"$lock_file"
+if command -v flock >/dev/null 2>&1; then flock -x 9; fi
+current_ms="$(now_ms)"
+previous_ms="$(cat "$state_file" 2>/dev/null || printf '0')"
+case "$previous_ms" in *[!0-9]*|"") previous_ms=0 ;; esac
+elapsed_ms=$((current_ms - previous_ms))
+if [ "$elapsed_ms" -ge 0 ] && [ "$elapsed_ms" -lt "$DEDUPE_MS" ]; then
+    printf '%s source=%s action=deduped class=%s target=%s transaction=%s payload=%s elapsed_ms=%s\n' \
+        "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$PASTE_SOURCE" "$WIN_CLASS" "$TARGET" "$fingerprint" "$payload_digest" "$elapsed_ms" \
+        >> "$RUNTIME_DIR/events.log"
+    exit 0
+fi
+printf '%s' "$current_ms" > "$state_file"
+if command -v flock >/dev/null 2>&1; then flock -u 9; fi
+
+paste_status=0
+case "$RESOLVED_MODE" in
+    gui)
+        paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET" || paste_status=$?
+        ;;
+    terminal)
+        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_status=$?
+        ;;
+    *)
+        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET" || paste_status=$?
+        ;;
+esac
+
+printf '%s source=%s action=inject mode=%s transport=%s status=%s class=%s target=%s bytes=%s transaction=%s payload=%s\n' \
+    "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$PASTE_SOURCE" "$RESOLVED_MODE" "$TRANSPORT" "$paste_status" \
+    "$WIN_CLASS" "$TARGET" "$(wc -c < "$PAYLOAD_FILE" | tr -d ' ')" "$fingerprint" "$payload_digest" \
+    >> "$RUNTIME_DIR/events.log"
+
+exit "$paste_status"

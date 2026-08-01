@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# One clipboard event callback used by sumika-clipboard-store.
+
+set -u
+IFS=$'\n\t'
+
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+state_dir="$state_home/clipboard"
+hash_dir="$state_dir/hashes"
+app_dir="${SUMIKA_CLIPBOARD_APP_DIR:-${script_dir%/*}/apps/sumika-clipboard}"
+log_file="$state_dir/events.log"
+lock_dir=""
+
+mkdir -p "$state_dir" "$hash_dir"
+chmod 700 "$state_dir" "$hash_dir" 2>/dev/null || true
+
+
+tmp=$(mktemp "$state_dir/event.XXXXXX") || exit 0
+cleanup() {
+    rm -f "$tmp"
+    [ -z "$lock_dir" ] || rmdir "$lock_dir" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+notify_ui() {
+    qs -p "$app_dir" ipc call cliphistService update >/dev/null 2>&1 || true
+}
+
+log_event() {
+    # Keep diagnostics bounded. The daemon must remain useful even when the
+    # optional UI is closed or the clipboard owner disappears mid-event.
+    local log_lock="$log_file.lock" log_tmp="$log_file.$$.$RANDOM.tmp"
+    if mkdir "$log_lock" 2>/dev/null; then
+        printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >> "$log_file" 2>/dev/null || true
+        tail -n 200 "$log_file" > "$log_tmp" 2>/dev/null && mv -f "$log_tmp" "$log_file" 2>/dev/null || rm -f "$log_tmp"
+        rmdir "$log_lock" 2>/dev/null || true
+    fi
+}
+
+store_event() {
+    local mime="${1:-}" hash hash_file
+    [ -s "$tmp" ] || return 0
+    if [ -n "$mime" ]; then
+        [[ "$mime" == image/* ]] || return 0
+        file -b --mime-type "$tmp" 2>/dev/null | grep -q '^image/' || return 0
+    else
+        grep -Pq '[^\s\p{Cf}\p{Cc}]' "$tmp" 2>/dev/null || return 0
+        grep -Fq '/tmp/sumika-clip-' "$tmp" 2>/dev/null && return 0
+    fi
+    hash=$(md5sum "$tmp" | cut -d' ' -f1)
+    hash_file="$hash_dir/$hash"
+
+    lock_dir="$hash_file.lock"
+    mkdir "$lock_dir" 2>/dev/null || return 0
+    if cliphist store < "$tmp" >/dev/null 2>&1; then
+        : > "$hash_file"
+        log_event "stored kind=${mime:-text} hash=$hash"
+        notify_ui
+    elif [ -e "$hash_file" ]; then
+        notify_ui
+    fi
+    rmdir "$lock_dir" 2>/dev/null || true
+    lock_dir=""
+    find "$hash_dir" -type f -mmin +2 -delete 2>/dev/null || true
+}
+
+mime=""
+types_seen=""
+for attempt in {1..10}; do
+    current_types=$(wl-paste --list-types 2>/dev/null || true)
+    current_mime=$(printf '%s\n' "$current_types" | awk '/^image\// {print; exit}')
+    if [ -n "$current_types" ]; then
+        types_seen="$current_types"
+    fi
+    if [ -n "$current_mime" ]; then
+        mime="$current_mime"
+        break
+    fi
+    sleep 0.05
+done
+log_event "event types=$(printf '%s' "$types_seen" | tr '\n' ',') image=${mime:-none}"
+
+if [ -z "$types_seen" ]; then
+    log_event "clipboard types unavailable; event ignored"
+    exit 0
+fi
+
+if [ -n "$mime" ]; then
+    copied=1
+    for attempt in {1..8}; do
+        if wl-paste --type "$mime" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+            copied=0
+            break
+        fi
+        sleep 0.05
+    done
+    if [ "$copied" -eq 0 ]; then
+        store_event "$mime"
+    else
+        # Fall back to raw wl-paste if specific MIME type fetch failed
+        if wl-paste > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+            store_event
+        else
+            log_event "image read failed mime=$mime types=$(printf '%s' "$types_seen" | tr '\n' ',')"
+        fi
+    fi
+else
+    copied=1
+    for attempt in {1..5}; do
+        if wl-paste --no-newline > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+            copied=0
+            break
+        fi
+        sleep 0.05
+    done
+    if [ "$copied" -eq 0 ]; then
+        store_event
+    else
+        log_event "clipboard read failed types=$(printf '%s' "$types_seen" | tr '\n' ',')"
+    fi
+fi
+

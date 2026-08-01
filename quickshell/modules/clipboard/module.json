@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "id": "clipboard",
+  "name": "剪贴板历史",
+  "version": "2.0.0",
+  "kind": "application",
+  "entry": {
+    "instance": "sumika-clipboard-store",
+    "command": ["bin/sumika-clipboard-store"],
+    "autostart": true
+  },
+  "actionsProvider": "module-actions.qml",
+  "contributes": {
+    "widgets": [
+      {
+        "id": "clipboard-bar-button",
+        "name": "Clipboard",
+        "slot": "right",
+        "component": "bar/ClipboardButton.qml",
+        "order": 35
+      }
+    ]
+  }
+}
