@@ -37,6 +37,7 @@ PASTE_SOURCE="${SUMIKA_PASTE_SOURCE:-unknown}"
 DEDUPE_MS="${SUMIKA_PASTE_DEDUPE_MS:-500}"
 YDOTOOL_SOCKET="${YDOTOOL_SOCKET:-/tmp/.ydotool_socket}"
 TRANSPORT="none"
+IS_XWAYLAND="0"
 
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/sumika-paste"
 mkdir -p "$RUNTIME_DIR"
@@ -376,7 +377,78 @@ paste_for_terminal() {
     esac
 }
 
+# Detect whether the target window runs under XWayland.
+# If yes, Wayland virtual-keyboard tools (wtype/ydotool) cannot reach it, and
+# the Wayland clipboard is not synced to X11 CLIPBOARD.
+# We fall back to xsel (X11 clipboard write) + xdotool (X11 key dispatch).
+resolve_xwayland() {
+    command -v hyprctl >/dev/null 2>&1 || return
+    command -v jq     >/dev/null 2>&1 || return
+    local result
+    case "$WIN_TARGET" in
+        address:*)
+            local addr="${WIN_TARGET#address:}"
+            result="$(hyprctl -j clients 2>/dev/null | jq -r --arg a "$addr" '.[] | select(.address == $a) | .xwayland // false' 2>/dev/null || true)"
+            ;;
+        *)
+            result="$(hyprctl -j activewindow 2>/dev/null | jq -r '.xwayland // false' 2>/dev/null || true)"
+            ;;
+    esac
+    case "$result" in true) IS_XWAYLAND="1" ;; esac
+}
+
+# Paste into an XWayland window:
+#  1. Write payload to X11 CLIPBOARD (xsel)  — wl-copy only covers Wayland.
+#  2. Find the best X11 window ID (xdotool) and send Ctrl+V without stealing focus.
+paste_xwayland() {
+    local target="$1"
+    local class="$2"
+
+    # Require both tools
+    command -v xsel    >/dev/null 2>&1 || return 1
+    command -v xdotool >/dev/null 2>&1 || return 1
+
+    # Write payload to X11 CLIPBOARD
+    DISPLAY=":${DISPLAY#:}" xsel --input --clipboard < "$PAYLOAD_FILE" 2>/dev/null || return 1
+
+    # Resolve X11 window ID — prefer active X11 window, fall back to class search
+    local x11_wid
+    x11_wid="$(DISPLAY=":${DISPLAY#:}" xdotool getactivewindow 2>/dev/null || true)"
+
+    # If the active X11 window doesn't belong to the target class, discard it.
+    # An empty class (rootless internal window) also means it's not the right target.
+    if [ -n "$class" ]; then
+        local active_class
+        active_class="$(DISPLAY=":${DISPLAY#:}" xdotool getwindowclassname "$x11_wid" 2>/dev/null || true)"
+        if [ -z "$active_class" ] || ! printf '%s' "$(normalize_class "$active_class")" | grep -qi "$(normalize_class "$class")" 2>/dev/null; then
+            x11_wid=""
+        fi
+    fi
+
+    # Fall back: focused window matching class, then any window matching class
+    if [ -z "$x11_wid" ] && [ -n "$class" ]; then
+        x11_wid="$(DISPLAY=":${DISPLAY#:}" xdotool search --onlyfocused --class "$(normalize_class "$class")" 2>/dev/null | head -1 || true)"
+    fi
+    if [ -z "$x11_wid" ] && [ -n "$class" ]; then
+        x11_wid="$(DISPLAY=":${DISPLAY#:}" xdotool search --class "$(normalize_class "$class")" 2>/dev/null | head -1 || true)"
+    fi
+
+    [ -n "$x11_wid" ] || return 1
+
+    # Send paste key — Ctrl+V covers most GUI X11 apps; Shift+Insert covers xterm-family
+    if DISPLAY=":${DISPLAY#:}" xdotool key --window "$x11_wid" --clearmodifiers ctrl+v >/dev/null 2>&1; then
+        TRANSPORT="xdotool-x11"
+        return 0
+    fi
+    if DISPLAY=":${DISPLAY#:}" xdotool key --window "$x11_wid" --clearmodifiers shift+Insert >/dev/null 2>&1; then
+        TRANSPORT="xdotool-x11-shift-insert"
+        return 0
+    fi
+    return 1
+}
+
 resolve_window_class
+resolve_xwayland
 RESOLVED_MODE="$(resolve_mode)"
 TARGET="$(resolve_target)"
 
@@ -421,17 +493,23 @@ printf '%s' "$current_ms" > "$state_file"
 if command -v flock >/dev/null 2>&1; then flock -u 9; fi
 
 paste_status=0
-case "$RESOLVED_MODE" in
-    gui)
-        paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET" || paste_status=$?
-        ;;
-    terminal)
-        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_status=$?
-        ;;
-    *)
-        paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET" || paste_status=$?
-        ;;
-esac
+if [ "$IS_XWAYLAND" = "1" ]; then
+    # XWayland window: Wayland tools (wtype/ydotool) cannot reach it.
+    # xdotool+xsel are the only transports that work; no Wayland fallback.
+    paste_xwayland "$TARGET" "$WIN_CLASS" || paste_status=$?
+else
+    case "$RESOLVED_MODE" in
+        gui)
+            paste_ctrl_v "$TARGET" || paste_shift_insert "$TARGET" || paste_status=$?
+            ;;
+        terminal)
+            paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_status=$?
+            ;;
+        *)
+            paste_for_terminal "$TARGET" "$WIN_CLASS" || paste_ctrl_v "$TARGET" || paste_status=$?
+            ;;
+    esac
+fi
 
 printf '%s source=%s action=inject mode=%s transport=%s status=%s class=%s target=%s bytes=%s transaction=%s payload=%s\n' \
     "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$PASTE_SOURCE" "$RESOLVED_MODE" "$TRANSPORT" "$paste_status" \
