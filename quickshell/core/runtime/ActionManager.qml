@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.core.runtime
+import qs.services
 import qs
 import qs.modules.common
 import qs.modules.common.functions
@@ -299,7 +300,7 @@ Singleton {
         // Session actions
         this.register("session.lock", "core", "Lock session", {
             type: "qml",
-            call: function() { Svcs.LockService.lock() }
+            call: function() { LockService.lock() }
         }, {description: "Lock the current session with the configured screen locker"})
 
         this.register("session.logout", "core", "Log out", {

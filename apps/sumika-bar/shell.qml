@@ -11,6 +11,7 @@ import qs
 
 import qs.modules.bar
 
+import qs.modules.lock
 import qs.modules.powerIndicator
 
 import qs.modules.onScreenDisplay
@@ -101,6 +102,7 @@ ShellRoot {
     // Core bar infrastructure — always present.
     Scope {
         Bar {}
+        Lock {}
         BarDismissLayer {}
         ModuleActionHost {}
         BarStatusPopup {}

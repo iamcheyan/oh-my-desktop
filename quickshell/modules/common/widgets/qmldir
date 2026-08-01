@@ -57,3 +57,4 @@ BarContextMenu 1.0 BarContextMenu.qml
 singleton BarPopupGeometry 1.0 BarPopupGeometry.qml
 
 ManagedPopupWindow 1.0 ManagedPopupWindow.qml
+ErrorShakeAnimation 1.0 ErrorShakeAnimation.qml

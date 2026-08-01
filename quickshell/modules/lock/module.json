@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 2,
+  "id": "lock",
+  "name": "Lock Screen",
+  "version": "2.0.0",
+  "kind": "shared"
+}

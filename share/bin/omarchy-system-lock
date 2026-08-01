@@ -1,6 +1,13 @@
 #!/bin/bash
 
 # Sumika Shell lock implementation.
+#
+# This script is called by hypridle (lock_cmd / before_sleep_cmd) and by
+# the session.lock action path. It performs pre-lock housekeeping, then
+# triggers the Quickshell Lock component via IPC so the WlSessionLock
+# surface appears.
+
+SUMIKA_ROOT="${SUMIKA_SHELL_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 # Set keyboard layout to default (first layout)
 hyprctl switchxkblayout all 0 > /dev/null 2>&1
@@ -13,12 +20,25 @@ fi
 # Avoid running screensaver when locked
 pkill -f io.github.iamcheyan.sumika.screensaver
 
-if [[ ${SUMIKA_LOCK_ONLY:-false} != "true" ]]; then
-  (
-    sleep 3
-    # Wait for lock screen to be active
-    sleep 2
-    # Brightness gamma module not available in single-repo architecture
-    true
-  ) &
+# Trigger Quickshell Lock via IPC. The bar's IpcHandler "lock" → activate()
+# calls LockScreen.lock() which sets GlobalStates.screenLocked = true,
+# activating the WlSessionLock surface.
+_qs_bin="${SUMIKA_QS_BIN:-qs}"
+if "${_qs_bin}" -p "$SUMIKA_ROOT/apps/sumika-bar" ipc call lock activate >/dev/null 2>&1; then
+  # Quickshell Lock activated successfully.
+  if [[ ${SUMIKA_LOCK_ONLY:-false} != "true" ]]; then
+    (
+      sleep 3
+      # Wait for lock screen to be active
+      sleep 2
+      # Brightness gamma module not available in single-repo architecture
+      true
+    ) &
+  fi
+  exit 0
 fi
+
+# No lock mechanism available. As a last resort, set screenLocked via
+# hyprctl so at least Hyprland knows a lock was requested (prevents the
+# "Oopsie daisy" fallback from showing without any lock attempt).
+echo "WARNING: No lock screen available (bar not running)" >&2

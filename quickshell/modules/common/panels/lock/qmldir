@@ -1,0 +1,3 @@
+module qs.modules.common.panels.lock
+LockScreen 1.0 LockScreen.qml
+LockContext 1.0 LockContext.qml
