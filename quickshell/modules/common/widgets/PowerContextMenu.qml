@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.core.runtime
 import QtQuick
@@ -56,7 +57,7 @@ ContextMenuWindow {
         labelText: "Hibernate"
         onClicked: {
             root.close();
-            ActionManager.invoke("session.hibernate");
+            Session.hibernate(true);
         }
     }
 
@@ -69,7 +70,7 @@ ContextMenuWindow {
         labelText: "Logout"
         onClicked: {
             root.close();
-            ActionManager.invoke("session.logout");
+            Session.logout(true);
         }
     }
 
@@ -78,7 +79,7 @@ ContextMenuWindow {
         labelText: "Reboot"
         onClicked: {
             root.close();
-            ActionManager.invoke("session.reboot");
+            Session.reboot(true);
         }
     }
 
@@ -87,7 +88,7 @@ ContextMenuWindow {
         labelText: "Shutdown"
         onClicked: {
             root.close();
-            ActionManager.invoke("session.shutdown");
+            Session.poweroff(true);
         }
     }
 

@@ -12,6 +12,8 @@ from pathlib import Path
 _state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
 STATE_DIR = Path(_state_home) / "session"
 LAST_FILE = STATE_DIR / "last.json"
+LAST_BAK_FILE = STATE_DIR / "last.json.bak"
+RESTORE_RESULT_FILE = STATE_DIR / "restore-result.json"
 AUTO_RESTORE_FILE = STATE_DIR / "restore-on-next-start"
 RESTORE_LOCK = STATE_DIR / "restore.lock"
 KITTY_SESSION_DIR = STATE_DIR / "kitty"
@@ -29,6 +31,30 @@ FIREFOX_ENV_KEYS = (
     "GDK_DPI_SCALE",
     "XCURSOR_SIZE",
 )
+
+# Applications that manage their own multi-window session via a single process
+# launch (like Firefox). Sumika starts them once and matches the windows they
+# recreate back to saved records, instead of launching once per saved window
+# (which would duplicate the session).
+SINGLE_INSTANCE_CLASSES = FIREFOX_CLASSES + (
+    "org.kde.dolphin", "dolphin",
+    "org.kde.kwrite", "kwrite",
+    "org.kde.kate", "kate",
+)
+
+# Per-class restore timeout in seconds. Heavy applications (Firefox cold start,
+# Electron apps) can take much longer to register a Hyprland client than the
+# default 5 s. Falls back to the default for anything not listed.
+RESTORE_TIMEOUTS = {
+    "firefox": 30.0,
+    "org.mozilla.firefox": 30.0,
+    "org.kde.dolphin": 12.0,
+    "org.kde.kwrite": 10.0,
+    "org.kde.kate": 10.0,
+    "code": 15.0,
+    "code-url-handler": 15.0,
+}
+DEFAULT_RESTORE_TIMEOUT = 5.0
 
 
 def run_json(*args):
@@ -480,6 +506,19 @@ def is_firefox(record):
     return cls in FIREFOX_CLASSES or cls.endswith(".firefox")
 
 
+def is_single_instance(record):
+    cls = window_class(record)
+    return cls in SINGLE_INSTANCE_CLASSES or any(
+        cls == c or cls.endswith("." + c) for c in SINGLE_INSTANCE_CLASSES
+    )
+
+
+def restore_timeout_for(record):
+    """Return the wait_for_client timeout appropriate for this record's class."""
+    cls = window_class(record)
+    return RESTORE_TIMEOUTS.get(cls, DEFAULT_RESTORE_TIMEOUT)
+
+
 def terminal_attach_command(session):
     if not session:
         return []
@@ -695,6 +734,14 @@ def save():
         "focus": current_focus_state(clients),
         "clients": clients,
     }
+    # Back up the previous snapshot before overwriting. If the new write is
+    # interrupted or produces invalid JSON, load_snapshot() can fall back to
+    # the backup instead of failing the entire restore.
+    if LAST_FILE.exists():
+        try:
+            shutil.copy2(LAST_FILE, LAST_BAK_FILE)
+        except Exception:
+            pass
     LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     workspace_keys = {
         (
@@ -731,6 +778,38 @@ def save():
     notify_body = " · ".join(notify_parts)
     subprocess.run(["notify-send", notify_summary, notify_body, "-a", "Session", "-i", "archive"], stderr=subprocess.DEVNULL)
     return data
+
+
+def _snapshot_is_recent(max_age=15):
+    """Return True if last.json was written within the last max_age seconds.
+    Used by the systemd fallback save to avoid duplicating a save-auto that
+    the UI just performed moments before the session teardown."""
+    try:
+        mtime = LAST_FILE.stat().st_mtime
+    except (OSError, FileNotFoundError):
+        return False
+    return (time.time() - mtime) < max_age
+
+
+def save_auto_if_stale():
+    """Save and arm auto-restore, but only if last.json is stale (not written
+    in the last 15 seconds). This prevents the systemd fallback from
+    overwriting a fresh save-auto the UI already did on its own shutdown path.
+    The fallback still needs to arm restore-on-next-start if it's not armed,
+    because a direct `systemctl poweroff` never wrote the marker."""
+    if _snapshot_is_recent() and AUTO_RESTORE_FILE.exists():
+        # UI already saved + armed. Nothing to do.
+        print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": True}))
+        return None
+    if _snapshot_is_recent():
+        # UI saved but didn't arm (save without save-auto). Arm restore.
+        AUTO_RESTORE_FILE.write_text(
+            json.dumps({"armed": True, "savedAt": int(LAST_FILE.stat().st_mtime)}, indent=2),
+            encoding="utf-8",
+        )
+        print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": True}))
+        return None
+    return save_auto()
 
 
 def save_auto():
@@ -1143,6 +1222,130 @@ def restore_firefox_records(records, known_addresses, ws_to_monitor, restored_ad
     return restored
 
 
+def _single_instance_launcher(cls):
+    """Return a normal launcher for a single-instance application class.
+    Like firefox_launcher, never use the internal binary path that Hyprland
+    records."""
+    # Strip org.kde. prefix to get the desktop binary name.
+    binary = cls.split(".")[-1] if "." in cls else cls
+    resolved = shutil.which(binary) or shutil.which(cls)
+    if resolved:
+        return resolved
+    return ""
+
+
+def collect_single_instance_clients(cls, known_addresses, existing, expected, timeout=18.0):
+    """Wait for a single-instance app to recreate its windows from one launch."""
+    candidates = {client.get("address"): client for client in existing if client.get("address")}
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            clients = run_json("hyprctl", "-j", "clients")
+        except Exception:
+            time.sleep(0.15)
+            continue
+        for client in clients:
+            address = client.get("address")
+            if not address or address in known_addresses:
+                continue
+            client_cls = (client.get("initialClass") or client.get("class") or "").lower()
+            if client_cls == cls or client_cls.endswith("." + cls):
+                candidates[address] = client
+        if len(candidates) >= expected:
+            break
+        time.sleep(0.15)
+    return list(candidates.values())
+
+
+def restore_single_instance_records(records, known_addresses, ws_to_monitor, restored_addresses):
+    """Restore single-instance apps (Dolphin, KWrite, etc.) with a single
+    launch per class, then match recreated windows to saved records by title."""
+    if not records:
+        return 0
+    restored = 0
+    # Group by class so each app class is launched once.
+    by_class = {}
+    for record in records:
+        cls = window_class(record)
+        by_class.setdefault(cls, []).append(record)
+
+    for cls, class_records in by_class.items():
+        current_clients = run_json("hyprctl", "-j", "clients")
+        existing = [c for c in current_clients if window_class(c) == cls]
+        if not existing:
+            leader = sorted(class_records, key=lambda item: item.get("focusHistoryID", 999999))[0]
+            workspace = leader.get("workspace") or {}
+            wsid = workspace.get("id", 0)
+            monitor_name = leader.get("monitorName") or ws_to_monitor.get(wsid, "")
+            if monitor_name:
+                hypr_lua(f'hl.dsp.focus({{ monitor = "{monitor_name}" }})')
+                time.sleep(0.06)
+            if isinstance(wsid, int) and wsid > 0:
+                hypr_focus_workspace(wsid)
+                time.sleep(0.12)
+            executable = _single_instance_launcher(cls)
+            if not executable:
+                print(f"Single-instance app {cls} executable is unavailable", file=sys.stderr)
+                continue
+            try:
+                subprocess.Popen([executable], start_new_session=True)
+            except Exception as err:
+                print(f"Failed to launch {cls}: {err}", file=sys.stderr)
+                continue
+
+        timeout = RESTORE_TIMEOUTS.get(cls, 12.0)
+        candidates = collect_single_instance_clients(cls, known_addresses, existing, len(class_records), timeout=timeout)
+        for client in candidates:
+            address = client.get("address")
+            if address:
+                known_addresses.add(address)
+
+        unmatched = list(candidates)
+        for record in sorted(class_records, key=lambda item: item.get("focusHistoryID", 999999)):
+            if not unmatched:
+                break
+            client = max(unmatched, key=lambda item: title_match_score(item, record))
+            unmatched.remove(client)
+            address = client.get("address", "")
+            restored_addresses[record.get("address", "")] = address
+            place_client(client, record)
+            restored += 1
+
+        if restored < len(class_records):
+            print(
+                f"{cls} restored {restored} of {len(class_records)} saved windows; "
+                "the remaining windows were not duplicated with extra launches",
+                file=sys.stderr,
+            )
+    return restored
+
+
+def _result_entry(record, reason=""):
+    """Build a compact result entry for restore-result.json."""
+    return {
+        "class": record.get("class") or record.get("initialClass") or "",
+        "title": (record.get("title") or record.get("initialTitle") or "")[:80],
+        "workspace": (record.get("workspace") or {}).get("name", ""),
+        "reason": reason,
+    }
+
+
+def _write_restore_result(restored, total, results):
+    """Persist the restore outcome so the overlay can report N/M windows."""
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "restored": restored,
+            "total": total,
+            "failed": results.get("failed", []),
+            "skipped": results.get("skipped", []),
+            "timestamp": int(time.time()),
+        }
+        RESTORE_RESULT_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def wait_for_client(record, known_addresses, launched_pid=0, timeout=5.0):
     deadline = time.time() + timeout
     fallback = None
@@ -1347,19 +1550,23 @@ def release_restore_lock():
 
 
 def load_snapshot():
-    """Load and validate the snapshot file. Returns None on missing/invalid/
-    incompatible snapshots."""
-    if not LAST_FILE.exists():
-        return None
-    try:
-        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    version = data.get("version", 0)
-    if version > SNAPSHOT_VERSION:
-        print(f"Snapshot version {version} is newer than supported {SNAPSHOT_VERSION}, skipping restore", file=sys.stderr)
-        return None
-    return data
+    """Load and validate the snapshot file. Falls back to the .bak backup if
+    the primary file is missing, unreadable, or not valid JSON."""
+    for candidate in (LAST_FILE, LAST_BAK_FILE):
+        if not candidate.exists():
+            continue
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        version = data.get("version", 0)
+        if version > SNAPSHOT_VERSION:
+            print(f"Snapshot version {version} is newer than supported {SNAPSHOT_VERSION}, skipping restore", file=sys.stderr)
+            return None
+        if candidate != LAST_FILE:
+            print(f"Primary snapshot was invalid; restored from {candidate.name}", file=sys.stderr)
+        return data
+    return None
 
 
 def restore():
@@ -1397,19 +1604,23 @@ def _restore_impl():
             if mon_name:
                 ws_to_monitor[wsid] = mon_name
 
-    # Firefox owns its tab/window session. Restore it once, then map the
-    # windows it recreates back to their saved Hyprland workspaces.
-    firefox_records = [record for record in data.get("clients", []) if is_firefox(record)]
+    # Firefox and other single-instance apps own their multi-window session.
+    # Restore them once, then map the windows they recreate back to saved
+    # Hyprland workspaces.
+    single_instance_records = [record for record in data.get("clients", []) if is_single_instance(record)]
+    firefox_records = [record for record in single_instance_records if is_firefox(record)]
+    other_single_records = [record for record in single_instance_records if not is_firefox(record)]
 
     # Group the remaining clients by workspace, preserving sort order.
     groups = {}
     for record in data.get("clients", []):
-        if is_firefox(record):
+        if is_single_instance(record):
             continue
         wsid = (record.get("workspace") or {}).get("id", 0)
         groups.setdefault(wsid, []).append(record)
 
     restored = 0
+    restore_results = {"restored": [], "failed": [], "skipped": []}
     launch_index = 0
     restored_addresses = {}
     for wsid, records in groups.items():
@@ -1429,6 +1640,7 @@ def _restore_impl():
         for record in records:
             argv = restore_record_argv(record)
             if not argv:
+                restore_results["skipped"].append(_result_entry(record, "no argv"))
                 continue
             if "__SUMIKA_KITTY_SESSION__" in argv:
                 session_path = write_kitty_session_file(record, launch_index)
@@ -1449,14 +1661,20 @@ def _restore_impl():
                 )
             except Exception as err:
                 print(f"Failed to launch {shlex.join(argv)}: {err}", file=sys.stderr)
+                restore_results["failed"].append(_result_entry(record, f"launch error: {err}"))
                 continue
-            client = wait_for_client(record, known, launched_pid=process.pid)
+            client = wait_for_client(record, known, launched_pid=process.pid, timeout=restore_timeout_for(record))
             if client:
                 restored_addresses[record.get("address", "")] = client.get("address", "")
                 place_client(client, record)
                 restored += 1
+                restore_results["restored"].append(_result_entry(record, "ok"))
+            else:
+                restore_results["failed"].append(_result_entry(record, "timeout"))
     restored += restore_firefox_records(firefox_records, known, ws_to_monitor, restored_addresses)
+    restored += restore_single_instance_records(other_single_records, known, ws_to_monitor, restored_addresses)
     restore_focus(data, restored_addresses)
+    _write_restore_result(restored, len(data.get("clients", [])), restore_results)
     print(json.dumps({"restored": restored, "count": len(data.get("clients", []))}))
     return 0
 
@@ -1490,6 +1708,8 @@ def main():
         save()
     elif cmd in ("save-auto", "save-for-next-start"):
         save_auto()
+    elif cmd in ("save-auto-if-stale", "save-if-stale"):
+        save_auto_if_stale()
     elif cmd == "preview":
         preview()
     elif cmd == "preview-saved":
@@ -1507,7 +1727,7 @@ def main():
     elif cmd == "status":
         status()
     else:
-        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-close|restore|restore-auto|clear", file=sys.stderr)
+        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-auto-if-stale|save-close|restore|restore-auto|clear", file=sys.stderr)
         raise SystemExit(2)
 
 

@@ -26,12 +26,15 @@ Singleton {
         LockService.lock();
     }
 
-    function suspend() {
-        Quickshell.execDetached(["bash", "-c", "systemctl suspend || loginctl suspend"]);
+    function suspend(saveCurrentSession) {
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("systemctl suspend || loginctl suspend", saveCurrentSession)]);
     }
 
     function withOptionalSessionSave(command, saveCurrentSession) {
-        return (saveCurrentSession ? `"${Directories.root}/bin/sumika-session" save-auto && ` : "") + command;
+        // save-auto-if-stale avoids overwriting a snapshot written moments
+        // ago (e.g. the systemd fallback already ran). It still arms
+        // restore-on-next-start if the UI save is the only path.
+        return (saveCurrentSession ? `"${Directories.root}/bin/sumika-session" save-auto-if-stale && ` : "") + command;
     }
 
     function logout(saveCurrentSession) {
@@ -42,8 +45,8 @@ Singleton {
         Quickshell.execDetached(["bash", "-c", `${Config.options.apps.taskManager}`]);
     }
 
-    function hibernate() {
-        Quickshell.execDetached(["bash", "-c", `systemctl hibernate || loginctl hibernate`]);
+    function hibernate(saveCurrentSession) {
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`systemctl hibernate || loginctl hibernate`, saveCurrentSession)]);
     }
 
     function poweroff(saveCurrentSession) {

@@ -319,12 +319,12 @@ Singleton {
 
         this.register("session.suspend", "core", "Suspend", {
             type: "shell",
-            command: "systemctl suspend || loginctl suspend"
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && systemctl suspend || loginctl suspend`
         }, {description: "Suspend to RAM"})
 
         this.register("session.hibernate", "core", "Hibernate", {
             type: "shell",
-            command: "systemctl hibernate || loginctl hibernate"
+            command: `"${sumikaRoot}/bin/sumika-session" save-auto-if-stale && systemctl hibernate || loginctl hibernate`
         }, {description: "Suspend to disk"})
 
         this.register("session.logout.save", "core", "Log out and save session", {

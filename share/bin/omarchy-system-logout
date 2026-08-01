@@ -2,11 +2,15 @@
 
 # Sumika Shell implementation for session logout.
 
+# Snapshot the current session before closing anything, so the next login can
+# restore it. save-auto-if-stale skips if the UI already saved moments ago
+# (e.g. the confirmation overlay ran save-auto), and arms restore-on-next-start.
+sumika-session save-auto-if-stale >/dev/null 2>&1 || true
+
 # Close application windows first so apps get a chance to persist state, but do
 # not let a close failure prevent logout.
 sumika-hyprland-window-close-all >/dev/null 2>&1 || true
 sleep 0.8
-
 hyprland_alive() {
   hyprctl instances >/dev/null 2>&1
 }
