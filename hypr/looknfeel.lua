@@ -58,10 +58,12 @@ for _, id in ipairs(sumika_tui_ids) do
   o.window("io.github.iamcheyan.sumika." .. id, tui_rule)
 end
 
--- Sasayaki voice input is a standalone program; when its control center is
--- launched from the desktop it floats and centers like the other TUI tools.
+-- Sasayaki (voice input), musubi (file backup) and shirabe (keyboard remap)
+-- are standalone programs; their control centers float and center like the
+-- other TUI tools when launched from the desktop.
 o.window("io.github.iamcheyan.sasayaki", tui_rule)
-
+o.window("io.github.iamcheyan.musubi", tui_rule)
+o.window("io.github.iamcheyan.shirabe", tui_rule)
 o.window("io.github.iamcheyan.sumika.keytest", {
   float = true,
   center = true,
