@@ -49,7 +49,12 @@ $(jq -r '
 ' "$_registry_file" 2>/dev/null || true)
 WATCHERS
 else
-    pkill -f "(^|/)nmcli monitor$" 2>/dev/null || true
+    # No registry-driven watchers: still kill orphaned nmcli processes left
+    # by crashed bar instances. Network.qml spawns several long-running
+    # nmcli/sh subprocesses (nmcli monitor, nmcli -t -f ... d status, etc.)
+    # that get reparented to systemd --user when the bar is SIGKILLed and
+    # never cleaned up, accumulating across restarts.
+    pkill -f "(^|/)nmcli " 2>/dev/null || true
 fi
 
 # The clipboard daemon (sumika-clipboard-store) is a stateful wl-paste --watch

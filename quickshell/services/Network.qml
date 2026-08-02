@@ -68,7 +68,20 @@ Singleton {
     property string firewallBackend: ""   // firewalld | ufw | nft | none
     property string firewallDetail: ""
 
+    // ── WiFi watchdog ──
+    // Monitors connection health. When wifi drops (or connectivity stays
+    // limited for too long), the watchdog re-activates the current profile;
+    // if that fails, it walks through known autoconnect profiles by priority
+    // and tries each one. This covers cases where NetworkManager's own
+    // autoconnect gives up after its retry budget or the brcmfmac driver
+    // strands the radio in a non-recoverable state.
+    property bool watchdogEnabled: true
+    property string lastConnectedSsid: ""
+    property int watchdogDisconnectCount: 0
+    property int watchdogFailCount: 0
+    property bool watchdogRecovering: false
     readonly property list<WifiAccessPoint> wifiNetworks: []
+
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
     property var knownWifiNames: []
     property var wifiAutoconnectByName: ({})
@@ -648,6 +661,114 @@ Singleton {
         updateNetworkStrength.running = true;
         root.refreshLinkDetails();
         root.refreshSavedProfiles();
+        root.watchdogEvaluate();
+    }
+
+    // ── Watchdog logic ──
+
+    function watchdogEvaluate() {
+        if (!root.watchdogEnabled || !root.wifiEnabled || root.ethernet)
+            return;
+        // Don't interfere with an ongoing user-initiated connect.
+        if (root.wifiConnectPhase === "connecting" || root.wifiConnectPhase === "need_password")
+            return;
+
+        const status = root.wifiStatus;
+        if (status === "connected") {
+            root.watchdogDisconnectCount = 0;
+            root.watchdogFailCount = 0;
+            root.watchdogRecovering = false;
+            if (root.networkName && root.networkName.length > 0)
+                root.lastConnectedSsid = root.networkName;
+            return;
+        }
+        if (root.watchdogRecovering)
+            return; // a recovery attempt is already in flight
+
+        // disconnected / limited / disabled — count the event
+        root.watchdogDisconnectCount += 1;
+
+        // Wait a few update cycles (each ~2.5s via debounceUpdateTimer) before
+        // acting, to tolerate brief roaming blips and avoid racing NM.
+        if (root.watchdogDisconnectCount < 3)
+            return;
+
+        root.watchdogRecovering = true;
+        root._watchdogCandidates = root.watchdogCandidates();
+        root._watchdogIndex = -1;
+        root._watchdogTryNext();
+    }
+
+    function watchdogCandidates() {
+        // Build ordered list: lastConnectedSsid first, then all autoconnect
+        // profiles (alpha-sorted; NM's own autoconnect already prioritizes).
+        const result = [];
+        const seen = new Set();
+        if (root.lastConnectedSsid && root.lastConnectedSsid.length > 0) {
+            result.push(root.lastConnectedSsid);
+            seen.add(root.lastConnectedSsid);
+        }
+        const profiles = [];
+        for (const p of root.savedWifiProfiles) {
+            if (p.autoconnect && !seen.has(p.name))
+                profiles.push(p.name);
+        }
+        profiles.sort();
+        for (const name of profiles)
+            result.push(name);
+        return result;
+    }
+
+    function _watchdogTryNext() {
+        root._watchdogIndex += 1;
+        if (root._watchdogIndex >= root._watchdogCandidates.length) {
+            root.watchdogFailCount += 1;
+            if (root.watchdogFailCount >= root.watchdogMaxFail) {
+                // Give up — NM should eventually retry on its own.
+                root.watchdogRecovering = false;
+            } else {
+                // Wait and try the whole list again.
+                watchdogRetryTimer.restart();
+            }
+            return;
+        }
+        const ssid = root._watchdogCandidates[root._watchdogIndex];
+        watchdogProc.exec({
+            "environment": { "SSID": ssid },
+            "command": ["bash", "-c",
+                'export LANG=C LC_ALL=C; nmcli -w 15 connection up id "$SSID" 2>&1 || true']
+        });
+    }
+
+    Process {
+        id: watchdogProc
+        stdout: SplitParser {
+            onRead: line => { /* silent */ }
+        }
+        onExited: (exitCode, exitStatus) => {
+            root.update();
+            if (root.wifiStatus === "connected") {
+                root.watchdogRecovering = false;
+                root.watchdogFailCount = 0;
+                return;
+            }
+            // Advance to next candidate.
+            root._watchdogTryNext();
+        }
+    }
+
+    // Hold the candidate list + index across async process exits.
+    property var _watchdogCandidates: []
+    property int _watchdogIndex: -1
+
+    Timer {
+        id: watchdogRetryTimer
+        interval: 10000
+        repeat: false
+        onTriggered: {
+            root.watchdogRecovering = false;
+            root.watchdogDisconnectCount = 0;
+        }
     }
 
     Process {
