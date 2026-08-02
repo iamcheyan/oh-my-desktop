@@ -98,12 +98,9 @@ for _, key in ipairs(interrupt_keys) do
   })
 end
 
-local function read_voice_bindings()
-  local data_home = os.getenv("XDG_DATA_HOME") or (paths.home .. "/.local/share")
-  local extensions_dir = os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or (data_home .. "/sumika-shell/extensions")
-  local helper = extensions_dir .. "/voice/bin/sumika-voice-translate"
+local function read_sasayaki_bindings()
   local result = { voice = {}, translation = nil }
-  local process = io.popen("'" .. helper:gsub("'", "'\\''") .. "' hypr-bindings 2>/dev/null")
+  local process = io.popen("sasayaki bindings 2>/dev/null")
   if process then
     for line in process:lines() do
       local kind, binding = line:match("^([^\t]+)\t(.+)$")
@@ -118,17 +115,17 @@ local function read_voice_bindings()
   return result
 end
 
-local voice_config = read_voice_bindings()
+local voice_config = read_sasayaki_bindings()
 if #voice_config.voice == 0 then
   voice_config.voice = { "ALT + A", "code:472" }
 end
 
 for _, key in ipairs(voice_config.voice) do
-    o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action voice.toggle")
+    o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action sasayaki.toggle")
 end
 -- Dedicated translation trigger captured by Sumika KeyTest:
 -- bind HANGUL · XKB keycode 130 · evdev 122.
-o.bind(voice_config.translation or "HANGUL", "Translated voice input toggle", paths.root .. "/bin/sumika-action voice.translate-toggle")
+o.bind(voice_config.translation or "HANGUL", "Translated voice input toggle", paths.root .. "/bin/sumika-action sasayaki.translate-toggle")
 o.bind("ALT + S", "Region screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
 o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.root .. "/bin/sumika-action screenshot.capture-edit")
 
