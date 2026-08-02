@@ -35,7 +35,20 @@ sleep 0.3
 pkill -9 -f "/usr/bin/quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
 sleep 0.2
 
-# ── Watcher cleanup (nmcli, cliphist, etc.) ───────────────────────────────
+# ── Orphaned subprocess cleanup ───────────────────────────────────────────
+# Quickshell Process children get reparented to systemd --user when the bar
+# is SIGKILLed (pkill -9) and never die on their own. The only always-on
+# process that accumulates is `nmcli monitor` (Network.qml subscriber).
+# Kill it precisely — NOT a broad `nmcli` pattern that would clobber
+# user nmcli sessions in terminals.
+pkill -f "nmcli monitor" 2>/dev/null || true
+
+# Kill the previous sni-reconcile daemon so we don't stack instances.
+# It is pidfile-guarded but has no other kill path.
+pkill -f "sumika-sni-reconcile" 2>/dev/null || true
+
+# The registry-driven watcher loop below is kept for future modules that
+# declare contributes.watchers; currently no module does, so it is a no-op.
 _registry_file="${SUMIKA_MODULE_REGISTRY:-${SUMIKA_SHELL_RUNTIME_DIR:-/run/user/$(id -u)/sumika-shell}/modules.json}"
 if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
     while IFS="" read -r watcher; do
@@ -48,13 +61,6 @@ $(jq -r '
   .contributes.watchers[]
 ' "$_registry_file" 2>/dev/null || true)
 WATCHERS
-else
-    # No registry-driven watchers: still kill orphaned nmcli processes left
-    # by crashed bar instances. Network.qml spawns several long-running
-    # nmcli/sh subprocesses (nmcli monitor, nmcli -t -f ... d status, etc.)
-    # that get reparented to systemd --user when the bar is SIGKILLed and
-    # never cleaned up, accumulating across restarts.
-    pkill -f "(^|/)nmcli " 2>/dev/null || true
 fi
 
 # The clipboard daemon (sumika-clipboard-store) is a stateful wl-paste --watch
@@ -114,7 +120,7 @@ start_app() {
 
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
         systemd-run --user --unit="$app" --collect \
-            --property=KillMode=process \
+            --property=KillMode=control-group \
             --property=Restart=on-failure \
             --property=RestartSec=2 \
             --setenv=PATH="$PATH" \
