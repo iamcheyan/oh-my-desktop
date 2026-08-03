@@ -540,6 +540,26 @@ def disconnect_network(dev: str) -> tuple[bool, str]:
     return False, out.strip()[:60] or "Disconnect failed"
 
 
+def _ensure_disconnected(dev: str, *, settle: float = 1.5, tries: int = 6) -> None:
+    """Tear down any active Wi-Fi on *dev* and wait for it to settle.
+
+    Used between auto-recover candidate attempts so the next
+    ``nmcli connection up`` doesn't race a leftover association (which NM
+    rejects as "New connection was active"). No-op if already idle."""
+    if not dev or dev == "—":
+        return
+    status = get_wifi_status()
+    if not status.get("active") or status.get("active") in ("", "—"):
+        return
+    disconnect_network(dev)
+    for _ in range(tries):
+        s = get_wifi_status()
+        if not s.get("active") or s.get("active") in ("", "—"):
+            break
+        time.sleep(0.5)
+    time.sleep(settle)
+
+
 def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool, str]:
     if uuid:
         rc, out = nmcli("connection", "delete", "uuid", uuid, timeout=10)
@@ -869,6 +889,10 @@ def fix_connection(on_log) -> tuple[bool, str]:
             f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
         for i, c in enumerate(cand, 1):
             on_log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
+            # Clear any leftover association on the device first so the
+            # activation below doesn't race it ("New connection was active"
+            # rejection). No-op when already disconnected.
+            _ensure_disconnected(get_wifi_device())
             # Stream the per-network connect detail (profile activation,
             # fallback, nmcli errors) into the same log so the recovery
             # record shows WHY each candidate failed, not just that it did.
