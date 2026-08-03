@@ -856,8 +856,11 @@ def fix_connection(on_log) -> tuple[bool, str]:
     `on_log(str)` is called with each progress line."""
     raw_log = on_log
     on_log, finalize = _tee_recovery_log(on_log)
+    _ac_dev = ""  # device whose autoconnect we suppress for the whole recovery
 
     def done(ok: bool, msg: str) -> tuple[bool, str]:
+        if _ac_dev:
+            nmcli("device", "set", _ac_dev, "autoconnect", "yes", timeout=5)
         log_path = finalize(ok, msg)
         if log_path and raw_log:
             raw_log(f"📋 Log saved: {log_path}")
@@ -869,6 +872,20 @@ def fix_connection(on_log) -> tuple[bool, str]:
     on_log("")
     status = get_wifi_status()
     current = status.get("active", "") if status.get("active") not in ("", "—") else ""
+    dev = status.get("device", "")
+
+    # Suppress NM autoconnect for the ENTIRE recovery. Without this, every
+    # time our device-wifi-connect gets enqueued (device busy) or a candidate
+    # fails, NM's autoconnect engine grabs the radio and associates with a
+    # random autoconnect=yes profile (Google-Guest-Legacy, Buffalo, etc.).
+    # That hijack is why "Switching from <wrong SSID>" appears between
+    # candidates and why every candidate reports "enqueued, then stalled" —
+    # NM was mid-autoconnect on a different profile when we tried to switch.
+    # Restored in done() on every exit path.
+    if dev and dev != "—":
+        _ac_dev = dev
+        nmcli("device", "set", dev, "autoconnect", "no", timeout=5)
+        on_log(f"NM autoconnect suppressed on {dev} for recovery.")
 
     current_failed = True
     if current:
@@ -883,11 +900,9 @@ def fix_connection(on_log) -> tuple[bool, str]:
             return done(True, f"Active connection preserved: {current}")
         else:
             on_log("  ✗ No gateway — current connection unusable")
-            # Release the device and suppress NM autoconnect so the radio
-            # stays free for the candidate activations below. Without
-            # suppressing autoconnect NM immediately re-grabs the bad
-            # profile during the settle window, and every candidate then
-            # fails with "New connection activation was enqueued".
+            # Release the device so the candidate activations below can
+            # use it. Autoconnect is already suppressed for the whole
+            # recovery (see above), so NM won't re-grab this profile.
             dev0 = status.get("device", "")
             if dev0 and dev0 != "—":
                 ok_d, dmsg = disconnect_network(dev0)
@@ -913,11 +928,10 @@ def fix_connection(on_log) -> tuple[bool, str]:
             f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
         for i, c in enumerate(cand, 1):
             on_log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
-            # connect_network itself disconnects the current network and
-            # suppresses NM autoconnect before activating, so no separate
-            # pre-disconnect is needed here. Stream its per-network detail
-            # (profile activation, fallback, nmcli errors) into the log so
-            # the record shows WHY each candidate failed.
+            # connect_network uses device wifi connect (atomic switch) and
+            # streams per-network detail into the log. Autoconnect is
+            # suppressed for the whole recovery, so NM won't hijack the
+            # radio between candidates.
             ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"), on_log=on_log)
             if not ok:
                 on_log(f"  ✗ {msg}")
