@@ -475,6 +475,16 @@ def connect_network(
     if dev:
         _log(f"Using device {dev}")
 
+    # If the radio is already on a different network, tear it down first
+    # so the activation below doesn't race it. NetworkManager rejects a
+    # `connection up` while another profile holds the device with
+    # "New connection was active" — this is what makes every WiFi
+    # unreachable after clicking through several networks quickly in the
+    # popup. Skip only when already on the target SSID (re-activation).
+    active = get_active_connection()
+    if active and active != ssid:
+        _log(f"Disconnecting current ({active}) before switching…")
+        _ensure_disconnected(dev)
     if uuid and not password:
         _log("Activating saved profile…")
         rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)

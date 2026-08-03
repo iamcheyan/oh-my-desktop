@@ -66,7 +66,9 @@ def main() -> int:
         return _result(False, err)
 
     if args.command == "connect":
-        ok, msg = ops.connect_network(args.ssid, password=args.password, uuid=args.uuid)
+        on_log, finalize = ops._tee_recovery_log(None)
+        ok, msg = ops.connect_network(args.ssid, password=args.password, uuid=args.uuid, on_log=on_log)
+        finalize(ok, msg)
         return _result(ok, msg)
 
     if args.command == "disconnect":
