@@ -147,9 +147,17 @@ Item {
 
     function workspaceLabel(win) {
         const workspace = win?.workspace || {};
-        const id = workspace.id > 0 ? workspace.id : "?";
+        const wsId = workspace.id > 0 ? workspace.id : -1;
+        const entries = ServiceManager.workspace.overviewWorkspaceEntries ?? [];
+        let slot = 0;
+        for (let i = 0; i < entries.length; ++i) {
+            if (entries[i].id === wsId) {
+                slot = i + 1;
+                break;
+            }
+        }
         const monitor = win?.monitor ? `  ${win.monitor}` : "";
-        return `Workspace ${id}${monitor}`;
+        return slot > 0 ? `Slot ${slot}${monitor}` : `Workspace${monitor}`;
     }
 
     onTotalResultsChanged: clampSelection()

@@ -648,7 +648,6 @@ Item {
                     property string monitorName: modelData.monitorName ?? ""
                     property bool isTrailingEmpty: modelData.isTrailingEmpty ?? false
                     property bool isPendingOccupied: modelData.isPendingOccupied ?? false
-                    property bool existingWorkspace: modelData.existingWorkspace ?? false
                     property int colIndex: root.entryLocalColumn(index)
                     property int rowIndex: root.entryLocalRow(index)
                     property color defaultWorkspaceColor: {
@@ -662,6 +661,7 @@ Item {
                     property bool hoveredWhileDragging: false
 
                     readonly property bool isFocused: workspaceValue === root.highlightedWorkspaceId
+                    readonly property int globalSlot: root.globalSlotForWorkspaceId(workspace.workspaceValue)
 
                     x: root.entryX(index)
                     y: root.entryY(index)
@@ -713,7 +713,7 @@ Item {
                                 ? "New workspace"
                                 : workspace.isPendingOccupied
                                     ? "Moving…"
-                                : `${workspace.monitorName || "Hidden"} · ${workspace.workspaceValue}`
+                                : `${workspace.monitorName || "Hidden"} · Slot ${workspace.globalSlot > 0 ? workspace.globalSlot : "?"}`
                             font {
                                 pixelSize: Appearance.font.pixelSize.smaller
                                 weight: Font.Medium
@@ -744,7 +744,7 @@ Item {
                                     if (workspace.monitorName.length > 0)
                                         Hyprland.dispatch(`hl.dsp.focus({monitor="${workspace.monitorName}"})`);
                                     Hyprland.dispatch(`hl.dsp.focus({ workspace = ${workspace.workspaceValue} })`);
-                                    if (!workspace.existingWorkspace && workspace.monitorName.length > 0)
+                                    if (workspace.monitorName.length > 0)
                                         Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${workspace.workspaceValue}", monitor = "${workspace.monitorName}" })`);
                                 } else {
                                     if (ServiceManager.workspace.workspaceHasVisibleWindows(workspace.workspaceValue))
@@ -957,10 +957,11 @@ Item {
                     border.color: isFocusedEntry ? root.activeBorderColor : TuiStyle.inactiveBorder
 
                     // The number shown here is the same global visual slot
-                    // addressed by Super+1…0. Keep the raw Hyprland ID visible
-                    // as well: IDs are intentionally sparse and are not the
-                    // shortcut number.
+                    // addressed by Super+1…0. Raw Hyprland IDs are transport
+                    // identifiers (intentionally sparse, recycled) and are not
+                    // shown to the user.
                     Rectangle {
+                        visible: slotLabel.globalSlot > 0
                         anchors {
                             top: parent.top
                             right: parent.right
@@ -981,8 +982,8 @@ Item {
                             anchors.centerIn: parent
                             readonly property int globalSlot: root.globalSlotForWorkspaceId(workspaceBorder.modelData.id)
                             text: globalSlot > 0
-                                ? `Slot ${globalSlot} · ID ${workspaceBorder.modelData.id}`
-                                : `ID ${workspaceBorder.modelData.id}`
+                                ? `Slot ${globalSlot}`
+                                : ""
                             color: workspaceBorder.isFocusedEntry
                                 ? TuiStyle.accent
                                 : Appearance.colors.colOnLayer1

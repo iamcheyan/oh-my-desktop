@@ -113,7 +113,8 @@
     }
   },
   "launcher": {
-    "pinnedApps": []
+    "pinnedApps": [],
+    "resident": false
   },
   "light": {
     "antiFlashbang": {

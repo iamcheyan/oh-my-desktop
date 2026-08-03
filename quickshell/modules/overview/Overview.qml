@@ -88,8 +88,9 @@ Scope {
 
     // Numeric workspace shortcuts address global visual slots, not raw
     // Hyprland IDs. Use the same monitor-grouped model rendered by Overview so
-    // numbering continues across monitors and every trailing slot keeps the
-    // exact reserved ID shown on screen.
+    // numbering continues across monitors. The trailing slot's raw ID may
+    // recycle an empty workspace, so always relocate it to the target monitor
+    // rather than gating on whether it pre-existed.
     function focusWorkspaceSlot(slot) {
         if (slot < 1)
             return;
@@ -109,7 +110,7 @@ Scope {
             Hyprland.dispatch(`hl.dsp.focus({monitor="${entry.monitorName}"})`);
 
         Hyprland.dispatch(`hl.dsp.focus({ workspace = ${entry.id} })`);
-        if (entry.isTrailingEmpty && !entry.existingWorkspace && (entry.monitorName ?? "").length > 0)
+        if (entry.isTrailingEmpty && (entry.monitorName ?? "").length > 0)
             Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${entry.id}", monitor = "${entry.monitorName}" })`);
 
         if (!entry.isTrailingEmpty && ServiceManager.workspace.workspaceHasVisibleWindows(entry.id))

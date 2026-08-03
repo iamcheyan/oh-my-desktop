@@ -10,6 +10,8 @@ StyledText {
     // every animation frame.
     property real truncatedFill: Math.round(fill * 10) / 10
     renderType: Text.NativeRendering
+    horizontalAlignment: Text.AlignHCenter
+    verticalAlignment: Text.AlignVCenter
     font {
         hintingPreference: Font.PreferNoHinting
         family: Appearance?.font.family.iconMaterial ?? "Material Symbols Rounded"

@@ -12,6 +12,11 @@ Singleton {
     property bool cycleQueued: false
     property int cycleDelta: 0
 
+    // Self-register into GlobalStates so the Super-release shortcut (owned by
+    // the core qs root singleton) can drive switching mode without a core→module
+    // import. Runs only in processes that load this overview module.
+    Component.onCompleted: GlobalStates.overviewSwitchingController = root
+
     signal requestFocus()
 
     function navigationOpen() {

@@ -56,6 +56,17 @@ launch_direct() {
     exec "$qs_launcher" "$app_dir"
 }
 
+launch_warm() {
+    # Start the process resident but hidden (no auto-open). Used by the
+    # launcher.resident pre-warm so the first user-triggered open is instant
+    # instead of a cold QML load. Idempotent — callers guard with is_running.
+    if [ ! -x "$qs_launcher" ]; then
+        printf 'sumika-applauncher: quickshell launcher missing at %s\n' "$qs_launcher" >&2
+        exit 1
+    fi
+    exec "$qs_launcher" "$app_dir"
+}
+
 case "${1:-toggle}" in
     toggle)
         if is_running; then
@@ -71,13 +82,16 @@ case "${1:-toggle}" in
             launch_direct
         fi
         ;;
-    close)
+    warm)
+        # Pre-warm: start resident+hidden if not already running. No-op if alive.
         if is_running; then
-            ipc_call close
+            :
+        else
+            launch_warm
         fi
         ;;
     *)
-        echo "usage: sumika-applauncher [toggle|open|close]" >&2
+        echo "usage: sumika-applauncher [toggle|open|close|warm]" >&2
         exit 2
         ;;
 esac

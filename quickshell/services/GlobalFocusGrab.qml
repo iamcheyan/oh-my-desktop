@@ -15,8 +15,12 @@ Singleton {
 
     signal dismissed()
 
-    property list<var> persistent: []
-    property list<var> dismissable: []
+    // Keep these as value properties and replace their contents on mutation.
+    // In-place push/splice on a QML list does not reliably notify bindings in
+    // every Quickshell reload path. Both HyprlandFocusGrab and the full-screen
+    // outside-click layer depend on those notifications.
+    property var persistent: []
+    property var dismissable: []
 
     function dismiss() {
         root.dismissable = [];
@@ -29,27 +33,27 @@ Singleton {
 
     function addPersistent(window) {
         if (root.persistent.indexOf(window) === -1) {
-            root.persistent.push(window);
+            root.persistent = root.persistent.concat([window]);
         }
     }
 
     function removePersistent(window) {
         var index = root.persistent.indexOf(window);
         if (index !== -1) {
-            root.persistent.splice(index, 1);
+            root.persistent = root.persistent.filter(candidate => candidate !== window);
         }
     }
 
     function addDismissable(window) {
         if (root.dismissable.indexOf(window) === -1) {
-            root.dismissable.push(window);
+            root.dismissable = root.dismissable.concat([window]);
         }
     }
 
     function removeDismissable(window) {
         var index = root.dismissable.indexOf(window);
         if (index !== -1) {
-            root.dismissable.splice(index, 1);
+            root.dismissable = root.dismissable.filter(candidate => candidate !== window);
         }
     }
 

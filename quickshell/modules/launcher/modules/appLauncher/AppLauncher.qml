@@ -648,6 +648,49 @@ PanelWindow {
                     }
 
                     Rectangle {
+                        id: residentButton
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        color: residentMouse.containsMouse ? TuiStyle.surfaceHover : TuiStyle.surfaceSubtle
+                        radius: TuiStyle.radius
+                        border.width: Config.options.launcher.resident ? 1 : 0
+                        border.color: TuiStyle.accent
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            text: NerdIconMap.memory
+                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.family: Appearance.font.family.iconNerd
+                            color: Config.options.launcher.resident ? TuiStyle.accent : TuiStyle.fg
+                        }
+
+                        MouseArea {
+                            id: residentMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                const next = !Config.options.launcher.resident
+                                Config.setNestedValue("launcher.resident", next)
+                                // Take effect immediately when turning it on:
+                                // pre-warm the process instead of waiting for the
+                                // next session. Off leaves a running process alone.
+                                if (next)
+                                    Quickshell.execDetached([Directories.root + "/bin/sumika-applauncher", "warm"])
+                            }
+                        }
+
+                        StyledToolTipContent {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.bottom: parent.top
+                            anchors.bottomMargin: 6
+                            shown: residentMouse.containsMouse
+                            text: "启动器常驻内存: " + (Config.options.launcher.resident ? "开" : "关")
+                        }
+                    }
+
+                    Rectangle {
                         id: sessionMenuButton
                         Layout.preferredWidth: 34
                         Layout.preferredHeight: 34

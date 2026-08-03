@@ -21,7 +21,11 @@ Item {
 
     SettingsToggleRow {
         id: settingsToggle
-        anchors.fill: parent
+        anchors {
+            fill: parent
+            leftMargin: 6
+            rightMargin: 6
+        }
         label: root.label
         checked: root.checked
         enabled: root.enabled

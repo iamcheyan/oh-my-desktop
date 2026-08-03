@@ -41,6 +41,15 @@
         "name": "Close launcher",
         "description": "Close the application launcher"
       }
+    ],
+    "settingsPages": [
+      {
+        "id": "launcher",
+        "title": "应用启动器",
+        "component": "settings/LauncherPage.qml",
+        "icon": "apps",
+        "order": 15
+      }
     ]
   }
 }

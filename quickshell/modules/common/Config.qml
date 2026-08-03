@@ -209,6 +209,9 @@ Singleton {
 
             property JsonObject launcher: JsonObject {
                 property list<string> pinnedApps: []
+                // Keep the launcher Quickshell process resident in memory
+                // (pre-warmed at session start) so opens never cold-start.
+                property bool resident: false
             }
 
             property JsonObject light: JsonObject {

@@ -14,6 +14,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.settings
         labelText: "Monitor settings"
+        shortcutKey: "M"
         onClicked: {
             root.close();
             Quickshell.execDetached([`${Directories.root}/bin/sumika-settings`, "open", "display"]);
@@ -29,6 +30,7 @@ ContextMenuWindow {
         visible: root.wallpaperMode === "folder"
         nerdIcon: NerdIconMap.imageMultiple
         labelText: "Next wallpaper"
+        shortcutKey: "N"
         onClicked: {
             root.close();
             Quickshell.execDetached([
@@ -42,6 +44,7 @@ ContextMenuWindow {
         visible: root.wallpaperMode === "folder"
         nerdIcon: NerdIconMap.trashCan
         labelText: "Delete current wallpaper"
+        shortcutKey: "D"
         onClicked: {
             root.close();
             Quickshell.execDetached([

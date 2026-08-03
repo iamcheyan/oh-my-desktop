@@ -1,6 +1,7 @@
-// Popup adapter for the shared settings navigation row.
+// Popup adapter for the footer navigation row (Add new Wi-Fi... / Add new Bluetooth...).
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.settings
 import QtQuick
 import QtQuick.Layouts
 
@@ -10,29 +11,48 @@ Item {
     property string label: ""
     signal clicked()
 
-    implicitHeight: navigationRow.implicitHeight + 1
+    implicitHeight: 44
     implicitWidth: parent?.width ?? 0
     Layout.fillWidth: true
+    Layout.leftMargin: 6
+    Layout.rightMargin: 6
+    Layout.topMargin: 2
+    Layout.bottomMargin: 6
 
-    // Top divider to separate from content
     Rectangle {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: 1
-        color: SettingsTokens.line
-        opacity: TuiStyle.dividerOpacity
-    }
+        id: bgCard
+        anchors.fill: parent
+        radius: 6
+        color: navMouse.containsMouse ? SettingsTokens.cardHover : "transparent"
 
-    SettingsNavigationRow {
-        id: navigationRow
-        anchors {
-            left: parent.left
-            right: parent.right
-            top: parent.top
-            topMargin: 1
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            spacing: 8
+
+            StyledText {
+                Layout.fillWidth: true
+                text: root.label
+                color: SettingsTokens.fg
+                font.pixelSize: Appearance.font.pixelSize.small
+                elide: Text.ElideRight
+            }
+
+            MaterialSymbol {
+                Layout.preferredWidth: 16
+                text: "chevron_right"
+                iconSize: 16
+                color: SettingsTokens.muted
+            }
         }
-        label: root.label
-        onClicked: root.clicked()
+
+        MouseArea {
+            id: navMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.clicked()
+        }
     }
 }

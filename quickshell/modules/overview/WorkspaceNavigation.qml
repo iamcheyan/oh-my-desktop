@@ -150,7 +150,7 @@ Singleton {
             const entry = root.focusedEntry();
             root.focusMonitorForEntry(entry);
             Hyprland.dispatch(`hl.dsp.focus({ workspace = ${entry.id} })`);
-            if (!entry?.existingWorkspace && (entry?.monitorName ?? "").length > 0)
+            if ((entry?.monitorName ?? "").length > 0)
                 Hyprland.dispatch(`hl.dsp.workspace.move({ workspace = "${entry.id}", monitor = "${entry.monitorName}" })`);
             if (openLauncher)
                 root.openAppLauncher();
@@ -245,3 +245,4 @@ Singleton {
         Hyprland.dispatch(`hl.dsp.focus({window = "address:${windowData.address}"})`);
     }
 }
+

@@ -25,6 +25,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.archive
         labelText: "Save Snapshot"
+        shortcutKey: "V"
         onClicked: {
             root.close();
             Quickshell.execDetached([`${Directories.root}/bin/sumika-session`, "save"]);
@@ -34,6 +35,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.unarchive
         labelText: "Restore Snapshot"
+        shortcutKey: "R"
         onClicked: {
             root.close();
             // Consistent with SessionAutoRestore: only restore when no app
@@ -55,6 +57,7 @@ ContextMenuWindow {
         visible: root.hibernateAvailable
         nerdIcon: NerdIconMap.download
         labelText: "Hibernate"
+        shortcutKey: "H"
         onClicked: {
             root.close();
             Session.hibernate(true);
@@ -68,6 +71,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.logout
         labelText: "Logout"
+        shortcutKey: "L"
         onClicked: {
             root.close();
             Session.logout(true);
@@ -77,6 +81,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.restart
         labelText: "Reboot"
+        shortcutKey: "B"
         onClicked: {
             root.close();
             Session.reboot(true);
@@ -86,6 +91,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.powerSettingsNew
         labelText: "Shutdown"
+        shortcutKey: "U"
         onClicked: {
             root.close();
             Session.poweroff(true);
@@ -96,6 +102,7 @@ ContextMenuWindow {
     ContextMenuItem {
         nerdIcon: NerdIconMap.refresh
         labelText: "Reload Shell"
+        shortcutKey: "A"
         onClicked: {
             root.close();
             Quickshell.execDetached(["bash", `${Directories.root}/bin/sumika-restart`]);

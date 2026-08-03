@@ -304,15 +304,21 @@ Singleton {
 
         const ordered = orderedWindows.slice();
 
+        const globalSeen = {};
         // Trailing "New workspace" slot: show exactly one empty workspace at
         // the visual end of each monitor group. The globally unique candidate
         // may recycle a low raw ID; array position, not ID magnitude, makes it
         // the final visual slot.
-        const globalSeen = {};
-        root.workspaces.forEach(ws => {
-            if (ws.id >= 1 && ws.id <= 100)
-                globalSeen[ws.id] = true;
-        });
+        // Only occupied workspaces, pending targets, and each monitor's
+        // active workspace are unavailable to the allocator. Empty non-active
+        // Hyprland workspaces are recyclable: moving a window into one reuses
+        // its ID instead of creating a new one, which is what stops the
+        // maxId+1 ratchet that otherwise climbs toward the 100 ceiling.
+        for (let i = 0; i < root.monitors.length; ++i) {
+            const activeId = root.monitors[i]?.activeWorkspace?.id ?? -1;
+            if (activeId >= 1 && activeId <= 100)
+                globalSeen[activeId] = true;
+        }
         withWindows.forEach(e => {
             globalSeen[e.id] = true;
         });

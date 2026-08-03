@@ -37,8 +37,13 @@ Item {
         HoverInfo {}
     }
 
-    Component.onCompleted: HoverInfoService.register(root.moduleId, hoverComponent)
-    Component.onDestruction: HoverInfoService.unregister(root.moduleId)
+    Component.onCompleted: {
+        HoverInfoService.register(root.moduleId, hoverComponent)
+        // Resident mode: pre-warm the launcher process so the first open is
+        // instant. The bin's `warm` subcommand is a no-op if already running.
+        if (Config.options.launcher.resident)
+            Quickshell.execDetached([FileUtils.trimFileProtocol(Directories.root) + "/bin/sumika-applauncher", "warm"])
+    }
 
     HoverInfoPopup {
         moduleId: root.moduleId

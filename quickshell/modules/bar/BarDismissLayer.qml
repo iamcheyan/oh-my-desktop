@@ -45,12 +45,16 @@ Scope {
                 left: true
                 right: true
             }
-            // Gap on the bar side lets clicks reach bar buttons for toggle
-            // (click again to close). Zero gap when a non-toggle popup type
-            // (e.g. voiceModel) is open — any outside click closes it.
+            // Status popups keep a gap on the bar side so their originating
+            // button can toggle them closed. A context menu has no matching
+            // toggle: the bar is outside it and must therefore close it too.
             margins {
-                top: (!barOnBottom && GlobalStates.barPopupType !== "voiceModel" && GlobalStates.barPopupType !== "voice") ? barGap : 0
-                bottom: (barOnBottom && GlobalStates.barPopupType !== "voiceModel" && GlobalStates.barPopupType !== "voice") ? barGap : 0
+                top: (!barOnBottom && GlobalStates.barPopupType !== ""
+                    && GlobalStates.barPopupType !== "voiceModel"
+                    && GlobalStates.barPopupType !== "voice") ? barGap : 0
+                bottom: (barOnBottom && GlobalStates.barPopupType !== ""
+                    && GlobalStates.barPopupType !== "voiceModel"
+                    && GlobalStates.barPopupType !== "voice") ? barGap : 0
             }
 
 

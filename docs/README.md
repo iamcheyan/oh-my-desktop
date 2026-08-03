@@ -27,6 +27,7 @@ are intentionally not retained.
 - [Smart paste](features/smart-paste.md)
 - [Kitty paste integration](features/paste-kitty-conflicts.md)
 - [Input method integration](features/input-method-integration.md)
+- [Keybindings — 键位逻辑与完整列表](features/keybindings.md)
 - [Keyboard remap](features/keyboard-remap.md)
 - [Key capture and extended function keys](features/key-capture-and-extended-f-keys.md)
 - [Notification system](features/notification-system.md)

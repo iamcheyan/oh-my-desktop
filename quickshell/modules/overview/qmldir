@@ -3,3 +3,5 @@ Overview 1.0 Overview.qml
 OverviewWindow 1.0 OverviewWindow.qml
 OverviewWidget 1.0 OverviewWidget.qml
 OverviewSearch 1.0 OverviewSearch.qml
+singleton OverviewSwitchingController 1.0 OverviewSwitchingController.qml
+singleton WorkspaceNavigation 1.0 WorkspaceNavigation.qml

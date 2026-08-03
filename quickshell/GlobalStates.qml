@@ -1,5 +1,4 @@
 import qs.modules.common
-import qs.modules.common.functions
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -36,6 +35,10 @@ Singleton {
     property bool screenUnlockFailed: false
     property bool superDown: false
     property bool superReleaseMightTrigger: false
+    // Overview controller, injected by the overview module at load time so the
+    // Super-release shortcut can drive switching mode without a core→module
+    // import dependency. Null in processes that don't load the overview module.
+    property var overviewSwitchingController: null
     property string barPopupType: ""
     // Screen name of the bar that opened the popup (multi-monitor: pin panel + brightness).
     property string barPopupAnchorScreen: ""
@@ -114,9 +117,9 @@ Singleton {
         }
         onReleased: {
             root.superDown = false
-            if (OverviewSwitchingController.grabbed) {
+            if (root.overviewSwitchingController && root.overviewSwitchingController.grabbed) {
                 root.superReleaseMightTrigger = false
-                OverviewSwitchingController.commitGrabbedMode()
+                root.overviewSwitchingController.commitGrabbedMode()
                 return
             }
             if (root.superReleaseMightTrigger) {
@@ -125,7 +128,7 @@ Singleton {
                     GlobalStates.overviewOpen = true
                 else if (GlobalStates.overviewSearchMode)
                     GlobalStates.overviewSearchMode = false
-                else if (!OverviewSwitchingController.grabbed)
+                else if (!(root.overviewSwitchingController && root.overviewSwitchingController.grabbed))
                     GlobalStates.overviewOpen = false
             }
         }

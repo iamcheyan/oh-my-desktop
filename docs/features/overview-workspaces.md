@@ -72,13 +72,19 @@ Slot 4 -> Hyprland ID 7
 
 `Super+number` addresses the Slot. Move/focus dispatches resolve that Slot to
 its current Hyprland ID immediately before sending the command. The raw ID is
-diagnostic data and must not determine presentation order.
+transport only: the Overview UI shows the Slot number and never the raw ID, so
+sparse/recycled IDs are invisible to the user.
 
-This separation is required because Hyprland destroys most empty workspaces.
-Allocating every new trailing workspace as `maxId + 1` causes a ratchet: moving
-the last window from 19 to 20 destroys 19, but the next candidate becomes 21.
-The old implementation also limited IDs to 1-100, so repeated use could
-eventually remove the New Workspace entry entirely.
+This separation is required because Hyprland keeps empty workspaces alive for a
+while after a move. Allocating every new trailing workspace as `maxId + 1`
+causes a ratchet: the emptied workspace stays "used" until Hyprland destroys
+it, so the next candidate is forced to `maxId + 1` again and IDs climb toward
+the 1-100 ceiling. The allocator therefore treats **empty non-active Hyprland
+workspaces as recyclable**, not unavailable — moving a window into one reuses
+its ID instead of creating a new one, which is what stops the ratchet. Only
+occupied workspaces, pending drag targets, already-reserved candidates, and
+each monitor's *active* workspace (the one the user is currently viewing) are
+unavailable.
 
 ### Shared state
 
@@ -129,8 +135,9 @@ snapshot:
 6. Remove vanished monitor keys.
 7. IDs that disappeared from every occupied/pending set enter `releasedIds`.
 8. A released ID may remain queued while Hyprland still exposes an empty
-   workspace with that ID; the allocator treats every live, pending, and
-   already-reserved candidate as unavailable until it is actually reusable.
+   workspace with that ID. Such empty non-active workspaces are recyclable as
+   trailing candidates (see allocator); only occupied, pending, reserved, and
+   per-monitor active IDs are unavailable.
 
 State writes are debounced and occur only when normalized state actually
 changes. A partial `hyprctl` refresh must not erase all order: reconciliation
@@ -142,10 +149,10 @@ Each monitor receives exactly one trailing candidate. Candidate IDs are
 allocated globally and deterministically in stable monitor order.
 
 For every candidate:
-
-1. Treat all regular Hyprland workspaces, visible client workspace IDs,
-   pending drag targets, and candidates already assigned to earlier monitors
-   as unavailable.
+1. Treat occupied workspaces (visible client workspace IDs), pending drag
+   targets, candidates already assigned to earlier monitors, and each
+   monitor's active workspace as unavailable. Empty non-active Hyprland
+   workspaces are **available** — reusing one is recycling, not collision.
 2. Use the first valid ID from `releasedIds`.
 3. If none is available, use the smallest free positive ID in the 1-100 pool.
 4. If the pool is exhausted, omit only the candidate and emit a warning; never
@@ -176,6 +183,11 @@ The implementation must preserve these invariants:
 - a new Hyprland session cannot inherit stale ID identity;
 - pending drag targets cannot be handed out as candidates;
 - no allocator path moves or renumbers a live workspace;
+- occupying a trailing candidate always relocates it to the target monitor
+  (click, Super+number, and drag paths), so a recycled empty workspace from
+  another monitor is not left on the wrong screen;
+- the Overview UI shows the Slot number only; raw Hyprland IDs are never
+  presented to the user;
 - an invalid/corrupt state file falls back to deterministic live ordering.
 
 ### Required allocator tests
@@ -283,14 +295,14 @@ When changing this code, verify at minimum:
 
 - `quickshell/services/WorkspaceOrder.qml`
 - `quickshell/services/HyprlandData.qml`
-- `quickshell/modules/common/functions/WorkspaceNavigation.qml`
+- `quickshell/modules/overview/WorkspaceNavigation.qml`
+- `quickshell/modules/overview/OverviewSwitchingController.qml`
 - `quickshell/modules/overview/Overview.qml`
 - `quickshell/modules/overview/OverviewWidget.qml`
 - `quickshell/modules/overview/OverviewSearch.qml`
-- `quickshell/modules/common/functions/WorkspaceNavigation.qml`
-- `quickshell/modules/common/functions/OverviewSwitchingController.qml`
+- `quickshell/services/WorkspaceOrder.qml`
 - `quickshell/services/HyprlandData.qml`
-- `quickshell/modules/common/GlobalStates.qml`
+- `quickshell/GlobalStates.qml`
 
 ## Performance And Startup Latency
 
