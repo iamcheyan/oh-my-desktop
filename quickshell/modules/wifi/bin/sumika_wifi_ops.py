@@ -42,58 +42,58 @@ def _state_home() -> str:
     return base
 
 
-def _recovery_log_path() -> str:
-    return os.path.join(_state_home(), "wifi", "recovery.log")
+def _recovery_log_dir() -> str:
+    return os.path.join(_state_home(), "wifi", "logs")
 
 
 def _tee_recovery_log(on_log):
-    """Wrap *on_log* so every line is also appended to the persistent
-    recovery log at $SUMIKA_SHELL_STATE_HOME/wifi/recovery.log.
+    """Wrap *on_log* so every line is also captured for a per-run log file.
 
-    Each run becomes one section headed by an ISO timestamp + result; the
-    file is trimmed to the most recent ~50 sections so it never grows
-    unbounded. Returns (tee_fn, finalize) where finalize(ok, msg) writes
-    the section footer."""
-    path = _recovery_log_path()
+    Each run writes its own file recovery-YYYYmmdd-HHMMSS.log under
+    $SUMIKA_SHELL_STATE_HOME/wifi/logs/, keeping the newest 10. Returns
+    (tee_fn, finalize) where finalize(ok, msg) writes the file and returns
+    its path (or '' on failure)."""
     lines: list[str] = []
     started = time.strftime("%Y-%m-%d %H:%M:%S")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    path = os.path.join(_recovery_log_dir(), f"recovery-{stamp}.log")
 
     def tee(msg):
         lines.append(msg)
         if on_log:
             on_log(msg)
 
-    def finalize(ok: bool, msg: str):
+    def finalize(ok: bool, msg: str) -> str:
         try:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            section = f"\n=== {started}  result={'OK' if ok else 'FAIL'} ===\n"
-            section += "\n".join(lines)
-            section += f"\n--- {msg}\n"
-            with open(path, "a", encoding="utf-8") as fh:
-                fh.write(section)
-            _trim_recovery_log(path)
+            os.makedirs(_recovery_log_dir(), exist_ok=True)
+            body = f"=== {started}  result={'OK' if ok else 'FAIL'} ===\n"
+            body += "\n".join(lines)
+            body += f"\n--- {msg}\n"
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(body)
+            _trim_recovery_logs(keep=10)
+            return path
         except OSError:
-            pass  # logging must never break recovery
+            return ""
 
     return tee, finalize
 
 
-def _trim_recovery_log(path: str, keep: int = 50) -> None:
-    """Keep only the most recent *keep* sections (delimited by '=== ')."""
+def _trim_recovery_logs(keep: int = 10) -> None:
+    """Keep only the newest *keep* recovery-*.log files in the logs dir."""
+    d = _recovery_log_dir()
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            content = fh.read()
+        files = [f for f in os.listdir(d) if f.startswith("recovery-") and f.endswith(".log")]
     except OSError:
         return
-    sections = content.split("\n=== ")
-    if len(sections) <= keep:
+    if len(files) <= keep:
         return
-    trimmed = "\n=== ".join(sections[-keep:])
-    try:
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(trimmed)
-    except OSError:
-        pass
+    files.sort()  # names embed YYYYmmdd-HHMMSS, so lexical == chronological
+    for old in files[:-keep]:
+        try:
+            os.remove(os.path.join(d, old))
+        except OSError:
+            pass
 
 # Cached dependency probe
 _NMCLI_OK = None  # type: bool | None
@@ -469,9 +469,14 @@ def connect_network(
 
     When switching away from a different active network, the device's
     autoconnect is disabled first so NetworkManager doesn't re-grab the
-    radio mid-activation (its "New connection activation was enqueued" /
-    "base network connection was interrupted" rejection that wedges every
-    WiFi after a few popup clicks). Autoconnect is restored on exit.
+    radio mid-activation. NM then needs a moment to finish the teardown;
+    activating too early yields "The base network connection was
+    interrupted", and stacking a second request on top of an in-flight one
+    yields "New connection activation was enqueued" (the first request is
+    queued, not failed — NM completes it afterwards). Both are retried
+    here: the profile activation once after the device settles, and the
+    device-connect fallback polled until NM finishes the queued activation.
+    Autoconnect is restored on exit.
     """
     def _log(msg):
         if on_log:
@@ -484,8 +489,7 @@ def connect_network(
     # If the radio is already on a different network, tear it down first
     # so the activation below doesn't race it. Disable the device's
     # autoconnect so NM doesn't immediately re-grab it during the settle
-    # window (that re-grab is what produces "New connection activation was
-    # enqueued" and wedges all WiFi). Autoconnect is restored below on exit.
+    # window. Autoconnect is restored below on exit.
     active = get_active_connection()
     suppressed = False
     if active and active != ssid and dev and dev != "—":
@@ -493,17 +497,36 @@ def connect_network(
         nmcli("device", "set", dev, "autoconnect", "no", timeout=5)
         suppressed = True
         _ensure_disconnected(dev)
+        # Let NM finish the teardown so `connection up` below doesn't race
+        # it ("The base network connection was interrupted").
+        _wait_device_idle(dev, tries=8, delay=0.4)
+
+    def _try_profile():
+        """Activate by uuid; retry once if NM was mid-teardown."""
+        _log("Activating saved profile…")
+        rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
+        if rc == 0:
+            return True, out
+        err = _first_error_line(out)
+        low = (err or "").lower()
+        if "interrupted" in low or "enqueued" in low:
+            _log(f"  NM busy ({err[:60]}) — waiting, then retrying…")
+            time.sleep(1.5)
+            rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
+            if rc == 0:
+                return True, out
+            err = _first_error_line(out)
+        _log(f"  ✗ Profile activation failed: {err}")
+        return False, err
 
     try:
         if uuid and not password:
-            _log("Activating saved profile…")
-            rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
-            if rc == 0:
+            ok, err = _try_profile()
+            if ok:
                 _log(f"✓ Connected to {ssid}")
                 for ln in _connection_detail_lines(dev):
                     _log(f"  {ln}")
                 return True, f"Connected to {ssid}"
-            _log(f"  ✗ Profile activation failed: {_first_error_line(out)}")
             _log("  Falling back to device wifi connect…")
 
         if uuid is None and not password:
@@ -530,6 +553,20 @@ def connect_network(
                 _log(f"  {ln}")
             return True, f"Connected to {ssid}"
         err = out.strip()
+        low = err.lower()
+        if "enqueued" in low or "queued" in low:
+            # NM accepted the activation and is completing it; poll instead
+            # of declaring failure (a previous request may be finishing).
+            _log("  Activation queued by NM — waiting for it to complete…")
+            for _ in range(15):
+                time.sleep(1.0)
+                if get_active_connection() == ssid:
+                    _log(f"✓ Connected to {ssid}")
+                    for ln in _connection_detail_lines(dev):
+                        _log(f"  {ln}")
+                    return True, f"Connected to {ssid}"
+            _log("  ✗ Queued activation did not complete")
+            return False, "Connection failed (NM activation queued, then stalled)"
         low = err.lower()
         if "secrets were required" in low or ("password" in low and "invalid" in low):
             _log("✗ Wrong password / secrets required")
@@ -581,6 +618,30 @@ def _ensure_disconnected(dev: str, *, settle: float = 1.5, tries: int = 6) -> No
             break
         time.sleep(0.5)
     time.sleep(settle)
+
+
+def _wait_device_idle(dev: str, *, tries: int = 8, delay: float = 0.4) -> None:
+    """Wait until the device's NM state is a stable idle (disconnected).
+
+    Right after ``device disconnect`` NM still reports the old state or is
+    mid-transition; firing ``connection up`` then fails with "The base
+    network connection was interrupted". Poll `nmcli device status` until
+    the device shows `disconnected` (or an explicit non-wifi state)."""
+    if not dev or dev == "—":
+        return
+    for _ in range(tries):
+        try:
+            rc, out = nmcli("-t", "-f", "DEVICE,STATE", "device", "status", timeout=5)
+            for line in (out or "").splitlines():
+                parts = line.split(":")
+                if parts and parts[0] == dev:
+                    state = parts[1] if len(parts) > 1 else ""
+                    if state in ("disconnected", "unavailable"):
+                        return
+                    break
+        except Exception:
+            pass
+        time.sleep(delay)
 
 
 def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool, str]:
@@ -851,19 +912,21 @@ def fix_connection(on_log) -> tuple[bool, str]:
     rank visible autoconnect networks → try each (connect + ping gateway);
     first that pings wins. Fallback: radio off/on reset + nmcli reload.
 
-    Every line passed to *on_log* is also persisted to
-    $SUMIKA_SHELL_STATE_HOME/wifi/recovery.log (one section per run, trimmed
-    to the last 50 runs) so failures can be diagnosed after the fact.
+    Every line is persisted to its own timestamped file under
+    $SUMIKA_SHELL_STATE_HOME/wifi/logs/ (newest 10 kept); the file path is
+    emitted as the final log line for the user.
     `on_log(str)` is called with each progress line."""
+    raw_log = on_log
     on_log, finalize = _tee_recovery_log(on_log)
     _ac_dev = []  # device whose autoconnect we suppressed; restored on exit
 
     def done(ok: bool, msg: str) -> tuple[bool, str]:
         if _ac_dev:
             nmcli("device", "set", _ac_dev[0], "autoconnect", "yes", timeout=5)
-        finalize(ok, msg)
+        log_path = finalize(ok, msg)
+        if log_path and raw_log:
+            raw_log(f"📋 Log saved: {log_path}")
         return ok, msg
-
     on_log("Step 0 — Service health check")
     if not service_check(on_log):
         on_log("Recovery stopped: NetworkManager or the WiFi adapter is unavailable.")
@@ -902,6 +965,7 @@ def fix_connection(on_log) -> tuple[bool, str]:
                     if not s.get("active") or s.get("active") in ("", "—"):
                         break
                     time.sleep(0.5)
+                _wait_device_idle(dev0)
     else:
         on_log("Not connected. Starting recovery.")
 
