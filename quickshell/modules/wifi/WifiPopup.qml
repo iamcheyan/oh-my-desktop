@@ -174,7 +174,7 @@ ColumnLayout {
             spacing: 0
 
             Repeater {
-                model: ServiceManager.network.friendlyWifiNetworks.filter(ap => ap.active || ServiceManager.network.isKnownWifi(ap)).slice(0, 12)
+                model: ServiceManager.network.friendlyWifiNetworks.slice(0, 12)
                 delegate: ColumnLayout {
                     id: apRow
                     required property var modelData
@@ -275,6 +275,15 @@ ColumnLayout {
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 Layout.preferredWidth: 34
                                 horizontalAlignment: Text.AlignRight
+                            }
+                            // Green dot: this network is saved (no password needed from user)
+                            Rectangle {
+                                visible: apRow.isKnown
+                                Layout.preferredWidth: 7
+                                Layout.preferredHeight: 7
+                                Layout.leftMargin: 6
+                                radius: 3.5
+                                color: TuiStyle.success
                             }
                         }
 
