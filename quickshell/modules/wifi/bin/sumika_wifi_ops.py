@@ -1,0 +1,749 @@
+#!/usr/bin/env python3
+"""sumika_wifi_ops — WiFi management operations (shared library).
+
+Pure logic for scanning, connecting, disconnecting, forgetting, diagnosing,
+and auto-recovering WiFi networks via nmcli. No curses/UI dependency.
+
+Used by:
+  - sumika-wifi (thin CLI called by the Quickshell popup)
+  - sumika-wifi-tui (interactive curses TUI)
+
+All functions return plain tuples/dicts so they can be JSON-serialized by
+the CLI wrapper or consumed directly by the TUI.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from shutil import which
+
+# ── environment / constants ──────────────────────────────────────────────
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+# Force English field values from nmcli across locales (zh_CN, ja_JP, …).
+_SUBPROC_ENV = {
+    **os.environ,
+    "LC_ALL": "C.UTF-8",
+    "LANG": "C.UTF-8",
+    "LANGUAGE": "C",
+}
+
+# Cached dependency probe
+_NMCLI_OK = None  # type: bool | None
+_NMCLI_ERR = ""
+
+
+def clean(text: str) -> str:
+    return ANSI_RE.sub("", text).replace("\r", "")
+
+
+# ── dependency checks ────────────────────────────────────────────────────
+
+def require_python() -> tuple[bool, str]:
+    if sys.version_info < (3, 10):
+        return False, f"Python 3.10+ required (found {sys.version.split()[0]})"
+    return True, ""
+
+
+def ensure_nmcli() -> tuple[bool, str]:
+    """Return (ok, error_message). Requires NetworkManager + nmcli."""
+    global _NMCLI_OK, _NMCLI_ERR
+    if _NMCLI_OK is not None:
+        return _NMCLI_OK, _NMCLI_ERR
+    if which("nmcli") is None:
+        _NMCLI_OK = False
+        _NMCLI_ERR = (
+            "nmcli not found. sumika-wifi needs NetworkManager.\n"
+            "  Debian/Ubuntu:  sudo apt install network-manager\n"
+            "  Fedora:         sudo dnf install NetworkManager\n"
+            "  Arch:           sudo pacman -S networkmanager\n"
+            "Then: sudo systemctl enable --now NetworkManager"
+        )
+        return _NMCLI_OK, _NMCLI_ERR
+    try:
+        proc = subprocess.run(
+            ["nmcli", "general", "status"],
+            text=True, capture_output=True, timeout=5, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or "").strip()
+            _NMCLI_OK = False
+            _NMCLI_ERR = (
+                "NetworkManager is not reachable via nmcli.\n"
+                f"{err[:200]}\n"
+                "Try: sudo systemctl start NetworkManager"
+            )
+            return _NMCLI_OK, _NMCLI_ERR
+    except (OSError, subprocess.TimeoutExpired) as e:
+        _NMCLI_OK = False
+        _NMCLI_ERR = f"Failed to run nmcli: {e}"
+        return _NMCLI_OK, _NMCLI_ERR
+    _NMCLI_OK = True
+    _NMCLI_ERR = ""
+    return True, ""
+
+
+# ── nmcli wrapper ────────────────────────────────────────────────────────
+
+def nmcli(*args, timeout: int = 15) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            ["nmcli", *args],
+            text=True, capture_output=True, timeout=timeout, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+        return proc.returncode, clean(out)
+    except FileNotFoundError:
+        return 127, "nmcli not found"
+    except subprocess.TimeoutExpired as e:
+        out = ""
+        if e.stdout:
+            out += e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
+        if e.stderr:
+            out += e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
+        return 1, clean(out)
+
+
+def prepare_wifi() -> None:
+    """Best-effort: unblock rfkill and power WiFi radio on."""
+    try:
+        subprocess.run(
+            ["rfkill", "unblock", "wifi"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
+        )
+        subprocess.run(
+            ["rfkill", "unblock", "wlan"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    nmcli("radio", "wifi", "on", timeout=5)
+
+
+def nmcli_split(line: str) -> list[str]:
+    """Split an nmcli terse (-t) line, honoring \\: and \\\\ escapes.
+
+    Naive ``str.split(':')`` breaks on SSIDs/names that contain colons.
+    """
+    parts: list[str] = []
+    cur: list[str] = []
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and i + 1 < len(line):
+            cur.append(line[i + 1])
+            i += 2
+            continue
+        if ch == ":":
+            parts.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(ch)
+        i += 1
+    parts.append("".join(cur))
+    return parts
+
+
+# ── radio / device / IP queries ──────────────────────────────────────────
+
+def get_wifi_radio() -> bool:
+    rc, out = nmcli("-g", "WIFI", "radio")
+    val = out.strip().splitlines()[0].strip().lower() if out.strip() else ""
+    if val in ("enabled", "on", "yes", "1"):
+        return True
+    if val in ("disabled", "off", "no", "0"):
+        return False
+    rc, out = nmcli("-t", "-f", "WIFI", "radio")
+    return "enabled" in out.strip().lower() or out.strip().lower() == "on"
+
+
+def set_wifi_radio(on: bool):
+    nmcli("radio", "wifi", "on" if on else "off", timeout=5)
+
+
+def get_active_connection() -> str:
+    rc, out = nmcli("-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active")
+    for line in out.splitlines():
+        parts = nmcli_split(line)
+        if len(parts) >= 2 and ("802-11-wireless" in parts[1] or parts[1] == "wifi"):
+            return parts[0]
+    return ""
+
+
+def get_wifi_device() -> str:
+    rc, out = nmcli("-t", "-f", "DEVICE,TYPE,STATE", "device", "status")
+    fallback = ""
+    for line in out.splitlines():
+        parts = nmcli_split(line)
+        if len(parts) < 2:
+            continue
+        if parts[1] != "wifi":
+            continue
+        if not fallback:
+            fallback = parts[0]
+        state = parts[2].lower() if len(parts) > 2 else ""
+        if "connected" in state and "disconnected" not in state:
+            return parts[0]
+    return fallback
+
+
+def get_ip_address(dev: str) -> str:
+    if not dev:
+        return "—"
+    rc, out = nmcli("-g", "IP4.ADDRESS", "device", "show", dev)
+    for line in out.splitlines():
+        addr = line.strip()
+        if not addr:
+            continue
+        return addr.split("/", 1)[0]
+    rc, out = nmcli("-t", "-f", "IP4.ADDRESS", "device", "show", dev)
+    for line in out.splitlines():
+        if "IP4.ADDRESS" not in line:
+            continue
+        _, _, rest = line.partition(":")
+        addr = rest.strip()
+        if addr:
+            return addr.split("/", 1)[0]
+    return "—"
+
+
+# ── network listing ──────────────────────────────────────────────────────
+
+def get_saved_networks() -> list[dict]:
+    rc, out = nmcli("-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY", "connection", "show")
+    if rc != 0:
+        return []
+    active_name = get_active_connection()
+    result = []
+    for line in out.splitlines():
+        parts = nmcli_split(line)
+        if len(parts) < 3:
+            continue
+        name, uuid, ctype = parts[0], parts[1], parts[2]
+        autoconnect_raw = parts[3] if len(parts) > 3 else "yes"
+        prio_raw = parts[4] if len(parts) > 4 else "0"
+        try:
+            priority = int(prio_raw)
+        except ValueError:
+            priority = 0
+        if "802-11-wireless" not in ctype and ctype != "wifi":
+            continue
+        ssid_rc, ssid_out = nmcli(
+            "-g", "802-11-wireless.ssid", "connection", "show", "uuid", uuid,
+            timeout=5,
+        )
+        ssid = ssid_out.strip().splitlines()[0].strip() if ssid_rc == 0 and ssid_out.strip() else name
+        connected = name == active_name
+        result.append({
+            "ssid": ssid,
+            "name": name,
+            "uuid": uuid,
+            "connected": connected,
+            "autoconnect": autoconnect_raw == "yes",
+            "priority": priority,
+        })
+    signal_map: dict[str, int] = {}
+    security_map: dict[str, str] = {}
+    rc2, out2 = nmcli("-t", "-f", "SSID,SECURITY,SIGNAL", "device", "wifi", "list", timeout=5)
+    if rc2 == 0:
+        for line in out2.splitlines():
+            parts = nmcli_split(line)
+            if len(parts) >= 1 and parts[0].strip():
+                ssid = parts[0].strip()
+                sec = parts[1].strip() if len(parts) > 1 else ""
+                if sec and sec != "--":
+                    security_map[ssid] = sec
+                if len(parts) >= 3:
+                    try:
+                        signal_map[ssid] = int(parts[2].strip())
+                    except ValueError:
+                        pass
+    for d in result:
+        d["signal"] = signal_map.get(d["ssid"], -1)
+        d["security"] = security_map.get(d["ssid"], "")
+    result.sort(key=lambda d: (0 if d["connected"] else 1, d["ssid"].lower()))
+    return result
+
+
+def rescan_wifi(timeout: int = 10) -> tuple[bool, str]:
+    """Trigger a hardware rescan. May fail if a scan is already in progress."""
+    rc, out = nmcli("device", "wifi", "rescan", timeout=timeout)
+    if rc == 0:
+        return True, "Scan started"
+    msg = out.strip() or "Rescan failed"
+    if "already" in msg.lower() or "scanning" in msg.lower():
+        return True, "Scan already in progress"
+    return False, msg[:80]
+
+
+def get_available_networks() -> list[dict]:
+    """List nearby APs via nmcli terse mode. Dedup by SSID (strongest BSS)."""
+    rc, out = nmcli(
+        "-t", "-f", "SSID,SECURITY,SIGNAL,BARS,IN-USE,CHAN",
+        "device", "wifi", "list",
+        timeout=10,
+    )
+    if rc != 0:
+        return []
+    best: dict[str, dict] = {}
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        parts = nmcli_split(line)
+        if len(parts) < 3:
+            continue
+        ssid = parts[0].strip()
+        if not ssid:
+            continue
+        sec = parts[1].strip() if len(parts) > 1 else ""
+        try:
+            sig = int(parts[2].strip()) if parts[2].strip() else 0
+        except ValueError:
+            sig = 0
+        bars = parts[3].strip() if len(parts) > 3 else ""
+        in_use_field = parts[4].strip() if len(parts) > 4 else ""
+        in_use = in_use_field == "*" or in_use_field.endswith("*")
+        chan = parts[5].strip() if len(parts) > 5 else ""
+        entry = {
+            "ssid": ssid,
+            "security": sec if sec and sec != "--" else "",
+            "signal": sig,
+            "bars": bars,
+            "in_use": in_use,
+            "chan": chan,
+        }
+        prev = best.get(ssid)
+        if prev is None or entry["signal"] > prev["signal"] or (entry["in_use"] and not prev["in_use"]):
+            best[ssid] = entry
+    result = list(best.values())
+    result.sort(key=lambda d: (0 if d["in_use"] else 1, -d["signal"], d["ssid"].lower()))
+    return result
+
+
+# ── security helpers ─────────────────────────────────────────────────────
+
+def is_secured(security: str) -> bool:
+    s = security.strip().lower()
+    if not s or s in ("", "--", "open", "none"):
+        return False
+    return True
+
+
+def is_enterprise(security: str) -> bool:
+    s = security.upper()
+    return "802.1X" in s or "EAP" in s or "ENTERPRISE" in s
+
+
+# ── connect / disconnect / forget ────────────────────────────────────────
+
+def connect_network(
+    ssid: str,
+    password: str | None = None,
+    *,
+    uuid: str | None = None,
+) -> tuple[bool, str]:
+    """Connect to a network.
+
+    Prefer activating a saved connection by UUID (handles connection-id ≠ SSID).
+    Fall back to ``device wifi connect``.
+    """
+    if uuid and not password:
+        rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
+        if rc == 0:
+            return True, f"Connected to {ssid}"
+
+    if uuid is None and not password:
+        rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
+        if rc == 0:
+            return True, f"Connected to {ssid}"
+
+    args = ["device", "wifi", "connect", ssid]
+    if password:
+        args.extend(["password", password])
+    dev = get_wifi_device()
+    if dev:
+        args.extend(["ifname", dev])
+    rc, out = nmcli(*args, timeout=45)
+    if rc == 0:
+        return True, f"Connected to {ssid}"
+    err = out.strip()
+    low = err.lower()
+    if "secrets were required" in low or ("password" in low and "invalid" in low):
+        return False, "Wrong password / secrets required"
+    if "802.1x" in low or "eap" in low:
+        return False, "Enterprise (802.1X) networks need nmtui / nmcli"
+    if "connection activation failed" in low:
+        return False, "Connection failed"
+    for line in err.splitlines():
+        line = line.strip()
+        if "Error:" in line or "error" in line.lower():
+            return False, line[:80]
+    return False, (err[:80] if err else "Connection failed")
+
+
+def disconnect_network(dev: str) -> tuple[bool, str]:
+    if not dev:
+        return False, "No WiFi device"
+    rc, out = nmcli("device", "disconnect", dev, timeout=10)
+    if rc == 0:
+        return True, "Disconnected"
+    return False, out.strip()[:60] or "Disconnect failed"
+
+
+def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool, str]:
+    if uuid:
+        rc, out = nmcli("connection", "delete", "uuid", uuid, timeout=10)
+    else:
+        rc, out = nmcli("connection", "delete", "id", name_or_uuid, timeout=10)
+    if rc == 0:
+        return True, f"Forgot {name_or_uuid}"
+    return False, out.strip()[:60] or "Delete failed"
+
+
+# ── status / diagnostics ─────────────────────────────────────────────────
+
+def get_wifi_status() -> dict:
+    radio = get_wifi_radio()
+    active_ssid = get_active_connection()
+    dev = get_wifi_device()
+    ip = get_ip_address(dev) if dev else "—"
+    return {
+        "radio": "On" if radio else "Off",
+        "active": active_ssid if active_ssid else "—",
+        "ip": ip,
+        "device": dev if dev else "—",
+    }
+
+
+def ping_stats(host: str, count: int = 5, timeout: float = 1.0) -> tuple[int, str]:
+    """Ping host count times, return (loss_pct, avg_ms_str). avg_ms='fail' if lost."""
+    try:
+        proc = subprocess.run(
+            ["ping", "-n", "-q", "-c", str(count), "-W", str(timeout), host],
+            text=True, capture_output=True,
+            timeout=count * timeout + 3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return 100, "fail"
+    m = re.search(r"(\d+) packets transmitted, (\d+) received, (\d+)% packet loss", out)
+    loss = int(m.group(3)) if m else 100
+    avg = "fail"
+    m2 = re.search(r"(?:rtt|round-trip)[^=]*= ([\d.]+)/([\d.]+)/([\d.]+)", out)
+    if m2:
+        avg = f"{float(m2.group(2)):.1f}"
+    elif loss == 0:
+        ms = re.findall(r"time=([\d.]+) ms", out)
+        if ms:
+            avg = f"{sum(float(x) for x in ms) / len(ms):.1f}"
+    return loss, avg
+
+
+def get_gateway(dev: str) -> str:
+    if not dev or dev == "—":
+        return ""
+    rc, out = nmcli("-g", "IP4.GATEWAY", "device", "show", dev, timeout=5)
+    for line in out.splitlines():
+        line = line.strip()
+        if line and line != "--":
+            return line
+    return ""
+
+
+def get_link_info(dev: str) -> dict:
+    """Signal dBm, freq, band via iw (empty if unavailable)."""
+    info = {"signal": "", "freq": "", "band": ""}
+    if not dev or dev == "—" or not which("iw"):
+        return info
+    try:
+        proc = subprocess.run(
+            ["iw", "dev", dev, "link"], text=True, capture_output=True,
+            timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        for line in (proc.stdout or "").splitlines():
+            s = line.strip()
+            if s.startswith("signal:"):
+                info["signal"] = s.split("signal:")[1].strip()
+            elif s.startswith("freq:"):
+                f = s.split("freq:")[1].strip().split(".")[0]
+                if f.isdigit():
+                    fi = int(f)
+                    info["freq"] = f
+                    if fi >= 6000:
+                        info["band"] = "6 GHz"
+                    elif fi >= 5000:
+                        info["band"] = "5 GHz"
+                    elif fi >= 2400:
+                        info["band"] = "2.4 GHz"
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return info
+
+
+def run_diagnostics() -> dict:
+    """Connection health: gateway RTT+loss, external RTT+loss, signal, band."""
+    status = get_wifi_status()
+    dev = status.get("device", "")
+    link = get_link_info(dev)
+    gw = get_gateway(dev)
+    result = {
+        "radio": status.get("radio", "?"),
+        "active": status.get("active", "—"),
+        "ip": status.get("ip", "—"),
+        "device": dev,
+        "gateway": gw or "—",
+        "signal": link["signal"] or "—",
+        "band": link["band"] or "—",
+        "freq": link["freq"] or "—",
+        "gateway_ms": "n/a",
+        "gateway_loss": 100,
+        "external_ms": "fail",
+        "external_loss": 100,
+    }
+    if gw:
+        loss, ms = ping_stats(gw, count=5, timeout=1)
+        result["gateway_ms"] = ms
+        result["gateway_loss"] = loss
+    loss, ms = ping_stats("1.1.1.1", count=5, timeout=1)
+    result["external_ms"] = ms
+    result["external_loss"] = loss
+    return result
+
+
+def diag_tone(d: dict) -> str:
+    """ok / warn / danger based on gateway + external reachability."""
+    gw_ok = d["gateway_loss"] < 60 and d["gateway_ms"] != "fail"
+    ext_ok = d["external_loss"] < 60 and d["external_ms"] != "fail"
+    if gw_ok and ext_ok:
+        return "ok"
+    if gw_ok:
+        return "warn"
+    return "danger"
+
+
+# ── auto-recover ─────────────────────────────────────────────────────────
+
+def _ranked_candidates(current_ssid: str, current_failed: bool) -> list[dict]:
+    """Visible autoconnect saved networks, ranked by priority*2 + signal + 5GHz bonus.
+    The just-failed SSID is demoted (−30) so we try fresh networks first."""
+    saved = get_saved_networks()
+    available = {a["ssid"]: a for a in get_available_networks()}
+    cand = []
+    for s in saved:
+        if not s.get("autoconnect"):
+            continue
+        ap = available.get(s["ssid"])
+        if not ap:
+            continue
+        ch = ap.get("chan", "")
+        try:
+            chn = int(ch) if str(ch).isdigit() else 0
+        except ValueError:
+            chn = 0
+        is_5g = chn >= 36
+        prio = s.get("priority", 0)
+        score = ap["signal"] + (15 if is_5g else 0) + prio * 2
+        if current_ssid and s["ssid"] == current_ssid and current_failed:
+            score -= 30
+        cand.append({
+            "ssid": s["ssid"], "uuid": s.get("uuid"), "signal": ap["signal"],
+            "chan": ch, "is_5g": is_5g, "priority": prio, "score": score,
+        })
+    cand.sort(key=lambda c: -c["score"])
+    return cand
+
+
+def service_check(on_log) -> bool:
+    """Step 0 of recovery: verify WiFi-related services and unblock radios.
+    Returns True if everything is healthy (or was repaired), False if a hard
+    block or missing device remains."""
+    healthy = True
+
+    on_log("[svc] Checking NetworkManager…")
+    rc, out = nmcli("-t", "-f", "STATE", "general")
+    state = out.strip().splitlines()[0].strip() if out.strip() else ""
+    if rc != 0 or not state or state in ("—", "--"):
+        on_log("  ✗ NetworkManager unresponsive — restarting service…")
+        try:
+            proc = subprocess.run(
+                ["systemctl", "restart", "NetworkManager"],
+                text=True, capture_output=True, timeout=20, env=_SUBPROC_ENV,
+                stdin=subprocess.DEVNULL,
+            )
+            restart_error = clean((proc.stdout or "") + (proc.stderr or "")).strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+            proc = None
+            restart_error = str(exc)
+        if proc is None or proc.returncode != 0:
+            detail = restart_error.splitlines()[-1][:100] if restart_error else "permission or service error"
+            on_log(f"  ✗ Cannot restart NetworkManager: {detail}")
+            return False
+        time.sleep(3.0)
+        rc2, out2 = nmcli("-t", "-f", "STATE", "general")
+        if rc2 != 0 or not out2.strip():
+            on_log("  ✗ NetworkManager is still unavailable after restart.")
+            return False
+        else:
+            on_log("  ✓ NetworkManager restarted.")
+    else:
+        on_log(f"  ✓ NetworkManager up (state: {state}).")
+
+    on_log("[svc] Checking WiFi device…")
+    dev = get_wifi_device()
+    if not dev:
+        on_log("  ✗ No WiFi device found — driver may have crashed.")
+        healthy = False
+    else:
+        on_log(f"  ✓ WiFi device {dev} present.")
+
+    on_log("[svc] Checking rfkill (radio block)…")
+    rfk_blocked = False
+    rfk_hard = False
+    try:
+        r = subprocess.run(
+            ["rfkill", "-J"],
+            text=True, capture_output=True, timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        try:
+            data = json.loads(r.stdout or "{}")
+            for dev_rf in data.get("rfkill", []) if isinstance(data, dict) else []:
+                d = dev_rf.get("type", "")
+                soft = dev_rf.get("soft", False)
+                hard = dev_rf.get("hard", False)
+                if d in ("wlan", "wifi") and (soft or hard):
+                    rfk_blocked = True
+                    if hard:
+                        rfk_hard = True
+        except (ValueError, TypeError):
+            pass
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    if rfk_hard:
+        on_log("  ✗ WiFi HARD-blocked (hardware switch) — unblock physically.")
+        healthy = False
+    elif rfk_blocked:
+        on_log("  ✗ WiFi soft-blocked — unblocking.")
+        subprocess.run(["rfkill", "unblock", "wifi"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
+        subprocess.run(["rfkill", "unblock", "wlan"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
+        time.sleep(1.0)
+        on_log("  ✓ Unblocked.")
+    else:
+        on_log("  ✓ rfkill clear.")
+
+    on_log("[svc] Checking WiFi radio power…")
+    if not get_wifi_radio():
+        on_log("  ✗ WiFi radio off — powering on.")
+        set_wifi_radio(True)
+        time.sleep(1.0)
+        if get_wifi_radio():
+            on_log("  ✓ Radio on.")
+        else:
+            on_log("  ✗ Radio won't power on.")
+            healthy = False
+    else:
+        on_log("  ✓ Radio on.")
+
+    return healthy
+
+
+def fix_connection(on_log) -> tuple[bool, str]:
+    """Smart reconnect: Step 0 service health check → verify current →
+    rank visible autoconnect networks → try each (connect + ping gateway);
+    first that pings wins. Fallback: radio off/on reset + nmcli reload.
+    `on_log(str)` is called with each progress line."""
+
+    on_log("Step 0 — Service health check")
+    if not service_check(on_log):
+        on_log("Recovery stopped: NetworkManager or the WiFi adapter is unavailable.")
+        return False, "NetworkManager / WiFi adapter unavailable"
+    on_log("")
+    status = get_wifi_status()
+    current = status.get("active", "") if status.get("active") not in ("", "—") else ""
+
+    current_failed = True
+    if current:
+        on_log(f"Checking current connection ({current})…")
+        gw = get_gateway(status.get("device", ""))
+        if gw:
+            loss, ms = ping_stats(gw, count=3, timeout=1)
+            if loss == 0 and ms != "fail":
+                on_log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — network is healthy")
+            else:
+                on_log(f"  ! Gateway did not answer ICMP ({loss}% loss) — preserving active link")
+            return True, f"Active connection preserved: {current}"
+        else:
+            on_log("  ✗ No gateway — current connection unusable")
+    else:
+        on_log("Not connected. Starting recovery.")
+
+    on_log("Scanning for networks…")
+    rescan_wifi()
+    time.sleep(2.0)
+
+    def attempt_round(tag):
+        cand = _ranked_candidates(current, current_failed)
+        if not cand:
+            on_log(f"[{tag}] No visible autoconnect networks found.")
+            return False, ""
+        on_log(f"[{tag}] {len(cand)} candidate(s): " + ", ".join(
+            f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
+        for i, c in enumerate(cand, 1):
+            on_log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
+            ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"))
+            if not ok:
+                on_log(f"  ✗ {msg}")
+                continue
+            on_log("  connected — waiting for IP route…")
+            deadline = time.monotonic() + 12.0
+            dev, gw = "", ""
+            while time.monotonic() < deadline:
+                dev = get_wifi_device()
+                gw = get_gateway(dev)
+                if get_ip_address(dev) != "—" and gw:
+                    break
+                time.sleep(1.0)
+            if not gw:
+                on_log("  ✗ no IP route after 12 seconds")
+                continue
+            loss, ms = ping_stats(gw, count=3, timeout=1)
+            if loss == 0 and ms != "fail":
+                on_log(f"  ✓ Gateway OK ({ms} ms, 0% loss)")
+            else:
+                on_log(f"  ! Gateway ICMP unavailable ({loss}% loss); route is ready")
+            return True, f"Connected to {c['ssid']}"
+        return False, ""
+
+    ok, msg = attempt_round("1")
+    if ok:
+        return True, msg
+
+    on_log("All candidates failed. Hard reset: radio off → on + NM reload.")
+    set_wifi_radio(False)
+    time.sleep(2.0)
+    set_wifi_radio(True)
+    time.sleep(4.0)
+    nmcli("connection", "reload", timeout=10)
+    prepare_wifi()
+    time.sleep(2.0)
+    on_log("Radio reset complete. Retrying candidates…")
+    ok, msg = attempt_round("2")
+    if ok:
+        return True, msg
+
+    on_log("✗ Could not restore connectivity. Check router / try `t` to toggle radio.")
+    return False, "Recovery failed — check router or toggle WiFi"

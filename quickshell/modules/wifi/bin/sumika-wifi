@@ -1,0 +1,122 @@
+#!/usr/bin/env python3
+"""sumika-wifi — thin CLI for WiFi operations (called by the Quickshell popup).
+
+Delegates all logic to sumika_wifi_ops. Outputs JSON on stdout so the QML
+side can parse results deterministically. Exit code 0 = success, non-0 = failure.
+
+Usage:
+  sumika-wifi connect <ssid> [--password <pw>] [--uuid <uuid>]
+  sumika-wifi disconnect
+  sumika-wifi forget <ssid> [--uuid <uuid>]
+  sumika-wifi scan
+  sumika-wifi list-available
+  sumika-wifi list-saved
+  sumika-wifi status
+  sumika-wifi diag
+  sumika-wifi fix [--stream]   # --stream prints log lines as they happen
+
+The popup calls this instead of nmcli directly, so the popup and the TUI
+share a single connection-management codebase.
+"""
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sumika_wifi_ops as ops
+
+
+def _result(ok: bool, msg: str = "", **extra) -> int:
+    """Print JSON result, return exit code."""
+    out = {"ok": ok, "message": msg, **extra}
+    print(json.dumps(out, ensure_ascii=False))
+    return 0 if ok else 1
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="sumika-wifi", description="WiFi operations CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_connect = sub.add_parser("connect", help="Connect to a WiFi network")
+    p_connect.add_argument("ssid")
+    p_connect.add_argument("--password", default=None)
+    p_connect.add_argument("--uuid", default=None)
+
+    sub.add_parser("disconnect", help="Disconnect from WiFi")
+
+    p_forget = sub.add_parser("forget", help="Forget a saved network")
+    p_forget.add_argument("ssid")
+    p_forget.add_argument("--uuid", default=None)
+
+    sub.add_parser("scan", help="Trigger a WiFi rescan")
+    sub.add_parser("list-available", help="List nearby networks (JSON)")
+    sub.add_parser("list-saved", help="List saved networks (JSON)")
+    sub.add_parser("status", help="Show WiFi status (JSON)")
+    sub.add_parser("diag", help="Run diagnostics (JSON)")
+
+    p_fix = sub.add_parser("fix", help="Auto-recover connectivity")
+    p_fix.add_argument("--stream", action="store_true", help="Print log lines as they happen")
+
+    args = parser.parse_args()
+
+    ok, err = ops.ensure_nmcli()
+    if not ok:
+        return _result(False, err)
+
+    if args.command == "connect":
+        ok, msg = ops.connect_network(args.ssid, password=args.password, uuid=args.uuid)
+        return _result(ok, msg)
+
+    if args.command == "disconnect":
+        dev = ops.get_wifi_device()
+        ok, msg = ops.disconnect_network(dev)
+        return _result(ok, msg)
+
+    if args.command == "forget":
+        ok, msg = ops.forget_network(args.ssid, uuid=args.uuid)
+        return _result(ok, msg)
+
+    if args.command == "scan":
+        ok, msg = ops.rescan_wifi()
+        return _result(ok, msg)
+
+    if args.command == "list-available":
+        nets = ops.get_available_networks()
+        return _result(True, f"{len(nets)} networks", networks=nets)
+
+    if args.command == "list-saved":
+        nets = ops.get_saved_networks()
+        return _result(True, f"{len(nets)} saved", networks=nets)
+
+    if args.command == "status":
+        status = ops.get_wifi_status()
+        return _result(True, "ok", status=status)
+
+    if args.command == "diag":
+        d = ops.run_diagnostics()
+        tone = ops.diag_tone(d)
+        return _result(tone != "danger", tone, diagnostics=d, tone=tone)
+
+    if args.command == "fix":
+        if args.stream:
+            logs = []
+            def on_log(msg):
+                logs.append(msg)
+                print(json.dumps({"log": msg}, ensure_ascii=False), flush=True)
+            ok, msg = ops.fix_connection(on_log)
+            return _result(ok, msg, logs=logs)
+        else:
+            logs = []
+            ok, msg = ops.fix_connection(logs.append)
+            return _result(ok, msg, logs=logs)
+
+    return _result(False, f"Unknown command: {args.command}")
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

@@ -10,9 +10,7 @@ Controls
   k / ↑      Move selection up
   Tab / l    Next section
   S-Tab / h  Previous section
-  Enter      Connect / disconnect
-  d          Disconnect
-  f          Forget (delete saved network)
+  Enter      Connect, or open a saved network's details
   s          Rescan
   t          Toggle WiFi on/off
   q / Esc    Quit
@@ -21,162 +19,45 @@ Controls
 import curses
 import locale
 import os
-import re
-import subprocess
 import sys
 import threading
 import time
-from shutil import which
-
 from pathlib import Path
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _repo_bin = str(Path(os.path.dirname(os.path.abspath(__file__))).resolve().parent.parent.parent.parent / "bin")
 if _repo_bin not in sys.path:
     sys.path.insert(0, _repo_bin)
+
 import sumika_tui_framework as S
+from sumika_wifi_ops import (
+    # Constants re-exported for the TUI
+    clean, _SUBPROC_ENV,
+    # Dependency checks
+    require_python, ensure_nmcli,
+    # nmcli + radio + device helpers
+    nmcli, prepare_wifi, nmcli_split,
+    get_wifi_radio, set_wifi_radio,
+    get_active_connection, get_wifi_device, get_ip_address,
+    # Network listing
+    get_saved_networks, rescan_wifi, get_available_networks,
+    # Security helpers
+    is_secured, is_enterprise,
+    # Operations
+    connect_network, disconnect_network, forget_network,
+    # Status + diagnostics
+    get_wifi_status, ping_stats, get_gateway, get_link_info,
+    run_diagnostics, diag_tone,
+    # Auto-recover
+    service_check, fix_connection,
+)
 
-# ── helpers ───────────────────────────────────────────────────────────
-
-ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+# ── UI-only constants ─────────────────────────────────────────────────
 
 SIGNAL_ICONS = ["󰤟", "󰤢", "󰤥", "󰤨"]
 LOCK_ICON = ""
 UNLOCK_ICON = ""
 CONNECTED_ICON = ""
-
-# Force English field values from nmcli across locales (zh_CN, ja_JP, …).
-_SUBPROC_ENV = {
-    **os.environ,
-    "LC_ALL": "C.UTF-8",
-    "LANG": "C.UTF-8",
-    "LANGUAGE": "C",
-}
-
-# Cached dependency probe
-_NMCLI_OK = None  # type: bool | None
-_NMCLI_ERR = ""
-
-
-def clean(text: str) -> str:
-    return ANSI_RE.sub("", text).replace("\r", "")
-
-
-def require_python() -> tuple[bool, str]:
-    if sys.version_info < (3, 10):
-        return False, f"Python 3.10+ required (found {sys.version.split()[0]})"
-    return True, ""
-
-
-def ensure_nmcli() -> tuple[bool, str]:
-    """Return (ok, error_message). Requires NetworkManager + nmcli."""
-    global _NMCLI_OK, _NMCLI_ERR
-    if _NMCLI_OK is not None:
-        return _NMCLI_OK, _NMCLI_ERR
-    if which("nmcli") is None:
-        _NMCLI_OK = False
-        _NMCLI_ERR = (
-            "nmcli not found. sumika-wifi-tui needs NetworkManager.\n"
-            "  Debian/Ubuntu:  sudo apt install network-manager\n"
-            "  Fedora:         sudo dnf install NetworkManager\n"
-            "  Arch:           sudo pacman -S networkmanager\n"
-            "Then: sudo systemctl enable --now NetworkManager"
-        )
-        return _NMCLI_OK, _NMCLI_ERR
-    try:
-        proc = subprocess.run(
-            ["nmcli", "general", "status"],
-            text=True, capture_output=True, timeout=5, env=_SUBPROC_ENV,
-            stdin=subprocess.DEVNULL,
-        )
-        if proc.returncode != 0:
-            err = (proc.stderr or proc.stdout or "").strip()
-            _NMCLI_OK = False
-            _NMCLI_ERR = (
-                "NetworkManager is not reachable via nmcli.\n"
-                f"{err[:200]}\n"
-                "Try: sudo systemctl start NetworkManager"
-            )
-            return _NMCLI_OK, _NMCLI_ERR
-    except (OSError, subprocess.TimeoutExpired) as e:
-        _NMCLI_OK = False
-        _NMCLI_ERR = f"Failed to run nmcli: {e}"
-        return _NMCLI_OK, _NMCLI_ERR
-    _NMCLI_OK = True
-    _NMCLI_ERR = ""
-    return True, ""
-
-
-def nmcli(*args, timeout: int = 15) -> tuple[int, str]:
-    try:
-        proc = subprocess.run(
-            ["nmcli", *args],
-            text=True, capture_output=True, timeout=timeout, env=_SUBPROC_ENV,
-            stdin=subprocess.DEVNULL,
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        return proc.returncode, clean(out)
-    except FileNotFoundError:
-        return 127, "nmcli not found"
-    except subprocess.TimeoutExpired as e:
-        out = ""
-        if e.stdout:
-            out += e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
-        if e.stderr:
-            out += e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
-        return 1, clean(out)
-
-
-def prepare_wifi() -> None:
-    """Best-effort: unblock rfkill and power WiFi radio on."""
-    try:
-        subprocess.run(
-            ["rfkill", "unblock", "wifi"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
-        )
-        subprocess.run(
-            ["rfkill", "unblock", "wlan"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-    nmcli("radio", "wifi", "on", timeout=5)
-
-
-def nmcli_split(line: str) -> list[str]:
-    """Split an nmcli terse (-t) line, honoring \\: and \\\\ escapes.
-
-    Naive ``str.split(':')`` breaks on SSIDs/names that contain colons.
-    """
-    parts: list[str] = []
-    cur: list[str] = []
-    i = 0
-    while i < len(line):
-        ch = line[i]
-        if ch == "\\" and i + 1 < len(line):
-            cur.append(line[i + 1])
-            i += 2
-            continue
-        if ch == ":":
-            parts.append("".join(cur))
-            cur = []
-            i += 1
-            continue
-        cur.append(ch)
-        i += 1
-    parts.append("".join(cur))
-    return parts
-
-
-def signal_icon(pct: int) -> str:
-    if pct >= 75:
-        return SIGNAL_ICONS[3]
-    elif pct >= 50:
-        return SIGNAL_ICONS[2]
-    elif pct >= 25:
-        return SIGNAL_ICONS[1]
-    return SIGNAL_ICONS[0]
 
 
 def signal_rating(pct: int) -> str:
@@ -197,600 +78,6 @@ def security_icon(sec: str) -> str:
     if not s or s == "" or s == "--":
         return UNLOCK_ICON
     return LOCK_ICON
-
-
-def get_wifi_radio() -> bool:
-    # Prefer -g (values only); accept localized/variant outputs.
-    rc, out = nmcli("-g", "WIFI", "radio")
-    val = out.strip().splitlines()[0].strip().lower() if out.strip() else ""
-    if val in ("enabled", "on", "yes", "1"):
-        return True
-    if val in ("disabled", "off", "no", "0"):
-        return False
-    rc, out = nmcli("-t", "-f", "WIFI", "radio")
-    return "enabled" in out.strip().lower() or out.strip().lower() == "on"
-
-
-def set_wifi_radio(on: bool):
-    nmcli("radio", "wifi", "on" if on else "off", timeout=5)
-
-
-def get_active_connection() -> str:
-    rc, out = nmcli("-t", "-f", "NAME,TYPE,DEVICE", "connection", "show", "--active")
-    for line in out.splitlines():
-        parts = nmcli_split(line)
-        if len(parts) >= 2 and ("802-11-wireless" in parts[1] or parts[1] == "wifi"):
-            return parts[0]
-    return ""
-
-
-def get_wifi_device() -> str:
-    rc, out = nmcli("-t", "-f", "DEVICE,TYPE,STATE", "device", "status")
-    # Prefer a connected wifi device, else first wifi device.
-    fallback = ""
-    for line in out.splitlines():
-        parts = nmcli_split(line)
-        if len(parts) < 2:
-            continue
-        if parts[1] != "wifi":
-            continue
-        if not fallback:
-            fallback = parts[0]
-        state = parts[2].lower() if len(parts) > 2 else ""
-        if "connected" in state and "disconnected" not in state:
-            return parts[0]
-    return fallback
-
-
-def get_ip_address(dev: str) -> str:
-    """Return primary IPv4 address (without prefix), or em-dash if none.
-
-    nmcli reports fields as ``IP4.ADDRESS[1]:x.x.x.x/nn`` — not bare
-    ``IP4.ADDRESS:`` — so we use ``-g`` (get values) which is stable.
-    """
-    if not dev:
-        return "—"
-    rc, out = nmcli("-g", "IP4.ADDRESS", "device", "show", dev)
-    for line in out.splitlines():
-        addr = line.strip()
-        if not addr:
-            continue
-        # strip CIDR prefix if present
-        return addr.split("/", 1)[0]
-    # Fallback for older nmcli
-    rc, out = nmcli("-t", "-f", "IP4.ADDRESS", "device", "show", dev)
-    for line in out.splitlines():
-        if "IP4.ADDRESS" not in line:
-            continue
-        _, _, rest = line.partition(":")
-        addr = rest.strip()
-        if addr:
-            return addr.split("/", 1)[0]
-    return "—"
-
-
-def get_saved_networks() -> list[dict]:
-    rc, out = nmcli("-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY", "connection", "show")
-    if rc != 0:
-        return []
-    active_name = get_active_connection()
-    result = []
-    for line in out.splitlines():
-        parts = nmcli_split(line)
-        if len(parts) < 3:
-            continue
-        name, uuid, ctype = parts[0], parts[1], parts[2]
-        autoconnect_raw = parts[3] if len(parts) > 3 else "yes"
-        prio_raw = parts[4] if len(parts) > 4 else "0"
-        try:
-            priority = int(prio_raw)
-        except ValueError:
-            priority = 0
-        if "802-11-wireless" not in ctype and ctype != "wifi":
-            continue
-        connected = name == active_name
-        result.append({
-            "ssid": name,  # connection id (usually SSID, not always)
-            "uuid": uuid,
-            "connected": connected,
-            "autoconnect": autoconnect_raw == "yes",
-            "priority": priority,
-        })
-    # Build signal & security lookup from visible APs
-    signal_map: dict[str, int] = {}
-    security_map: dict[str, str] = {}
-    rc2, out2 = nmcli("-t", "-f", "SSID,SECURITY,SIGNAL", "device", "wifi", "list", timeout=5)
-    if rc2 == 0:
-        for line in out2.splitlines():
-            parts = nmcli_split(line)
-            if len(parts) >= 1 and parts[0].strip():
-                ssid = parts[0].strip()
-                sec = parts[1].strip() if len(parts) > 1 else ""
-                if sec and sec != "--":
-                    security_map[ssid] = sec
-                if len(parts) >= 3:
-                    try:
-                        signal_map[ssid] = int(parts[2].strip())
-                    except ValueError:
-                        pass
-    for d in result:
-        d["signal"] = signal_map.get(d["ssid"], -1)
-        d["security"] = security_map.get(d["ssid"], "")
-    result.sort(key=lambda d: (0 if d["connected"] else 1, d["ssid"].lower()))
-    return result
-
-
-def rescan_wifi(timeout: int = 10) -> tuple[bool, str]:
-    """Trigger a hardware rescan. May fail if a scan is already in progress."""
-    rc, out = nmcli("device", "wifi", "rescan", timeout=timeout)
-    if rc == 0:
-        return True, "Scan started"
-    msg = out.strip() or "Rescan failed"
-    # Not fatal — cached list is still usable
-    if "already" in msg.lower() or "scanning" in msg.lower():
-        return True, "Scan already in progress"
-    return False, msg[:80]
-
-
-def get_available_networks() -> list[dict]:
-    """List nearby APs via nmcli terse mode (stable across NM versions).
-
-    Deduplicates by SSID, keeping the strongest BSS. Hidden (empty SSID)
-    networks are skipped — connecting to them needs a separate flow.
-    """
-    rc, out = nmcli(
-        "-t", "-f", "SSID,SECURITY,SIGNAL,BARS,IN-USE,CHAN",
-        "device", "wifi", "list",
-        timeout=10,
-    )
-    if rc != 0:
-        return []
-    best: dict[str, dict] = {}
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        parts = nmcli_split(line)
-        # SSID:SECURITY:SIGNAL:BARS:IN-USE:CHAN
-        if len(parts) < 3:
-            continue
-        ssid = parts[0].strip()
-        if not ssid:
-            continue  # hidden BSS
-        sec = parts[1].strip() if len(parts) > 1 else ""
-        try:
-            sig = int(parts[2].strip()) if parts[2].strip() else 0
-        except ValueError:
-            sig = 0
-        bars = parts[3].strip() if len(parts) > 3 else ""
-        in_use_field = parts[4].strip() if len(parts) > 4 else ""
-        in_use = in_use_field == "*" or in_use_field.endswith("*")
-        chan = parts[5].strip() if len(parts) > 5 else ""
-        entry = {
-            "ssid": ssid,
-            "security": sec if sec and sec != "--" else "",
-            "signal": sig,
-            "bars": bars,
-            "in_use": in_use,
-            "chan": chan,
-        }
-        prev = best.get(ssid)
-        if prev is None or entry["signal"] > prev["signal"] or (entry["in_use"] and not prev["in_use"]):
-            best[ssid] = entry
-    result = list(best.values())
-    result.sort(key=lambda d: (0 if d["in_use"] else 1, -d["signal"], d["ssid"].lower()))
-    return result
-
-
-def is_secured(security: str) -> bool:
-    s = security.strip().lower()
-    if not s or s in ("", "--", "open", "none"):
-        return False
-    # 802.1X / enterprise still needs more than a PSK dialog, but treat as secured
-    return True
-
-
-def is_enterprise(security: str) -> bool:
-    s = security.upper()
-    return "802.1X" in s or "EAP" in s or "ENTERPRISE" in s
-
-
-def connect_network(
-    ssid: str,
-    password: str | None = None,
-    *,
-    uuid: str | None = None,
-) -> tuple[bool, str]:
-    """Connect to a network.
-
-    Prefer activating a saved connection by UUID (handles connection-id ≠ SSID).
-    Fall back to ``device wifi connect``.
-    """
-    # Saved profile path
-    if uuid and not password:
-        rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
-        if rc == 0:
-            return True, f"Connected to {ssid}"
-        # fall through to device wifi connect
-
-    if uuid is None and not password:
-        # Try connection up by id first for known networks
-        rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
-        if rc == 0:
-            return True, f"Connected to {ssid}"
-
-    args = ["device", "wifi", "connect", ssid]
-    if password:
-        args.extend(["password", password])
-    # Pin to the first wifi iface when present (helps multi-radio laptops).
-    dev = get_wifi_device()
-    if dev:
-        args.extend(["ifname", dev])
-    rc, out = nmcli(*args, timeout=45)
-    if rc == 0:
-        return True, f"Connected to {ssid}"
-    err = out.strip()
-    low = err.lower()
-    if "secrets were required" in low or ("password" in low and "invalid" in low):
-        return False, "Wrong password / secrets required"
-    if "802.1x" in low or "eap" in low:
-        return False, "Enterprise (802.1X) networks need nmtui / nmcli"
-    if "connection activation failed" in low:
-        return False, "Connection failed"
-    for line in err.splitlines():
-        line = line.strip()
-        if "Error:" in line or "error" in line.lower():
-            return False, line[:80]
-    return False, (err[:80] if err else "Connection failed")
-
-
-def disconnect_network(dev: str) -> tuple[bool, str]:
-    if not dev:
-        return False, "No WiFi device"
-    rc, out = nmcli("device", "disconnect", dev, timeout=10)
-    if rc == 0:
-        return True, "Disconnected"
-    return False, out.strip()[:60] or "Disconnect failed"
-
-
-def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool, str]:
-    if uuid:
-        rc, out = nmcli("connection", "delete", "uuid", uuid, timeout=10)
-    else:
-        rc, out = nmcli("connection", "delete", "id", name_or_uuid, timeout=10)
-    if rc == 0:
-        return True, f"Forgot {name_or_uuid}"
-    return False, out.strip()[:60] or "Delete failed"
-
-
-def get_wifi_status() -> dict:
-    radio = get_wifi_radio()
-    active_ssid = get_active_connection()
-    dev = get_wifi_device()
-    ip = get_ip_address(dev) if dev else "—"
-    return {
-        "radio": "On" if radio else "Off",
-        "active": active_ssid if active_ssid else "—",
-        "ip": ip,
-        "device": dev if dev else "—",
-    }
-
-
-def ping_stats(host: str, count: int = 5, timeout: float = 1.0) -> tuple[int, str]:
-    """Ping host count times, return (loss_pct, avg_ms_str). avg_ms='fail' if lost."""
-    try:
-        proc = subprocess.run(
-            ["ping", "-n", "-q", "-c", str(count), "-W", str(timeout), host],
-            text=True, capture_output=True,
-            timeout=count * timeout + 3, env=_SUBPROC_ENV,
-            stdin=subprocess.DEVNULL,
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return 100, "fail"
-    m = re.search(r"(\d+) packets transmitted, (\d+) received, (\d+)% packet loss", out)
-    loss = int(m.group(3)) if m else 100
-    avg = "fail"
-    m2 = re.search(r"(?:rtt|round-trip)[^=]*= ([\d.]+)/([\d.]+)/([\d.]+)", out)
-    if m2:
-        avg = f"{float(m2.group(2)):.1f}"
-    elif loss == 0:
-        ms = re.findall(r"time=([\d.]+) ms", out)
-        if ms:
-            avg = f"{sum(float(x) for x in ms) / len(ms):.1f}"
-    return loss, avg
-
-
-def get_gateway(dev: str) -> str:
-    if not dev or dev == "—":
-        return ""
-    rc, out = nmcli("-g", "IP4.GATEWAY", "device", "show", dev, timeout=5)
-    for line in out.splitlines():
-        line = line.strip()
-        if line and line != "--":
-            return line
-    return ""
-
-
-def get_link_info(dev: str) -> dict:
-    """Signal dBm, freq, band via iw (empty if unavailable)."""
-    info = {"signal": "", "freq": "", "band": ""}
-    if not dev or dev == "—" or not which("iw"):
-        return info
-    try:
-        proc = subprocess.run(
-            ["iw", "dev", dev, "link"], text=True, capture_output=True,
-            timeout=3, env=_SUBPROC_ENV,
-            stdin=subprocess.DEVNULL,
-        )
-        for line in (proc.stdout or "").splitlines():
-            s = line.strip()
-            if s.startswith("signal:"):
-                info["signal"] = s.split("signal:")[1].strip()
-            elif s.startswith("freq:"):
-                f = s.split("freq:")[1].strip().split(".")[0]
-                if f.isdigit():
-                    fi = int(f)
-                    info["freq"] = f
-                    if fi >= 6000:
-                        info["band"] = "6 GHz"
-                    elif fi >= 5000:
-                        info["band"] = "5 GHz"
-                    elif fi >= 2400:
-                        info["band"] = "2.4 GHz"
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
-    return info
-
-
-def run_diagnostics() -> dict:
-    """Connection health: gateway RTT+loss, external RTT+loss, signal, band."""
-    status = get_wifi_status()
-    dev = status.get("device", "")
-    link = get_link_info(dev)
-    gw = get_gateway(dev)
-    result = {
-        "radio": status.get("radio", "?"),
-        "active": status.get("active", "—"),
-        "ip": status.get("ip", "—"),
-        "device": dev,
-        "gateway": gw or "—",
-        "signal": link["signal"] or "—",
-        "band": link["band"] or "—",
-        "freq": link["freq"] or "—",
-        "gateway_ms": "n/a",
-        "gateway_loss": 100,
-        "external_ms": "fail",
-        "external_loss": 100,
-    }
-    if gw:
-        loss, ms = ping_stats(gw, count=5, timeout=1)
-        result["gateway_ms"] = ms
-        result["gateway_loss"] = loss
-    loss, ms = ping_stats("1.1.1.1", count=5, timeout=1)
-    result["external_ms"] = ms
-    result["external_loss"] = loss
-    return result
-
-
-def diag_tone(d: dict) -> str:
-    """ok / warn / danger based on gateway + external reachability."""
-    gw_ok = d["gateway_loss"] < 60 and d["gateway_ms"] != "fail"
-    ext_ok = d["external_loss"] < 60 and d["external_ms"] != "fail"
-    if gw_ok and ext_ok:
-        return "ok"
-    if gw_ok:
-        return "warn"
-    return "danger"
-
-
-def _ranked_candidates(current_ssid: str, current_failed: bool) -> list[dict]:
-    """Visible autoconnect saved networks, ranked by priority*2 + signal + 5GHz bonus.
-    The just-failed SSID is demoted (−30) so we try fresh networks first."""
-    saved = get_saved_networks()
-    available = {a["ssid"]: a for a in get_available_networks()}
-    cand = []
-    for s in saved:
-        if not s.get("autoconnect"):
-            continue
-        ap = available.get(s["ssid"])
-        if not ap:
-            continue
-        ch = ap.get("chan", "")
-        try:
-            chn = int(ch) if str(ch).isdigit() else 0
-        except ValueError:
-            chn = 0
-        is_5g = chn >= 36
-        prio = s.get("priority", 0)
-        score = ap["signal"] + (15 if is_5g else 0) + prio * 2
-        if current_ssid and s["ssid"] == current_ssid and current_failed:
-            score -= 30
-        cand.append({
-            "ssid": s["ssid"], "uuid": s.get("uuid"), "signal": ap["signal"],
-            "chan": ch, "is_5g": is_5g, "priority": prio, "score": score,
-        })
-    cand.sort(key=lambda c: -c["score"])
-    return cand
-
-
-def _service_check(on_log) -> bool:
-    """Step 0 of recovery: verify WiFi-related services and unblock radios.
-    Checks NetworkManager, the wifi device, rfkill soft/hard blocks, and the
-    radio state. Attempts a fix for anything unhealthy and reports each step.
-    Returns True if everything is healthy (or was repaired), False if a hard
-    block or missing device remains."""
-    healthy = True
-
-    # 1) NetworkManager running?
-    on_log("[svc] Checking NetworkManager…")
-    rc, out = nmcli("-t", "-f", "STATE", "general")
-    state = out.strip().splitlines()[0].strip() if out.strip() else ""
-    if rc != 0 or not state or state in ("—", "--"):
-        on_log("  ✗ NetworkManager unresponsive — reloading.")
-        nmcli("connection", "reload", timeout=10)
-        time.sleep(2.0)
-        rc2, out2 = nmcli("-t", "-f", "STATE", "general")
-        if rc2 != 0 or not out2.strip():
-            on_log("  ✗ NetworkManager still down — try `systemctl restart NetworkManager`.")
-            healthy = False
-        else:
-            on_log("  ✓ NetworkManager reloaded.")
-    else:
-        on_log(f"  ✓ NetworkManager up (state: {state}).")
-
-    # 2) WiFi device present?
-    on_log("[svc] Checking WiFi device…")
-    dev = get_wifi_device()
-    if not dev:
-        on_log("  ✗ No WiFi device found — driver may have crashed.")
-        healthy = False
-    else:
-        on_log(f"  ✓ WiFi device {dev} present.")
-
-    # 3) rfkill soft/hard block?
-    on_log("[svc] Checking rfkill (radio block)…")
-    rfk_blocked = False
-    rfk_hard = False
-    try:
-        r = subprocess.run(
-            ["rfkill", "-J"],
-            text=True, capture_output=True, timeout=3, env=_SUBPROC_ENV,
-            stdin=subprocess.DEVNULL,
-        )
-        import json as _json
-        try:
-            data = _json.loads(r.stdout or "{}")
-            for dev_rf in data.get("rfkill", []) if isinstance(data, dict) else []:
-                d = dev_rf.get("type", "")
-                soft = dev_rf.get("soft", False)
-                hard = dev_rf.get("hard", False)
-                if d in ("wlan", "wifi") and (soft or hard):
-                    rfk_blocked = True
-                    if hard:
-                        rfk_hard = True
-        except (ValueError, TypeError):
-            pass
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-    if rfk_hard:
-        on_log("  ✗ WiFi HARD-blocked (hardware switch) — unblock physically.")
-        healthy = False
-    elif rfk_blocked:
-        on_log("  ✗ WiFi soft-blocked — unblocking.")
-        subprocess.run(["rfkill", "unblock", "wifi"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
-        subprocess.run(["rfkill", "unblock", "wlan"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
-        time.sleep(1.0)
-        on_log("  ✓ Unblocked.")
-    else:
-        on_log("  ✓ rfkill clear.")
-
-    # 4) WiFi radio powered on?
-    on_log("[svc] Checking WiFi radio power…")
-    if not get_wifi_radio():
-        on_log("  ✗ WiFi radio off — powering on.")
-        set_wifi_radio(True)
-        time.sleep(1.0)
-        if get_wifi_radio():
-            on_log("  ✓ Radio on.")
-        else:
-            on_log("  ✗ Radio won't power on.")
-            healthy = False
-    else:
-        on_log("  ✓ Radio on.")
-
-    return healthy
-
-
-def fix_connection(on_log) -> tuple[bool, str]:
-    """Smart reconnect: Step 0 service health check (NM/device/rfkill/radio) →
-    verify current connection → rank visible autoconnect networks →
-    try each (connect + ping gateway); first that pings wins.
-    Fallback: radio off/on reset + nmcli reload, then one more round.
-    `on_log(str)` is called with each progress line (thread-safe append)."""
-    def log(msg):
-        on_log(msg)
-
-    # Step 0: verify services (NM, device, rfkill, radio) before anything else.
-    log("Step 0 — Service health check")
-    _service_check(on_log)
-    log("")
-    status = get_wifi_status()
-    current = status.get("active", "") if status.get("active") not in ("", "—") else ""
-
-    # Step 1: if currently connected, verify it isn't just a transient blip.
-    current_failed = True
-    if current:
-        log(f"Checking current connection ({current})…")
-        gw = get_gateway(status.get("device", ""))
-        if gw:
-            loss, ms = ping_stats(gw, count=3, timeout=1)
-            if loss == 0 and ms != "fail":
-                log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — network is healthy")
-                return True, f"Network healthy: {current} ({ms} ms)"
-            log(f"  ✗ Gateway {loss}% loss, {ms} ms — current connection unusable")
-        else:
-            log("  ✗ No gateway — current connection unusable")
-    else:
-        log("Not connected. Starting recovery.")
-
-    # Step 2: scan + rank
-    log("Scanning for networks…")
-    rescan_wifi()
-    time.sleep(2.0)
-
-    def attempt_round(tag):
-        cand = _ranked_candidates(current, current_failed)
-        if not cand:
-            log(f"[{tag}] No visible autoconnect networks found.")
-            return False, ""
-        log(f"[{tag}] {len(cand)} candidate(s): " + ", ".join(
-            f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
-        for i, c in enumerate(cand, 1):
-            log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
-            ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"))
-            if not ok:
-                log(f"  ✗ {msg}")
-                continue
-            log("  connected — verifying gateway…")
-            time.sleep(1.0)
-            dev = get_wifi_device()
-            gw = get_gateway(dev)
-            if not gw:
-                log("  ✗ no gateway after connect")
-                continue
-            loss, ms = ping_stats(gw, count=3, timeout=1)
-            if loss == 0 and ms != "fail":
-                log(f"  ✓ Gateway OK ({ms} ms, 0% loss)")
-                return True, f"Connected to {c['ssid']} ({ms} ms)"
-            log(f"  ✗ gateway {loss}% loss — not usable")
-            disconnect_network(dev)
-        return False, ""
-
-    ok, msg = attempt_round("1")
-    if ok:
-        return True, msg
-
-    # Step 3: hard reset fallback
-    log("All candidates failed. Hard reset: radio off → on + NM reload.")
-    set_wifi_radio(False)
-    time.sleep(2.0)
-    set_wifi_radio(True)
-    time.sleep(4.0)
-    nmcli("connection", "reload", timeout=10)
-    prepare_wifi()
-    time.sleep(2.0)
-    log("Radio reset complete. Retrying candidates…")
-    ok, msg = attempt_round("2")
-    if ok:
-        return True, msg
-
-    log("✗ Could not restore connectivity. Check router / try `t` to toggle radio.")
-    return False, "Recovery failed — check router or toggle WiFi"
-
 
 # ── curses app ────────────────────────────────────────────────────────
 
@@ -813,6 +100,8 @@ class WifiModel:
         self.log_lines = []
         self.password_prompt = None
         self.password_buf = ""
+        self.saved_detail_uuid = None
+        self.saved_detail_action = 0
         self._async_msg = None
         self._scan_deadline = 0.0
         self._show_available = True
@@ -1003,6 +292,82 @@ def _handle_password_input(m, key):
         m.dirty = True
 
 
+def _saved_detail_network(m):
+    """Return the live saved-profile record selected by the detail dialog."""
+    if not m.saved_detail_uuid:
+        return None
+    return next((item for item in m.saved if item.get("uuid") == m.saved_detail_uuid), None)
+
+
+def saved_network_state(network: dict) -> tuple[str, bool]:
+    """Return a human state and whether a connection attempt is meaningful."""
+    if network.get("connected"):
+        return "Connected", True
+    signal = network.get("signal", -1)
+    if isinstance(signal, int) and signal >= 0:
+        # A visible AP only proves it can be attempted. Credentials, captive
+        # portals, MAC policy, and upstream connectivity are still unknown.
+        return "Visible", True
+    return "Out of range", False
+
+
+def saved_detail_actions(network: dict) -> list[tuple[str, str]]:
+    state, reachable = saved_network_state(network)
+    if state == "Connected":
+        return [("disconnect", "Disconnect"), ("forget", "Forget network")]
+    if reachable:
+        return [("connect", "Try connecting"), ("forget", "Forget network")]
+    # Keep away-from-home/company profiles visible and manageable, but don't
+    # offer an operation that is guaranteed to wait and fail.
+    return [("forget", "Forget network")]
+
+
+def _open_saved_detail(m, network):
+    m.saved_detail_uuid = network.get("uuid")
+    m.saved_detail_action = 0
+    m.status_msg = ""
+    m.dirty = True
+
+
+def _close_saved_detail(m):
+    m.saved_detail_uuid = None
+    m.saved_detail_action = 0
+    m.dirty = True
+
+
+def _handle_saved_detail_input(m, key):
+    network = _saved_detail_network(m)
+    if network is None:
+        _close_saved_detail(m)
+        return True
+    if key in (ord("q"), 27):
+        _close_saved_detail(m)
+        return True
+    actions = saved_detail_actions(network)
+    if key in (ord("j"), curses.KEY_DOWN, ord("k"), curses.KEY_UP):
+        m.saved_detail_action = (m.saved_detail_action + 1) % len(actions)
+        m.dirty = True
+        return True
+    if key not in (ord("\n"), curses.KEY_ENTER):
+        return True
+
+    action = actions[min(m.saved_detail_action, len(actions) - 1)][0]
+    if action == "disconnect":
+        _close_saved_detail(m)
+        dev = get_wifi_device()
+        if dev:
+            m.run_bg("Disconnecting…", disconnect_network, dev)
+    elif action == "connect":
+        ssid, uuid = network["ssid"], network.get("uuid")
+        _close_saved_detail(m)
+        m.run_bg(f"Connecting to {ssid}…", lambda: connect_network(ssid, uuid=uuid))
+    else:  # forget
+        ssid, uuid = network["ssid"], network.get("uuid")
+        _close_saved_detail(m)
+        m.run_bg(f"Forgetting {ssid}…", lambda: forget_network(ssid, uuid=uuid))
+    return True
+
+
 def _move_sel(m, delta):
     if m.focus == F_STATUS:
         return
@@ -1040,16 +405,7 @@ def _action_enter(m):
     if m.focus == F_SAVED and m.saved:
         idx = min(m.selected, len(m.saved) - 1)
         d = m.saved[idx]
-        if d["connected"]:
-            dev = get_wifi_device()
-            if dev:
-                m.run_bg("Disconnecting…", disconnect_network, dev)
-        else:
-            ssid, uuid = d["ssid"], d.get("uuid")
-            m.run_bg(
-                f"Connecting to {ssid}…",
-                lambda: connect_network(ssid, uuid=uuid),
-            )
+        _open_saved_detail(m, d)
     elif m.focus == F_AVAILABLE and m.available:
         idx = min(m.selected, len(m.available) - 1)
         d = m.available[idx]
@@ -1073,26 +429,6 @@ def _action_enter(m):
             m.run_bg(f"Connecting to {ssid}…", lambda: connect_network(ssid))
 
 
-def _action_disconnect(m):
-    if m.busy or m.focus != F_SAVED or not m.saved:
-        return
-    idx = min(m.selected, len(m.saved) - 1)
-    d = m.saved[idx]
-    if d["connected"]:
-        dev = get_wifi_device()
-        if dev:
-            m.run_bg("Disconnecting…", disconnect_network, dev)
-
-
-def _action_forget(m):
-    if m.busy or m.focus != F_SAVED or not m.saved:
-        return
-    idx = min(m.selected, len(m.saved) - 1)
-    d = m.saved[idx]
-    ssid, uuid = d["ssid"], d.get("uuid")
-    m.run_bg(f"Forgetting {ssid}…", lambda: forget_network(ssid, uuid=uuid))
-
-
 def _draw_saved_table(stdscr, m, y, x, h, w, saved):
     if h < 1 or w < 8:
         return
@@ -1104,8 +440,8 @@ def _draw_saved_table(stdscr, m, y, x, h, w, saved):
     max_rows = max(0, (y + h) - row_start)
     for i, d in enumerate(saved[:max_rows]):
         is_sel = focused and i == m.selected
-        attr = S.sel_attr(is_sel, focused)
-        status = "connected" if d["connected"] else "saved"
+        status, reachable = saved_network_state(d)
+        attr = S.sel_attr(is_sel, focused) if (is_sel or reachable) else S.ATTR_MUTED
         sig_val = d.get("signal", -1)
         signal_str = signal_rating(sig_val) if sig_val >= 0 else "--"
         sec_str = d.get("security", "") or "WPA2"
@@ -1206,7 +542,7 @@ def _draw_diag_panel(stdscr, m, h, w):
             if r == "":
                 continue
             S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_TEXT)
-        hint = "press D to close"
+        hint = "Q/Esc to close"
         S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
         return
     if d.get("error"):
@@ -1221,7 +557,7 @@ def _draw_diag_panel(stdscr, m, h, w):
             if r == "":
                 continue
             S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_DANGER)
-        hint = "press D to close"
+        hint = "Q/Esc to close"
         S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
         return
     tone = diag_tone(d)
@@ -1250,7 +586,7 @@ def _draw_diag_panel(stdscr, m, h, w):
         S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_TEXT)
     vy = py + 1 + len(rows)
     S.safe_addstr(stdscr, vy, px + 2, S.truncate(verdict, inner_w - 4), vattr)
-    hint = "press D to close"
+    hint = "Q/Esc to close"
     S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
 
 
@@ -1268,21 +604,74 @@ def _draw_fix_overlay(stdscr, m, h, w):
         shown = m.log_lines[-log_h:] if log_h > 0 else []
         for i, line in enumerate(shown):
             S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(line, inner_w - 4), S.ATTR_TEXT)
-    status = "working…" if m.fixing else "done"
-    sattr = S.ATTR_WARN if m.fixing else S.ATTR_SUBTLE
+    if m.fixing:
+        status = "working…"
+        sattr = S.ATTR_WARN
+    else:
+        status = "done — Q/Esc to close"
+        sattr = S.ATTR_SUBTLE
     S.safe_addstr(stdscr, py + panel_h - 1, px + 2, status, sattr)
 
 def _draw_password_prompt(stdscr, m, h, w):
     S.draw_scrim(stdscr, h, w)
-    masked = "*" * len(m.password_buf)
-    lines = [
-        "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
-        f"┃       WiFi Password              ┃",
-        f"┃  {masked:<28}  ┃",
-        "┃  Enter password, Esc to cancel    ┃",
-        "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛",
+    # This is a deliberate local TUI choice: show the password while typing so
+    # users can verify keyboard layout and punctuation before connecting.
+    password = m.password_buf
+    hint = "Enter password, Esc to cancel"
+    panel_w = min(max(42, S.text_width(hint) + 4, S.text_width(password) + 4), w - 4)
+    panel_h = 5
+    py = max(1, (h - panel_h) // 2)
+    px = max(2, (w - panel_w) // 2)
+    S.draw_border(stdscr, py, px, panel_h, panel_w, "WiFi Password")
+    S.safe_addstr(stdscr, py + 1, px + 2, S.truncate(password, panel_w - 4), S.ATTR_TEXT)
+    S.safe_addstr(stdscr, py + 2, px + 2, S.truncate(hint, panel_w - 4), S.ATTR_MUTED)
+
+
+def _draw_saved_detail_dialog(stdscr, m, h, w):
+    """Show non-destructive details and explicit actions for one saved WiFi."""
+    network = _saved_detail_network(m)
+    if network is None:
+        return
+    S.draw_scrim(stdscr, h, w)
+    connected = bool(network.get("connected"))
+    status, reachable = saved_network_state(network)
+    signal = network.get("signal", -1)
+    signal_text = f"{signal}%" if isinstance(signal, int) and signal >= 0 else "Not in range"
+    details = [
+        ("SSID", network.get("ssid") or "—"),
+        ("Profile", network.get("name") or "—"),
+        ("Security", network.get("security") or "Unknown"),
+        ("Signal", signal_text),
+        ("Auto-connect", "On" if network.get("autoconnect") else "Off"),
+        ("Status", status),
     ]
-    S.draw_dialog(stdscr, lines)
+    actions = saved_detail_actions(network)
+    content_w = max(
+        42,
+        *(S.text_width(f"{label}: {value}") + 4 for label, value in details),
+        *(S.text_width(label) + 6 for _, label in actions),
+    )
+    panel_w = min(content_w, w - 4)
+    panel_h = 13
+    py = max(1, (h - panel_h) // 2)
+    px = max(2, (w - panel_w) // 2)
+    S.draw_border(stdscr, py, px, panel_h, panel_w, "Saved WiFi Network")
+    inner_w = panel_w - 4
+    action_index = min(m.saved_detail_action, len(actions) - 1)
+    for i, (label, value) in enumerate(details):
+        text = f"{label:<13} {value}"
+        attr = S.ATTR_OK if label == "Status" and connected else S.ATTR_TEXT
+        S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(text, inner_w), attr)
+    for i, (_, label) in enumerate(actions):
+        selected = i == action_index
+        prefix = "› " if selected else "  "
+        attr = S.ATTR_FOCUS if selected else S.ATTR_TEXT
+        S.safe_addstr(stdscr, py + 8 + i, px + 2, S.pad_to_width(prefix + label, inner_w), attr)
+    if not reachable and not connected:
+        note = "This network is saved but not currently visible."
+        S.safe_addstr(stdscr, py + 7, px + 2, S.truncate(note, inner_w), S.ATTR_MUTED)
+    hint = "↑/↓ select · Enter confirm · Esc close"
+    S.safe_addstr(stdscr, py + panel_h - 2, px + 2, S.truncate(hint, inner_w), S.ATTR_SUBTLE)
 
 
 def _view(stdscr, m):
@@ -1330,7 +719,7 @@ def _view(stdscr, m):
     y += adapter_h
     gen = [("arrows", "navigate"), ("tab", "section"), ("D", "diag"), ("R", "fix"), ("q", "quit")]
     if m.focus == F_SAVED:
-        tool = [("enter", "dis/connect"), ("s", "scan"), ("d", "disconnect"), ("f", "forget"), ("t", "wifi on/off")]
+        tool = [("enter", "details"), ("s", "scan"), ("t", "wifi on/off")]
     elif m.focus == F_AVAILABLE:
         tool = [("enter", "connect"), ("s", "scan"), ("t", "wifi on/off")]
     else:
@@ -1342,6 +731,8 @@ def _view(stdscr, m):
         _draw_diag_panel(stdscr, m, h, w)
     if m.password_prompt is not None:
         _draw_password_prompt(stdscr, m, h, w)
+    elif m.saved_detail_uuid is not None:
+        _draw_saved_detail_dialog(stdscr, m, h, w)
     stdscr.refresh()
 
 
@@ -1354,15 +745,20 @@ def _action_diag(m):
         return
     # Show the panel immediately (placeholder), fill in as results stream in.
     m.diag = {"_running": True}
+    m._diag_cancelled = False
     m.busy = True
     m.status_msg = "Running diagnostics…"
     m.dirty = True
-
     def worker():
         try:
-            m.diag = run_diagnostics()
-            m.status_msg = "Diagnostics ready — D to close"
+            result = run_diagnostics()
+            if getattr(m, "_diag_cancelled", False):
+                return  # user closed the panel; don't reopen it
+            m.diag = result
+            m.status_msg = "Diagnostics ready — Q to close"
         except Exception as exc:
+            if getattr(m, "_diag_cancelled", False):
+                return
             m.status_msg = f"Diag error: {exc}"
             m.diag = {"error": str(exc)}
         finally:
@@ -1406,10 +802,22 @@ def _handle_key(stdscr, m, key):
     if m.password_prompt is not None:
         _handle_password_input(m, key)
         return True
-    if key in (ord("q"), 27):
-        return False
+    if m.saved_detail_uuid is not None:
+        return _handle_saved_detail_input(m, key)
+    # Recovery in progress: ignore everything (including Q) until it finishes.
     if m.fixing:
-        return True  # ignore keys during recovery
+        return True
+    # Q / Esc: close any open overlay first; only quit from the main screen.
+    if key in (ord("q"), 27):
+        if m.log_lines or m.diag is not None:
+            if m.diag is not None and m.busy:
+                m._diag_cancelled = True  # stop worker from reopening it
+            m.log_lines = []
+            m._log_seen = 0
+            m.diag = None
+            m.dirty = True
+            return True
+        return False  # main screen — quit
     # Diagnostics (D) and auto-recover (R) always take priority.
     if key == ord("D"):
         _action_diag(m)
@@ -1421,6 +829,8 @@ def _handle_key(stdscr, m, key):
         return True
     # Any other key dismisses a finished recovery log or diagnostics panel.
     if m.log_lines or m.diag is not None:
+        if m.diag is not None and m.busy:
+            m._diag_cancelled = True
         m.log_lines = []
         m._log_seen = 0
         m.diag = None
@@ -1464,12 +874,6 @@ def _handle_key(stdscr, m, key):
         m.dirty = True
     elif key == ord("\n") or key == curses.KEY_ENTER:
         _action_enter(m)
-        m.dirty = True
-    elif key == ord("d"):
-        _action_disconnect(m)
-        m.dirty = True
-    elif key == ord("f"):
-        _action_forget(m)
         m.dirty = True
     return True
 

@@ -304,37 +304,13 @@ Singleton {
         root.lastConnectError = "";
         root.connectStderrBuf = "";
 
-        if (root.isKnownWifi(accessPoint)) {
-            // Saved profile: try without password first.
-            accessPoint.askingPassword = false;
-            root.wifiConnectPhase = "connecting";
-            root.wifiConnectMessage = `Connecting to ${accessPoint.ssid}…`;
-            connectProc.exec({
-                "environment": { "SSID": accessPoint.ssid },
-                "command": ["bash", "-c",
-                    'export LANG=C LC_ALL=C; ' +
-                    'nmcli -w 25 connection up id "$SSID" 2>&1 ' +
-                    '|| nmcli -w 25 device wifi connect "$SSID" 2>&1']
-            });
-            return;
-        }
-
-        if (root.wifiSecurityRequiresPassword(accessPoint.security)) {
-            // Unknown secure network: ask for password before attempting.
-            accessPoint.askingPassword = true;
-            root.wifiConnectPhase = "need_password";
-            root.wifiConnectMessage = `Enter password for ${accessPoint.ssid}`;
-            return;
-        }
-
-        // Open network
         accessPoint.askingPassword = false;
         root.wifiConnectPhase = "connecting";
         root.wifiConnectMessage = `Connecting to ${accessPoint.ssid}…`;
+        // Delegate to the shared CLI (same logic as the TUI).
         connectProc.exec({
             "environment": { "SSID": accessPoint.ssid },
-            "command": ["bash", "-c",
-                'export LANG=C LC_ALL=C; nmcli -w 25 device wifi connect "$SSID" 2>&1']
+            "command": ["sumika-wifi", "connect", accessPoint.ssid]
         });
     }
 
@@ -353,7 +329,6 @@ Singleton {
             root.wifiConnectMessage = root.lastConnectError;
             return;
         }
-        // WPA-PSK minimum is 8 characters.
         if (pw.length < 8) {
             accessPoint.askingPassword = true;
             root.wifiConnectTarget = accessPoint;
@@ -372,21 +347,9 @@ Singleton {
         root.wifiConnectPhase = "connecting";
         root.wifiConnectMessage = `Connecting to ${accessPoint.ssid}…`;
 
-        // If a profile already exists, update PSK then activate it.
-        // Otherwise create/join with device wifi connect.
         connectProc.exec({
-            "environment": {
-                "SSID": accessPoint.ssid,
-                "PASSWORD": pw
-            },
-            "command": ["bash", "-c",
-                'export LANG=C LC_ALL=C\n' +
-                'if nmcli -t -f NAME connection show 2>/dev/null | grep -Fxq "$SSID"; then\n' +
-                '  nmcli connection modify "$SSID" wifi-sec.psk "$PASSWORD" connection.autoconnect yes connection.autoconnect-priority 50 2>&1\n' +
-                '  nmcli -w 25 connection up id "$SSID" 2>&1\n' +
-                'else\n' +
-                '  nmcli -w 25 device wifi connect "$SSID" password "$PASSWORD" 2>&1\n' +
-                'fi']
+            "environment": { "SSID": accessPoint.ssid, "PASSWORD": pw },
+            "command": ["sumika-wifi", "connect", accessPoint.ssid, "--password", pw]
         });
     }
 
@@ -404,24 +367,22 @@ Singleton {
     }
 
     function disconnectWifiNetwork(): void {
-        if (active)
-            disconnectProc.exec(["nmcli", "connection", "down", active.ssid]);
+        disconnectProc.exec(["sumika-wifi", "disconnect"]);
     }
 
     function disconnectAccessPoint(accessPoint: WifiAccessPoint): void {
-        if (accessPoint)
-            disconnectProc.exec(["nmcli", "connection", "down", accessPoint.ssid]);
+        disconnectProc.exec(["sumika-wifi", "disconnect"]);
     }
 
     function forgetWifiNetwork(accessPoint: WifiAccessPoint): void {
         if (accessPoint)
-            forgetProc.exec(["nmcli", "connection", "delete", accessPoint.ssid]);
+            forgetProc.exec(["sumika-wifi", "forget", accessPoint.ssid]);
     }
 
     function forgetSavedProfile(name: string): void {
         if (!name || name.length === 0)
             return;
-        forgetProc.exec(["nmcli", "connection", "delete", name]);
+        forgetProc.exec(["sumika-wifi", "forget", name]);
     }
 
     function setSavedProfileAutoconnect(name: string, enabled: bool): void {
@@ -538,7 +499,20 @@ Singleton {
             updateKnownWifiProfiles.running = true;
             root.update();
 
-            if (exitCode === 0) {
+
+            // Parse JSON output from sumika-wifi CLI.
+            let cliOk = exitCode === 0;
+            let cliMsg = "";
+            try {
+                const j = JSON.parse(raw.trim().split("\n").pop() || "{}");
+                cliOk = j.ok === true;
+                cliMsg = j.message || "";
+            } catch (e) {
+                // Non-JSON output (shouldn't happen) — fall back to raw text.
+                cliMsg = root.humanizeConnectError(raw);
+            }
+
+            if (cliOk) {
                 if (target)
                     target.askingPassword = false;
                 root.markWifiProfileAutoconnect(ssid);
@@ -551,41 +525,30 @@ Singleton {
                 return;
             }
 
-            const msg = root.humanizeConnectError(raw);
-            const lower = (raw || "").toLowerCase();
-            const notFound = lower.includes("no network")
-                || lower.includes("ssid not found")
-                || lower.includes("not present")
-                || (lower.includes("not found") && lower.includes("ssid"));
-            const secrets = root.errorLooksLikeSecrets(raw);
-            const activationFail = lower.includes("activation failed")
-                || lower.includes("failed to connect")
-                || lower.includes("connection activation")
-                || lower.includes("device or resource busy");
+            // The CLI returns "Wrong password / secrets required" when NM
+            // needs credentials — prompt the user in that case.
+            const lower = cliMsg.toLowerCase();
+            const secrets = lower.includes("secrets") || lower.includes("password");
+            const enterprise = lower.includes("802.1x") || lower.includes("enterprise");
             const secure = !!(target && root.wifiSecurityRequiresPassword(target.security));
-            // Prompt for password when NM asks for secrets, or a secure network fails
-            // activation for non-"not found" reasons (often a bad saved PSK).
-            const needsSecrets = !notFound && (secrets || (secure && (activationFail || raw.trim().length === 0)));
+            const needsSecrets = secrets && !enterprise;
 
-            if (target && needsSecrets) {
+            if (target && needsSecrets && secure) {
                 target.askingPassword = true;
                 root.wifiConnectPhase = "need_password";
-                root.lastConnectError = msg;
-                root.wifiConnectMessage = msg;
-                // Keep wifiConnectTarget so the password row stays bound to this AP.
+                root.lastConnectError = cliMsg;
+                root.wifiConnectMessage = cliMsg;
                 return;
             }
 
             if (target)
                 target.askingPassword = false;
             root.wifiConnectPhase = "failed";
-            root.lastConnectError = msg;
-            root.wifiConnectMessage = msg;
-            // Keep target briefly so UI can show which network failed.
+            root.lastConnectError = cliMsg;
+            root.wifiConnectMessage = cliMsg;
             failClearTimer.restart();
         }
     }
-
     Timer {
         id: successClearTimer
         interval: 2500
@@ -609,7 +572,6 @@ Singleton {
             }
         }
     }
-
     Process {
         id: autoconnectProc
         onExited: {
@@ -915,12 +877,40 @@ Singleton {
         onTriggered: root.update()
     }
 
+    // `nmcli monitor` is event-driven and can silently stop after a daemon or
+    // D-Bus restart.  A modest periodic poll keeps the displayed state and the
+    // reconnect watchdog alive even when no monitor event arrives.
+    Timer {
+        id: healthPollTimer
+        interval: 5000
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: root.update()
+    }
+
     Process {
         id: subscriber
         running: true
         command: ["nmcli", "monitor"]
         stdout: SplitParser {
             onRead: debounceUpdateTimer.restart()
+        }
+        onExited: {
+            // Recreate the event stream after NetworkManager / D-Bus restarts.
+            // The periodic health poll continues to cover the retry interval.
+            subscriberRetryTimer.restart();
+        }
+    }
+
+    Timer {
+        id: subscriberRetryTimer
+        interval: 3000
+        repeat: false
+        onTriggered: {
+            if (!subscriber.running)
+                subscriber.running = true;
+            root.update();
         }
     }
 

@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+"""sumika-bluetooth — thin CLI for Bluetooth operations.
+
+Called by the Quickshell BluetoothStatus service (replacing the old
+sumika-bluetooth-connect). Delegates all logic to sumika_bluetooth_ops.
+
+Protocol modes:
+  --proto sumika-bt  (default): emits `SUMIKA_BT\\t<kind>\\t<value>` lines
+    for real-time status/passkey/log updates during pairing. This is the
+    protocol BluetoothStatus.qml's SplitParser expects.
+  --proto json: emits a single JSON object on exit (for scripting/TUI).
+
+Usage:
+  sumika-bluetooth pair <mac>           # pair + trust + connect
+  sumika-bluetooth connect <mac>        # connect (with trust + retry)
+  sumika-bluetooth disconnect <mac>
+  sumika-bluetooth trust <mac>
+  sumika-bluetooth untrust <mac>
+  sumika-bluetooth remove <mac>
+  sumika-bluetooth power on|off
+  sumika-bluetooth scan                 # trigger discovery (async)
+  sumika-bluetooth list                 # list devices (JSON)
+  sumika-bluetooth status               # adapter info (JSON)
+"""
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sumika_bluetooth_ops as ops
+
+
+def _emit_sumika_bt(kind: str, value: str = ""):
+    """Emit a SUMIKA_BT protocol line (tab-separated)."""
+    print(f"SUMIKA_BT\t{kind}\t{value}", flush=True)
+
+
+def _run_sumika_bt(args) -> int:
+    """Run with SUMIKA_BT protocol output (compatible with BluetoothStatus.qml)."""
+    addr = getattr(args, "mac", "")
+
+    if args.command == "pair":
+        _emit_sumika_bt("status", "powering")
+        ops.prepare_bluetooth()
+
+        def on_status(msg):
+            _emit_sumika_bt("status", msg)
+
+        def on_log(msg):
+            _emit_sumika_bt("log", msg)
+
+        def on_passkey(msg):
+            _emit_sumika_bt("passkey", msg)
+
+        _emit_sumika_bt("instruction", "If a code appears, type it on the Bluetooth keyboard and press Enter.")
+        ok, msg = ops.pair_device(addr, on_status=on_status, on_log=on_log,
+                                   on_passkey=on_passkey)
+        if ok:
+            _emit_sumika_bt("status", "connected")
+            return 0
+        _emit_sumika_bt("error", msg)
+        return 1
+
+    if args.command == "connect":
+        _emit_sumika_bt("status", "powering")
+        ops.prepare_bluetooth()
+        _emit_sumika_bt("status", "trusting")
+        _emit_sumika_bt("status", "connecting")
+        ok, msg = ops.connect_device(addr)
+        if ok:
+            _emit_sumika_bt("status", "connected")
+            return 0
+        _emit_sumika_bt("error", msg)
+        return 1
+
+    if args.command == "disconnect":
+        _emit_sumika_bt("status", "disconnecting")
+        ok, msg = ops.disconnect_device(addr)
+        if ok:
+            _emit_sumika_bt("status", "disconnected")
+            return 0
+        _emit_sumika_bt("error", msg)
+        return 1
+
+    if args.command == "trust":
+        ok, msg = ops.trust_device(addr)
+        _emit_sumika_bt("status", "trusted" if ok else "error")
+        if not ok:
+            _emit_sumika_bt("error", msg)
+        return 0 if ok else 1
+
+    if args.command == "untrust":
+        ok, msg = ops.untrust_device(addr)
+        _emit_sumika_bt("status", "untrusted" if ok else "error")
+        if not ok:
+            _emit_sumika_bt("error", msg)
+        return 0 if ok else 1
+
+    if args.command == "remove":
+        _emit_sumika_bt("status", "removing")
+        ok, msg = ops.remove_device(addr)
+        if ok:
+            _emit_sumika_bt("status", "removed")
+            return 0
+        _emit_sumika_bt("error", msg)
+        return 1
+
+    if args.command == "power":
+        if args.power_state == "on":
+            ok, msg = ops.power_on()
+        else:
+            ok, msg = ops.power_off()
+        _emit_sumika_bt("status", msg if ok else "error")
+        if not ok:
+            _emit_sumika_bt("error", msg)
+        return 0 if ok else 1
+
+    if args.command == "scan":
+        # Just power on + pairable on + scan on (fire-and-forget).
+        # The QML side uses D-Bus for discovery toggling; this is a fallback.
+        ops.prepare_bluetooth()
+        ops.btctl_simple("scan", "on", timeout=5)
+        _emit_sumika_bt("status", "scanning")
+        return 0
+
+    if args.command == "list":
+        devices = ops.get_devices_info()
+        print(json.dumps({"ok": True, "devices": devices}, ensure_ascii=False))
+        return 0
+
+    if args.command == "status":
+        info = ops.get_adapter_info()
+        print(json.dumps({"ok": True, "adapter": info}, ensure_ascii=False))
+        return 0
+
+    _emit_sumika_bt("error", f"Unknown command: {args.command}")
+    return 2
+
+
+def _run_json(args) -> int:
+    """Run with JSON output (single object on exit)."""
+    addr = getattr(args, "mac", "")
+
+    if args.command == "pair":
+        logs = []
+        ok, msg = ops.pair_device(addr, on_log=logs.append)
+        print(json.dumps({"ok": ok, "message": msg, "logs": logs}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "connect":
+        ok, msg = ops.connect_device(addr)
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "disconnect":
+        ok, msg = ops.disconnect_device(addr)
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "trust":
+        ok, msg = ops.trust_device(addr)
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "untrust":
+        ok, msg = ops.untrust_device(addr)
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "remove":
+        ok, msg = ops.remove_device(addr)
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "power":
+        if args.power_state == "on":
+            ok, msg = ops.power_on()
+        else:
+            ok, msg = ops.power_off()
+        print(json.dumps({"ok": ok, "message": msg}, ensure_ascii=False))
+        return 0 if ok else 1
+
+    if args.command == "scan":
+        ops.prepare_bluetooth()
+        ops.btctl_simple("scan", "on", timeout=5)
+        print(json.dumps({"ok": True, "message": "Scan started"}, ensure_ascii=False))
+        return 0
+
+    if args.command == "list":
+        devices = ops.get_devices_info()
+        print(json.dumps({"ok": True, "devices": devices}, ensure_ascii=False))
+        return 0
+
+    if args.command == "status":
+        info = ops.get_adapter_info()
+        print(json.dumps({"ok": True, "adapter": info}, ensure_ascii=False))
+        return 0
+
+    print(json.dumps({"ok": False, "message": f"Unknown command: {args.command}"}))
+    return 2
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="sumika-bluetooth", description="Bluetooth operations CLI")
+    parser.add_argument("--proto", choices=["sumika-bt", "json"], default="sumika-bt",
+                        help="Output protocol (default: sumika-bt for QML compat)")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_pair = sub.add_parser("pair")
+    p_pair.add_argument("mac")
+
+    p_connect = sub.add_parser("connect")
+    p_connect.add_argument("mac")
+
+    p_disconnect = sub.add_parser("disconnect")
+    p_disconnect.add_argument("mac")
+
+    p_trust = sub.add_parser("trust")
+    p_trust.add_argument("mac")
+
+    p_untrust = sub.add_parser("untrust")
+    p_untrust.add_argument("mac")
+
+    p_remove = sub.add_parser("remove")
+    p_remove.add_argument("mac")
+
+    p_power = sub.add_parser("power")
+    p_power.add_argument("power_state", choices=["on", "off"])
+
+    sub.add_parser("scan")
+    sub.add_parser("list")
+    sub.add_parser("status")
+
+    args = parser.parse_args()
+
+    ok, err = ops.ensure_bluetoothctl()
+    if not ok:
+        if args.proto == "json":
+            print(json.dumps({"ok": False, "message": err}))
+        else:
+            _emit_sumika_bt("error", err)
+        return 1
+
+    if args.proto == "json":
+        return _run_json(args)
+    return _run_sumika_bt(args)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

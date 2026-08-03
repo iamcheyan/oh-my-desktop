@@ -113,7 +113,14 @@ Singleton {
             Bluetooth.defaultAdapter.enabled = true;
 
         bluetoothActionProc.running = false;
-        bluetoothActionProc.command = [`${root.sumikaBinDir}/sumika-bluetooth-connect`, address, action];
+        // Map old action names to the unified CLI subcommands.
+        const cliAction = ({
+            "connect": "connect",
+            "disconnect": "disconnect",
+            "pair-connect": "pair",
+            "forget": "remove",
+        })[action] || action;
+        bluetoothActionProc.command = [`${root.sumikaBinDir}/sumika-bluetooth`, cliAction, address];
         bluetoothActionProc.running = true;
     }
 

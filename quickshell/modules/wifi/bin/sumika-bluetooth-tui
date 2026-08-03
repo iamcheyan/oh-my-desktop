@@ -27,104 +27,45 @@ import os
 import re
 import select
 import subprocess
+import sys
 import threading
 import time
 from shutil import which
 from pathlib import Path
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 _repo_bin = str(Path(os.path.dirname(os.path.abspath(__file__))).resolve().parent.parent.parent.parent / "bin")
 if _repo_bin not in sys.path:
     sys.path.insert(0, _repo_bin)
+
 import sumika_tui_framework as S
-
-# English output from bluetoothctl across locales
-_SUBPROC_ENV = {
-    **os.environ,
-    "LC_ALL": "C.UTF-8",
-    "LANG": "C.UTF-8",
-    "LANGUAGE": "C",
-}
-
-# ── helpers ───────────────────────────────────────────────────────────
-
-ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
-ADDR_RE = re.compile(r"([0-9A-Fa-f]{2}[:]){5}[0-9A-Fa-f]{2}")
-DEVICE_RE = re.compile(
-    r"\[(?:NEW|CHG)\]\s+Device\s+([0-9A-Fa-f:]{17})\s+(.*)"
+from sumika_bluetooth_ops import (
+    # Constants
+    clean, _SUBPROC_ENV,
+    # Regex patterns (used by TUI scan/pair parsing)
+    ANSI_RE, ADDR_RE, DEVICE_RE, NEW_DEVICE_RE,
+    PIN_RE, PASSKEY_RE, CONFIRM_RE,
+    PAIRED_RE, CONNECTED_RE, CONNECTED_CHG_RE,
+    # Icon maps + helpers (UI, but shared)
+    ICON_MAP, ICON_UNKNOWN, NAME_GUESS_MAP, TYPE_LABELS,
+    # PTY + bluetoothctl wrappers
+    pty_spawn, send,
+    require_python, ensure_bluetoothctl,
+    btctl_simple, prepare_bluetooth,
+    # Device/adapter queries
+    parse_battery_pct, format_battery, get_hci_name, yesno_bool,
+    get_devices_info, get_adapter_info,
+    # Operations
+    connect_device, disconnect_device, trust_device, untrust_device,
+    remove_device, power_on, power_off,
+    is_trusted, is_paired, is_connected,
+    pair_device, parse_passkey,
 )
-NEW_DEVICE_RE = re.compile(
-    r"\[NEW\]\s+Device\s+([0-9A-Fa-f:]{17})\s+(.*)"
-)
-PIN_RE = re.compile(r"\[agent\]\s*PIN code:\s*([0-9]{4,6})", re.IGNORECASE)
-PASSKEY_RE = re.compile(r"\[agent\]\s*Passkey:\s*([0-9]{4,6})", re.IGNORECASE)
-CONFIRM_RE = re.compile(r"Confirm passkey[^0-9]*([0-9]{4,6})", re.IGNORECASE)
-PAIRED_RE = re.compile(r"Pairing successful|Paired:\s*yes", re.IGNORECASE)
-CONNECTED_RE = re.compile(r"Connection successful", re.IGNORECASE)
-CONNECTED_CHG_RE = re.compile(r"Connected:\s*yes", re.IGNORECASE)
 
 
-def clean(text: str) -> str:
-    return ANSI_RE.sub("", text).replace("\r", "")
-
-
-ICON_MAP = {
-    "input-keyboard":      "\uf11c",  # fa-keyboard
-    "input-mouse":         "\uefba",  # fa-computer-mouse
-    "input-tablet":        "\uf10a",  # fa-tablet
-    "input-gaming":        "\uf11b",  # fa-gamepad
-    "audio-headset":       "\uf025",  # fa-headphones
-    "audio-card":          "\uf025",  # fa-headphones (internal audio)
-    "audio-speaker":       "\uf028",  # fa-volume-up
-    "audio-input-microphone": "\uf130",  # fa-microphone
-    "video-display":       "\uf108",  # fa-desktop
-    "video-camera":        "\uf030",  # fa-camera
-    "camera":              "\uf030",  # fa-camera
-    "computer":            "\uf108",  # fa-desktop (laptop/desktop)
-    "phone":               "\uf10b",  # fa-mobile
-    "printer":             "\uf02f",  # fa-print
-    "scanner":             "\uf030",  # fa-camera (scanner)
-    "network-wireless":    "\uf1eb",  # fa-wifi
-    "multimedia-player":   "\uf025",  # fa-headphones (media playback)
-    "wearable":            "\uf2f1",  # fa-clock (smartwatch)
-}
-ICON_UNKNOWN = "\uf059"  # fa-question-circle
-
-# Name keyword → ICON_MAP key fallback for devices without an Icon field.
-NAME_GUESS_MAP = {
-    "keyboard":     "input-keyboard",
-    "mouse":        "input-mouse",
-    "headphone":    "audio-headset",
-    "headset":      "audio-headset",
-    "earbud":       "audio-headset",
-    "airpods":      "audio-headset",
-    "soundlink":    "audio-speaker",
-    "speaker":      "audio-speaker",
-    "loudspeaker":  "audio-speaker",
-    "soundcore":    "audio-speaker",
-    "controller":   "input-gaming",
-    "gamepad":      "input-gaming",
-    "watch":        "wearable",
-    "smartwatch":   "wearable",
-    "desktop":      "computer",
-    "laptop":       "computer",
-    "printer":      "printer",
-    "scanner":      "scanner",
-    "camera":       "camera",
-    "tablet":       "input-tablet",
-    "iphone":       "phone",
-    "galaxy":       "phone",
-    "pixel":        "phone",
-    "fitbit":       "wearable",
-    "band":         "wearable",
-    "dual":         "input-gaming",
-    "xbox":         "input-gaming",
-    "playstation":  "input-gaming",
-}
-
+# ── UI-only icon helpers (more detailed than the ops fallback) ─────────
 
 def _icon_from_appearance(appearance: int) -> str | None:
-    """Map a BLE GAP Appearance value to an ICON_MAP key.
-    category = appearance >> 6, subcategory = appearance & 0x3F."""
     cat = appearance >> 6
     sub = appearance & 0x3F
     if cat == 0x01:
@@ -132,14 +73,14 @@ def _icon_from_appearance(appearance: int) -> str | None:
     if cat == 0x02:
         return "computer"
     if cat == 0x03:
-        return "wearable"           # Watch
+        return "wearable"
     if cat == 0x05:
-        return "video-display"      # Display
+        return "video-display"
     if cat == 0x0A:
-        return "multimedia-player"  # Media Player
+        return "multimedia-player"
     if cat == 0x0B:
-        return "scanner"            # Barcode Scanner
-    if cat == 0x0F:                 # HID
+        return "scanner"
+    if cat == 0x0F:
         if sub == 0x01:
             return "input-keyboard"
         if sub == 0x02:
@@ -150,48 +91,31 @@ def _icon_from_appearance(appearance: int) -> str | None:
             return "input-tablet"
         if sub == 0x08:
             return "scanner"
-        return None                 # Generic HID
-    if cat == 0x21:                 # Audio Sink
+        return None
+    if cat == 0x21:
         return "audio-speaker"
-    if cat == 0x25:                 # Wearable Audio
+    if cat == 0x25:
         if sub in (0x01, 0x02, 0x04):
-            return "audio-headset"  # Earbud, Headset, Neck Band
+            return "audio-headset"
         if sub == 0x03:
-            return "audio-headset"  # Headphones
+            return "audio-headset"
         return "audio-speaker"
     if cat == 0x29:
-        return "audio-headset"      # Hearing Aid
+        return "audio-headset"
     return None
 
 
-# Bluetooth Class of Device — major class (bits 8-12)
 _COD_MAJOR = {
-    0x01: "computer",
-    0x02: "phone",
-    0x04: "audio",       # Audio/Video — resolved via minor below
-    0x05: "peripheral",  # resolved via minor below
-    0x07: "wearable",
-    0x08: "toy",
+    0x01: "computer", 0x02: "phone", 0x04: "audio",
+    0x05: "peripheral", 0x07: "wearable", 0x08: "toy",
 }
-
 _COD_AV_MINOR = {
-    0x01: "audio-headset",
-    0x02: "audio-headset",
-    0x04: "audio-input-microphone",
-    0x05: "audio-speaker",
-    0x06: "audio-headset",
-    0x07: "audio-speaker",
+    0x01: "audio-headset", 0x02: "audio-headset",
+    0x04: "audio-input-microphone", 0x05: "audio-speaker",
+    0x06: "audio-headset", 0x07: "audio-speaker",
 }
-
-_COD_PERIPH_MINOR = {
-    0x01: "input-keyboard",
-    0x02: "input-mouse",
-    0x03: "input-keyboard",
-}
-
-_COD_WEARABLE_MINOR = {
-    0x00: "wearable",
-}
+_COD_PERIPH_MINOR = {0x01: "input-keyboard", 0x02: "input-mouse", 0x03: "input-keyboard"}
+_COD_WEARABLE_MINOR = {0x00: "wearable"}
 
 
 def _icon_from_class(cod: int) -> str | None:
@@ -213,14 +137,6 @@ def _icon_from_class(cod: int) -> str | None:
 
 
 def device_icon(info_text: str, name: str = "") -> str:
-    """Return Nerd Font glyph for a device from ``bluetoothctl info`` output.
-
-    Precedence (matching gnome-bluetooth):
-      1. BLE Appearance characteristic
-      2. Bluetooth Class of Device
-      3. BlueZ Icon property
-      4. Device-name keyword heuristic
-    """
     m = re.search(r"^\s*Appearance:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
     if m:
         key = _icon_from_appearance(int(m.group(1), 16))
@@ -242,32 +158,7 @@ def device_icon(info_text: str, name: str = "") -> str:
     return ICON_UNKNOWN
 
 
-# ── device type label (human-readable, from same sources as icon) ──
-
-TYPE_LABELS = {
-    "input-keyboard": "Keyboard",
-    "input-mouse": "Mouse",
-    "input-tablet": "Tablet",
-    "input-gaming": "Controller",
-    "audio-headset": "Headset",
-    "audio-card": "Audio",
-    "audio-speaker": "Speaker",
-    "audio-input-microphone": "Mic",
-    "video-display": "Display",
-    "video-camera": "Camera",
-    "camera": "Camera",
-    "computer": "Computer",
-    "phone": "Phone",
-    "printer": "Printer",
-    "scanner": "Scanner",
-    "network-wireless": "Network",
-    "multimedia-player": "Media",
-    "wearable": "Wearable",
-}
-
-
 def device_type_label(info_text: str, name: str = "") -> str:
-    """Return human-readable device type label from bluetoothctl info."""
     m = re.search(r"^\s*Appearance:\s*0x([0-9a-fA-F]+)", info_text, re.MULTILINE)
     if m:
         key = _icon_from_appearance(int(m.group(1), 16))
@@ -287,233 +178,6 @@ def device_type_label(info_text: str, name: str = "") -> str:
             if keyword in n:
                 return TYPE_LABELS.get(icon_key, "")
     return ""
-
-
-def pty_spawn(argv):
-    pid, fd = os.forkpty()
-    if pid == 0:
-        try:
-            os.environ.update({
-                "LC_ALL": "C.UTF-8",
-                "LANG": "C.UTF-8",
-                "LANGUAGE": "C",
-            })
-            os.execvp(argv[0], argv)
-        except Exception as exc:
-            print(exc, file=sys.stderr)
-            os._exit(127)
-    return pid, fd
-
-
-def send(fd, command: str):
-    try:
-        os.write(fd, (command + "\n").encode())
-    except OSError:
-        pass
-
-
-def require_python() -> tuple[bool, str]:
-    if sys.version_info < (3, 10):
-        return False, f"Python 3.10+ required (found {sys.version.split()[0]})"
-    return True, ""
-
-
-def ensure_bluetoothctl() -> tuple[bool, str]:
-    """Return (ok, error_message). Requires bluez bluetoothctl + a controller."""
-    if which("bluetoothctl") is None:
-        return False, (
-            "bluetoothctl not found. sumika-bluetooth-tui needs BlueZ.\n"
-            "  Debian/Ubuntu:  sudo apt install bluez\n"
-            "  Fedora:         sudo dnf install bluez\n"
-            "  Arch:           sudo pacman -S bluez bluez-utils\n"
-            "Then: sudo systemctl enable --now bluetooth"
-        )
-    try:
-        proc = subprocess.run(
-            ["bluetoothctl", "show"],
-            text=True, capture_output=True, timeout=5, env=_SUBPROC_ENV,
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        if "No default controller" in out or "No controller" in out:
-            return False, (
-                "No Bluetooth controller found.\n"
-                "Check the adapter is present and: sudo systemctl start bluetooth"
-            )
-        if proc.returncode != 0 and "Controller" not in out:
-            return False, f"bluetoothctl failed:\n{out.strip()[:200]}"
-    except (OSError, subprocess.TimeoutExpired) as e:
-        return False, f"Failed to run bluetoothctl: {e}"
-    return True, ""
-
-
-def prepare_bluetooth() -> None:
-    """Best-effort: unblock rfkill, power on, pairable on."""
-    try:
-        subprocess.run(
-            ["rfkill", "unblock", "bluetooth"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=3, env=_SUBPROC_ENV,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        pass
-    btctl_simple("power", "on", timeout=5)
-    btctl_simple("pairable", "on", timeout=5)
-
-
-def btctl_simple(*args, timeout: int = 10) -> tuple[int, str]:
-    cmd = ["bluetoothctl", *args]
-    try:
-        proc = subprocess.run(
-            cmd, text=True, capture_output=True, timeout=timeout, env=_SUBPROC_ENV,
-        )
-        out = (proc.stdout or "") + (proc.stderr or "")
-        return proc.returncode, out
-    except FileNotFoundError:
-        return 127, "bluetoothctl not found"
-    except subprocess.TimeoutExpired as e:
-        out = ""
-        if e.stdout:
-            out += e.stdout if isinstance(e.stdout, str) else e.stdout.decode(errors="replace")
-        if e.stderr:
-            out += e.stderr if isinstance(e.stderr, str) else e.stderr.decode(errors="replace")
-        return 1, out
-
-
-def parse_battery_pct(info: str) -> int | None:
-    """Extract battery percentage as int, or None."""
-    m = re.search(r"Battery Percentage:\s*(?:0x[0-9a-fA-F]+\s*)?\((\d+)\)", info)
-    if m:
-        return int(m.group(1))
-    return None
-
-
-def format_battery(pct: int | None) -> str:
-    """Format battery like bluetui: ``25% 󰤿`` with Nerd Font icon."""
-    if pct is None:
-        return ""
-    # Match bluetui's nf-md battery glyphs by percentage band.
-    if pct >= 90:
-        icon = "\U000f0948"  # 󰥈
-    elif pct >= 80:
-        icon = "\U000f0945"  # 󰥅
-    elif pct >= 70:
-        icon = "\U000f0944"  # 󰥄
-    elif pct >= 60:
-        icon = "\U000f0943"  # 󰥃
-    elif pct >= 50:
-        icon = "\U000f0942"  # 󰥂
-    elif pct >= 40:
-        icon = "\U000f0941"  # 󰥁
-    elif pct >= 30:
-        icon = "\U000f0940"  # 󰥀
-    elif pct >= 20:
-        icon = "\U000f093f"  # 󰤿
-    else:
-        icon = "\U000f093e"  # 󰤾
-    return f"{pct}% {icon}"
-
-
-def get_hci_name() -> str:
-    """Return the primary HCI interface name (e.g. hci0), matching bluetui."""
-    try:
-        names = sorted(
-            n for n in os.listdir("/sys/class/bluetooth")
-            if n.startswith("hci") and ":" not in n
-        )
-        if names:
-            return names[0]
-    except OSError:
-        pass
-    return "hci0"
-
-
-def yesno_bool(val: str) -> bool:
-    return val.strip().lower() in ("yes", "true", "on", "1")
-
-
-def get_devices_info() -> list[dict]:
-    """Return list of device dicts: addr, name, status, icon, trusted, battery."""
-    _, out = btctl_simple("devices")
-    # Also merge explicitly paired list (some bluez builds omit unpaired from `devices`)
-    _, paired_out = btctl_simple("devices", "Paired")
-    lines = list(out.splitlines()) + list(paired_out.splitlines())
-    seen_addrs: set[str] = set()
-    result = []
-    for line in lines:
-        m = re.match(r"Device\s+([0-9A-Fa-f:]{17})\s+(.*)", line)
-        if not m:
-            continue
-        addr, name = m.group(1), m.group(2).strip()
-        key = addr.upper()
-        if key in seen_addrs:
-            continue
-        seen_addrs.add(key)
-        try:
-            _, info = btctl_simple("info", addr, timeout=3)
-        except Exception:
-            info = ""
-        if not info:
-            info = ""
-        icon = device_icon(info, name)
-        # bluez may print yes/no in any case
-        paired = bool(re.search(r"Paired:\s*yes", info, re.I))
-        connected = bool(re.search(r"Connected:\s*yes", info, re.I))
-        trusted = bool(re.search(r"Trusted:\s*yes", info, re.I))
-        blocked_raw = re.search(r"Blocked:\s*(yes|no)", info, re.I)
-        blocked = blocked_raw.group(1) if blocked_raw else ""
-        rssi_m = re.search(r"RSSI:\s*(-?\d+)", info, re.I)
-        rssi = f"{rssi_m.group(1)} dBm" if rssi_m else ""
-        adapter_m = re.search(r"Adapter:.*?hci(\d+)", info, re.I)
-        adapter = f"hci{adapter_m.group(1)}" if adapter_m else ""
-        type_label = device_type_label(info, name)
-        battery_pct = parse_battery_pct(info)
-        if connected:
-            status = "connected"
-        elif paired:
-            status = "paired"
-        else:
-            status = "available"
-        result.append({
-            "addr": addr,
-            "name": name or addr,
-            "status": status,
-            "icon": icon,
-            "trusted": trusted,
-            "blocked": blocked,
-            "rssi": rssi,
-            "adapter": adapter,
-            "type_label": type_label,
-            "battery": format_battery(battery_pct),
-            "battery_pct": battery_pct,
-            "favorite": False,
-        })
-    order = {"connected": 0, "paired": 1, "available": 2}
-    result.sort(key=lambda d: order.get(d["status"], 3))
-    return result
-
-
-def get_adapter_info() -> dict | None:
-    """Return adapter info dict, formatted like bluetui (hci name, On/Off, true/false)."""
-    _, out = btctl_simple("show")
-    m = re.search(r"Controller\s+([0-9A-Fa-f:]+)", out)
-    if not m:
-        return None
-
-    def g(key: str) -> str:
-        mm = re.search(rf"^\s*{key}:\s*(.+)", out, re.MULTILINE)
-        return mm.group(1).strip() if mm else "?"
-
-    powered = yesno_bool(g("Powered"))
-    pairable = yesno_bool(g("Pairable"))
-    discoverable = yesno_bool(g("Discoverable"))
-    return {
-        "name": get_hci_name(),
-        "alias": g("Alias"),
-        "powered": "On" if powered else "Off",
-        "pairable": "true" if pairable else "false",
-        "discoverable": "true" if discoverable else "false",
-    }
-
 
 # ── curses app ──
 
