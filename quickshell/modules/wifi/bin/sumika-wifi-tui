@@ -16,6 +16,7 @@ Controls
   q / Esc    Quit
 """
 
+import argparse
 import curses
 import locale
 import os
@@ -110,6 +111,8 @@ class WifiModel:
         self.connecting = False   # connection overlay in progress
         self.overlay_title = ""   # title for the log overlay
         self._connect_ssid = None  # SSID for post-connect selection
+        self._pending_connect = None  # SSID from --connect arg, resolved after scan
+        self.active_conn = ""  # current connection name, used as fallback on connect failure
         self._log_seen = 0         # log_lines length at last render
 
     def run_bg(self, label, fn, *args):
@@ -140,6 +143,9 @@ def _action_connect(m, ssid, password=None, uuid=None):
     m.busy = True
     m.overlay_title = "Connecting"
     m._connect_ssid = ssid
+    # Snapshot the currently-active connection before we attempt the new one,
+    # so a failed connect can fall back to it and keep the user online.
+    pre_conn = m.active_conn or ""
     m.log_lines = [f"Connecting to {ssid}…"]
     m._log_seen = 0
     m.status_msg = f"Connecting to {ssid}…"
@@ -152,12 +158,27 @@ def _action_connect(m, ssid, password=None, uuid=None):
     def worker():
         try:
             ok, msg = connect_network(ssid, password, uuid=uuid, on_log=on_log)
-            m.status_msg = msg
-            m.log_lines.append("")
-            if ok:
-                m.log_lines.append(f"✓ {msg} — press Q to close")
+            if not ok and pre_conn and pre_conn != ssid:
+                # Keep the user online: reconnect the previously-working
+                # network. connect_network(name) with no password/uuid
+                # reactivates the saved profile via `nmcli connection up id`.
+                m.log_lines.append("")
+                m.log_lines.append(f"  ↳ {msg}; reconnecting {pre_conn}…")
+                m.dirty = True
+                ok2, msg2 = connect_network(pre_conn, on_log=on_log)
+                if ok2:
+                    m.status_msg = f"Connection to {ssid} failed — back online via {pre_conn}"
+                    m.log_lines.append(f"✓ Back online via {pre_conn} — press Q to close")
+                else:
+                    m.status_msg = f"Connection to {ssid} failed; could not return to {pre_conn}"
+                    m.log_lines.append(f"✗ {msg2} — press Q to close")
             else:
-                m.log_lines.append(f"✗ {msg} — press Q to close")
+                m.status_msg = msg
+                m.log_lines.append("")
+                if ok:
+                    m.log_lines.append(f"✓ {msg} — press Q to close")
+                else:
+                    m.log_lines.append(f"✗ {msg} — press Q to close")
         except Exception as exc:
             m.status_msg = f"Error: {exc}"
             m.log_lines.append(f"✗ Error: {exc} — press Q to close")
@@ -167,6 +188,37 @@ def _action_connect(m, ssid, password=None, uuid=None):
             m.dirty = True
 
     threading.Thread(target=worker, daemon=True).start()
+def _try_pending_connect(m):
+    """Resolve a --connect SSID target once the network list is available.
+
+    Saved network -> connect directly. Stranger secured network -> open the
+    password prompt. Open network -> connect. Stays pending until the target
+    shows up in a scan, so callers can set it before the first rescan finishes.
+    """
+    ssid = m._pending_connect
+    if not ssid or m.password_prompt is not None or m.connecting or m.busy:
+        return
+    saved = next((s for s in m.saved if s.get("ssid") == ssid), None)
+    if saved:
+        m._pending_connect = None
+        _action_connect(m, ssid, uuid=saved.get("uuid"))
+        return
+    d = next((a for a in m.available if a.get("ssid") == ssid), None)
+    if d is None:
+        return  # not scanned yet; retry on next poll
+    m._pending_connect = None
+    if is_enterprise(d.get("security", "")):
+        m.status_msg = "802.1X/Enterprise: use nmtui or nmcli"
+        m.dirty = True
+        return
+    if is_secured(d["security"]):
+        m.password_prompt = ssid
+        m.password_buf = ""
+        m.status_msg = f"Enter password for {ssid}:"
+        m.dirty = True
+    else:
+        _action_connect(m, ssid)
+
 
 def _poll(model):
     if model._async_msg is not None:
@@ -189,6 +241,8 @@ def _poll(model):
             else:
                 model.status_msg = "All nearby networks are already saved"
         model.dirty = True
+    # Resolve a --connect target once the scan brings it into view.
+    _try_pending_connect(model)
 
 
 def _unsaved_available(m):
@@ -197,12 +251,12 @@ def _unsaved_available(m):
     saved_ssids = {s["ssid"] for s in m.saved}
     return [a for a in get_available_networks() if a["ssid"] not in saved_ssids]
 
-
 def _refresh_data(m):
     now = time.monotonic()
     m.saved = get_saved_networks()
     m.available = _unsaved_available(m)
     m.status = get_wifi_status()
+    m.active_conn = get_active_connection()
     count = len(_focused_list(m))
     if count == 0:
         m.selected = 0
@@ -925,10 +979,14 @@ def _force_narrow_ambiguous_locale():
     S.setup_locale()
 
 
-def _bootstrap(stdscr):
+def _bootstrap(stdscr, connect_ssid=None):
     m = WifiModel()
     prepare_wifi()
     _refresh_data(m)
+    if connect_ssid:
+        m._pending_connect = connect_ssid
+        # Try immediately in case the target is already in the cached scan.
+        _try_pending_connect(m)
     rescan_wifi()
     m._scan_deadline = time.monotonic() + 2.0
     m.status_msg = "Scanning… press s to rescan"
@@ -936,6 +994,17 @@ def _bootstrap(stdscr):
                    poll_timeout=200,
                    refresh_interval=0.1,
                    refresh_callback=_poll)
+
+
+def _parse_args(argv):
+    p = argparse.ArgumentParser(
+        prog="sumika-wifi-tui",
+        description="Sumika WiFi manager TUI",
+    )
+    p.add_argument("--connect", metavar="SSID", default=None,
+                   help="jump to this network on launch: connect if saved/open, "
+                        "otherwise open the password prompt")
+    return p.parse_args(argv)
 
 
 def main():
@@ -950,10 +1019,13 @@ def main():
     if not ok:
         print(err, file=sys.stderr)
         return 1
+    args = _parse_args(sys.argv[1:])
     try:
-        return curses.wrapper(lambda stdscr: _bootstrap(stdscr))
+        return curses.wrapper(lambda stdscr: _bootstrap(stdscr, args.connect))
     except KeyboardInterrupt:
         return 0
+
+
 
 
 if __name__ == "__main__":

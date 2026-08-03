@@ -60,5 +60,10 @@ After first install: log out/in once (group membership), then `sumika-restart` i
 | `s` | Scan |
 | `q` / `Esc` | Quit |
 
-WiFi also: `t` radio on/off, `f` forget, `d` disconnect.  
+WiFi also: `t` radio on/off. Press `Enter` on a saved network to open its
+details, then choose Connect/Disconnect or Forget with arrows and `Enter`.
+Saved networks remain listed when away from their access point: the TUI marks
+them **Out of range** and omits connection attempts until the SSID is visible
+again. A visible SSID is only eligible for a connection attempt; it does not
+guarantee that credentials or internet access will work.
 Bluetooth also: `t` trust, `u`/`f` unpair/forget, `d` disconnect.

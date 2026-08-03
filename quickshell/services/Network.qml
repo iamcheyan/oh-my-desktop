@@ -84,6 +84,7 @@ Singleton {
 
     readonly property WifiAccessPoint active: wifiNetworks.find(n => n.active) ?? null
     property var knownWifiNames: []
+    onKnownWifiNamesChanged: scheduleResort()
     property var wifiAutoconnectByName: ({})
     // Sorted view of wifiNetworks. Recomputed on a debounced timer rather
     // than as a binding that re-sorts the whole list on every AP property
@@ -402,6 +403,18 @@ Singleton {
         Quickshell.execDetached(["xdg-open", "https://nmcheck.gnome.org/"])
     }
 
+    // Launch the Wi-Fi manager TUI. With a SSID, jump straight to that
+    // network (connect if saved/open, otherwise the password prompt). Used
+    // for stranger networks and saved-but-stale-password cases, so the
+    // Quickshell popup only handles switching among known networks.
+    function launchWifiTui(connectSsid = "") {
+        const launcher = Directories.root + "/quickshell/modules/wifi/bin/sumika-launch-wifi";
+        if (connectSsid && connectSsid.length > 0)
+            Quickshell.execDetached(["bash", launcher, "--connect", connectSsid]);
+        else
+            Quickshell.execDetached(["bash", launcher]);
+    }
+
     function changePassword(network: WifiAccessPoint, password: string, username = ""): void {
         // Prefer the unified password connect path.
         root.connectToWifiNetworkWithPassword(network, password);
@@ -534,10 +547,14 @@ Singleton {
             const needsSecrets = secrets && !enterprise;
 
             if (target && needsSecrets && secure) {
-                target.askingPassword = true;
+                // Password entry lives in the TUI now — the popup only
+                // switches among known networks. Hand the SSID over and let
+                // the TUI open the password prompt for it.
+                target.askingPassword = false;
                 root.wifiConnectPhase = "need_password";
                 root.lastConnectError = cliMsg;
-                root.wifiConnectMessage = cliMsg;
+                root.wifiConnectMessage = `Password required for ${ssid} — opening Wi-Fi TUI…`;
+                root.launchWifiTui(ssid);
                 return;
             }
 

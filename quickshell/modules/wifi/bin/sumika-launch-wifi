@@ -24,26 +24,27 @@ if command -v rfkill >/dev/null 2>&1; then
 fi
 
 run_tui() {
-  exec python3 "$WIFI_TUI"
+  exec python3 "$WIFI_TUI" "$@"
 }
 
 if command -v uwsm-app >/dev/null 2>&1 && command -v xdg-terminal-exec >/dev/null 2>&1; then
-  exec setsid uwsm-app -- xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.wifitui -e python3 "$WIFI_TUI"
+  exec setsid uwsm-app -- xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.wifitui -- python3 "$WIFI_TUI" "$@"
 fi
 
 if command -v xdg-terminal-exec >/dev/null 2>&1; then
-  exec xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.wifitui -e python3 "$WIFI_TUI"
+  exec xdg-terminal-exec --app-id=io.github.iamcheyan.sumika.wifitui -- python3 "$WIFI_TUI" "$@"
 fi
 
 # foot / kitty / alacritty / gnome-terminal fallbacks
 for term in foot kitty alacritty gnome-terminal konsole; do
   if command -v "$term" >/dev/null 2>&1; then
     case "$term" in
-      gnome-terminal) exec gnome-terminal -- python3 "$WIFI_TUI" ;;
-      konsole)        exec konsole -e python3 "$WIFI_TUI" ;;
-      *)              exec "$term" -e python3 "$WIFI_TUI" ;;
+      gnome-terminal) exec gnome-terminal -- python3 "$WIFI_TUI" "$@" ;;
+      konsole)        exec konsole -e python3 "$WIFI_TUI" "$@" ;;
+      *)              exec "$term" -e python3 "$WIFI_TUI" "$@" ;;
     esac
   fi
 done
+
 
 run_tui

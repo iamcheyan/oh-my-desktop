@@ -159,8 +159,12 @@ ColumnLayout {
     Flickable {
         id: wifiListFlick
         Layout.fillWidth: true
+        readonly property real rowHeight: 44
+        readonly property int maxVisibleRows: 5
         Layout.preferredHeight: ServiceManager.network.wifiEnabled
-            ? Math.min(wifiListCol.implicitHeight, 280)
+            ? (wifiListCol.implicitHeight <= maxVisibleRows * rowHeight
+                ? wifiListCol.implicitHeight
+                : maxVisibleRows * rowHeight)
             : 0
         visible: ServiceManager.network.wifiEnabled
         contentHeight: wifiListCol.implicitHeight
@@ -182,7 +186,7 @@ ColumnLayout {
                     readonly property bool isActive: ap.active ?? false
                     readonly property bool isKnown: ServiceManager.network.isKnownWifi(ap)
                     readonly property bool isConnecting: ServiceManager.network.isConnectingTo(ap)
-                    readonly property bool showPassword: ap.askingPassword === true
+
 
                     Layout.fillWidth: true
                     spacing: 0
@@ -190,7 +194,10 @@ ColumnLayout {
 
                     Rectangle {
                         Layout.fillWidth: true
+                        Layout.leftMargin: 6
+                        Layout.rightMargin: 6
                         Layout.preferredHeight: 44
+                        radius: 6
                         color: apRow.isActive
                             ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
                             : (apMouse.containsMouse ? TuiStyle.surfaceHover : "transparent")
@@ -201,32 +208,47 @@ ColumnLayout {
                             anchors.rightMargin: 16
                             spacing: 10
 
-                            MaterialSymbol {
-                                text: {
-                                    if (apRow.isConnecting)
-                                        return "progress_activity";
-                                    const s = apRow.ap.strength ?? 0;
-                                    if (s >= 67)
-                                        return "network_wifi_3_bar";
-                                    if (s >= 33)
-                                        return "network_wifi_2_bar";
-                                    if (s > 0)
-                                        return "network_wifi_1_bar";
-                                    return "network_wifi";
-                                }
-                                iconSize: 18
-                                color: apRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                            Item {
                                 Layout.preferredWidth: 22
                                 Layout.preferredHeight: 22
-                                width: 18
-                                height: 18
-                                horizontalAlignment: Text.AlignHCenter
-                                RotationAnimator on rotation {
-                                    running: apRow.isConnecting
-                                    loops: Animation.Infinite
-                                    from: 0
-                                    to: 360
-                                    duration: 1200
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    visible: apRow.isConnecting
+                                    text: "progress_activity"
+                                    iconSize: 18
+                                    color: TuiStyle.accent
+                                    rotation: apRow.isConnecting ? rotation : 0
+
+                                    RotationAnimator on rotation {
+                                        running: apRow.isConnecting
+                                        loops: Animation.Infinite
+                                        from: 0
+                                        to: 360
+                                        duration: 1200
+                                    }
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    visible: !apRow.isConnecting
+                                    rotation: 0
+                                    text: {
+                                        const s = apRow.ap.strength ?? 0;
+                                        if (s >= 67)
+                                            return "network_wifi_3_bar";
+                                        if (s >= 33)
+                                            return "network_wifi_2_bar";
+                                        if (s > 0)
+                                            return "network_wifi_1_bar";
+                                        return "network_wifi";
+                                    }
+                                    iconSize: 18
+                                    color: apRow.isActive ? TuiStyle.accent : TuiStyle.muted
                                 }
                             }
 
@@ -250,8 +272,7 @@ ColumnLayout {
                                             return "Connected";
                                         if (apRow.isConnecting)
                                             return "Connecting…";
-                                        if (apRow.showPassword)
-                                            return "Enter password";
+
                                         if (apRow.isKnown)
                                             return "Saved";
                                         return apRow.ap.isSecure ? "Secured" : "Open";
@@ -260,6 +281,16 @@ ColumnLayout {
                                     font.pixelSize: Appearance.font.pixelSize.smaller
                                     elide: Text.ElideRight
                                 }
+                            }
+
+                            // Green dot: this network is saved (no password needed from user)
+                            Rectangle {
+                                visible: apRow.isKnown
+                                Layout.preferredWidth: 7
+                                Layout.preferredHeight: 7
+                                Layout.rightMargin: 4
+                                radius: 3.5
+                                color: TuiStyle.success
                             }
 
                             MaterialSymbol {
@@ -276,15 +307,6 @@ ColumnLayout {
                                 Layout.preferredWidth: 34
                                 horizontalAlignment: Text.AlignRight
                             }
-                            // Green dot: this network is saved (no password needed from user)
-                            Rectangle {
-                                visible: apRow.isKnown
-                                Layout.preferredWidth: 7
-                                Layout.preferredHeight: 7
-                                Layout.leftMargin: 6
-                                radius: 3.5
-                                color: TuiStyle.success
-                            }
                         }
 
                         MouseArea {
@@ -295,127 +317,21 @@ ColumnLayout {
                             enabled: !apRow.isActive && !apRow.isConnecting
                             onClicked: {
                                 GlobalStates.barPopupEphemeral = false;
-                                if (apRow.ap.ssid)
+                                if (!apRow.ap.ssid)
+                                    return;
+                                // Known network: switch directly in the popup.
+                                // Stranger network: hand off to the Wi-Fi TUI,
+                                // which opens the password prompt for it.
+                                if (apRow.isKnown) {
                                     ServiceManager.network.connectToWifiNetwork(apRow.ap);
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        visible: apRow.showPassword
-                        Layout.fillWidth: true
-                        Layout.leftMargin: 16
-                        Layout.rightMargin: 16
-                        Layout.bottomMargin: 8
-                        implicitHeight: popupPassCol.implicitHeight + 14
-                        radius: 6
-                        color: TuiStyle.panel
-                        border.width: 1
-                        border.color: TuiStyle.line
-
-                        ColumnLayout {
-                            id: popupPassCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.margins: 8
-                            spacing: 6
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 34
-                                radius: 4
-                                color: TuiStyle.control
-                                border.width: 1
-                                border.color: popupPassField.activeFocus ? TuiStyle.accent : TuiStyle.line
-
-                                TextInput {
-                                    id: popupPassField
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    verticalAlignment: Text.AlignVCenter
-                                    color: TuiStyle.fg
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    echoMode: TextInput.Password
-                                    passwordCharacter: "•"
-                                    clip: true
-                                    focus: apRow.showPassword
-                                    enabled: !ServiceManager.network.wifiConnecting
-                                    Keys.onReturnPressed: {
-                                        GlobalStates.barPopupEphemeral = false;
-                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
-                                    }
-                                    Keys.onEnterPressed: {
-                                        GlobalStates.barPopupEphemeral = false;
-                                        ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
-                                    }
-                                    Keys.onEscapePressed: ServiceManager.network.cancelWifiPassword()
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 6
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 34
-                                    radius: 6
-                                    color: {
-                                        if (!ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 && wifiPassMouse.containsMouse)
-                                            return TuiStyle.accent;
-                                        return TuiStyle.control;
-                                    }
-                                    opacity: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 ? 1 : 0.5
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: ServiceManager.network.wifiConnecting ? "Connecting…" : "Connect"
-                                        color: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0 ? TuiStyle.fg : TuiStyle.muted
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                    }
-
-                                    MouseArea {
-                                        id: wifiPassMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        enabled: !ServiceManager.network.wifiConnecting && popupPassField.text.length > 0
-                                        onClicked: {
-                                            GlobalStates.barPopupEphemeral = false;
-                                            ServiceManager.network.connectToWifiNetworkWithPassword(apRow.ap, popupPassField.text);
-                                        }
-                                    }
-                                }
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 34
-                                    radius: 6
-                                    color: cancelBtnMouse.containsMouse ? TuiStyle.surfaceHover : TuiStyle.control
-                                    opacity: !ServiceManager.network.wifiConnecting ? 1 : 0.5
-                                    border.width: 1
-                                    border.color: TuiStyle.line
-
-                                    StyledText {
-                                        anchors.centerIn: parent
-                                        text: "Cancel"
-                                        color: !ServiceManager.network.wifiConnecting ? TuiStyle.fg : TuiStyle.muted
-                                        font.pixelSize: Appearance.font.pixelSize.small
-                                    }
-
-                                    MouseArea {
-                                        id: cancelBtnMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        enabled: !ServiceManager.network.wifiConnecting
-                                        onClicked: ServiceManager.network.cancelWifiPassword()
-                                    }
+                                } else {
+                                    GlobalStates.barPopupType = "";
+                                    ServiceManager.network.launchWifiTui(apRow.ap.ssid);
                                 }
                             }
                         }
                     }
+
                 }
             }
 
@@ -448,8 +364,11 @@ ColumnLayout {
     // Divider between Wi-Fi block and Bluetooth
     Rectangle {
         Layout.fillWidth: true
+        Layout.leftMargin: 12
+        Layout.rightMargin: 12
         Layout.preferredHeight: 1
         Layout.topMargin: 4
+        Layout.bottomMargin: 4
         color: TuiStyle.line
         opacity: TuiStyle.dividerOpacity
     }
@@ -505,7 +424,10 @@ ColumnLayout {
                 readonly property bool isConnecting: BluetoothStatus.actionRunning && BluetoothStatus.actionAddress === dev.address
 
                 Layout.fillWidth: true
+                Layout.leftMargin: 6
+                Layout.rightMargin: 6
                 Layout.preferredHeight: 40
+                radius: 6
                 color: btMouse.containsMouse ? TuiStyle.surfaceHover : "transparent"
 
                 RowLayout {
@@ -514,20 +436,40 @@ ColumnLayout {
                     anchors.rightMargin: 16
                     spacing: 10
 
-                    MaterialSymbol {
-                        text: btRow.isConnecting ? "progress_activity" : (btRow.isActive ? "bluetooth_connected" : "bluetooth")
-                        iconSize: 18
-                        color: btRow.isActive ? TuiStyle.accent : TuiStyle.muted
-                        Layout.preferredWidth: 22
+                            Item {
+                                Layout.preferredWidth: 22
+                                Layout.preferredHeight: 22
 
-                        RotationAnimator on rotation {
-                            running: btRow.isConnecting
-                            loops: Animation.Infinite
-                            from: 0
-                            to: 360
-                            duration: 1200
-                        }
-                    }
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    visible: btRow.isConnecting
+                                    text: "progress_activity"
+                                    iconSize: 18
+                                    color: TuiStyle.accent
+                                    rotation: btRow.isConnecting ? rotation : 0
+
+                                    RotationAnimator on rotation {
+                                        running: btRow.isConnecting
+                                        loops: Animation.Infinite
+                                        from: 0
+                                        to: 360
+                                        duration: 1200
+                                    }
+                                }
+
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    visible: !btRow.isConnecting
+                                    rotation: 0
+                                    text: btRow.isActive ? "bluetooth_connected" : "bluetooth"
+                                    iconSize: 18
+                                    color: btRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                }
+                            }
 
                     ColumnLayout {
                         Layout.fillWidth: true

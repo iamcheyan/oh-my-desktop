@@ -254,30 +254,49 @@ ColumnLayout {
                                     anchors.rightMargin: 10
                                     spacing: 10
 
-                                    MaterialSymbol {
-                                        text: {
-                                            if (netDelegate.isConnecting)
-                                                return "progress_activity"
-                                            const s = netDelegate.ap.strength ?? 0
-                                            if (s >= 75)
-                                                return "wifi"
-                                            if (s >= 50)
-                                                return "network_wifi_3_bar"
-                                            if (s >= 25)
-                                                return "network_wifi_2_bar"
-                                            if (s > 0)
-                                                return "network_wifi_1_bar"
-                                            return "wifi_off"
-                                        }
-                                        iconSize: 18
-                                        color: netDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
+                                    Item {
                                         Layout.preferredWidth: 22
-                                        RotationAnimator on rotation {
-                                            running: netDelegate.isConnecting
-                                            loops: Animation.Infinite
-                                            from: 0
-                                            to: 360
-                                            duration: 1200
+                                        Layout.preferredHeight: 22
+
+                                        MaterialSymbol {
+                                            anchors.centerIn: parent
+                                            width: 18
+                                            height: 18
+                                            visible: netDelegate.isConnecting
+                                            text: "progress_activity"
+                                            iconSize: 18
+                                            color: SettingsTokens.accent
+                                            rotation: 0
+
+                                            RotationAnimator on rotation {
+                                                running: netDelegate.isConnecting
+                                                loops: Animation.Infinite
+                                                from: 0
+                                                to: 360
+                                                duration: 1200
+                                            }
+                                        }
+
+                                        MaterialSymbol {
+                                            anchors.centerIn: parent
+                                            width: 18
+                                            height: 18
+                                            visible: !netDelegate.isConnecting
+                                            rotation: 0
+                                            text: {
+                                                const s = netDelegate.ap.strength ?? 0
+                                                if (s >= 75)
+                                                    return "wifi"
+                                                if (s >= 50)
+                                                    return "network_wifi_3_bar"
+                                                if (s >= 25)
+                                                    return "network_wifi_2_bar"
+                                                if (s > 0)
+                                                    return "network_wifi_1_bar"
+                                                return "wifi_off"
+                                            }
+                                            iconSize: 18
+                                            color: netDelegate.isActive ? SettingsTokens.accent : SettingsTokens.muted
                                         }
                                     }
 
