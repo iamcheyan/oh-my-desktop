@@ -463,20 +463,23 @@ def connect_network(
 ) -> tuple[bool, str]:
     """Connect to a network.
 
-    Prefer activating a saved connection by UUID (handles connection-id ≠ SSID).
-    Fall back to ``device wifi connect``.
-    If *on_log* is given, progress lines are streamed to it.
+    ``nmcli connection up <uuid>`` is the fast path — it reuses a saved
+    profile without a scan. But it does NOT handle switching: when the
+    radio is already associated with a different SSID, NM rejects it with
+    "The base network connection was interrupted" (rc=4). This was the
+    wedge: every recovery candidate tried ``connection up`` first, wasted
+    ~10 s on the inevitable failure, then fell back to ``device wifi
+    connect`` with the device in a half-activated mess.
 
-    When switching away from a different active network, the device's
-    autoconnect is disabled first so NetworkManager doesn't re-grab the
-    radio mid-activation. NM then needs a moment to finish the teardown;
-    activating too early yields "The base network connection was
-    interrupted", and stacking a second request on top of an in-flight one
-    yields "New connection activation was enqueued" (the first request is
-    queued, not failed — NM completes it afterwards). Both are retried
-    here: the profile activation once after the device settles, and the
-    device-connect fallback polled until NM finishes the queued activation.
-    Autoconnect is restored on exit.
+    ``nmcli device wifi connect <ssid>`` is the GUI-click equivalent: NM
+    deactivates the current connection and activates the target as one
+    atomic operation — no race, no "interrupted". So:
+
+      • switching (active ≠ ssid)  → ``device wifi connect`` directly
+      • fresh connect (no active)   → ``connection up uuid`` first, then
+                                       fall back to ``device wifi connect``
+
+    If *on_log* is given, progress lines are streamed to it.
     """
     def _log(msg):
         if on_log:
@@ -486,50 +489,23 @@ def connect_network(
     if dev:
         _log(f"Using device {dev}")
 
-    # If the radio is already on a different network, tear it down first
-    # so the activation below doesn't race it. Disable the device's
-    # autoconnect so NM doesn't immediately re-grab it during the settle
-    # window. Autoconnect is restored below on exit.
     active = get_active_connection()
-    suppressed = False
-    if active and active != ssid and dev and dev != "—":
-        _log(f"Disconnecting current ({active}) before switching…")
-        nmcli("device", "set", dev, "autoconnect", "no", timeout=5)
-        suppressed = True
-        _ensure_disconnected(dev)
-        # Let NM finish the teardown so `connection up` below doesn't race
-        # it ("The base network connection was interrupted").
-        _wait_device_idle(dev, tries=8, delay=0.4)
-
-    def _try_profile():
-        """Activate by uuid; retry once if NM was mid-teardown."""
-        _log("Activating saved profile…")
-        rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
-        if rc == 0:
-            return True, out
-        err = _first_error_line(out)
-        low = (err or "").lower()
-        if "interrupted" in low or "enqueued" in low:
-            _log(f"  NM busy ({err[:60]}) — waiting, then retrying…")
-            time.sleep(1.5)
-            rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
-            if rc == 0:
-                return True, out
-            err = _first_error_line(out)
-        _log(f"  ✗ Profile activation failed: {err}")
-        return False, err
+    switching = bool(active and active != ssid)
 
     try:
-        if uuid and not password:
-            ok, err = _try_profile()
-            if ok:
+        # ── fresh connect: try the saved profile first (fast, no scan) ──
+        if not switching and uuid and not password:
+            _log("Activating saved profile…")
+            rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
+            if rc == 0:
                 _log(f"✓ Connected to {ssid}")
                 for ln in _connection_detail_lines(dev):
                     _log(f"  {ln}")
                 return True, f"Connected to {ssid}"
+            _log(f"  ✗ Profile activation failed: {_first_error_line(out)}")
             _log("  Falling back to device wifi connect…")
 
-        if uuid is None and not password:
+        if not switching and uuid is None and not password:
             _log("Activating by SSID…")
             rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
             if rc == 0:
@@ -540,6 +516,12 @@ def connect_network(
             _log(f"  ✗ SSID activation failed: {_first_error_line(out)}")
             _log("  Falling back to device wifi connect…")
 
+        # ── atomic switch / fallback: device wifi connect ──
+        # This is the GUI "click SSID" path. NM deactivates the current
+        # connection and activates the target in one operation, so there's
+        # no "base network connection was interrupted" race.
+        if switching:
+            _log(f"Switching from {active} (atomic)…")
         _log("Running device wifi connect…")
         args = ["device", "wifi", "connect", ssid]
         if password:
@@ -554,11 +536,12 @@ def connect_network(
             return True, f"Connected to {ssid}"
         err = out.strip()
         low = err.lower()
+        # NM sometimes enqueues the activation when the device is busy
+        # finishing a previous request; poll until it completes instead
+        # of declaring failure (the activation often succeeds afterwards).
         if "enqueued" in low or "queued" in low:
-            # NM accepted the activation and is completing it; poll instead
-            # of declaring failure (a previous request may be finishing).
             _log("  Activation queued by NM — waiting for it to complete…")
-            for _ in range(15):
+            for _ in range(20):
                 time.sleep(1.0)
                 if get_active_connection() == ssid:
                     _log(f"✓ Connected to {ssid}")
@@ -567,7 +550,6 @@ def connect_network(
                     return True, f"Connected to {ssid}"
             _log("  ✗ Queued activation did not complete")
             return False, "Connection failed (NM activation queued, then stalled)"
-        low = err.lower()
         if "secrets were required" in low or ("password" in low and "invalid" in low):
             _log("✗ Wrong password / secrets required")
             _log(f"  nmcli: {_first_error_line(err)}")
@@ -575,7 +557,7 @@ def connect_network(
         if "802.1x" in low or "eap" in low:
             _log("✗ Enterprise (802.1X) networks need nmtui / nmcli")
             return False, "Enterprise (802.1X) networks need nmtui / nmcli"
-        if "connection activation failed" in low:
+        if "connection activation failed" in low or "interrupted" in low:
             _log("✗ Connection activation failed")
             _log(f"  nmcli: {_first_error_line(err)}")
             return False, "Connection failed"
@@ -587,8 +569,7 @@ def connect_network(
         _log(f"✗ {err[:80] if err else 'Connection failed'}")
         return False, (err[:80] if err else "Connection failed")
     finally:
-        if suppressed:
-            nmcli("device", "set", dev, "autoconnect", "yes", timeout=5)
+        pass
 
 
 def disconnect_network(dev: str) -> tuple[bool, str]:
@@ -599,49 +580,6 @@ def disconnect_network(dev: str) -> tuple[bool, str]:
         return True, "Disconnected"
     return False, out.strip()[:60] or "Disconnect failed"
 
-
-def _ensure_disconnected(dev: str, *, settle: float = 1.5, tries: int = 6) -> None:
-    """Tear down any active Wi-Fi on *dev* and wait for it to settle.
-
-    Used between auto-recover candidate attempts so the next
-    ``nmcli connection up`` doesn't race a leftover association (which NM
-    rejects as "New connection was active"). No-op if already idle."""
-    if not dev or dev == "—":
-        return
-    status = get_wifi_status()
-    if not status.get("active") or status.get("active") in ("", "—"):
-        return
-    disconnect_network(dev)
-    for _ in range(tries):
-        s = get_wifi_status()
-        if not s.get("active") or s.get("active") in ("", "—"):
-            break
-        time.sleep(0.5)
-    time.sleep(settle)
-
-
-def _wait_device_idle(dev: str, *, tries: int = 8, delay: float = 0.4) -> None:
-    """Wait until the device's NM state is a stable idle (disconnected).
-
-    Right after ``device disconnect`` NM still reports the old state or is
-    mid-transition; firing ``connection up`` then fails with "The base
-    network connection was interrupted". Poll `nmcli device status` until
-    the device shows `disconnected` (or an explicit non-wifi state)."""
-    if not dev or dev == "—":
-        return
-    for _ in range(tries):
-        try:
-            rc, out = nmcli("-t", "-f", "DEVICE,STATE", "device", "status", timeout=5)
-            for line in (out or "").splitlines():
-                parts = line.split(":")
-                if parts and parts[0] == dev:
-                    state = parts[1] if len(parts) > 1 else ""
-                    if state in ("disconnected", "unavailable"):
-                        return
-                    break
-        except Exception:
-            pass
-        time.sleep(delay)
 
 
 def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool, str]:
@@ -918,11 +856,8 @@ def fix_connection(on_log) -> tuple[bool, str]:
     `on_log(str)` is called with each progress line."""
     raw_log = on_log
     on_log, finalize = _tee_recovery_log(on_log)
-    _ac_dev = []  # device whose autoconnect we suppressed; restored on exit
 
     def done(ok: bool, msg: str) -> tuple[bool, str]:
-        if _ac_dev:
-            nmcli("device", "set", _ac_dev[0], "autoconnect", "yes", timeout=5)
         log_path = finalize(ok, msg)
         if log_path and raw_log:
             raw_log(f"📋 Log saved: {log_path}")
@@ -955,9 +890,6 @@ def fix_connection(on_log) -> tuple[bool, str]:
             # fails with "New connection activation was enqueued".
             dev0 = status.get("device", "")
             if dev0 and dev0 != "—":
-                nmcli("device", "set", dev0, "autoconnect", "no", timeout=5)
-                if not _ac_dev:
-                    _ac_dev.append(dev0)
                 ok_d, dmsg = disconnect_network(dev0)
                 on_log(f"  Disconnected {dev0} ({dmsg}).")
                 for _ in range(8):
@@ -965,7 +897,6 @@ def fix_connection(on_log) -> tuple[bool, str]:
                     if not s.get("active") or s.get("active") in ("", "—"):
                         break
                     time.sleep(0.5)
-                _wait_device_idle(dev0)
     else:
         on_log("Not connected. Starting recovery.")
 
