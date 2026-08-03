@@ -268,7 +268,7 @@ def get_ip_address(dev: str) -> str:
 
 
 def get_saved_networks() -> list[dict]:
-    rc, out = nmcli("-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT", "connection", "show")
+    rc, out = nmcli("-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY", "connection", "show")
     if rc != 0:
         return []
     active_name = get_active_connection()
@@ -278,7 +278,12 @@ def get_saved_networks() -> list[dict]:
         if len(parts) < 3:
             continue
         name, uuid, ctype = parts[0], parts[1], parts[2]
-        autoconnect = parts[3] if len(parts) > 3 else "yes"
+        autoconnect_raw = parts[3] if len(parts) > 3 else "yes"
+        prio_raw = parts[4] if len(parts) > 4 else "0"
+        try:
+            priority = int(prio_raw)
+        except ValueError:
+            priority = 0
         if "802-11-wireless" not in ctype and ctype != "wifi":
             continue
         connected = name == active_name
@@ -286,7 +291,8 @@ def get_saved_networks() -> list[dict]:
             "ssid": name,  # connection id (usually SSID, not always)
             "uuid": uuid,
             "connected": connected,
-            "autoconnect": autoconnect,
+            "autoconnect": autoconnect_raw == "yes",
+            "priority": priority,
         })
     # Build signal & security lookup from visible APs
     signal_map: dict[str, int] = {}
@@ -467,6 +473,224 @@ def get_wifi_status() -> dict:
     }
 
 
+def ping_stats(host: str, count: int = 5, timeout: float = 1.0) -> tuple[int, str]:
+    """Ping host count times, return (loss_pct, avg_ms_str). avg_ms='fail' if lost."""
+    try:
+        proc = subprocess.run(
+            ["ping", "-n", "-q", "-c", str(count), "-W", str(timeout), host],
+            text=True, capture_output=True,
+            timeout=count * timeout + 3, env=_SUBPROC_ENV,
+        )
+        out = (proc.stdout or "") + (proc.stderr or "")
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return 100, "fail"
+    m = re.search(r"(\d+) packets transmitted, (\d+) received, (\d+)% packet loss", out)
+    loss = int(m.group(3)) if m else 100
+    avg = "fail"
+    m2 = re.search(r"(?:rtt|round-trip)[^=]*= ([\d.]+)/([\d.]+)/([\d.]+)", out)
+    if m2:
+        avg = f"{float(m2.group(2)):.1f}"
+    elif loss == 0:
+        ms = re.findall(r"time=([\d.]+) ms", out)
+        if ms:
+            avg = f"{sum(float(x) for x in ms) / len(ms):.1f}"
+    return loss, avg
+
+
+def get_gateway(dev: str) -> str:
+    if not dev or dev == "—":
+        return ""
+    rc, out = nmcli("-g", "IP4.GATEWAY", "device", "show", dev, timeout=5)
+    for line in out.splitlines():
+        line = line.strip()
+        if line and line != "--":
+            return line
+    return ""
+
+
+def get_link_info(dev: str) -> dict:
+    """Signal dBm, freq, band via iw (empty if unavailable)."""
+    info = {"signal": "", "freq": "", "band": ""}
+    if not dev or dev == "—" or not which("iw"):
+        return info
+    try:
+        proc = subprocess.run(
+            ["iw", "dev", dev, "link"], text=True, capture_output=True,
+            timeout=3, env=_SUBPROC_ENV,
+        )
+        for line in (proc.stdout or "").splitlines():
+            s = line.strip()
+            if s.startswith("signal:"):
+                info["signal"] = s.split("signal:")[1].strip()
+            elif s.startswith("freq:"):
+                f = s.split("freq:")[1].strip().split(".")[0]
+                if f.isdigit():
+                    fi = int(f)
+                    info["freq"] = f
+                    if fi >= 6000:
+                        info["band"] = "6 GHz"
+                    elif fi >= 5000:
+                        info["band"] = "5 GHz"
+                    elif fi >= 2400:
+                        info["band"] = "2.4 GHz"
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
+    return info
+
+
+def run_diagnostics() -> dict:
+    """Connection health: gateway RTT+loss, external RTT+loss, signal, band."""
+    status = get_wifi_status()
+    dev = status.get("device", "")
+    link = get_link_info(dev)
+    gw = get_gateway(dev)
+    result = {
+        "radio": status.get("radio", "?"),
+        "active": status.get("active", "—"),
+        "ip": status.get("ip", "—"),
+        "device": dev,
+        "gateway": gw or "—",
+        "signal": link["signal"] or "—",
+        "band": link["band"] or "—",
+        "freq": link["freq"] or "—",
+        "gateway_ms": "n/a",
+        "gateway_loss": 100,
+        "external_ms": "fail",
+        "external_loss": 100,
+    }
+    if gw:
+        loss, ms = ping_stats(gw, count=5, timeout=1)
+        result["gateway_ms"] = ms
+        result["gateway_loss"] = loss
+    loss, ms = ping_stats("1.1.1.1", count=5, timeout=1)
+    result["external_ms"] = ms
+    result["external_loss"] = loss
+    return result
+
+
+def diag_tone(d: dict) -> str:
+    """ok / warn / danger based on gateway + external reachability."""
+    gw_ok = d["gateway_loss"] < 60 and d["gateway_ms"] != "fail"
+    ext_ok = d["external_loss"] < 60 and d["external_ms"] != "fail"
+    if gw_ok and ext_ok:
+        return "ok"
+    if gw_ok:
+        return "warn"
+    return "danger"
+
+
+def _ranked_candidates(current_ssid: str, current_failed: bool) -> list[dict]:
+    """Visible autoconnect saved networks, ranked by priority*2 + signal + 5GHz bonus.
+    The just-failed SSID is demoted (−30) so we try fresh networks first."""
+    saved = get_saved_networks()
+    available = {a["ssid"]: a for a in get_available_networks()}
+    cand = []
+    for s in saved:
+        if not s.get("autoconnect"):
+            continue
+        ap = available.get(s["ssid"])
+        if not ap:
+            continue
+        ch = ap.get("chan", "")
+        try:
+            chn = int(ch) if str(ch).isdigit() else 0
+        except ValueError:
+            chn = 0
+        is_5g = chn >= 36
+        prio = s.get("priority", 0)
+        score = ap["signal"] + (15 if is_5g else 0) + prio * 2
+        if current_ssid and s["ssid"] == current_ssid and current_failed:
+            score -= 30
+        cand.append({
+            "ssid": s["ssid"], "uuid": s.get("uuid"), "signal": ap["signal"],
+            "chan": ch, "is_5g": is_5g, "priority": prio, "score": score,
+        })
+    cand.sort(key=lambda c: -c["score"])
+    return cand
+
+
+def fix_connection(on_log) -> tuple[bool, str]:
+    """Smart reconnect: check current → rank visible autoconnect networks →
+    try each (connect + ping gateway); first that pings wins.
+    Fallback: radio off/on reset + nmcli reload, then one more round.
+    `on_log(str)` is called with each progress line (thread-safe append)."""
+    def log(msg):
+        on_log(msg)
+
+    status = get_wifi_status()
+    current = status.get("active", "") if status.get("active") not in ("", "—") else ""
+
+    # Step 1: if currently connected, verify it isn't just a transient blip.
+    current_failed = True
+    if current:
+        log(f"Checking current connection ({current})…")
+        gw = get_gateway(status.get("device", ""))
+        if gw:
+            loss, ms = ping_stats(gw, count=3, timeout=1)
+            if loss == 0 and ms != "fail":
+                log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — network is healthy")
+                return True, f"Network healthy: {current} ({ms} ms)"
+            log(f"  ✗ Gateway {loss}% loss, {ms} ms — current connection unusable")
+        else:
+            log("  ✗ No gateway — current connection unusable")
+    else:
+        log("Not connected. Starting recovery.")
+
+    # Step 2: scan + rank
+    log("Scanning for networks…")
+    rescan_wifi()
+    time.sleep(2.0)
+
+    def attempt_round(tag):
+        cand = _ranked_candidates(current, current_failed)
+        if not cand:
+            log(f"[{tag}] No visible autoconnect networks found.")
+            return False, ""
+        log(f"[{tag}] {len(cand)} candidate(s): " + ", ".join(
+            f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
+        for i, c in enumerate(cand, 1):
+            log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
+            ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"))
+            if not ok:
+                log(f"  ✗ {msg}")
+                continue
+            log("  connected — verifying gateway…")
+            time.sleep(1.0)
+            dev = get_wifi_device()
+            gw = get_gateway(dev)
+            if not gw:
+                log("  ✗ no gateway after connect")
+                continue
+            loss, ms = ping_stats(gw, count=3, timeout=1)
+            if loss == 0 and ms != "fail":
+                log(f"  ✓ Gateway OK ({ms} ms, 0% loss)")
+                return True, f"Connected to {c['ssid']} ({ms} ms)"
+            log(f"  ✗ gateway {loss}% loss — not usable")
+            disconnect_network(dev)
+        return False, ""
+
+    ok, msg = attempt_round("1")
+    if ok:
+        return True, msg
+
+    # Step 3: hard reset fallback
+    log("All candidates failed. Hard reset: radio off → on + NM reload.")
+    set_wifi_radio(False)
+    time.sleep(2.0)
+    set_wifi_radio(True)
+    time.sleep(4.0)
+    nmcli("connection", "reload", timeout=10)
+    prepare_wifi()
+    time.sleep(2.0)
+    log("Radio reset complete. Retrying candidates…")
+    ok, msg = attempt_round("2")
+    if ok:
+        return True, msg
+
+    log("✗ Could not restore connectivity. Check router / try `t` to toggle radio.")
+    return False, "Recovery failed — check router or toggle WiFi"
+
+
 # ── curses app ────────────────────────────────────────────────────────
 
 F_SAVED = 0
@@ -491,6 +715,9 @@ class WifiModel:
         self._async_msg = None
         self._scan_deadline = 0.0
         self._show_available = True
+        self.diag = None          # last diagnostics result
+        self.fixing = False       # recovery in progress (overlay shown)
+        self._log_seen = 0         # log_lines length at last render
 
     def run_bg(self, label, fn, *args):
         if self.busy:
@@ -516,6 +743,10 @@ def _poll(model):
         model.status_msg = model._async_msg
         model._async_msg = None
         _refresh_data(model)
+        model.dirty = True
+    # Live-update the fix overlay as log lines stream in from the worker.
+    if model.fixing and len(model.log_lines) > model._log_seen:
+        model._log_seen = len(model.log_lines)
         model.dirty = True
     deadline = getattr(model, "_scan_deadline", 0.0) or 0.0
     if deadline and time.monotonic() >= deadline:
@@ -771,7 +1002,7 @@ def _draw_saved_table(stdscr, m, y, x, h, w, saved):
             ssid = f"{CONNECTED_ICON} {d['ssid']}"
         else:
             ssid = f"{UNLOCK_ICON} {d['ssid']}"
-        auto_str = d.get("autoconnect", "yes")
+        auto_str = "yes" if d.get("autoconnect") else "no"
         cells = [ssid, sec_str, signal_str, auto_str, status]
         S.draw_row(stdscr, row_start + i, x, w, cells, widths, offsets, attr)
 
@@ -826,6 +1057,64 @@ def _draw_status_table(stdscr, m, y, x, h, w):
         attr = S.sel_attr(True, focused) if focused else curses.A_NORMAL
         S.put_row_cells(stdscr, y + 2, x, w, cells, widths, attr)
 
+
+def _fmt_loss(loss: int, ms: str) -> str:
+    if ms == "fail":
+        return f"fail ({loss}% loss)"
+    return f"{ms} ms ({loss}% loss)"
+
+
+def _draw_diag_panel(stdscr, m, h, w):
+    """Centered overlay showing diagnostics results."""
+    d = m.diag
+    if not d:
+        return
+    tone = diag_tone(d)
+    rows = [
+        f"Connection  {d['active']}",
+        f"IP / Dev    {d['ip']}  ({d['device']})",
+        f"Gateway     {d['gateway']}",
+        f"Signal       {d['signal']}   {d['band']} ({d['freq']} MHz)",
+        "",
+        f"Gateway RTT  {_fmt_loss(d['gateway_loss'], d['gateway_ms'])}",
+        f"Internet RTT {_fmt_loss(d['external_loss'], d['external_ms'])}",
+        "",
+    ]
+    verdict = {"ok": "● Healthy", "warn": "● Gateway OK, no internet", "danger": "● No connection"}[tone]
+    vattr = {"ok": S.ATTR_OK, "warn": S.ATTR_WARN, "danger": S.ATTR_DANGER}[tone]
+    title = " Diagnostics "
+    # Build a bordered panel
+    inner_w = min(max(S.text_width(r) for r in rows) + 4, w - 4, 60)
+    panel_h = len(rows) + 3
+    py = max(2, (h - panel_h) // 2)
+    px = max(2, (w - inner_w) // 2)
+    S.draw_border(stdscr, py, px, panel_h, inner_w, title)
+    for i, r in enumerate(rows):
+        if r == "":
+            continue
+        S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_TEXT)
+    vy = py + 1 + len(rows)
+    S.safe_addstr(stdscr, vy, px + 2, S.truncate(verdict, inner_w - 4), vattr)
+    hint = "press D to close"
+    S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
+
+
+def _draw_fix_overlay(stdscr, m, h, w):
+    """Centered overlay with live recovery log."""
+    title = " Auto-Recover "
+    inner_w = min(w - 4, 64)
+    log_h = min(len(m.log_lines), h - 8)
+    panel_h = log_h + 4
+    py = max(2, (h - panel_h) // 2)
+    px = max(2, (w - inner_w) // 2)
+    S.draw_border(stdscr, py, px, panel_h, inner_w, title)
+    if m.log_lines:
+        shown = m.log_lines[-log_h:] if log_h > 0 else []
+        for i, line in enumerate(shown):
+            S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(line, inner_w - 4), S.ATTR_TEXT)
+    status = "working…" if m.fixing else "done"
+    sattr = S.ATTR_WARN if m.fixing else S.ATTR_SUBTLE
+    S.safe_addstr(stdscr, py + panel_h - 1, px + 2, status, sattr)
 
 def _draw_password_prompt(stdscr, m, h, w):
     masked = "*" * len(m.password_buf)
@@ -882,19 +1171,71 @@ def _view(stdscr, m):
     S.draw_focus_border(stdscr, m.focus == F_STATUS, y, margin, adapter_h, box_w, "Status")
     _draw_status_table(stdscr, m, y + 1, margin + 1, adapter_h - 2, box_w - 2)
     y += adapter_h
+    gen = [("arrows", "navigate"), ("tab", "section"), ("D", "diag"), ("R", "fix"), ("q", "quit")]
     if m.focus == F_SAVED:
-        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
         tool = [("enter", "dis/connect"), ("s", "scan"), ("d", "disconnect"), ("f", "forget"), ("t", "wifi on/off")]
     elif m.focus == F_AVAILABLE:
-        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
         tool = [("enter", "connect"), ("s", "scan"), ("t", "wifi on/off")]
     else:
-        gen = [("arrows", "navigate"), ("tab", "section"), ("q", "quit"), ("r", "refresh")]
         tool = [("s", "scan"), ("t", "wifi on/off")]
     S.draw_help_bar(stdscr, gen, tool)
+    if m.fixing or m.log_lines:
+        _draw_fix_overlay(stdscr, m, h, w)
+    elif m.diag is not None:
+        _draw_diag_panel(stdscr, m, h, w)
     if m.password_prompt is not None:
         _draw_password_prompt(stdscr, m, h, w)
     stdscr.refresh()
+
+
+def _action_diag(m):
+    if m.busy or m.fixing:
+        return
+    if m.diag is not None:
+        m.diag = None          # toggle closed
+        m.dirty = True
+        return
+    m.busy = True
+    m.status_msg = "Running diagnostics…"
+    m.dirty = True
+
+    def worker():
+        try:
+            m.diag = run_diagnostics()
+            m._async_msg = "Diagnostics ready (D to view, any key to dismiss)"
+        except Exception as exc:
+            m._async_msg = f"Diag error: {exc}"
+        finally:
+            m.busy = False
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def _action_fix(m):
+    if m.busy or m.fixing:
+        return
+    m.log_lines = []
+    m._log_seen = 0
+    m.diag = None
+    m.fixing = True
+    m.busy = True
+    m.status_msg = "Auto-recovering…"
+    m.dirty = True
+
+    def on_log(msg):
+        m.log_lines.append(msg)
+
+    def worker():
+        try:
+            _ok, msg = fix_connection(on_log)
+            m._async_msg = msg
+        except Exception as exc:
+            m._async_msg = f"Recovery error: {exc}"
+        finally:
+            m.fixing = False
+            m.busy = False
+
+    threading.Thread(target=worker, daemon=True).start()
 
 
 def _handle_key(stdscr, m, key):
@@ -903,7 +1244,25 @@ def _handle_key(stdscr, m, key):
         return True
     if key in (ord("q"), 27):
         return False
-    elif key == ord("s"):
+    if m.fixing:
+        return True  # ignore keys during recovery
+    # Diagnostics (D) and auto-recover (R) always take priority.
+    if key == ord("D"):
+        _action_diag(m)
+        m.dirty = True
+        return True
+    if key == ord("R"):
+        _action_fix(m)
+        m.dirty = True
+        return True
+    # Any other key dismisses a finished recovery log or diagnostics panel.
+    if m.log_lines or m.diag is not None:
+        m.log_lines = []
+        m._log_seen = 0
+        m.diag = None
+        m.dirty = True
+        return True
+    if key == ord("s"):
         if not m.busy:
             m.status_msg = "Scanning…"
             ok, msg = rescan_wifi()
