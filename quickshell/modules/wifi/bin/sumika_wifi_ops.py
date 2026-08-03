@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from shutil import which
 
 # ── environment / constants ──────────────────────────────────────────────
@@ -344,6 +345,52 @@ def is_enterprise(security: str) -> bool:
 
 # ── connect / disconnect / forget ────────────────────────────────────────
 
+def _first_error_line(out: str) -> str:
+    """First meaningful nmcli error line (skips 'Error:' boilerplate)."""
+    for line in (out or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        low = s.lower()
+        if low in ("error:", "error"):
+            continue
+        if any(k in low for k in ("error", "failed", "required", "activation")):
+            return s[:100]
+    return (out or "").strip()[:100] or "unknown error"
+
+
+def _wait_for_ip(dev: str, tries: int = 6, delay: float = 0.4) -> str:
+    """Poll for an IPv4 address after connect (DHCP may lag behind activation)."""
+    if not dev or dev == "—":
+        return "—"
+    for _ in range(tries):
+        ip = get_ip_address(dev)
+        if ip and ip != "—":
+            return ip
+        time.sleep(delay)
+    return "—"
+
+
+def _connection_detail_lines(dev: str) -> list[str]:
+    """Best-effort lines describing the live connection (IP/GW/signal/band)."""
+    lines = []
+    if not dev or dev == "—":
+        return lines
+    ip = _wait_for_ip(dev)
+    if ip and ip != "—":
+        lines.append(f"IP: {ip}")
+    gw = get_gateway(dev)
+    if gw:
+        lines.append(f"Gateway: {gw}")
+    link = get_link_info(dev)
+    if link.get("signal"):
+        lines.append(f"Signal: {link['signal']}")
+    if link.get("band"):
+        extra = f" ({link['freq']} MHz)" if link.get("freq") else ""
+        lines.append(f"Band: {link['band']}{extra}")
+    return lines
+
+
 def connect_network(
     ssid: str,
     password: str | None = None,
@@ -361,43 +408,56 @@ def connect_network(
         if on_log:
             on_log(msg)
 
+    dev = get_wifi_device()
+    if dev:
+        _log(f"Using device {dev}")
+
     if uuid and not password:
         _log("Activating saved profile…")
         rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
         if rc == 0:
             _log(f"✓ Connected to {ssid}")
+            for ln in _connection_detail_lines(dev):
+                _log(f"  {ln}")
             return True, f"Connected to {ssid}"
-        _log("Profile activation failed — trying device connect…")
+        _log(f"  ✗ Profile activation failed: {_first_error_line(out)}")
+        _log("  Falling back to device wifi connect…")
 
     if uuid is None and not password:
         _log("Activating by SSID…")
         rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
         if rc == 0:
             _log(f"✓ Connected to {ssid}")
+            for ln in _connection_detail_lines(dev):
+                _log(f"  {ln}")
             return True, f"Connected to {ssid}"
-        _log("SSID activation failed — trying device connect…")
+        _log(f"  ✗ SSID activation failed: {_first_error_line(out)}")
+        _log("  Falling back to device wifi connect…")
 
     _log("Running device wifi connect…")
     args = ["device", "wifi", "connect", ssid]
     if password:
         args.extend(["password", password])
-    dev = get_wifi_device()
     if dev:
         args.extend(["ifname", dev])
     rc, out = nmcli(*args, timeout=45)
     if rc == 0:
         _log(f"✓ Connected to {ssid}")
+        for ln in _connection_detail_lines(dev):
+            _log(f"  {ln}")
         return True, f"Connected to {ssid}"
     err = out.strip()
     low = err.lower()
     if "secrets were required" in low or ("password" in low and "invalid" in low):
         _log("✗ Wrong password / secrets required")
+        _log(f"  nmcli: {_first_error_line(err)}")
         return False, "Wrong password / secrets required"
     if "802.1x" in low or "eap" in low:
         _log("✗ Enterprise (802.1X) networks need nmtui / nmcli")
         return False, "Enterprise (802.1X) networks need nmtui / nmcli"
     if "connection activation failed" in low:
         _log("✗ Connection activation failed")
+        _log(f"  nmcli: {_first_error_line(err)}")
         return False, "Connection failed"
     for line in err.splitlines():
         line = line.strip()
