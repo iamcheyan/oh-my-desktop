@@ -117,12 +117,10 @@ Singleton {
         ? "lan"
         : (root.wifiEnabled && root.wifiStatus === "connected")
             ? (
-                (root.active?.strength ?? 0) > 83 ? "signal_wifi_4_bar" :
-                (root.active?.strength ?? 0) > 67 ? "network_wifi" :
-                (root.active?.strength ?? 0) > 50 ? "network_wifi_3_bar" :
+                (root.active?.strength ?? 0) > 67 ? "network_wifi_3_bar" :
                 (root.active?.strength ?? 0) > 33 ? "network_wifi_2_bar" :
-                (root.active?.strength ?? 0) > 17 ? "network_wifi_1_bar" :
-                "signal_wifi_0_bar"
+                (root.active?.strength ?? 0) > 0 ? "network_wifi_1_bar" :
+                "network_wifi"
             )
             : (root.wifiStatus === "connecting" || root.wifiConnectPhase === "connecting")
                 ? "signal_wifi_statusbar_not_connected"

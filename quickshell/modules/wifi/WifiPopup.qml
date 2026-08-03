@@ -128,6 +128,9 @@ ColumnLayout {
 
             MaterialSymbol {
                 anchors.centerIn: parent
+                width: 16
+                height: 16
+                horizontalAlignment: Text.AlignHCenter
                 text: "refresh"
                 iconSize: 16
                 color: TuiStyle.muted
@@ -203,19 +206,21 @@ ColumnLayout {
                                     if (apRow.isConnecting)
                                         return "progress_activity";
                                     const s = apRow.ap.strength ?? 0;
-                                    if (s >= 75)
-                                        return "wifi";
-                                    if (s >= 50)
+                                    if (s >= 67)
                                         return "network_wifi_3_bar";
-                                    if (s >= 25)
+                                    if (s >= 33)
                                         return "network_wifi_2_bar";
                                     if (s > 0)
                                         return "network_wifi_1_bar";
-                                    return "wifi_off";
+                                    return "network_wifi";
                                 }
                                 iconSize: 18
                                 color: apRow.isActive ? TuiStyle.accent : TuiStyle.muted
                                 Layout.preferredWidth: 22
+                                Layout.preferredHeight: 22
+                                width: 18
+                                height: 18
+                                horizontalAlignment: Text.AlignHCenter
                                 RotationAnimator on rotation {
                                     running: apRow.isConnecting
                                     loops: Animation.Infinite
