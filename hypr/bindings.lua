@@ -126,6 +126,7 @@ end
 -- Dedicated translation trigger captured by Sumika KeyTest:
 -- bind HANGUL · XKB keycode 130 · evdev 122.
 o.bind(voice_config.translation or "HANGUL", "Translated voice input toggle", paths.root .. "/bin/sumika-action sasayaki.translate-toggle")
+o.bind("ALT + SHIFT + A", "Repair Sasayaki", paths.root .. "/bin/sumika-action sasayaki.repair")
 o.bind("ALT + S", "Region screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
 o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.root .. "/bin/sumika-action screenshot.capture-edit")
 
