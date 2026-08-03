@@ -613,14 +613,111 @@ def _ranked_candidates(current_ssid: str, current_failed: bool) -> list[dict]:
     return cand
 
 
+def _service_check(on_log) -> bool:
+    """Step 0 of recovery: verify WiFi-related services and unblock radios.
+    Checks NetworkManager, the wifi device, rfkill soft/hard blocks, and the
+    radio state. Attempts a fix for anything unhealthy and reports each step.
+    Returns True if everything is healthy (or was repaired), False if a hard
+    block or missing device remains."""
+    healthy = True
+
+    # 1) NetworkManager running?
+    on_log("[svc] Checking NetworkManager…")
+    rc, out = nmcli("-t", "-f", "STATE", "general")
+    state = out.strip().splitlines()[0].strip() if out.strip() else ""
+    if rc != 0 or not state or state in ("—", "--"):
+        on_log("  ✗ NetworkManager unresponsive — reloading.")
+        nmcli("connection", "reload", timeout=10)
+        time.sleep(2.0)
+        rc2, out2 = nmcli("-t", "-f", "STATE", "general")
+        if rc2 != 0 or not out2.strip():
+            on_log("  ✗ NetworkManager still down — try `systemctl restart NetworkManager`.")
+            healthy = False
+        else:
+            on_log("  ✓ NetworkManager reloaded.")
+    else:
+        on_log(f"  ✓ NetworkManager up (state: {state}).")
+
+    # 2) WiFi device present?
+    on_log("[svc] Checking WiFi device…")
+    dev = get_wifi_device()
+    if not dev:
+        on_log("  ✗ No WiFi device found — driver may have crashed.")
+        healthy = False
+    else:
+        on_log(f"  ✓ WiFi device {dev} present.")
+
+    # 3) rfkill soft/hard block?
+    on_log("[svc] Checking rfkill (radio block)…")
+    rfk_blocked = False
+    rfk_hard = False
+    try:
+        r = subprocess.run(
+            ["rfkill", "-J"],
+            text=True, capture_output=True, timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+        import json as _json
+        try:
+            data = _json.loads(r.stdout or "{}")
+            for dev_rf in data.get("rfkill", []) if isinstance(data, dict) else []:
+                d = dev_rf.get("type", "")
+                soft = dev_rf.get("soft", False)
+                hard = dev_rf.get("hard", False)
+                if d in ("wlan", "wifi") and (soft or hard):
+                    rfk_blocked = True
+                    if hard:
+                        rfk_hard = True
+        except (ValueError, TypeError):
+            pass
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        pass
+    if rfk_hard:
+        on_log("  ✗ WiFi HARD-blocked (hardware switch) — unblock physically.")
+        healthy = False
+    elif rfk_blocked:
+        on_log("  ✗ WiFi soft-blocked — unblocking.")
+        subprocess.run(["rfkill", "unblock", "wifi"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
+        subprocess.run(["rfkill", "unblock", "wlan"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV)
+        time.sleep(1.0)
+        on_log("  ✓ Unblocked.")
+    else:
+        on_log("  ✓ rfkill clear.")
+
+    # 4) WiFi radio powered on?
+    on_log("[svc] Checking WiFi radio power…")
+    if not get_wifi_radio():
+        on_log("  ✗ WiFi radio off — powering on.")
+        set_wifi_radio(True)
+        time.sleep(1.0)
+        if get_wifi_radio():
+            on_log("  ✓ Radio on.")
+        else:
+            on_log("  ✗ Radio won't power on.")
+            healthy = False
+    else:
+        on_log("  ✓ Radio on.")
+
+    return healthy
+
+
 def fix_connection(on_log) -> tuple[bool, str]:
-    """Smart reconnect: check current → rank visible autoconnect networks →
+    """Smart reconnect: Step 0 service health check (NM/device/rfkill/radio) →
+    verify current connection → rank visible autoconnect networks →
     try each (connect + ping gateway); first that pings wins.
     Fallback: radio off/on reset + nmcli reload, then one more round.
     `on_log(str)` is called with each progress line (thread-safe append)."""
     def log(msg):
         on_log(msg)
 
+    # Step 0: verify services (NM, device, rfkill, radio) before anything else.
+    log("Step 0 — Service health check")
+    _service_check(on_log)
+    log("")
     status = get_wifi_status()
     current = status.get("active", "") if status.get("active") not in ("", "—") else ""
 
@@ -1278,12 +1375,13 @@ def _action_diag(m):
 def _action_fix(m):
     if m.busy or m.fixing:
         return
-    m.log_lines = []
-    m._log_seen = 0
     m.diag = None
     m.fixing = True
     m.busy = True
     m.status_msg = "Auto-recovering…"
+    # Immediate first line so the panel pops with content, not a blank black box.
+    m.log_lines = ["Starting recovery — checking services…"]
+    m._log_seen = 0
     m.dirty = True
 
     def on_log(msg):
