@@ -960,6 +960,10 @@ verify_core_dependencies() {
 create_symlinks() {
     local LINKS=(
         "$HOME/.config/quickshell|$REPO/quickshell"
+        # hypridle 0.1.7 ignores -c and checks HOME/XDG_CONFIG_HOME first;
+        # without this symlink it crashes on every launch (SIGABRT), taking
+        # the lock/idle daemon down with the session on logout.
+        "$HOME/.config/hypr/hypridle.conf|$REPO/hypr/hypridle.conf"
     )
 
     local backup_dir=""
