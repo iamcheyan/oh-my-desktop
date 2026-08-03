@@ -1084,9 +1084,48 @@ def _fmt_loss(loss: int, ms: str) -> str:
 
 
 def _draw_diag_panel(stdscr, m, h, w):
-    """Centered overlay showing diagnostics results."""
+    """Centered overlay showing diagnostics results (immediate on D)."""
     d = m.diag
     if not d:
+        return
+    S.draw_scrim(stdscr, h, w)
+    if d.get("_running"):
+        rows = [
+            "Running diagnostics…",
+            "",
+            "  checking connection state",
+            "  pinging gateway",
+            "  pinging internet",
+            "",
+            "Results appear here as they complete.",
+        ]
+        title = " Diagnostics "
+        inner_w = min(max(S.text_width(r) for r in rows) + 4, w - 4, 60)
+        panel_h = len(rows) + 3
+        py = max(2, (h - panel_h) // 2)
+        px = max(2, (w - inner_w) // 2)
+        S.draw_border(stdscr, py, px, panel_h, inner_w, title)
+        for i, r in enumerate(rows):
+            if r == "":
+                continue
+            S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_TEXT)
+        hint = "press D to close"
+        S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
+        return
+    if d.get("error"):
+        rows = ["Diagnostics failed", "", f"  {d['error']}", ""]
+        title = " Diagnostics "
+        inner_w = min(max(S.text_width(r) for r in rows) + 4, w - 4, 60)
+        panel_h = len(rows) + 3
+        py = max(2, (h - panel_h) // 2)
+        px = max(2, (w - inner_w) // 2)
+        S.draw_border(stdscr, py, px, panel_h, inner_w, title)
+        for i, r in enumerate(rows):
+            if r == "":
+                continue
+            S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(r, inner_w - 4), S.ATTR_DANGER)
+        hint = "press D to close"
+        S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
         return
     tone = diag_tone(d)
     rows = [
@@ -1120,6 +1159,7 @@ def _draw_diag_panel(stdscr, m, h, w):
 
 def _draw_fix_overlay(stdscr, m, h, w):
     """Centered overlay with live recovery log."""
+    S.draw_scrim(stdscr, h, w)
     title = " Auto-Recover "
     inner_w = min(w - 4, 64)
     log_h = min(len(m.log_lines), h - 8)
@@ -1136,6 +1176,7 @@ def _draw_fix_overlay(stdscr, m, h, w):
     S.safe_addstr(stdscr, py + panel_h - 1, px + 2, status, sattr)
 
 def _draw_password_prompt(stdscr, m, h, w):
+    S.draw_scrim(stdscr, h, w)
     masked = "*" * len(m.password_buf)
     lines = [
         "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓",
@@ -1214,6 +1255,8 @@ def _action_diag(m):
         m.diag = None          # toggle closed
         m.dirty = True
         return
+    # Show the panel immediately (placeholder), fill in as results stream in.
+    m.diag = {"_running": True}
     m.busy = True
     m.status_msg = "Running diagnostics…"
     m.dirty = True
@@ -1224,6 +1267,7 @@ def _action_diag(m):
             m.status_msg = "Diagnostics ready — D to close"
         except Exception as exc:
             m.status_msg = f"Diag error: {exc}"
+            m.diag = {"error": str(exc)}
         finally:
             m.busy = False
             m.dirty = True

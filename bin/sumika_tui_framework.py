@@ -29,6 +29,7 @@ C_BORDER, C_SUBTLE, C_PANEL = 8, 9, 10
 # Extended pairs for theme swatches (11..30 allocated at runtime)
 C_THEME_START = 11
 C_FOCUS_BORDER = 31
+C_OVERLAY = 32  # black-on-black scrim (modal overlays)
 
 # Theme accent color cache (loaded from quickshell.json)
 _THEME_ACCENT = None  # (r, g, b) or None
@@ -124,7 +125,7 @@ def init_colors():
     global ATTR_SECTION, ATTR_FOCUS, ATTR_OK, ATTR_WARN, ATTR_DANGER
     global ATTR_ACTION, ATTR_MUTED, ATTR_SUBTLE, ATTR_TEXT, ATTR_BORDER, TAG_STYLE
     global ATTR_PRIMARY, ATTR_DANGER_ACTION, ATTR_OK_BOLD, ATTR_ACCENT_BOLD, ATTR_FOCUS_BORDER
-    global C_FOCUS_BORDER
+    global C_FOCUS_BORDER, ATTR_OVERLAY
     if not curses.has_colors():
         return
     curses.start_color()
@@ -191,6 +192,8 @@ def init_colors():
         # Share C_ACCENT's pair index so the pair is already initialized
         C_FOCUS_BORDER = C_ACCENT  # type: ignore
     ATTR_FOCUS_BORDER = attr(C_FOCUS_BORDER, True)
+    curses.init_pair(C_OVERLAY, curses.COLOR_BLACK, curses.COLOR_BLACK)
+    ATTR_OVERLAY = attr(C_OVERLAY)
     TAG_STYLE = {
         "section": ATTR_SECTION,
         "focus":   ATTR_FOCUS,
@@ -227,6 +230,7 @@ ATTR_DANGER_ACTION = 0
 ATTR_OK_BOLD = 0
 ATTR_ACCENT_BOLD = 0
 ATTR_FOCUS_BORDER = 0
+ATTR_OVERLAY = 0
 TAG_STYLE    = {}
 
 # ── backend ──────────────────────────────────────────────────────────────
@@ -493,6 +497,18 @@ def draw_lines_in_area(win, y, x, h, w, tagged_lines):
         if i >= inner_h:
             break
         safe_addstr(win, inner_y + i, x + 2, truncate(text, inner_w), TAG_STYLE.get(tag, ATTR_TEXT))
+
+def draw_scrim(win, h, w):
+    """Fill the whole screen with a black-on-black scrim so a modal overlay
+    stands out from the underlying TUI panels."""
+    if h <= 0 or w <= 0:
+        return
+    try:
+        for row in range(h):
+            win.addnstr(row, 0, " " * w, w, ATTR_OVERLAY)
+    except curses.error:
+        pass
+
 
 def draw_dialog(stdscr, lines, attr=None):
     """Draw a centered overlay dialog.
