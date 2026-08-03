@@ -758,14 +758,24 @@ def _poll(model):
         _refresh_data(model)
         n = len(model.available)
         if not model.busy:
-            model.status_msg = f"{n} network{'s' if n != 1 else ''} found"
+            if n:
+                model.status_msg = f"{n} new network{'s' if n != 1 else ''} found"
+            else:
+                model.status_msg = "All nearby networks are already saved"
         model.dirty = True
+
+
+def _unsaved_available(m):
+    """Available panel shows only stranger networks — saved ones live in
+    the Saved panel above (signal refreshed live from the same scan)."""
+    saved_ssids = {s["ssid"] for s in m.saved}
+    return [a for a in get_available_networks() if a["ssid"] not in saved_ssids]
 
 
 def _refresh_data(m):
     now = time.monotonic()
     m.saved = get_saved_networks()
-    m.available = get_available_networks()
+    m.available = _unsaved_available(m)
     m.status = get_wifi_status()
     count = len(_focused_list(m))
     if count == 0:
@@ -1020,6 +1030,11 @@ def _draw_available_table(stdscr, m, y, x, h, w, available):
     S.draw_row(stdscr, y, x, w, headers, widths, offsets, S.header_attr(focused))
     row_start = y + 2 if h >= 3 else y + 1
     max_rows = max(0, (y + h) - row_start)
+    if not available:
+        S.put_row_cells(stdscr, row_start, x, w,
+                        ["All nearby networks are already saved"],
+                        [w], curses.A_DIM)
+        return
     for i, d in enumerate(available[:max_rows]):
         is_sel = focused and i == m.selected
         attr = S.sel_attr(is_sel, focused)
