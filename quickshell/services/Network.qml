@@ -97,6 +97,14 @@ Singleton {
         repeat: false
         onTriggered: {
             root.friendlyWifiNetworks = [...root.wifiNetworks].sort((a, b) => {
+                // Saved/known networks first (green-dot group), strangers after;
+                // within each group, active first then by signal strength.
+                const aKnown = root.isKnownWifi(a);
+                const bKnown = root.isKnownWifi(b);
+                if (aKnown && !bKnown)
+                    return -1;
+                if (!aKnown && bKnown)
+                    return 1;
                 if (a.active && !b.active)
                     return -1;
                 if (!a.active && b.active)
