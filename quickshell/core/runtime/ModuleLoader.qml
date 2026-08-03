@@ -33,7 +33,7 @@ Singleton {
 
     /// Product-floor minimum desktop. Cannot be smaller than this set.
     /// launcher + clock / notification-popup / workspaces / overview / systray
-    /// / wifi / audio / power / display / settings.
+    /// / wifi / audio / power / display / settings / lock.
     readonly property var productFloorModuleIds: [
         "launcher",
         "clock",
@@ -47,7 +47,8 @@ Singleton {
         "display",
         "settings",
         "on-screen-display",
-        "clipboard"
+        "clipboard",
+        "lock"
     ]
 
     /// Required module IDs = product floor ∪ config modules.required (extras only expand).
