@@ -32,6 +32,69 @@ _SUBPROC_ENV = {
     "LANGUAGE": "C",
 }
 
+
+def _state_home() -> str:
+    """Sumika state dir (env-driven; matches QML Directories.sumikaStateHome)."""
+    base = os.environ.get("SUMIKA_SHELL_STATE_HOME")
+    if not base:
+        xdg = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+        base = os.path.join(xdg, "sumika-shell")
+    return base
+
+
+def _recovery_log_path() -> str:
+    return os.path.join(_state_home(), "wifi", "recovery.log")
+
+
+def _tee_recovery_log(on_log):
+    """Wrap *on_log* so every line is also appended to the persistent
+    recovery log at $SUMIKA_SHELL_STATE_HOME/wifi/recovery.log.
+
+    Each run becomes one section headed by an ISO timestamp + result; the
+    file is trimmed to the most recent ~50 sections so it never grows
+    unbounded. Returns (tee_fn, finalize) where finalize(ok, msg) writes
+    the section footer."""
+    path = _recovery_log_path()
+    lines: list[str] = []
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
+
+    def tee(msg):
+        lines.append(msg)
+        if on_log:
+            on_log(msg)
+
+    def finalize(ok: bool, msg: str):
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            section = f"\n=== {started}  result={'OK' if ok else 'FAIL'} ===\n"
+            section += "\n".join(lines)
+            section += f"\n--- {msg}\n"
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(section)
+            _trim_recovery_log(path)
+        except OSError:
+            pass  # logging must never break recovery
+
+    return tee, finalize
+
+
+def _trim_recovery_log(path: str, keep: int = 50) -> None:
+    """Keep only the most recent *keep* sections (delimited by '=== ')."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+    except OSError:
+        return
+    sections = content.split("\n=== ")
+    if len(sections) <= keep:
+        return
+    trimmed = "\n=== ".join(sections[-keep:])
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(trimmed)
+    except OSError:
+        pass
+
 # Cached dependency probe
 _NMCLI_OK = None  # type: bool | None
 _NMCLI_ERR = ""
@@ -744,12 +807,21 @@ def fix_connection(on_log) -> tuple[bool, str]:
     """Smart reconnect: Step 0 service health check → verify current →
     rank visible autoconnect networks → try each (connect + ping gateway);
     first that pings wins. Fallback: radio off/on reset + nmcli reload.
+
+    Every line passed to *on_log* is also persisted to
+    $SUMIKA_SHELL_STATE_HOME/wifi/recovery.log (one section per run, trimmed
+    to the last 50 runs) so failures can be diagnosed after the fact.
     `on_log(str)` is called with each progress line."""
+    on_log, finalize = _tee_recovery_log(on_log)
+
+    def done(ok: bool, msg: str) -> tuple[bool, str]:
+        finalize(ok, msg)
+        return ok, msg
 
     on_log("Step 0 — Service health check")
     if not service_check(on_log):
         on_log("Recovery stopped: NetworkManager or the WiFi adapter is unavailable.")
-        return False, "NetworkManager / WiFi adapter unavailable"
+        return done(False, "NetworkManager / WiFi adapter unavailable")
     on_log("")
     status = get_wifi_status()
     current = status.get("active", "") if status.get("active") not in ("", "—") else ""
@@ -764,9 +836,23 @@ def fix_connection(on_log) -> tuple[bool, str]:
                 on_log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — network is healthy")
             else:
                 on_log(f"  ! Gateway did not answer ICMP ({loss}% loss) — preserving active link")
-            return True, f"Active connection preserved: {current}"
+            return done(True, f"Active connection preserved: {current}")
         else:
             on_log("  ✗ No gateway — current connection unusable")
+            # Release the device so candidate activations below don't race
+            # the still-connected (but unusable) profile and fail with
+            # "New connection was active". Wait for disconnected before
+            # proceeding; a clean disconnect + short settle clears the
+            # activation storm that otherwise follows the bad profile.
+            dev0 = status.get("device", "")
+            if dev0 and dev0 != "—":
+                ok_d, dmsg = disconnect_network(dev0)
+                on_log(f"  Disconnected {dev0} ({dmsg}).")
+                for _ in range(8):
+                    s = get_wifi_status()
+                    if not s.get("active") or s.get("active") in ("", "—"):
+                        break
+                    time.sleep(0.5)
     else:
         on_log("Not connected. Starting recovery.")
 
@@ -783,7 +869,10 @@ def fix_connection(on_log) -> tuple[bool, str]:
             f"{c['ssid']}({c['signal']}%){' 5G' if c['is_5g'] else ''}" for c in cand))
         for i, c in enumerate(cand, 1):
             on_log(f"[{tag}] Trying {c['ssid']} ({c['signal']}%, prio {c['priority']})…")
-            ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"))
+            # Stream the per-network connect detail (profile activation,
+            # fallback, nmcli errors) into the same log so the recovery
+            # record shows WHY each candidate failed, not just that it did.
+            ok, msg = connect_network(c["ssid"], uuid=c.get("uuid"), on_log=on_log)
             if not ok:
                 on_log(f"  ✗ {msg}")
                 continue
@@ -809,7 +898,7 @@ def fix_connection(on_log) -> tuple[bool, str]:
 
     ok, msg = attempt_round("1")
     if ok:
-        return True, msg
+        return done(True, msg)
 
     on_log("All candidates failed. Hard reset: radio off → on + NM reload.")
     set_wifi_radio(False)
@@ -822,7 +911,7 @@ def fix_connection(on_log) -> tuple[bool, str]:
     on_log("Radio reset complete. Retrying candidates…")
     ok, msg = attempt_round("2")
     if ok:
-        return True, msg
+        return done(True, msg)
 
     on_log("✗ Could not restore connectivity. Check router / try `t` to toggle radio.")
-    return False, "Recovery failed — check router or toggle WiFi"
+    return done(False, "Recovery failed — check router or toggle WiFi")
