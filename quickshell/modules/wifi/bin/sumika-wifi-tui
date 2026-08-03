@@ -107,6 +107,9 @@ class WifiModel:
         self._show_available = True
         self.diag = None          # last diagnostics result
         self.fixing = False       # recovery in progress (overlay shown)
+        self.connecting = False   # connection overlay in progress
+        self.overlay_title = ""   # title for the log overlay
+        self._connect_ssid = None  # SSID for post-connect selection
         self._log_seen = 0         # log_lines length at last render
 
     def run_bg(self, label, fn, *args):
@@ -127,6 +130,43 @@ class WifiModel:
 
         threading.Thread(target=worker, daemon=True).start()
 
+def _action_connect(m, ssid, password=None, uuid=None):
+    """Start a connection with a live progress overlay (like fix/diag)."""
+    if m.busy or m.connecting:
+        return
+    m.diag = None
+    m.fixing = False
+    m.connecting = True
+    m.busy = True
+    m.overlay_title = "Connecting"
+    m._connect_ssid = ssid
+    m.log_lines = [f"Connecting to {ssid}…"]
+    m._log_seen = 0
+    m.status_msg = f"Connecting to {ssid}…"
+    m.dirty = True
+
+    def on_log(msg):
+        m.log_lines.append(f"  {msg}")
+        m.dirty = True
+
+    def worker():
+        try:
+            ok, msg = connect_network(ssid, password, uuid=uuid, on_log=on_log)
+            m.status_msg = msg
+            m.log_lines.append("")
+            if ok:
+                m.log_lines.append(f"✓ {msg} — press Q to close")
+            else:
+                m.log_lines.append(f"✗ {msg} — press Q to close")
+        except Exception as exc:
+            m.status_msg = f"Error: {exc}"
+            m.log_lines.append(f"✗ Error: {exc} — press Q to close")
+        finally:
+            m.connecting = False
+            m.busy = False
+            m.dirty = True
+
+    threading.Thread(target=worker, daemon=True).start()
 
 def _poll(model):
     if model._async_msg is not None:
@@ -134,8 +174,8 @@ def _poll(model):
         model._async_msg = None
         _refresh_data(model)
         model.dirty = True
-    # Live-update the fix overlay as log lines stream in from the worker.
-    if model.fixing and len(model.log_lines) > model._log_seen:
+    # Live-update the fix/connect overlay as log lines stream in from the worker.
+    if (model.fixing or model.connecting) and len(model.log_lines) > model._log_seen:
         model._log_seen = len(model.log_lines)
         model.dirty = True
     deadline = getattr(model, "_scan_deadline", 0.0) or 0.0
@@ -274,10 +314,7 @@ def _handle_password_input(m, key):
         pwd = m.password_buf
         m.password_prompt = None
         m.password_buf = ""
-        m.run_bg(
-            f"Connecting to {ssid}…",
-            lambda: connect_network(ssid, pwd),
-        )
+        _action_connect(m, ssid, pwd)
         m.dirty = True
     elif key == 27:  # Esc
         m.password_prompt = None
@@ -360,7 +397,7 @@ def _handle_saved_detail_input(m, key):
     elif action == "connect":
         ssid, uuid = network["ssid"], network.get("uuid")
         _close_saved_detail(m)
-        m.run_bg(f"Connecting to {ssid}…", lambda: connect_network(ssid, uuid=uuid))
+        _action_connect(m, ssid, uuid=uuid)
     else:  # forget
         ssid, uuid = network["ssid"], network.get("uuid")
         _close_saved_detail(m)
@@ -399,6 +436,26 @@ def _focus_prev(m):
     m.selected = 0
 
 
+def _dismiss_overlay(m):
+    """Close any open overlay (log/diag) and refresh data."""
+    if m.diag is not None and m.busy:
+        m._diag_cancelled = True
+    m.log_lines = []
+    m._log_seen = 0
+    m.diag = None
+    m.overlay_title = ""
+    _refresh_data(m)
+    # If we just connected, focus the saved panel and select that network.
+    connect_ssid = m._connect_ssid
+    m._connect_ssid = None
+    if connect_ssid:
+        m.focus = F_SAVED
+        for i, s in enumerate(m.saved):
+            if s.get("ssid") == connect_ssid:
+                m.selected = i
+                break
+    m.dirty = True
+
 def _action_enter(m):
     if m.busy:
         return
@@ -416,17 +473,14 @@ def _action_enter(m):
             saved = next((s for s in m.saved if s["ssid"] == d["ssid"]), None)
             if saved:
                 ssid, uuid = d["ssid"], saved.get("uuid")
-                m.run_bg(
-                    f"Connecting to {ssid}…",
-                    lambda: connect_network(ssid, uuid=uuid),
-                )
+                _action_connect(m, ssid, uuid=uuid)
                 return
             m.password_prompt = d["ssid"]
             m.password_buf = ""
             m.status_msg = f"Enter password for {d['ssid']}:"
         else:
             ssid = d["ssid"]
-            m.run_bg(f"Connecting to {ssid}…", lambda: connect_network(ssid))
+            _action_connect(m, ssid)
 
 
 def _draw_saved_table(stdscr, m, y, x, h, w, saved):
@@ -445,10 +499,7 @@ def _draw_saved_table(stdscr, m, y, x, h, w, saved):
         sig_val = d.get("signal", -1)
         signal_str = signal_rating(sig_val) if sig_val >= 0 else "--"
         sec_str = d.get("security", "") or "WPA2"
-        if d["connected"]:
-            ssid = f"{CONNECTED_ICON} {d['ssid']}"
-        else:
-            ssid = f"{UNLOCK_ICON} {d['ssid']}"
+        ssid = f"{UNLOCK_ICON} {d['ssid']}"
         auto_str = "yes" if d.get("autoconnect") else "no"
         cells = [ssid, sec_str, signal_str, auto_str, status]
         S.draw_row(stdscr, row_start + i, x, w, cells, widths, offsets, attr)
@@ -590,10 +641,10 @@ def _draw_diag_panel(stdscr, m, h, w):
     S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
 
 
-def _draw_fix_overlay(stdscr, m, h, w):
-    """Centered overlay with live recovery log."""
+def _draw_log_overlay(stdscr, m, h, w):
+    """Centered overlay with live log (used by fix, connect, and diag-fail)."""
     S.draw_scrim(stdscr, h, w)
-    title = " Auto-Recover "
+    title = f" {m.overlay_title or 'Progress'} "
     inner_w = min(w - 4, 64)
     log_h = min(len(m.log_lines), h - 8)
     panel_h = log_h + 4
@@ -604,7 +655,7 @@ def _draw_fix_overlay(stdscr, m, h, w):
         shown = m.log_lines[-log_h:] if log_h > 0 else []
         for i, line in enumerate(shown):
             S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(line, inner_w - 4), S.ATTR_TEXT)
-    if m.fixing:
+    if m.fixing or m.connecting:
         status = "working…"
         sattr = S.ATTR_WARN
     else:
@@ -725,8 +776,8 @@ def _view(stdscr, m):
     else:
         tool = [("s", "scan"), ("t", "wifi on/off")]
     S.draw_help_bar(stdscr, gen, tool)
-    if m.fixing or m.log_lines:
-        _draw_fix_overlay(stdscr, m, h, w)
+    if m.fixing or m.connecting or m.log_lines:
+        _draw_log_overlay(stdscr, m, h, w)
     elif m.diag is not None:
         _draw_diag_panel(stdscr, m, h, w)
     if m.password_prompt is not None:
@@ -737,7 +788,7 @@ def _view(stdscr, m):
 
 
 def _action_diag(m):
-    if m.busy or m.fixing:
+    if m.busy or m.fixing or m.connecting:
         return
     if m.diag is not None:
         m.diag = None          # toggle closed
@@ -769,11 +820,12 @@ def _action_diag(m):
 
 
 def _action_fix(m):
-    if m.busy or m.fixing:
+    if m.busy or m.fixing or m.connecting:
         return
     m.diag = None
     m.fixing = True
     m.busy = True
+    m.overlay_title = "Auto-Recover"
     m.status_msg = "Auto-recovering…"
     # Immediate first line so the panel pops with content, not a blank black box.
     m.log_lines = ["Starting recovery — checking services…"]
@@ -804,18 +856,13 @@ def _handle_key(stdscr, m, key):
         return True
     if m.saved_detail_uuid is not None:
         return _handle_saved_detail_input(m, key)
-    # Recovery in progress: ignore everything (including Q) until it finishes.
-    if m.fixing:
+    # Recovery or connection in progress: ignore all keys until it finishes.
+    if m.fixing or m.connecting:
         return True
     # Q / Esc: close any open overlay first; only quit from the main screen.
     if key in (ord("q"), 27):
         if m.log_lines or m.diag is not None:
-            if m.diag is not None and m.busy:
-                m._diag_cancelled = True  # stop worker from reopening it
-            m.log_lines = []
-            m._log_seen = 0
-            m.diag = None
-            m.dirty = True
+            _dismiss_overlay(m)
             return True
         return False  # main screen — quit
     # Diagnostics (D) and auto-recover (R) always take priority.
@@ -827,14 +874,9 @@ def _handle_key(stdscr, m, key):
         _action_fix(m)
         m.dirty = True
         return True
-    # Any other key dismisses a finished recovery log or diagnostics panel.
+    # Any other key dismisses a finished recovery log, connect log, or diag panel.
     if m.log_lines or m.diag is not None:
-        if m.diag is not None and m.busy:
-            m._diag_cancelled = True
-        m.log_lines = []
-        m._log_seen = 0
-        m.diag = None
-        m.dirty = True
+        _dismiss_overlay(m)
         return True
     if key == ord("s"):
         if not m.busy:

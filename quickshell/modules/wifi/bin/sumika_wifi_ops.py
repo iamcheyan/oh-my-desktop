@@ -349,22 +349,35 @@ def connect_network(
     password: str | None = None,
     *,
     uuid: str | None = None,
+    on_log=None,
 ) -> tuple[bool, str]:
     """Connect to a network.
 
     Prefer activating a saved connection by UUID (handles connection-id ≠ SSID).
     Fall back to ``device wifi connect``.
+    If *on_log* is given, progress lines are streamed to it.
     """
+    def _log(msg):
+        if on_log:
+            on_log(msg)
+
     if uuid and not password:
+        _log("Activating saved profile…")
         rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
         if rc == 0:
+            _log(f"✓ Connected to {ssid}")
             return True, f"Connected to {ssid}"
+        _log("Profile activation failed — trying device connect…")
 
     if uuid is None and not password:
+        _log("Activating by SSID…")
         rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
         if rc == 0:
+            _log(f"✓ Connected to {ssid}")
             return True, f"Connected to {ssid}"
+        _log("SSID activation failed — trying device connect…")
 
+    _log("Running device wifi connect…")
     args = ["device", "wifi", "connect", ssid]
     if password:
         args.extend(["password", password])
@@ -373,19 +386,25 @@ def connect_network(
         args.extend(["ifname", dev])
     rc, out = nmcli(*args, timeout=45)
     if rc == 0:
+        _log(f"✓ Connected to {ssid}")
         return True, f"Connected to {ssid}"
     err = out.strip()
     low = err.lower()
     if "secrets were required" in low or ("password" in low and "invalid" in low):
+        _log("✗ Wrong password / secrets required")
         return False, "Wrong password / secrets required"
     if "802.1x" in low or "eap" in low:
+        _log("✗ Enterprise (802.1X) networks need nmtui / nmcli")
         return False, "Enterprise (802.1X) networks need nmtui / nmcli"
     if "connection activation failed" in low:
+        _log("✗ Connection activation failed")
         return False, "Connection failed"
     for line in err.splitlines():
         line = line.strip()
         if "Error:" in line or "error" in line.lower():
+            _log(f"✗ {line[:80]}")
             return False, line[:80]
+    _log(f"✗ {err[:80] if err else 'Connection failed'}")
     return False, (err[:80] if err else "Connection failed")
 
 
