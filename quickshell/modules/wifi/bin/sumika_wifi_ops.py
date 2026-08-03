@@ -406,6 +406,98 @@ def is_enterprise(security: str) -> bool:
     return "802.1X" in s or "EAP" in s or "ENTERPRISE" in s
 
 
+def _ap_security(ssid: str) -> str:
+    """Advertised security of the strongest BSS for *ssid* (scan cache).
+
+    Returns "" when the SSID is not in the current scan results (the
+    caller then skips the fix rather than blocking the connection).
+    """
+    rc, out = nmcli("-t", "-f", "SSID,SECURITY,SIGNAL", "device", "wifi", "list", timeout=10)
+    if rc != 0:
+        return ""
+    best_sec, best_sig = "", -1
+    for line in out.splitlines():
+        parts = nmcli_split(line)
+        if len(parts) < 2 or parts[0].strip() != ssid:
+            continue
+        sec = parts[1].strip()
+        if not sec or sec == "--":
+            continue
+        sig = -1
+        if len(parts) >= 3 and parts[2].strip():
+            try:
+                sig = int(parts[2].strip())
+            except ValueError:
+                sig = -1
+        if sig > best_sig or best_sec == "":
+            best_sec, best_sig = sec, sig
+    return best_sec
+
+
+def _profile_key_mgmt(uuid: str) -> str:
+    """Current 802-11-wireless-security.key-mgmt of a saved profile."""
+    rc, out = nmcli("-g", "802-11-wireless-security.key-mgmt", "connection", "show", "uuid", uuid, timeout=5)
+    if rc != 0 or not out.strip():
+        return ""
+    return out.strip().splitlines()[0].strip()
+
+
+def _profile_uuid_for_ssid(ssid: str) -> str:
+    """Saved profile uuid for *ssid* ('' if none)."""
+    for d in get_saved_networks():
+        if d["ssid"] == ssid:
+            return d["uuid"]
+    return ""
+
+
+def auto_fix_security_profile(ssid: str, uuid: str | None = None, on_log=None) -> bool:
+    """Auto-fix a saved profile whose key-mgmt mismatches the AP.
+
+    WPA2/WPA3 transition-mode APs (broadcast "WPA2 WPA3") refuse clients
+    that only offer WPA-PSK: wpa_supplicant loops scanning → associating
+    → disconnected and never reaches DHCP. That was the C40FA623BF09 bug
+    — the AP advertised WPA3 but the profile pinned wpa-psk, so NM handed
+    wpa_supplicant "WPA-PSK WPA-PSK-SHA256 FT-PSK" (no SAE) and the AP
+    rejected every association until a reboot cleared the state.
+
+    When the AP's strongest BSS advertises WPA3 and the profile still
+    uses wpa-psk, flip the profile to sae so NM hands wpa_supplicant
+    "SAE FT-SAE", which transition-mode APs accept. WPA2-only APs are
+    left alone. Returns True if the profile was modified.
+    """
+    def _log(msg):
+        if on_log:
+            on_log(msg)
+
+    if not ssid:
+        return False
+    if not uuid:
+        uuid = _profile_uuid_for_ssid(ssid)
+    if not uuid:
+        return False  # brand-new network; NM builds the profile on connect
+
+    sec = _ap_security(ssid)
+    if not sec or "WPA3" not in sec.upper():
+        return False  # WPA2-only AP — wpa-psk is the right mode
+
+    current = _profile_key_mgmt(uuid)
+    if current in ("", "sae"):
+        return False
+    if current != "wpa-psk":
+        return False  # don't touch enterprise / owe / wep profiles
+
+    mod_rc, mod_out = nmcli(
+        "connection", "modify", "uuid", uuid,
+        "802-11-wireless-security.key-mgmt", "sae",
+        timeout=10,
+    )
+    if mod_rc != 0:
+        _log(f"  auto-fix: could not switch security mode: {_first_error_line(mod_out)}")
+        return False
+    _log(f"  auto-fix: AP advertises {sec} but profile used {current} — switched profile to sae")
+    return True
+
+
 # ── connect / disconnect / forget ────────────────────────────────────────
 
 def _first_error_line(out: str) -> str:
@@ -493,6 +585,12 @@ def connect_network(
     switching = bool(active and active != ssid)
 
     try:
+        # WPA2/WPA3 transition-mode APs refuse clients that only offer
+        # WPA-PSK (the C40FA623BF09 bug: associating→disconnected loop,
+        # never reaches DHCP). Fix the saved profile before activating so
+        # the first attempt works instead of burning the fallback path.
+        auto_fix_security_profile(ssid, uuid, _log)
+
         # ── fresh connect: try the saved profile first (fast, no scan) ──
         if not switching and uuid and not password:
             _log("Activating saved profile…")
