@@ -55,6 +55,9 @@ RESTORE_TIMEOUTS = {
     "code-url-handler": 15.0,
 }
 DEFAULT_RESTORE_TIMEOUT = 5.0
+# Flatpak apps cold-start through bwrap + runtime init, which is much slower
+# than a native launch. Give them a generous wait regardless of class.
+FLATPAK_RESTORE_TIMEOUT = 30.0
 
 
 def run_json(*args):
@@ -211,6 +214,27 @@ def proc_name(pid):
         return Path(f"/proc/{pid}/comm").read_text().strip()
     except OSError:
         return ""
+
+
+def flatpak_app_id(pid):
+    """Return the Flatpak application ID for a process, or "" if not Flatpak.
+
+    Flatpak mounts a .flatpak-info file at the root of every sandboxed
+    process. Its [Application] section has a name= line carrying the app ID
+    (e.g. com.tencent.WeChat). Reading /proc/PID/root/.flatpak-info works from
+    the host because the process root is the sandbox mount, not the host /.
+    Non-Flatpak processes have no such file, so detection is reliable and
+    side-effect free. The app ID is the host-launchable handle: restore uses
+    `flatpak run <app-id>` instead of the sandbox-internal argv.
+    """
+    try:
+        info = Path(f"/proc/{pid}/root/.flatpak-info").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    for line in info.splitlines():
+        if line.startswith("name="):
+            return line.split("=", 1)[1].strip()
+    return ""
 
 
 def parse_option(argv, name):
@@ -515,6 +539,9 @@ def is_single_instance(record):
 
 def restore_timeout_for(record):
     """Return the wait_for_client timeout appropriate for this record's class."""
+    command = record.get("command") or {}
+    if command.get("flatpakAppId") or record.get("flatpakAppId"):
+        return FLATPAK_RESTORE_TIMEOUT
     cls = window_class(record)
     return RESTORE_TIMEOUTS.get(cls, DEFAULT_RESTORE_TIMEOUT)
 
@@ -596,6 +623,13 @@ def restore_record_argv(record):
     """
     command = record.get("command") or {}
     argv = command.get("argv") or []
+    # Flatpak apps store a sandbox-internal argv (e.g. /app/extra/wechat/wechat)
+    # that does not exist on the host. Launch through `flatpak run <app-id>`
+    # instead, which works for both fresh start and reactivating a running
+    # instance (flatpak run forwards to the existing app, no duplicate).
+    flatpak_id = command.get("flatpakAppId") or record.get("flatpakAppId") or ""
+    if flatpak_id:
+        return ["flatpak", "run", flatpak_id]
     session = command.get("session") or {}
     if not argv or not command.get("terminal") or session.get("type") != "kitty":
         return argv
@@ -613,6 +647,7 @@ def restore_record_argv(record):
 def launch_command(client):
     pid = int(client.get("pid") or 0)
     argv = proc_cmdline(pid)
+    flatpak_id = flatpak_app_id(pid)
     if not argv:
         cls = client.get("initialClass") or client.get("class") or ""
         if cls:
@@ -659,6 +694,7 @@ def launch_command(client):
         "session": session,
         "program": program,
         "environment": environment,
+        "flatpakAppId": flatpak_id,
     }
 
 

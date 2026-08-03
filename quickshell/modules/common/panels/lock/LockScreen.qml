@@ -113,6 +113,12 @@ Scope {
         function activate(): void {
             root.lock();
         }
+        // Used by sumika-restart before it tears down Quickshell. A
+        // WlSessionLock is a QML object, not a separately named process, so
+        // process-based guards cannot reliably see an active lock.
+        function active(): bool {
+            return GlobalStates.screenLocked;
+        }
         function focus(): void {
             lockContext.shouldReFocus();
         }

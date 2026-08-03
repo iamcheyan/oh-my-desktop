@@ -13,10 +13,17 @@ _sumika_root=$(cd "$(dirname "$0")/.." && pwd)
 unset _sumika_root
 
 # ── Lockscreen guard ──────────────────────────────────────────────────────
-if pgrep -f "wl-session-lock\|WlSessionLock" >/dev/null 2>&1; then
-    printf 'Screen is locked — refusing to reload.\n' >&2
+# WlSessionLock lives inside the bar's Quickshell process, not as a process
+# named "WlSessionLock". Killing Quickshell while it owns the protocol lock
+# makes Hyprland show its "lockscreen app died" fallback. Ask the live bar for
+# its actual lock state before stopping any Quickshell process.
+_lock_state=$("${SUMIKA_QS_BIN:-qs}" -p "$SUMIKA_SHELL_ROOT/apps/sumika-bar" \
+    ipc call lock active 2>/dev/null || true)
+if [ "$_lock_state" = "true" ]; then
+    printf 'Screen is locked — refusing to reload. Unlock it first.\n' >&2
     exit 1
 fi
+unset _lock_state
 
 # ── Argument parsing ──────────────────────────────────────────────────────
 quickshell_only=0
