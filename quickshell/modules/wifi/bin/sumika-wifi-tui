@@ -86,6 +86,7 @@ def ensure_nmcli() -> tuple[bool, str]:
         proc = subprocess.run(
             ["nmcli", "general", "status"],
             text=True, capture_output=True, timeout=5, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
         )
         if proc.returncode != 0:
             err = (proc.stderr or proc.stdout or "").strip()
@@ -110,6 +111,7 @@ def nmcli(*args, timeout: int = 15) -> tuple[int, str]:
         proc = subprocess.run(
             ["nmcli", *args],
             text=True, capture_output=True, timeout=timeout, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
         )
         out = (proc.stdout or "") + (proc.stderr or "")
         return proc.returncode, clean(out)
@@ -130,12 +132,12 @@ def prepare_wifi() -> None:
         subprocess.run(
             ["rfkill", "unblock", "wifi"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
         )
         subprocess.run(
             ["rfkill", "unblock", "wlan"],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL, timeout=3, env=_SUBPROC_ENV,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
@@ -480,6 +482,7 @@ def ping_stats(host: str, count: int = 5, timeout: float = 1.0) -> tuple[int, st
             ["ping", "-n", "-q", "-c", str(count), "-W", str(timeout), host],
             text=True, capture_output=True,
             timeout=count * timeout + 3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
         )
         out = (proc.stdout or "") + (proc.stderr or "")
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
@@ -517,6 +520,7 @@ def get_link_info(dev: str) -> dict:
         proc = subprocess.run(
             ["iw", "dev", dev, "link"], text=True, capture_output=True,
             timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
         )
         for line in (proc.stdout or "").splitlines():
             s = line.strip()
@@ -1202,11 +1206,12 @@ def _action_diag(m):
     def worker():
         try:
             m.diag = run_diagnostics()
-            m._async_msg = "Diagnostics ready (D to view, any key to dismiss)"
+            m.status_msg = "Diagnostics ready — D to close"
         except Exception as exc:
-            m._async_msg = f"Diag error: {exc}"
+            m.status_msg = f"Diag error: {exc}"
         finally:
             m.busy = False
+            m.dirty = True
 
     threading.Thread(target=worker, daemon=True).start()
 
@@ -1224,16 +1229,18 @@ def _action_fix(m):
 
     def on_log(msg):
         m.log_lines.append(msg)
+        m.dirty = True
 
     def worker():
         try:
             _ok, msg = fix_connection(on_log)
-            m._async_msg = msg
+            m.status_msg = msg
         except Exception as exc:
-            m._async_msg = f"Recovery error: {exc}"
+            m.status_msg = f"Recovery error: {exc}"
         finally:
             m.fixing = False
             m.busy = False
+            m.dirty = True
 
     threading.Thread(target=worker, daemon=True).start()
 
