@@ -701,7 +701,9 @@ Singleton {
 
     function watchdogCandidates() {
         // Build ordered list: lastConnectedSsid first, then all autoconnect
-        // profiles (alpha-sorted; NM's own autoconnect already prioritizes).
+        // profiles sorted by NM autoconnect-priority (desc). Alphabetical sort
+        // would try weak/irrelevant networks before the high-priority one
+        // (e.g. Extender-A-BB40 priority 100), delaying recovery.
         const result = [];
         const seen = new Set();
         if (root.lastConnectedSsid && root.lastConnectedSsid.length > 0) {
@@ -711,11 +713,11 @@ Singleton {
         const profiles = [];
         for (const p of root.savedWifiProfiles) {
             if (p.autoconnect && !seen.has(p.name))
-                profiles.push(p.name);
+                profiles.push(p);
         }
-        profiles.sort();
-        for (const name of profiles)
-            result.push(name);
+        profiles.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+        for (const p of profiles)
+            result.push(p.name);
         return result;
     }
 
@@ -798,7 +800,7 @@ Singleton {
     Process {
         id: savedProfilesProc
         running: true
-        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE,AUTOCONNECT connection show | while IFS=: read -r name type auto; do [ \"$type\" = \"802-11-wireless\" ] || continue; printf '%s\\t%s\\n' \"$name\" \"$auto\"; done"]
+        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show | while IFS=: read -r name type auto prio; do [ \"$type\" = \"802-11-wireless\" ] || continue; printf '%s\\t%s\\t%s\\n' \"$name\" \"$auto\" \"$prio\"; done"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const list = [];
@@ -810,7 +812,8 @@ Singleton {
                         continue;
                     list.push({
                         name: parts[0],
-                        autoconnect: parts[1] === "yes"
+                        autoconnect: parts[1] === "yes",
+                        priority: parseInt(parts[2]) || 0
                     });
                 }
                 list.sort((a, b) => a.name.localeCompare(b.name));
@@ -1018,7 +1021,7 @@ Singleton {
                         active: net[0] === "yes",
                         strength: parseInt(net[1]),
                         frequency: parseInt(net[2]),
-                        ssid: net[3],
+                        ssid: net[3] ? net[3].replace(rep2, ":") : "",
                         bssid: net[4]?.replace(rep2, ":") ?? "",
                         security: net[5] || ""
                     };
