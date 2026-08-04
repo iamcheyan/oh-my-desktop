@@ -61,7 +61,7 @@ Scope {
 
     PanelWindow {
         id: popupWindow
-        visible: root.open && root.activeType !== "voiceModel" && root.activeType !== "voice" && root.popupScreen
+        visible: root.open && root.activeType !== "voiceModel" && root.activeType !== "voice" && root.popupScreen && !BarRuntime.screenshotActive
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
@@ -131,7 +131,7 @@ Scope {
                 right: parent.right
             }
             readonly property real shadowMargin: Appearance.sizes.elevationMargin
-            readonly property real maxContentHeight: (popupWindow.screen?.height ?? 1080) * 0.75
+            readonly property real maxContentHeight: (popupWindow.screen?.height ?? 1080) * 0.90
             readonly property real calcHeight: Math.min(panelContent.implicitHeight + shadowMargin * 2, maxContentHeight)
             implicitWidth: panelBg.implicitWidth + shadowMargin * 2
             implicitHeight: calcHeight

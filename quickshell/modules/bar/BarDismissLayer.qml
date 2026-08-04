@@ -33,8 +33,20 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
             WlrLayershell.namespace: "quickshell:bar-dismiss"
-            WlrLayershell.layer: WlrLayer.Top
+            // Keep the catcher in the same layer as BarStatusPopup. The
+            // popup is mapped after this persistent window and therefore
+            // remains clickable, while every uncovered point is guaranteed
+            // to target this surface. A Top-layer transparent surface is not
+            // a reliable pointer target on every Hyprland layer-shell path.
+            WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+            // A transparent PanelWindow does not imply a non-empty input
+            // region. Declare it explicitly; otherwise compositor updates
+            // can leave the visual full-screen layer click-through.
+            mask: Region {
+                item: dismissMouse
+            }
 
             readonly property bool barOnBottom: Config.options.bar.bottom
             readonly property int barGap: Appearance.sizes.barHeight
@@ -59,10 +71,12 @@ Scope {
 
 
             MouseArea {
+                id: dismissMouse
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 onPressed: event => {
                     event.accepted = true;
+                    console.log("[BARPOPUP] outside click — dismissing active popup/menu");
                     root.dismiss();
                 }
             }

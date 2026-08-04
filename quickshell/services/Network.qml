@@ -480,7 +480,7 @@ Singleton {
     Process {
         id: enableWifiProc
         onExited: {
-            wifiStatusProcess.running = true;
+            updateConnectionType.startCheck();
             root.update();
         }
     }
@@ -641,9 +641,6 @@ Singleton {
     // Status update
     function update() {
         updateConnectionType.startCheck();
-        wifiStatusProcess.running = true
-        updateNetworkName.running = true;
-        updateNetworkStrength.running = true;
         root.refreshLinkDetails();
         root.refreshSavedProfiles();
         root.watchdogEvaluate();
@@ -761,19 +758,23 @@ Singleton {
     Process {
         id: updateKnownWifiProfiles
         running: true
-        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE connection show | while IFS=: read -r name type; do [ \"$type\" = \"802-11-wireless\" ] || continue; key=$(nmcli -g 802-11-wireless-security.key-mgmt connection show \"$name\" 2>/dev/null); psk=$(nmcli --show-secrets -g 802-11-wireless-security.psk connection show \"$name\" 2>/dev/null); if [ -z \"$key\" ] || [ -n \"$psk\" ] || [ \"$key\" = \"none\" ]; then auto=$(nmcli -g connection.autoconnect connection show \"$name\" 2>/dev/null); printf '%s\\t%s\\n' \"$name\" \"$auto\"; fi; done"]
+        command: ["sumika-wifi", "list-saved"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const known = [];
                 const autoconnect = {};
-                for (const line of text.trim().split("\n")) {
-                    if (line.length === 0)
-                        continue;
-                    const parts = line.split("\t");
-                    if (parts.length < 2)
-                        continue;
-                    known.push(parts[0]);
-                    autoconnect[parts[0]] = parts[1] === "yes";
+                try {
+                    const j = JSON.parse(text.trim().split("\n").pop() || "{}");
+                    for (const d of (j.networks || [])) {
+                        // Only profiles with connectable credentials (open/PSK).
+                        // Enterprise (802.1X) profiles need nmtui.
+                        if (!d.has_credentials)
+                            continue;
+                        known.push(d.name);
+                        autoconnect[d.name] = d.autoconnect === true;
+                    }
+                } catch (e) {
+                    // Non-JSON — keep the existing lists.
                 }
                 root.knownWifiNames = known;
                 root.wifiAutoconnectByName = autoconnect;
@@ -785,27 +786,30 @@ Singleton {
     Process {
         id: savedProfilesProc
         running: true
-        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f NAME,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY connection show | while IFS=: read -r name type auto prio; do [ \"$type\" = \"802-11-wireless\" ] || continue; printf '%s\\t%s\\t%s\\n' \"$name\" \"$auto\" \"$prio\"; done"]
+        command: ["sumika-wifi", "list-saved"]
+
         stdout: StdioCollector {
             onStreamFinished: {
                 const list = [];
-                for (const line of text.trim().split("\n")) {
-                    if (line.length === 0)
-                        continue;
-                    const parts = line.split("\t");
-                    if (parts.length < 1 || !parts[0])
-                        continue;
-                    list.push({
-                        name: parts[0],
-                        autoconnect: parts[1] === "yes",
-                        priority: parseInt(parts[2]) || 0
-                    });
+                try {
+                    const j = JSON.parse(text.trim().split("\n").pop() || "{}");
+                    for (const d of (j.networks || [])) {
+                        list.push({
+                            name: d.name,
+                            autoconnect: d.autoconnect === true,
+                            priority: d.priority || 0
+                        });
+                    }
+                } catch (e) {
+                    // Non-JSON — keep the existing list.
                 }
                 list.sort((a, b) => a.name.localeCompare(b.name));
                 root.savedWifiProfiles = list;
             }
         }
     }
+
+
 
     Process {
         id: linkDetailsProc
@@ -933,131 +937,55 @@ Singleton {
 
     Process {
         id: updateConnectionType
-        property string buffer
-        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -t -f TYPE,STATE d status && nmcli -t -f CONNECTIVITY g"]
+        command: ["sumika-wifi", "status"]
         running: true
         function startCheck() {
-            buffer = "";
             updateConnectionType.running = true;
         }
-        stdout: SplitParser {
-            onRead: data => {
-                updateConnectionType.buffer += data + "\n";
-            }
-        }
-        onExited: (exitCode, exitStatus) => {
-            const lines = updateConnectionType.buffer.trim().split('\n');
-            const connectivity = lines.pop() // none, limited, full
-            let hasEthernet = false;
-            let hasWifi = false;
-            let wifiStatus = "disconnected";
-            lines.forEach(line => {
-                if (line.includes("ethernet") && line.includes("connected"))
-                    hasEthernet = true;
-                else if (line.includes("wifi:")) {
-                    if (line.includes("disconnected")) {
-                        wifiStatus = "disconnected"
-                    }
-                    else if (line.includes("connected")) {
-                        hasWifi = true;
-                        wifiStatus = "connected"
-
-                        if (connectivity === "limited") {
-                            hasWifi = false;
-                            wifiStatus = "limited"
-                        }
-                    }
-                    else if (line.includes("connecting")) {
-                        wifiStatus = "connecting"
-                    }
-                    else if (line.includes("unavailable")) {
-                        wifiStatus = "disabled"
-                    }
-                }
-            });
-            root.wifiStatus = wifiStatus;
-            root.ethernet = hasEthernet;
-            root.wifi = hasWifi;
-        }
-    }
-
-    Process {
-        id: updateNetworkName
-        command: ["sh", "-c", "nmcli -t -f NAME c show --active | head -1"]
-        running: true
-        stdout: SplitParser {
-            onRead: data => {
-                root.networkName = data;
-            }
-        }
-    }
-
-    Process {
-        id: updateNetworkStrength
-        running: true
-        command: ["sh", "-c", "export LANG=C LC_ALL=C; nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\\*/{if (NR!=1) {print $2}}'"]
-        stdout: SplitParser {
-            onRead: data => {
-                root.networkStrength = parseInt(data);
-            }
-        }
-    }
-
-    Process {
-        id: wifiStatusProcess
-        command: ["env", "LANG=C", "LC_ALL=C", "nmcli", "radio", "wifi"]
-        Component.onCompleted: running = true
-        environment: ({
-            LANG: "C",
-            LC_ALL: "C"
-        })
         stdout: StdioCollector {
             onStreamFinished: {
-                root.wifiEnabled = text.trim() === "enabled";
+                try {
+                    const j = JSON.parse(text.trim().split("\n").pop() || "{}");
+                    const st = j.status || {};
+                    root.wifiStatus = st.wifi_status || "disconnected";
+                    root.ethernet = st.ethernet === true;
+                    // "wifi" = actively connected (not limited/disconnected).
+                    root.wifi = root.wifiStatus === "connected";
+                    // Active SSID + strength come from the same status call.
+                    if (st.active && st.active !== "—") {
+                        root.networkName = st.active;
+                        root.lastConnectedSsid = st.active;
+                    } else {
+                        root.networkName = "";
+                    }
+                    if (st.strength !== undefined && st.strength >= 0)
+                        root.networkStrength = st.strength;
+                    root.wifiEnabled = st.radio === "On";
+                } catch (e) {
+                    // Non-JSON — keep existing values.
+                }
             }
         }
     }
+
+
 
     Process {
         id: getNetworks
         running: true
-        command: ["env", "LANG=C", "LC_ALL=C", "nmcli", "-g", "ACTIVE,SIGNAL,FREQ,SSID,BSSID,SECURITY", "d", "w"]
+        command: ["sumika-wifi", "list-available"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const PLACEHOLDER = "STRINGWHICHHOPEFULLYWONTBEUSED";
-                const rep = new RegExp("\\\\:", "g");
-                const rep2 = new RegExp(PLACEHOLDER, "g");
-
-                const allNetworks = text.trim().split("\n").map(n => {
-                    const net = n.replace(rep, PLACEHOLDER).split(":");
-                    return {
-                        active: net[0] === "yes",
-                        strength: parseInt(net[1]),
-                        frequency: parseInt(net[2]),
-                        ssid: net[3] ? net[3].replace(rep2, ":") : "",
-                        bssid: net[4]?.replace(rep2, ":") ?? "",
-                        security: net[5] || ""
-                    };
-                }).filter(n => n.ssid && n.ssid.length > 0);
-
-                // Group networks by SSID and prioritize connected ones
-                const networkMap = new Map();
-                for (const network of allNetworks) {
-                    const existing = networkMap.get(network.ssid);
-                    if (!existing) {
-                        networkMap.set(network.ssid, network);
-                    } else {
-                        if (network.active && !existing.active) {
-                            networkMap.set(network.ssid, network);
-                        } else if (!network.active && !existing.active) {
-                            if (network.strength > existing.strength) {
-                                networkMap.set(network.ssid, network);
-                            }
-                        }
-                    }
+                let wifiNetworks = [];
+                try {
+                    const j = JSON.parse(text.trim().split("\n").pop() || "{}");
+                    wifiNetworks = j.networks || [];
+                } catch (e) {
+                    // Non-JSON or empty — keep the existing list.
+                    return;
                 }
 
-                const wifiNetworks = Array.from(networkMap.values());
+
                 const rNetworks = root.wifiNetworks;
 
                 // Preserve askingPassword / identity across rescans by SSID when possible

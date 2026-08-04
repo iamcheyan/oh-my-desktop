@@ -14,6 +14,7 @@ daemons, permissions, and setup instructions.
 |Audio|`wpctl`|Volume and mute actions; PipeWire is the audio backend|
 |Network|`nmcli`, `bluetoothctl`|Wi-Fi and Bluetooth services and TUIs|
 |Display|`brightnessctl`, `wlr-randr`, `grim`, `hyprpicker`|Brightness, output configuration, display previews, and color picking|
+|Capture / recording|`slurp`, `wf-recorder`|Region selection and screen-record backend (`sumika-record`; also used by the screenshot extension)|
 |Clipboard transport|`wl-copy`|Core Wi-Fi password copy action|
 |Desktop integration|`foot`, `zenity`, `notify-send`, `secret-tool`|Core TUI host, browser picker, notifications, and keyring storage|
 |Runtime tooling|`jq`, `curl`, `python3`, `systemd-run`|Registry/config processing, media artwork, Core Python TUIs, and process supervision|
@@ -39,6 +40,10 @@ starts without them:
 `grim` is a Core dependency, not a screenshot-extension dependency: the
 brightness service uses it for per-output preview frames.
 
+`slurp` and `wf-recorder` ship with Core so `sumika-record` and the screenshot
+extension have a working region picker and recording backend without a second
+installer. Optional annotation/OCR packages stay extension-owned.
+
 ## Core Fonts
 
 Core QML directly requests:
@@ -62,7 +67,7 @@ the extension that uses them:
 |Clipboard|`cliphist`, smart-paste helpers|
 |Input method|Fcitx5 and its GTK/Qt frontends|
 |Keyboard remap|`keyd`, GTK key-capture dependencies, polkit rule|
-|Screenshot/OCR|`slurp`, `swappy`/`satty`, OCR Python packages|
+|Screenshot/OCR|`swappy`/`satty`, ImageMagick (`magick`), OCR Python packages (`slurp`/`wf-recorder`/`grim` come from Core)|
 |Voice input|`parecord`, `ydotool`/`wtype`, speech-model Python packages|
 |File backup|`rsync`, Samba tools, backup polkit rule|
 |Windows VM|QEMU/libvirt, RDP/Looking Glass tools|

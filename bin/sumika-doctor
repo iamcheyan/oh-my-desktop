@@ -105,8 +105,8 @@ for cmd in hyprctl jq curl python3 systemd-run; do
 done
 
 section "core backends"
-for cmd in wpctl nmcli bluetoothctl brightnessctl wlr-randr grim wl-copy \
-  hyprpicker foot zenity secret-tool notify-send; do
+for cmd in wpctl nmcli bluetoothctl brightnessctl wlr-randr grim slurp \
+  wf-recorder wl-copy hyprpicker foot zenity secret-tool notify-send; do
   check_cmd "$cmd"
 done
 

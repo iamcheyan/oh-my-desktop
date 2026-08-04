@@ -42,9 +42,17 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onContainsMouseChanged: root.hoveredChanged(containsMouse)
         onPositionChanged: root.mouseMoved()
-        onClicked: {
-            Cliphist.pasteSmart(root.entry);
-            root.itemClicked();
+        onClicked: mouse => {
+            // Shift+click an image entry to paste it as a file path — same as
+            // the ⇲ button / Ctrl+Enter. Text targets that can't accept an
+            // image paste then receive the path string instead.
+            if (root.isImage && (mouse.modifiers & Qt.ShiftModifier)) {
+                mouse.accepted = true;
+                root.pasteAsPathRequested(root.entry);
+            } else {
+                Cliphist.pasteSmart(root.entry);
+                root.itemClicked();
+            }
         }
     }
 

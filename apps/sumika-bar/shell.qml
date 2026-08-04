@@ -34,7 +34,10 @@ ShellRoot {
             if (GlobalStates.barPopupType !== "") {
                 GlobalStates.barPopupType = "";
             }
-            // Settings is now a separate process (sumika-settings)
+            // Context menus are PopupWindows tracked separately from barPopupType.
+            if (ContextMenuTracker.activeMenu)
+                ContextMenuTracker.activeMenu.close();
+            GlobalFocusGrab.dismiss();
         }
     }
 

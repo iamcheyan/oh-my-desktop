@@ -353,7 +353,7 @@ ColumnLayout {
     // ── Wi-Fi advanced footer ──
     PopupFooterLink {
         Layout.fillWidth: true
-        label: "Add new Wi-Fi…"
+        label: "Wi-Fi Settings…"
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;
@@ -514,7 +514,7 @@ ColumnLayout {
     PopupFooterLink {
         Layout.fillWidth: true
         visible: BluetoothStatus.enabled
-        label: "Add new Bluetooth…"
+        label: "Bluetooth Settings…"
         onClicked: {
             GlobalStates.barPopupType = "";
             GlobalStates.barPopupEphemeral = false;

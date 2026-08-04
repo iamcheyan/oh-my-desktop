@@ -104,12 +104,15 @@ PACKAGES_NETWORK=(
     rfkill
 )
 
-# Display/brightness
+# Display/brightness + capture/recording tools used by Core and the screenshot
+# extension (region select, clipboard snip, screen record backend).
 PACKAGES_DISPLAY=(
     brightnessctl
     ddcutil
     wlr-randr
     grim
+    slurp
+    wf-recorder
     wl-clipboard
     hyprsunset
 )
@@ -183,6 +186,8 @@ get_debian_pkg() {
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
         grim)                   echo "grim" ;;
+        slurp)                  echo "slurp" ;;
+        wf-recorder)            echo "wf-recorder" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         quickshell)             echo "quickshell" ;;
         power-profiles-daemon)  echo "power-profiles-daemon" ;;
@@ -234,6 +239,8 @@ get_fedora_pkg() {
         ddcutil)                echo "ddcutil" ;;
         wlr-randr)              echo "wlr-randr" ;;
         grim)                   echo "grim" ;;
+        slurp)                  echo "slurp" ;;
+        wf-recorder)            echo "wf-recorder" ;;
         wl-clipboard)           echo "wl-clipboard" ;;
         quickshell)             echo "quickshell" ;;
         power-profiles-daemon)  echo "tuned-ppd" ;; # Fedora's PPD-compatible service
@@ -444,6 +451,8 @@ install_nixos_system_config() {
     ddcutil
     wlr-randr
     grim
+    slurp
+    wf-recorder
     ffmpeg
     hyprsunset
     power-profiles-daemon
@@ -936,7 +945,8 @@ verify_core_dependencies() {
     local cmd
 
     for cmd in hyprctl wpctl nmcli bluetoothctl brightnessctl wlr-randr \
-        grim wl-copy hyprpicker foot zenity secret-tool jq curl python3 notify-send; do
+        grim slurp wf-recorder wl-copy hyprpicker foot zenity secret-tool \
+        jq curl python3 notify-send; do
         command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
     done
     command -v Hyprland >/dev/null 2>&1 \
@@ -1149,6 +1159,17 @@ EOF
         warn "GDM has WaylandEnable=false; enabling Wayland sessions."
         sudo sed -i 's/^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false/#WaylandEnable=false/' /etc/gdm/custom.conf
     fi
+
+    # Bluetooth suspend/resume fix: reload the BCM4377 kernel module on
+    # resume so the controller firmware is re-initialised (Apple Silicon).
+    # See docs/features/bluetooth-suspend-resume.md for the full rationale.
+    if [[ -f "$REPO/share/system-sleep/10-bluetooth-bcm4377.sh" ]]; then
+        sudo mkdir -p /etc/systemd/system-sleep
+        sudo cp "$REPO/share/system-sleep/10-bluetooth-bcm4377.sh" \
+            /etc/systemd/system-sleep/10-bluetooth-bcm4377.sh
+        sudo chmod 755 /etc/systemd/system-sleep/10-bluetooth-bcm4377.sh
+        ok "  /etc/systemd/system-sleep/10-bluetooth-bcm4377.sh"
+    fi
 }
 
 install_nixos_session_files() {
@@ -1285,6 +1306,7 @@ main() {
     echo "  - Audio (PipeWire, WirePlumber, pavucontrol)"
     echo "  - Network & Bluetooth (NetworkManager, nmtui, bluez — sumika-wifi-tui / sumika-bluetooth-tui)"
     echo "  - Display tools (brightnessctl, ddcutil, wlr-randr, grim, hyprsunset)"
+    echo "  - Capture / recording (slurp region picker, wf-recorder screen record backend)"
     echo "  - Wayland clipboard transport (wl-clipboard)"
     echo "  - Power, polkit and GNOME Keyring"
     echo "  - Terminal (foot)"
@@ -1292,7 +1314,8 @@ main() {
     echo "  - Fonts/icons (Noto, Nerd Fonts, Material Symbols)"
     echo "  - Qt/GTK integration"
     echo
-    echo "Optional extensions install their own dependencies separately."
+    echo "Optional extensions install their own dependencies separately"
+    echo "(screenshot/record reuse grim+slurp+wf-recorder from Core)."
     echo
 
     read -p "Proceed with installation? [Y/n] " -n 1 -r

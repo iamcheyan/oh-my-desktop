@@ -59,7 +59,10 @@ def _tee_recovery_log(on_log):
     path = os.path.join(_recovery_log_dir(), f"recovery-{stamp}.log")
 
     def tee(msg):
-        lines.append(msg)
+        # Persist the same event timeline the TUI presents live. The UI adds
+        # its own timestamp at render time, so callers still receive the
+        # unmodified message text.
+        lines.append(f"{time.strftime('%H:%M:%S')}  {msg}")
         if on_log:
             on_log(msg)
 
@@ -306,6 +309,11 @@ def get_saved_networks() -> list[dict]:
         )
         ssid = ssid_out.strip().splitlines()[0].strip() if ssid_rc == 0 and ssid_out.strip() else name
         connected = name == active_name
+        # has_credentials mirrors the popup's old `updateKnownWifiProfiles`
+        # shell filter: profiles that can connect directly (open or PSK-based).
+        # Enterprise (802.1X/EAP) key-mgmt is excluded — it needs nmtui.
+        key_mgmt = _profile_key_mgmt(uuid).lower()
+        enterprise = "eap" in key_mgmt or "802.1x" in key_mgmt or "ieee8021x" in key_mgmt
         result.append({
             "ssid": ssid,
             "name": name,
@@ -313,6 +321,7 @@ def get_saved_networks() -> list[dict]:
             "connected": connected,
             "autoconnect": autoconnect_raw == "yes",
             "priority": priority,
+            "has_credentials": not enterprise,
         })
     signal_map: dict[str, int] = {}
     security_map: dict[str, str] = {}
@@ -349,9 +358,15 @@ def rescan_wifi(timeout: int = 10) -> tuple[bool, str]:
 
 
 def get_available_networks() -> list[dict]:
-    """List nearby APs via nmcli terse mode. Dedup by SSID (strongest BSS)."""
+    """List nearby APs via nmcli terse mode. Dedup by SSID (strongest BSS).
+
+    Fields mirror what the Quickshell popup needs: ssid/bssid/frequency for
+    dedup, active (= in-use) + strength for sorting, security for the lock
+    icon. This is the single source of truth — the popup no longer parses
+    nmcli itself.
+    """
     rc, out = nmcli(
-        "-t", "-f", "SSID,SECURITY,SIGNAL,BARS,IN-USE,CHAN",
+        "-t", "-f", "SSID,BSSID,SECURITY,SIGNAL,FREQ,IN-USE,CHAN",
         "device", "wifi", "list",
         timeout=10,
     )
@@ -367,28 +382,36 @@ def get_available_networks() -> list[dict]:
         ssid = parts[0].strip()
         if not ssid:
             continue
-        sec = parts[1].strip() if len(parts) > 1 else ""
+        bssid = parts[1].strip() if len(parts) > 1 else ""
+        sec = parts[2].strip() if len(parts) > 2 else ""
         try:
-            sig = int(parts[2].strip()) if parts[2].strip() else 0
+            sig = int(parts[3].strip()) if len(parts) > 3 and parts[3].strip() else 0
         except ValueError:
             sig = 0
-        bars = parts[3].strip() if len(parts) > 3 else ""
-        in_use_field = parts[4].strip() if len(parts) > 4 else ""
+        try:
+            freq = int(parts[4].strip()) if len(parts) > 4 and parts[4].strip() else 0
+        except ValueError:
+            freq = 0
+        in_use_field = parts[5].strip() if len(parts) > 5 else ""
         in_use = in_use_field == "*" or in_use_field.endswith("*")
-        chan = parts[5].strip() if len(parts) > 5 else ""
+        chan = parts[6].strip() if len(parts) > 6 else ""
         entry = {
             "ssid": ssid,
+            "bssid": bssid,
             "security": sec if sec and sec != "--" else "",
             "signal": sig,
-            "bars": bars,
+            "strength": sig,
+            "frequency": freq,
+            "active": in_use,
+            "bars": "",
             "in_use": in_use,
             "chan": chan,
         }
         prev = best.get(ssid)
-        if prev is None or entry["signal"] > prev["signal"] or (entry["in_use"] and not prev["in_use"]):
+        if prev is None or entry["signal"] > prev["signal"] or (entry["active"] and not prev["active"]):
             best[ssid] = entry
     result = list(best.values())
-    result.sort(key=lambda d: (0 if d["in_use"] else 1, -d["signal"], d["ssid"].lower()))
+    result.sort(key=lambda d: (0 if d["active"] else 1, -d["signal"], d["ssid"].lower()))
     return result
 
 
@@ -450,6 +473,46 @@ def _profile_uuid_for_ssid(ssid: str) -> str:
     return ""
 
 
+def _active_wifi_ssid() -> str:
+    """SSID of the active Wi-Fi profile, independent of its display name."""
+    rc, out = nmcli("-t", "-f", "UUID,TYPE", "connection", "show", "--active", timeout=5)
+    if rc != 0:
+        return ""
+    for line in out.splitlines():
+        parts = nmcli_split(line)
+        if len(parts) < 2 or ("802-11-wireless" not in parts[1] and parts[1] != "wifi"):
+            continue
+        uuid = parts[0].strip()
+        if not uuid:
+            continue
+        ssid_rc, ssid_out = nmcli(
+            "-g", "802-11-wireless.ssid", "connection", "show", "uuid", uuid, timeout=5,
+        )
+        if ssid_rc == 0 and ssid_out.strip():
+            return ssid_out.strip().splitlines()[0].strip()
+    return ""
+
+
+def _wait_for_connected_route(ssid: str, dev: str, on_log=None, timeout: float = 12.0) -> tuple[bool, str]:
+    """Confirm that *ssid* is active and has an IPv4 default route.
+
+    ``nmcli device wifi connect`` can return before association/DHCP has
+    completed. Treating its exit status as success was precisely what made a
+    failed WPA3 association look like a successful connection in the popup.
+    """
+    deadline = time.monotonic() + timeout
+    target_seen = False
+    while time.monotonic() < deadline:
+        if _active_wifi_ssid() == ssid:
+            target_seen = True
+            if get_ip_address(dev) != "—" and get_gateway(dev):
+                return True, ""
+        time.sleep(0.75)
+    if target_seen:
+        return False, "activation completed but no IPv4 route was assigned"
+    return False, "target network did not become active"
+
+
 def auto_fix_security_profile(ssid: str, uuid: str | None = None, on_log=None) -> bool:
     """Auto-fix a saved profile whose key-mgmt mismatches the AP.
 
@@ -477,6 +540,14 @@ def auto_fix_security_profile(ssid: str, uuid: str | None = None, on_log=None) -
         return False  # brand-new network; NM builds the profile on connect
 
     sec = _ap_security(ssid)
+    if not sec:
+        # The list command reads NM's scan cache. A saved network may be in
+        # range while that cache is cold (for example immediately after a
+        # wake-up), so refresh it once before deciding that no fix is needed.
+        _log("  auto-fix: refreshing Wi-Fi scan to inspect target security…")
+        rescan_wifi()
+        time.sleep(1.5)
+        sec = _ap_security(ssid)
     if not sec or "WPA3" not in sec.upper():
         return False  # WPA2-only AP — wpa-psk is the right mode
 
@@ -577,6 +648,17 @@ def connect_network(
         if on_log:
             on_log(msg)
 
+    def _confirmed_success():
+        _log("Verifying association, IPv4 address, and gateway…")
+        verified, detail = _wait_for_connected_route(ssid, dev, _log)
+        if not verified:
+            _log(f"✗ Connection was not usable: {detail}")
+            return False, f"Connection failed: {detail}"
+        _log(f"✓ Connected to {ssid}")
+        for ln in _connection_detail_lines(dev):
+            _log(f"  {ln}")
+        return True, f"Connected to {ssid}"
+
     dev = get_wifi_device()
     if dev:
         _log(f"Using device {dev}")
@@ -596,10 +678,7 @@ def connect_network(
             _log("Activating saved profile…")
             rc, out = nmcli("connection", "up", "uuid", uuid, timeout=30)
             if rc == 0:
-                _log(f"✓ Connected to {ssid}")
-                for ln in _connection_detail_lines(dev):
-                    _log(f"  {ln}")
-                return True, f"Connected to {ssid}"
+                return _confirmed_success()
             _log(f"  ✗ Profile activation failed: {_first_error_line(out)}")
             _log("  Falling back to device wifi connect…")
 
@@ -607,10 +686,7 @@ def connect_network(
             _log("Activating by SSID…")
             rc, out = nmcli("connection", "up", "id", ssid, timeout=30)
             if rc == 0:
-                _log(f"✓ Connected to {ssid}")
-                for ln in _connection_detail_lines(dev):
-                    _log(f"  {ln}")
-                return True, f"Connected to {ssid}"
+                return _confirmed_success()
             _log(f"  ✗ SSID activation failed: {_first_error_line(out)}")
             _log("  Falling back to device wifi connect…")
 
@@ -628,10 +704,7 @@ def connect_network(
             args.extend(["ifname", dev])
         rc, out = nmcli(*args, timeout=45)
         if rc == 0:
-            _log(f"✓ Connected to {ssid}")
-            for ln in _connection_detail_lines(dev):
-                _log(f"  {ln}")
-            return True, f"Connected to {ssid}"
+            return _confirmed_success()
         err = out.strip()
         low = err.lower()
         # NM sometimes enqueues the activation when the device is busy
@@ -639,15 +712,14 @@ def connect_network(
         # of declaring failure (the activation often succeeds afterwards).
         if "enqueued" in low or "queued" in low:
             _log("  Activation queued by NM — waiting for it to complete…")
-            for _ in range(20):
-                time.sleep(1.0)
-                if get_active_connection() == ssid:
-                    _log(f"✓ Connected to {ssid}")
-                    for ln in _connection_detail_lines(dev):
-                        _log(f"  {ln}")
-                    return True, f"Connected to {ssid}"
-            _log("  ✗ Queued activation did not complete")
-            return False, "Connection failed (NM activation queued, then stalled)"
+            verified, detail = _wait_for_connected_route(ssid, dev, _log, timeout=20.0)
+            if verified:
+                _log(f"✓ Connected to {ssid}")
+                for ln in _connection_detail_lines(dev):
+                    _log(f"  {ln}")
+                return True, f"Connected to {ssid}"
+            _log(f"  ✗ Queued activation did not complete: {detail}")
+            return False, f"Connection failed (NM activation queued: {detail})"
         if "secrets were required" in low or ("password" in low and "invalid" in low):
             _log("✗ Wrong password / secrets required")
             _log(f"  nmcli: {_first_error_line(err)}")
@@ -693,15 +765,70 @@ def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool,
 # ── status / diagnostics ─────────────────────────────────────────────────
 
 def get_wifi_status() -> dict:
+    """Aggregate status for the popup (radio, active SSID, IP, device) plus
+    the connection-type + connectivity info the popup previously parsed from
+    `nmcli -t -f TYPE,STATE d status && nmcli -t -f CONNECTIVITY g` itself.
+    """
     radio = get_wifi_radio()
     active_ssid = get_active_connection()
     dev = get_wifi_device()
     ip = get_ip_address(dev) if dev else "—"
+
+    has_ethernet = False
+    wifi_status = "disconnected"
+    rc, out = nmcli("-t", "-f", "TYPE,STATE", "device", "status", timeout=5)
+    if rc == 0:
+        for line in out.splitlines():
+            parts = nmcli_split(line)
+            if len(parts) < 2:
+                continue
+            dtype, state = parts[0].strip(), parts[1].strip().lower()
+            if dtype == "ethernet" and state == "connected":
+                has_ethernet = True
+            elif dtype == "wifi":
+                if state == "connected":
+                    wifi_status = "connected"
+                elif state == "connecting":
+                    wifi_status = "connecting"
+                elif state == "disconnected":
+                    if wifi_status != "connected" and wifi_status != "connecting":
+                        wifi_status = "disconnected"
+                elif state in ("unavailable", "unmanaged"):
+                    wifi_status = "disabled"
+
+    connectivity = "none"
+    rc2, out2 = nmcli("-t", "-f", "CONNECTIVITY", "general", timeout=5)
+    if rc2 == 0:
+        conn = out2.strip().splitlines()
+        if conn:
+            connectivity = conn[0].strip().lower() or "none"
+
+    # Limited = wifi connected but connectivity is not full.
+    if wifi_status == "connected" and connectivity not in ("full",):
+        wifi_status = "limited"
+
+    # Active AP signal from the scan cache.
+    strength = -1
+    rc3, out3 = nmcli("-t", "-f", "IN-USE,SIGNAL", "device", "wifi", "list", timeout=5)
+    if rc3 == 0:
+        for line in out3.splitlines():
+            if line.startswith("*"):
+                parts = nmcli_split(line)
+                try:
+                    strength = int(parts[1].strip()) if len(parts) > 1 else -1
+                except (ValueError, IndexError):
+                    pass
+                break
+
     return {
         "radio": "On" if radio else "Off",
         "active": active_ssid if active_ssid else "—",
         "ip": ip,
         "device": dev if dev else "—",
+        "wifi_status": wifi_status,
+        "ethernet": has_ethernet,
+        "connectivity": connectivity,
+        "strength": strength,
     }
 
 
@@ -772,8 +899,43 @@ def get_link_info(dev: str) -> dict:
     return info
 
 
+def has_default_route(dev: str) -> bool | None:
+    """Whether the kernel has an IPv4 default route through *dev*.
+
+    ``None`` means the `ip` utility is unavailable, which is diagnostic-only
+    and must not be treated as a broken network.
+    """
+    if not dev or dev == "—":
+        return False
+    try:
+        proc = subprocess.run(
+            ["ip", "-4", "route", "show", "default", "dev", dev],
+            text=True, capture_output=True, timeout=3, env=_SUBPROC_ENV,
+            stdin=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return None
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+
+
+def dns_resolves(host: str = "one.one.one.one") -> bool | None:
+    """Small DNS probe without assuming curl/dig is installed."""
+    try:
+        proc = subprocess.run(
+            ["getent", "ahostsv4", host], text=True, capture_output=True,
+            timeout=5, env=_SUBPROC_ENV, stdin=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        return None
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return proc.returncode == 0 and bool((proc.stdout or "").strip())
+
+
 def run_diagnostics() -> dict:
-    """Connection health: gateway RTT+loss, external RTT+loss, signal, band."""
+    """Connection health: route, DNS, gateway/external RTT, signal and band."""
     status = get_wifi_status()
     dev = status.get("device", "")
     link = get_link_info(dev)
@@ -791,6 +953,8 @@ def run_diagnostics() -> dict:
         "gateway_loss": 100,
         "external_ms": "fail",
         "external_loss": 100,
+        "default_route": has_default_route(dev),
+        "dns": dns_resolves(),
     }
     if gw:
         loss, ms = ping_stats(gw, count=5, timeout=1)
@@ -968,6 +1132,20 @@ def fix_connection(on_log) -> tuple[bool, str]:
         on_log("Recovery stopped: NetworkManager or the WiFi adapter is unavailable.")
         return done(False, "NetworkManager / WiFi adapter unavailable")
     on_log("")
+    # Refresh once up front so the security audit below does not rely on a
+    # stale scan cache. This also repairs a currently healthy transition-mode
+    # connection permanently instead of waiting for its next failure.
+    on_log("Step 1 — Scanning and auditing visible saved WiFi profiles…")
+    rescan_wifi()
+    time.sleep(2.0)
+    audited = 0
+    for profile in get_saved_networks():
+        if profile.get("signal", -1) < 0:
+            continue
+        audited += 1
+        auto_fix_security_profile(profile.get("ssid", ""), profile.get("uuid"), on_log)
+    on_log(f"  ✓ Audited {audited} visible saved profile(s).")
+
     status = get_wifi_status()
     current = status.get("active", "") if status.get("active") not in ("", "—") else ""
     dev = status.get("device", "")
@@ -992,7 +1170,32 @@ def fix_connection(on_log) -> tuple[bool, str]:
         if gw:
             loss, ms = ping_stats(gw, count=3, timeout=1)
             if loss == 0 and ms != "fail":
-                on_log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — network is healthy")
+                route_ok = has_default_route(dev)
+                if route_ok is False:
+                    on_log("  ✗ Gateway answers but the default route is missing.")
+                elif route_ok is None:
+                    on_log("  ! `ip` unavailable — cannot inspect default route.")
+                else:
+                    on_log("  ✓ Default route present.")
+                dns_ok = dns_resolves()
+                if dns_ok is False:
+                    on_log("  ! DNS lookup failed — preserving WiFi link; check DNS/captive portal.")
+                elif dns_ok is None:
+                    on_log("  ! `getent` unavailable — cannot inspect DNS.")
+                else:
+                    on_log("  ✓ DNS lookup succeeded.")
+                ext_loss, ext_ms = ping_stats("1.1.1.1", count=2, timeout=1)
+                if ext_loss == 0 and ext_ms != "fail":
+                    on_log(f"  ✓ Internet probe reachable ({ext_ms} ms).")
+                else:
+                    on_log("  ! Internet ICMP probe failed — preserving WiFi link (may be firewall/portal).")
+                if route_ok is not False and dns_ok is not False:
+                    on_log(f"  ✓ Gateway reachable ({ms} ms, 0% loss) — local network is healthy")
+                    return done(True, f"Active connection verified: {current}")
+                # Do not tear down a working association merely because an
+                # upstream DNS/route service is unhealthy; candidate switching
+                # cannot repair those conditions reliably.
+                return done(False, "WiFi link is up, but DNS/default-route needs attention")
             else:
                 on_log(f"  ! Gateway did not answer ICMP ({loss}% loss) — preserving active link")
             return done(True, f"Active connection preserved: {current}")
@@ -1013,9 +1216,7 @@ def fix_connection(on_log) -> tuple[bool, str]:
     else:
         on_log("Not connected. Starting recovery.")
 
-    on_log("Scanning for networks…")
-    rescan_wifi()
-    time.sleep(2.0)
+    on_log("Selecting from the refreshed scan results…")
 
     def attempt_round(tag):
         cand = _ranked_candidates(current, current_failed)
@@ -1034,18 +1235,9 @@ def fix_connection(on_log) -> tuple[bool, str]:
             if not ok:
                 on_log(f"  ✗ {msg}")
                 continue
-            on_log("  connected — waiting for IP route…")
-            deadline = time.monotonic() + 12.0
-            dev, gw = "", ""
-            while time.monotonic() < deadline:
-                dev = get_wifi_device()
-                gw = get_gateway(dev)
-                if get_ip_address(dev) != "—" and gw:
-                    break
-                time.sleep(1.0)
-            if not gw:
-                on_log("  ✗ no IP route after 12 seconds")
-                continue
+            # connect_network already verified target SSID + IPv4 + gateway.
+            dev = get_wifi_device()
+            gw = get_gateway(dev)
             loss, ms = ping_stats(gw, count=3, timeout=1)
             if loss == 0 and ms != "fail":
                 on_log(f"  ✓ Gateway OK ({ms} ms, 0% loss)")

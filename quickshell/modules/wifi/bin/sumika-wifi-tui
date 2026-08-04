@@ -114,6 +114,30 @@ class WifiModel:
         self._pending_connect = None  # SSID from --connect arg, resolved after scan
         self.active_conn = ""  # current connection name, used as fallback on connect failure
         self._log_seen = 0         # log_lines length at last render
+        self.log_scroll = 0        # logical log lines above the newest entry
+        self.log_hscroll = 0       # terminal columns hidden on the left
+
+
+def _stamp_log(message):
+    """Add a stable local timestamp to every diagnostic event."""
+    return f"{time.strftime('%H:%M:%S')}  {message}"
+
+
+def _reset_log(m, message):
+    m.log_lines = [_stamp_log(message)]
+    m.log_scroll = 0
+    m.log_hscroll = 0
+    m._log_seen = 0
+
+
+def _append_log(m, message):
+    m.log_lines.append(_stamp_log(message))
+    # Do not force a reader back to the bottom while they inspect history.
+    if len(m.log_lines) > 1000:
+        dropped = len(m.log_lines) - 1000
+        m.log_lines = m.log_lines[dropped:]
+        m.log_scroll = max(0, m.log_scroll - dropped)
+    m.dirty = True
 
     def run_bg(self, label, fn, *args):
         if self.busy:
@@ -146,14 +170,12 @@ def _action_connect(m, ssid, password=None, uuid=None):
     # Snapshot the currently-active connection before we attempt the new one,
     # so a failed connect can fall back to it and keep the user online.
     pre_conn = m.active_conn or ""
-    m.log_lines = [f"Connecting to {ssid}…"]
-    m._log_seen = 0
+    _reset_log(m, f"Connecting to {ssid}…")
     m.status_msg = f"Connecting to {ssid}…"
     m.dirty = True
 
     def on_log(msg):
-        m.log_lines.append(f"  {msg}")
-        m.dirty = True
+        _append_log(m, msg)
 
     def worker():
         try:
@@ -162,26 +184,25 @@ def _action_connect(m, ssid, password=None, uuid=None):
                 # Keep the user online: reconnect the previously-working
                 # network. connect_network(name) with no password/uuid
                 # reactivates the saved profile via `nmcli connection up id`.
-                m.log_lines.append("")
-                m.log_lines.append(f"  ↳ {msg}; reconnecting {pre_conn}…")
-                m.dirty = True
+                _append_log(m, "─" * 24)
+                _append_log(m, f"↳ {msg}; reconnecting {pre_conn}…")
                 ok2, msg2 = connect_network(pre_conn, on_log=on_log)
                 if ok2:
                     m.status_msg = f"Connection to {ssid} failed — back online via {pre_conn}"
-                    m.log_lines.append(f"✓ Back online via {pre_conn} — press Q to close")
+                    _append_log(m, f"✓ Back online via {pre_conn}")
                 else:
                     m.status_msg = f"Connection to {ssid} failed; could not return to {pre_conn}"
-                    m.log_lines.append(f"✗ {msg2} — press Q to close")
+                    _append_log(m, f"✗ {msg2}")
             else:
                 m.status_msg = msg
-                m.log_lines.append("")
+                _append_log(m, "─" * 24)
                 if ok:
-                    m.log_lines.append(f"✓ {msg} — press Q to close")
+                    _append_log(m, f"✓ {msg}")
                 else:
-                    m.log_lines.append(f"✗ {msg} — press Q to close")
+                    _append_log(m, f"✗ {msg}")
         except Exception as exc:
             m.status_msg = f"Error: {exc}"
-            m.log_lines.append(f"✗ Error: {exc} — press Q to close")
+            _append_log(m, f"✗ Error: {exc}")
         finally:
             m.connecting = False
             m.busy = False
@@ -496,6 +517,8 @@ def _dismiss_overlay(m):
         m._diag_cancelled = True
     m.log_lines = []
     m._log_seen = 0
+    m.log_scroll = 0
+    m.log_hscroll = 0
     m.diag = None
     m.overlay_title = ""
     _refresh_data(m)
@@ -509,6 +532,47 @@ def _dismiss_overlay(m):
                 m.selected = i
                 break
     m.dirty = True
+
+
+def _handle_log_input(stdscr, m, key):
+    """Navigation for the full-screen log viewer, including mouse wheels."""
+    h, _ = stdscr.getmaxyx()
+    page = max(1, h - 4)
+    max_scroll = max(0, len(m.log_lines) - page)
+
+    if key in (ord("q"), 27):
+        if not (m.fixing or m.connecting):
+            _dismiss_overlay(m)
+        return True
+    if key in (ord("k"), curses.KEY_UP):
+        m.log_scroll = min(max_scroll, m.log_scroll + 1)
+    elif key in (ord("j"), curses.KEY_DOWN):
+        m.log_scroll = max(0, m.log_scroll - 1)
+    elif key in (ord("K"), curses.KEY_PPAGE):
+        m.log_scroll = min(max_scroll, m.log_scroll + page)
+    elif key in (ord("J"), curses.KEY_NPAGE):
+        m.log_scroll = max(0, m.log_scroll - page)
+    elif key == ord("g"):
+        m.log_scroll = max_scroll
+    elif key == ord("G"):
+        m.log_scroll = 0
+    elif key == curses.KEY_LEFT:
+        m.log_hscroll = max(0, m.log_hscroll - 8)
+    elif key == curses.KEY_RIGHT:
+        m.log_hscroll += 8
+    elif key == curses.KEY_MOUSE:
+        try:
+            _, _, _, _, state = curses.getmouse()
+            if state & getattr(curses, "BUTTON4_PRESSED", 0):
+                m.log_scroll = min(max_scroll, m.log_scroll + 3)
+            elif state & getattr(curses, "BUTTON5_PRESSED", 0):
+                m.log_scroll = max(0, m.log_scroll - 3)
+        except curses.error:
+            pass
+    else:
+        return True
+    m.dirty = True
+    return True
 
 def _action_enter(m):
     if m.busy:
@@ -666,10 +730,13 @@ def _draw_diag_panel(stdscr, m, h, w):
         S.safe_addstr(stdscr, py + panel_h - 1, px + inner_w - 2 - len(hint), hint, S.ATTR_SUBTLE)
         return
     tone = diag_tone(d)
+    route_text = {True: "present", False: "missing", None: "not checked"}.get(d.get("default_route"), "unknown")
+    dns_text = {True: "working", False: "failed", None: "not checked"}.get(d.get("dns"), "unknown")
     rows = [
         f"Connection  {d['active']}",
         f"IP / Dev    {d['ip']}  ({d['device']})",
         f"Gateway     {d['gateway']}",
+        f"Route / DNS {route_text} / {dns_text}",
         f"Signal       {d['signal']}   {d['band']} ({d['freq']} MHz)",
         "",
         f"Gateway RTT  {_fmt_loss(d['gateway_loss'], d['gateway_ms'])}",
@@ -696,26 +763,51 @@ def _draw_diag_panel(stdscr, m, h, w):
 
 
 def _draw_log_overlay(stdscr, m, h, w):
-    """Centered overlay with live log (used by fix, connect, and diag-fail)."""
+    """Full-window, non-wrapping log viewer for live connection diagnostics."""
     S.draw_scrim(stdscr, h, w)
-    title = f" {m.overlay_title or 'Progress'} "
-    inner_w = min(w - 4, 64)
-    log_h = min(len(m.log_lines), h - 8)
-    panel_h = log_h + 4
-    py = max(2, (h - panel_h) // 2)
-    px = max(2, (w - inner_w) // 2)
-    S.draw_border(stdscr, py, px, panel_h, inner_w, title)
-    if m.log_lines:
-        shown = m.log_lines[-log_h:] if log_h > 0 else []
-        for i, line in enumerate(shown):
-            S.safe_addstr(stdscr, py + 1 + i, px + 2, S.truncate(line, inner_w - 4), S.ATTR_TEXT)
+    title = f" {m.overlay_title or 'Progress'} Log "
+    S.draw_border(stdscr, 0, 0, h, w, title)
+    inner_w = max(1, w - 4)
+    log_h = max(1, h - 4)
+    total = len(m.log_lines)
+    max_scroll = max(0, total - log_h)
+    m.log_scroll = min(max(0, m.log_scroll), max_scroll)
+    start = max(0, total - log_h - m.log_scroll)
+    end = min(total, start + log_h)
+
+    def slice_columns(text, offset, width):
+        skipped = 0
+        out = []
+        used = 0
+        for ch in str(text):
+            cw = S.char_width(ch)
+            if skipped + cw <= offset:
+                skipped += cw
+                continue
+            if used + cw > width:
+                break
+            out.append(ch)
+            used += cw
+        return "".join(out)
+
+    for row, line in enumerate(m.log_lines[start:end]):
+        S.safe_addstr(stdscr, 1 + row, 2, slice_columns(line, m.log_hscroll, inner_w), S.ATTR_TEXT)
+
+    # Scrollbar describes the complete history without changing/wrapping log lines.
+    if total > log_h:
+        bar_h = max(1, log_h * log_h // total)
+        bar_pos = max(0, log_h - bar_h - m.log_scroll * log_h // total)
+        for row in range(log_h):
+            S.safe_addstr(stdscr, 1 + row, w - 2, "┃" if bar_pos <= row < bar_pos + bar_h else "│", S.ATTR_SUBTLE)
     if m.fixing or m.connecting:
-        status = "working…"
+        status = f"working…  lines {start + 1}-{end}/{total} · col {m.log_hscroll}"
         sattr = S.ATTR_WARN
     else:
-        status = "done — Q/Esc to close"
+        status = f"done  lines {start + 1}-{end}/{total} · col {m.log_hscroll}"
         sattr = S.ATTR_SUBTLE
-    S.safe_addstr(stdscr, py + panel_h - 1, px + 2, status, sattr)
+    S.safe_addstr(stdscr, h - 2, 2, status, sattr)
+    hint = "↑/k ↓/j scroll · K/J page · g top · G bottom · ←/→ columns · Q/Esc close"
+    S.safe_addstr(stdscr, h - 2, max(2, w - S.text_width(hint) - 2), hint, S.ATTR_SUBTLE)
 
 def _draw_password_prompt(stdscr, m, h, w):
     S.draw_scrim(stdscr, h, w)
@@ -882,13 +974,11 @@ def _action_fix(m):
     m.overlay_title = "Auto-Recover"
     m.status_msg = "Auto-recovering…"
     # Immediate first line so the panel pops with content, not a blank black box.
-    m.log_lines = ["Starting recovery — checking services…"]
-    m._log_seen = 0
+    _reset_log(m, "Starting recovery — checking services…")
     m.dirty = True
 
     def on_log(msg):
-        m.log_lines.append(msg)
-        m.dirty = True
+        _append_log(m, msg)
 
     def worker():
         try:
@@ -910,9 +1000,9 @@ def _handle_key(stdscr, m, key):
         return True
     if m.saved_detail_uuid is not None:
         return _handle_saved_detail_input(m, key)
-    # Recovery or connection in progress: ignore all keys until it finishes.
-    if m.fixing or m.connecting:
-        return True
+    # Logs remain inspectable while a connection/recovery is in progress.
+    if m.log_lines:
+        return _handle_log_input(stdscr, m, key)
     # Q / Esc: close any open overlay first; only quit from the main screen.
     if key in (ord("q"), 27):
         if m.log_lines or m.diag is not None:

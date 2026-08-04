@@ -89,7 +89,8 @@ nmcli connection modify <uuid> 802-11-wireless-security.key-mgmt sae
 
 判断逻辑:
 
-1. 从扫描缓存读目标 SSID 最强 BSS 的广播安全类型(`nmcli device wifi list`)。
+1. 从扫描缓存读目标 SSID 最强 BSS 的广播安全类型(`nmcli device wifi list`)；
+   缓存没有该 SSID 时先触发一次 rescan 再判断。
 2. 若广播含 **WPA3**(`WPA2 WPA3` 或纯 `WPA3`)。
 3. 且已保存 profile 的 `key-mgmt` 是 `wpa-psk`。
 4. → `nmcli connection modify uuid <uuid> 802-11-wireless-security.key-mgmt sae`,
@@ -104,11 +105,15 @@ auto-fix: AP advertises WPA2 WPA3 but profile used wpa-psk — switched profile 
 - 纯 WPA2 AP(广播不含 WPA3)→ `wpa-psk` 本就正确。
 - profile 已是 `sae` / 空。
 - enterprise(802.1X)、owe、wep 等非 `wpa-psk` profile。
-- 全新网络(尚无 profile,`uuid=None`)→ 静默跳过;NM 首次连接时自动建
-  profile,一般会按 AP 广播正确配置。
+- 全新网络(尚无 profile,`uuid=None`)→ 本次没有可修改的 profile，交给 NM
+  创建；下一次连接会重新审计该 profile。
 
-已知边界:若扫描缓存恰好没有该 SSID(缓存过期),本次连接不触发修复,
-下次连接(扫描更新后)会补上,不会永久卡死。
+连接命令的退出码不是最终成功依据：现在还会等待目标 SSID 实际激活，并确认
+IPv4 与默认网关已经出现，才向 Popup/TUI 报告「Connected」。
+
+`R` 自动恢复会先刷新扫描，并审计所有当前可见的已保存 profile，因此即使当前
+transition-mode 网络暂时仍能联网，也会把遗留的 `wpa-psk` 修正为 `sae`，避免
+下一次重连重新触发关联循环。
 
 ## 6. 相关提交
 

@@ -1,5 +1,31 @@
 #!/bin/bash
 
-# Sumika Shell implementation for session wake.
-# Brightness gamma module not available in single-repo architecture.
-exit 0
+# Sumika Shell — session wake handler.
+# Runs from hypridle after_sleep_cmd when the system resumes from suspend.
+#
+# The BCM4377 firmware reload is handled by the root systemd sleep hook
+# (/etc/systemd/system-sleep/10-bluetooth-bcm4377.sh). This user-level
+# script is a belt-and-suspenders fallback: once the controller is back
+# up, nudge any trusted+paired device that BlueZ did not auto-reconnect.
+
+bt_reconnect() {
+    command -v bluetoothctl >/dev/null 2>&1 || return 0
+    # The systemd hook reloads the module; give it + BlueZ time to settle.
+    sleep 3
+
+    bluetoothctl devices Paired 2>/dev/null | while read -r _ mac _; do
+        info="$(bluetoothctl info "$mac" 2>/dev/null || true)"
+        case "$info" in
+            *"Trusted: yes"*)
+                case "$info" in
+                    *"Connected: yes"*) ;;
+                    # Bounded timeout: a sleeping/off device refuses quickly;
+                    # a device that never answers should not block wake.
+                    *) timeout 8 bluetoothctl connect "$mac" >/dev/null 2>&1 || true ;;
+                esac
+                ;;
+        esac
+    done
+}
+
+bt_reconnect &

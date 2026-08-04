@@ -66,7 +66,7 @@ if [ "$force_path" -eq 1 ] || { [ "$mode" = smart ] && [ "$is_image" -eq 1 ] && 
     [ -n "$extension" ] || extension=png
     image_path="/tmp/sumika-clip-${stamp}.${extension}"
     cp -- "$decoded" "$image_path" || exit 1
-    printf '%s ' "$image_path" > "$payload"
+    printf '%s' "$image_path" > "$payload"
     wl-copy < "$payload" || exit 1
     SUMIKA_PASTE_SOURCE=clipboard SUMIKA_PASTE_DELAY=0.05 \
         sumika-paste-at-cursor --file "$payload" auto "$window_class" || exit 1

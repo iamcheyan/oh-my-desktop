@@ -66,4 +66,16 @@ Saved networks remain listed when away from their access point: the TUI marks
 them **Out of range** and omits connection attempts until the SSID is visible
 again. A visible SSID is only eligible for a connection attempt; it does not
 guarantee that credentials or internet access will work.
+
+`R` opens Auto-Recover. It checks NetworkManager, adapter/rfkill/radio,
+refreshes the scan, audits visible WPA3 transition-mode profiles, verifies the
+active route/DNS/gateway, then only switches to visible autoconnect profiles
+when the local Wi-Fi link is genuinely unusable. It deliberately preserves a
+working association when an upstream router, captive portal, DNS provider, or
+ICMP policy is the likely cause; those are reported in the timestamped,
+full-screen scrollable log rather than "fixed" by destructive reconnects.
+
+In that log viewer, `↑`/`k` and `↓`/`j` move one line, `K`/`J` or PageUp/
+PageDown move one page, `g`/`G` jump to the oldest/newest entry, mouse wheel
+scrolls when supported, and `←`/`→` reveal long unwrapped lines horizontally.
 Bluetooth also: `t` trust, `u`/`f` unpair/forget, `d` disconnect.

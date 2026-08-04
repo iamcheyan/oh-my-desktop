@@ -92,6 +92,6 @@ ColumnLayout {
         showFooterDnd: false
         compactRows: true
         markReadOnVisible: true
-        maxListHeight: Math.round((Quickshell.screens[0]?.height ?? 900) * 0.72)
+        maxListHeight: Math.round((Quickshell.screens[0]?.height ?? 900) * 0.90)
     }
 }
