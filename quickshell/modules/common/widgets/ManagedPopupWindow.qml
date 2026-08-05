@@ -14,11 +14,18 @@ import Quickshell
 // Override `close()` if you need custom cleanup.
 //
 // Unlike ContextMenuWindow, does NOT register with ContextMenuTracker.
-
+//
+// Hover state: `hovered` is true while the pointer is over the visible menu
+// card. Context-menu mnemonic binds (routed through Hyprland → ActionManager)
+// check this so a letter key only activates when the user is pointing at the
+// menu, never while they are typing elsewhere.
 PopupWindow {
     id: root
 
     default property alias content: columnLayout.data
+    /// true while the pointer is over the popupBackground card.
+    readonly property bool hovered: menuHover.hovered
+
 
     signal popupClosed()
 
@@ -99,6 +106,10 @@ PopupWindow {
             border.width: TuiStyle.borderWidth
             border.color: TuiStyle.menuBorder
             clip: true
+            HoverHandler {
+                id: menuHover
+                grabPermissions: PointerHandler.CanTakeOverFromHandlersOfDifferentType | PointerHandler.CanTakeOverFromAnything
+            }
 
             opacity: 0
             Component.onCompleted: opacity = 1

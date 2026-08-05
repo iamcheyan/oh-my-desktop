@@ -127,11 +127,6 @@ ManagedPopupWindow {
         return false;
     }
 
-    function keyText(event) {
-        if (event.key >= Qt.Key_A && event.key <= Qt.Key_Z)
-            return String.fromCharCode("A".charCodeAt(0) + event.key - Qt.Key_A);
-        return event.text ?? "";
-    }
 
     // ContextMenuTracker integration — overrides ManagedPopupWindow.open/close
     function open() {
@@ -139,10 +134,7 @@ ManagedPopupWindow {
             ContextMenuTracker.activeMenu.close();
         ContextMenuTracker.activeMenu = root;
         root.visible = true;
-        Qt.callLater(() => {
-            root.refreshShortcuts();
-            root.forceActiveFocus();
-        });
+        Qt.callLater(root.refreshShortcuts);
     }
 
     function close() {
@@ -152,17 +144,6 @@ ManagedPopupWindow {
         root.menuClosed();
     }
 
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape) {
-            root.close();
-            event.accepted = true;
-            return;
-        }
-        if (event.modifiers !== Qt.NoModifier)
-            return;
-        if (root.activateShortcut(root.keyText(event)))
-            event.accepted = true;
-    }
 
     onVisibleChanged: {
         if (visible)

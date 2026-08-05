@@ -80,6 +80,22 @@ hl.bind("ESCAPE", hl.dsp.exec_cmd(paths.root .. '/bin/sumika-action menus.close 
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
 })
 
+-- Context-menu mnemonic keys: each bare letter routes to the bar's
+-- menus.mnemonic action, which activates the hovered context-menu item whose
+-- mnemonic matches. `transparent` + `non_consuming` means the key still reaches
+-- any focused text input (terminal, editor) — the bind only fires when no app
+-- claims the key, so typing elsewhere is never hijacked. The action itself is a
+-- no-op unless a ContextMenuWindow is open and the pointer is over it.
+for _, letter in ipairs({
+  "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+  "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+}) do
+  hl.bind(letter, hl.dsp.exec_cmd(paths.root .. '/bin/sumika-action menus.mnemonic ' .. letter .. ' 2>/dev/null'), {
+    transparent = true, non_consuming = true,
+    description = "Context-menu mnemonic " .. letter
+  })
+end
+
 -- Interrupt Super-alone overview toggle: any SUPER+key press clears the
 -- "might trigger" flag without consuming the real keybind.
 local interrupt_keys = {

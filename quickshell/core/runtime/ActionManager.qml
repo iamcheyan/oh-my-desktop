@@ -8,6 +8,7 @@ import qs.services
 import qs
 import qs.modules.common
 import qs.modules.common.functions
+import qs.modules.common.widgets
 
 /// Central action registry for Sumika Shell.
 ///
@@ -404,6 +405,23 @@ Singleton {
             type: "qml",
             call: function() { if (GlobalStates.barPopupType !== "") GlobalStates.barPopupType = "" }
         }, {description: "Close any open popup menus in the bar"})
+
+        // Mnemonic activation for the open context menu. Hyprland transparent
+        // binds (one per letter, see hypr/bindings.lua) route bare letter keys
+        // here while no text input owns them. The call is a no-op unless a
+        // ContextMenuWindow is open AND the pointer is hovering its card, so
+        // typing letters in other apps is never hijacked.
+        this.register("menus.mnemonic", "core", "Activate context-menu mnemonic", {
+            type: "qml",
+            call: function(params) {
+                const key = String(params ?? "").trim().toUpperCase().charAt(0);
+                if (!key || !/^[A-Z]$/.test(key))
+                    return;
+                const menu = ContextMenuTracker.activeMenu;
+                if (menu && menu.hovered)
+                    menu.activateShortcut(key);
+            }
+        }, {description: "Trigger the hovered context menu item matching a letter"})
 
         // ProcessSupervisor management
         this.register("process_supervisor.cancel", "core", "Cancel supervised process", {
