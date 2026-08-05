@@ -193,6 +193,7 @@ Overview of the extension (external module) system:
 - Don't commit: `.migration-backups/`, Quickshell `.state/`, nested `.git`.
 - Run `bin/sumika-doctor` before pushing.
 - No test framework; verify by `hyprctl reload` + `sumika-restart`.
+- **Never reload the bar with `systemctl --user restart sumika-bar.service` / `stop` / `pkill -f quickshell`.** The screen locker (`WlSessionLock`) lives inside the bar process; killing the bar while the idle lock is engaged triggers Hyprland's "Oopsie daisy" crash screen. Always use `bin/sumika-restart`, whose fail-closed guard refuses to kill a locked/hung bar (`--force` overrides only when you can see the unlocked desktop). See [docs/features/lock-screen.md](docs/features/lock-screen.md).
 
 ## Planning Docs
 
