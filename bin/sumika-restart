@@ -15,23 +15,48 @@ unset _sumika_root
 # ── Lockscreen guard ──────────────────────────────────────────────────────
 # WlSessionLock lives inside the bar's Quickshell process, not as a process
 # named "WlSessionLock". Killing Quickshell while it owns the protocol lock
-# makes Hyprland show its "lockscreen app died" fallback. Ask the live bar for
-# its actual lock state before stopping any Quickshell process.
+# makes Hyprland show its "lockscreen app died" fallback (the white "Oopsie
+# daisy" recovery screen). Ask the live bar for its lock state before
+# stopping any Quickshell process.
+#
+# This guard is FAIL-CLOSED: if we cannot prove the screen is unlocked, we
+# refuse rather than risk the crash screen. Concretely:
+#   - bar answers lock active = "false"  → safe, proceed
+#   - bar answers lock active = "true"   → locked, refuse
+#   - bar does not answer (IPC empty):
+#       * bar process alive  → bar is hung, quite possibly mid-lock → REFUSE
+#       * bar process gone    → bar already crashed; any lock died with it,
+#                               so pkill is safe → proceed
+# Use --force to override the refuse paths (e.g. you know the screen is not
+# locked and the bar is merely stuck). NEVER use `systemctl --user restart
+# sumika-bar.service` to bypass this guard — it kills the bar unconditionally
+# and is what caused the "Oopsie daisy" crash during development.
+_bar_pattern="/usr/bin/quickshell -p ${SUMIKA_SHELL_ROOT}/apps/sumika-bar"
+_force=0
+quickshell_only=0
+for _arg in "$@"; do
+    case "$_arg" in
+        --force) _force=1 ;;
+        --quickshell-only) quickshell_only=1 ;;
+        *) printf 'Usage: %s [--quickshell-only] [--force]\n' "$0" >&2; exit 2 ;;
+    esac
+done
 _lock_state=$("${SUMIKA_QS_BIN:-qs}" -p "$SUMIKA_SHELL_ROOT/apps/sumika-bar" \
     ipc call lock active 2>/dev/null || true)
 if [ "$_lock_state" = "true" ]; then
     printf 'Screen is locked — refusing to reload. Unlock it first.\n' >&2
     exit 1
 fi
-unset _lock_state
-
-# ── Argument parsing ──────────────────────────────────────────────────────
-quickshell_only=0
-case "${1:-}" in
-    --quickshell-only) quickshell_only=1 ;;
-    "") ;;
-    *) printf 'Usage: %s [--quickshell-only]\n' "$0" >&2; exit 2 ;;
-esac
+if [ "$_lock_state" != "false" ] && [ "$_force" -eq 0 ]; then
+    # IPC did not return a definitive "false" — bar is unresponsive.
+    if pgrep -f "$_bar_pattern" >/dev/null 2>&1; then
+        printf 'Bar is unresponsive and may be locked — refusing to reload (would crash the lock screen).\n' >&2
+        printf 'If you are certain the screen is NOT locked, rerun with --force.\n' >&2
+        exit 1
+    fi
+    # Bar process is gone (crashed) — any lock died with it; safe to proceed.
+fi
+unset _lock_state _bar_pattern
 
 # ── Kill old quickshell processes ─────────────────────────────────────────
 # pkill targets only quickshell binaries by command line.
