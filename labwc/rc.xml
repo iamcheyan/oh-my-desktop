@@ -7,7 +7,8 @@
   Actions reference: https://labwc.github.io/labwc-actions.5.html
 
   This file is loaded via `labwc -C <repo>/labwc` by
-  /usr/local/bin/sumika-labwc-session. It mirrors the keybindings of the
+  /usr/local/bin/sumika-labwc-upstream-session (official labwc 0.20.1).
+  It mirrors the keybindings of the
   Hyprland session (hypr/bindings.lua) using compositor-agnostic commands:
   `sumika-action` routes through the Quickshell bar ActionManager over IPC,
   `sumika-launch-profile` resolves application profiles from sumika.json.
@@ -27,6 +28,16 @@
   <placement>
     <policy>cascade</policy>
   </placement>
+
+  <!-- Native window switcher (NextWindow/PreviousWindow) — OSD shows a
+       thumbnail grid of the current workspace's windows. labwc 0.20+ does
+       advertise ext-foreign-toplevel-image-capture-source, but Quickshell
+       does not consume it for toplevel capture (issue #160), so the native
+       compositor-side OSD is the working thumbnail path. Mouse-click on an
+       OSD item selects it; keyboard cycles while held. -->
+  <windowSwitcher preview="yes" outlines="yes">
+    <osd show="yes" style="thumbnail" output="all" thumbnailLabelFormat="%T" />
+  </windowSwitcher>
 
   <focus>
     <followMouse>yes</followMouse>
@@ -64,9 +75,14 @@
     <repeatRate>25</repeatRate>
     <repeatDelay>600</repeatDelay>
 
-    <!-- Applications (mirror hypr/bindings.lua) -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         Applications (mirror hypr/bindings.lua)
+         ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-Return">
-      <action name="Execute" command="sumika-launch-profile terminal" />
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
+    </keybind>
+    <keybind key="W-a">
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
     </keybind>
     <keybind key="W-q">
       <action name="Execute" command="sumika-launch-profile terminal" />
@@ -80,14 +96,16 @@
     <keybind key="W-S-b">
       <action name="Execute" command="sumika-launch-profile browser" />
     </keybind>
+    <keybind key="W-S-A-b">
+      <action name="Execute" command="sumika-launch-profile browser --private" />
+    </keybind>
     <keybind key="W-S-n">
       <action name="Execute" command="sumika-launch-profile editor" />
     </keybind>
 
-    <!-- Sumika Shell UI (via ActionManager IPC) -->
-    <keybind key="W-a">
-      <action name="Execute" command="sumika-action app-launcher.toggle" />
-    </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Sumika Shell UI (via ActionManager IPC)
+         ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-C-Space">
       <action name="Execute" command="sumika-action bar.toggle" />
     </keybind>
@@ -98,7 +116,7 @@
       <action name="Execute" command="sumika-action wifi.launch" />
     </keybind>
     <keybind key="W-C-a">
-      <action name="Execute" command="sumika-action audio.output-switch" />
+      <action name="Execute" command="sumika-launch-profile audio" />
     </keybind>
     <keybind key="W-Space">
       <action name="Execute" command="sumika-action input-method.cycle" />
@@ -106,8 +124,105 @@
     <keybind key="W-S-Space">
       <action name="Execute" command="sumika-action input-method.cycle -- -1" />
     </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Super alone → toggle overview (mirrors Hyprland Super-alone)
+         Labwc fires modifier-only binds on press+release when no chord
+         was formed, matching Hyprland's Super-release detection. -->
+    <keybind key="Super_L">
+      <action name="Execute" command="sumika-action overview.toggle" />
+    </keybind>
+    <keybind key="Super_R">
+      <action name="Execute" command="sumika-action overview.toggle" />
+    </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Window management
+         ═══════════════════════════════════════════════════════════════ -->
+    <!-- W-Arrow snap already provided by <default /> as SnapToEdge -->
+    <keybind key="W-w">
+      <action name="Close" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="ToggleFullscreen" />
+    </keybind>
+    <keybind key="W-A-f">
+      <action name="ToggleMaximize" />
+    </keybind>
+    <!-- Move-to-edge (without snap-resize) — stacking equivalent of Hyprland swap -->
+    <keybind key="W-S-Left">
+      <action name="MoveToEdge" direction="left" />
+    </keybind>
+    <keybind key="W-S-Right">
+      <action name="MoveToEdge" direction="right" />
+    </keybind>
+    <keybind key="W-S-Up">
+      <action name="MoveToEdge" direction="up" />
+    </keybind>
+    <keybind key="W-S-Down">
+      <action name="MoveToEdge" direction="down" />
+    </keybind>
+    <!-- Visual toggles (compositor-agnostic via ActionManager) -->
+    <keybind key="W-BackSpace">
+      <action name="Execute" command="sumika-action window.transparency-toggle" />
+    </keybind>
+    <keybind key="W-S-BackSpace">
+      <action name="Execute" command="sumika-action window.gaps-toggle" />
+    </keybind>
+    <keybind key="W-C-BackSpace">
+      <action name="Execute" command="sumika-action window.single-square-aspect-toggle" />
+    </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Window switching (W-Tab/W-S-Tab cycle the CURRENT workspace's
+         windows, mirroring Alt-Tab; thumbnail OSD configured above)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-Tab">
+      <action name="NextWindow" workspace="current" />
+    </keybind>
+    <keybind key="W-S-Tab">
+      <action name="PreviousWindow" workspace="current" />
+    </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Workspaces (5 desktops matching Hyprland session)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-1"><action name="GoToDesktop" to="1" /></keybind>
+    <keybind key="W-2"><action name="GoToDesktop" to="2" /></keybind>
+    <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
+    <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
+    <keybind key="W-5"><action name="GoToDesktop" to="5" /></keybind>
+    <!-- Move window + follow -->
+    <keybind key="W-S-1"><action name="SendToDesktop" to="1" follow="yes" /></keybind>
+    <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="yes" /></keybind>
+    <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="yes" /></keybind>
+    <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="yes" /></keybind>
+    <keybind key="W-S-5"><action name="SendToDesktop" to="5" follow="yes" /></keybind>
+    <!-- Move window silently (stay on current desktop) -->
+    <keybind key="W-S-A-1"><action name="SendToDesktop" to="1" follow="no" /></keybind>
+    <keybind key="W-S-A-2"><action name="SendToDesktop" to="2" follow="no" /></keybind>
+    <keybind key="W-S-A-3"><action name="SendToDesktop" to="3" follow="no" /></keybind>
+    <keybind key="W-S-A-4"><action name="SendToDesktop" to="4" follow="no" /></keybind>
+    <keybind key="W-S-A-5"><action name="SendToDesktop" to="5" follow="no" /></keybind>
 
-    <!-- Notifications -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         System
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-C-l">
+      <action name="Execute" command="sumika-action session.lock" />
+    </keybind>
+    <keybind key="W-C-t">
+      <action name="Execute" command="sumika-launch-tui btop" />
+    </keybind>
+    <keybind key="W-C-Delete">
+      <action name="Execute" command="sumika-action display.internal-toggle" />
+    </keybind>
+    <keybind key="W-C-A-Delete">
+      <action name="Execute" command="sumika-action display.internal-mirror-toggle" />
+    </keybind>
+    <keybind key="C-A-Delete">
+      <action name="Execute" command="sumika-action window.close-all" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Notifications
+         ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-comma">
       <action name="Execute" command="sumika-action notifications.dismiss-last" />
     </keybind>
@@ -118,9 +233,17 @@
       <action name="Execute" command="sumika-action notifications.toggle-silent" />
     </keybind>
 
-    <!-- Screenshots (grim/slurp based, compositor-agnostic) -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         Screenshots & screen capture
+         ═══════════════════════════════════════════════════════════════ -->
     <keybind key="Print">
       <action name="Execute" command="sumika-action screenshot.capture" />
+    </keybind>
+    <keybind key="A-s">
+      <action name="Execute" command="sumika-action screenshot.capture" />
+    </keybind>
+    <keybind key="A-S-s">
+      <action name="Execute" command="sumika-action screenshot.capture-edit" />
     </keybind>
     <keybind key="W-Print">
       <action name="Execute" command="sumika-action display.color-picker" />
@@ -129,19 +252,47 @@
       <action name="Execute" command="sumika-action screenshot.capture-ocr" />
     </keybind>
 
-    <!-- Workspaces: W-1..W-5 switch, W-S-1..W-S-5 move window -->
-    <keybind key="W-1"><action name="GoToDesktop" to="1" /></keybind>
-    <keybind key="W-2"><action name="GoToDesktop" to="2" /></keybind>
-    <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
-    <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
-    <keybind key="W-5"><action name="GoToDesktop" to="5" /></keybind>
-    <keybind key="W-S-1"><action name="SendToDesktop" to="1" follow="yes" /></keybind>
-    <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="yes" /></keybind>
-    <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="yes" /></keybind>
-    <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="yes" /></keybind>
-    <keybind key="W-S-5"><action name="SendToDesktop" to="5" follow="yes" /></keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Clipboard (Alt+V — mirror Hyprland bindings)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="A-v">
+      <action name="Execute" command="sumika-action clipboard.toggle" />
+    </keybind>
 
-    <!-- Media keys (mirror hypr/default/hypr/bindings/media.lua) -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         Voice input (Sasayaki extension)
+         ═══════════════════════════════════════════════════════════════
+         Mirrors hypr/bindings.lua's read_sasayaki_bindings() — the keys
+         below are the current output of `sasayaki bindings` (voice: 4 keys,
+         translation: 1 key). Hyprland reads them dynamically from
+         ~/.config/sasayaki/config.json; labwc rc.xml cannot, so this block
+         must be updated manually if voice_bindings change. -->
+    <!-- Voice input toggle (voice_bindings) -->
+    <keybind key="A-a">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="Hangul_Hanja">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="XF86Fn">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="XF86Tools">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <!-- Translation voice input (translation_binding) -->
+    <keybind key="Hangul">
+      <action name="Execute" command="sumika-action sasayaki.translate-toggle" />
+    </keybind>
+    <!-- Repair Sasayaki (hardcoded in hypr/bindings.lua) -->
+    <keybind key="A-S-a">
+      <action name="Execute" command="sumika-action sasayaki.repair" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Media keys (mirror hypr/default/hypr/bindings/media.lua)
+         ═══════════════════════════════════════════════════════════════ -->
+    <!-- Volume -->
     <keybind key="XF86AudioRaiseVolume">
       <action name="Execute" command="sumika-action audio.volume-up" />
     </keybind>
@@ -154,20 +305,72 @@
     <keybind key="XF86AudioMicMute">
       <action name="Execute" command="sumika-action audio.input-mute-toggle" />
     </keybind>
+    <keybind key="W-XF86AudioMute">
+      <action name="Execute" command="sumika-action audio.output-switch" />
+    </keybind>
+    <!-- Precise volume (ALT + media keys) -->
+    <keybind key="A-XF86AudioRaiseVolume">
+      <action name="Execute" command="sumika-action audio.volume-up-precise" />
+    </keybind>
+    <keybind key="A-XF86AudioLowerVolume">
+      <action name="Execute" command="sumika-action audio.volume-down-precise" />
+    </keybind>
+    <!-- Brightness -->
     <keybind key="XF86MonBrightnessUp">
       <action name="Execute" command="sumika-action display.brightness-up" />
     </keybind>
     <keybind key="XF86MonBrightnessDown">
       <action name="Execute" command="sumika-action display.brightness-down" />
     </keybind>
+    <keybind key="S-XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-max" />
+    </keybind>
+    <keybind key="S-XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-min" />
+    </keybind>
+    <keybind key="A-XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-up-precise" />
+    </keybind>
+    <keybind key="A-XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-down-precise" />
+    </keybind>
+    <!-- Keyboard backlight -->
     <keybind key="XF86KbdBrightnessUp">
       <action name="Execute" command="sumika-action display.kbd-brightness-up" />
     </keybind>
     <keybind key="XF86KbdBrightnessDown">
       <action name="Execute" command="sumika-action display.kbd-brightness-down" />
     </keybind>
+    <keybind key="XF86KbdLightOnOff">
+      <action name="Execute" command="sumika-action display.kbd-brightness-cycle" />
+    </keybind>
+    <!-- Touchpad -->
+    <keybind key="XF86TouchpadToggle">
+      <action name="Execute" command="sumika-action input.touchpad-toggle" />
+    </keybind>
+    <keybind key="XF86TouchpadOn">
+      <action name="Execute" command="sumika-action input.touchpad-enable" />
+    </keybind>
+    <keybind key="XF86TouchpadOff">
+      <action name="Execute" command="sumika-action input.touchpad-disable" />
+    </keybind>
+    <!-- MPRIS media controls -->
+    <keybind key="XF86AudioNext">
+      <action name="Execute" command="sumika-action mpris.next" />
+    </keybind>
+    <keybind key="XF86AudioPause">
+      <action name="Execute" command="sumika-action mpris.play-pause" />
+    </keybind>
+    <keybind key="XF86AudioPlay">
+      <action name="Execute" command="sumika-action mpris.play-pause" />
+    </keybind>
+    <keybind key="XF86AudioPrev">
+      <action name="Execute" command="sumika-action mpris.previous" />
+    </keybind>
 
-    <!-- Reload this configuration -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         Reload this configuration
+         ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-r">
       <action name="Execute" command="labwc --reconfigure" />
     </keybind>

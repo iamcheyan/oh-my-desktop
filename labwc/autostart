@@ -7,13 +7,13 @@
 #   - re-assert Keep Awake mode
 #   - restore wallpaper (theme-settings extension)
 
-: "${SUMIKA_SHELL_ROOT:?SUMIKA_SHELL_ROOT is not set — launch via sumika-labwc-session}"
+: "${SUMIKA_SHELL_ROOT:?SUMIKA_SHELL_ROOT is not set — launch via sumika-labwc-upstream-session}"
 : "${XDG_STATE_HOME:=$HOME/.local/state}"
 : "${XDG_DATA_HOME:=$HOME/.local/share}"
 
-# labwc (this build) does not export WAYLAND_DISPLAY to the autostart
-# environment. Detect the live compositor socket instead of relying on
-# the variable or a hardcoded wayland-0.
+# Official labwc 0.20.1 sets WAYLAND_DISPLAY in server_start() and imports it
+# into the session env, so this is normally already set. Probe anyway as a
+# safety net for bare `labwc -C` invocations that skip the session wrapper.
 _runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 if [ -z "${WAYLAND_DISPLAY:-}" ]; then
   for _socket in "$_runtime_dir"/wayland-*; do

@@ -1173,33 +1173,35 @@ EOF
 }
 
 # ── labwc session registration ────────────────────────────────────────────────
-# Optional: installs a Sumika Shell session on top of the labwc compositor
-# (stacking, wlroots-based). Only installed when labwc is present; the
-# Hyprland session (install_session_files) is untouched.
+# Optional: installs a Sumika Shell session on top of the OFFICIAL labwc
+# compositor (stacking, wlroots-based; unmodified upstream build at
+# /opt/labwc-upstream). Only installed when labwc is present; the Hyprland
+# session (install_session_files) is untouched. The labwc-plus fork is not
+# maintained here.
 install_labwc_session() {
     echo
-    info "Installing labwc session entry (Sumika Shell on labwc)..."
+    info "Installing labwc session entry (Sumika Shell on labwc upstream)..."
 
-    if ! command -v labwc >/dev/null 2>&1; then
+    if ! command -v labwc >/dev/null 2>&1 && [[ ! -x /opt/labwc-upstream/usr/local/bin/labwc ]]; then
         warn "labwc not found; skipping labwc session entry."
-        sudo rm -f /usr/share/wayland-sessions/sumika-labwc.desktop \
-            /usr/local/bin/sumika-labwc-session
+        sudo rm -f /usr/share/wayland-sessions/sumika-labwc-upstream.desktop \
+            /usr/local/bin/sumika-labwc-upstream-session
         return 0
     fi
 
-    sudo tee /usr/local/bin/sumika-labwc-session >/dev/null <<'EOF'
+    sudo tee /usr/local/bin/sumika-labwc-upstream-session >/dev/null <<'EOF'
 #!/bin/bash
 set -e
 
 export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
 export SUMIKA_FORCE_NO_UWSM=1
 export XDG_CURRENT_DESKTOP=labwc
-export XDG_SESSION_DESKTOP=sumika-labwc
+export XDG_SESSION_DESKTOP=sumika-labwc-upstream
 export XDG_SESSION_TYPE=wayland
 export QT_QPA_PLATFORM=wayland
 export GDK_BACKEND=wayland,x11
 export MOZ_ENABLE_WAYLAND=1
-export PATH="${HOME}/.local/bin:${SUMIKA_SHELL_ROOT}/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
+export PATH="${HOME}/.local/bin:${SUMIKA_SHELL_ROOT}/bin:/opt/labwc-upstream/usr/local/bin:/usr/local/bin:/usr/bin:/bin:${PATH}"
 
 config_dir="${SUMIKA_SHELL_ROOT}/labwc"
 
@@ -1210,20 +1212,20 @@ fi
 
 exec labwc -C "$config_dir"
 EOF
-    sudo sed -i "s|__REPO_ROOT__|$REPO|g" /usr/local/bin/sumika-labwc-session
-    sudo chmod +x /usr/local/bin/sumika-labwc-session
-    ok "  /usr/local/bin/sumika-labwc-session"
+    sudo sed -i "s|__REPO_ROOT__|$REPO|g" /usr/local/bin/sumika-labwc-upstream-session
+    sudo chmod +x /usr/local/bin/sumika-labwc-upstream-session
+    ok "  /usr/local/bin/sumika-labwc-upstream-session"
 
-    sudo tee /usr/share/wayland-sessions/sumika-labwc.desktop >/dev/null <<'EOF'
+    sudo tee /usr/share/wayland-sessions/sumika-labwc-upstream.desktop >/dev/null <<'EOF'
 [Desktop Entry]
-Name=Sumika Shell (labwc)
-Comment=Sumika Shell labwc session with Quickshell
-Exec=/usr/local/bin/sumika-labwc-session
+Name=Sumika Shell (labwc upstream)
+Comment=Sumika Shell labwc session with Quickshell (official labwc 0.20.1)
+Exec=/usr/local/bin/sumika-labwc-upstream-session
 Type=Application
 DesktopNames=labwc
 Keywords=stacking;wayland;compositor;
 EOF
-    ok "  /usr/share/wayland-sessions/sumika-labwc.desktop"
+    ok "  /usr/share/wayland-sessions/sumika-labwc-upstream.desktop"
 }
 
 install_nixos_session_files() {
