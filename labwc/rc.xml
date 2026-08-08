@@ -1,0 +1,187 @@
+<?xml version="1.0"?>
+<!--
+  Sumika Shell — labwc compositor configuration.
+
+  Labwc uses the Openbox 3.6 configuration specification (subset).
+  Reference: https://labwc.github.io/labwc-config.5.html
+  Actions reference: https://labwc.github.io/labwc-actions.5.html
+
+  This file is loaded via `labwc -C <repo>/labwc` by
+  /usr/local/bin/sumika-labwc-session. It mirrors the keybindings of the
+  Hyprland session (hypr/bindings.lua) using compositor-agnostic commands:
+  `sumika-action` routes through the Quickshell bar ActionManager over IPC,
+  `sumika-launch-profile` resolves application profiles from sumika.json.
+
+  Hot-reload with: labwc -r (or W-r keybind)
+-->
+<labwc_config>
+
+  <core>
+    <decoration>server</decoration>
+    <!-- gap only applies to MoveToEdge-style operations; see labwc-config(5) -->
+    <gap>0</gap>
+    <primarySelection>yes</primarySelection>
+    <autoEnableOutputs>yes</autoEnableOutputs>
+  </core>
+
+  <placement>
+    <policy>cascade</policy>
+  </placement>
+
+  <focus>
+    <followMouse>yes</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <!-- 5 workspaces, matching the Hyprland session's workspace slots.
+       GoToDesktop/SendToDesktop accept the index or the full name. -->
+  <desktops number="5">
+    <names>
+      <name>1</name>
+      <name>2</name>
+      <name>3</name>
+      <name>4</name>
+      <name>5</name>
+    </names>
+    <popupTime>800</popupTime>
+  </desktops>
+
+  <theme>
+    <cornerRadius>8</cornerRadius>
+    <dropShadows>no</dropShadows>
+    <font place="ActiveWindow" name="sans" size="10" />
+    <font place="InactiveWindow" name="sans" size="10" />
+    <font place="MenuItem" name="sans" size="10" />
+    <font place="OnScreenDisplay" name="sans" size="10" />
+  </theme>
+
+  <keyboard>
+    <!-- <default /> loads the built-in binds: A-Tab next window, A-F4 close,
+         W-Return terminal, W-arrow snap, W-a maximize, W-d show-desktop,
+         A-Space window menu. Explicit binds below override the defaults. -->
+    <default />
+    <numlock>on</numlock>
+    <repeatRate>25</repeatRate>
+    <repeatDelay>600</repeatDelay>
+
+    <!-- Applications (mirror hypr/bindings.lua) -->
+    <keybind key="W-Return">
+      <action name="Execute" command="sumika-launch-profile terminal" />
+    </keybind>
+    <keybind key="W-q">
+      <action name="Execute" command="sumika-launch-profile terminal" />
+    </keybind>
+    <keybind key="A-W-Return">
+      <action name="Execute" command="sumika-launch-profile terminal-tmux" />
+    </keybind>
+    <keybind key="W-S-Return">
+      <action name="Execute" command="sumika-launch-profile browser" />
+    </keybind>
+    <keybind key="W-S-b">
+      <action name="Execute" command="sumika-launch-profile browser" />
+    </keybind>
+    <keybind key="W-S-n">
+      <action name="Execute" command="sumika-launch-profile editor" />
+    </keybind>
+
+    <!-- Sumika Shell UI (via ActionManager IPC) -->
+    <keybind key="W-a">
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
+    </keybind>
+    <keybind key="W-C-Space">
+      <action name="Execute" command="sumika-action bar.toggle" />
+    </keybind>
+    <keybind key="W-C-b">
+      <action name="Execute" command="sumika-action bluetooth.launch" />
+    </keybind>
+    <keybind key="W-C-w">
+      <action name="Execute" command="sumika-action wifi.launch" />
+    </keybind>
+    <keybind key="W-C-a">
+      <action name="Execute" command="sumika-action audio.output-switch" />
+    </keybind>
+    <keybind key="W-Space">
+      <action name="Execute" command="sumika-action input-method.cycle" />
+    </keybind>
+    <keybind key="W-S-Space">
+      <action name="Execute" command="sumika-action input-method.cycle -- -1" />
+    </keybind>
+
+    <!-- Notifications -->
+    <keybind key="W-comma">
+      <action name="Execute" command="sumika-action notifications.dismiss-last" />
+    </keybind>
+    <keybind key="W-S-comma">
+      <action name="Execute" command="sumika-action notifications.dismiss-all" />
+    </keybind>
+    <keybind key="W-C-comma">
+      <action name="Execute" command="sumika-action notifications.toggle-silent" />
+    </keybind>
+
+    <!-- Screenshots (grim/slurp based, compositor-agnostic) -->
+    <keybind key="Print">
+      <action name="Execute" command="sumika-action screenshot.capture" />
+    </keybind>
+    <keybind key="W-Print">
+      <action name="Execute" command="sumika-action display.color-picker" />
+    </keybind>
+    <keybind key="W-C-Print">
+      <action name="Execute" command="sumika-action screenshot.capture-ocr" />
+    </keybind>
+
+    <!-- Workspaces: W-1..W-5 switch, W-S-1..W-S-5 move window -->
+    <keybind key="W-1"><action name="GoToDesktop" to="1" /></keybind>
+    <keybind key="W-2"><action name="GoToDesktop" to="2" /></keybind>
+    <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
+    <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
+    <keybind key="W-5"><action name="GoToDesktop" to="5" /></keybind>
+    <keybind key="W-S-1"><action name="SendToDesktop" to="1" follow="yes" /></keybind>
+    <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="yes" /></keybind>
+    <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="yes" /></keybind>
+    <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="yes" /></keybind>
+    <keybind key="W-S-5"><action name="SendToDesktop" to="5" follow="yes" /></keybind>
+
+    <!-- Media keys (mirror hypr/default/hypr/bindings/media.lua) -->
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute" command="sumika-action audio.volume-up" />
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute" command="sumika-action audio.volume-down" />
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute" command="sumika-action audio.volume-mute-toggle" />
+    </keybind>
+    <keybind key="XF86AudioMicMute">
+      <action name="Execute" command="sumika-action audio.input-mute-toggle" />
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-up" />
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-down" />
+    </keybind>
+    <keybind key="XF86KbdBrightnessUp">
+      <action name="Execute" command="sumika-action display.kbd-brightness-up" />
+    </keybind>
+    <keybind key="XF86KbdBrightnessDown">
+      <action name="Execute" command="sumika-action display.kbd-brightness-down" />
+    </keybind>
+
+    <!-- Reload this configuration -->
+    <keybind key="W-r">
+      <action name="Execute" command="labwc --reconfigure" />
+    </keybind>
+  </keyboard>
+
+  <mouse>
+    <default />
+    <doubleClickTime>500</doubleClickTime>
+  </mouse>
+
+  <!-- Hyprland-specific window behaviour (tiling, opacity, gaps) has no
+       labwc equivalent; labwc is a stacking compositor. Add windowRule
+       entries here as needed (see labwc-config(5) WINDOW RULES). -->
+  <windowRules>
+  </windowRules>
+
+</labwc_config>

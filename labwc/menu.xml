@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!--
+  Sumika Shell — labwc root menu.
+  Shown by right-clicking the desktop (default Root context mousebind).
+  Format per labwc-menu(5); root element is <openbox_menu>.
+-->
+<openbox_menu>
+  <menu id="root-menu" label="Sumika Shell">
+    <item label="Terminal" icon="utilities-terminal">
+      <action name="Execute" command="sumika-launch-profile terminal" />
+    </item>
+    <item label="Browser" icon="web-browser">
+      <action name="Execute" command="sumika-launch-profile browser" />
+    </item>
+    <item label="Editor" icon="accessories-text-editor">
+      <action name="Execute" command="sumika-launch-profile editor" />
+    </item>
+    <item label="Application Launcher" icon="system-run">
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
+    </item>
+    <separator />
+    <item label="Settings" icon="preferences-system">
+      <action name="Execute" command="sumika-action settings.open" />
+    </item>
+    <item label="WiFi" icon="network-wireless">
+      <action name="Execute" command="sumika-action wifi.launch" />
+    </item>
+    <item label="Bluetooth" icon="bluetooth">
+      <action name="Execute" command="sumika-action bluetooth.launch" />
+    </item>
+    <separator />
+    <item label="Reload labwc">
+      <action name="Execute" command="labwc --reconfigure" />
+    </item>
+    <item label="Exit Sumika Shell (labwc)">
+      <action name="Exit" />
+    </item>
+  </menu>
+</openbox_menu>

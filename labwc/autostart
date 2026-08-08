@@ -1,0 +1,24 @@
+#!/bin/sh
+# Sumika Shell — labwc autostart.
+# Executed by labwc as a shell script after configuration and the
+# environment file are loaded (see labwc-config(5)). WAYLAND_DISPLAY is
+# available. Mirrors hypr/autostart.lua:
+#   - start the Quickshell bar (sumika-restart)
+#   - re-assert Keep Awake mode
+#   - restore wallpaper (theme-settings extension)
+
+: "${SUMIKA_SHELL_ROOT:?SUMIKA_SHELL_ROOT is not set — launch via sumika-labwc-session}"
+: "${XDG_STATE_HOME:=$HOME/.local/state}"
+: "${XDG_DATA_HOME:=$HOME/.local/share}"
+
+# Quickshell bar (same systemd-run unit as the Hyprland session).
+"$SUMIKA_SHELL_ROOT/bin/sumika-restart" &
+
+# Keep Awake: re-assert persisted mode on session start.
+"$SUMIKA_SHELL_ROOT/bin/sumika-keep-awake" ensure &
+
+# Wallpaper restore from the theme-settings extension, if installed.
+wallpaper="$XDG_DATA_HOME/sumika-shell/extensions/theme-settings/bin/sumika-wallpaper"
+if [ -x "$wallpaper" ]; then
+  "$wallpaper" restore &
+fi
