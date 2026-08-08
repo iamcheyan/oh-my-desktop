@@ -69,12 +69,13 @@ Singleton {
     property string firewallDetail: ""
 
     // ── WiFi watchdog ──
-    // Monitors connection health. When wifi drops (or connectivity stays
-    // limited for too long), the watchdog re-activates the current profile;
-    // if that fails, it walks through known autoconnect profiles by priority
-    // and tries each one. This covers cases where NetworkManager's own
-    // autoconnect gives up after its retry budget or the brcmfmac driver
-    // strands the radio in a non-recoverable state.
+    // Monitors connection health via the periodic health poll. When WiFi
+    // stays disconnected for a few cycles, delegates to `sumika-wifi fix`
+    // (fix_connection) — the full recovery pipeline: service check,
+    // security audit, empty-profile purge, ranked candidates with atomic
+    // `device wifi connect`, and a radio-reset fallback. This covers cases
+    // where NetworkManager's own autoconnect gives up or the driver strands
+    // the radio. On failure it retries indefinitely.
     property bool watchdogEnabled: true
     property string lastConnectedSsid: ""
     property int watchdogDisconnectCount: 0
@@ -647,6 +648,15 @@ Singleton {
     }
 
     // ── Watchdog logic ──
+    // Detects sustained WiFi disconnect and delegates to `sumika-wifi fix`
+    // (fix_connection), which has the full recovery pipeline: service
+    // check → security audit + empty-profile purge → ranked candidates
+    // with atomic `device wifi connect` → radio reset fallback.  The old
+    // watchdog called `nmcli connection up id` per candidate itself, but
+    // that command cannot switch away from an active association (NM rejects
+    // it with "base network connection was interrupted"), so it could never
+    // recover the 02:39-style scenario where wpa_supplicant was stuck on a
+    // dead SSID.  Routing through fix_connection gives one proven path.
 
     function watchdogEvaluate() {
         if (!root.watchdogEnabled || !root.wifiEnabled || root.ethernet)
@@ -670,86 +680,52 @@ Singleton {
         // disconnected / limited / disabled — count the event
         root.watchdogDisconnectCount += 1;
 
-        // Wait a few update cycles (each ~2.5s via debounceUpdateTimer) before
+        // Wait a few update cycles (each ~5s via healthPollTimer) before
         // acting, to tolerate brief roaming blips and avoid racing NM.
         if (root.watchdogDisconnectCount < 3)
             return;
 
         root.watchdogRecovering = true;
-        root._watchdogCandidates = root.watchdogCandidates();
-        root._watchdogIndex = -1;
-        root._watchdogTryNext();
+        watchdogFixProc.running = true;
     }
 
-    function watchdogCandidates() {
-        // Build ordered list: lastConnectedSsid first, then all autoconnect
-        // profiles sorted by NM autoconnect-priority (desc). Alphabetical sort
-        // would try weak/irrelevant networks before the high-priority one
-        // (e.g. Extender-A-BB40 priority 100), delaying recovery.
-        const result = [];
-        const seen = new Set();
-        if (root.lastConnectedSsid && root.lastConnectedSsid.length > 0) {
-            result.push(root.lastConnectedSsid);
-            seen.add(root.lastConnectedSsid);
-        }
-        const profiles = [];
-        for (const p of root.savedWifiProfiles) {
-            if (p.autoconnect && !seen.has(p.name))
-                profiles.push(p);
-        }
-        profiles.sort((a, b) => (b.priority || 0) - (a.priority || 0));
-        for (const p of profiles)
-            result.push(p.name);
-        return result;
-    }
-
-    function _watchdogTryNext() {
-        root._watchdogIndex += 1;
-        if (root._watchdogIndex >= root._watchdogCandidates.length) {
-            root.watchdogFailCount += 1;
-            if (root.watchdogFailCount >= root.watchdogMaxFail) {
-                // Give up — NM should eventually retry on its own.
-                root.watchdogRecovering = false;
-            } else {
-                // Wait and try the whole list again.
+    // Runs the full fix_connection recovery pipeline.
+    Process {
+        id: watchdogFixProc
+        command: ["sumika-wifi", "fix"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // fix_connection may have purged empty profiles and/or
+                // auto-fixed security key-mgmt — refresh the saved lists.
+                updateKnownWifiProfiles.running = true;
+                root.refreshSavedProfiles();
+                root.update();
+                if (root.wifiStatus === "connected") {
+                    root.watchdogRecovering = false;
+                    root.watchdogFailCount = 0;
+                    root.watchdogDisconnectCount = 0;
+                    return;
+                }
+                // Recovery failed — wait and let the watchdog re-fire.
+                // watchdogRecovering stays true so watchdogEvaluate won't
+                // double-trigger; the retry timer clears it so the next
+                // health-poll tick starts a fresh attempt.
+                root.watchdogFailCount += 1;
                 watchdogRetryTimer.restart();
             }
-            return;
-        }
-        const ssid = root._watchdogCandidates[root._watchdogIndex];
-        watchdogProc.exec({
-            "environment": { "SSID": ssid },
-            "command": ["bash", "-c",
-                'export LANG=C LC_ALL=C; nmcli -w 15 connection up id "$SSID" 2>&1 || true']
-        });
-    }
-
-    Process {
-        id: watchdogProc
-        stdout: SplitParser {
-            onRead: line => { /* silent */ }
-        }
-        onExited: (exitCode, exitStatus) => {
-            root.update();
-            if (root.wifiStatus === "connected") {
-                root.watchdogRecovering = false;
-                root.watchdogFailCount = 0;
-                return;
-            }
-            // Advance to next candidate.
-            root._watchdogTryNext();
         }
     }
 
-    // Hold the candidate list + index across async process exits.
+    // Hold recovery state across async process exits.
     property var _watchdogCandidates: []
     property int _watchdogIndex: -1
 
     Timer {
         id: watchdogRetryTimer
-        interval: 10000
+        interval: 15000
         repeat: false
         onTriggered: {
+            // Allow the next health-poll tick to start a new fix run.
             root.watchdogRecovering = false;
             root.watchdogDisconnectCount = 0;
         }
@@ -782,7 +758,7 @@ Singleton {
         }
     }
 
-    // All wireless profiles (including ones without readable PSK) for the settings list.
+    // Saved profiles with real credentials for the settings management list.
     Process {
         id: savedProfilesProc
         running: true
@@ -794,6 +770,8 @@ Singleton {
                 try {
                     const j = JSON.parse(text.trim().split("\n").pop() || "{}");
                     for (const d of (j.networks || [])) {
+                        if (!d.has_credentials)
+                            continue;
                         list.push({
                             name: d.name,
                             autoconnect: d.autoconnect === true,

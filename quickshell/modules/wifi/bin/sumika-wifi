@@ -10,7 +10,7 @@ Usage:
   sumika-wifi forget <ssid> [--uuid <uuid>]
   sumika-wifi scan
   sumika-wifi list-available
-  sumika-wifi list-saved
+  sumika-wifi purge-empty          # delete profiles with no stored password
   sumika-wifi status
   sumika-wifi diag
   sumika-wifi fix [--stream]   # --stream prints log lines as they happen
@@ -53,6 +53,7 @@ def main() -> int:
     sub.add_parser("scan", help="Trigger a WiFi rescan")
     sub.add_parser("list-available", help="List nearby networks (JSON)")
     sub.add_parser("list-saved", help="List saved networks (JSON)")
+    sub.add_parser("purge-empty", help="Delete saved profiles with no stored password")
     sub.add_parser("status", help="Show WiFi status (JSON)")
     sub.add_parser("diag", help="Run diagnostics (JSON)")
 
@@ -100,6 +101,11 @@ def main() -> int:
         d = ops.run_diagnostics()
         tone = ops.diag_tone(d)
         return _result(tone != "danger", tone, diagnostics=d, tone=tone)
+
+    if args.command == "purge-empty":
+        logs = []
+        n = ops.purge_empty_profiles(logs.append)
+        return _result(True, f"Removed {n} empty profile(s)", logs=logs, removed=n)
 
     if args.command == "fix":
         if args.stream:

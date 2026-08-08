@@ -309,11 +309,15 @@ def get_saved_networks() -> list[dict]:
         )
         ssid = ssid_out.strip().splitlines()[0].strip() if ssid_rc == 0 and ssid_out.strip() else name
         connected = name == active_name
-        # has_credentials mirrors the popup's old `updateKnownWifiProfiles`
-        # shell filter: profiles that can connect directly (open or PSK-based).
-        # Enterprise (802.1X/EAP) key-mgmt is excluded — it needs nmtui.
+        # has_credentials: a profile is connectable only when it has the
+        # secrets it needs. Open networks need none; PSK/SAE profiles must
+        # actually store a passphrase (empty "shell" profiles are created
+        # when a connection is started but cancelled before the password is
+        # saved — they silently fail with "secrets are required"); enterprise
+        # (802.1X/EAP) profiles need nmtui and are excluded.
         key_mgmt = _profile_key_mgmt(uuid).lower()
         enterprise = "eap" in key_mgmt or "802.1x" in key_mgmt or "ieee8021x" in key_mgmt
+        has_creds = False if enterprise else _profile_has_psk(uuid, key_mgmt)
         result.append({
             "ssid": ssid,
             "name": name,
@@ -321,7 +325,7 @@ def get_saved_networks() -> list[dict]:
             "connected": connected,
             "autoconnect": autoconnect_raw == "yes",
             "priority": priority,
-            "has_credentials": not enterprise,
+            "has_credentials": has_creds,
         })
     signal_map: dict[str, int] = {}
     security_map: dict[str, str] = {}
@@ -464,6 +468,29 @@ def _profile_key_mgmt(uuid: str) -> str:
         return ""
     return out.strip().splitlines()[0].strip()
 
+
+def _profile_has_psk(uuid: str, key_mgmt: str = "") -> bool:
+    """Whether a saved profile actually stores a PSK/passphrase.
+
+    `nmcli -g psk` (no --show-secrets) always prints '<hidden>' even when no
+    PSK is set, so it cannot distinguish empty shells. Reading secrets with
+    `--show-secrets` returns the real value: non-empty = stored, empty =
+    never set. We only inspect the length, never expose the secret itself.
+    """
+    km = (key_mgmt or _profile_key_mgmt(uuid)).lower().strip()
+    if not km:  # open network — no PSK expected
+        return True
+    if "eap" in km or "802.1x" in km or "ieee8021x" in km:
+        return False  # enterprise — needs nmtui, not a PSK
+    rc, out = nmcli("--show-secrets", "-g", "802-11-wireless-security.psk",
+                    "connection", "show", "uuid", uuid, timeout=5)
+    if rc != 0:
+        # Fail SAFE, not fast: if we cannot read secrets (permission denied,
+        # polkit refusal, NM restart), assume the PSK exists. Returning False
+        # here would mark every profile as an empty shell and purge_empty_profiles
+        # would delete ALL saved networks — catastrophic.
+        return True
+    return bool(out.strip())
 
 def _profile_uuid_for_ssid(ssid: str) -> str:
     """Saved profile uuid for *ssid* ('' if none)."""
@@ -760,6 +787,31 @@ def forget_network(name_or_uuid: str, *, uuid: str | None = None) -> tuple[bool,
     if rc == 0:
         return True, f"Forgot {name_or_uuid}"
     return False, out.strip()[:60] or "Delete failed"
+
+def purge_empty_profiles(on_log=None) -> int:
+    """Delete saved Wi-Fi profiles that have no stored secret (shell profiles).
+
+    NM creates a profile the moment a connection is *initiated*; if the user
+    cancels the password prompt, the profile remains with `psk-flags=0` but an
+    empty PSK. These shells show up as "saved" and silently fail with
+    "secrets are required" when autoconnect or the user picks them, and
+    duplicate SSIDs (e.g. "Foo", "Foo 1", "Foo 2") fight each other for the
+    connection. This prunes them so only profiles with real credentials remain.
+    The currently-active profile is never touched.
+    """
+    active_name = get_active_connection()
+    removed = 0
+    for d in get_saved_networks():
+        if d.get("connected") or d.get("name") == active_name:
+            continue
+        if d.get("has_credentials"):
+            continue
+        if on_log:
+            on_log(f"  🗑  Removing empty profile '{d.get('name')}' (no stored password)")
+        rc, _ = nmcli("connection", "delete", "uuid", d.get("uuid", ""), timeout=8)
+        if rc == 0:
+            removed += 1
+    return removed
 
 
 # ── status / diagnostics ─────────────────────────────────────────────────
@@ -1145,6 +1197,10 @@ def fix_connection(on_log) -> tuple[bool, str]:
         audited += 1
         auto_fix_security_profile(profile.get("ssid", ""), profile.get("uuid"), on_log)
     on_log(f"  ✓ Audited {audited} visible saved profile(s).")
+    purged = purge_empty_profiles(on_log)
+    if purged:
+        on_log(f"  ✓ Removed {purged} empty profile(s) (no stored password).")
+    on_log("")
 
     status = get_wifi_status()
     current = status.get("active", "") if status.get("active") not in ("", "—") else ""

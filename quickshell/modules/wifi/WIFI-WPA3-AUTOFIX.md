@@ -115,6 +115,29 @@ IPv4 与默认网关已经出现，才向 Popup/TUI 报告「Connected」。
 transition-mode 网络暂时仍能联网，也会把遗留的 `wpa-psk` 修正为 `sae`，避免
 下一次重连重新触发关联循环。
 
+## 5.1 空壳 profile 清理(empty-shell purge)
+
+NM 在用户**发起连接的瞬间**就创建 profile；如果用户取消密码输入框，profile
+会留下但 PSK 为空(`psk-flags=0`、`psk` 为空)。这些空壳:
+
+- 在 UI 里显示为"已保存"，但点击后 `secrets are required` 连不上；
+- 同一 SSID 的多个空壳(`Foo`、`Foo 1`、`Foo 2`)会互相抢占，连上的被没密码的
+  切走(见 2026-08-08 的 `C40FA623BF09-5G 1` 抢占事件);
+- autoconnect 时反复失败，拖累整网恢复。
+
+**检测**:`_profile_has_psk(uuid)` 用 `nmcli --show-secrets -g psk` 读取真实
+PSK(普通 `nmcli -g psk` 永远显示 `<hidden>`，无法区分空与非空)。PSK 非空 =
+有凭据；PSK 为空 = 空壳。Open 网络无 key-mgmt，视为有凭据；enterprise(EAP)
+排除(需要 nmtui)。
+
+`get_saved_networks()` 的 `has_credentials` 字段现在反映真实 PSK 存在与否。
+UI 侧(`Network.qml` 的 `knownWifiNames` 和 `savedWifiProfiles`)只展示
+`has_credentials=true` 的 profile，空壳不再出现在 WiFi 列表和设置页。
+
+**清理**:`purge_empty_profiles(on_log)` 删除所有 `has_credentials=false`
+的 profile(当前活动连接除外)。在 `fix_connection` Step 1 审计后自动执行；
+也可手动 `sumika-wifi purge-empty` 触发。
+
 ## 6. 相关提交
 
 | commit | 内容 |
@@ -147,3 +170,10 @@ journalctl -u NetworkManager --no-pager | grep "supplicant interface state"
 - NM autoconnect 会劫持候选间隙:修复期间 `device wifi connect` 被 enqueue 时,
   NM 按 profile 优先级抢连别的 autoconnect=yes 网络。修复全程
   `nmcli device set <dev> autoconnect no`,结束恢复 yes。见 `c807b1e`。
+
+
+## 9. 相关文档
+
+- [WIFI-AUTO-RECOVERY.md](WIFI-AUTO-RECOVERY.md) — WiFi 自动恢复链路完整设计：
+  watchdog → `fix_connection` → 候选排序 → radio reset；空壳 profile 清理；
+  autoconnect 优先级配置；审计检查清单。
