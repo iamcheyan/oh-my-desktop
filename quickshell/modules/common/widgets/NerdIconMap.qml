@@ -132,6 +132,7 @@ QtObject {
 
     // Session
     readonly property string lock: "\uF023"                   // fa-lock U+F023
+    readonly property string keepAwake: "\uDB80\uDD76"        // mdi-coffee U+F0176
     readonly property string darkMode: "\uF186"               // fa-moon U+F186
     readonly property string download: "\uF2DC"               // fa-snowflake U+F2DC
     readonly property string logout: "\uF08B"                 // fa-sign-out U+F08B

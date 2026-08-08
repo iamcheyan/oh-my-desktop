@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# sumika-keep-awake — Keep the machine running with the lid closed (long tasks).
+#
+# Registers a block-mode systemd inhibitor for handle-lid-switch and sleep so
+# closing the lid (or any suspend request) does not freeze running work.
+# State is persisted in $SUMIKA_SHELL_STATE_HOME/keep-awake{,.pid} so the mode
+# survives bar reloads and is re-asserted on session start (hypr/autostart.lua
+# runs `sumika-keep-awake ensure`).
+#
+# Usage: sumika-keep-awake <on|off|status|ensure>
+
+set -u
+
+state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+state_file="$state_home/keep-awake"
+pid_file="$state_home/keep-awake.pid"
+
+mkdir -p "$state_home" 2>/dev/null
+
+inhibitor_alive() {
+    [[ -f "$pid_file" ]] || return 1
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null)" || return 1
+    [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+start_inhibitor() {
+    if inhibitor_alive; then
+        echo "on (already running, pid $(cat "$pid_file"))"
+        return 0
+    fi
+    nohup systemd-inhibit --what=handle-lid-switch:sleep --mode=block \
+        --who=sumika-keep-awake \
+        --why="Keep Awake: lid-close suspend disabled" \
+        sleep infinity >/dev/null 2>&1 &
+    echo $! > "$pid_file"
+    sleep 0.3
+    if inhibitor_alive; then
+        echo "on" > "$state_file"
+        echo "on"
+    else
+        rm -f "$pid_file"
+        echo "failed to start systemd-inhibit" >&2
+        return 1
+    fi
+}
+
+stop_inhibitor() {
+    if [[ -f "$pid_file" ]]; then
+        kill "$(cat "$pid_file")" 2>/dev/null
+        rm -f "$pid_file"
+    fi
+    rm -f "$state_file"
+    echo "off"
+}
+
+cmd="${1:-status}"
+case "$cmd" in
+    on)     start_inhibitor ;;
+    off)    stop_inhibitor ;;
+    ensure)
+        if [[ -f "$state_file" ]]; then
+            start_inhibitor
+        else
+            stop_inhibitor
+        fi
+        ;;
+    status)
+        if inhibitor_alive; then echo "on"; else echo "off"; fi
+        ;;
+    *)
+        echo "usage: sumika-keep-awake <on|off|status|ensure>" >&2
+        exit 2
+        ;;
+esac

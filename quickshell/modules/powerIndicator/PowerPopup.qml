@@ -32,6 +32,7 @@ Item {
     )
     readonly property real brightnessValue: brightnessMonitor?.brightness ?? 0
     readonly property int chargeLimit: Config.options.battery.full ?? 100
+    property bool keepAwakeEnabled: false
 
     function stateLabel() {
         if (!ServiceManager?.power?.battery?.available) return "desktop";
@@ -94,6 +95,12 @@ Item {
         return profile;
     }
 
+    function toggleKeepAwake() {
+        const next = !keepAwakeEnabled;
+        keepAwakeEnabled = next; // optimistic: poll converges with real state
+        Quickshell.execDetached([`${Directories.root}/bin/sumika-keep-awake`, next ? "on" : "off"]);
+    }
+
     function executeAction(action) {
         GlobalStates.barPopupType = "";
         const actionId = action === "lock" ? "session.lock"
@@ -127,6 +134,24 @@ Item {
                 batteryStack.hibernateAvailable = text.trim() === "YES"
             }
         }
+    }
+
+    FileView {
+        id: keepAwakeState
+        path: `${Directories.sumikaStateHome}/keep-awake`
+        watchChanges: true
+        onLoaded: batteryStack.keepAwakeEnabled = text().trim() === "on"
+        onLoadFailed: batteryStack.keepAwakeEnabled = false
+    }
+
+    // watchChanges does not fire on file create/delete (the script writes and
+    // removes the state file), so poll to converge with the real state.
+    Timer {
+        id: keepAwakePoll
+        interval: 2000
+        running: true
+        repeat: true
+        onTriggered: keepAwakeState.reload()
     }
 
     // Transparent content host. Popup chrome is centralized in BarStatusPopup.
@@ -298,6 +323,84 @@ Item {
                             }
                         }
                     }
+                }
+            }
+
+            // ── Keep Awake (long-task) mode ─────────────────────────
+            SectionLabel {
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                text: "KEEP AWAKE"
+                topInset: 6
+                bottomInset: 2
+            }
+
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: 56
+
+                RowLayout {
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                        leftMargin: 20
+                        rightMargin: 20
+                    }
+                    spacing: 12
+
+                    NerdIcon {
+                        iconSize: 18
+                        text: NerdIconMap.keepAwake
+                        color: batteryStack.keepAwakeEnabled ? TuiStyle.accent : TuiStyle.dim
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Keep Awake"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.normal + 1
+                            font.weight: Font.Medium
+                            color: TuiStyle.fg
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: "Lid close won't suspend — long tasks keep running"
+                            font.family: Appearance.font.family.main
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: TuiStyle.dim
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    // Switch
+                    Rectangle {
+                        width: 46
+                        height: 26
+                        radius: height / 2
+                        color: batteryStack.keepAwakeEnabled ? TuiStyle.accent : TuiStyle.control
+
+                        Rectangle {
+                            width: 20
+                            height: 20
+                            radius: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: batteryStack.keepAwakeEnabled ? parent.width - width - 3 : 3
+                            color: batteryStack.keepAwakeEnabled ? TuiStyle.bg : TuiStyle.fg
+                            Behavior on x { NumberAnimation { duration: 110 } }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: batteryStack.toggleKeepAwake()
                 }
             }
 
