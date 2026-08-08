@@ -153,3 +153,18 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
   `recording started → transcribed chars=N → paste succeeded backend=…`
   （kitty 目标为 `kitty-native-paste`，其他窗口为 `wtype`）。
 
+### 诊断（`sasayaki diagnose`）在 labwc 下
+
+`diagnose` 的检测逻辑与粘贴路径一一对应，labwc 下实测全部通过：
+
+- **compositor**：经 loginctl 激活会话 → cgroup → `/proc/<pid>/cmdline`
+  识别当前合成器（实测 `compositor: labwc`），并校验 `WAYLAND_DISPLAY` socket 存活。
+- **paste protocols**：裸 Wayland 客户端枚举 registry，校验粘贴栈三个全局协议
+  （`zwp_virtual_keyboard_manager_v1` / `zwlr_data_control_manager_v1` /
+  `zwlr_foreign_toplevel_manager_v1`）。labwc 全有；缺哪个就报哪个。
+- **focus resolution**：实际跑完整解析链（Hyprland → Sway → wlroots → KWin →
+  GNOME → X11），报告命中的后端与窗口类（实测
+  `focused window kitty resolved via wlroots`）。
+- 三个检测在探测前都会先走 daemon 同款环境自愈（`paste.EnsureDisplayEnv`），
+  因此从旧会话（残留死 `wayland-1`）的 shell 里跑 `sasayaki diagnose` 也不会误报。
+
