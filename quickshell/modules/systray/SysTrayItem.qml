@@ -34,8 +34,10 @@ Item {
     readonly property bool iconLoadFailed: {
         if (!root.hasValidIcon) return false;
         if (trayIcon.status === Image.Error) return true;
+        // IconImage is an Item wrapper with no sourceSize property; read the
+        // size from its backing QtQuick.Image.
         if (trayIcon.status === Image.Ready
-            && (trayIcon.sourceSize.width <= 2 || trayIcon.sourceSize.height <= 2))
+            && (trayIcon.backer.sourceSize.width <= 2 || trayIcon.backer.sourceSize.height <= 2))
             return true;
         return false;
     }

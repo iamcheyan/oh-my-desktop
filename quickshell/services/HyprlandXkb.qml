@@ -17,8 +17,11 @@ Singleton {
     property string currentLayoutName: ""
     property string currentLayoutCode: ""
     // For the service
-    property var baseLayoutFilePath: "/usr/share/X11/xkb/rules/base.lst"
+    property string baseLayoutFilePath: "/usr/share/X11/xkb/rules/base.lst"
     property bool needsLayoutRefresh: false
+    // labwc has no Hyprland IPC; skip the devices poll (empty stdout →
+    // JSON.parse error) and leave layout state at its defaults.
+    readonly property bool hyprlandIpcAvailable: !!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
 
     // Update the layout code according to the layout name (Hyprland gives the name not the code)
     onCurrentLayoutNameChanged: root.updateLayoutCode()
@@ -81,6 +84,8 @@ Singleton {
         stdout: StdioCollector {
             id: devicesCollector
             onStreamFinished: {
+                if (!root.hyprlandIpcAvailable || !devicesCollector.text.trim())
+                    return;
                 const parsedOutput = JSON.parse(devicesCollector.text);
                 const hyprlandKeyboard = parsedOutput["keyboards"].find(kb => kb.main === true);
                 root.layoutCodes = hyprlandKeyboard["layout"].split(",");

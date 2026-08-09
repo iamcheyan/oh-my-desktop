@@ -29,6 +29,11 @@ Singleton {
     property var activeWindow: null
     property var monitors: []
     property int dataSerial: 0
+    // labwc sessions have no Hyprland IPC: hyprctl produces empty stdout and
+    // every poll logs a JSON.parse error. Disable the poll processes entirely
+    // (Quickshell.Hyprland data is already inert there). Hyprland sessions
+    // keep HYPRLAND_INSTANCE_SIGNATURE set, so behavior is unchanged.
+    readonly property bool hyprlandIpcAvailable: !!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
     // Cached overview model recomputed only when the data dirty-flag
     // (dataSerial) or the overview refresh serial changes. Consumers bind to
     // this property instead of calling overviewWorkspaceEntriesGroupedByMonitor()
@@ -536,6 +541,10 @@ Singleton {
         stdout: StdioCollector {
             id: clientsCollector
             onStreamFinished: {
+                // labwc: hyprctl has no IPC to talk to and yields empty
+                // stdout; JSON.parse("") would log a SyntaxError per poll.
+                if (!root.hyprlandIpcAvailable || !clientsCollector.text.trim())
+                    return;
                 root.windowList = JSON.parse(clientsCollector.text)
                 let tempWinByAddress = {};
                 for (var i = 0; i < root.windowList.length; ++i) {
@@ -569,6 +578,8 @@ Singleton {
         stdout: StdioCollector {
             id: monitorsCollector
             onStreamFinished: {
+                if (!root.hyprlandIpcAvailable || !monitorsCollector.text.trim())
+                    return;
                 root.monitors = JSON.parse(monitorsCollector.text);
                 root.monitorsLoaded = true;
                 root.syncWorkspaceOrder();
@@ -584,6 +595,8 @@ Singleton {
         stdout: StdioCollector {
             id: workspacesCollector
             onStreamFinished: {
+                if (!root.hyprlandIpcAvailable || !workspacesCollector.text.trim())
+                    return;
                 var rawWorkspaces = JSON.parse(workspacesCollector.text);
                 // Filter out invalid workspace ids (e.g. lock-screen temp workspace 2147483647 - N)
                 root.workspaces = rawWorkspaces.filter(ws => ws.id >= 1 && ws.id <= 100);
