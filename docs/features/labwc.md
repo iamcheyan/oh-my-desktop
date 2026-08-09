@@ -33,7 +33,7 @@ labwc 会话入口（自愈）。
 
 热重载：`labwc --reconfigure`（仓库内键位 `W-r` 已绑定）。`autostart` 改动需重启会话。
 
-`autostart` 里做了两件 Hyprland 会话不需要的事：
+`autostart` 里做了三件 Hyprland 会话不需要的事：
 
 - **自探测 `WAYLAND_DISPLAY`**：labwc 官方 0.20.1 在 `server_start()` 里
   `setenv("WAYLAND_DISPLAY", socket)`（`src/server.c`），autostart 作为 labwc 的
@@ -48,6 +48,9 @@ labwc 会话入口（自愈）。
 - **HiDPI 缩放**：labwc 默认所有输出 scale=1.0。autostart 用 `wlr-randr`
   按 `hypr/monitors.lua` 的规则设内部屏 scale（≤2000px → 1.25，否则 → 2.0）。
   外接屏保持默认。
+- **overview 缩略图 daemon**：拉起 `sumika-overview-thumbnaild`（§"overview
+  窗口缩略图"），在 bar 之前启动使缩略图就绪。daemon 自带 labwc 协议探测，
+  Hyprland 下自动退出（autostart 只存在于 labwc 会话，双保险）。
 
 ## 键位映射
 
@@ -67,9 +70,11 @@ labwc 会话入口（自愈）。
 
 - **堆叠 vs 平铺**：labwc 是堆叠式窗口管理器，没有 Hyprland 的 tiling、gaps、
   opacity 窗口规则。这些键位未映射。
-- **bar 的 Hyprland 专属模块失效**：`HyprlandData` 服务（workspaces、overview、
-  窗口相关）依赖 hyprland IPC socket，labwc 下不工作；时钟、托盘、音频、WiFi、
-  通知等仍可用。bar 本身是 wlr-layer-shell 表面，labwc 原生支持。
+- **bar 的 Hyprland 专属模块部分失效**：`HyprlandData` 服务（workspaces、窗口
+  相关）依赖 hyprland IPC socket，labwc 下不工作；时钟、托盘、音频、WiFi、
+  通知等仍可用。**overview 已适配**（见上节"overview 窗口缩略图"）：labwc 分支
+  自写 thumbnaild daemon + `grim -T` 抓帧，缩略图网格/工作区切换/搜索/点击聚焦
+  均可用；bar 本身是 wlr-layer-shell 表面，labwc 原生支持。
 - **无 XWayland**：本机 labwc 编译为 `-xwayland`，X11-only 应用无法运行；
   纯 Wayland 应用不受影响。若需要 XWayland，需重新编译 labwc。
 - 电源/锁屏（`sumika-session`、`omarchy-system-lock`）走 systemd/loginctl，
@@ -78,6 +83,80 @@ labwc 会话入口（自愈）。
   恢复每屏 scale（`hypr/monitors.lua` + `$SUMIKA_SHELL_STATE_HOME/display/layout.lua`），
   labwc 的 layout 需要 `wlr-randr` 管理。当前 autostart 只处理内部屏；
   多显示器布局下需扩展 autostart（或跑 kanshi）。
+
+## overview 窗口缩略图（labwc 分支）
+
+labwc 下 overview（工作区概览）显示**当前工作区每个窗口的缩略图**，由
+`quickshell/modules/overview/` 的 labwc 分支实现——绕开 Quickshell
+`ScreencopyView` 只支持 `hyprland-toplevel-export-v1` 的限制（issue #160 open）。
+
+### 架构
+
+```
+LabwcOverview.qml          ← labwc 会话专用的 overview UI（网格布局）
+      │ JSON 行协议（unix socket，0600）
+      ▼
+sumika-overview-thumbnaild ← C daemon（只存在于 labwc 会话）
+      │
+      ├─ ext_foreign_toplevel_list_v1      枚举窗口 + 32 位 hex identifier
+      ├─ ext_workspace_manager_v1          工作区列表 + activate 切换
+      ├─ zwlr_foreign_toplevel_manager_v1  activate（窗口聚焦）/ close
+      └─ grim -T <identifier>              按窗口抓帧 → PNG
+```
+
+- **源码**：`quickshell/modules/overview/thumbnaild/`（`thumbnaild.c` +
+  Makefile + 三个协议 xml；OMD 仓库首个原生 C 目录）。编译：`cd …/thumbnaild && make`。
+  二进制不入库（仓库只跟踪源码）——`Init.sh` 的 `install_labwc_session()`
+  检测到 make/cc 时自动构建，labwc 会话登录即用；手动构建同上。
+- **启用条件**：daemon 启动时只探测 `ext_foreign_toplevel_list_v1` global——
+  有才继续，无则立即退出。Hyprland 不实现该协议 → daemon 在 Hyprland 会话
+  **永不生效**（labwc 专属，符合设计）。
+- **socket**：`$SUMIKA_SHELL_RUNTIME_DIR/overview-thumbnaild.sock`。
+  缩略图落盘：`$SUMIKA_SHELL_STATE_HOME/overview-thumbs/`（注意是 `overview-thumbs`，
+  不是 `thumbnails`）。两者无环境变量时按仓库路径契约
+  （`lib/paths.sh`）回退 `$XDG_RUNTIME_DIR/sumika-shell` /
+  `$XDG_STATE_HOME/sumika-shell`，与 QML 桥的 fallback 一致。
+- **桥协议**（JSON 行）：daemon 广播 `{"type":"snapshot","seq":N,
+  "activeWorkspace":"…","workspaces":[…],"windows":[…]}`
+  （`seq` 同时用作缩略图 URL cache-buster：`file://…?v=${bridge.seq}`）；
+  命令 `activate-workspace`（ext-workspace `activate`+`commit`，事务式）/
+  `activate-window`（zwlr activate，labwc 一次请求完成切桌面+聚焦）/
+  `refresh`。
+- **UI**：`LabwcOverview.qml`（+ singleton `LabwcOverviewBridge.qml`）。
+  窗口缩略图网格（非真实几何）、工作区 chips 点击切换、标题/应用搜索过滤、
+  点击缩略图聚焦窗口。保留 `IpcHandler "overview"` 接口——
+  `bin/sumika-overview toggle/open/close/workspacesToggle` 行为与 Hyprland 版一致。
+  不注册 GlobalShortcut（labwc 快捷键由 rc.xml 管理）。
+- **条件加载**：`shell.qml` 按 `SystemInfo.desktopEnvironment`（bash 读
+  `XDG_CURRENT_DESKTOP` 第一字段）分支——`labwc` → LabwcOverview；
+  其余 → 旧 Overview（Hyprland 行为不变）。
+
+### 已知取舍（相对 Hyprland 版）
+
+- **缩略图是静态帧**（grim 抓帧时点），非实时画面；事件驱动刷新（toplevel 事件、
+  工作区切换、`refresh` 命令），debounce 250ms。
+- **窗口→工作区归属是近似**：`ext-foreign-toplevel-list` 不暴露窗口属于哪个
+  desktop。daemon 用**激活历史归属**——窗口的 workspace 取"最近一次激活时所在
+  桌面"；未知归属窗口（`workspace==""`）在 UI 上归当前工作区并带 `?` 角标。
+- **并发抓帧限制**：wlroots 的 capture source 同一时刻只服务一个客户端，多余
+  grim 会 hang——daemon 每次刷新最多 spawn 一个 grim（`capture_in_flight` 守卫），
+  SIGCHLD 驱动 tmp→png 转正。
+- **win+tab**：不用 Quickshell 内循环，用 labwc 原生 windowSwitcher
+  （`W-Tab` → `NextWindow workspace="current"`，`osd style="thumbnail"` 合成器侧
+  渲染真实缩略图），见 rc.xml。
+
+### 调试
+
+```sh
+# daemon 前台运行（打印协议事件与抓帧日志）
+WAYLAND_DISPLAY=wayland-0 SUMIKA_SHELL_RUNTIME_DIR=$XDG_RUNTIME_DIR/sumika-shell \
+SUMIKA_SHELL_STATE_HOME=$HOME/.local/state/sumika-shell \
+./quickshell/modules/overview/thumbnaild/sumika-overview-thumbnaild
+
+# 手工发命令验证
+printf '{"cmd":"activate-workspace","name":"2"}\n' | \
+  socat - UNIX-CONNECT:$XDG_RUNTIME_DIR/sumika-shell/overview-thumbnaild.sock
+```
 
 ## 验证
 
@@ -91,6 +170,20 @@ ls -l /usr/local/bin/sumika-labwc-upstream-session /usr/share/wayland-sessions/s
 ```
 
 在登录管理器（plasmalogin/GDM）选择 "Sumika Shell (labwc upstream)" 登录即可实测。
+
+> **⚠️ headless 测试必须隔离 autostart（2026-08-09 事故）**
+>
+> 用 `WLR_BACKENDS=headless` 起第二个 labwc 时**不要直接 `-C` 指向仓库的
+> `labwc/`**：会话脚本会执行共享的 `labwc/autostart`，其中 `sumika-restart`
+> 通过共享的 user systemd 杀掉真实会话的 bar/overview，然后
+> `systemd-run --unit=sumika-bar` 因 transient unit 名冲突报
+> "Device or resource busy"，新 bar 起不来 → 真实会话 bar 消失。
+> 同目录下 thumbnaild 还会因无单实例守卫 unlink 抢走真实 daemon 的 socket。
+>
+> headless 验证配置加载请用隔离目录（空 autostart）：
+> `mkdir -p /tmp/labwc-test && : > /tmp/labwc-test/autostart &&
+> WLR_BACKENDS=headless labwc -C /tmp/labwc-test -c <仓库>/labwc/rc.xml`。
+> 需要 keybind 行为实测时只能在真实会话（headless 无 seat，wtype 注入无效）。
 
 ## 语音输入（Sasayaki）在 labwc 下
 
@@ -149,6 +242,16 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
   粘贴走 kitty 原生 remote paste（`Backend=kitty-native-paste`），文本落入焦点
   tmux 窗口输入区；非 kitty 窗口按类回退 wtype 快捷键（终端 Shift+Insert、
   GUI Ctrl+V）。
+- **多 kitty 实例下的粘贴聚焦约束**（2026-08-09 实测）：wlroots 系合成器
+  （labwc/sway）的 `zwlr_foreign_toplevel_handle_v1` 没有 pid 事件，sasayaki
+  只能靠 glob `/tmp/mykitty-*` 枚举实例。旧实现无聚焦要求时直接取第一个
+  socket（按词法序，通常是最老的**后台**实例），曾导致
+  `paste succeeded backend=kitty-native-paste` 但文本落在后台窗口、焦点窗口
+  什么都没收到。修复后（`paste.go` 的 `resolveKittyWindowID(ls, requireFocused)` /
+  `tryKittySockets`）：glob 发现的 socket 必须由 kitty 自身 `@ ls` 报告
+  `is_focused:true` 才接受；pid 指定的 socket（Hyprland/sway 路径）保持权威；
+  找不到聚焦实例时回退 wtype chord（作用于合成器聚焦表面）。多开 kitty 时
+  该约束保证文本只进**当前聚焦**的实例。
 - **验证**：`journalctl --user -u sasayaki.service -f` 看
   `recording started → transcribed chars=N → paste succeeded backend=…`
   （kitty 目标为 `kitty-native-paste`，其他窗口为 `wtype`）。
