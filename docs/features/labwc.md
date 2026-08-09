@@ -117,6 +117,57 @@ labwc 会话入口（自愈）。
 - **Hyprland 专属**：`Persistent.qml`/`Session.qml`/`PowerContextMenu.qml`
   中的 hyprctl-only 逻辑在 labwc 下静默失效。
 
+## 顶栏透明/不透明切换（bar 透明逻辑调查）
+
+原版（haline）顶栏有透明↔不透明切换：窗口占满时顶栏变不透明，否则透明。
+OMD 的 bar 通过 `transparentOnEmptyDesktop` 实现同类效果（`sumika.json`
+默认开启）。
+
+### 当前实现机制
+
+```
+BarContent.qml:49  workspaceHasWindows
+    → barActiveWorkspaceId = ServiceManager.workspace.monitorActiveWorkspaceId(Hyprland.monitorFor(screen))
+    → HyprlandData.monitorActiveWorkspaceId()（hyprctl monitors/workspaces/clients poll 数据）
+BarContent.qml:63  barBackgroundColor = showBackground && !(transparentOnEmptyDesktop && !workspaceHasWindows)
+                    ? barOpaqueColor(rgba 50%) : "transparent"
+```
+
+即：**有窗口 → 半透明黑面板；空桌面 → 完全透明**。判定依赖
+`ServiceManager.workspace`（`HyprlandData`）的 hyprctl poll 数据。
+
+### labwc 下现状（实测）
+
+- `HyprlandData` 三个 poll（`hyprctl clients/monitors/workspaces -j`）在
+  labwc 下全部早退（无 hyprctl IPC socket）→ `windowList`/`monitors`/
+  `workspaceById` 恒空 → `workspaceHasWindows` 恒 `false` →
+  **labwc 下 bar 永远透明**（即使有窗口，半透明面板也不出现）。
+- 实测（2026-08-09，grim 截图 + 像素/视觉分析）：bar 区域直接透出壁纸纹理，
+  workspaces 指示器文字印在壁纸上，无深色面板。
+
+### 最大化状态能拿到吗（核心问题）——能
+
+调查确认 labwc 的 `zwlr_foreign_toplevel_manager_v1` **完整推送最大化状态**：
+
+- **labwc 侧**：`labwc-upstream/src/foreign-toplevel/wlr-foreign.c:144`
+  `wlr_foreign_toplevel_handle_v1_set_maximized(handle, view->maximized == VIEW_AXIS_BOTH)`
+  —— 窗口最大化（双轴）变化时实时广播；客户端请求最大化也经
+  `handle_maximized` 事件处理（wlr-foreign.c:26-29）。
+- **Quickshell 侧**：`Quickshell.Wayland._ToplevelManagement` 的 `Toplevel`
+  暴露只读 `maximized: bool` 属性 + `maximizedChanged` 信号
+  （`/usr/lib64/qt6/qml/Quickshell/Wayland/_ToplevelManagement/quickshell-wayland-toplevel-management.qmltypes:65`），
+  同时有 `activated`/`screens`/`minimized`/`fullscreen`。
+- 参考实现：`active-window` 扩展已用 `ToplevelManager.toplevels` 做
+  compositor-agnostic 焦点查询（`activated` + `screens` 匹配），labwc 下可用。
+
+### 结论与修复方向
+
+- **当前失效根因不是"拿不到最大化状态"**，而是 `workspaceHasWindows` 依赖
+  `HyprlandData`（hyprctl poll，labwc 下恒空）。
+- 修复方向：labwc 下用 `ToplevelManager.toplevels` 计算当前屏是否有
+  `activated`（或 `maximized`）toplevel 替代 `workspaceHasWindows`，与
+  active-window 扩展同模式；Hyprland 路径保持不变。labwc 侧无需任何改动。
+
 ## 验证
 
 ```sh

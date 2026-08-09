@@ -1,9 +1,8 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Hyprland
+import Quickshell.Wayland
 import qs
-import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -20,8 +19,6 @@ Item { // Bar content region
     )
 
     property var screen: root.QsWindow.window?.screen
-    readonly property HyprlandMonitor barMonitor: Hyprland.monitorFor(root.screen)
-    readonly property int barActiveWorkspaceId: ServiceManager.workspace.monitorActiveWorkspaceId(root.barMonitor)
 
     // Fixed widgets at the rightmost positions (power always last, clock before it)
     readonly property var _fixedWidgetIds: ["clock", "power-indicator"]
@@ -46,17 +43,14 @@ Item { // Bar content region
         return null;
     }
 
+    // Compositor-agnostic "is there a focused window on this bar's screen" —
+    // via zwlr_foreign_toplevel_management_v1 (labwc 0.20+, Hyprland, sway).
+    // Mirrors the active-window extension's own focused-toplevel lookup so the
+    // bar background stays in sync with what that module displays.
     readonly property bool workspaceHasWindows: {
-        const wsId = root.barActiveWorkspaceId;
-        if (wsId < 1)
-            return false;
-
-        const wsData = ServiceManager.workspace.workspaceById[wsId];
-        if (wsData !== undefined && typeof wsData.windows === "number")
-            return wsData.windows > 0;
-
-        return ServiceManager.workspace.hyprlandClientsForWorkspace(wsId).some(
-            win => win.mapped && !win.hidden
+        const barScreen = root.screen?.name ?? "";
+        return ToplevelManager.toplevels.values.some(t =>
+            t.activated && t.screens.some(s => s.name === barScreen)
         );
     }
     readonly property color barBackgroundColor:

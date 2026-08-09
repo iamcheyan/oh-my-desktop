@@ -143,7 +143,10 @@
       <action name="Close" />
     </keybind>
     <keybind key="W-f">
-      <action name="ToggleFullscreen" />
+      <!-- Toggle ONLY this window's titlebar (ssd_mode FULL/NONE), leave
+           maximized state untouched. Per-window state: labwc stores
+           view->ssd_mode, so each window remembers its own setting. -->
+      <action name="ToggleDecorations" />
     </keybind>
     <keybind key="W-A-f">
       <action name="ToggleMaximize" />
@@ -428,6 +431,19 @@
          ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-r">
       <action name="Execute" command="labwc --reconfigure" />
+    </keybind>
+    <!-- Eat the bare Win key (Super_L/Super_R): swallow the keydown so it
+         is never forwarded to the focused client. In an RDP session this
+         stops the remote Windows desktop from popping its Start menu;
+         locally the key has no standalone binding, so nothing is lost.
+         Super COMBOS (W-1..5, W-s, W-Tab, …) are unaffected — their
+         keybinds above match first and keep firing locally, and the
+         unbound keys (typing, Ctrl+C/V, …) still reach the client. -->
+    <keybind key="Super_L">
+      <action name="Execute" command="/bin/true" />
+    </keybind>
+    <keybind key="Super_R">
+      <action name="Execute" command="/bin/true" />
     </keybind>
 
     <!-- ═══════════════════════════════════════════════════════════════
