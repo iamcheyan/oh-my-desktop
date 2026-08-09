@@ -29,6 +29,10 @@
       <action name="Execute" command="sumika-action bluetooth.launch" />
     </item>
     <separator />
+    <!-- labwc built-in workspace overview: all workspaces with their
+         window titles (current marked ">N<", active window "*"). -->
+    <menu id="client-list-combined-menu" />
+    <separator />
     <item label="Reload labwc">
       <action name="Execute" command="labwc --reconfigure" />
     </item>

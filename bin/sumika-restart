@@ -149,6 +149,11 @@ else
 fi
 unset _wl_resolver
 
+# Compositor detection for session-specific module rules below. labwc
+# sessions export XDG_CURRENT_DESKTOP=labwc (sumika-labwc-upstream-session);
+# Hyprland sessions export their own value.
+_desktop="${XDG_CURRENT_DESKTOP:-}"
+
 # Kill waybar if present
 pkill -x waybar 2>/dev/null || true
 
@@ -263,6 +268,14 @@ if command -v jq >/dev/null 2>&1 && [ -f "$_registry_file" ]; then
 
         if ! module_is_enabled "$module_id"; then
             printf 'Skipping application module %s (disabled / outside minimum desktop)\n' "$module_id" >&2
+            continue
+        fi
+
+        # labwc 会话彻底禁用 overview：入口已改为 labwc 原生
+        # client-list-combined-menu（Workspaces.qml labwcMode），overview
+        # 应用进程不启动（其 thumbnails/搜索依赖 Hyprland 设施）。
+        if [ "$_desktop" = "labwc" ] && [ "$module_id" = "overview" ]; then
+            printf 'Skipping application module overview (labwc session: native workspace menu)\n' >&2
             continue
         fi
 

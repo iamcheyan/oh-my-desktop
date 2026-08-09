@@ -69,8 +69,16 @@ labwc 会话入口（自愈）。
 - **bar 的 Hyprland 专属模块部分失效**：`HyprlandData` 服务（workspaces、窗口
   相关）依赖 hyprland IPC socket，labwc 下不工作；时钟、托盘、音频、WiFi、
   通知等仍可用；bar 本身是 wlr-layer-shell 表面，labwc 原生支持。
-  overview 模块（LabwcOverview + thumbnaild）在 `labwc-adaptation` 分支，
-  mainline 会话没有工作区概览（待上游 Quickshell toplevel 捕获协议）。
+  overview 模块（LabwcOverview + thumbnaild）保留在 `labwc-adaptation` 分支
+  （待上游 Quickshell toplevel 捕获协议）；**mainline 的 labwc 会话彻底禁用
+  overview**（见下文「工作区与 topbar」），入口改用 labwc 原生
+  `client-list-combined-menu`。
+- **剪贴板菜单不跟随鼠标**：wlroots 合成器不向客户端暴露绝对指针位置（没有
+  hyprctl/swaymsg 这类 IPC，`zwp_relative_pointer` 只有相对位移），因此
+  `sumika-clipboard` 的"跟随光标"模式在 labwc 下自动降级为**贴 bar 定位**
+  （右上角、bar 下方，与点击 bar 剪贴板按钮一致）。shell.qml 用
+  `hyprctl monitors -j` 探测合成器：Hyprland 走原路径（`cursorpos`），
+  非 Hyprland 回退 `wlr-randr --json` 解析显示器布局。
 - **无 XWayland**：本机 labwc 编译为 `-xwayland`，X11-only 应用无法运行；
   纯 Wayland 应用不受影响。若需要 XWayland，需重新编译 labwc。
 - 电源/锁屏（`sumika-session`、`omarchy-system-lock`）走 systemd/loginctl，
@@ -105,6 +113,69 @@ ls -l /usr/local/bin/sumika-labwc-upstream-session /usr/share/wayland-sessions/s
 > `mkdir -p /tmp/labwc-test && : > /tmp/labwc-test/autostart &&
 > WLR_BACKENDS=headless labwc -C /tmp/labwc-test -c <仓库>/labwc/rc.xml`。
 > 需要 keybind 行为实测时只能在真实会话（headless 无 seat，wtype 注入无效）。
+
+## 工作区与 topbar
+
+### 工作区布局（scratchpad = 工作区 0）
+
+`rc.xml` 的 `<desktops number="6">` 名字按 **`1,2,3,4,5,0`** 顺序排列。
+这是刻意的：labwc 的 `workspace_find_by_name()` **先按 index 匹配**
+（`parse_workspace_index("1")` = 1 → 列表第 1 个），而
+`parse_workspace_index("0")` = 0（falsy）→ 跳过 index 分支走 by-name 匹配。
+因此**数字命名的桌面必须按 1..N 顺序排列，"0" 必须放列表末尾**，否则
+W-1..W-5 全部错位一位；`GoToDesktop to="0"` / `SendToDesktop to="0"` 靠
+by-name 命中末尾的 "0"。
+
+键位（镜像 Hyprland 的 special workspace）：
+
+- `W-s` —— 进出工作区 0（`GoToDesktop to="0" toggle="yes"`，再按一次回上次）
+- `W-A-s` —— 把焦点窗口移入 0 并留在原工作区（`SendToDesktop to="0" follow="no"`）
+- `W-S-1..5` —— 移窗口并跟随（`follow="yes"`）；`W-S-A-1..5` —— 移窗口不跟随
+
+### 工作区切换 OSD 已隐藏
+
+labwc 的工作区切换 OSD 由 `<desktops><popupTime>` 控制；设为 `0` 时
+`workspaces.c` 的 `_osd_show()` 直接早退，完全不渲染（源码级确认）。
+Alt-Tab 窗口切换 OSD（`<windowSwitcher>`）保持默认未动。
+
+### topbar workspaces 模块（labwc 模式）
+
+Hyprland 会话：workspaces 按钮照旧打开 overview。
+
+labwc 会话（`XDG_CURRENT_DESKTOP=labwc`）：overview 彻底禁用，workspaces
+按钮降级为**当前工作区编号 + 原生工作区一览菜单**：
+
+- **显示** `workspaces[N]`：`Quickshell.Io.Socket` 连接
+  `labwc-workspace` daemon（`$SUMIKA_SHELL_RUNTIME_DIR/labwc-workspace.sock`，
+  fallback `$XDG_RUNTIME_DIR/sumika-shell/`），实时显示当前工作区号
+  （`workspaces[1]` / `workspaces[0]`…）。
+- **点击** = 注入 `W-A-w`（wtype）→ rc.xml `ShowMenu client-list-combined-menu`
+  —— labwc 内置"所有工作区一览"：每个工作区 + 窗口标题（当前工作区标
+  `>N<`、活动窗口 `*` 前缀、`Go there...` 直达操作）。bar 是 layer surface，
+  labwc 的鼠标绑定管不到，只能模拟按键触发。
+
+### labwc-workspace daemon
+
+`labwc/tools/labwc-workspace/`：纯 C 的 ext-workspace-v1 客户端（vendored
+`ext-workspace-v1.xml`），监听 active 工作区变化，经 unix socket 向 bar 广播
+一行工作区名。Quickshell 无 ext-workspace QML 类型、labwc 无 CLI 查询，这是
+两者间唯一的状态通道。
+
+- 构建：`make && make install`（`Init.sh install_labwc_session` 已包含）
+  → `~/.local/bin/labwc-workspace`；labwc 会话 `autostart` 在 bar 之前拉起。
+- 协议要点：wlroots 在客户端 `wl_registry_bind` 时**同步重放**全部 workspace
+  状态（`wlr_ext_workspace_v1.c` 的 `manager_bind`），listener 必须在
+  registry global handler 里、下一个 roundtrip 派发**之前**挂上，否则初始
+  active 状态丢失（曾导致 daemon 连上但收不到任何事件）。
+- 单实例（flock）+ socket 0600，仅本用户可连。
+
+### overview 在 labwc 下的禁用（三处）
+
+1. `bin/sumika-restart`：`XDG_CURRENT_DESKTOP=labwc` 时跳过 overview 应用
+   模块（registry 循环）。
+2. `apps/sumika-bar/shell.qml`：labwc 下不预热 overview（`overviewPreWarmTimer`
+   跳过），否则 1.5s 后 `sumika-overview warm` 会把 overview 进程拉起来。
+3. `Workspaces.qml`：labwc 下按钮不再调用 `overview.open`。
 
 ## 语音输入（Sasayaki）在 labwc 下
 

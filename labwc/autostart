@@ -49,6 +49,14 @@ if command -v wlr-randr >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}" ]; then
   unset _output _w _scale
 fi
 
+# labwc-workspace daemon: reports the active workspace over a unix socket
+# for the bar's workspaces module (Quickshell has no ext-workspace API).
+# Start before the bar so the initial state is available on first connect.
+# The bar's module reconnects if this races it.
+if command -v labwc-workspace >/dev/null 2>&1; then
+  labwc-workspace &
+fi
+
 # Quickshell bar (same systemd-run unit as the Hyprland session).
 "$SUMIKA_SHELL_ROOT/bin/sumika-restart" &
 

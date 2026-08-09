@@ -44,17 +44,25 @@
     <raiseOnFocus>no</raiseOnFocus>
   </focus>
 
-  <!-- 5 workspaces, matching the Hyprland session's workspace slots.
-       GoToDesktop/SendToDesktop accept the index or the full name. -->
-  <desktops number="5">
+  <!-- 6 workspaces. IMPORTANT: names are matched by INDEX first
+       (workspace_find_by_name: parse_workspace_index() matches list
+       position 1..N), so numeric names must stay in order — "0" is the
+       toggle-only temp workspace (W-s enter/leave, like Hyprland's special
+       workspace) and MUST sit LAST in the list, otherwise W-1..W-5 shift
+       by one. GoToDesktop to="0" falls through to by-name lookup since
+       parse_workspace_index("0") returns 0 (falsy). -->
+  <desktops number="6">
     <names>
       <name>1</name>
       <name>2</name>
       <name>3</name>
       <name>4</name>
       <name>5</name>
+      <name>0</name>
     </names>
-    <popupTime>800</popupTime>
+    <!-- popupTime=0 disables the workspace-switch OSD entirely
+         (workspaces.c _osd_show: early-return when popuptime is 0). -->
+    <popupTime>0</popupTime>
   </desktops>
 
   <theme>
@@ -164,12 +172,21 @@
       <action name="Execute" command="sumika-action window.single-square-aspect-toggle" />
     </keybind>
     <!-- ═══════════════════════════════════════════════════════════════
-         Window switching (W-Tab/W-S-Tab cycle the CURRENT workspace's
-         windows, mirroring Alt-Tab; thumbnail OSD configured above).
+         Window switching. labwc's NextWindow defaults to the current
+         workspace (rc.window_switcher.workspace_filter = CURRENT), so
+         both A-Tab and W-Tab must be bound explicitly:
+           A-Tab   → workspace="all"      cycle EVERY workspace's windows
+           W-Tab   → workspace="current"  cycle only the current workspace
          Overview module (LabwcOverview + thumbnaild) lives on the
          labwc-adaptation branch; this mainline build uses labwc's
          native compositor-side switcher.
          ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="A-Tab">
+      <action name="NextWindow" workspace="all" />
+    </keybind>
+    <keybind key="A-S-Tab">
+      <action name="PreviousWindow" workspace="all" />
+    </keybind>
     <keybind key="W-Tab">
       <action name="NextWindow" workspace="current" />
     </keybind>
@@ -185,6 +202,28 @@
     <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
     <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
     <keybind key="W-5"><action name="GoToDesktop" to="5" /></keybind>
+    <!-- Temp workspace 0 (mirrors Hyprland's special workspace):
+         W-s enters workspace 0, W-s again returns to the previous
+         workspace. GoToDesktop toggle="yes": if already on the target
+         desktop, jump back to the last one (action.c).
+         NOTE: key names are case-sensitive — "W-S" would parse as
+         Super+SHIFT (modifier combo, no key) and never fire; the S key
+         is lowercase "s". -->
+    <keybind key="W-s">
+      <action name="GoToDesktop" to="0" toggle="yes" />
+    </keybind>
+    <!-- Move the focused window into workspace 0 (stay behind, mirrors
+         Hyprland SUPER+ALT+S). Get it back with W-s. -->
+    <keybind key="W-A-s">
+      <action name="SendToDesktop" to="0" follow="no" />
+    </keybind>
+    <!-- Workspace overview menu (all workspaces + window titles, current
+         marked ">N<"). This is labwc's native replacement for the Sumika
+         overview: the bar's workspaces button injects this combo in labwc
+         sessions (Workspaces.qml labwcMode). -->
+    <keybind key="W-A-w">
+      <action name="ShowMenu" menu="client-list-combined-menu" />
+    </keybind>
     <!-- Move window + follow -->
     <keybind key="W-S-1"><action name="SendToDesktop" to="1" follow="yes" /></keybind>
     <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="yes" /></keybind>

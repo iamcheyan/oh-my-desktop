@@ -1189,6 +1189,12 @@ install_labwc_session() {
         return 0
     fi
 
+    # labwc-workspace daemon: reports the active workspace over a unix
+    # socket for the bar's workspaces module (Quickshell has no
+    # ext-workspace API). Built from the vendored protocol XML.
+    ( cd "${REPO}/labwc/tools/labwc-workspace" && make >/dev/null && make install >/dev/null )
+    ok "  labwc-workspace daemon -> ~/.local/bin/labwc-workspace"
+
     sudo tee /usr/local/bin/sumika-labwc-upstream-session >/dev/null <<'EOF'
 #!/bin/bash
 set -e

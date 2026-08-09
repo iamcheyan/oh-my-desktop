@@ -90,7 +90,10 @@ ShellRoot {
         // click only spawns the process hidden. Pre-warm it shortly after
         // the bar is up so the first user-triggered open is instant. The
         // overview keepAliveWindow then keeps the process alive.
-        overviewPreWarmTimer.start()
+        // labwc 会话彻底禁用 overview（workspaces 模块切换到 labwc 原生
+        // client-list-combined-menu），不预热。
+        if (Quickshell.env("XDG_CURRENT_DESKTOP") !== "labwc")
+            overviewPreWarmTimer.start()
     }
 
     Timer {
