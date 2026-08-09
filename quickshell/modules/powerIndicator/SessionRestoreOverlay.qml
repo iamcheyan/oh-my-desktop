@@ -21,7 +21,12 @@ Scope {
 
     signal finished()
 
-    Component.onCompleted: {
+    // Started explicitly by the host (SessionAutoRestore) AFTER it has set
+    // restoreAction. Starting in Component.onCompleted races the Loader's
+    // onLoaded assignment: the Process would spawn with the default
+    // "restore" action, which never consumes the auto-restore marker and
+    // would re-arm the overlay on every reload.
+    function startRestore() {
         restoreProc.running = true;
         elapsedTimer.start();
     }

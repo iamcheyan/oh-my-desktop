@@ -60,17 +60,31 @@ DEFAULT_RESTORE_TIMEOUT = 5.0
 FLATPAK_RESTORE_TIMEOUT = 30.0
 
 
+def _hypr_available():
+    """True when we can actually talk to Hyprland. Guards every hyprctl
+    call so session restore degrades gracefully on other compositors
+    (labwc): launches still happen, workspace/monitor placement is a no-op,
+    and window verification is skipped instead of crashing."""
+    return bool(os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")) and shutil.which("hyprctl") is not None
+
+
 def run_json(*args):
+    if not _hypr_available():
+        return {}
     out = subprocess.check_output(args, text=True)
     return json.loads(out)
 
 
 def hypr(*args):
+    if not _hypr_available():
+        return subprocess.CompletedProcess([], 0)
     return subprocess.run(["hyprctl", *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def hypr_lua(expr):
     """Execute a Lua dispatch expression via hyprctl dispatch."""
+    if not _hypr_available():
+        return subprocess.CompletedProcess([], 0)
     return subprocess.run(["hyprctl", "dispatch", expr], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -1383,6 +1397,11 @@ def _write_restore_result(restored, total, results):
 
 
 def wait_for_client(record, known_addresses, launched_pid=0, timeout=5.0):
+    if not _hypr_available():
+        # Non-Hyprland compositor (labwc): there is no hyprctl to verify
+        # the launch against. Popen already succeeded, so treat the launch
+        # as restored; place_client() becomes a no-op for the empty address.
+        return {"address": "", "workspace": {}, "pid": launched_pid}
     deadline = time.time() + timeout
     fallback = None
     fallback_since = 0.0
