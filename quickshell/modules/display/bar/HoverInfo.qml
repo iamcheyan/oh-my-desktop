@@ -5,10 +5,21 @@ import qs.modules.bar
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Hyprland
 
 Item {
-    readonly property var _monitor: Hyprland.monitorFor(root)
+    // Compositor-agnostic screen lookup (Hyprland.monitorFor is Hyprland-only;
+    // on labwc it resolves to null). Find the screen containing this item's
+    // center in global coordinates, falling back to the primary screen.
+    readonly property var _screen: {
+        const p = root.mapToGlobal(0, 0);
+        const cx = p.x + root.width / 2;
+        const cy = p.y + root.height / 2;
+        for (const s of Quickshell.screens) {
+            if (cx >= s.x && cx < s.x + s.width && cy >= s.y && cy < s.y + s.height)
+                return s;
+        }
+        return Quickshell.screens[0] ?? null;
+    }
 
     implicitWidth: Math.min(320, contentLayout.implicitWidth + 16)
     implicitHeight: contentLayout.implicitHeight + 16
@@ -34,20 +45,20 @@ Item {
         StyledPopupValueRow {
             icon: NerdIconMap.desktop
             label: "Monitor"
-            value: root._monitor?.name ?? "Unknown"
+            value: root._screen?.name ?? "Unknown"
         }
         StyledPopupValueRow {
             icon: NerdIconMap.desktop
             label: "Resolution"
-            value: root._monitor
-                ? (root._monitor.width + "×" + root._monitor.height)
+            value: root._screen
+                ? (root._screen.width + "×" + root._screen.height)
                 : "-"
         }
         StyledPopupValueRow {
             icon: NerdIconMap.desktop
             label: "Scale"
-            value: root._monitor
-                ? (root._monitor.scale.toFixed(1) + "×")
+            value: root._screen
+                ? (root._screen.devicePixelRatio.toFixed(1) + "×")
                 : "-"
         }
         StyledPopupValueRow {

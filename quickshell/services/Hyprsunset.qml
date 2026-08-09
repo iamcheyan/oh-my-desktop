@@ -27,6 +27,15 @@ Singleton {
     property bool firstEvaluation: true
     property bool temperatureActive: false
 
+    // Hyprland sessions control the resident hyprsunset process over IPC
+    // (hyprctl hyprsunset …). wlroots compositors (labwc, sway) have no such
+    // IPC; hyprsunset's CLI is driven directly instead (restart the process
+    // with --temperature/--gamma, kill it to restore defaults). Note this
+    // best-effort path only works if the DRM driver exposes a gamma LUT —
+    // e.g. the Asahi (apple-drm) driver does not, so night mode stays a
+    // Hyprland-only feature there.
+    readonly property bool hyprlandSession: !!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
+
     property int fromHour: Number(from.split(":")[0])
     property int fromMinute: Number(from.split(":")[1])
     property int toHour: Number(to.split(":")[0])
@@ -87,6 +96,27 @@ Singleton {
         Quickshell.execDetached(["bash", "-c", `pidof hyprsunset || hyprsunset`]);
     }
 
+    // Hyprland path: control the resident process over IPC.
+    function applyHyprctl(args) {
+        Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset ${args}`]);
+    }
+
+    // wlroots path: no IPC, restart hyprsunset with the full desired state
+    // (temperature + gamma) as CLI args. Killing first also makes "off"
+    // deterministic: a dead process restores the compositor's default gamma.
+    function applyHyprsunsetCli() {
+        const temp = root.temperatureActive ? root.colorTemperature : root.defaultColorTemperature;
+        Quickshell.execDetached(["bash", "-c",
+            `pkill -x hyprsunset 2>/dev/null; hyprsunset --temperature ${temp} --gamma ${root.gamma} >/dev/null 2>&1 &`]);
+    }
+
+    function applyArgs(args) {
+        if (root.hyprlandSession)
+            root.applyHyprctl(args);
+        else
+            root.applyHyprsunsetCli();
+    }
+
     function load() {
         root.startHyprsunset();
         root.ensureState();
@@ -107,13 +137,18 @@ Singleton {
 
         // console.log("[Hyprsunset] Enabling");
         root.startHyprsunset();
-        Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset temperature ${root.colorTemperature}`]);
+        root.applyArgs(`temperature ${root.colorTemperature}`);
     }
 
     function disableTemperature() {
         root.temperatureActive = false;
         // console.log("[Hyprsunset] Disabling");
-        Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset temperature ${root.defaultColorTemperature}`]);
+        if (!root.hyprlandSession) {
+            // wlroots: no IPC — killing the process restores default gamma.
+            Quickshell.execDetached(["bash", "-c", "pkill -x hyprsunset 2>/dev/null"]);
+            return;
+        }
+        root.applyArgs(`temperature ${root.defaultColorTemperature}`);
     }
 
     // Debounce gamma application so dragging a slider doesn't spawn a
@@ -123,7 +158,7 @@ Singleton {
         interval: 200
         repeat: false
         onTriggered: {
-            Quickshell.execDetached(["bash", "-c", `hyprctl hyprsunset gamma ${root.gamma}`]);
+            root.applyArgs(`gamma ${root.gamma}`);
         }
     }
 
@@ -143,7 +178,7 @@ Singleton {
 
     Process {
         id: fetchProc
-        running: true
+        running: root.hyprlandSession
         command: ["bash", "-c", "hyprctl hyprsunset temperature"]
         stdout: StdioCollector {
             id: stateCollector
@@ -180,7 +215,7 @@ Singleton {
         repeat: false
         onTriggered: {
             if (!root.temperatureActive) return;
-            Quickshell.execDetached(["hyprctl", "hyprsunset", "temperature", `${Config.options.light.night.colorTemperature}`]);
+            root.applyArgs(`temperature ${Config.options.light.night.colorTemperature}`);
         }
     }
     Connections {

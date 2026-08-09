@@ -547,7 +547,7 @@ Item {
     function parseOutputs(text) {
         const raw = String(text || "").trim();
         if (raw.length === 0) {
-            errorText = "hyprctl returned no monitor data.";
+            errorText = "Display management is not available in this session.";
             return [];
         }
         if (!raw.startsWith("[") && !raw.startsWith("{")) {
