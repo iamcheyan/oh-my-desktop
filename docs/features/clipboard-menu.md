@@ -17,9 +17,14 @@ left near the screen edge. The menu itself is clamped to the current screen.
 
 ## Runtime Structure
 
-- `apps/sumika-clipboard/shell.qml` owns the overlay window. It reads
-  `hyprctl cursorpos -j` and `hyprctl monitors -j`, selects the matching
-  Quickshell screen, and only then shows the menu.
+- `apps/sumika-clipboard/shell.qml` owns the overlay window. It probes
+  `hyprctl monitors -j` (Hyprland IPC): on success it also reads
+  `hyprctl cursorpos -j`, selects the matching Quickshell screen, and only
+  then shows the menu at the pointer. On failure (non-Hyprland compositors
+  such as labwc — no hyprctl socket, and no Wayland protocol exposes the
+  absolute pointer position to clients) it falls back to `wlr-randr --json`
+  for the monitor layout and anchors the menu to the bar (cursor mode
+  degrades to `positionMode: "bar"`).
 - `apps/sumika-clipboard/modules/clipboard/ClipboardDialog.qml` owns search,
   keyboard navigation, menu placement, and the side preview.
 - `apps/sumika-clipboard/modules/clipboard/widgets/ClipboardItem.qml` renders one
