@@ -29,6 +29,7 @@ are intentionally not retained.
 - [Input method integration](features/input-method-integration.md)
 - [Keybindings — 键位逻辑与完整列表](features/keybindings.md)
 - [Keyboard remap](features/keyboard-remap.md)
+- [Remote desktop Win-key handling](features/remote-desktop-keys.md)
 - [Key capture and extended function keys](features/key-capture-and-extended-f-keys.md)
 - [Notification system](features/notification-system.md)
 - [Overview command palette](features/overview-command-palette.md)
