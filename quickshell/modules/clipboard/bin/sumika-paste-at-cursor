@@ -211,6 +211,18 @@ paste_ctrl_v() {
 paste_kitty_remote() {
     command -v kitty >/dev/null 2>&1 || return 1
 
+    # `send-text` writes the payload straight into the terminal. A binary
+    # payload (e.g. an undecoded clipboard image reaching us because window
+    # detection failed) would render as a huge blob of garbage that cannot be
+    # recovered — refuse the kitty path for it and let the caller fall back to
+    # a clipboard paste, which safely no-ops for non-text data.
+    if command -v file >/dev/null 2>&1; then
+        case "$(file -b --mime-type "$PAYLOAD_FILE" 2>/dev/null)" in
+            text/*|application/json|inode/x-empty) ;;
+            *) return 1 ;;
+        esac
+    fi
+
     kitty_pid=""
     if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         case "$WIN_TARGET" in
@@ -234,15 +246,22 @@ paste_kitty_remote() {
     # writes the payload into every match — one inject, two visible pastes.
     # `send-text` always exits 0 even when it hits zero or the wrong window, so
     # we must resolve the exact id ourselves and send with `--match id:$id`.
-    # Selection order: focused OS window -> active tab -> focused window, with
-    # first-item fallbacks at each level. Prints nothing if no window resolves.
+    # Selection order: focused OS window -> active tab -> focused window.
+    # Prints nothing if no OS window is focused: sending to an unfocused kitty
+    # window is worse than not sending (the payload would land in the wrong
+    # window). On Hyprland the caller already verified the active window is
+    # kitty, so a focused kitty window must exist; on labwc the focus check is
+    # the only guard that keeps the remote path from hijacking another window.
     resolve_kitty_window_id() {
         jq -r '
             . as $root |
-            ($root | map(select(.is_focused)) | .[0] // $root[0]) as $osw |
-            ($osw.tabs | map(select(.is_active)) | .[0] // $osw.tabs[0]) as $tab |
-            ($tab.windows | map(select(.is_focused)) | .[0] // $tab.windows[0]) as $w |
-            $w.id // empty
+            (map(select(.is_focused)) | .[0] // empty) as $osw |
+            if $osw == null then empty
+            else
+                ($osw.tabs | map(select(.is_active)) | .[0] // $osw.tabs[0]) as $tab |
+                ($tab.windows | map(select(.is_focused)) | .[0] // $tab.windows[0]) as $w |
+                $w.id // empty
+            end
         ' 2>/dev/null
     }
 
@@ -292,20 +311,19 @@ paste_kitty_remote() {
         # callers get the same contract.
         restore_payload_clipboard || return 1
 
-        # Unlike send-text, `action` reports target/action failures. It invokes
-        # Kitty's native paste path and therefore gives shells and TUIs one
-        # bracketed paste instead of a stream of ordinary typed bytes.
+        # Send the payload text directly. Do NOT use `action paste_from_clipboard`
+        # as the primary transport: that reads kitty's internal clipboard buffer
+        # (`clipboard_control` only grants write access by default), which holds
+        # whatever the user last copied *inside* kitty — not the payload this
+        # helper was asked to paste. `send-text --bracketed-paste auto` gives
+        # shells and TUIs one bracketed paste transaction of the real payload.
+        if send_bracketed_to_kitty "$to_arg" "$win_id"; then
+            TRANSPORT="kitty-bracketed-send"
+            return 0
+        fi
         if kitty @ --to "$to_arg" action --match "id:$win_id" \
             paste_from_clipboard >/dev/null 2>&1; then
             TRANSPORT="kitty-native-paste"
-            return 0
-        fi
-
-        # Compatibility fallback for Kitty builds/configurations where the
-        # remote action is unavailable. This remains a bulk bracketed paste;
-        # raw unbracketed text injection is deliberately forbidden.
-        if send_bracketed_to_kitty "$to_arg" "$win_id"; then
-            TRANSPORT="kitty-bracketed-fallback"
             return 0
         fi
         return 1
@@ -333,12 +351,12 @@ paste_kitty_remote() {
         win_id="$(printf '%s' "$ls_out" | resolve_kitty_window_id)"
         if [ -n "$win_id" ]; then
             restore_payload_clipboard || return 1
-            if kitty @ action --match "id:$win_id" paste_from_clipboard >/dev/null 2>&1; then
-                TRANSPORT="kitty-native-paste"
+            if send_bracketed_to_kitty "" "$win_id"; then
+                TRANSPORT="kitty-bracketed-send"
                 return 0
             fi
-            if send_bracketed_to_kitty "" "$win_id"; then
-                TRANSPORT="kitty-bracketed-fallback"
+            if kitty @ action --match "id:$win_id" paste_from_clipboard >/dev/null 2>&1; then
+                TRANSPORT="kitty-native-paste"
                 return 0
             fi
         fi
@@ -353,7 +371,7 @@ paste_for_terminal() {
     class="$2"
 
     case "$(normalize_class "$class")" in
-        kitty*)
+        kitty*|"")
             paste_kitty_remote \
                 || paste_shift_insert "$target" \
                 || paste_ctrl_shift_v "$target" \

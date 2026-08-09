@@ -143,7 +143,9 @@ Because of the above, the helper must **resolve a single kitty window id** and
 send with `--match id:$id`, never with `--match state:focused` or a bare
 `send-text`. The resolution order is, from `kitty @ --to $socket ls`:
 
-1. the OS window with `is_focused: true` (fall back to the first OS window);
+1. the OS window with `is_focused: true` — **no fallback to the first OS
+   window** (on labwc the focus check is the only guard that keeps the remote
+   path from hijacking an unfocused kitty window);
 2. within it, the tab with `is_active: true` (fall back to the first tab);
 3. within it, the window with `is_focused: true` (fall back to the tab's first
    window).
@@ -163,15 +165,28 @@ bracketed paste 标记的内容时，kitty 会把**当前 Wayland 剪贴板里�
 我们的 helper 为了让 omp 能读剪贴板拿到 payload（omp 的做法），会先 `wl-copy < payload`
 再把剪贴板设成 payload，然后 `send-text` 发同样一份。结果 omp 收到两遍同样的内容。
 
-**当前修复（原生粘贴优先）：**
+**当前修复（send-text 直接送达优先）：**
 
 1. helper 将不可变 payload 同步到 Wayland clipboard；
-2. 从 `kitty @ ls` 解析唯一窗口 ID；
-3. 调用 `kitty @ action --match id:<id> paste_from_clipboard`，让目标窗口执行一次
-   Kitty 原生粘贴。CLI/TUI 会收到一个完整的 bracketed-paste transaction；
-4. 若 remote action 不可用，才使用 `send-text --bracketed-paste auto`。发送前临时
-   `wl-copy -c`，发送后恢复 payload，从而规避 OMP 的 OSC 5522 二次读取；
-5. 两条路径都按整块粘贴处理，禁止使用 `--bracketed-paste disable` 发送正文。
+2. 从 `kitty @ ls` 解析唯一窗口 ID（要求 OS 窗口 `is_focused: true`，否则视为
+   焦点未知、放弃 remote 路径）；
+3. 调用 `kitty @ send-text --match id:<id> --from-file <payload> --bracketed-paste auto`
+   直接把 payload 文本注入目标窗口，CLI/TUI 会收到一个完整的 bracketed-paste
+   transaction。发送前临时 `wl-copy -c`，发送后恢复 payload，从而规避 OMP 的
+   OSC 5522 二次读取；
+4. 仅当 `send-text` 不可用时，才降级到 `kitty @ action paste_from_clipboard`
+   （kitty 原生粘贴），再降级到 wtype 合成按键。
+
+**为什么不用 `paste_from_clipboard` 作主线：** kitty 的 `paste_from_clipboard` /
+`shift+Insert` 读取的是 kitty **内部剪贴板缓冲**（默认 `clipboard_control` 只授予
+写入权限，不授予读取权限），即用户上次在 kitty 窗口内复制的片段——而不是系统
+Wayland 剪贴板里的 payload。labwc 等非 Hyprland 合成器下无法用 `hyprctl` 解析
+焦点窗口 class，`WIN_CLASS` 为空，旧代码走 `*)` 分支注入 shift+Insert，于是剪贴板
+菜单里选任何条目粘出来的都是 kitty 内部缓冲里那段旧文本（实测为过时的
+`id="toolbar"`）。`send-text` 直接发送 payload 字节，完全绕开 kitty 内部缓冲，
+不受剪贴板权限或内部状态影响。
+
+两条路径都按整块粘贴处理，禁止使用 `--bracketed-paste disable` 发送正文。
 
 此前使用过 `--bracketed-paste disable` 来避开 OSC 5522。虽然可以阻止 OMP 双贴，
 但它会把正文作为普通 PTY 输入字节流交给应用。部分 raw-input CLI/TUI 因此逐字处理和
@@ -225,9 +240,9 @@ Runtime checks:
    lands in exactly one window. Count the marker with
    `kitty @ --to $SOCK get-text --match id:$ID | grep -c MARKER` for every
    window id; the sum across all windows must equal 1.
-6. **原生 action 主线：** payload 为 `FILE_B`，触发一次 paste 进 omp，确认日志为
-   `transport=kitty-native-paste`，只收到一次 `FILE_B`，且不是逐字输入。重复 10 次
+6. **send-text 主线：** payload 为 `FILE_B`，触发一次 paste 进 omp，确认日志为
+   `transport=kitty-bracketed-send`，只收到一次 `FILE_B`，且不是逐字输入。重复 10 次
    确认 0 双贴。
-7. **兼容回退路径：** 模拟 remote action 失败，确认只走一次
-   `--bracketed-paste auto` + 清空/恢复，无双贴且无 `--bracketed-paste disable`。
+7. **兼容回退路径：** 模拟 `send-text` 失败，确认只走一次
+   `paste_from_clipboard`（`transport=kitty-native-paste`），无双贴。
 8. **多行 payload：** 三行文本，确认在 omp 中多行插入不提交。

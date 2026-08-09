@@ -45,10 +45,35 @@ if file -b --mime-type "$decoded" 2>/dev/null | grep -q '^image/'; then
 fi
 
 # Smart paste is only a path conversion for terminal targets. In GUI apps an
-# image must remain an image. Resolve the active class here as a fallback so
-# QML does not need to duplicate window-detection and terminal allowlists.
+# image must remain an image. Resolve the focused window class here as a
+# fallback so QML does not need to duplicate window-detection and terminal
+# allowlists. Layers:
+#   1. hyprctl IPC (Hyprland).
+#   2. kitty remote control (any compositor): a focused OS window reported by
+#      `kitty @ ls` means keyboard focus is inside kitty. labwc has no
+#      window-query IPC, so kitty is the only terminal that can be detected
+#      precisely there.
 if [ -z "$window_class" ] && command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     window_class=$(hyprctl -j activewindow 2>/dev/null | jq -r '.class // empty' 2>/dev/null || true)
+fi
+if [ -z "$window_class" ] && command -v kitty >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    # kitty.conf usually redirects listen-on to /tmp/mykitty-*, so bare
+    # `kitty @ ls` cannot reach the instance. Enumerate every socket the
+    # paste transport itself probes.
+    if [ -n "${KITTY_LISTEN_ON:-}" ]; then
+        if kitty @ --to "$KITTY_LISTEN_ON" ls 2>/dev/null | jq -e 'map(select(.is_focused)) | length > 0' >/dev/null 2>&1; then
+            window_class=kitty
+        fi
+    fi
+    if [ -z "$window_class" ]; then
+        for sock in /tmp/mykitty /tmp/mykitty-* /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+            [ -S "$sock" ] || continue
+            if kitty @ --to "unix:$sock" ls 2>/dev/null | jq -e 'map(select(.is_focused)) | length > 0' >/dev/null 2>&1; then
+                window_class=kitty
+                break
+            fi
+        done
+    fi
 fi
 is_terminal=0
 case "$(printf '%s' "$window_class" | tr '[:upper:]' '[:lower:]')" in

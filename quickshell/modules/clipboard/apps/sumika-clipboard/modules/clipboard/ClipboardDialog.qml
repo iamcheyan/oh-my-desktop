@@ -65,10 +65,13 @@ Item {
     function placeAtBar() {
         if (!menuCard)
             return;
-        // Align right edge and top with all bar popups (constants match BarPopupGeometry)
-        // Use local gap constants — this separate process can't import qs.modules.common.
-        menuCard.x = clamp(width - menuWidth - barRightMargin, barRightMargin,
-            Math.max(barRightMargin, width - menuWidth - barRightMargin));
+        // The layer surface has no size until its first commit, so `width`
+        // can briefly be 0 right after show — that would clamp the panel to
+        // the left edge (clamp(0-460-4, 4, 4) = 4). Fall back to the screen
+        // geometry; onWidthChanged re-places once the real width arrives.
+        const w = Math.max(width, screen?.width ?? 0) || 1280;
+        menuCard.x = clamp(w - menuWidth - barRightMargin, barRightMargin,
+            Math.max(barRightMargin, w - menuWidth - barRightMargin));
         menuCard.y = barHeight + barTopGap + 10; // elevationMargin = 10
     }
     function pasteSelected(asPath) {

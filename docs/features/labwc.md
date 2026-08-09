@@ -73,12 +73,12 @@ labwc 会话入口（自愈）。
   （待上游 Quickshell toplevel 捕获协议）；**mainline 的 labwc 会话彻底禁用
   overview**（见下文「工作区与 topbar」），入口改用 labwc 原生
   `client-list-combined-menu`。
-- **剪贴板菜单不跟随鼠标**：wlroots 合成器不向客户端暴露绝对指针位置（没有
+- **剪贴板菜单固定贴 bar**：wlroots 合成器不向客户端暴露绝对指针位置（没有
   hyprctl/swaymsg 这类 IPC，`zwp_relative_pointer` 只有相对位移），因此
-  `sumika-clipboard` 的"跟随光标"模式在 labwc 下自动降级为**贴 bar 定位**
-  （右上角、bar 下方，与点击 bar 剪贴板按钮一致）。shell.qml 用
-  `hyprctl monitors -j` 探测合成器：Hyprland 走原路径（`cursorpos`），
-  非 Hyprland 回退 `wlr-randr --json` 解析显示器布局。
+  `sumika-clipboard` 在 labwc 下直接以 **bar 定位**（右上角、bar 下方，与点击
+  bar 剪贴板按钮一致），不尝试跟随光标。shell.qml 用 `hyprctl monitors -j`
+  探测合成器：Hyprland 走原路径（`cursorpos` 跟随光标），非 Hyprland 回退
+  `wlr-randr --json` 解析显示器布局并固定 `positionMode: "bar"`。
 - **无 XWayland**：本机 labwc 编译为 `-xwayland`，X11-only 应用无法运行；
   纯 Wayland 应用不受影响。若需要 XWayland，需重新编译 labwc。
 - 电源/锁屏（`sumika-session`、`omarchy-system-lock`）走 systemd/loginctl，
@@ -87,6 +87,35 @@ labwc 会话入口（自愈）。
   恢复每屏 scale（`hypr/monitors.lua` + `$SUMIKA_SHELL_STATE_HOME/display/layout.lua`），
   labwc 的 layout 需要 `wlr-randr` 管理。当前 autostart 只处理内部屏；
   多显示器布局下需扩展 autostart（或跑 kanshi）。
+
+## 已知限制（labwc 降级，记录不修）
+
+以下模块/功能在 labwc 下**降级而非报错**（Hyprland 会话不受影响），由
+`hyprctl` IPC socket 缺失或 labwc 协议栈限制造成：
+
+- **剪贴板/语音粘贴的 kitty 路径**：已修复为 send-text 主路径（见上文），
+  但 class 检测在 labwc 下失败时（`hyprctl -j activewindow` 不可用）目标退化为
+  `activewindow` + 空 class——修复版脚本对空 class 也先试 kitty remote
+  （`kitty*|""` 分支），缓解了该问题；若目标窗口不是 kitty，按类回退 wtype
+  快捷键（可能注入失败，因为 class 未知无法选对粘贴键）。
+- **录音中 Escape 取消不可用**：voice/sasayaki 的「按 Escape 取消录音」靠
+  `hyprctl eval o.bind("escape")` 动态绑键，labwc 无 hyprctl socket、无动态
+  键位绑定机制 → 该路径失效。**降级方案**：录音中再按一次 toggle 键
+  （rc.xml 已绑定 `sasayaki.toggle`）即停止并转写（`Toggle()`：idle →
+  recording → transcribing）；「取消（丢弃）」降级为「停止（转写）」，功能可用。
+- **launcher 运行中指示为空**：`RunningApps.qml` 靠 `hyprctl -j clients` 拿
+  toplevel 列表；labwc-workspace daemon 只实现 `ext_workspace_manager_v1`
+  （广播工作区名与 active 状态），**不提供 toplevel 枚举接口** → runningSet
+  恒空。labwc 下无复用接口可修，记为已知降级。
+- **Xkb 指示器为空**：`HyprlandXkb.qml` 的 `hyprlandIpcAvailable` 用环境变量
+  探测（`HYPRLAND_INSTANCE_SIGNATURE`），labwc 下不设置 → 键盘布局指示器不显示。
+  （改进方向：探测 hyprctl socket 而非 env，与 shell.qml 的探测方式一致。）
+- **截图光标不隐藏**：`ScreenshotAction.qml` 的 grimHideCursor 调 hyprctl 被
+  `|| true` 包裹，labwc 下静默跳过（光标在截图中可见），不影响截图功能。
+- **设置页「重载配置」静默失败**：`SystemPage.qml` 的 hyprctl reload 在 labwc
+  下无效果（不报错）。
+- **Hyprland 专属**：`Persistent.qml`/`Session.qml`/`PowerContextMenu.qml`
+  中的 hyprctl-only 逻辑在 labwc 下静默失效。
 
 ## 验证
 
@@ -180,7 +209,7 @@ labwc 会话（`XDG_CURRENT_DESKTOP=labwc`）：overview 彻底禁用，workspac
 ## 语音输入（Sasayaki）在 labwc 下
 
 语音输入（sasayaki 扩展，Go 守护进程 + SenseVoice）在 labwc 下**可用**：
-按键说话、自动识别、自动粘贴（实测 `paste succeeded backend=kitty-native-paste`）。
+按键说话、自动识别、自动粘贴（实测 `paste succeeded backend=kitty-bracketed-send`）。
 
 ### 键位链路
 
@@ -205,7 +234,7 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
 - `zwlr_foreign_toplevel_manager_v1` —— 焦点窗口探测
 
 流程：`wl-copy` 写剪贴板 → 150ms 防竞争 → 解析焦点窗口 → 按窗口类选粘贴键
-（终端 Shift+Insert / GUI Ctrl+V，kitty 走原生 remote paste）→ wtype 注入。
+（终端 Shift+Insert / GUI Ctrl+V，kitty 走 send-text 直接注入）→ wtype 注入。
 
 ### 已知要点（2026-08-08 实测，已提交并部署）
 
@@ -231,9 +260,18 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
   服务跨会话残留旧环境的问题由 daemon 内自愈逻辑根治（`ensureGraphicalEnvironment`
   只在真实 runner 下执行，单元测试保持封闭）。
 - **端到端实测**：焦点探针命中焦点 kitty（app_id 解析 + `activated` 状态），
-  粘贴走 kitty 原生 remote paste（`Backend=kitty-native-paste`），文本落入焦点
+  粘贴走 kitty send-text 注入（`Backend=kitty-bracketed-send`），文本落入焦点
   tmux 窗口输入区；非 kitty 窗口按类回退 wtype 快捷键（终端 Shift+Insert、
   GUI Ctrl+V）。
+- **kitty 粘贴主路径是 send-text，不是原生 action**（2026-08-09 修复）：
+  kitty 默认 `clipboard_control=no-append write-clipboard write-primary`（只写不读），
+  `kitty @ action paste_from_clipboard`（shift+Insert / `kitty-native-paste`）读的是
+  **kitty 内部剪贴板缓冲**而非系统剪贴板，会粘出过时内容——与今日剪贴板菜单 bug
+  同根因（见 `docs/features/paste-kitty-conflicts.md`）。sasayaki `sendToKitty`
+  主路径改为 `kitty @ send-text --stdin --bracketed-paste auto` 直接注入 payload
+  （transport `kitty-bracketed-send`），`paste_from_clipboard` 降为 send-text 失败
+  时的 fallback（`kitty-native-paste`）；注入前 `wl-copy -c` 清剪贴板防 OSC 5522
+  双粘贴，成功后 50ms 恢复 payload。voice 扩展的 `omarchy-paste-at-cursor` 同步修复。
 - **多 kitty 实例下的粘贴聚焦约束**（2026-08-09 实测）：wlroots 系合成器
   （labwc/sway）的 `zwlr_foreign_toplevel_handle_v1` 没有 pid 事件，sasayaki
   只能靠 glob `/tmp/mykitty-*` 枚举实例。旧实现无聚焦要求时直接取第一个
@@ -246,7 +284,7 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
   该约束保证文本只进**当前聚焦**的实例。
 - **验证**：`journalctl --user -u sasayaki.service -f` 看
   `recording started → transcribed chars=N → paste succeeded backend=…`
-  （kitty 目标为 `kitty-native-paste`，其他窗口为 `wtype`）。
+  （kitty 目标为 `kitty-bracketed-send`，其他窗口为 `wtype`）。
 
 ### 诊断（`sasayaki diagnose`）在 labwc 下
 

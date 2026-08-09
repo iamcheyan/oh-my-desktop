@@ -214,11 +214,14 @@ ShellRoot {
 
         function toggle() {
             GlobalStates.clipboardOpen = !GlobalStates.clipboardOpen;
-            dialog.positionMode = "cursor";
+            // labwc has no cursor-position IPC, so bar mode is the only sane
+            // placement. Setting "cursor" here would flash the menu at a stale
+            // cursor position before applyMonitor() downgrades it.
+            dialog.positionMode = root.isHyprland ? "cursor" : "bar";
         }
         function open() {
             GlobalStates.clipboardOpen = true;
-            dialog.positionMode = "cursor";
+            dialog.positionMode = root.isHyprland ? "cursor" : "bar";
         }
         function toggleAtBar(barHeight: real) {
             if (GlobalStates.clipboardOpen && dialog.positionMode === "bar") {
