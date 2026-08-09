@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import qs
+import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -43,24 +44,26 @@ Item { // Bar content region
         return null;
     }
 
-    // Compositor-agnostic "is there a focused window on this bar's screen" —
+    // Compositor-agnostic "is there a maximized toplevel on this bar's screen"
     // via zwlr_foreign_toplevel_management_v1 (labwc 0.20+, Hyprland, sway).
-    // Mirrors the active-window extension's own focused-toplevel lookup so the
-    // bar background stays in sync with what that module displays.
-    readonly property bool workspaceHasWindows: {
+    // A maximized window always occupies this screen, so no focus check needed.
+    readonly property bool workspaceHasMaximized: {
         const barScreen = root.screen?.name ?? "";
         return ToplevelManager.toplevels.values.some(t =>
-            t.activated && t.screens.some(s => s.name === barScreen)
+            t.maximized && t.screens.some(s => s.name === barScreen)
         );
     }
+    // No maximized window => fully transparent. Maximized window present =>
+    // configured opacity (backgroundOpacity, e.g. 50 => 50%).
     readonly property color barBackgroundColor:
         !Config.options.bar.showBackground ? "transparent" :
-        (Config.options.bar.transparentOnEmptyDesktop && !root.workspaceHasWindows) ? "transparent" :
-        root.barOpaqueColor
+        Config.options.bar.transparentOnEmptyDesktop
+            ? (root.workspaceHasMaximized ? root.barOpaqueColor : "transparent")
+            : root.barOpaqueColor
 
     // Background shadow
     Loader {
-        active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow && root.workspaceHasWindows
+        active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow && root.workspaceHasMaximized
         anchors.fill: barBackground
         sourceComponent: StyledRectangularShadow {
             anchors.fill: undefined // The loader's anchors act on this, and this should not have any anchor
