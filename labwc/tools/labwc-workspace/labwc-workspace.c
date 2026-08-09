@@ -86,7 +86,6 @@ ws_handle_name(void *data, struct ext_workspace_handle_v1 *h, const char *name)
 {
 	(void)h;
 	struct workspace *ws = data;
-	fprintf(stderr, "dbg: name event ws=%p name=%s\n", (void*)ws, name);
 	free(ws->name);
 	ws->name = strdup(name);
 }
@@ -104,7 +103,6 @@ ws_handle_state(void *data, struct ext_workspace_handle_v1 *h,
 {
 	(void)h;
 	struct workspace *ws = data;
-	fprintf(stderr, "dbg: state event ws=%p state=0x%x\n", (void*)ws, state);
 	ws->active = (state & EXT_WORKSPACE_HANDLE_V1_STATE_ACTIVE) != 0;
 	if (ws->active) {
 		free(active_workspace);
@@ -214,7 +212,6 @@ ws_mgr_workspace(void *data, struct ext_workspace_manager_v1 *m,
 		struct ext_workspace_handle_v1 *ws)
 {
 	(void)data; (void)m;
-	fprintf(stderr, "dbg: manager workspace event\n");
 	struct workspace *w = calloc(1, sizeof *w);
 	w->next = workspaces;
 	workspaces = w;
