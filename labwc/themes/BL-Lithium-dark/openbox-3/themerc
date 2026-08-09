@@ -1,0 +1,91 @@
+!! BL-Lithium-dark
+!! BL-Lithium geometry with Adwaita-Labwc-dark colors
+!!
+!! Cleaned for labwc 0.20.1: keys not parsed by this version are removed.
+!! Dropped (no 0.20.1 equivalent): button hover/pressed/disabled image colors,
+!! handle/grip theming, title separator, label bg, menu bullet image color,
+!! menu items disabled text color, osd hilight/unhilight bg, gradient container
+!! keys (menu.title.bg, menu.items.bg, osd.bg, osd.label.bg), colorTo on
+!! non-title keys, font shadow suffixes, window-icon size, client padding.
+
+!! Menu settings
+menu.border.width: 0
+
+menu.title.bg.color: #202020
+menu.title.text.color: #ffffff
+menu.title.text.justify: right
+
+menu.items.bg.color: #353535
+menu.items.text.color: #ffffff
+
+menu.items.active.bg.color: #5d5d5d
+menu.items.active.text.color: #ffffff
+
+menu.separator.color: #494949
+
+!! Focused window settings
+window.active.title.bg: flat solid
+window.active.title.bg.color: #303030
+window.active.title.bg.colorTo: #303030
+
+window.active.label.text.color: #ffffff
+
+window.active.button.unpressed.image.color: #e0e0e0
+
+!! Unfocused window settings
+window.inactive.title.bg: flat solid
+window.inactive.title.bg.color: #242424
+window.inactive.title.bg.colorTo: #242424
+
+window.inactive.label.text.color: #919191
+
+window.inactive.button.unpressed.image.color: #8e8e8e
+
+!! Global width settings
+border.width: 3
+window.titlebar.padding.width: 1
+menu.overlap.x: -6
+menu.overlap.y: -6
+
+!! Borders
+border.color: #000000
+window.active.border.color: #49b9c7
+window.inactive.border.color: #000000
+
+!! OSD
+osd.bg.color: #1e1e1e
+osd.border.color: #3a3a3a
+osd.border.width: 1
+osd.label.text.color: #ffffff
+
+!! Window switcher — macOS thumbnail style
+osd.window-switcher.width: 80%
+osd.window-switcher.padding: 8
+
+!! Classic style (fallback)
+osd.window-switcher.style-classic.width: 600
+osd.window-switcher.style-classic.padding: 4
+osd.window-switcher.style-classic.item.padding.x: 10
+osd.window-switcher.style-classic.item.padding.y: 2
+osd.window-switcher.style-classic.item.active.border.width: 2
+osd.window-switcher.style-classic.item.active.bg.color: #3a3a3a
+osd.window-switcher.style-classic.item.active.border.color: #6cb4ee
+osd.window-switcher.style-classic.item.icon.size: 24
+
+!! Thumbnail style — macOS expose feel
+osd.window-switcher.style-thumbnail.width.max: 85%
+osd.window-switcher.style-thumbnail.padding: 12
+osd.window-switcher.style-thumbnail.item.width: 280
+osd.window-switcher.style-thumbnail.item.height: 200
+osd.window-switcher.style-thumbnail.item.padding: 8
+osd.window-switcher.style-thumbnail.item.active.border.width: 3
+osd.window-switcher.style-thumbnail.item.active.border.color: #6cb4ee
+osd.window-switcher.style-thumbnail.item.active.bg.color: #2a2a2a
+osd.window-switcher.style-thumbnail.item.icon.size: 48
+
+!! Preview outlines
+osd.window-switcher.preview.border.width: 2
+osd.window-switcher.preview.border.color: #6cb4ee
+
+!! Typography
+window.label.text.justify: center

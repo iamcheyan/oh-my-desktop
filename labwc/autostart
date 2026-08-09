@@ -1,0 +1,62 @@
+#!/bin/sh
+# Sumika Shell — labwc autostart.
+# Executed by labwc as a shell script after configuration and the
+# environment file are loaded (see labwc-config(5)). Mirrors
+# hypr/autostart.lua:
+#   - start the Quickshell bar (sumika-restart)
+#   - re-assert Keep Awake mode
+#   - restore wallpaper (theme-settings extension)
+
+: "${SUMIKA_SHELL_ROOT:?SUMIKA_SHELL_ROOT is not set — launch via sumika-labwc-upstream-session}"
+: "${XDG_STATE_HOME:=$HOME/.local/state}"
+: "${XDG_DATA_HOME:=$HOME/.local/share}"
+
+# Official labwc 0.20.1 sets WAYLAND_DISPLAY in server_start() and imports it
+# into the session env, so this is normally already set. Probe anyway as a
+# safety net for bare `labwc -C` invocations that skip the session wrapper.
+_runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  for _socket in "$_runtime_dir"/wayland-*; do
+    [ -S "$_socket" ] || continue
+    export WAYLAND_DISPLAY="$(basename "$_socket")"
+    break
+  done
+fi
+unset _runtime_dir _socket
+
+# HiDPI: mirror hypr/monitors.lua's internal-panel rule. labwc leaves
+# outputs at scale 1.0 by default, so on the 3024x1964 retina panel
+# everything renders tiny. wlr-randr is the documented way to adjust
+# output scale (see labwc-config(5) <core><autoEnableOutputs> note).
+if command -v wlr-randr >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  for _output in $(wlr-randr --json 2>/dev/null | jq -r '.[] | select(.enabled) | .name' 2>/dev/null); do
+    case "$_output" in
+      eDP-*|LVDS-*|DSI-*)
+        # Retina-class internal panels (e.g. 3024x1964): 2.0x, same as
+        # Hyprland's <=3100px rule. Smaller panels (1080p/1200p) stay at
+        # 1.25x in Hyprland; wlr-randr accepts fractional scale too.
+        if command -v jq >/dev/null 2>&1; then
+          _w=$(wlr-randr --json 2>/dev/null | jq -r --arg o "$_output" '.[] | select(.name == $o) | .modes[0].width' 2>/dev/null)
+        else
+          _w=""
+        fi
+        _scale=1.25
+        [ -n "$_w" ] && [ "$_w" -gt 2000 ] 2>/dev/null && _scale=2.0
+        wlr-randr --output "$_output" --scale "$_scale" >/dev/null 2>&1 || true
+        ;;
+    esac
+  done
+  unset _output _w _scale
+fi
+
+# Quickshell bar (same systemd-run unit as the Hyprland session).
+"$SUMIKA_SHELL_ROOT/bin/sumika-restart" &
+
+# Keep Awake: re-assert persisted mode on session start.
+"$SUMIKA_SHELL_ROOT/bin/sumika-keep-awake" ensure &
+
+# Wallpaper restore from the theme-settings extension, if installed.
+wallpaper="$XDG_DATA_HOME/sumika-shell/extensions/theme-settings/bin/sumika-wallpaper"
+if [ -x "$wallpaper" ]; then
+  "$wallpaper" restore &
+fi

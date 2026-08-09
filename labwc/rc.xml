@@ -1,0 +1,476 @@
+<?xml version="1.0"?>
+<!--
+  Sumika Shell — labwc compositor configuration.
+
+  Labwc uses the Openbox 3.6 configuration specification (subset).
+  Reference: https://labwc.github.io/labwc-config.5.html
+  Actions reference: https://labwc.github.io/labwc-actions.5.html
+
+  This file is loaded via `labwc -C <repo>/labwc` by
+  /usr/local/bin/sumika-labwc-upstream-session (official labwc 0.20.1).
+  It mirrors the keybindings of the
+  Hyprland session (hypr/bindings.lua) using compositor-agnostic commands:
+  `sumika-action` routes through the Quickshell bar ActionManager over IPC,
+  `sumika-launch-profile` resolves application profiles from sumika.json.
+
+  Hot-reload with: labwc -r (or W-r keybind)
+-->
+<labwc_config>
+
+  <core>
+    <decoration>server</decoration>
+    <!-- gap only applies to MoveToEdge-style operations; see labwc-config(5) -->
+    <gap>0</gap>
+    <primarySelection>yes</primarySelection>
+    <autoEnableOutputs>yes</autoEnableOutputs>
+  </core>
+
+  <placement>
+    <policy>cascade</policy>
+  </placement>
+
+  <!-- Native window switcher (NextWindow/PreviousWindow) — OSD shows a
+       thumbnail grid of the cycled windows. labwc 0.20+ does advertise
+       ext-foreign-toplevel-image-capture-source, but Quickshell does not
+       consume it for toplevel capture (issue #160), so the native
+       compositor-side OSD is the working thumbnail path. Mouse-click on
+       an OSD item selects it; keyboard cycles while held. -->
+  <windowSwitcher preview="yes" outlines="yes">
+    <osd show="yes" style="thumbnail" output="all" thumbnailLabelFormat="%T" />
+  </windowSwitcher>
+
+  <focus>
+    <followMouse>yes</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <!-- 5 workspaces, matching the Hyprland session's workspace slots.
+       GoToDesktop/SendToDesktop accept the index or the full name. -->
+  <desktops number="5">
+    <names>
+      <name>1</name>
+      <name>2</name>
+      <name>3</name>
+      <name>4</name>
+      <name>5</name>
+    </names>
+    <popupTime>800</popupTime>
+  </desktops>
+
+  <theme>
+    <!-- BL-Lithium-dark (macOS-style thumbnail OSD) — see
+         labwc/themes/. Adwaita-Labwc-dark is installed as an alternative:
+         switch with <name>BL-Lithium-dark</name>. -->
+    <name>BL-Lithium-dark</name>
+    <cornerRadius>8</cornerRadius>
+    <dropShadows>no</dropShadows>
+    <font place="ActiveWindow" name="sans" size="10" />
+    <font place="InactiveWindow" name="sans" size="10" />
+    <font place="MenuItem" name="sans" size="10" />
+    <font place="OnScreenDisplay" name="sans" size="10" />
+  </theme>
+
+  <keyboard>
+    <!-- <default /> loads the built-in binds: A-Tab next window, A-F4 close,
+         W-Return terminal, W-arrow snap, W-a maximize, W-d show-desktop,
+         A-Space window menu. Explicit binds below override the defaults. -->
+    <default />
+    <numlock>on</numlock>
+    <repeatRate>25</repeatRate>
+    <repeatDelay>600</repeatDelay>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Applications (mirror hypr/bindings.lua)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-Return">
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
+    </keybind>
+    <keybind key="W-a">
+      <action name="Execute" command="sumika-action app-launcher.toggle" />
+    </keybind>
+    <keybind key="W-q">
+      <action name="Execute" command="sumika-launch-profile terminal" />
+    </keybind>
+    <keybind key="A-W-Return">
+      <action name="Execute" command="sumika-launch-profile terminal-tmux" />
+    </keybind>
+    <keybind key="W-S-Return">
+      <action name="Execute" command="sumika-launch-profile browser" />
+    </keybind>
+    <keybind key="W-S-b">
+      <action name="Execute" command="sumika-launch-profile browser" />
+    </keybind>
+    <keybind key="W-S-A-b">
+      <action name="Execute" command="sumika-launch-profile browser --private" />
+    </keybind>
+    <keybind key="W-S-n">
+      <action name="Execute" command="sumika-launch-profile editor" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Sumika Shell UI (via ActionManager IPC)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-C-Space">
+      <action name="Execute" command="sumika-action bar.toggle" />
+    </keybind>
+    <keybind key="W-C-b">
+      <action name="Execute" command="sumika-action bluetooth.launch" />
+    </keybind>
+    <keybind key="W-C-w">
+      <action name="Execute" command="sumika-action wifi.launch" />
+    </keybind>
+    <keybind key="W-C-a">
+      <action name="Execute" command="sumika-launch-profile audio" />
+    </keybind>
+    <keybind key="W-Space">
+      <action name="Execute" command="sumika-action input-method.cycle" />
+    </keybind>
+    <keybind key="W-S-Space">
+      <action name="Execute" command="sumika-action input-method.cycle -- -1" />
+    </keybind>
+         Window management
+         ═══════════════════════════════════════════════════════════════ -->
+    <!-- W-Arrow snap already provided by <default /> as SnapToEdge -->
+    <keybind key="W-w">
+      <action name="Close" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="ToggleFullscreen" />
+    </keybind>
+    <keybind key="W-A-f">
+      <action name="ToggleMaximize" />
+    </keybind>
+    <!-- Move-to-edge (without snap-resize) — stacking equivalent of Hyprland swap -->
+    <keybind key="W-S-Left">
+      <action name="MoveToEdge" direction="left" />
+    </keybind>
+    <keybind key="W-S-Right">
+      <action name="MoveToEdge" direction="right" />
+    </keybind>
+    <keybind key="W-S-Up">
+      <action name="MoveToEdge" direction="up" />
+    </keybind>
+    <keybind key="W-S-Down">
+      <action name="MoveToEdge" direction="down" />
+    </keybind>
+    <!-- Visual toggles (compositor-agnostic via ActionManager) -->
+    <keybind key="W-BackSpace">
+      <action name="Execute" command="sumika-action window.transparency-toggle" />
+    </keybind>
+    <keybind key="W-S-BackSpace">
+      <action name="Execute" command="sumika-action window.gaps-toggle" />
+    </keybind>
+    <keybind key="W-C-BackSpace">
+      <action name="Execute" command="sumika-action window.single-square-aspect-toggle" />
+    </keybind>
+    <!-- ═══════════════════════════════════════════════════════════════
+         Window switching (W-Tab/W-S-Tab cycle the CURRENT workspace's
+         windows, mirroring Alt-Tab; thumbnail OSD configured above).
+         Overview module (LabwcOverview + thumbnaild) lives on the
+         labwc-adaptation branch; this mainline build uses labwc's
+         native compositor-side switcher.
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-Tab">
+      <action name="NextWindow" workspace="current" />
+    </keybind>
+    <keybind key="W-S-Tab">
+      <action name="PreviousWindow" workspace="current" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Workspaces (5 desktops matching Hyprland session)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-1"><action name="GoToDesktop" to="1" /></keybind>
+    <keybind key="W-2"><action name="GoToDesktop" to="2" /></keybind>
+    <keybind key="W-3"><action name="GoToDesktop" to="3" /></keybind>
+    <keybind key="W-4"><action name="GoToDesktop" to="4" /></keybind>
+    <keybind key="W-5"><action name="GoToDesktop" to="5" /></keybind>
+    <!-- Move window + follow -->
+    <keybind key="W-S-1"><action name="SendToDesktop" to="1" follow="yes" /></keybind>
+    <keybind key="W-S-2"><action name="SendToDesktop" to="2" follow="yes" /></keybind>
+    <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="yes" /></keybind>
+    <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="yes" /></keybind>
+    <keybind key="W-S-5"><action name="SendToDesktop" to="5" follow="yes" /></keybind>
+    <keybind key="W-C-Tab">
+      <action name="GoToDesktop" to="last" />
+    </keybind>
+    <!-- Move window silently (stay on current desktop) -->
+    <keybind key="W-S-A-1"><action name="SendToDesktop" to="1" follow="no" /></keybind>
+    <keybind key="W-S-A-2"><action name="SendToDesktop" to="2" follow="no" /></keybind>
+    <keybind key="W-S-A-3"><action name="SendToDesktop" to="3" follow="no" /></keybind>
+    <keybind key="W-S-A-4"><action name="SendToDesktop" to="4" follow="no" /></keybind>
+    <keybind key="W-S-A-5"><action name="SendToDesktop" to="5" follow="no" /></keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         System
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-C-l">
+      <action name="Execute" command="sumika-action session.lock" />
+    </keybind>
+    <keybind key="W-C-t">
+      <action name="Execute" command="sumika-launch-tui btop" />
+    </keybind>
+    <keybind key="W-C-Delete">
+      <action name="Execute" command="sumika-action display.internal-toggle" />
+    </keybind>
+    <keybind key="W-C-A-Delete">
+      <action name="Execute" command="sumika-action display.internal-mirror-toggle" />
+    </keybind>
+    <keybind key="C-A-Delete">
+      <action name="Execute" command="sumika-action window.close-all" />
+    </keybind>
+    <!-- Focus next/previous monitor (mirror hypr CTRL+ALT+TAB /
+         CTRL+ALT+SHIFT+TAB → focus monitor +1/-1) -->
+    <keybind key="C-A-Tab">
+      <action name="FocusOutput" direction="right" wrap="yes" />
+    </keybind>
+    <keybind key="C-A-S-Tab">
+      <action name="FocusOutput" direction="left" wrap="yes" />
+    </keybind>
+    <!-- Magnifier zoom in/reset (mirror hypr SUPER+CTRL+Z cursor zoom in,
+         SUPER+CTRL+ALT+Z reset — labwc magnifier is the closest equivalent) -->
+    <keybind key="W-C-z">
+      <action name="ZoomIn" />
+    </keybind>
+    <keybind key="W-C-A-z">
+      <action name="ZoomOut" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Notifications
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-comma">
+      <action name="Execute" command="sumika-action notifications.dismiss-last" />
+    </keybind>
+    <keybind key="W-S-comma">
+      <action name="Execute" command="sumika-action notifications.dismiss-all" />
+    </keybind>
+    <keybind key="W-C-comma">
+      <action name="Execute" command="sumika-action notifications.toggle-silent" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Screenshots & screen capture
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="Print">
+      <action name="Execute" command="sumika-action screenshot.capture" />
+    </keybind>
+    <keybind key="A-s">
+      <action name="Execute" command="sumika-action screenshot.capture" />
+    </keybind>
+    <keybind key="A-S-s">
+      <action name="Execute" command="sumika-action screenshot.capture-edit" />
+    </keybind>
+    <keybind key="W-Print">
+      <action name="Execute" command="sumika-action display.color-picker" />
+    </keybind>
+    <keybind key="W-C-Print">
+      <action name="Execute" command="sumika-action screenshot.capture-ocr" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Clipboard (Alt+V — mirror Hyprland bindings)
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="A-v">
+      <action name="Execute" command="sumika-action clipboard.toggle" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Voice input (Sasayaki extension)
+         ═══════════════════════════════════════════════════════════════
+         Mirrors hypr/bindings.lua's read_sasayaki_bindings() — the keys
+         below are the current output of `sasayaki bindings` (voice: 4 keys,
+         translation: 1 key). Hyprland reads them dynamically from
+         ~/.config/sasayaki/config.json; labwc rc.xml cannot, so this block
+         must be updated manually if voice_bindings change. -->
+    <!-- Voice input toggle (voice_bindings) -->
+    <keybind key="A-a">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="Hangul_Hanja">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="XF86Fn">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <keybind key="XF86Tools">
+      <action name="Execute" command="sumika-action sasayaki.toggle" />
+    </keybind>
+    <!-- Translation voice input (translation_binding) -->
+    <keybind key="Hangul">
+      <action name="Execute" command="sumika-action sasayaki.translate-toggle" />
+    </keybind>
+    <!-- Repair Sasayaki (hardcoded in hypr/bindings.lua) -->
+    <keybind key="A-S-a">
+      <action name="Execute" command="sumika-action sasayaki.repair" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Media keys (mirror hypr/default/hypr/bindings/media.lua)
+         ═══════════════════════════════════════════════════════════════ -->
+    <!-- Volume -->
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute" command="sumika-action audio.volume-up" />
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute" command="sumika-action audio.volume-down" />
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute" command="sumika-action audio.volume-mute-toggle" />
+    </keybind>
+    <keybind key="XF86AudioMicMute">
+      <action name="Execute" command="sumika-action audio.input-mute-toggle" />
+    </keybind>
+    <keybind key="W-XF86AudioMute">
+      <action name="Execute" command="sumika-action audio.output-switch" />
+    </keybind>
+    <!-- Precise volume (ALT + media keys) -->
+    <keybind key="A-XF86AudioRaiseVolume">
+      <action name="Execute" command="sumika-action audio.volume-up-precise" />
+    </keybind>
+    <keybind key="A-XF86AudioLowerVolume">
+      <action name="Execute" command="sumika-action audio.volume-down-precise" />
+    </keybind>
+    <!-- Brightness -->
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-up" />
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-down" />
+    </keybind>
+    <keybind key="S-XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-max" />
+    </keybind>
+    <keybind key="S-XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-min" />
+    </keybind>
+    <keybind key="A-XF86MonBrightnessUp">
+      <action name="Execute" command="sumika-action display.brightness-up-precise" />
+    </keybind>
+    <keybind key="A-XF86MonBrightnessDown">
+      <action name="Execute" command="sumika-action display.brightness-down-precise" />
+    </keybind>
+    <!-- Keyboard backlight -->
+    <keybind key="XF86KbdBrightnessUp">
+      <action name="Execute" command="sumika-action display.kbd-brightness-up" />
+    </keybind>
+    <keybind key="XF86KbdBrightnessDown">
+      <action name="Execute" command="sumika-action display.kbd-brightness-down" />
+    </keybind>
+    <keybind key="XF86KbdLightOnOff">
+      <action name="Execute" command="sumika-action display.kbd-brightness-cycle" />
+    </keybind>
+    <!-- Touchpad -->
+    <keybind key="XF86TouchpadToggle">
+      <action name="Execute" command="sumika-action input.touchpad-toggle" />
+    </keybind>
+    <keybind key="XF86TouchpadOn">
+      <action name="Execute" command="sumika-action input.touchpad-enable" />
+    </keybind>
+    <keybind key="XF86TouchpadOff">
+      <action name="Execute" command="sumika-action input.touchpad-disable" />
+    </keybind>
+    <!-- MPRIS media controls -->
+    <keybind key="XF86AudioNext">
+      <action name="Execute" command="sumika-action mpris.next" />
+    </keybind>
+    <keybind key="XF86AudioPause">
+      <action name="Execute" command="sumika-action mpris.play-pause" />
+    </keybind>
+    <keybind key="XF86AudioPlay">
+      <action name="Execute" command="sumika-action mpris.play-pause" />
+    </keybind>
+    <keybind key="XF86AudioPrev">
+      <action name="Execute" command="sumika-action mpris.previous" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Reload this configuration
+         ═══════════════════════════════════════════════════════════════ -->
+    <keybind key="W-r">
+      <action name="Execute" command="labwc --reconfigure" />
+    </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Hyprland-only bindings NOT mirrored (no labwc equivalent)
+
+         Tiling & grouping (hypr/default/hypr/bindings/tiling-v2.lua):
+           SUPER+J togglesplit · SUPER+P pseudo · SUPER+T float ·
+           SUPER+O pop-out · SUPER+L layout toggle · SUPER+arrows focus
+           direction · SUPER+SHIFT+arrows swap (→ W-S-arrows MoveToEdge
+           above) · SUPER+G group toggle · SUPER+ALT+arrows into-group ·
+           SUPER+CTRL+arrows group focus · SUPER+ALT+TAB group next ·
+           SUPER+ALT+code:N group window · SUPER+CTRL+F tiled fullscreen ·
+           SUPER+code:20/21 + variants (xkb MINUS/EQUAL window resize)
+         Scratchpad: SUPER+S toggle · SUPER+ALT+S move-to
+           (Hyprland special workspace; none in a stacking compositor)
+         Universal clipboard (hypr/default/hypr/bindings/clipboard.lua):
+           SUPER+C/V/X — send_shortcut workaround for Hyprland issue #14099
+           (sends Ctrl+Insert / Shift+Insert to the focused window); labwc
+           has no key-injection API, so it cannot be mirrored.
+         Transparent/non-consuming binds (hypr/bindings.lua):
+           ESCAPE → menus.close · bare A-Z mnemonics → menus.mnemonic ·
+           SUPER+key → quickshell:superInterrupt · SUPER_L/R → workspaceNumber
+           — all use Hyprland's transparent+non_consuming keybinding, which
+           labwc does not support (a labwc keybind always consumes the key).
+           Super-alone → overview toggle lives on the labwc-adaptation
+           branch (rc.xml Super_L/R onRelease binds + LabwcOverview module);
+           mainline has no overview, so no Super-alone bind is registered.
+         Lid switch (hypr utilities.lua): switch:on/off:Lid Switch →
+           display.lid-close/open — labwc has no switch event binding.
+         Monitor scaling cycle (SUPER+code:61, xkb SLASH): routed through
+           sumika-hyprland-monitor-scaling-cycle, a Hyprland-only tool;
+           labwc scaling is managed with wlr-randr (see labwc/autostart).
+         voxtype dictation (hypr/default/hypr/toggles/voxtype.lua):
+           F9 / SUPER+CTRL+X — that file is a template under
+           default/hypr/toggles/, which is only loaded from
+           ~/.local/state/sumika-shell/toggles/hypr (currently empty);
+           the bindings are inactive in the Hyprland session too.
+    -->
+  </keyboard>
+
+  <mouse>
+    <default />
+    <doubleClickTime>500</doubleClickTime>
+
+    <!-- Mirror hypr/bindings.lua: move/resize modifier changed from SUPER to
+         ALT (hl.unbind SUPER+mouse:272/273, o.bind ALT+mouse:272/273).
+         Un-bind the default W-drag move/resize, then bind ALT-drag. -->
+    <context name="Frame">
+      <mousebind button="W-Left" action="Drag" />
+      <mousebind button="W-Right" action="Drag" />
+      <mousebind button="A-Left" action="Drag">
+        <action name="Move" />
+      </mousebind>
+      <mousebind button="A-Right" action="Drag">
+        <action name="Resize" />
+      </mousebind>
+    </context>
+
+    <!-- SUPER+wheel cycles workspaces (mirror hypr SUPER+mouse_up/down →
+         e+1/e-1). Scroll with W modifier; plain wheel scroll is untouched. -->
+    <context name="Frame">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="right" wrap="yes" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="left" wrap="yes" />
+      </mousebind>
+    </context>
+    <context name="Root">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="right" wrap="yes" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="left" wrap="yes" />
+      </mousebind>
+    </context>
+  </mouse>
+
+  <!-- Hyprland-specific window behaviour (tiling, opacity, gaps) has no
+       labwc equivalent; labwc is a stacking compositor. Add windowRule
+       entries here as needed (see labwc-config(5) WINDOW RULES). -->
+  <windowRules>
+  </windowRules>
+
+</labwc_config>

@@ -1,0 +1,32 @@
+# Sumika Shell — labwc environment.
+# Parsed by labwc directly (NOT sourced as a shell script), see labwc-config(5).
+# Format: VARIABLE=value, one per line. $VAR/${VAR} substitution and ~
+# expansion are supported; no trailing comments; no recursive assignments.
+#
+# Mirrors the variables set by the Hyprland session:
+#   hypr/default/hypr/envs.lua, hypr/input.lua
+
+XKB_DEFAULT_LAYOUT=us
+XCURSOR_SIZE=24
+XDG_SESSION_TYPE=wayland
+
+# Force all apps to use Wayland.
+GDK_BACKEND=wayland,x11,*
+QT_QPA_PLATFORM=wayland;xcb
+QT_QPA_PLATFORMTHEME=qt6ct
+QT_STYLE_OVERRIDE=kvantum
+MOZ_ENABLE_WAYLAND=1
+ELECTRON_OZONE_PLATFORM_HINT=wayland
+OZONE_PLATFORM=wayland
+
+# Use XCompose file.
+XCOMPOSEFILE=$HOME/.XCompose
+
+# Session script sets SUMIKA_SHELL_ROOT before exec'ing labwc; the repo's
+# bin/ is what makes sumika-action / sumika-launch-profile resolvable.
+PATH=$HOME/.local/bin:$SUMIKA_SHELL_ROOT/bin:/usr/local/bin:/usr/bin:/bin
+
+# Expose repo-managed labwc themes (labwc/themes/<name>/openbox-3/themerc)
+# via the standard XDG data dirs lookup. systemd always sets XDG_DATA_DIRS
+# here, so the expansion keeps the default dirs (flatpak, /usr) intact.
+XDG_DATA_DIRS=${SUMIKA_SHELL_ROOT}/labwc:${XDG_DATA_DIRS}
