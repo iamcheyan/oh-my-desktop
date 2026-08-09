@@ -49,6 +49,18 @@ if command -v wlr-randr >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}" ]; then
   unset _output _w _scale
 fi
 
+# Overview thumbnail daemon (labwc-only). Requires
+# ext_foreign_toplevel_list_v1, which Hyprland does not advertise — the
+# daemon detects that and exits immediately, so this is a no-op there.
+# Launched before the bar so thumbnails are ready when overview opens.
+_thumbnaild="${SUMIKA_SHELL_ROOT}/quickshell/modules/overview/thumbnaild/sumika-overview-thumbnaild"
+if [ -x "$_thumbnaild" ]; then
+  export SUMIKA_SHELL_RUNTIME_DIR="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
+  export SUMIKA_SHELL_STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+  "$_thumbnaild" &
+fi
+unset _thumbnaild
+
 # Quickshell bar (same systemd-run unit as the Hyprland session).
 "$SUMIKA_SHELL_ROOT/bin/sumika-restart" &
 

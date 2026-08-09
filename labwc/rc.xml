@@ -30,11 +30,11 @@
   </placement>
 
   <!-- Native window switcher (NextWindow/PreviousWindow) — OSD shows a
-       thumbnail grid of the current workspace's windows. labwc 0.20+ does
-       advertise ext-foreign-toplevel-image-capture-source, but Quickshell
-       does not consume it for toplevel capture (issue #160), so the native
-       compositor-side OSD is the working thumbnail path. Mouse-click on an
-       OSD item selects it; keyboard cycles while held. -->
+       thumbnail grid of the cycled windows. labwc 0.20+ does advertise
+       ext-foreign-toplevel-image-capture-source, but Quickshell does not
+       consume it for toplevel capture (issue #160), so the native
+       compositor-side OSD is the working thumbnail path. Mouse-click on
+       an OSD item selects it; keyboard cycles while held. -->
   <windowSwitcher preview="yes" outlines="yes">
     <osd show="yes" style="thumbnail" output="all" thumbnailLabelFormat="%T" />
   </windowSwitcher>
@@ -58,6 +58,10 @@
   </desktops>
 
   <theme>
+    <!-- BL-Lithium-dark (macOS-style thumbnail OSD) — see
+         labwc/themes/. Adwaita-Labwc-dark is installed as an alternative:
+         switch with <name>BL-Lithium-dark</name>. -->
+    <name>BL-Lithium-dark</name>
     <cornerRadius>8</cornerRadius>
     <dropShadows>no</dropShadows>
     <font place="ActiveWindow" name="sans" size="10" />
@@ -126,13 +130,22 @@
     </keybind>
     <!-- ═══════════════════════════════════════════════════════════════
          Super alone → toggle overview (mirrors Hyprland Super-alone)
-         Labwc fires modifier-only binds on press+release when no chord
-         was formed, matching Hyprland's Super-release detection. -->
-    <keybind key="Super_L">
-      <action name="Execute" command="sumika-action overview.toggle" />
+         Modifier-only binds MUST use onRelease="yes": labwc executes a
+         keybind on key press unless onRelease is set (src/input/keyboard.c).
+         Without it, every W-* chord (W-Tab, W-1, W-q, ...) would first
+         fire this overview.toggle when Super goes down. With onRelease,
+         the action runs only when Super is released without forming a
+         chord — combos keep their own binding and do not trigger this.
+         See labwc-config(5) "onRelease" and Hyprland Super-release logic.
+
+         性能：直接 `qs ipc -p <bar> call action call`，省掉 sumika-action
+         脚本中间层（sh + pgrep ~34ms）。toggle 经 bar 的 ActionManager
+         路由（与 sumika-action 同路径，仅省去脚本开销）。-->
+    <keybind key="Super_L" onRelease="yes">
+      <action name="Execute" command="qs ipc -p ~/development/OMD/apps/sumika-bar call action call overview.toggle &quot;&quot;" />
     </keybind>
-    <keybind key="Super_R">
-      <action name="Execute" command="sumika-action overview.toggle" />
+    <keybind key="Super_R" onRelease="yes">
+      <action name="Execute" command="qs ipc -p ~/development/OMD/apps/sumika-bar call action call overview.toggle &quot;&quot;" />
     </keybind>
     <!-- ═══════════════════════════════════════════════════════════════
          Window management
@@ -171,14 +184,25 @@
       <action name="Execute" command="sumika-action window.single-square-aspect-toggle" />
     </keybind>
     <!-- ═══════════════════════════════════════════════════════════════
-         Window switching (W-Tab/W-S-Tab cycle the CURRENT workspace's
-         windows, mirroring Alt-Tab; thumbnail OSD configured above)
+         W-Tab / W-S-Tab: 窗口切换交给 Sumika overview 缩略图循环
+         （Hyprland mod+TAB 语义：按住 step/prev 循环、释放自动提交）。
+         labwc keybind 无法在组合键后触发修饰键 release，故提交由
+         overview 的 800ms 空闲超时完成（QML commitTimer）。
+         Alt-Tab 窗口循环由 <default /> 提供。
+
+         性能：直接绑 `qs ipc -p <config> call`，省掉 sumika-overview
+         脚本中间层（sh 启动 + pgrep 扫 /proc ~34ms）。labwc Execute
+         经 g_shell_parse_argv → execvp，不经 /bin/sh -c，所以 command
+         是直接 exec qs 二进制（~40ms，vs 脚本 ~70ms）。overview 实例
+         由 autostart + systemd Restart=on-failure 常驻，qs ipc -p 按
+         config 路径寻址运行实例；实例不在时静默失败（用户再按一次即
+         可，systemd 已重启）。
          ═══════════════════════════════════════════════════════════════ -->
     <keybind key="W-Tab">
-      <action name="NextWindow" workspace="current" />
+      <action name="Execute" command="qs ipc -p ~/development/OMD/quickshell/modules/overview call overview step" />
     </keybind>
     <keybind key="W-S-Tab">
-      <action name="PreviousWindow" workspace="current" />
+      <action name="Execute" command="qs ipc -p ~/development/OMD/quickshell/modules/overview call overview prev" />
     </keybind>
     <!-- ═══════════════════════════════════════════════════════════════
          Workspaces (5 desktops matching Hyprland session)
@@ -194,6 +218,9 @@
     <keybind key="W-S-3"><action name="SendToDesktop" to="3" follow="yes" /></keybind>
     <keybind key="W-S-4"><action name="SendToDesktop" to="4" follow="yes" /></keybind>
     <keybind key="W-S-5"><action name="SendToDesktop" to="5" follow="yes" /></keybind>
+    <keybind key="W-C-Tab">
+      <action name="GoToDesktop" to="last" />
+    </keybind>
     <!-- Move window silently (stay on current desktop) -->
     <keybind key="W-S-A-1"><action name="SendToDesktop" to="1" follow="no" /></keybind>
     <keybind key="W-S-A-2"><action name="SendToDesktop" to="2" follow="no" /></keybind>
@@ -218,6 +245,22 @@
     </keybind>
     <keybind key="C-A-Delete">
       <action name="Execute" command="sumika-action window.close-all" />
+    </keybind>
+    <!-- Focus next/previous monitor (mirror hypr CTRL+ALT+TAB /
+         CTRL+ALT+SHIFT+TAB → focus monitor +1/-1) -->
+    <keybind key="C-A-Tab">
+      <action name="FocusOutput" direction="right" wrap="yes" />
+    </keybind>
+    <keybind key="C-A-S-Tab">
+      <action name="FocusOutput" direction="left" wrap="yes" />
+    </keybind>
+    <!-- Magnifier zoom in/reset (mirror hypr SUPER+CTRL+Z cursor zoom in,
+         SUPER+CTRL+ALT+Z reset — labwc magnifier is the closest equivalent) -->
+    <keybind key="W-C-z">
+      <action name="ZoomIn" />
+    </keybind>
+    <keybind key="W-C-A-z">
+      <action name="ZoomOut" />
     </keybind>
 
     <!-- ═══════════════════════════════════════════════════════════════
@@ -374,11 +417,80 @@
     <keybind key="W-r">
       <action name="Execute" command="labwc --reconfigure" />
     </keybind>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Hyprland-only bindings NOT mirrored (no labwc equivalent)
+
+         Tiling & grouping (hypr/default/hypr/bindings/tiling-v2.lua):
+           SUPER+J togglesplit · SUPER+P pseudo · SUPER+T float ·
+           SUPER+O pop-out · SUPER+L layout toggle · SUPER+arrows focus
+           direction · SUPER+SHIFT+arrows swap (→ W-S-arrows MoveToEdge
+           above) · SUPER+G group toggle · SUPER+ALT+arrows into-group ·
+           SUPER+CTRL+arrows group focus · SUPER+ALT+TAB group next ·
+           SUPER+ALT+code:N group window · SUPER+CTRL+F tiled fullscreen ·
+           SUPER+code:20/21 + variants (xkb MINUS/EQUAL window resize)
+         Scratchpad: SUPER+S toggle · SUPER+ALT+S move-to
+           (Hyprland special workspace; none in a stacking compositor)
+         Universal clipboard (hypr/default/hypr/bindings/clipboard.lua):
+           SUPER+C/V/X — send_shortcut workaround for Hyprland issue #14099
+           (sends Ctrl+Insert / Shift+Insert to the focused window); labwc
+           has no key-injection API, so it cannot be mirrored.
+         Transparent/non-consuming binds (hypr/bindings.lua):
+           ESCAPE → menus.close · bare A-Z mnemonics → menus.mnemonic ·
+           SUPER+key → quickshell:superInterrupt · SUPER_L/R → workspaceNumber
+           — all use Hyprland's transparent+non_consuming keybinding, which
+           labwc does not support (a labwc keybind always consumes the key).
+           Super-alone → overview is instead handled by the Super_L/Super_R
+           modifier-only binds above (onRelease="yes", see their comment).
+         Lid switch (hypr utilities.lua): switch:on/off:Lid Switch →
+           display.lid-close/open — labwc has no switch event binding.
+         Monitor scaling cycle (SUPER+code:61, xkb SLASH): routed through
+           sumika-hyprland-monitor-scaling-cycle, a Hyprland-only tool;
+           labwc scaling is managed with wlr-randr (see labwc/autostart).
+         voxtype dictation (hypr/default/hypr/toggles/voxtype.lua):
+           F9 / SUPER+CTRL+X — that file is a template under
+           default/hypr/toggles/, which is only loaded from
+           ~/.local/state/sumika-shell/toggles/hypr (currently empty);
+           the bindings are inactive in the Hyprland session too.
+    -->
   </keyboard>
 
   <mouse>
     <default />
     <doubleClickTime>500</doubleClickTime>
+
+    <!-- Mirror hypr/bindings.lua: move/resize modifier changed from SUPER to
+         ALT (hl.unbind SUPER+mouse:272/273, o.bind ALT+mouse:272/273).
+         Un-bind the default W-drag move/resize, then bind ALT-drag. -->
+    <context name="Frame">
+      <mousebind button="W-Left" action="Drag" />
+      <mousebind button="W-Right" action="Drag" />
+      <mousebind button="A-Left" action="Drag">
+        <action name="Move" />
+      </mousebind>
+      <mousebind button="A-Right" action="Drag">
+        <action name="Resize" />
+      </mousebind>
+    </context>
+
+    <!-- SUPER+wheel cycles workspaces (mirror hypr SUPER+mouse_up/down →
+         e+1/e-1). Scroll with W modifier; plain wheel scroll is untouched. -->
+    <context name="Frame">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="right" wrap="yes" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="left" wrap="yes" />
+      </mousebind>
+    </context>
+    <context name="Root">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="right" wrap="yes" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="left" wrap="yes" />
+      </mousebind>
+    </context>
   </mouse>
 
   <!-- Hyprland-specific window behaviour (tiling, opacity, gaps) has no

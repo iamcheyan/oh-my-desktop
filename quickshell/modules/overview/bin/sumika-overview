@@ -21,19 +21,34 @@ fi
 repo_root=$(cd "$(dirname "$0")/../../../.." && pwd -P)
 . "$repo_root/lib/paths.sh"
 qs_launcher="$SUMIKA_SHELL_ROOT/quickshell/scripts/quickshell"
-
-is_running() {
-    pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
+# Resolve the overview PID once. pgrep scans /proc (~17ms); doing it twice
+# (is_running + overview_pid) doubled the per-keystroke latency. Cache the
+# result so the hot path (W-Tab repeat at 25Hz) pays it once per invocation.
+overview_pid_cached=""
+resolve_pid() {
+    # Already resolved this invocation
+    [ -n "$overview_pid_cached" ] && return 0
+    overview_pid_cached=$(pgrep -f "(quickshell|qs).* -p ${app_dir}( |$)" | head -1) || true
+    [ -n "$overview_pid_cached" ]
 }
 
+is_running() {
+    resolve_pid
+}
+
+# `qs -p <dir> ipc call` resolves instances by config path and fails against
+# processes launched with an explicit `-p` (labwc/autostart path);
+# `qs ipc --pid` is the reliable addressing mode (verified 2026-08-09).
 ipc_call() {
-    "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call overview "$1" 2>/dev/null || true
+    resolve_pid || return 0
+    "${SUMIKA_QS_BIN:-qs}" ipc --pid "$overview_pid_cached" call overview "$1" 2>/dev/null || true
 }
 
 # IPC call whose exit code reflects whether the overview handler responded
 # (ipc_call suppresses it with `|| true`). Used to poll process readiness.
 ipc_probe() {
-    "${SUMIKA_QS_BIN:-qs}" -p "$app_dir" ipc call overview "$1" >/dev/null 2>&1
+    resolve_pid || return 1
+    "${SUMIKA_QS_BIN:-qs}" ipc --pid "$overview_pid_cached" call overview "$1" >/dev/null 2>&1
 }
 
 launch_direct() {
@@ -81,6 +96,22 @@ case "${1:-toggle}" in
             ipc_call open
         else
             launch_and_ipc open
+        fi
+        ;;
+    step)
+        # W-Tab hold-to-cycle: cold-start hidden, then deliver step (the
+        # first step opens the overview and moves the highlight).
+        if is_running; then
+            ipc_call step
+        else
+            launch_and_ipc step
+        fi
+        ;;
+    prev)
+        if is_running; then
+            ipc_call prev
+        else
+            launch_and_ipc prev
         fi
         ;;
     close)

@@ -1226,6 +1226,21 @@ DesktopNames=labwc
 Keywords=stacking;wayland;compositor;
 EOF
     ok "  /usr/share/wayland-sessions/sumika-labwc-upstream.desktop"
+
+    # Build the overview thumbnail daemon (labwc-only; repo tracks source,
+    # not the compiled binary — labwc/autostart requires it at session start).
+    _thumbdir="${REPO}/quickshell/modules/overview/thumbnaild"
+    if command -v make >/dev/null 2>&1 && command -v cc >/dev/null 2>&1 \
+            && [[ -f "$_thumbdir/Makefile" ]]; then
+        info "Building overview thumbnail daemon..."
+        if ( cd "$_thumbdir" && make >/dev/null 2>&1 ); then
+            ok "  sumika-overview-thumbnaild built"
+        else
+            warn "thumbnaild build failed — labwc overview thumbnails disabled"
+        fi
+    else
+        warn "make/cc not found — labwc overview thumbnails disabled"
+    fi
 }
 
 install_nixos_session_files() {

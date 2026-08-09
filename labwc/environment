@@ -25,3 +25,8 @@ XCOMPOSEFILE=$HOME/.XCompose
 # Session script sets SUMIKA_SHELL_ROOT before exec'ing labwc; the repo's
 # bin/ is what makes sumika-action / sumika-launch-profile resolvable.
 PATH=$HOME/.local/bin:$SUMIKA_SHELL_ROOT/bin:/usr/local/bin:/usr/bin:/bin
+
+# Expose repo-managed labwc themes (labwc/themes/<name>/openbox-3/themerc)
+# via the standard XDG data dirs lookup. systemd always sets XDG_DATA_DIRS
+# here, so the expansion keeps the default dirs (flatpak, /usr) intact.
+XDG_DATA_DIRS=${SUMIKA_SHELL_ROOT}/labwc:${XDG_DATA_DIRS}

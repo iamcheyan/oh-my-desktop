@@ -1,5 +1,7 @@
 module qs.modules.overview
 Overview 1.0 Overview.qml
+LabwcOverview 1.0 LabwcOverview.qml
+singleton LabwcOverviewBridge 1.0 LabwcOverviewBridge.qml
 OverviewWindow 1.0 OverviewWindow.qml
 OverviewWidget 1.0 OverviewWidget.qml
 OverviewSearch 1.0 OverviewSearch.qml

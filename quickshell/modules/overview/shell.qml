@@ -53,8 +53,36 @@ ShellRoot {
         }
     }
 
+    // 条件加载 overview 根组件：
+    //   - labwc 会话（XDG_CURRENT_DESKTOP=labwc）→ LabwcOverview，自
+    //     thumbnaild 取窗口缩略图（Hyprland 版 Overview 深度绑定
+    //     Quickshell.Hyprland，labwc 下无数据源，不可实例化）。
+    //   - 其余（Hyprland 等）→ 现有 Overview。
+    // SystemInfo.desktopEnvironment 由 bash 异步填充，就绪前挂空组件；
+    // keepAliveWindow 已存在，进程不会因空 loader 退出。
+    //
     // Keep the overview process alive even while Config is still loading.
     // If this is wrapped in a loader gated by Config.ready, Quickshell can exit
     // during login/reload before any PanelWindow is created.
-    Overview {}
+    Loader {
+        id: overviewLoader
+        active: true
+        sourceComponent: {
+            const de = (SystemInfo.desktopEnvironment || "").toLowerCase();
+            if (de === "labwc")
+                return labwcOverviewComponent;
+            if (de.length === 0)
+                return null; // SystemInfo 未就绪
+            return hyprOverviewComponent;
+        }
+    }
+
+    Component {
+        id: labwcOverviewComponent
+        LabwcOverview {}
+    }
+    Component {
+        id: hyprOverviewComponent
+        Overview {}
+    }
 }

@@ -30,23 +30,31 @@ if [ $# -lt 1 ]; then
     exit 2
 fi
 
-_qs_base=("${SUMIKA_QS_BIN:-qs}" -p "$_sumika_root/apps/sumika-bar")
+# Resolve the bar quickshell PID. `qs -p <dir> ipc call` fails to match
+# running instances launched with an explicit `-p` (reports "No running
+# instances"); `qs ipc --pid` is the reliable addressing mode.
+bar_pid() {
+    pgrep -f "(quickshell|qs).* -p ${_sumika_root}/apps/sumika-bar( |$)" | head -1
+}
+
+_qs_base=("${SUMIKA_QS_BIN:-qs}")
+_ipc_addr=(ipc --pid "$(bar_pid || true)")
 
 case "$1" in
     list)
         # List all registered actions via IPC list() handler
-        "${_qs_base[@]}" ipc call action list
+        "${_qs_base[@]}" "${_ipc_addr[@]}" call action list
         ;;
     query)
         if [ $# -lt 2 ]; then
             echo "Usage: $0 query <action-id>" >&2
             exit 2
         fi
-        "${_qs_base[@]}" ipc call action query "$2"
+        "${_qs_base[@]}" "${_ipc_addr[@]}" call action query "$2"
         ;;
     status)
         # Print a human-readable status summary
-        actions=$("${_qs_base[@]}" ipc call action list 2>/dev/null || echo "[]")
+        actions=$("${_qs_base[@]}" "${_ipc_addr[@]}" call action list 2>/dev/null || echo "[]")
         if [ -z "$actions" ] || [ "$actions" = "[]" ]; then
             echo "No actions registered (bar process may not be running)"
             exit 1
@@ -74,7 +82,7 @@ case "$1" in
             echo "Usage: $0 isAvailable <action-id>" >&2
             exit 2
         fi
-        result=$("${_qs_base[@]}" ipc call action isAvailable "$2")
+        result=$("${_qs_base[@]}" "${_ipc_addr[@]}" call action isAvailable "$2")
         if [ "$result" = "true" ]; then
             echo "true"
             exit 0
@@ -98,10 +106,10 @@ case "$1" in
         #   sumika-action voice.toggle              -> call("voice.toggle", "")
         #   sumika-action input-method.cycle 1     -> call("input-method.cycle", "1")
         if [ $# -eq 0 ]; then
-            "${_qs_base[@]}" ipc call action call "$action_id" ""
+            "${_qs_base[@]}" "${_ipc_addr[@]}" call action call "$action_id" ""
         else
             # First extra arg is the params string; sumika-action passes only one extra arg.
-            "${_qs_base[@]}" ipc call action call "$action_id" "$*"
+            "${_qs_base[@]}" "${_ipc_addr[@]}" call action call "$action_id" "$*"
         fi
         ;;
 esac

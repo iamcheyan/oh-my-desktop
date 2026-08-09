@@ -6,6 +6,10 @@
 迁移到 labwc（wlroots 系、Openbox 风格堆叠式 Wayland 合成器）的可行性；并对
 **窗口缩略图** 能力做了专项协议调查。
 
+> **2026-08-09 更新**：专项调查产出的 **overview 窗口缩略图已实现**（labwc 分支）——
+> 自写 C daemon `sumika-overview-thumbnaild` + `grim -T` 抓帧 + `LabwcOverview` QML
+> （§2.6）。win+tab 用 labwc 原生 windowSwitcher。本文档其余可行性结论不变。
+
 参考：
 - labwc 配置手册 `labwc-config(5)` — https://labwc.github.io/labwc-config.5.html
 - labwc 动作手册 `labwc-actions(5)` — https://labwc.github.io/labwc-actions.5.html
@@ -339,13 +343,90 @@ labwc 自带 `windowSwitcher` 是**合成器侧** OSD，可直接访问窗口 bu
 `HyprlandToplevel.address` 与 `HyprlandData`（`hyprctl clients -j`）交叉引用拿到
 工作区/几何/位置。模型按**工作区分组**，每个工作区 tile 内按真实几何摆放各窗口缩略图。
 
-在 labwc 下这套有三处断点：
-1. **像素捕获**：`ScreencopyView` toplevel 捕获走 `hyprland-toplevel-export-v1` →
-   labwc 不支持 → **无缩略图**（issue #160 解锁后可用 labwc 0.20 协议）。
+在 labwc 下这套原本有三处断点：
+
+1. **像素捕获**：~~`ScreencopyView` toplevel 捕获走 `hyprland-toplevel-export-v1` →
+   labwc 不支持 → **无缩略图**（issue #160 解锁后可用 labwc 0.20 协议）。~~
+   **✅ 已实现**：labwc 分支用自写缩略图 daemon（§2.6）绕开 Quickshell 限制——
+   `grim -T <identifier>` 按窗口抓帧（内部走 `ext-foreign-toplevel-image-capture-source` +
+   `ext-image-copy-capture`），PNG 落盘后 QML `Image` 直接显示。实测本机
+   `grim -T` 对 Firefox/kitty 窗口均可出完整 PNG。
 2. **窗口→工作区归属**：`wlr-foreign-toplevel-management` / `ext-foreign-toplevel-list`
    **都不暴露窗口属于哪个 desktop**，无法做"当前工作区窗口"过滤。
+   **✅ 已近似实现**：用**激活历史归属**——切桌面后经 `ext-workspace` 事件记录
+   当前激活桌面，窗口的 workspace 归属取"最近一次激活时所在的桌面"；新 daemon
+   启动时的未知归属窗口（`workspace==""`）在 UI 上归当前工作区显示并带 `?` 角标。
 3. **窗口几何**：`hyprctl clients -j` 给每个窗口的 x/y/w/h；labwc 无 IPC，
    无法拿到窗口像素坐标（无法按真实几何摆放缩略图，也无法做 drag-to-reorder）。
+   **已降级**：labwc 分支 overview 用**网格布局**（非真实几何），不做 drag-to-reorder。
+
+### 2.6 labwc 分支实现：thumbnaild + LabwcOverview（路径 2，已落地）
+
+采用 §4 路径 2（自写 Wayland 客户端）并做简化：抓帧用现成的 `grim -T`
+（`-T <identifier>` 与 `-o` 互斥，只认 identifier 形式），而非直连
+`ext-image-copy-capture` 拷贝 DMA-BUF——工程量和调试成本大幅降低，且协议面相同。
+
+**架构**：
+
+```
+LabwcOverview.qml  (QML, labwc 分支专用 UI)
+      │  JSON 行协议 (unix socket)
+      ▼
+sumika-overview-thumbnaild  (C daemon, 只存在于 labwc 会话)
+      │  直连 wayland
+      ▼
+ext_foreign_toplevel_list_v1  → 枚举窗口 + 32 位 hex identifier
+ext_workspace_manager_v1      → 工作区列表 + active 状态 + activate 切换
+zwlr_foreign_toplevel_manager_v1 v3 → activate(窗口聚焦)/close
+grim -T <identifier>          → 每窗口抓帧 → PNG → $STATE_HOME/overview-thumbs/
+```
+
+**源码位置**：`quickshell/modules/overview/thumbnaild/`（独立原生目录——OMD 仓库
+首个 C 代码；`Makefile` + `thumbnaild.c` + 三个 wayland 协议 xml 生成的 C 头）。
+
+**桥协议**（unix stream socket，`$SUMIKA_SHELL_RUNTIME_DIR/overview-thumbnaild.sock`，
+0600，JSON 行协议）：
+
+- daemon → QML 广播：`{"type":"snapshot","seq":N,"activeWorkspace":"2",
+  "workspaces":[{"name":"3","active":false},…],
+  "windows":[{"identifier":"<32hex>","title":…,"app_id":…,"workspace":"1",
+  "active":true,…}]}`
+- QML → daemon 命令：`{"cmd":"activate-workspace","name":"2"}`（ext-workspace
+  `activate` + `commit`，事务式）/ `{"cmd":"activate-window","identifier":"<32hex>"}`
+  （zwlr activate，labwc 一次请求完成"切桌面+聚焦"）/ `{"cmd":"refresh"}`
+
+**QML 侧**（`modules/overview/LabwcOverview.qml` + `LabwcOverviewBridge.qml`）：
+独立简化 UI，不复用深度耦合 Hyprland 的 `OverviewWidget`；保留 `IpcHandler "overview"`
+接口（`bin/sumika-overview` toggle/open/close/workspacesToggle 不变）；
+`shell.qml` 按 `SystemInfo.desktopEnvironment` 条件加载——`labwc` → LabwcOverview，
+其余 → 旧 Overview（Hyprland 行为不变）。
+
+**labwc 判定**：daemon 启动时只探测 `ext_foreign_toplevel_list_v1` global——
+有才继续（Hyprland 不实现该协议 → daemon 立即退出，Hyprland 会话零影响）。
+**会话接入**：`labwc/autostart` 在 bar 之前拉起 daemon（§文档 features/labwc.md），
+labwc 会话登录即生效，无需手动启动。
+
+**已知取舍**：
+- 缩略图为**静态帧**（grim 抓帧时点），非实时画面；靠 debounce 250ms + 事件驱动刷新
+  （toplevel 事件、工作区切换、`refresh` 命令）。
+- 窗口→桌面归属是激活历史近似（见 §2.5 断点 2），不是精确协议映射。
+- 触发 grim 抓帧会短暂占用窗口捕获源；**并发抓帧过多时 wlroots 的
+  `ext_foreign_toplevel_image_capture_source` 只服务一个客户端**，多余的 grim 会
+  hang——daemon 每次刷新最多 spawn 一个 grim（`capture_in_flight` 守卫），
+  且 grim 退出由 SIGCHLD 驱动转正临时文件。
+
+**实现期修掉的三个关键 bug**（2026-08-09）：
+1. **qmldir singleton**：`LabwcOverviewBridge` 必须 `singleton` 注册 + 文件头
+   `pragma Singleton`，否则 QML 值引用拿到类型对象，实例属性 `undefined` 抛
+   `TypeError`。
+2. **daemon grim 临时文件不转正**：`signal(SIGCHLD, SIG_DFL)` 下 grim 退出无信号
+   驱动 `reap_children`，tmp→png rename 只发生在下次事件触发的刷新——空闲桌面
+   永久卡住。改为 SIGCHLD handler 置标志位，主循环 poll 前 reap。
+3. **daemon 主循环卡死**（`read(listen_fd)` 阻塞）：两个叠加根因——(a) poll 后
+   accept 的新 client 使 `fds[2+i]` 读到**未初始化栈内存**（revents 垃圾值可带
+   `POLLIN`，随后 `read()` 阻塞在无数据的 fd）；(b) `close_client` 的 memmove 压缩
+   数组后，后续循环项的 fds revents 与 clients 错位。修复：client 输入每 poll 轮
+   至多处理一个，且 `idx >= nfds` 直接 break。
 
 ---
 
@@ -356,10 +437,10 @@ labwc 自带 `windowSwitcher` 是**合成器侧** OSD，可直接访问窗口 bu
 | **bar 主体（layer-shell）** | Quickshell.Wayland | ✅ 可用 | `wlr-layer-shell`，labwc 原生支持 |
 | **时钟/托盘/音频/WiFi/通知** | 通用服务 | ✅ 可用 | 与合成器无关 |
 | **工作区指示器** | `Hyprland.focusedWorkspace` + `hyprctl workspaces -j` | ⚠️ 需重写 | 用 `ext-workspace` 协议（Waybar 已用）；Quickshell 需 workspace 模型 |
-| **窗口缩略图（Quickshell overview 内）** | `ScreencopyView` + `hyprland-toplevel-export-v1` | ❌ 阻塞上游 | labwc 0.20 协议齐全，但 Quickshell 0.2.1 未用标准协议做 toplevel 捕获（issue #160 open） |
+| **窗口缩略图（Quickshell overview 内）** | `ScreencopyView` + `hyprland-toplevel-export-v1` | ✅ **已实现（labwc 分支）** | 自写 `sumika-overview-thumbnaild` daemon + `grim -T` 抓帧，PNG 桥进 `LabwcOverview`（§2.6）；Hyprland 会话不受影响 |
 | **窗口缩略图（labwc 原生 OSD）** | n/a | ✅ 已可用 | `windowSwitcher osd style="thumbnail"`，合成器侧渲染 |
 | **win+tab 切换当前工作区窗口** | `OverviewSwitchingController` | ✅ 已可用（原生） | rc.xml 已绑 `W-Tab`→`NextWindow workspace="current"`，带缩略图 OSD |
-| **overview（工作区 tile + 窗口缩略图）** | `HyprlandData` + `ScreencopyView` | ❌ 难 | 见 §2.5 三处断点 |
+| **overview（工作区 tile + 窗口缩略图）** | `HyprlandData` + `ScreencopyView` | ✅ **已实现（labwc 分支）** | `LabwcOverview`：缩略图网格 + 工作区 chips + 搜索 + 点击聚焦（§2.6）；归属用激活历史近似，几何用网格布局 |
 | **overview 搜索** | `hyprctl clients -j` 过滤 | ⚠️ 可降级 | 用 `ToplevelManager`（元数据可用）做无缩略图的列表搜索 |
 | **窗口拖拽到工作区 / 像素移动** | `hl.dsp.window.move` | ❌ 不可能 | labwc 无 IPC 做像素级窗口移动 |
 | **平铺/gaps/scratchpad/group** | `hl.dsp.*` 平铺派发 | ❌ 不可能 | labwc 纯堆叠 |
@@ -386,14 +467,14 @@ labwc 自带 `windowSwitcher` 是**合成器侧** OSD，可直接访问窗口 bu
 |---|---|---|
 | **复用 Quickshell overview + ScreencopyView** | ❌ 阻塞上游 | Quickshell 0.2.1 toplevel 捕获只走 `hyprland-toplevel-export-v1`；labwc 不支持。需 Quickshell issue #160 落地后，才能用 labwc 0.20 的标准协议。 |
 | **等 Quickshell #160** | ⏳ 中期 | #160 一旦实现，`ScreencopyView { captureSource: toplevel }` 即可在 labwc 0.20+ 出缩略图。仍需解决"窗口→工作区归属"和"窗口几何"两个元数据断点。 |
-| **自写 Wayland 缩略图客户端喂 QML** | ⚠️ 重 | 直连 `ext-foreign-toplevel-image-capture-source` + `ext-image-copy-capture` 捕获像素，经共享内存/DMA-BUF 交给 QML。绕过 Quickshell，但工程量大。 |
+| **自写 Wayland 缩略图客户端喂 QML** | ✅ **已实现** | **`sumika-overview-thumbnaild` daemon（C，§2.6）**：直连 `ext-foreign-toplevel-list` 枚举 + `grim -T <identifier>` 抓帧 → PNG 桥进 QML。只检测到 labwc 的 `ext_foreign_toplevel_list_v1` 才启用，Hyprland 下自动退出。labwc 分支 overview（`LabwcOverview.qml`）已可用：缩略图网格、工作区 chips、搜索过滤、点击缩略图聚焦。窗口→桌面归属用激活历史近似。 |
 | **降级：无缩略图的窗口列表 overview** | ✅ 现在 | `ToplevelManager`（`wlr-foreign-toplevel`，labwc 已支持）给 appId/title/图标，可做点击激活/关闭的列表式 overview。但"当前工作区"过滤无协议支撑（见下）。 |
 
 > "当前工作区"过滤的硬限制：`wlr-foreign-toplevel-management` 与
 > `ext-foreign-toplevel-list` **都不暴露窗口属于哪个 desktop**。labwc 切桌面只是
 > 隐藏/显示窗口，foreign-toplevel 列表仍含全部桌面窗口，无字段可过滤。
-> 可能的近似：labwc 切桌面时未显示的窗口是否仍 `mapped` 未定；需实测 foreign-toplevel
-> 状态变化是否可区分。若无可靠信号，overview 只能显示**全部窗口**而非"当前工作区"。
+> **已采用近似**（§2.6）：激活历史归属——窗口的 workspace 取"最近一次激活时
+> 所在桌面"，未知归属窗口归当前工作区显示并带 `?` 角标。
 
 ### 目标 B：win+tab 切换当前工作区的窗口
 
@@ -402,9 +483,9 @@ labwc 自带 `windowSwitcher` 是**合成器侧** OSD，可直接访问窗口 bu
 | **labwc 原生 windowSwitcher** | ✅ 已实现 | rc.xml 已绑 `W-Tab`→`NextWindow workspace="current"`，`osd style="thumbnail"` 显示真实缩略图（合成器侧，不受 Quickshell 阻塞）。这正是用户要的。 |
 | **Quickshell 内 win+tab 循环** | ⚠️ 降级 | 可用 `ToplevelManager` 做无缩略图循环，但"当前工作区"过滤受同一协议限制。原生方案更优。 |
 
-**建议**：win+tab 直接用 labwc 原生窗口切换器（已配好，开箱即用，带缩略图），
-不要在 Quickshell 内重造。overview 的窗口缩略图则需等 Quickshell #160，或自写客户端，
-或先做降级的无缩略图列表。
+**建议（已执行）**：win+tab 用 labwc 原生窗口切换器（已配好，开箱即用，带缩略图）。
+overview 的窗口缩略图**已用自写客户端落地**（§2.6：thumbnaild daemon + `grim -T`
++ `LabwcOverview`）——无需再等 Quickshell #160。
 
 ---
 
@@ -421,11 +502,11 @@ labwc 自带 `windowSwitcher` 是**合成器侧** OSD，可直接访问窗口 bu
    - `launch-or-focus` → `wlr-foreign-toplevel` 枚举/激活。
    - 显示器热插拔 → udev / wlr-output-management 监听。
 
-3. **阻塞上游 / 重活**：
-   - overview 窗口缩略图 → 等 Quickshell #160，或自写 Wayland 缩略图客户端。
-   - "当前工作区窗口"过滤 → 受限于 foreign-toplevel 无 workspace 字段，需实测 labwc
-     切桌面时 toplevel 状态变化，或接受"全部窗口"。
-   - 会话保存/恢复（`sumika-session`）→ 整个引擎重写。
+3. **已实现（2026-08-09）**：
+   - overview 窗口缩略图 → **自写客户端已落地**（§2.6：thumbnaild daemon + `grim -T`
+     + `LabwcOverview`）。无需等 Quickshell #160。
+   - "当前工作区窗口"过滤 → 激活历史归属近似（无协议字段，见 §2.5 断点 2）。
+   - 会话保存/恢复（`sumika-session`）→ 整个引擎重写（未动）。
 
 4. **不可能 / 放弃**：平铺/gaps/scratchpad/group、按窗口不透明度、特殊工作区、
    单窗口宽高比 toggle、workspace-layout toggle。（智能粘贴已适配——见 §1.2/§3。）
@@ -462,11 +543,17 @@ labwc 版本：`0.20.1 (-xwayland +nls +rsvg +libsfdo) wlroots-0.20.1`
 | 协议 | 作用 | labwc | Quickshell 用途 |
 |---|---|---|---|
 | `wlr-foreign-toplevel-management` | 窗口列表/控制（元数据，无像素） | ✅ v3 | `ToplevelManager`（可用） |
-| `ext-foreign-toplevel-list` | 新版窗口列表（元数据，无像素） | ✅ v1 | 同上（新版） |
-| `ext-foreign-toplevel-image-capture-source` | toplevel→图像源 | ✅ v1 | **未用于 toplevel**（#160 open） |
-| `ext-image-copy-capture` | 从源拷贝帧到 buffer | ✅ v1 | 仅用于**输出**捕获 |
+| `ext-foreign-toplevel-list` | 新版窗口列表（元数据，无像素） | ✅ v1 | 同上（新版）；**thumbnaild 枚举用**（拿 32 位 hex identifier） |
+| `ext-foreign-toplevel-image-capture-source` | toplevel→图像源 | ✅ v1 | **未用于 toplevel**（#160 open）；thumbnaild 借道 `grim -T` 消费 |
+| `ext-image-copy-capture` | 从源拷贝帧到 buffer | ✅ v1 | 仅用于**输出**捕获；`grim -T` 内部走它 |
 | `wlr-screencopy` | 输出截屏 | ✅ v3 | `ScreencopyView` 监视器捕获 |
 | `hyprland-toplevel-export` | Hyprland 专属 toplevel 捕获 | ❌ 不支持 | `ScreencopyView` toplevel 捕获（仅 Hyprland） |
+| `ext-workspace` | 工作区列表/切换（事务式，需 `commit`） | ✅ v1 | Quickshell 未建模；thumbnaild 消费（`activate` 请求切桌面） |
+
+**labwc 分支已落地的抓帧路径**（§2.6）：`grim -T <32hex identifier> out.png`——
+grim 内部经 `ext_foreign_toplevel_image_capture_source_manager_v1` 创建 source，
+`ext_image_copy_capture_manager_v1` 拷贝帧（即上面第 3/4 行协议的现成消费方）。
+daemon 只负责枚举/归属/命令，像素抓取完全复用 grim，绕开 Quickshell #160 阻塞。
 
 > ⚠️ **白名单注意**（`src/config/rcxml.c` `parse_privileged_interface()`）：
 > `ext_image_copy_capture_manager_v1`、`ext_foreign_toplevel_list_v1`、
@@ -476,6 +563,8 @@ labwc 版本：`0.20.1 (-xwayland +nls +rsvg +libsfdo) wlroots-0.20.1`
 
 ## 附录 C：参考链接
 
+- **KDE / 其他合成器协议对照**（KWin、Mutter、niri、cosmic-comp 等逐源码核实）—
+  [kde-and-compositor-protocol-support.md](kde-and-compositor-protocol-support.md)
 - labwc PR #2968（toplevel capture 实现）— https://github.com/labwc/labwc/pull/2968
 - labwc 0.20 release notes — https://github.com/labwc/labwc/releases
 - `ext-foreign-toplevel-list` — https://wayland.app/protocols/ext-foreign-toplevel-list-v1

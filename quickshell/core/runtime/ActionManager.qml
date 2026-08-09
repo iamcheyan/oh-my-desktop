@@ -369,6 +369,17 @@ Singleton {
             command: [overviewCmd]
         }, {description: "Toggle the workspace overview"})
 
+        // W-Tab hold-to-cycle (labwc: rc.xml binds these; Hyprland uses
+        // its own overviewNext/Prev dispatcher). Same process, IPC step.
+        this.register("overview.step", "core", "Cycle next window", {
+            type: "process",
+            command: [overviewCmd, "step"]
+        }, {description: "Cycle to next window in the overview (W-Tab hold)"})
+        this.register("overview.prev", "core", "Cycle previous window", {
+            type: "process",
+            command: [overviewCmd, "prev"]
+        }, {description: "Cycle to previous window in the overview (W-S-Tab hold)"})
+
         // App launcher — uses canonical sumika-applauncher script
         var launcherCmd = sumikaRoot + "/bin/sumika-applauncher"
         this.register("app-launcher.toggle", "core", "Toggle launcher", {
