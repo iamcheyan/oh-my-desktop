@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Resolve the live Wayland display socket for the current graphical session.
+#
+# Prints a single display name (e.g. "wayland-0") to stdout and nothing else.
+# Used by the clipboard store/event daemons and sumika-restart so they never
+# fall back to a dead display (e.g. the wayland-1 of a retired Hyprland
+# session) after the compositor session changed underneath a long-lived
+# systemd-run unit.
+#
+# Resolution order:
+#  1. $WAYLAND_DISPLAY from the caller, if its socket is alive
+#  2. the systemd user manager environment (set by the login session)
+#  3. the compositor process of the active logind session
+#     (loginctl -> cgroup.scope -> /proc/<pid>/environ, same walk as the
+#      sasayaki paste backend)
+#  4. the labwc/weston default wayland-0, if its socket is alive
+#  5. the caller's original value as a last resort (the daemon retries)
+
+set -u
+IFS=$'\n\t'
+
+rt="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+[ -d "$rt" ] || { printf '%s\n' "${WAYLAND_DISPLAY:-}"; exit 0; }
+
+socket_alive() {
+    [ -n "${1:-}" ] && [ -S "$rt/$1" ]
+}
+
+# 1) caller-provided display, validated against a live socket
+d="${WAYLAND_DISPLAY:-}"
+if socket_alive "$d"; then
+    printf '%s\n' "$d"
+    exit 0
+fi
+
+# 2) systemd user manager environment — set by the login session and
+#    refreshed across session switches
+if command -v systemctl >/dev/null 2>&1; then
+    d=$(timeout 4 systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+    if socket_alive "$d"; then
+        printf '%s\n' "$d"
+        exit 0
+    fi
+fi
+
+# 3) compositor of the active logind session. Every loginctl call is bounded;
+#    a wedged D-Bus must not stall the daemon startup.
+if command -v loginctl >/dev/null 2>&1; then
+    uid=$(id -u)
+    while read -r line; do
+        set -- $line
+        [ $# -ge 2 ] && [ "$2" = "$uid" ] || continue
+        sess="$1"
+        active=""
+        scope=""
+        while read -r kv; do
+            case "$kv" in
+                Active=*) active="${kv#Active=}" ;;
+                Scope=*) scope="${kv#Scope=}" ;;
+            esac
+        done < <(timeout 4 loginctl show-session "$sess" -p Active -p Scope 2>/dev/null)
+        [ "$active" = "yes" ] && [ -n "$scope" ] || continue
+        for procs in "/sys/fs/cgroup/user.slice/user-$uid.slice/$scope/cgroup.procs" \
+                     "/sys/fs/cgroup/$scope/cgroup.procs"; do
+            [ -f "$procs" ] || continue
+            while read -r pid; do
+                case "$pid" in ''|*[!0-9]*) continue ;; esac
+                base=$(basename "$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | cut -d' ' -f1)")
+                case "$base" in
+                    labwc|hyprland|sway|wayfire|river|hikari|weston|kwin_wayland|mutter|gnome-shell)
+                        d=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+                        if socket_alive "$d"; then
+                            printf '%s\n' "$d"
+                            exit 0
+                        fi
+                        ;;
+                esac
+            done < "$procs"
+        done
+    done < <(timeout 4 loginctl list-sessions --no-legend 2>/dev/null)
+fi
+
+# 4) labwc / weston conventional default
+if socket_alive wayland-0; then
+    printf '%s\n' wayland-0
+    exit 0
+fi
+
+# 5) last resort: caller value unchanged
+printf '%s\n' "${WAYLAND_DISPLAY:-}"

@@ -115,3 +115,29 @@ The reload chain no longer kills the daemon and the autostart race is closed:
 3. **`bin/sumika-restart` `start_app` `systemd-run`**: Consider not using `--collect`
    for daemon-type units so the unit definition survives a transient exit and
    systemd's `Restart=on-failure` can work without the ping-pong effect.
+
+## Session-switch staleness (2026-08-09, fixed)
+
+A second failure mode: the daemon is a long-lived systemd-run transient unit whose
+environment is **frozen at creation**. When the compositor session switches
+(Hyprland `wayland-1` → labwc `wayland-0`), the old unit keeps
+`WAYLAND_DISPLAY=wayland-1`, `wl-paste --watch` fails instantly against the dead
+socket, and the watcher spins in its 1s retry loop forever — `cliphist` history
+stops updating while the clipboard itself keeps working. The daemon was never
+restarted on session switch because the reload path deliberately preserves it
+(see above), so the stale environment persisted.
+
+Fix: `quickshell/modules/clipboard/bin/sumika-clipboard-wayland-display` resolves
+the live display at startup **and on every watcher retry**:
+caller `$WAYLAND_DISPLAY` if its socket is alive → `systemctl --user
+show-environment` → the compositor process of the active logind session
+(loginctl → cgroup scope → `/proc/<pid>/environ`, the same walk sasayaki uses)
+→ `wayland-0` default. Every loginctl call is bounded by `timeout 4` so a wedged
+D-Bus cannot stall daemon startup. `sumika-clipboard-store` (main + `repair`
+systemd-run) and `sumika-clipboard-store-event` apply it; `sumika-restart` uses
+it for every module's `systemd-run --setenv` so no started module can fall back
+to a dead socket.
+
+Verified live: stale unit (wayland-1) repaired → log shows
+`Watching clipboard events (display=wayland-0)`; a fresh `wl-copy` appears in
+`cliphist list` with a matching `stored kind=text` event.

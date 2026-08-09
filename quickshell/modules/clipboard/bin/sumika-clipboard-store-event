@@ -4,10 +4,13 @@
 set -u
 IFS=$'\n\t'
 
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Heal stale WAYLAND_DISPLAY (the store daemon re-resolves on retry; a
+# manually invoked event must behave the same).
+export WAYLAND_DISPLAY="$("$script_dir/sumika-clipboard-wayland-display")"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
 state_dir="$state_home/clipboard"
 hash_dir="$state_dir/hashes"

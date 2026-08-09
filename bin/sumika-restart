@@ -137,6 +137,18 @@ ensure_session_save_unit() {
 }
 ensure_session_save_unit
 
+# Resolve the live compositor display once. systemd-run units freeze their
+# environment at creation, so a fallback to a stale wayland-1 would strand
+# every started module on a dead socket after a session switch. The resolver
+# validates sockets and walks the active logind session.
+_wl_resolver="${SUMIKA_SHELL_ROOT}/quickshell/modules/clipboard/bin/sumika-clipboard-wayland-display"
+if [ -x "$_wl_resolver" ]; then
+    _wl_display="$("$_wl_resolver")" || _wl_display="${WAYLAND_DISPLAY:-}"
+else
+    _wl_display="${WAYLAND_DISPLAY:-}"
+fi
+unset _wl_resolver
+
 # Kill waybar if present
 pkill -x waybar 2>/dev/null || true
 
@@ -156,7 +168,7 @@ start_app() {
             --property=Restart=on-failure \
             --property=RestartSec=2 \
             --setenv=PATH="$PATH" \
-            --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+            --setenv=WAYLAND_DISPLAY="$_wl_display" \
             --setenv=XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
             --setenv=SUMIKA_SHELL_ROOT="$SUMIKA_SHELL_ROOT" \
             --setenv=SUMIKA_SHELL_CONFIG_HOME="$SUMIKA_SHELL_CONFIG_HOME" \

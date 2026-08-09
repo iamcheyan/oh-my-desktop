@@ -9,10 +9,15 @@
 set -u
 IFS=$'\n\t'
 
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Resolve the live compositor display. The daemon is a long-lived
+# systemd-run unit and may outlive the session that launched it (e.g. a
+# Hyprland -> labwc switch), so the stale environment is healed here instead
+# of trusting $WAYLAND_DISPLAY as-is.
+export WAYLAND_DISPLAY="$("$script_dir/sumika-clipboard-wayland-display")"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_dir="${SUMIKA_CLIPBOARD_APP_DIR:-${script_dir%/*}/apps/sumika-clipboard}"
 state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
 state_dir="$state_home/clipboard"
@@ -130,7 +135,7 @@ case "${1:-start}" in
                 --property=KillMode=mixed \
                 --property=Restart=on-failure \
                 --property=RestartSec=2 \
-                --setenv=WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+                --setenv=WAYLAND_DISPLAY="$("$script_dir/sumika-clipboard-wayland-display")" \
                 --setenv=XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}" \
                 --setenv=SUMIKA_CLIPBOARD_APP_DIR="$app_dir" \
                 --setenv=SUMIKA_SHELL_STATE_HOME="$state_home" \
@@ -173,7 +178,10 @@ fi
 
 watch_loop() {
     while true; do
-        echo "$log_tag Watching clipboard events" >&2
+        # Re-resolve on every retry so a compositor session switch (or a
+        # dead socket) heals without a manual restart.
+        export WAYLAND_DISPLAY="$("$script_dir/sumika-clipboard-wayland-display")"
+        echo "$log_tag Watching clipboard events (display=$WAYLAND_DISPLAY)" >&2
         # Use the event handler directly. An extra background shell here can
         # detach the callback from the wl-paste lifecycle and occasionally
         # lose image offers while a screenshot provider is still publishing
