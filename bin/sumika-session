@@ -474,50 +474,78 @@ def kitty_window_attach(window):
         return terminal_attach_command(info)
     return None
 
+def kitty_pane_command(window):
+    """Return an argv that re-runs one kitty pane's actual command, or None.
+
+    kitty reports the command a pane's foreground shell is running via
+    last_reported_cmdline (e.g. `cd /tmp/x && dotnet ServerCore.dll`); the
+    pane's own shell is in cmdline (e.g. /usr/bin/zsh). When there is a
+    reported command we replay it through that shell so `&&`, pipes, and
+    other shell syntax work; when the pane was just an idle shell we start
+    a fresh interactive shell instead. tmux/zellij panes are handled by
+    kitty_window_attach and must not be replayed here."""
+    attach = kitty_window_attach(window)
+    if attach:
+        return None
+    shell_argv = window.get("cmdline") or []
+    shell = shell_argv[0] if shell_argv else os.environ.get("SHELL") or "sh"
+    reported = (window.get("last_reported_cmdline") or "").strip()
+    if not reported:
+        return [shell]
+    return [shell, "-c", reported]
+
 
 def synthesize_kitty_session(session):
     """Build a kitty session file that re-runs every pane's command.
 
-    A kitty window with N panes holds N paintings (tmux/zellij sessions).
-    The layout-only dump cannot express them, so when any pane runs a
-    multiplexer client we emit one `launch` directive per pane — a
-    tmux/zellij attach for painting panes, a plain shell elsewhere —
-    preserving each painting's own session on restore. Without a
-    multiplexer the layout dump is the highest-fidelity restore and is kept
-    unchanged; if even that is missing, plain-shell launches are a better
-    fallback than dropping the window."""
+    For each pane we emit one `launch` directive: a tmux/zellij attach when
+    the pane ran a multiplexer (preserving the painting's own session), or a
+    replay of the pane's last command via its shell (`<shell> -c
+    <last_reported_cmdline>`) so `cd ... && dotnet run` style panes come
+    back instead of empty shells. Panes that were idle shells start a fresh
+    interactive shell. When the JSON panes carry no replayable command at
+    all (and the layout dump is richer), the layout dump is kept as the
+    higher-fidelity fallback.
+    """
     windows = kitty_session_windows(session)
-    if not windows:
-        return session.get("content") or ""
-    attaches = [kitty_window_attach(window) for _, _, window in windows]
-    if not any(attaches):
-        content = session.get("content") or ""
-        if content.strip():
-            return content
-    # Old snapshots were captured with a `--match pid:` filter whose JSON
-    # holds only the first pane. The layout dump still lists every window, so
-    # a mismatch means the JSON is incomplete: synthesizing would collapse an
-    # N-pane window to one pane. Degrade to the layout instead of dropping
-    # panes, even though their multiplexer commands are unrecoverable.
+    # JSON may hold fewer windows than the layout-only dump (old snapshots
+    # captured with a --match pid: filter, or closed tabs lingering in kitty's
+    # tab history that ls omits). When the JSON panes carry no replayable
+    # command, the layout dump is still the higher-fidelity restore (it
+    # rebuilds pane geometry), so fall back to it. But when the JSON panes
+    # *do* carry a command (last_reported_cmdline / multiplexer attach),
+    # re-running it matters more than the geometry of closed tabs, so we
+    # synthesize from the JSON and accept that extra layout-only windows are
+    # not recreated.
     content = session.get("content") or ""
-    if content.strip() and len(windows) < content.count("launch"):
+    commands = [kitty_pane_command(window) for _, _, window in windows]
+    if content.strip() and len(windows) < content.count("launch") and not any(commands):
         return content
-    lines = []
+    attaches = [kitty_window_attach(window) for _, _, window in windows]
+    commands = [
+        (attach or kitty_pane_command(window))
+        for attach, (_, _, window) in zip(attaches, windows)
+    ]
+    if not any(commands):
+        return content if content.strip() else ""
     prev_os = None
     prev_tab = None
-    for (os_index, tab_index, window), attach in zip(windows, attaches):
+    lines = []
+    for (os_index, tab_index, _window), command in zip(windows, commands):
         if prev_os is not None:
             if os_index != prev_os:
                 lines.append("new_os_window")
             elif tab_index != prev_tab:
                 lines.append("new_tab")
         prev_os, prev_tab = os_index, tab_index
+        if not command:
+            lines.append("launch")
+            continue
         parts = ["launch"]
-        cwd = window.get("cwd") or ""
+        cwd = (_window.get("cwd") or "")
         if cwd:
             parts += ["--cwd", cwd]
-        if attach:
-            parts += attach
+        parts += command
         lines.append(" ".join(shlex.quote(part) for part in parts))
     return "\n".join(lines) + "\n"
 
@@ -900,9 +928,39 @@ def save_auto_if_stale():
     return save_auto()
 
 
+def _existing_snapshot_saved_at():
+    """Return the savedAt timestamp of a valid existing last.json, or None.
+
+    At shutdown the compositor may already be torn down (systemctl poweroff
+    never goes through the UI save path), so `hyprctl -j clients` returns
+    nothing and save() reports "empty". That does not mean there is nothing
+    to restore: last.json still holds the most recent valid snapshot. Fall
+    back to it so auto-restore is armed for the next login instead of being
+    silently disarmed by the teardown race."""
+    try:
+        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict) or not data.get("clients"):
+        return None
+    return data.get("savedAt") or int(LAST_FILE.stat().st_mtime)
+
+
 def save_auto():
     data = save()
     if not data:
+        # save() failed — usually because the compositor was already gone
+        # during session teardown (reason: "empty"). A valid last.json is
+        # still worth restoring, so arm the marker against it instead of
+        # deleting it. Without this, a direct systemctl poweroff/reboot
+        # disarms auto-restore and the next login never offers to restore.
+        saved_at = _existing_snapshot_saved_at()
+        if saved_at is not None:
+            AUTO_RESTORE_FILE.write_text(
+                json.dumps({"armed": True, "savedAt": saved_at, "source": "stale"}, indent=2),
+                encoding="utf-8",
+            )
+            return None
         try:
             AUTO_RESTORE_FILE.unlink()
         except FileNotFoundError:
