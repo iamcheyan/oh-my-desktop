@@ -27,12 +27,9 @@ Automatic next-login restore is armed by:
 ~/.local/state/sumika-shell/session/restore-on-next-start
 ```
 
-`preview` returns a grouped snapshot without closing anything. The topbar uses
-that command to show a confirmation popup before running `save-close`.
-
-`save-close` saves the current Hyprland clients and then asks Hyprland to close
-those saved windows. This is intentionally similar to a logout/shutdown test
-flow, but it does not suspend or preserve application memory.
+`preview` returns a grouped snapshot without closing anything. `save-close`
+saves and then closes the saved windows; it is a CLI-only testing flow and is
+not surfaced in the UI.
 
 The long-term goal is a pseudo-hibernate: snapshot all windows before
 shutdown/logout, then restore them after reboot so the desktop returns to its
@@ -41,48 +38,37 @@ buffers are never preserved by Hyprland itself. Sumika Shell restores window cla
 workspace, geometry, launch command, terminal working directory, and attached
 terminal multiplexer sessions when they can be detected.
 
-## Topbar
+## Shutdown Save Gate
 
-The topbar has a workspace session icon through the `util:session` module.
+Session-ending actions go through a screen-centered confirmation overlay with
+a "Save current session" checkbox (default checked). The checkbox state is
+recorded as a `save-requested` marker file before the system action runs.
 
-- Non-empty desktop: the menu shows `Snapshot & Close Workspaces`, then opens a
-  confirmation popup with workspace/window details.
-- Saved snapshot: the menu shows `Restore Workspace Snapshot`.
-- A saved snapshot can also be cleared from the menu.
+The systemd fallback unit (`sumika-session-save.service` ExecStop) and the
+logout script run `save-auto-if-stale` at session teardown. That command arms
+`restore-on-next-start` only when the `save-requested` marker exists. Without
+it, an empty or compositor-gone save unlinks the restore marker instead of
+arming a stale restore, so an unchecked shutdown or an all-windows-closed
+shutdown does not restore anything on the next login.
 
-For the idle topbar icon state, `SessionButton.qml` reads `last.json` directly
-with `FileView` instead of running `sumika-session status` during bar startup.
-Preview, restore, and auto-restore still call `sumika-session` because those paths
-need validation and Hyprland/process inspection.
-
-## Logout / Shutdown Confirmation
-
-Session-ending actions use the shared screen-centered confirmation overlay:
-
-- `Logout`
-- `Reboot`
-- `Shutdown`
-
-The overlay includes a checkbox:
-
-```text
-保存本次桌面会话，下次启动后自动恢复
-```
-
-When checked, Sumika Shell runs `sumika-session save-auto` before the system action. This
-saves the normal `last.json` snapshot and writes the `restore-on-next-start`
-marker. The next time `sumika-bar` starts, `SessionAutoRestore.qml` checks
-`sumika-session status`; if `autoRestore` is true, it shows the restore overlay and
-runs `sumika-session restore-auto`.
+When checked, Sumika Shell runs `sumika-session save-auto-if-stale` before the
+system action. This saves `last.json` and writes the `restore-on-next-start`
+marker (plus the `save-requested` flag). The next time `sumika-bar` starts,
+`SessionAutoRestore.qml` checks `sumika-session status`; if `autoRestore` is
+true, it shows the restore overlay and runs `sumika-session restore-auto`.
 
 `restore-auto` consumes the marker before restoring so a normal Quickshell
-reload does not repeatedly launch duplicate windows.
+reload does not repeatedly launch duplicate windows. `SessionAutoRestore` also
+consumes the marker when it skips restore (windows already open), and ignores
+a marker whose `savedAt` is older than a week, so a stale marker never
+restores a long-expired desktop.
 
 Empty snapshots are rejected. If `sumika-session save`, `save-close`, or
 `save-auto` finds no mapped Hyprland clients, it prints a skipped result and
-does not overwrite `last.json`. `save-auto` also removes any pending
-`restore-on-next-start` marker so an empty logout cannot arm an invalid
-automatic restore.
+does not overwrite `last.json`. When no save was requested, `save-auto`
+removes any pending `restore-on-next-start` marker so an empty logout cannot
+arm an invalid automatic restore.
+
 
 ## Captured State
 
@@ -203,11 +189,14 @@ attached to its own tmux/zellij session). Restore therefore goes through a
 synthesized session file that re-runs every pane's command, so each painting
 reattaches to its own session:
 
-1. Sumika Shell walks the captured JSON in tree order and, for every pane
-   whose `last_reported_cmdline` is a tmux/zellij client, emits a `launch`
-   directive running that client's attach command (e.g. `launch --cwd $HOME
-   tmux new-session -A -s Work`). Panes without a multiplexer get a plain
-   `launch --cwd <dir>` shell. `new_os_window`/`new_tab` markers preserve the
+1. Sumika Shell walks the captured JSON in tree order. For each pane it
+   emits a `launch --cwd <dir>` directive running the pane's own command:
+   a tmux/zellij attach for multiplexer panes (e.g. `launch --cwd $HOME
+   tmux new-session -A -s Work`), or a replay of the pane's
+   `last_reported_cmdline` through its shell for plain-command panes
+   (`launch --cwd /tmp/x /usr/bin/zsh -c 'cd /tmp/x && dotnet run'; exec
+   <shell>` keeps the pane alive after the command exits). Idle shells start
+   a fresh interactive shell. `new_os_window`/`new_tab` markers preserve the
    original window/tab structure.
 2. The result is written to:
 
@@ -221,9 +210,9 @@ reattaches to its own session:
    kitty --session ~/.local/state/sumika-shell/session/kitty/restore-<n>.session
    ```
 
-3. If no pane runs a multiplexer, the kitty-native layout dump is used
+3. When the JSON panes carry no replayable command at all (idle shells with
+   no `last_reported_cmdline`), the kitty-native layout dump is used
    unchanged — it restores tabs, windows, layouts, and working directories.
-
 A bare `tmux new-session -A` without a session name cannot be restored
 headlessly (tmux refuses to open a terminal), so such a pane degrades to a
 plain shell. Old snapshots whose JSON was captured with a `--match` filter

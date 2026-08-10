@@ -59,8 +59,9 @@ The button to the right of the search field contains:
 - Reload Shell
 
 The first three actions call the `session confirm` IPC exposed by
-`apps/sumika-bar/shell.qml`. The bar process owns `SessionConfirmOverlay`, so all
-entry points reuse the same confirmation and optional session-save behavior.
+`apps/sumika-bar/shell.qml`. The bar process owns the confirmation overlay
+(`BarStatusPopup.qml`), so all entry points reuse the same confirmation and
+optional session-save behavior.
 *Reload Shell calls `sumika-restart` directly after closing Overview.
 
 ## Files

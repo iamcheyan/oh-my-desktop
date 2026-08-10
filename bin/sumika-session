@@ -15,6 +15,7 @@ LAST_FILE = STATE_DIR / "last.json"
 LAST_BAK_FILE = STATE_DIR / "last.json.bak"
 RESTORE_RESULT_FILE = STATE_DIR / "restore-result.json"
 AUTO_RESTORE_FILE = STATE_DIR / "restore-on-next-start"
+SAVE_REQUESTED_FILE = STATE_DIR / "save-requested"
 RESTORE_LOCK = STATE_DIR / "restore.lock"
 KITTY_SESSION_DIR = STATE_DIR / "kitty"
 TERMINAL_CLASSES = ("kitty", "foot", "alacritty", "ghostty", "wezterm", "org.wezfurlong.wezterm")
@@ -481,8 +482,10 @@ def kitty_pane_command(window):
     last_reported_cmdline (e.g. `cd /tmp/x && dotnet ServerCore.dll`); the
     pane's own shell is in cmdline (e.g. /usr/bin/zsh). When there is a
     reported command we replay it through that shell so `&&`, pipes, and
-    other shell syntax work; when the pane was just an idle shell we start
-    a fresh interactive shell instead. tmux/zellij panes are handled by
+    other shell syntax work, then `exec` into a fresh interactive shell so
+    the pane stays open after the command exits (matching the original
+    interactive-shell behavior). When the pane was just an idle shell we
+    start a fresh interactive shell. tmux/zellij panes are handled by
     kitty_window_attach and must not be replayed here."""
     attach = kitty_window_attach(window)
     if attach:
@@ -492,20 +495,21 @@ def kitty_pane_command(window):
     reported = (window.get("last_reported_cmdline") or "").strip()
     if not reported:
         return [shell]
-    return [shell, "-c", reported]
-
-
+    # Run the command, then replace the process with a fresh interactive
+    # shell so the pane survives the command exiting.
+    return [shell, "-c", reported + "; exec " + shell]
 def synthesize_kitty_session(session):
     """Build a kitty session file that re-runs every pane's command.
 
     For each pane we emit one `launch` directive: a tmux/zellij attach when
     the pane ran a multiplexer (preserving the painting's own session), or a
     replay of the pane's last command via its shell (`<shell> -c
-    <last_reported_cmdline>`) so `cd ... && dotnet run` style panes come
-    back instead of empty shells. Panes that were idle shells start a fresh
-    interactive shell. When the JSON panes carry no replayable command at
-    all (and the layout dump is richer), the layout dump is kept as the
-    higher-fidelity fallback.
+    <last_reported_cmdline>; exec <shell>`) so `cd ... && dotnet run` style
+    panes come back instead of empty shells and the pane stays open after
+    the command exits. Panes that were idle shells start a fresh interactive
+    shell. When the JSON panes carry no replayable command at all (and the
+    layout dump is richer), the layout dump is kept as the higher-fidelity
+    fallback.
     """
     windows = kitty_session_windows(session)
     # JSON may hold fewer windows than the layout-only dump (old snapshots
@@ -829,6 +833,16 @@ def snapshot_clients():
     snapshot.sort(key=lambda c: (c.get("workspace", {}).get("id", 0), c.get("focusHistoryID", 999999)))
     return snapshot
 
+def _existing_client_count():
+    """Return the client count of a valid existing last.json, or 0."""
+    try:
+        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    if isinstance(data, dict):
+        return len(data.get("clients") or [])
+    return 0
+
 
 def save():
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -850,15 +864,26 @@ def save():
         "focus": current_focus_state(clients),
         "clients": clients,
     }
-    # Back up the previous snapshot before overwriting. If the new write is
-    # interrupted or produces invalid JSON, load_snapshot() can fall back to
-    # the backup instead of failing the entire restore.
-    if LAST_FILE.exists():
+    # If the existing last.json has many more clients than this capture, the
+    # compositor was likely already tearing down (windows closing) when we
+    # captured. Keep the richer existing snapshot as last.json so restore has
+    # the full desktop; back it up and still return the new data so save_auto
+    # can arm the marker against it. The marker's savedAt points at the
+    # existing snapshot, matching what restore will actually load.
+    existing_count = _existing_client_count()
+    if existing_count and len(clients) < existing_count * 0.5:
         try:
             shutil.copy2(LAST_FILE, LAST_BAK_FILE)
         except Exception:
             pass
-    LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        data["savedAt"] = json.loads(LAST_FILE.read_text(encoding="utf-8")).get("savedAt", data["savedAt"])
+    else:
+        if LAST_FILE.exists():
+            try:
+                shutil.copy2(LAST_FILE, LAST_BAK_FILE)
+            except Exception:
+                pass
+        LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     workspace_keys = {
         (
             client.get("monitorName") or str(client.get("monitor", -1)),
@@ -898,7 +923,6 @@ def save():
 
 def _snapshot_is_recent(max_age=15):
     """Return True if last.json was written within the last max_age seconds.
-    Used by the systemd fallback save to avoid duplicating a save-auto that
     the UI just performed moments before the session teardown."""
     try:
         mtime = LAST_FILE.stat().st_mtime
@@ -907,70 +931,82 @@ def _snapshot_is_recent(max_age=15):
     return (time.time() - mtime) < max_age
 
 
-def save_auto_if_stale():
+def _arm_restore(saved_at):
+    AUTO_RESTORE_FILE.write_text(
+        json.dumps({"armed": True, "savedAt": saved_at}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _disarm_restore():
+    try:
+        AUTO_RESTORE_FILE.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def save_requested():
+    """Write the save-requested flag. Called by the UI checkbox path before
+    the system action runs, so the systemd/logout fallback knows the user
+    opted into restore and may arm the marker even when its own save() finds
+    the compositor already gone."""
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    SAVE_REQUESTED_FILE.write_text(str(int(time.time())), encoding="utf-8")
+
+
+def _consume_save_requested():
+    """Return True if the save-requested flag was present, removing it."""
+    if SAVE_REQUESTED_FILE.exists():
+        try:
+            SAVE_REQUESTED_FILE.unlink()
+        except FileNotFoundError:
+            pass
+        return True
+    return False
+
+
+def save_auto_if_stale(save_requested_flag=False):
     """Save and arm auto-restore, but only if last.json is stale (not written
     in the last 15 seconds). This prevents the systemd fallback from
     overwriting a fresh save-auto the UI already did on its own shutdown path.
-    The fallback still needs to arm restore-on-next-start if it's not armed,
-    because a direct `systemctl poweroff` never wrote the marker."""
+
+    The fallback (systemd ExecStop, logout script) is gated on the
+    save-requested flag: it only arms restore when the user checked the
+    "save current session" box. Without that flag, an empty save (compositor
+    gone, or all windows closed) disarms the marker instead of arming a
+    stale restore — matching the design doc and the user contract."""
+    requested = save_requested_flag or SAVE_REQUESTED_FILE.exists()
+    _consume_save_requested()
     if _snapshot_is_recent() and AUTO_RESTORE_FILE.exists():
         # UI already saved + armed. Nothing to do.
         print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": True}))
         return None
     if _snapshot_is_recent():
-        # UI saved but didn't arm (save without save-auto). Arm restore.
-        AUTO_RESTORE_FILE.write_text(
-            json.dumps({"armed": True, "savedAt": int(LAST_FILE.stat().st_mtime)}, indent=2),
-            encoding="utf-8",
-        )
-        print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": True}))
+        # UI saved but didn't arm (save without save-auto). Arm restore only
+        # when the user requested it.
+        if requested:
+            _arm_restore(int(LAST_FILE.stat().st_mtime))
+        else:
+            _disarm_restore()
+        print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": requested}))
         return None
-    return save_auto()
+    return save_auto(requested=requested)
 
 
-def _existing_snapshot_saved_at():
-    """Return the savedAt timestamp of a valid existing last.json, or None.
-
-    At shutdown the compositor may already be torn down (systemctl poweroff
-    never goes through the UI save path), so `hyprctl -j clients` returns
-    nothing and save() reports "empty". That does not mean there is nothing
-    to restore: last.json still holds the most recent valid snapshot. Fall
-    back to it so auto-restore is armed for the next login instead of being
-    silently disarmed by the teardown race."""
-    try:
-        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-    if not isinstance(data, dict) or not data.get("clients"):
-        return None
-    return data.get("savedAt") or int(LAST_FILE.stat().st_mtime)
-
-
-def save_auto():
+def save_auto(requested=True):
+    """Save a snapshot and arm auto-restore. When `requested` is False (the
+    fallback path with no save-requested flag), an empty save disarms the
+    marker instead of arming a restore for a desktop the user did not ask to
+    save. A non-empty save still arms: a snapshot with real windows is always
+    worth restoring when the marker is already armed."""
     data = save()
     if not data:
-        # save() failed — usually because the compositor was already gone
-        # during session teardown (reason: "empty"). A valid last.json is
-        # still worth restoring, so arm the marker against it instead of
-        # deleting it. Without this, a direct systemctl poweroff/reboot
-        # disarms auto-restore and the next login never offers to restore.
-        saved_at = _existing_snapshot_saved_at()
-        if saved_at is not None:
-            AUTO_RESTORE_FILE.write_text(
-                json.dumps({"armed": True, "savedAt": saved_at, "source": "stale"}, indent=2),
-                encoding="utf-8",
-            )
-            return None
-        try:
-            AUTO_RESTORE_FILE.unlink()
-        except FileNotFoundError:
-            pass
+        # Empty save: no clients captured (compositor gone, or all windows
+        # closed). Do not arm a stale restore — the design doc forbids it.
+        _disarm_restore()
         return None
 
-    AUTO_RESTORE_FILE.write_text(
-        json.dumps({"armed": True, "savedAt": data.get("savedAt", int(time.time()))}, indent=2),
-        encoding="utf-8",
-    )
+    _arm_restore(data.get("savedAt", int(time.time())))
     return data
 
 
@@ -1841,6 +1877,14 @@ def restore_auto():
     return restore()
 
 
+def disarm():
+    """Remove only the restore-on-next-start marker, keeping last.json so a
+    later manual restore is still possible. Used by SessionAutoRestore when
+    it skips restore (windows already open, or stale marker)."""
+    _disarm_restore()
+    print(json.dumps({"disarmed": True}))
+
+
 def clear():
     try:
         LAST_FILE.unlink()
@@ -1858,7 +1902,9 @@ def main():
     if cmd == "save":
         save()
     elif cmd in ("save-auto", "save-for-next-start"):
-        save_auto()
+        save_auto(requested=True)
+    elif cmd == "save-requested":
+        save_requested()
     elif cmd in ("save-auto-if-stale", "save-if-stale"):
         save_auto_if_stale()
     elif cmd == "preview":
@@ -1873,12 +1919,14 @@ def main():
         raise SystemExit(restore())
     elif cmd in ("restore-auto", "restore-on-next-start"):
         raise SystemExit(restore_auto())
+    elif cmd == "disarm":
+        disarm()
     elif cmd == "clear":
         clear()
     elif cmd == "status":
         status()
     else:
-        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-auto-if-stale|save-close|restore|restore-auto|clear", file=sys.stderr)
+        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-requested|save-auto-if-stale|save-close|restore|restore-auto|disarm|clear", file=sys.stderr)
         raise SystemExit(2)
 
 

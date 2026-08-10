@@ -1079,12 +1079,7 @@ PanelWindow {
                     labelText: "Restore Snapshot"
                     onClicked: {
                         launcher.sessionMenuOpen = false;
-                        Quickshell.execDetached(["bash", "-c",
-                            `clients=$(hyprctl -j clients | jq 'length') && ` +
-                            `if [ "$clients" -gt 0 ]; then ` +
-                            `echo "Workspace not empty ($clients windows) — restore cancelled"; ` +
-                            `else ${Directories.root}/bin/sumika-session restore; fi`
-                        ]);
+                        Session.restoreIfEmpty();
                     }
                 }
 

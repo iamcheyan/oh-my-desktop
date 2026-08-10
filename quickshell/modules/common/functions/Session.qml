@@ -26,15 +26,39 @@ Singleton {
         LockService.lock();
     }
 
+    function restoreIfEmpty() {
+        // Restore the saved snapshot only when the desktop is empty, so a
+        // manual "Restore Snapshot" does not pile windows onto a running
+        // session. Compositor-agnostic: Hyprland via hyprctl, labwc via
+        // wlrctl (foreign-toplevel lists app toplevels only, not shell
+        // surfaces like the bar). A failing tool (empty output) counts as
+        // non-empty to be safe.
+        Quickshell.execDetached(["bash", "-c",
+            `if pgrep -x labwc >/dev/null 2>&1; then `
+            + `clients=$(wlrctl toplevel list 2>/dev/null | wc -l); `
+            + `else clients=$(hyprctl -j clients | jq 'length' 2>/dev/null || echo 0); `
+            + `fi; `
+            + `if [ -z "$clients" ] || [ "$clients" -gt 0 ]; then `
+            + `echo "Workspace not empty ($clients windows) — restore cancelled"; `
+            + `else "${Directories.root}/bin/sumika-session" restore; fi`
+        ]);
+    }
+
     function suspend(saveCurrentSession) {
         Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("systemctl suspend || loginctl suspend", saveCurrentSession)]);
     }
 
     function withOptionalSessionSave(command, saveCurrentSession) {
+        // When the user checks "save current session", write the
+        // save-requested flag first so the systemd/logout fallback knows to
+        // arm restore even if its own save() finds the compositor gone.
         // save-auto-if-stale avoids overwriting a snapshot written moments
-        // ago (e.g. the systemd fallback already ran). It still arms
-        // restore-on-next-start if the UI save is the only path.
-        return (saveCurrentSession ? `"${Directories.root}/bin/sumika-session" save-auto-if-stale && ` : "") + command;
+        // ago (e.g. the fallback already ran) and consumes the flag. The
+        // command runs regardless of save outcome (&& vs ||) so a save
+        // failure never blocks logout/shutdown.
+        return (saveCurrentSession
+            ? `"${Directories.root}/bin/sumika-session" save-requested; "${Directories.root}/bin/sumika-session" save-auto-if-stale; `
+            : "") + command;
     }
 
     function logout(saveCurrentSession) {
