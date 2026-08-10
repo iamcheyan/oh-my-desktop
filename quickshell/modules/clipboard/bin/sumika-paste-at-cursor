@@ -4,7 +4,7 @@
 # one virtual-keyboard chord. Hyprland dispatch is the last fallback because
 # send_key_state can leave synthetic keys repeating.
 #
-# Usage: omarchy-paste-at-cursor [--stdin|--file PATH] [terminal|gui|auto] [window-class] [window-target]
+# Usage: sumika-paste-at-cursor [--stdin|--file PATH] [terminal|gui|auto] [window-class] [window-target]
 #   window-target: "activewindow" (default) or "address:0x...."
 # Env: SUMIKA_PASTE_DELAY — seconds to wait after wl-copy (default 0.15)
 #      SUMIKA_PASTE_SOURCE — diagnostic source name (default: unknown)
