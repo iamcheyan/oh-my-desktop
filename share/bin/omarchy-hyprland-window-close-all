@@ -2,6 +2,19 @@
 
 # omarchy:summary=Close all open windows
 
+if pgrep -x labwc >/dev/null 2>&1; then
+  # labwc: close every toplevel via wlrctl (wlr-foreign-toplevel).
+  # `list` prints "app_id: title" per line; match each distinct app_id so
+  # windows with any title (including empty) are closed.
+  wlrctl toplevel list 2>/dev/null | sed 's/: .*$//' | sort -u | \
+    while read -r app_id; do
+      [ -n "$app_id" ] || continue
+      wlrctl toplevel close "app_id:$app_id" >/dev/null 2>&1 || true
+    done
+  exit 0
+fi
+
+# Hyprland
 hyprctl clients -j | \
   jq -r ".[].address" | \
   while read -r addr; do

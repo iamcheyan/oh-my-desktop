@@ -6,7 +6,11 @@
 # Mirrors the variables set by the Hyprland session:
 #   hypr/default/hypr/envs.lua, hypr/input.lua
 
-XKB_DEFAULT_LAYOUT=us
+# Keyboard layouts. The first layout is the session default; the bar popup
+# (input method > keyboard layout) switches among these at runtime via
+# `sumika-kb-layout set <layout>` (rewrites this line + `labwc --reconfigure`).
+# The selected layout is moved to the front; the rest stay available.
+XKB_DEFAULT_LAYOUT=jp,us
 XCURSOR_SIZE=24
 XDG_SESSION_TYPE=wayland
 

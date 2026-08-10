@@ -19,12 +19,18 @@ Item {
     property string leadingActionIcon: ""
     property string leadingActionTooltip: ""
     property bool leadingActionEnabled: true
+    // Optional middle action (between leading and trailing), e.g. the
+    // keyboard-layout button in the input-method header.
+    property string middleActionIcon: ""
+    property string middleActionTooltip: ""
+    property bool middleActionEnabled: true
     // Optional trailing action (e.g. settings gear on Volume header).
     property string actionIcon: ""
     property string actionTooltip: ""
     property bool actionEnabled: true
 
     signal leadingActionClicked()
+    signal middleActionClicked()
     signal actionClicked()
 
     implicitHeight: 72
@@ -87,6 +93,15 @@ Item {
             enabled: root.leadingActionEnabled
             visible: root.leadingActionIcon.length > 0
             onClicked: root.leadingActionClicked()
+        }
+
+        PopupActionButton {
+            Layout.alignment: Qt.AlignVCenter
+            icon: root.middleActionIcon
+            tooltip: root.middleActionTooltip
+            enabled: root.middleActionEnabled
+            visible: root.middleActionIcon.length > 0
+            onClicked: root.middleActionClicked()
         }
 
         PopupActionButton {

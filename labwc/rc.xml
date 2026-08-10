@@ -178,16 +178,9 @@
     <keybind key="W-S-Down">
       <action name="MoveToEdge" direction="down" />
     </keybind>
-    <!-- Visual toggles (compositor-agnostic via ActionManager) -->
-    <keybind key="W-BackSpace">
-      <action name="Execute" command="sumika-action window.transparency-toggle" />
-    </keybind>
-    <keybind key="W-S-BackSpace">
-      <action name="Execute" command="sumika-action window.gaps-toggle" />
-    </keybind>
-    <keybind key="W-C-BackSpace">
-      <action name="Execute" command="sumika-action window.single-square-aspect-toggle" />
-    </keybind>
+    <!-- Hyprland-only visual toggles (window transparency, gaps, square
+         aspect) have no labwc equivalent — labwc exposes no runtime
+         opacity/gaps control. Do NOT bind them here. -->
     <!-- ═══════════════════════════════════════════════════════════════
          Window switching. labwc's NextWindow defaults to the current
          workspace (rc.window_switcher.workspace_filter = CURRENT), so

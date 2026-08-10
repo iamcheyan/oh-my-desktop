@@ -21,6 +21,18 @@ PageBody {
     property var rules: []
     property string defaultBrowser: ""
     property string defaultFileManager: ""
+    // labwc sessions have no Hyprland config; hide the Hyprland-only
+    // window-rules section (rules are written to hypr/window_rules.lua and
+    // applied via hyprctl reload).
+    property bool labwcSession: false
+
+    Process {
+        command: ["bash", "-c", "echo $XDG_CURRENT_DESKTOP"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: pageRoot.labwcSession = text.trim() === "labwc"
+        }
+    }
 
     Component.onCompleted: {
         refreshAutostart()
@@ -258,6 +270,7 @@ PageBody {
             }
 
             SettingsCard {
+                visible: !pageRoot.labwcSession
                 title: "Window Rules"
                 subtitle: `${pageRoot.rules.length} rule${pageRoot.rules.length === 1 ? "" : "s"}`
 
@@ -372,6 +385,7 @@ PageBody {
             // ── Add New Rule ─────────────────────────────────────────────
             SettingsCard {
                 id: addRuleCard
+                visible: !pageRoot.labwcSession
                 title: "Add Rule"
                 subtitle: "Define a new window rule"
 
@@ -422,6 +436,7 @@ PageBody {
 
             // ── Common Rules Quick Add ───────────────────────────────────
             SettingsCard {
+                visible: !pageRoot.labwcSession
                 title: "Quick Add"
                 subtitle: "Common window rule presets"
 

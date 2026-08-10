@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+#
+# sumika-kb-layout — list / switch / edit XKB keyboard layouts.
+#
+# Works on both supported compositors:
+#   * labwc:  the active layout list is XKB_DEFAULT_LAYOUT in
+#             $SUMIKA_SHELL_ROOT/labwc/environment. Switching rewrites that
+#             line and sends `labwc --reconfigure` (same mechanism as
+#             sumika-restart; the running binary is resolved from
+#             /proc/<pid>/exe so the /opt/labwc-upstream install works).
+#   * Hyprland: layout list is the `kb_layout` value in
+#             $SUMIKA_SHELL_ROOT/hypr/input.lua; switching writes the value
+#             and runs `hyprctl reload` (compositor applies the new list).
+#
+# Usage:
+#   sumika-kb-layout list                 — print available layouts (JSON array)
+#   sumika-kb-layout get                  — print the current layout name
+#   sumika-kb-layout set <layout>         — switch to <layout>
+#   sumika-kb-layout apply                — re-apply the current config
+#
+# Output for `list`/`get` is machine-readable JSON so the QML popup can
+# consume it directly.
+
+set -euo pipefail
+
+ROOT="${SUMIKA_SHELL_ROOT:-$HOME/development/OMD}"
+
+usage() {
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+[ $# -ge 1 ] || usage 1
+cmd="$1"
+shift || true
+
+labwc_env="$ROOT/labwc/environment"
+hypr_input="$ROOT/hypr/input.lua"
+
+# Current layout list. labwc: XKB_DEFAULT_LAYOUT. Hyprland: kb_layout.
+current_layout_list() {
+  if pgrep -x labwc >/dev/null 2>&1; then
+    sed -n 's/^XKB_DEFAULT_LAYOUT=//p' "$labwc_env" | head -n 1 | tr ',' '\n'
+  elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    # kb_layout = "us,jp"  (optionally with kb_variant = "jis")
+    sed -n 's/^[[:space:]]*kb_layout[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$hypr_input" \
+      | head -n 1 | tr ',' '\n'
+  else
+    echo "sumika-kb-layout: no supported compositor running (labwc or Hyprland)" >&2
+    return 1
+  fi
+}
+
+compositor_reload() {
+  if pgrep -x labwc >/dev/null 2>&1; then
+    _labwc_pid=$(pgrep -x labwc | head -n 1)
+    _labwc_bin=$(readlink -f "/proc/$_labwc_pid/exe" || true)
+    if [ -n "$_labwc_bin" ] && [ -x "$_labwc_bin" ]; then
+      LABWC_PID="$_labwc_pid" "$_labwc_bin" --reconfigure >/dev/null 2>&1 \
+        && echo "labwc: keyboard layout applied" \
+        || { echo "labwc: reconfigure failed" >&2; return 1; }
+    else
+      echo "labwc: could not resolve running binary" >&2
+      return 1
+    fi
+  elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    hyprctl reload >/dev/null
+  fi
+}
+
+set_labwc_layout() {
+  local layout="$1"
+  local tmp
+  tmp=$(mktemp "${labwc_env}.tmp.XXXXXX")
+  # Move <layout> to the front of XKB_DEFAULT_LAYOUT (the first layout is the
+  # active one; the remaining layouts stay available for the next switch).
+  awk -v l="$layout" '
+    /^XKB_DEFAULT_LAYOUT=/ {
+      n = split($0, parts, /[=,]/)
+      out = l
+      for (i = 2; i <= n; i++) {
+        if (parts[i] != "" && parts[i] != l) out = out "," parts[i]
+      }
+      print "XKB_DEFAULT_LAYOUT=" out
+      seen = 1
+      next
+    }
+    { print }
+    END { if (!seen) print "XKB_DEFAULT_LAYOUT=" l }
+  ' "$labwc_env" > "$tmp"
+  chmod --reference="$labwc_env" "$tmp" 2>/dev/null || true
+  mv "$tmp" "$labwc_env"
+  compositor_reload
+}
+
+set_hypr_layout() {
+  local layout="$1"
+  local tmp
+  tmp=$(mktemp "${hypr_input}.tmp.XXXXXX")
+  awk -v l="$layout" '
+    /^[[:space:]]*kb_layout[[:space:]]*=[[:space:]]*"/ {
+      line = $0
+      rest = line
+      sub(/^[^"]*"/, "", rest)   # strip up to opening quote
+      sub(/".*$/, "", rest)      # strip from closing quote
+      n = split(rest, parts, ",")
+      out = l
+      for (i = 1; i <= n; i++) {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", parts[i])
+        if (parts[i] != "" && parts[i] != l) out = out "," parts[i]
+      }
+      sub(/"[^"]*"/, "\"" out "\"", line)
+      print line
+      seen = 1
+      next
+    }
+    { print }
+    END { if (!seen) print "    kb_layout = \"" l "\"," }
+  ' "$hypr_input" > "$tmp"
+  chmod --reference="$hypr_input" "$tmp" 2>/dev/null || true
+  mv "$tmp" "$hypr_input"
+  compositor_reload
+}
+
+case "$cmd" in
+  list)
+    current_layout_list | jq -R . | jq -s .
+    ;;
+  get)
+    current_layout_list | head -n 1 | jq -R .
+    ;;
+  set)
+    [ $# -eq 1 ] || usage 1
+    layout="$1"
+    if pgrep -x labwc >/dev/null 2>&1; then
+      set_labwc_layout "$layout"
+    elif command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+      set_hypr_layout "$layout"
+    else
+      echo "sumika-kb-layout: no supported compositor running" >&2
+      exit 1
+    fi
+    ;;
+  apply)
+    compositor_reload
+    ;;
+  -h|--help)
+    usage 0
+    ;;
+  *)
+    usage 1
+    ;;
+esac

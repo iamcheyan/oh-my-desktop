@@ -5,10 +5,28 @@
 
 STATE_FILE="$HOME/.local/state/omarchy/toggles/hypr/touchpad-disabled.lua"
 
-device="$(omarchy-hw-touchpad)"
+# Detect the touchpad device name without depending on `omarchy-hw-touchpad`
+# (removed from the repo). Parse /proc/bus/input/devices for a device whose
+# handlers include a mouse (touchpads expose one) and whose name mentions a
+# touchpad/trackpad.
+hw_touchpad() {
+  awk -v RS='' '/Handlers=.*mouse/ && /Touchpad|Trackpad|touchpad|trackpad/' \
+    /proc/bus/input/devices 2>/dev/null \
+    | sed -n 's/^N: Name="\(.*\)"$/\1/p' \
+    | head -n1
+}
+
+device="$(hw_touchpad)"
 
 if [[ -z $device ]]; then
   echo "No touchpad device found" >&2
+  exit 1
+fi
+
+if pgrep -x labwc >/dev/null 2>&1; then
+  # labwc has no runtime per-device enable/disable interface (libinput is
+  # configured statically from rc.xml). Fail loudly instead of pretending.
+  echo "Touchpad toggle is not supported on labwc (no runtime device control)" >&2
   exit 1
 fi
 

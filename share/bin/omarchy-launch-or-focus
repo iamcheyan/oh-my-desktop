@@ -10,6 +10,17 @@ fi
 
 WINDOW_PATTERN="$1"
 LAUNCH_COMMAND="${2:-"uwsm-app -- $WINDOW_PATTERN"}"
+
+if pgrep -x labwc >/dev/null 2>&1; then
+  # labwc: focus an existing window via wlrctl, else launch.
+  if wlrctl toplevel focus "app_id:$WINDOW_PATTERN" >/dev/null 2>&1 \
+     || wlrctl toplevel focus "title:$WINDOW_PATTERN" >/dev/null 2>&1; then
+    exit 0
+  fi
+  eval exec setsid $LAUNCH_COMMAND
+fi
+
+# Hyprland
 WINDOW_ADDRESS=$(hyprctl clients -j | jq -r --arg p "$WINDOW_PATTERN" '.[]|select((.class|test("\\b" + $p + "\\b";"i")) or (.title|test("\\b" + $p + "\\b";"i")))|.address' | head -n1)
 
 if [[ -n $WINDOW_ADDRESS ]]; then

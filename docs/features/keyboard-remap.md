@@ -35,6 +35,13 @@ immediately through the sysfs parameter, and persists the selected value in
 authorization because both destinations are root-owned. The section is hidden
 on machines that do not use `hid_apple`.
 
+**Persistence caveat (Asahi/Apple laptops):** `hid_apple` loads inside the
+initramfs on Asahi Linux, so `/etc/modprobe.d/` options are ignored unless the
+initramfs is rebuilt (`dracut --force`). Writing the runtime value alone works
+until the next reboot. See
+[`apple-fn-keys-persistence.md`](apple-fn-keys-persistence.md) for the full
+diagnosis and the required rebuild step.
+
 ## Architecture
 
 ```

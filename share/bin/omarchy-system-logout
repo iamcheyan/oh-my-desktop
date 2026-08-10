@@ -11,10 +11,27 @@ sumika-session save-auto-if-stale >/dev/null 2>&1 || true
 # not let a close failure prevent logout.
 sumika-hyprland-window-close-all >/dev/null 2>&1 || true
 sleep 0.8
-hyprland_alive() {
+
+compositor_alive() {
+  if pgrep -x labwc >/dev/null 2>&1; then
+    return 0
+  fi
   hyprctl instances >/dev/null 2>&1
 }
 
+if pgrep -x labwc >/dev/null 2>&1; then
+  # labwc session: exit the compositor via its native -e flag, falling back
+  # to SIGTERM. The display manager then returns to the login screen.
+  if labwc -e >/dev/null 2>&1; then
+    exit 0
+  fi
+  pkill -TERM -x labwc >/dev/null 2>&1 || true
+  sleep 0.5
+  compositor_alive || exit 0
+  exit 1
+fi
+
+# Hyprland session.
 # End only the compositor so the display manager returns to the login screen.
 # Do not call `uwsm stop` here: in Sumika Shell's current session that path
 # can escalate into a full system stop instead of a plain graphical logout.
@@ -26,6 +43,9 @@ hyprland_alive() {
 # still alive instead of trusting hyprctl's return code.
 hyprctl dispatch 'hl.dispatch(hl.dsp.exit())' >/tmp/sumika-logout-hyprland.log 2>&1 || true
 sleep 0.5
+hyprland_alive() {
+  hyprctl instances >/dev/null 2>&1
+}
 hyprland_alive || exit 0
 
 pkill -TERM -x Hyprland >/tmp/sumika-logout-pkill.log 2>&1 || true

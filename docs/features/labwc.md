@@ -116,6 +116,20 @@ labwc 会话入口（自愈）。
   下无效果（不报错）。
 - **Hyprland 专属**：`Persistent.qml`/`Session.qml`/`PowerContextMenu.qml`
   中的 hyprctl-only 逻辑在 labwc 下静默失效。
+- **点击空白处关闭 popup/右键菜单不可用**：Hyprland 下有两套并行 dismiss
+  机制——(1) `hyprland_focus_grab_v1` 协议（`GlobalFocusGrab.qml` 的
+  `HyprlandFocusGrab`，点击 grab 窗口列表外部时 compositor 直接发 `onCleared`
+  信号关闭 popup）；(2) `BarDismissLayer.qml` 全屏透明 Overlay 层窗口 +
+  `MouseArea`（`mask: Region` 设 input region 捕获点击）。labwc **两套都失效**：
+  `hyprland_focus_grab_v1` 是 Hyprland 专有协议，labwc 不支持（日志反复
+  `hyprland_focus_grab_v1 protocol. HyprlandFocusGrab will not work`）；
+  透明 layer-shell 窗口在 labwc 下不接收输入（`color: "transparent"` + `mask:
+  Region` 的 input region 未被 labwc/wlroots 尊重，点击穿透；实测 `#80FF0000`
+  有内容时能接收点击、dismiss 成功，透明时不能）。`BarRuntime.dismissLayerActive`
+  绑定因 `GlobalFocusGrab` 单例未初始化而始终为 false，进一步使 dismiss window
+  永不显示。**结论**：labwc 下点击空白处不能关闭 bar popup 和右键菜单，只能
+  再次点击触发按钮 toggle 关闭（bar popup）或按 Esc（右键菜单 `ContextMenuWindow`
+  有 `Keys.onEscapePressed: close()`）。这是 labwc 协议栈限制，不修。
 
 ## 顶栏透明/不透明切换（bar 透明逻辑调查）
 
