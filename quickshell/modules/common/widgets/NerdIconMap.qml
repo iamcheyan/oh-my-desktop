@@ -107,6 +107,10 @@ QtObject {
     readonly property string menuOpen: "\uDB80\uDFDC"         // mdi-menu-open U+F03DC
     readonly property string dotsVertical: "\uF142"          // fa-ellipsis-v U+F142
     readonly property string settings: "\uDB81\uDC93"         // mdi-cog U+F0493
+    readonly property string windowMinimize: "\uDB81\uDDB0"   // md-window_minimize U+F05B0
+    readonly property string windowMaximize: "\uDB81\uDDAF"   // md-window_maximize U+F05AF
+    readonly property string windowClose: "\uDB81\uDDAD"      // md-window_close U+F05AD
+    readonly property string windowKill: "\uDB83\uDEF0"       // fa-skull_crossbones U+F0EF0
 
     // Status / Feedback
     readonly property string info: "\uDB80\uDEFC"             // mdi-information U+F02FC
