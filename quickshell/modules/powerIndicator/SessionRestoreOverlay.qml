@@ -14,22 +14,33 @@ Scope {
     id: root
 
     property string sessionCommand: Directories.root + "/bin/sumika-session"
-    property string restoreAction: "restore"
+    required property string restoreAction
     property int expectedCount: 0
     property int restoredCount: 0
     property string statusText: expectedCount > 0 ? `Restoring ${expectedCount} windows` : "Restoring workspace snapshot"
 
     signal finished()
+    property bool cancelled: false
+    property bool restoreRunning: false
 
-    // Started explicitly by the host (SessionAutoRestore) AFTER it has set
-    // restoreAction. Starting in Component.onCompleted races the Loader's
-    // onLoaded assignment: the Process would spawn with the default
-    // "restore" action, which never consumes the auto-restore marker and
-    // would re-arm the overlay on every reload.
     function startRestore() {
+        root.cancelled = false;
+        root.restoreRunning = true;
         restoreProc.running = true;
         elapsedTimer.start();
     }
+
+    function cancelRestore() {
+        // Stop the restore script. Windows already launched remain, but no
+        // further launches happen. Close the overlay immediately.
+        root.cancelled = true;
+        root.restoreRunning = false;
+        restoreProc.running = false;
+        elapsedTimer.stop();
+        root.statusText = "Restore cancelled";
+        finishTimer.start();
+    }
+
 
     Process {
         id: restoreProc
@@ -49,6 +60,8 @@ Scope {
         }
 
         onExited: (exitCode, exitStatus) => {
+            root.restoreRunning = false;
+            if (root.cancelled) return;
             root.statusText = exitCode === 0
                 ? "Arranging workspaces"
                 : "Restore finished with errors";
@@ -210,6 +223,41 @@ Scope {
                             color: TuiStyle.muted
                             horizontalAlignment: Text.AlignHCenter
                             font.pixelSize: Appearance.font.pixelSize.small
+                            visible: root.restoreRunning
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: cancelBtn.implicitHeight
+                            visible: root.restoreRunning
+
+                            Rectangle {
+                                id: cancelBtn
+                                anchors.centerIn: parent
+                                width: cancelBtnLabel.implicitWidth + 32
+                                height: 34
+                                radius: height / 2
+                                color: cancelBtnArea.containsMouse ? TuiStyle.surfaceSubtle : TuiStyle.surface
+                                border.width: TuiStyle.borderWidth
+                                border.color: TuiStyle.line
+
+                                StyledText {
+                                    id: cancelBtnLabel
+                                    anchors.centerIn: parent
+                                    text: "Cancel"
+                                    color: TuiStyle.fg
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.weight: Font.Medium
+                                }
+
+                                MouseArea {
+                                    id: cancelBtnArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.cancelRestore()
+                                }
+                            }
                         }
                     }
                 }

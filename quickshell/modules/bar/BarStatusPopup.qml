@@ -324,7 +324,8 @@ Scope {
 
                             Rectangle {
                                 id: sessionSaveCbx
-                                property bool checked: true
+                                property bool checked: GlobalStates.sessionSaveOnExit
+                                onCheckedChanged: GlobalStates.sessionSaveOnExit = checked
                                 Layout.preferredWidth: 22
                                 Layout.preferredHeight: 22
                                 radius: 5

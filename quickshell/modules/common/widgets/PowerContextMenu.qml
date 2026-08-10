@@ -1,4 +1,5 @@
 pragma ComponentBehavior: Bound
+import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -51,8 +52,7 @@ ContextMenuWindow {
         labelText: "Hibernate"
         shortcutKey: "H"
         onClicked: {
-            root.close();
-            Session.hibernate(true);
+            Session.hibernate(GlobalStates.sessionSaveOnExit);
         }
     }
 
@@ -66,7 +66,7 @@ ContextMenuWindow {
         shortcutKey: "L"
         onClicked: {
             root.close();
-            Session.logout(true);
+            Session.logout(GlobalStates.sessionSaveOnExit);
         }
     }
 
@@ -76,7 +76,7 @@ ContextMenuWindow {
         shortcutKey: "B"
         onClicked: {
             root.close();
-            Session.reboot(true);
+            Session.reboot(GlobalStates.sessionSaveOnExit);
         }
     }
 
@@ -86,7 +86,7 @@ ContextMenuWindow {
         shortcutKey: "U"
         onClicked: {
             root.close();
-            Session.poweroff(true);
+            Session.poweroff(GlobalStates.sessionSaveOnExit);
         }
     }
 
