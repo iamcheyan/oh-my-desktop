@@ -44,17 +44,30 @@ Item { // Bar content region
         return null;
     }
 
-    // Compositor-agnostic "is there a maximized toplevel on this bar's screen"
-    // via zwlr_foreign_toplevel_management_v1 (labwc 0.20+, Hyprland, sway).
-    // A maximized window always occupies this screen, so no focus check needed.
+    // "Is there an activated, maximized toplevel on this bar's screen?" — via
+    // zwlr_foreign_toplevel_management_v1 (labwc 0.20+, Hyprland, sway).
+    // `activated` excludes minimized / unfocused windows: when nothing on
+    // this screen is focused, the bar's title falls back to the OS name (see
+    // ActiveWindow.displayTitle) and the bar must turn fully transparent
+    // (transparentOnEmptyDesktop). `screens` limits the match to this bar's
+    // output on multi-monitor setups. Same lookup pattern as
+    // ActiveWindow.focusedToplevel — direct property reads (`activated`,
+    // `maximized`, `screens`) are dependency-tracked, and toplevels
+    // add/remove re-evaluates the binding.
     readonly property bool workspaceHasMaximized: {
         const barScreen = root.screen?.name ?? "";
-        return ToplevelManager.toplevels.values.some(t =>
-            t.maximized && t.screens.some(s => s.name === barScreen)
-        );
+        const list = ToplevelManager.toplevels.values;
+        for (let i = 0; i < list.length; i++) {
+            const t = list[i];
+            if (t.activated && t.maximized
+                    && t.screens.some(s => s.name === barScreen)) {
+                return true;
+            }
+        }
+        return false;
     }
-    // No maximized window => fully transparent. Maximized window present =>
-    // configured opacity (backgroundOpacity, e.g. 50 => 50%).
+    // No maximized window on this workspace => fully transparent. Maximized
+    // window present => configured opacity (backgroundOpacity, e.g. 50 => 50%).
     readonly property color barBackgroundColor:
         !Config.options.bar.showBackground ? "transparent" :
         Config.options.bar.transparentOnEmptyDesktop

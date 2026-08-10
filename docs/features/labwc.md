@@ -123,50 +123,41 @@ labwc 会话入口（自愈）。
 OMD 的 bar 通过 `transparentOnEmptyDesktop` 实现同类效果（`sumika.json`
 默认开启）。
 
-### 当前实现机制
+### 当前实现机制（compositor-agnostic，两会话通用）
+
+`BarContent.qml` 的 `workspaceHasMaximized` 直接走
+`zwlr_foreign_toplevel_manager_v1`（Hyprland、labwc 均可用），不再依赖
+`HyprlandData` 的 hyprctl poll：
 
 ```
-BarContent.qml:49  workspaceHasWindows
-    → barActiveWorkspaceId = ServiceManager.workspace.monitorActiveWorkspaceId(Hyprland.monitorFor(screen))
-    → HyprlandData.monitorActiveWorkspaceId()（hyprctl monitors/workspaces/clients poll 数据）
-BarContent.qml:63  barBackgroundColor = showBackground && !(transparentOnEmptyDesktop && !workspaceHasWindows)
-                    ? barOpaqueColor(rgba 50%) : "transparent"
+workspaceHasMaximized = toplevels.values 中 ∃ t：
+    t.activated && t.maximized && t.screens 包含本 bar 所在屏
+barBackgroundColor = showBackground && transparentOnEmptyDesktop
+    ? (workspaceHasMaximized ? barOpaqueColor(rgba 50%) : "transparent")
+    : barOpaqueColor
 ```
 
-即：**有窗口 → 半透明黑面板；空桌面 → 完全透明**。判定依赖
-`ServiceManager.workspace`（`HyprlandData`）的 hyprctl poll 数据。
+判定规则：**本屏有激活且最大化的窗口 → 半透明黑面板；否则 → 完全透明**。
+（与 `active-window` 扩展的 `focusedToplevel` 同一查找模式：`activated` +
+`screens` 按屏匹配；直接属性读取，QML 绑定可追踪。）
 
-### labwc 下现状（实测）
+### 修复历史
 
-- `HyprlandData` 三个 poll（`hyprctl clients/monitors/workspaces -j`）在
-  labwc 下全部早退（无 hyprctl IPC socket）→ `windowList`/`monitors`/
-  `workspaceById` 恒空 → `workspaceHasWindows` 恒 `false` →
-  **labwc 下 bar 永远透明**（即使有窗口，半透明面板也不出现）。
-- 实测（2026-08-09，grim 截图 + 像素/视觉分析）：bar 区域直接透出壁纸纹理，
-  workspaces 指示器文字印在壁纸上，无深色面板。
-
-### 最大化状态能拿到吗（核心问题）——能
-
-调查确认 labwc 的 `zwlr_foreign_toplevel_manager_v1` **完整推送最大化状态**：
-
-- **labwc 侧**：`labwc-upstream/src/foreign-toplevel/wlr-foreign.c:144`
-  `wlr_foreign_toplevel_handle_v1_set_maximized(handle, view->maximized == VIEW_AXIS_BOTH)`
-  —— 窗口最大化（双轴）变化时实时广播；客户端请求最大化也经
-  `handle_maximized` 事件处理（wlr-foreign.c:26-29）。
-- **Quickshell 侧**：`Quickshell.Wayland._ToplevelManagement` 的 `Toplevel`
-  暴露只读 `maximized: bool` 属性 + `maximizedChanged` 信号
-  （`/usr/lib64/qt6/qml/Quickshell/Wayland/_ToplevelManagement/quickshell-wayland-toplevel-management.qmltypes:65`），
-  同时有 `activated`/`screens`/`minimized`/`fullscreen`。
-- 参考实现：`active-window` 扩展已用 `ToplevelManager.toplevels` 做
-  compositor-agnostic 焦点查询（`activated` + `screens` 匹配），labwc 下可用。
-
-### 结论与修复方向
-
-- **当前失效根因不是"拿不到最大化状态"**，而是 `workspaceHasWindows` 依赖
-  `HyprlandData`（hyprctl poll，labwc 下恒空）。
-- 修复方向：labwc 下用 `ToplevelManager.toplevels` 计算当前屏是否有
-  `activated`（或 `maximized`）toplevel 替代 `workspaceHasWindows`，与
-  active-window 扩展同模式；Hyprland 路径保持不变。labwc 侧无需任何改动。
+- **labwc 下永久透明（旧 bug）**：旧实现 `workspaceHasWindows` 依赖
+  `HyprlandData`（hyprctl poll），labwc 下恒空 → bar 永远透明（即使有窗口
+  也不显示面板）。已由上方 ToplevelManager 实现取代。
+- **空桌面不透明（2026-08-09 修复）**：初版 ToplevelManager 实现只判断
+  `maximized` 不判断 `activated`（或误用 `ToplevelManager.activeToplevel`，
+  其语义是"最后激活的窗口"，最小化后不置空）→ **最小化所有窗口后 bar 仍
+  不透明**，而此时 bar 标题已回退为操作系统名称（`ActiveWindow.displayTitle`
+  在无激活窗口时显示 distro 名，如 "Fedora Linux Asahi Remix 44"）。
+  修复：判定加 `t.activated` 条件——无激活窗口（标题显示 OS 名称）即视为
+  空桌面 → 透明。实测三态：最大化激活 → 不透明；最小化（标题=OS 名）→
+  完全透明；恢复最大化激活 → 不透明。
+- **labwc 点击桌面不清焦点**（设计行为，未修）：labwc 点击桌面空白处只
+  取消 popup grab，不清除窗口焦点（`cursor.c` 无 focus NULL 路径）→
+  激活窗口保持不变，bar 保持不透明。这与"空桌面"（无激活窗口）不同，
+  无合成器侧配置可改。
 
 ## 验证
 
