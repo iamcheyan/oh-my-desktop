@@ -464,15 +464,18 @@ Scope {
         target: "overview"
 
         function toggle() {
+            GlobalStates.overviewWarmStart = false;
             GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
         }
         function workspacesToggle() {
+            GlobalStates.overviewWarmStart = false;
             GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
         }
         function close() {
             GlobalStates.overviewOpen = false;
         }
         function open() {
+            GlobalStates.overviewWarmStart = false;
             GlobalStates.overviewOpen = true;
         }
         function toggleReleaseInterrupt() {
@@ -484,6 +487,10 @@ Scope {
         }
         function superUp() {
             GlobalStates.superDown = false;
+            if (GlobalStates.overviewWarmStart) {
+                GlobalStates.superReleaseMightTrigger = false;
+                return;
+            }
             if (GlobalStates.superReleaseMightTrigger) {
                 GlobalStates.superReleaseMightTrigger = false;
                 if (!GlobalStates.overviewOpen)

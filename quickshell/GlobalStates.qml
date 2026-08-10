@@ -35,6 +35,10 @@ Singleton {
     property bool screenUnlockFailed: false
     property bool superDown: false
     property bool superReleaseMightTrigger: false
+    // The overview process is pre-warmed separately from the bar. During its
+    // short startup window, a compositor-delivered Super release must not be
+    // mistaken for a user request to open Overview.
+    property bool overviewWarmStart: Quickshell.env("SUMIKA_OVERVIEW_WARM") === "1"
     // Overview controller, injected by the overview module at load time so the
     // Super-release shortcut can drive switching mode without a core→module
     // import dependency. Null in processes that don't load the overview module.
@@ -48,6 +52,13 @@ Singleton {
     property bool sessionConfirmOpen: false
     property string sessionConfirmAction: ""
     property string sessionConfirmLabel: ""
+
+    Timer {
+        id: overviewWarmStartTimer
+        interval: 3000
+        running: root.overviewWarmStart
+        onTriggered: root.overviewWarmStart = false
+    }
 
     function requestSessionConfirm(action, label) {
         GlobalStates.barPopupType = "";
@@ -117,6 +128,10 @@ Singleton {
         }
         onReleased: {
             root.superDown = false
+            if (root.overviewWarmStart) {
+                root.superReleaseMightTrigger = false
+                return
+            }
             if (root.overviewSwitchingController && root.overviewSwitchingController.grabbed) {
                 root.superReleaseMightTrigger = false
                 root.overviewSwitchingController.commitGrabbedMode()

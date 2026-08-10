@@ -19,7 +19,7 @@ Item {
         item.tooltipTitle,
         item.tooltipDescription
     ].join(" ").toLowerCase()
-    readonly property var itemIconSource: item.icon ?? item.iconName ?? ""
+    readonly property var itemIconSource: (item.iconName && item.iconName.length > 0) ? item.iconName : (item.icon ?? "")
     readonly property string itemIconName: typeof itemIconSource === "string" ? itemIconSource : String(item.iconName ?? "")
     readonly property bool useNetworkFallbackIcon: itemIconName === "network-transmit"
     readonly property bool hasValidIcon: itemIconSource !== null && itemIconSource !== undefined && (typeof itemIconSource !== "string" || itemIconSource.length > 0)
@@ -49,6 +49,16 @@ Item {
         return parts.join("\n");
     }
 
+
+    readonly property bool useInputKeyboardFallback: itemIconName === "input-keyboard-symbolic"
+        || itemIconName === "input-keyboard"
+        || itemIconName === "fcitx-keyboard"
+        || (root.isInputMethod && (itemIconName === "" || itemIconName === "input-keyboard-symbolic"))
+
+    readonly property bool isInputMethod: searchableIdentity.includes("fcitx")
+        || searchableIdentity.includes("rime")
+        || searchableIdentity.includes("ibus")
+        || searchableIdentity.includes("input")
 
     readonly property bool useArrowIcon: searchableIdentity.includes("search")
         || searchableIdentity.includes("walker")
@@ -101,7 +111,7 @@ Item {
 
     IconImage {
         id: trayIcon
-        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !root.iconLoadFailed
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.useInputKeyboardFallback && root.hasValidIcon && !root.iconLoadFailed && trayIcon.status === Image.Ready
         // Keep the source visible. The monochrome effect is rendered by the
         // overlay below; hiding the source makes that overlay blank as well.
         opacity: 1
@@ -113,24 +123,24 @@ Item {
 
 
     MaterialSymbol {
-        visible: root.useArrowIcon || root.useNetworkFallbackIcon
+        visible: root.useArrowIcon || root.useNetworkFallbackIcon || root.useInputKeyboardFallback
         anchors.centerIn: button
-        text: root.useNetworkFallbackIcon ? "sync_alt" : "arrow_forward"
+        text: root.useInputKeyboardFallback ? "keyboard" : (root.useNetworkFallbackIcon ? "sync_alt" : "arrow_forward")
         iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 
     /// Fallback: tray item without valid icon → show downward arrow
     MaterialSymbol {
-        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.hasValidIcon
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.useInputKeyboardFallback && !root.hasValidIcon
         anchors.centerIn: button
-        text: "expand_more"
+        text: root.isInputMethod ? "keyboard" : "expand_more"
         iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 
     Loader {
-        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && root.hasValidIcon && !root.iconLoadFailed && Config.options.tray.monochromeIcons
+        active: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.useInputKeyboardFallback && root.hasValidIcon && !root.iconLoadFailed && trayIcon.status === Image.Ready && Config.options.tray.monochromeIcons
         anchors.fill: trayIcon
         sourceComponent: Item {
             Desaturate {
@@ -150,10 +160,10 @@ Item {
 
     // Also covers invalid icon names, not only providers that omit an icon.
     MaterialSymbol {
-        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon
+        visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.useInputKeyboardFallback
             && (!root.hasValidIcon || root.iconLoadFailed)
         anchors.centerIn: button
-        text: "apps"
+        text: root.isInputMethod ? "keyboard" : "apps"
         iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }

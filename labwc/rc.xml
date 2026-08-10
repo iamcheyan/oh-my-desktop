@@ -70,7 +70,15 @@
          labwc/themes/. Adwaita-Labwc-dark is installed as an alternative:
          switch with <name>BL-Lithium-dark</name>. -->
     <name>BL-Lithium-dark</name>
-    <cornerRadius>8</cornerRadius>
+    <!-- 窗口装饰圆角：0 = 直角（用户偏好，2026-08-09 去圆角） -->
+    <cornerRadius>0</cornerRadius>
+    <!-- keepBorder=no: 无边框窗口(NONE)不保留内边框, 使 W-f 在
+         FULL ↔ NONE 两态间循环 (rc.ssd_keep_border 默认 true 会三态)。 -->
+    <keepBorder>no</keepBorder>
+    <!-- 隐藏左侧 app 图标按钮（2026-08-09）；窗口菜单仍可用 A-Space 或右键标题栏 -->
+    <titlebar>
+      <layout>:iconify,max,close</layout>
+    </titlebar>
     <dropShadows>no</dropShadows>
     <font place="ActiveWindow" name="sans" size="10" />
     <font place="InactiveWindow" name="sans" size="10" />
@@ -150,6 +158,12 @@
     </keybind>
     <keybind key="W-A-f">
       <action name="ToggleMaximize" />
+    </keybind>
+    <!-- Force Quit from the bar window menu (SIGTERM to the focused
+         window's process — labwc's Kill action; Hyprland session uses
+         `hyprctl dispatch killactive` instead). -->
+    <keybind key="W-A-k">
+      <action name="Kill" />
     </keybind>
     <!-- Move-to-edge (without snap-resize) — stacking equivalent of Hyprland swap -->
     <keybind key="W-S-Left">
@@ -308,6 +322,15 @@
     </keybind>
     <keybind key="W-C-Print">
       <action name="Execute" command="sumika-action screenshot.capture-ocr" />
+    </keybind>
+    <!-- Internal trigger for the screenshot tool: grim captures the software
+         cursor on this labwc build, so bin/sumika-screenshot hides it via the
+         native HideCursor action (pointer hidden until the next pointer
+         action). labwc has no IPC for actions here, so the tool injects
+         XF86Launch1 (KEY_PROG1, keycode 148) with ydotool and this keybind
+         is the trigger channel. Never bound to a physical action. -->
+    <keybind key="XF86Launch1">
+      <action name="HideCursor" />
     </keybind>
 
     <!-- ═══════════════════════════════════════════════════════════════
@@ -526,6 +549,10 @@
        labwc equivalent; labwc is a stacking compositor. Add windowRule
        entries here as needed (see labwc-config(5) WINDOW RULES). -->
   <windowRules>
+    <!-- Musubi file-backup TUI control center: float + center like Hyprland's tui_rule -->
+    <windowRule identifier="io.github.iamcheyan.musubi">
+      <action name="MoveToCenter" />
+    </windowRule>
   </windowRules>
 
 </labwc_config>

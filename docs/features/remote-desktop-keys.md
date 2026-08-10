@@ -7,6 +7,18 @@
 > 需求要点（易搞反）：不是"进入 RDP 后把本地快捷键让给远程"，而是
 > **本地照常用、远程不吃 Win 键**。
 
+## 再次点击启动器 = 跳转到已有会话
+
+`remote-desktop` 是**单会话**启动器：如果 RDP 窗口已经在运行，再次点击
+启动器不会开第二个会话，而是直接跳到已有窗口（聚焦 + 切到它所在的工作区）。
+
+- 检测：`wlrctl toplevel find "title:Remote Desktop"`（foreign-toplevel，
+  Hyprland / labwc 通用）。
+- 跳转：`wlrctl toplevel focus`——labwc 在
+  `desktop_focus_view_internal()` 里会 `workspaces_switch_to(view->workspace)`
+  自动切到窗口所在工作区（Hyprland 的 foreign-toplevel activate 行为相同）。
+- 命中即 `exit 0`，不启动客户端。
+
 ## 原理：labwc 的按键分发
 
 labwc（0.20.1，`src/input/keyboard.c` 的 `process_key()`）对每个按键事件：
@@ -62,13 +74,30 @@ labwc 没有原生"空动作"；用 `Execute` 跑一个无害命令来消费按�
 
 ## 验证（2026-08-09 实测）
 
-1. 启动 RDP（`remote-desktop`，自动切到 workspace 0 并最大化）。
+1. 启动 RDP（`remote-desktop`，自动切到 workspace 0，窗口以 workarea 尺寸
+   铺满可用屏幕——见下方"为什么不用 maximize"）。
 2. 按 `W-s` / `W-1`：本地工作区照常切换，远程无反应。
 3. 按裸 `Super`：**远程不弹开始菜单**，本地也无任何弹层。
 4. 远程浏览器里 `Ctrl+C/V` 正常。
 
 > 测试注意：RDP 服务器（192.168.3.65）是**单会话**服务器，连接约 90 秒后
 > `Network disconnect` 掉线；测试完要 `pkill sdl-freerdp` 释放会话。
+
+## 为什么 labwc 分支不用 maximize
+
+FreeRDP 的 SDL3 客户端（3.26）**会撤销合成器的 maximize**：窗口 map 后客户端
+按其内部状态机主动 `set_maximized(false)`，`wlrctl toplevel maximize`、
+rc.xml 的 `windowRule Maximize` 都实测被立即打回（连续 15 次 wlrctl 调用无一
+保持；协议日志里客户端从未收到带 MAXIMIZED 状态的 configure）。fullscreen 虽
+不被撤销，但会盖掉顶栏，不符合使用习惯。
+
+替代方案：**让窗口以精确尺寸打开**。labwc 输出 scale=2 时，FreeRDP 的
+`resizeToScale()` 会把 `/w:/h:` 按像素密度除以 2，所以传**物理分辨率**
+（`/w:3024 /h:1900` = 输出 3024×1964 减去顶栏 32 逻辑×2）得到的窗口正好等于
+逻辑 workarea（1512×950），左/右/底贴边、顶部贴住顶栏，视觉上就是最大化，
+且**没有任何 maximize 状态可被客户端撤销**。远程分辨率随窗口 1:1 渲染，内容
+清晰无黑边。窗口尺寸由 `labwc_rdp_size()` 从 `wlr-randr --json` 动态计算
+（物理宽高 + scale），换显示器/分辨率也成立。
 
 ## 副作用与边界
 
@@ -85,8 +114,12 @@ labwc 没有原生"空动作"；用 `Execute` 跑一个无害命令来消费按�
 ## 相关改动
 
 - `labwc/rc.xml`（OMD 仓库）：`Super_L`/`Super_R` 空动作 keybind。
-- `remote-desktop`（chezmoi 源 `dot_config/sumika-shell/scripts/executable_remote-desktop`，
-  已提交 `ba89e08`）：labwc 分支 `launch_args` 加 `+dynamic-resolution`——
-  sdl-freerdp 缺它时窗口被锁成不可调整大小（`setResizeable()` 置
-  `SDL_SetWindowResizable(false)`），labwc 的 maximize 被固定尺寸挡住；加上后窗口
-  可 resize、最大化生效，且窗口尺寸变化会同步 RDP 会话分辨率（内容跟随，无黑边）。
+- `remote-desktop`（chezmoi 源 `dot_config/sumika-shell/scripts/executable_remote-desktop`）：
+  - labwc 分支 `launch_args` 加 `+dynamic-resolution`——sdl-freerdp 缺它时窗口被
+    锁成不可调整大小（`setResizeable()` 置 `SDL_SetWindowResizable(false)`）。
+  - labwc 分支加 `labwc_rdp_size()`：从 `wlr-randr --json` 取当前输出物理分辨率
+    和 scale，算出 workarea 尺寸（物理宽，高 = (物理高/scale − 32)×scale），
+    以 `/w:/h:` 传给客户端；`maximize_rdp_window`（wlrctl）已删除——见上节
+    "为什么 labwc 分支不用 maximize"。
+  - 新增 `focus_existing_rdp()`：`wlrctl toplevel find` 检测已有会话，命中则
+    `focus` 跳转并退出，不重复启动（见"再次点击启动器"一节）。

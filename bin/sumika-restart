@@ -320,7 +320,14 @@ else
     echo "[sumika-restart] WARNING: registry not found at $_registry_file" >&2
 fi
 
-# ── Hyprland reload ───────────────────────────────────────────────────────
+# ── Compositor config reload ──────────────────────────────────────────────
+# Reload the running compositor's config on every shell reload:
+#   * Hyprland: hyprctl reload (only when a Hyprland instance is live)
+#   * labwc:    --reconfigure sends SIGHUP to the running compositor, which
+#               re-parses rc.xml and rebuilds the theme (themerc); windows
+#               are not touched. The binary is resolved from /proc/<pid>/exe
+#               so this works regardless of PATH (e.g. the upstream install
+#               at /opt/labwc-upstream/usr/local/bin/labwc).
 if [ "$quickshell_only" -eq 0 ]; then
     if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
         hyprctl reload >/dev/null
@@ -329,6 +336,18 @@ if [ "$quickshell_only" -eq 0 ]; then
             printf 'Hyprland configuration still has errors:\n%s\n' "$errors" >&2
         fi
     fi
+
+    _labwc_pid=$(pgrep -x labwc 2>/dev/null | head -n 1 || true)
+    if [ -n "$_labwc_pid" ]; then
+        _labwc_bin=$(readlink -f "/proc/$_labwc_pid/exe" 2>/dev/null || true)
+        if [ -n "$_labwc_bin" ] && [ -x "$_labwc_bin" ]; then
+            LABWC_PID="$_labwc_pid" "$_labwc_bin" --reconfigure >/dev/null 2>&1 \
+                && printf 'labwc config reloaded (pid %s)\n' "$_labwc_pid" >&2 \
+                || printf 'labwc --reconfigure failed\n' >&2
+        fi
+        unset _labwc_bin
+    fi
+    unset _labwc_pid
 fi
 
 # ── Terminal reload ───────────────────────────────────────────────────────

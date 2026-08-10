@@ -43,7 +43,7 @@ window.inactive.button.unpressed.image.color: #8e8e8e
 
 !! Global width settings
 border.width: 3
-window.titlebar.padding.width: 1
+window.titlebar.padding.width: 10
 menu.overlap.x: -6
 menu.overlap.y: -6
 
@@ -88,4 +88,4 @@ osd.window-switcher.preview.border.width: 2
 osd.window-switcher.preview.border.color: #6cb4ee
 
 !! Typography
-window.label.text.justify: center
+window.label.text.justify: left

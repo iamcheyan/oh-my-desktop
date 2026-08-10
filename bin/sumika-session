@@ -419,76 +419,122 @@ def kitty_resolve_socket(pid, argv):
     return ""
 
 
-def kitty_child_pid(pid):
-    children = process_tree()
-    candidates = []
-    for child, depth in descendants(pid, children):
-        name = proc_name(child)
-        if name and name not in ("kitten",):
-            candidates.append((depth, child))
-    if not candidates:
-        return 0
-    candidates.sort(key=lambda item: item[0])
-    return candidates[0][1]
-
-
-def kitty_json_multiplexer(session):
-    """Inspect a captured kitty session JSON for a per-window tmux/zellij
-    command. Kitty windows running a multiplexer client report it via
-    last_reported_cmdline (e.g. `tmux new-session -A -s 0`). The session-format
-    export drops that command, so we parse the JSON to recover a multiplexer
-    session descriptor that launch_command can relaunch."""
+def kitty_session_windows(session):
+    """Return (os_window_index, tab_index, window) triples from the captured
+    kitty JSON, in tree order. The JSON must be captured unfiltered: a
+    `--match pid:` filter would hide every pane but the first, dropping the
+    other panes' multiplexer sessions from the snapshot."""
     if not session or session.get("type") != "kitty":
-        return None
+        return []
     raw = session.get("json") or ""
     if not raw.strip():
-        return None
+        return []
     try:
         data = json.loads(raw)
     except Exception:
-        return None
-    for os_window in data:
-        for tab in os_window.get("tabs", []):
+        return []
+    result = []
+    for os_index, os_window in enumerate(data):
+        for tab_index, tab in enumerate(os_window.get("tabs", [])):
             for window in tab.get("windows", []):
-                argv = window.get("cmdline") or []
-                reported = (window.get("last_reported_cmdline") or "").split()
-                candidates = [argv, reported]
-                for candidate in candidates:
-                    if not candidate:
-                        continue
-                    name = Path(candidate[0]).name.lower()
-                    if name == "tmux":
-                        info = parse_tmux_session(candidate)
-                        if info:
-                            info["argvPrefix"] = ["tmux"]
-                            return info
-                    if name == "zellij":
-                        info = parse_zellij_session(candidate)
-                        if info:
-                            info["argvPrefix"] = ["zellij"]
-                            return info
+                result.append((os_index, tab_index, window))
+    return result
+
+
+def kitty_window_attach(window):
+    """Return a tmux/zellij attach argv for one kitty pane, or None.
+
+    Kitty reports the command a pane's shell is currently running via
+    last_reported_cmdline; a tmux client running `tmux new-session -A -s X`
+    reports exactly that, so it survives the shell between the client and
+    kitty. Fall back to the process cmdline when the reported line is empty.
+    A bare `tmux new-session -A` without a session name cannot be restored
+    headlessly (tmux refuses to open a terminal), so it degrades to a plain
+    shell instead of replaying a broken command."""
+    reported = (window.get("last_reported_cmdline") or "").strip()
+    reported_argv = reported.split() if reported else []
+    candidates = [window.get("cmdline") or [], reported_argv]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        name = Path(candidate[0]).name.lower()
+        info = None
+        if name == "tmux":
+            info = parse_tmux_session(candidate)
+            if info:
+                info["argvPrefix"] = ["tmux"]
+        elif name == "zellij":
+            info = parse_zellij_session(candidate)
+            if info:
+                info["argvPrefix"] = ["zellij"]
+        if not info:
+            continue
+        if info.get("type") == "tmux" and not info.get("name"):
+            return None
+        return terminal_attach_command(info)
     return None
+
+
+def synthesize_kitty_session(session):
+    """Build a kitty session file that re-runs every pane's command.
+
+    A kitty window with N panes holds N paintings (tmux/zellij sessions).
+    The layout-only dump cannot express them, so when any pane runs a
+    multiplexer client we emit one `launch` directive per pane — a
+    tmux/zellij attach for painting panes, a plain shell elsewhere —
+    preserving each painting's own session on restore. Without a
+    multiplexer the layout dump is the highest-fidelity restore and is kept
+    unchanged; if even that is missing, plain-shell launches are a better
+    fallback than dropping the window."""
+    windows = kitty_session_windows(session)
+    if not windows:
+        return session.get("content") or ""
+    attaches = [kitty_window_attach(window) for _, _, window in windows]
+    if not any(attaches):
+        content = session.get("content") or ""
+        if content.strip():
+            return content
+    # Old snapshots were captured with a `--match pid:` filter whose JSON
+    # holds only the first pane. The layout dump still lists every window, so
+    # a mismatch means the JSON is incomplete: synthesizing would collapse an
+    # N-pane window to one pane. Degrade to the layout instead of dropping
+    # panes, even though their multiplexer commands are unrecoverable.
+    content = session.get("content") or ""
+    if content.strip() and len(windows) < content.count("launch"):
+        return content
+    lines = []
+    prev_os = None
+    prev_tab = None
+    for (os_index, tab_index, window), attach in zip(windows, attaches):
+        if prev_os is not None:
+            if os_index != prev_os:
+                lines.append("new_os_window")
+            elif tab_index != prev_tab:
+                lines.append("new_tab")
+        prev_os, prev_tab = os_index, tab_index
+        parts = ["launch"]
+        cwd = window.get("cwd") or ""
+        if cwd:
+            parts += ["--cwd", cwd]
+        if attach:
+            parts += attach
+        lines.append(" ".join(shlex.quote(part) for part in parts))
+    return "\n".join(lines) + "\n"
 
 
 def kitty_session_info(pid, argv):
     socket = kitty_resolve_socket(pid, argv)
     if not socket:
         return None
-    child_pid = kitty_child_pid(pid)
-    # Capture the full JSON listing (contains per-window cmdline, cwd,
-    # last_reported_cmdline) so restore can relaunch the actual command the
-    # shell was running (e.g. `tmux new-session -A -s 0`) instead of just the
-    # kitty layout. The session-format export drops the child command.
-    match_args = []
-    if child_pid:
-        match_args = ["--match", f"pid:{child_pid}"]
-    json_command = ["kitty", "@", "--to", socket, "ls", *match_args]
-    # kitty 0.47.1 ignores --output-format=session whenever a --match filter
-    # is present and falls back to JSON, which then breaks `kitty --session`
-    # ("Unknown command in session file: ["). The session-format dump is only
-    # used for layout/cwd restore, so request the full tree without filtering;
-    # the JSON capture above still carries the per-window cmdline/cwd used for
-    # multiplexer detection.
+    # Capture the full JSON tree (per-window cmdline, cwd,
+    # last_reported_cmdline) so restore can relaunch each pane's actual
+    # command (e.g. `tmux new-session -A -s <painting>`). The JSON must NOT
+    # be filtered with `--match pid:` — a filter would hide every pane but
+    # the first, dropping the other panes' tmux/zellij sessions from the
+    # snapshot and collapsing a multi-painting window to one painting on
+    # restore. The session-format export drops the child command, so it is
+    # only a layout/cwd fallback.
+    json_command = ["kitty", "@", "--to", socket, "ls"]
     session_command = ["kitty", "@", "--to", socket, "ls", "--output-format=session"]
     try:
         json_result = subprocess.run(json_command, text=True, capture_output=True, timeout=1.5)
@@ -500,7 +546,6 @@ def kitty_session_info(pid, argv):
     return {
         "type": "kitty",
         "listenOn": socket,
-        "childPid": child_pid,
         "json": json_result.stdout,
         "content": session_result.stdout if session_result.returncode == 0 else "",
     }
@@ -628,12 +673,15 @@ def terminal_launch_argv(executable, terminal, cwd, session, program=None):
 
 
 def restore_record_argv(record):
-    """Return a launch argv, upgrading old kitty/tmux snapshot records.
+    """Return a launch argv, upgrading old kitty snapshot records.
 
-    Older Sumika snapshots flattened `tmux new-session -A` into
-    `tmux attach-session`. The raw kitty JSON still contains the original
-    command, so recover it at restore time. This makes an already-saved
-    snapshot boot-safe without requiring the user to save it again.
+    Kitty windows restore through a synthesized session file that re-runs
+    every pane's command (see synthesize_kitty_session). Old snapshots may
+    hold a flattened launch — a single `tmux attach-session` rewrite, or a
+    plain kitty argv without the session placeholder. Re-pointing them at
+    the session-file path lets the file writer recover per-pane multiplexers
+    from the captured kitty JSON, so already-saved snapshots restore the
+    same way as new ones.
     """
     command = record.get("command") or {}
     argv = command.get("argv") or []
@@ -648,14 +696,8 @@ def restore_record_argv(record):
     if not argv or not command.get("terminal") or session.get("type") != "kitty":
         return argv
 
-    multiplexer = kitty_json_multiplexer(session)
-    if not multiplexer:
-        return argv
-
     executable = argv[0]
-    terminal = Path(executable).name.lower()
-    cwd = command.get("cwd") or ""
-    return terminal_launch_argv(executable, terminal, cwd, multiplexer, None)
+    return [executable, "--session", "__SUMIKA_KITTY_SESSION__"]
 
 
 def launch_command(client):
@@ -685,16 +727,12 @@ def launch_command(client):
             program = terminal_program_info(pid)
 
     if is_terminal(client) and argv:
-        # When a kitty session is captured, check the per-window JSON for a
-        # multiplexer command (tmux new-session -A / zellij attach) that keeps
-        # the real session alive outside kitty. If found, prefer relaunching
-        # the multiplexer attach — it restores the actual shell session, not
-        # just the kitty layout. Otherwise fall back to the kitty session file
-        # for layout + cwd restore.
-        kitty_json_session = kitty_json_multiplexer(session) if session and session.get("type") == "kitty" else None
-        if kitty_json_session:
-            argv = terminal_launch_argv(argv[0], terminal, cwd, kitty_json_session, None)
-        elif session and session.get("type") == "kitty":
+        if session and session.get("type") == "kitty":
+            # Kitty windows restore through a synthesized session file that
+            # re-runs every pane's command (tmux/zellij attaches included), so
+            # each painting pane reattaches its own session. Collapsing the
+            # whole window to a single multiplexer attach would drop every
+            # other pane's painting.
             argv = [argv[0], "--session", "__SUMIKA_KITTY_SESSION__"]
         else:
             argv = terminal_launch_argv(argv[0], terminal, cwd, session, program)
@@ -882,7 +920,7 @@ def write_kitty_session_file(record, index):
     session = record.get("command", {}).get("session") or {}
     if session.get("type") != "kitty":
         return ""
-    content = session.get("content", "")
+    content = synthesize_kitty_session(session)
     if not content.strip():
         return ""
     KITTY_SESSION_DIR.mkdir(parents=True, exist_ok=True)

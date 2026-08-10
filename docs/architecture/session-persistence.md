@@ -114,8 +114,13 @@ back to the saved session, for example:
 
 ```text
 alacritty --working-directory /repo -e zellij --config-dir ... attach tetsuya@asahi
-kitty --directory /repo tmux attach-session -t Work
+foot --working-directory /repo tmux attach-session -t Work
 ```
+
+Kitty windows restore differently: a kitty window with N panes can hold N
+independent multiplexer sessions, so kitty always restores through a
+synthesized session file that re-runs every pane's attach command (see
+[Kitty Sessions](#kitty-sessions) below).
 
 This preserves the terminal session only because tmux/zellij keep the session
 alive after the terminal window closes.
@@ -124,9 +129,10 @@ For tmux windows originally launched with `tmux new-session -A -s NAME`, Sumika 
 preserves that attach-or-create form instead of reducing it to
 `attach-session`. This distinction matters after a reboot: no tmux server
 exists yet, so `new-session -A` starts one and allows `tmux-continuum` to load
-the latest `tmux-resurrect` snapshot. Existing snapshots are also upgraded at
-restore time from the raw Kitty remote-control JSON, so they do not need to be
-saved again.
+the latest `tmux-resurrect` snapshot. Existing kitty snapshots are re-pointed
+at the session-file restore path at restore time, so they do not need to be
+saved again — the file writer recovers each pane's attach command from the
+captured JSON.
 
 During restore, Sumika Shell associates each new window with the process PID started
 for that specific snapshot record (including child processes) before moving
@@ -183,40 +189,52 @@ When a socket is found, Sumika Shell captures both:
 - `kitty @ ls` JSON — contains per-window `cmdline`, `last_reported_cmdline`,
   and `cwd`. This is what lets Sumika Shell detect a tmux/zellij multiplexer client
   running *inside* kitty (e.g. `tmux new-session -A -s 0`), which the
-  session-format export drops.
+  session-format export drops. The JSON is captured **unfiltered** (no
+  `--match pid:` filter): a filter would hide every pane but the first,
+  collapsing a multi-pane window's multiple tmux/zellij sessions into one
+  painting on restore.
 - `kitty @ ls --output-format=session` — the kitty-native session file used
   for layout restore as a fallback.
 
-#### Restore priority
+#### Restore
 
-If the kitty JSON reveals a running tmux/zellij client (via
-`last_reported_cmdline`), Sumika Shell relaunches the multiplexer attach command
-inside kitty, for example:
+A kitty window with N panes can hold N independent paintings (each pane
+attached to its own tmux/zellij session). Restore therefore goes through a
+synthesized session file that re-runs every pane's command, so each painting
+reattaches to its own session:
 
-```text
-kitty --directory "$HOME" tmux attach-session -t 0
-```
+1. Sumika Shell walks the captured JSON in tree order and, for every pane
+   whose `last_reported_cmdline` is a tmux/zellij client, emits a `launch`
+   directive running that client's attach command (e.g. `launch --cwd $HOME
+   tmux new-session -A -s Work`). Panes without a multiplexer get a plain
+   `launch --cwd <dir>` shell. `new_os_window`/`new_tab` markers preserve the
+   original window/tab structure.
+2. The result is written to:
 
-This is preferred over the session-format file because the multiplexer
-session survives the kitty window closing — attaching restores the real
-shell session (windows, panes, scrollback, running programs), not just the
-kitty layout.
+   ```text
+   ~/.local/state/sumika-shell/session/kitty/restore-<n>.session
+   ```
 
-If no multiplexer is detected, Sumika Shell writes the session-format text to:
+   and every kitty window restores uniformly as:
 
-```text
-~/.local/state/sumika-shell/session/kitty/restore-<n>.session
-```
+   ```text
+   kitty --session ~/.local/state/sumika-shell/session/kitty/restore-<n>.session
+   ```
 
-and launches:
+3. If no pane runs a multiplexer, the kitty-native layout dump is used
+   unchanged — it restores tabs, windows, layouts, and working directories.
 
-```text
-kitty --session ~/.local/state/sumika-shell/session/kitty/restore-<n>.session
-```
+A bare `tmux new-session -A` without a session name cannot be restored
+headlessly (tmux refuses to open a terminal), so such a pane degrades to a
+plain shell. Old snapshots whose JSON was captured with a `--match` filter
+hold only the first pane; if the layout dump lists more windows than the JSON
+has, Sumika Shell uses the layout instead of synthesizing a one-pane file, so
+the window structure survives even though the other panes' paintings are
+unrecoverable from that snapshot.
 
-This restores kitty tabs, windows, layouts, and working directories. It does
-not preserve Linux process memory or unsaved editor buffers. For durable
-shell/editor state, use tmux/zellij or the application's own session restore.
+This does not preserve Linux process memory or unsaved editor buffers. For
+durable shell/editor state, use tmux/zellij or the application's own session
+restore.
 
 ### Firefox Sessions
 

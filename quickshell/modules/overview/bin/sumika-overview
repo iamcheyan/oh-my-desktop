@@ -22,6 +22,14 @@ repo_root=$(cd "$(dirname "$0")/../../../.." && pwd -P)
 . "$repo_root/lib/paths.sh"
 qs_launcher="$SUMIKA_SHELL_ROOT/quickshell/scripts/quickshell"
 
+# labwc has its own native workspace menu and no Hyprland IPC/thumbnails.
+# Keep the overview application completely out of that session, including
+# when a stale launcher or manual command tries to start it.
+if [ "${XDG_CURRENT_DESKTOP:-}" = "labwc" ]; then
+    echo "sumika-overview: disabled in labwc session" >&2
+    exit 0
+fi
+
 is_running() {
     pgrep -af "(quickshell|qs).* -p ${app_dir}( |$)" >/dev/null 2>&1
 }
@@ -38,7 +46,7 @@ ipc_probe() {
 
 launch_direct() {
     # Start the overview process hidden (no open intent). Used by `warm`.
-    exec "$qs_launcher" "$app_dir"
+    SUMIKA_OVERVIEW_WARM=1 exec "$qs_launcher" "$app_dir"
 }
 
 # Cold-start the overview process and, once its IPC handler is up, deliver
