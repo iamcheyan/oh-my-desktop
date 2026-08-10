@@ -316,15 +316,11 @@
     <keybind key="W-C-Print">
       <action name="Execute" command="sumika-action screenshot.capture-ocr" />
     </keybind>
-    <!-- Internal trigger for the screenshot tool: grim captures the software
-         cursor on this labwc build, so bin/sumika-screenshot hides it via the
-         native HideCursor action (pointer hidden until the next pointer
-         action). labwc has no IPC for actions here, so the tool injects
-         XF86Launch1 (KEY_PROG1, keycode 148) with ydotool and this keybind
-         is the trigger channel. Never bound to a physical action. -->
-    <keybind key="XF86Launch1">
-      <action name="HideCursor" />
-    </keybind>
+    <!-- Cursor hiding during screenshots removed: labwc's HideCursor action
+         leaves the pointer hidden until the next pointer motion, and the
+         ydotool-injected restore nudge was unreliable — the cursor would
+         stay hidden after a capture. The software cursor is now left
+         visible in grim captures (a minor cosmetic cost vs. a real bug). -->
 
     <!-- ═══════════════════════════════════════════════════════════════
          Clipboard (Alt+V — mirror Hyprland bindings)
