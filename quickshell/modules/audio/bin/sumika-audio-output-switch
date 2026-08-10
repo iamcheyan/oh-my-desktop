@@ -6,8 +6,8 @@ sinks=$(pactl -f json list sinks | jq '[.[] | select((.ports | length == 0) or (
 sinks_count=$(echo "$sinks" | jq '. | length')
 
 if (( sinks_count == 0 )); then
-  if command -v omarchy-swayosd-client &>/dev/null; then
-    omarchy-swayosd-client --custom-message "No audio devices found"
+  if command -v sumika-swayosd-client &>/dev/null; then
+    sumika-swayosd-client --custom-message "No audio devices found"
   fi
   exit 1
 fi
@@ -59,8 +59,8 @@ if [[ $next_sink_name != $current_sink_name ]]; then
   wpctl set-default "$next_sink_wpid"
 fi
 
-if command -v omarchy-swayosd-client &>/dev/null; then
-  omarchy-swayosd-client \
+if command -v sumika-swayosd-client &>/dev/null; then
+  sumika-swayosd-client \
     --custom-message "$next_sink_description" \
     --custom-icon "$next_sink_volume_icon"
 fi

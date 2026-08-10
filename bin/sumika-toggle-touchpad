@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-toggle-touchpad" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-toggle-touchpad" "$@"

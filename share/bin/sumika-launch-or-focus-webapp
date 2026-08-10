@@ -4,12 +4,12 @@
 # omarchy:args=<window-pattern> <url-and-flags...>
 
 if (($# == 0)); then
-  echo "Usage: omarchy-launch-or-focus-webapp [window-pattern] [url-and-flags...]"
+  echo "Usage: sumika-launch-or-focus-webapp [window-pattern] [url-and-flags...]"
   exit 1
 fi
 
 WINDOW_PATTERN="$1"
 shift
-LAUNCH_COMMAND="omarchy-launch-webapp $@"
+LAUNCH_COMMAND="sumika-launch-webapp $@"
 
-exec omarchy-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"
+exec sumika-launch-or-focus "$WINDOW_PATTERN" "$LAUNCH_COMMAND"

@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-hyprland-monitor-watch" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-hyprland-monitor-watch" "$@"

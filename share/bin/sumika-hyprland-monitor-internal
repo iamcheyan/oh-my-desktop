@@ -4,40 +4,40 @@
 # omarchy:args=<on|off|toggle|recover>
 
 TOGGLE="internal-monitor-disable"
-TOGGLE_FLAG="$HOME/.local/state/omarchy/toggles/hypr/$TOGGLE.lua"
+TOGGLE_FLAG="${SUMIKA_SHELL_STATE_HOME:-$HOME/.local/state/sumika-shell}/toggles/hypr/$TOGGLE.lua"
 MIRROR_TOGGLE="internal-monitor-mirror"
 
 # Get internal monitor name dynamically
 INTERNAL=$(hyprctl monitors -j | jq -r '.[] | select(.name | contains("eDP")).name' | head -n 1)
 
 on() {
-  if omarchy-hyprland-toggle-enabled $TOGGLE; then
-    omarchy-hyprland-toggle $TOGGLE off
-    omarchy-notification-send -g 󰍹 "Laptop display enabled"
+  if sumika-hyprland-toggle-enabled $TOGGLE; then
+    sumika-hyprland-toggle $TOGGLE off
+    sumika-notification-send -g 󰍹 "Laptop display enabled"
   fi
 }
 
 off() {
-  if ! omarchy-hw-external-monitors; then
-    omarchy-notification-send -g 󰍹 "Can't disable the only active display"
+  if ! sumika-hw-external-monitors; then
+    sumika-notification-send -g 󰍹 "Can't disable the only active display"
     exit 1
   fi
 
-  if omarchy-hyprland-toggle-disabled $TOGGLE && omarchy-hyprland-toggle-disabled $MIRROR_TOGGLE; then
+  if sumika-hyprland-toggle-disabled $TOGGLE && sumika-hyprland-toggle-disabled $MIRROR_TOGGLE; then
     printf 'hl.monitor({ output = "%s", disabled = true })\n' "$INTERNAL" >"$TOGGLE_FLAG"
-    omarchy-notification-send -g 󰍹 "Laptop display disabled"
+    sumika-notification-send -g 󰍹 "Laptop display disabled"
     hyprctl reload
   fi
 }
 
 recover() {
-  if ! omarchy-hw-external-monitors && omarchy-hyprland-toggle-enabled $TOGGLE; then
-    omarchy-hyprland-toggle $TOGGLE off
+  if ! sumika-hw-external-monitors && sumika-hyprland-toggle-enabled $TOGGLE; then
+    sumika-hyprland-toggle $TOGGLE off
   fi
 }
 
 toggle() {
-  if omarchy-hyprland-toggle-enabled $TOGGLE; then
+  if sumika-hyprland-toggle-enabled $TOGGLE; then
     on
   else
     off

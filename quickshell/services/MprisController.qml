@@ -153,7 +153,7 @@ Singleton {
             || root.activePlayer.identity
             || "";
         if (pattern.length > 0)
-            Quickshell.execDetached(["omarchy-launch-or-focus", pattern, "true"]);
+            Quickshell.execDetached(["sumika-launch-or-focus", pattern, "true"]);
     }
 
     function previousOrRewind(): void {

@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-hyprland-window-transparency-toggle" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-hyprland-window-transparency-toggle" "$@"

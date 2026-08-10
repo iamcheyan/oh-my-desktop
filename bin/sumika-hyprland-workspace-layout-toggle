@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-hyprland-workspace-layout-toggle" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-hyprland-workspace-layout-toggle" "$@"

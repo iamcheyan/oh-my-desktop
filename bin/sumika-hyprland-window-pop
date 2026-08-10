@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-hyprland-window-pop" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-hyprland-window-pop" "$@"

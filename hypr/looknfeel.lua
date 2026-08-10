@@ -28,7 +28,6 @@ hl.layer_rule({ match = { namespace = "quickshell:appLauncher" }, no_anim = true
 hl.layer_rule({ match = { namespace = "quickshell:clipboard" }, no_anim = true })
 
 -- Float and center transient TUI / GUI settings managers
-o.window("org.omarchy.omarchy-wifi-tui", { float = true, center = true, size = { 1180, 760 } })
 local tui_rule = { float = true, center = true, size = { 1180, 760 } }
 local sumika_tui_ids = {
   "impala",

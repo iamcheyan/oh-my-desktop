@@ -4,7 +4,7 @@
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 WALLPAPER_LOCK="${XDG_RUNTIME_DIR:-/tmp}/sumika-wallpaper-output-refresh.lock"
-MONITOR_TOGGLE_DIR="$HOME/.local/state/omarchy/toggles/hypr"
+MONITOR_TOGGLE_DIR="${SUMIKA_SHELL_STATE_HOME:-$HOME/.local/state/sumika-shell}/toggles/hypr"
 EXTENSIONS_DIR="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
 WALLPAPER_BIN="$EXTENSIONS_DIR/theme-settings/bin/sumika-wallpaper"
 

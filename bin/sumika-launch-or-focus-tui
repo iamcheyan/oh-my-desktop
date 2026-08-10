@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-launch-or-focus-tui" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-launch-or-focus-tui" "$@"

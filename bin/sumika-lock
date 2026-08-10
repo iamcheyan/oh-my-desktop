@@ -1,2 +1,2 @@
 #!/bin/sh
-exec "$(dirname "$0")/../share/bin/omarchy-system-lock" "$@"
+exec "$(dirname "$0")/../share/bin/sumika-system-lock" "$@"

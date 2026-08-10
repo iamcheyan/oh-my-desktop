@@ -3,9 +3,9 @@
 # omarchy:summary=Enable, disable, or toggle the touchpad
 # omarchy:args=[on|off|toggle]
 
-STATE_FILE="$HOME/.local/state/omarchy/toggles/hypr/touchpad-disabled.lua"
+STATE_FILE="${SUMIKA_SHELL_STATE_HOME:-$HOME/.local/state/sumika-shell}/toggles/hypr/touchpad-disabled.lua"
 
-# Detect the touchpad device name without depending on `omarchy-hw-touchpad`
+# Detect the touchpad device name without depending on `sumika-hw-touchpad`
 # (removed from the repo). Parse /proc/bus/input/devices for a device whose
 # handlers include a mouse (touchpads expose one) and whose name mentions a
 # touchpad/trackpad.
@@ -33,14 +33,14 @@ fi
 enable() {
   hyprctl eval "hl.device({ name = \"$device\", enabled = true })" >/dev/null
   rm -f "$STATE_FILE"
-  omarchy-swayosd-client --custom-icon input-touchpad-symbolic --custom-message "Touchpad enabled"
+  sumika-swayosd-client --custom-icon input-touchpad-symbolic --custom-message "Touchpad enabled"
 }
 
 disable() {
   hyprctl eval "hl.device({ name = \"$device\", enabled = false })" >/dev/null
   mkdir -p "$(dirname "$STATE_FILE")"
   printf 'hl.device({ name = "%s", enabled = false })\n' "$device" >"$STATE_FILE"
-  omarchy-swayosd-client --custom-icon touchpad-disabled-symbolic --custom-message "Touchpad disabled"
+  sumika-swayosd-client --custom-icon touchpad-disabled-symbolic --custom-message "Touchpad disabled"
 }
 
 case "${1:-toggle}" in

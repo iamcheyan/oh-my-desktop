@@ -15,13 +15,13 @@ else
 fi
 
 # Drive hardware mic-mute LED if available
-if command -v omarchy-brightness-keyboard-mute &>/dev/null; then
-  omarchy-brightness-keyboard-mute "$led"
+if command -v sumika-brightness-keyboard-mute &>/dev/null; then
+  sumika-brightness-keyboard-mute "$led"
 fi
 
 # Show OSD notification
-if command -v omarchy-swayosd-client &>/dev/null; then
-  omarchy-swayosd-client \
+if command -v sumika-swayosd-client &>/dev/null; then
+  sumika-swayosd-client \
     --custom-message "$osd_message" \
     --custom-icon "$osd_icon"
 fi

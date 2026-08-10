@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle single-window square aspect ratio.
+
+case $(sumika-hyprland-toggle single-window-aspect-ratio) in
+  on) sumika-notification-send -g  "Enable single-window square aspect ratio" ;;
+  off) sumika-notification-send -g  "Disable single-window square aspect ratio" ;;
+esac

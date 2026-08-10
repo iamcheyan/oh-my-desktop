@@ -24,7 +24,7 @@ Scope {
     property var targetAction: LockContext.ActionEnum.Unlock
     property bool alsoInhibitIdle: false
     property var snapshots: ({})
-    readonly property string snapshotDir: "/tmp/omd-lock"
+    readonly property string snapshotDir: "/tmp/sumika-lock"
 
     function snapshotForScreen(screenName) {
         return root.snapshots[screenName] || "";
