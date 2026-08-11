@@ -496,7 +496,10 @@ Singleton {
         const currentVolume = root.value
         const step = currentVolume < 0.1 ? 0.01 : 0.02
         if (sink?.audio) {
-            sink.audio.volume = Math.min(1, sink.audio.volume + step)
+            const newVolume = Math.min(1, sink.audio.volume + step)
+            sink.audio.volume = newVolume
+            if (sink.audio.muted && newVolume > 0)
+                sink.audio.muted = false
             root.scheduleLevelSave()
         }
     }
@@ -505,7 +508,10 @@ Singleton {
         const currentVolume = root.value
         const step = currentVolume < 0.1 ? 0.01 : 0.02
         if (sink?.audio) {
-            sink.audio.volume -= step
+            const newVolume = Math.max(0, sink.audio.volume - step)
+            sink.audio.volume = newVolume
+            if (sink.audio.muted && newVolume > 0)
+                sink.audio.muted = false
             root.scheduleLevelSave()
         }
     }
