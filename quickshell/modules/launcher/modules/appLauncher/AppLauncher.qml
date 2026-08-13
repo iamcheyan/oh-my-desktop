@@ -147,7 +147,11 @@ PanelWindow {
         const set = launcher.runningSet;
         if (!set) return false;
 
-        const id = (app.id || "").split("/").pop().split(".").pop().toLowerCase();
+        // app.id is the .desktop filename (e.g. "org.mozilla.firefox.desktop").
+        // Strip the .desktop suffix, then take the basename — do NOT split on "."
+        // and pop(), which reduces every reversed-domain id to "desktop" and
+        // makes every app match any running window whose class contains it.
+        const id = (app.id || "").replace(/\.desktop$/i, "").split("/").pop().toLowerCase();
         const exec = (app.execString || "").split(" ")[0].split("/").pop().toLowerCase();
         const stripped = exec.replace(/-stable$/, "").replace(/-bin$/, "").replace(/^env-/, "");
         const candidates = [id, exec, stripped];
