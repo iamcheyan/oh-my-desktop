@@ -52,37 +52,7 @@ ShellRoot {
         }
     }
 
-    // Action IPC compat layer — external processes (overview, settings, etc.)
-    // can invoke or query any registered ActionManager action by ID.
-    // This is the migration path from old direct qs -p ipc calls.
-    IpcHandler {
-        target: "action"
-
-        function call(id: string, params: string): void {
-            let parsed = undefined
-            if (params && params.length > 0) {
-                try { parsed = JSON.parse(params) } catch (e) { parsed = params }
-            }
-            ActionManager.invoke(id, parsed)
-        }
-
-
-        function list(): string {
-            return JSON.stringify(ActionManager.getActionList())
-        }
-        function query(id: string): string {
-            const a = ActionManager.query(id)
-            return JSON.stringify(a)
-        }
-
-        function isAvailable(id: string): bool {
-            return ActionManager.isAvailable(id)
-        }
-    }
-
-
     Component.onCompleted: {
-        ActionManager._registerBuiltins()
         ApplicationManager.initialize()
         // Overview is a separate on-demand qs process. Without pre-warming,
         // the first open after boot pays the full cold-start cost (registry

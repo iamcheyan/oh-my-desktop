@@ -41,9 +41,12 @@ Item {
 
     RowLayout {
         id: trayRow
-        spacing: (Config.options.bar.trayIconSpacing !== undefined && Config.options.bar.trayIconSpacing !== null && Config.options.bar.trayIconSpacing > 0)
-            ? Config.options.bar.trayIconSpacing
-            : Config.options.bar.rightModuleSpacing
+        spacing: {
+            // Schema defines tray.trayIconSpacing (not bar.*) — the old read
+            // was always undefined and fell back to rightModuleSpacing.
+            const s = Config.options.tray?.trayIconSpacing;
+            return (s !== undefined && s !== null && s > 0) ? s : Config.options.bar.rightModuleSpacing;
+        }
 
 
         Repeater {

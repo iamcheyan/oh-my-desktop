@@ -220,7 +220,9 @@ ColumnLayout {
                                     text: "progress_activity"
                                     iconSize: 18
                                     color: TuiStyle.accent
-                                    rotation: apRow.isConnecting ? rotation : 0
+                                    // Plain 0 (the animator drives rotation while
+                                    // running); `? rotation : 0` self-referenced.
+                                    rotation: 0
 
                                     RotationAnimator on rotation {
                                         running: apRow.isConnecting
@@ -448,7 +450,7 @@ ColumnLayout {
                                     text: "progress_activity"
                                     iconSize: 18
                                     color: TuiStyle.accent
-                                    rotation: btRow.isConnecting ? rotation : 0
+                                    rotation: 0
 
                                     RotationAnimator on rotation {
                                         running: btRow.isConnecting

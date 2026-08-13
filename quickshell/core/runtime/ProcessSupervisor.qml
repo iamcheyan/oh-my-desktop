@@ -347,7 +347,14 @@ Singleton {
         const wasReady = rec.state === ready
         rec.pid = -1
         rec.exitCode = exitCode
-        rec.process = null  // Process object destroyed automatically on exit
+        // Destroy the wrapper after the exit handler returns — the object is
+        // parented to the supervisor and would otherwise leak one object per
+        // restart cycle. Qt.destroy() defers when called from signal handlers.
+        const exitedProcess = rec.process
+        rec.process = null
+        if (exitedProcess) {
+            exitedProcess.destroy()
+        }
 
         console.log("[ProcessSupervisor] '" + instanceId + "' exited with code " + exitCode + " (was " + _stateNames[rec.state] + ")")
 

@@ -44,8 +44,15 @@ Singleton {
             return false
         }
         if (_actions[id] !== undefined) {
-            console.warn("[ActionManager] register: duplicate action ID '" + id + "' (owner: " + owner + ")")
-            return false
+            // Re-registration with the same owner replaces the previous entry
+            // silently (builtins + module-actions can overlap legitimately);
+            // a different owner taking an existing id is a real conflict.
+            if (_actions[id].owner !== owner) {
+                console.warn("[ActionManager] register: action ID '" + id + "' already owned by '" + _actions[id].owner + "' (ignoring '" + owner + "')")
+                return false
+            }
+        } else {
+            _order.push(id)
         }
         if (typeof handler !== "object" || !handler.type) {
             console.warn("[ActionManager] register: invalid handler for '" + id + "'")
@@ -64,7 +71,6 @@ Singleton {
             enabled: opts.enabled !== false,
             registeredAt: Date.now()
         }
-        _order.push(id)
         console.log("[ActionManager] registered '" + id + "' (owner: " + _actions[id].owner + ")")
         return true
     }
@@ -676,7 +682,12 @@ Singleton {
             }
 
             if (!handler) {
-                console.warn("[ActionManager] _registerFromRegistry: no handler for action '" + a.id + "' (module: " + owner + ")")
+                // Modules with an actionsProvider (module-actions.qml) register
+                // their QML handlers directly at load; a manifest-only action
+                // entry without a handler is normal for them, not a warning.
+                var mod = ModuleLoader.modules.find(m => m.id === owner)
+                if (!mod || !mod.actionsProvider)
+                    console.warn("[ActionManager] _registerFromRegistry: no handler for action '" + a.id + "' (module: " + owner + ")")
                 continue
             }
 

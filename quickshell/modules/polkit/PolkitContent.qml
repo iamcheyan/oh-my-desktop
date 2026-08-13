@@ -8,7 +8,9 @@ import qs.modules.common.widgets
 
 Item {
     id: root
-    readonly property bool usePasswordChars: !PolkitService.flow?.responseVisible ?? true
+    // Parenthesize: `!a ?? true` parses as (!a) ?? true and never applies
+    // the intended "treat as password when unknown" default.
+    readonly property bool usePasswordChars: !(PolkitService.flow?.responseVisible ?? true)
 
     Keys.onPressed: event => { // Esc to close
         if (event.key === Qt.Key_Escape) {

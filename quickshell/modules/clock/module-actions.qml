@@ -1,6 +1,7 @@
 import QtQuick
 
 import qs.core.runtime
+import qs
 
 /// Clock action registrations.
 ///

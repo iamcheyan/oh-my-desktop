@@ -20,7 +20,7 @@ Singleton {
     property string cleanPrompt: {
         const inputPrompt = PolkitService.flow?.inputPrompt.trim() ?? "";
         const cleanedInputPrompt = inputPrompt.endsWith(":") ? inputPrompt.slice(0, -1) : inputPrompt;
-        const usePasswordChars = !PolkitService.flow?.responseVisible ?? true
+        const usePasswordChars = !(PolkitService.flow?.responseVisible ?? true)
         return cleanedInputPrompt || (usePasswordChars ? "Password" : "Input")
     }
 

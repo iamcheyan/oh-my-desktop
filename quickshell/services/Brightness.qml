@@ -21,15 +21,31 @@ Singleton {
     // Last monitor that received a brightness change (for OSD pinning).
     property string lastAdjustedScreenName: ""
 
+    // DDC/CI monitors discovered by sumika-ddc-detect. Previously undeclared
+    // — every write logged "Invalid write to global property".
+    property var ddcMonitors: []
+
     Component.onCompleted: {
         ddcMonitors = [];
         ddcProc.running = true;
+        _rebuildMonitors();
     }
 
-    property var ddcMonitors: []
-    readonly property list<BrightnessMonitor> monitors: Quickshell.screens.map(screen => monitorComp.createObject(root, {
-        screen
-    }))
+    property var monitors: []
+    property var _liveMonitors: []
+
+    function _rebuildMonitors() {
+        // Destroy the previous set before recreating — a plain binding on
+        // Quickshell.screens leaked one BrightnessMonitor per hotplug.
+        _liveMonitors.forEach(m => { try { m.destroy() } catch (e) {} });
+        _liveMonitors = Quickshell.screens.map(screen => monitorComp.createObject(root, { screen }));
+        monitors = _liveMonitors;
+    }
+
+    Connections {
+        target: Quickshell
+        function onScreensChanged() { root._rebuildMonitors() }
+    }
 
     function getMonitorForScreen(screen: ShellScreen): var {
         if (!screen) return null;
@@ -114,9 +130,13 @@ Singleton {
             onRead: data => {
                 if (data.startsWith("Display ")) {
                     const lines = data.split("\n").map(l => l.trim());
+                    const connectorLine = lines.find(l => l.startsWith("DRM connector:"));
+                    const busLine = lines.find(l => l.startsWith("I2C bus:"));
+                    if (!connectorLine || !busLine)
+                        return;
                     root.ddcMonitors.push({
-                        name: lines.find(l => l.startsWith("DRM connector:")).split("-").slice(1).join('-'),
-                        busNum: lines.find(l => l.startsWith("I2C bus:")).split("/dev/i2c-")[1]
+                        name: connectorLine.split("-").slice(1).join('-'),
+                        busNum: busLine.split("/dev/i2c-")[1]
                     });
                 }
             }

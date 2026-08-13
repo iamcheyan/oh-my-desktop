@@ -68,6 +68,12 @@ Singleton {
             const index = root.list.findIndex((notif) => notif.notificationId === notificationId);
             const notifObject = root.list[index];
             print("[Notifications] Notification timer triggered for ID: " + notificationId + ", transient: " + notifObject?.isTransient);
+            // A discarded notification nulls its timer reference; its timer
+            // may still be queued to fire.
+            if (!notifObject) {
+                destroy()
+                return
+            }
             if (notifObject.isTransient) root.discardNotification(notificationId);
             else root.timeoutNotification(notificationId);
             destroy()
@@ -341,8 +347,14 @@ Singleton {
         let discardedAppName = null;
         let serverNotif = null;
         if (index !== -1) {
-            discardedAppName = root.list[index]?.appName ?? null;
-            serverNotif = root.list[index]?.notification ?? null;
+            const notif = root.list[index];
+            discardedAppName = notif?.appName ?? null;
+            serverNotif = notif?.notification ?? null;
+            // Stop + destroy the auto-timeout timer before splicing the
+            // notification out — otherwise it fires on a dead object.
+            notif?.timer?.stop();
+            notif?.timer?.destroy();
+            notif.timer = null;
             root.list.splice(index, 1);
             triggerListChange()
             root.schedulePersist();
@@ -357,6 +369,12 @@ Singleton {
     }
     
     function discardAllNotifications() {
+        // Stop + destroy every pending auto-timeout timer before clearing.
+        root.list.forEach((notif) => {
+            notif?.timer?.stop();
+            notif?.timer?.destroy();
+            notif.timer = null;
+        });
         const serverNotifs = root.list.map((notif) => notif.notification).filter((n) => n !== null);
         root.list = []
         root.latestTimeForApp = ({})

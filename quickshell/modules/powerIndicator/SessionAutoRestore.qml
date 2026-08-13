@@ -135,6 +135,7 @@ Scope {
     // gate skips restore so the marker does not linger and trigger a stale
     // restore on a later boot.
     Process {
+        id: disarmProc
         command: ["bash", "-c", root.sessionCommand + " disarm >/dev/null 2>&1 || true"]
         running: false
     }

@@ -51,6 +51,8 @@ Singleton {
     property real barPopupDismissedAt: 0
     property bool sessionConfirmOpen: false
     property string sessionConfirmAction: ""
+    // Label shown in the confirm dialog (set by requestSessionConfirm).
+    property string sessionConfirmLabel: ""
     // Shared "save session on exit" preference (default on). The BarStatusPopup
     // checkbox binds to this; the right-click PowerContextMenu reads it so both
     // entry points honor the same choice.

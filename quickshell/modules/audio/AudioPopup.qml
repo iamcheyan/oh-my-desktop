@@ -25,7 +25,10 @@ Item {
     readonly property bool sinkMuted: sink?.audio.muted ?? false
     readonly property bool sourceMuted: source?.audio.muted ?? false
     readonly property MprisPlayer activePlayer: ServiceManager.mpris.activePlayer
-    readonly property bool showMediaControls: activePlayer !== null && !ModuleLoader.isEnabled("mpris")
+    // Media controls show whenever a player is active. (An earlier gate on
+    // ModuleLoader.isEnabled("mpris") was always true — no such module id
+    // exists — permanently hiding the media strip.)
+    readonly property bool showMediaControls: activePlayer !== null
     readonly property bool hasTrackArt: showMediaControls && TrackArt.resolvedArtUrl.length > 0
     readonly property string trackTitle: {
         const t = StringUtils.cleanMusicTitle(activePlayer?.trackTitle || "")
