@@ -40,7 +40,7 @@
   </windowSwitcher>
 
   <focus>
-    <followMouse>yes</followMouse>
+    <followMouse>no</followMouse>
     <raiseOnFocus>no</raiseOnFocus>
   </focus>
 
@@ -338,9 +338,6 @@
          ~/.config/sasayaki/config.json; labwc rc.xml cannot, so this block
          must be updated manually if voice_bindings change. -->
     <!-- Voice input toggle (voice_bindings) -->
-    <keybind key="A-a">
-      <action name="Execute" command="sumika-action sasayaki.toggle" />
-    </keybind>
     <keybind key="Hangul_Hanja">
       <action name="Execute" command="sumika-action sasayaki.toggle" />
     </keybind>
@@ -495,6 +492,20 @@
            the bindings are inactive in the Hyprland session too.
     -->
   </keyboard>
+
+  <!-- keyd runs on top of the physical keyboard (muhenkan→escape). keyd
+       grabs the raw device and re-emits through its own virtual keyboard,
+       so labwc receives the SAME physical keystrokes twice (raw event1 +
+       keyd virtual keyboard). Two independent keyboard state machines
+       racing can drop a modifier keyup — symptoms: Win key sticks (e.g.
+       W-w pops kitty's close confirmation) or the A-Tab/W-Tab window
+       switcher stays open after releasing the modifier. Disable the raw
+       device so labwc only reads the keyd virtual keyboard. -->
+  <libinput>
+    <device category="Apple SPI Keyboard">
+      <sendEventsMode>no</sendEventsMode>
+    </device>
+  </libinput>
 
   <mouse>
     <default />
