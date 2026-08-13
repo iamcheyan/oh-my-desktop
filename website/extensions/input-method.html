@@ -24,12 +24,12 @@
     <div class="ext-icon">かな</div>
     <div>
       <h1>Input Method <span style="font-size:0.9rem;color:var(--fg-faint)">v2.0.0</span></h1>
-      <p class="sub">输入法 — Fcitx5 input method management in the bar.</p>
+      <p class="sub">输入法 — Fcitx5/Rime schema switcher and XKB layout switcher in the bar.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Bar button and popup for Fcitx5: switch engines, watch input state, and an OSD for mode changes. CJK input without leaving the keyboard flow.</p>
+      <p>Bar button + popup for CJK input: cycle Fcitx5/Rime schemas (per-language rows with layout sub-view) or XKB keyboard layouts, with an OSD for mode changes. Bundled sumika-input-method CLI covers status/set/deploy/schemas/config.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Fcitx5 engine switching</li>
 <li>Bar button + popup</li>
@@ -54,7 +54,9 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>fcitx5</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>fcitx5 + fcitx5-remote</li>
+<li>fcitx5-configtool</li>
+<li>gdbus</li></ul>
       </div>
     </aside>
   </div>

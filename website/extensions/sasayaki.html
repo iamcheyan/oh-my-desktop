@@ -24,12 +24,12 @@
     <div class="ext-icon">🎙️</div>
     <div>
       <h1>Sasayaki Voice Input <span style="font-size:0.9rem;color:var(--fg-faint)">v1.0.0</span></h1>
-      <p class="sub">语音输入（ささやき） — Local voice input &amp; speech-to-text engine written in Go.</p>
+      <p class="sub">语音输入（ささやき） — Local voice dictation engine in Go with optional live translation.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Sasayaki is a whisper-class local speech-to-text engine bundled as a Sumika extension. Push-to-talk from the bar or a global keybinding, offline transcription, and text injected straight into the focused window. Exposes a `bindings` subcommand so Hyprland keybinds stay in sync.</p>
+      <p>Sasayaki (ささやき) is the most mature voice input path: a Go control binary embedding a Python sherpa-onnx engine, kept warm by a systemd user service over a versioned Unix-socket protocol. Push-to-talk from the bar or a global keybinding, fully offline SenseVoice/Paraformer models (SHA-256 pinned downloads), compositor-aware text paste (wtype/ydotool/xdotool, XWayland and kitty special cases), and optional OpenAI-compatible translation.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Push-to-talk voice input</li>
 <li>Fully local / offline inference</li>
@@ -56,8 +56,11 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>Go 1.22+ (build from source)</li>
-<li>Audio input (PipeWire)</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>Go 1.26 (build)</li>
+<li>Python venv: sherpa-onnx, numpy</li>
+<li>pulseaudio-utils (parecord)</li>
+<li>wl-clipboard + wtype/ydotool/xdotool</li>
+<li>SenseVoice or Paraformer model (auto-download)</li></ul>
       </div>
     </aside>
   </div>

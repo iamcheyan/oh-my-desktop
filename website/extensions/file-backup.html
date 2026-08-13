@@ -24,12 +24,12 @@
     <div class="ext-icon">☁️</div>
     <div>
       <h1>Musubi File Backup <span style="font-size:0.9rem;color:var(--fg-faint)">v2.0.0</span></h1>
-      <p class="sub">文件备份与分发 — rsync / Samba backup and config distribution with a full TUI.</p>
+      <p class="sub">文件备份与分发 — Musubi: rsync/Samba backup and config distribution with a TUI.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Musubi backs up and distributes configuration and data via rsync and Samba shares. Configure jobs, run or schedule them, and restore — all from the Musubi TUI or the settings page. Ships a polkit policy for privileged operations.</p>
+      <p>SMB-share backup and sync management: configure jobs, run or schedule them, restore — from the Musubi TUI, the settings page or the bar popup. A bundled status helper feeds connection state to the bar; a polkit rule (review before installing — see project review) gates privileged mounts.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>rsync backup jobs</li>
 <li>Samba share management</li>
@@ -56,8 +56,9 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>rsync</li>
-<li>samba (optional)</li>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>musubi TUI (~/.local/bin)</li>
+<li>rsync</li>
+<li>cifs-utils (mount.cifs)</li>
 <li>polkit</li></ul>
       </div>
     </aside>

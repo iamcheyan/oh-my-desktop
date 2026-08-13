@@ -24,12 +24,12 @@
     <div class="ext-icon">🪟</div>
     <div>
       <h1>Windows VM <span style="font-size:0.9rem;color:var(--fg-faint)">v2.0.0</span></h1>
-      <p class="sub">Windows 虚拟机 — QEMU / WinApps / LookingGlass Windows VM management.</p>
+      <p class="sub">Windows 虚拟机 — Dockurr Windows VM lifecycle: install, run, RDP, web console.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Install, boot and connect to a Windows virtual machine: QEMU provisioning, RDP via WinApps, LookingGlass low-latency display, and web console access — orchestrated from a TUI, settings page and bar popup.</p>
+      <p>Full lifecycle manager for a Dockurr Windows 11 VM in Docker: requirement checks (KVM/docker/compose/FreeRDP/disk), guided install with resource-derived defaults, start/stop, web console, RDP connect, live log/progress monitoring, and a guarded destructive remove. QML settings page, curses TUI, and bar popup all drive the same CLI.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Guided VM install (QEMU)</li>
 <li>WinApps RDP integration</li>
@@ -56,9 +56,12 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>qemu-full</li>
-<li>WinApps</li>
-<li>LookingGlass (optional)</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>docker + compose</li>
+<li>/dev/kvm</li>
+<li>xfreerdp(3)</li>
+<li>nc or ss</li>
+<li>curl</li>
+<li>jq</li></ul>
       </div>
     </aside>
   </div>

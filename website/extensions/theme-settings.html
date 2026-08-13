@@ -24,12 +24,12 @@
     <div class="ext-icon">🎨</div>
     <div>
       <h1>Theme Settings <span style="font-size:0.9rem;color:var(--fg-faint)">v2.0.0</span></h1>
-      <p class="sub">主题设置 — Theme picker with 22 built-in themes, effects and color scheme management.</p>
+      <p class="sub">主题设置 — Theme engine: 22 themes, wallpaper management, Hyprland effects.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>The theme engine of Sumika Shell: 22 curated themes (Catppuccin, Gruvbox, Tokyo Night, Kanagawa, Nord…) covering shell, terminal, editor and lock screen. Browse live previews, apply instantly, and tune transparency &amp; effects. Wallpaper packs included per theme (excluded from the lite download).</p>
+      <p>The theme engine of Sumika Shell: 22 curated theme packs (colors.toml + generated adapters for foot/kitty/alacritty/ghostty/Hyprland/Quickshell/nvim and lock screen), a live-preview picker TUI, wallpaper management (single file, folder rotation via systemd transient timer + swaybg, or theme-tinted solid), and Hyprland effect modes (performance/balanced/visuals) applied live via IPC.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>22 built-in themes</li>
 <li>Live preview picker TUI</li>
@@ -56,7 +56,11 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>sumika-core</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>swaybg</li>
+<li>systemd-run</li>
+<li>jq</li>
+<li>python3</li>
+<li>kdialog or zenity</li></ul>
       </div>
     </aside>
   </div>

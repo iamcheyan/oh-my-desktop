@@ -24,12 +24,12 @@
     <div class="ext-icon">⌨️</div>
     <div>
       <h1>Keyboard Remap <span style="font-size:0.9rem;color:var(--fg-faint)">v1.0.0</span></h1>
-      <p class="sub">键盘重映射 — keyd-based keyboard profiles, remapping and function-row behavior.</p>
+      <p class="sub">键盘重映射 — Per-device keyd profiles, Fn-row modes and a key-code inspector.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Per-device keyboard profiles on top of keyd: remap any key, toggle Fn-row modes, and inspect evdev/XKB/keyd codes with the bundled KeyTest tool. Managed via a full TUI.</p>
+      <p>Keyboard remapping on top of keyd: per-device profiles with preset tables and custom target overrides, rendered via jq to /etc/keyd/sumika.conf and applied through pkexec/run0/sudo. Apple fn-mode (hid_apple) toggle, GTK4 KeyTest capture tool for evdev/XKB/keyd codes, and a curses settings TUI plus QML editor overlay.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Per-device keyd profiles</li>
 <li>Function-row mode switching</li>
@@ -55,7 +55,11 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>keyd</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>keyd (built from source if absent)</li>
+<li>jq</li>
+<li>perl</li>
+<li>pkexec or sudo</li>
+<li>GTK4/Adw (key-test)</li></ul>
       </div>
     </aside>
   </div>

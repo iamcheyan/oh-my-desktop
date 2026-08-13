@@ -24,12 +24,12 @@
     <div class="ext-icon">🎤</div>
     <div>
       <h1>Voice Input <span style="font-size:0.9rem;color:var(--fg-faint)">v1.0.0</span></h1>
-      <p class="sub">语音输入 — Voice input and speech-to-text with a bar button and settings page.</p>
+      <p class="sub">语音输入 — Chinese-first dictation with speculative translation pipeline.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>The classic voice input extension: a bar button, popup and settings page driving a scripted speech-to-text pipeline. Includes speculative translation support — speak in one language, type in another.</p>
+      <p>The classic voice input extension: Chinese-first SenseVoice-small-int8 dictation through a long-lived Python daemon, ffmpeg 20 dB input boost, and a speculative-translation race pipeline (silence-detect → transcribe → translate → accept on exact source match) driven by OpenAI-compatible providers. Bar button, popup, settings page and a full settings TUI.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Bar button + popup + settings page</li>
 <li>Speech-to-text pipeline</li>
@@ -55,8 +55,11 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>PipeWire audio</li>
-<li>STT backend (see docs)</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>Python venv: sherpa-onnx, numpy</li>
+<li>pulseaudio-utils (parecord)</li>
+<li>ffmpeg</li>
+<li>wl-clipboard</li>
+<li>jq + hyprctl</li></ul>
       </div>
     </aside>
   </div>

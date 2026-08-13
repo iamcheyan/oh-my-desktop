@@ -24,12 +24,12 @@
     <div class="ext-icon">🪟</div>
     <div>
       <h1>Active Window <span style="font-size:0.9rem;color:var(--fg-faint)">v2.0.0</span></h1>
-      <p class="sub">当前窗口与桌面状态 — Active window title, icon and desktop state in the left bar.</p>
+      <p class="sub">当前窗口与桌面状态 — Focused-window title pill with compositor-aware action menu.</p>
     </div>
   </div>
   <div class="detail-cols">
     <div>
-      <p>Shows the focused window&#x27;s title and icon in the top bar&#x27;s left slot, with a right-click menu for window actions. Includes distro icons for a personalized touch.</p>
+      <p>Left-bar pill showing the focused window title + icon via the compositor-agnostic zwlr_foreign_toplevel protocol, with per-screen filtering and desktop/distro identity when nothing is focused. Click opens a context menu: labwc gets minimize/maximize/close; Hyprland gets toggle-floating, fullscreen, pop-out (float+pin+top) and move-to-scratchpad — all targeting the clicked window by address.</p>
       <h3 style="margin-top:2rem">Features</h3>
       <ul class="feature-list"><li>Focused window title + icon</li>
 <li>Window action menu</li>
@@ -54,7 +54,8 @@
       </div>
       <div class="card">
         <dt>Dependencies</dt>
-        <ul class="feature-list" style="margin-top:0.4rem"><li>sumika-core</li></ul>
+        <ul class="feature-list" style="margin-top:0.4rem"><li>sumika-core</li>
+<li>hyprctl (Hyprland ops)</li></ul>
       </div>
     </aside>
   </div>
