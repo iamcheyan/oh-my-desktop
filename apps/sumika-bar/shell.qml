@@ -14,7 +14,6 @@ import qs.modules.bar
 import qs.modules.lock
 import qs.modules.powerIndicator
 
-import qs.modules.onScreenDisplay
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -105,55 +104,51 @@ ShellRoot {
             }
         }
 
-        // Notification popup overlay — PanelWindow bound to popupList
-        PanelWindow {
-            id: notifPopup
-            visible: (ServiceManager.notification.popupList.length > 0) && !GlobalStates.screenLocked
-            screen: Quickshell.screens.find(s =>
-                Config.options.notifications.forceMonitor.enable
-                    ? s.name === Config.options.notifications.forceMonitor.name
-                    : s.name === Hyprland.focusedMonitor?.name) ?? null
-            readonly property bool barOnBottom: Config.options.bar.bottom
-            readonly property real outerMargin: Appearance.sizes.elevationMargin
 
-            WlrLayershell.namespace: "quickshell:notificationPopup"
-            WlrLayershell.layer: WlrLayer.Overlay
-            exclusionMode: ExclusionMode.Ignore
-            exclusiveZone: 0
+        // ── Registry overlays ──
+        // Module-contributed overlay components (notification popup window,
+        // on-screen display, night-light bootstrap) are instantiated from the
+        // module registry instead of being hardcoded here, so a module's
+        // `contributes.overlays` entry is the single source of truth.
+        // Loaded once after the registry is ready; each overlay component
+        // manages its own windows. Re-run sumika-restart to pick up registry
+        // changes (objects are intentionally not torn down on registry reload).
+        Component.onCompleted: root._instantiateOverlays()
 
-            anchors {
-                top: !notifPopup.barOnBottom
-                bottom: notifPopup.barOnBottom
-                right: true
-            }
-
-            margins {
-                top: notifPopup.barOnBottom ? 0 : BarPopupGeometry.windowTopMargin
-                bottom: notifPopup.barOnBottom ? BarPopupGeometry.windowTopMargin : 0
-                right: BarPopupGeometry.rightGap
-            }
-
-            mask: Region {
-                item: listview.contentItem
-            }
-
-            color: "transparent"
-            implicitWidth: Appearance.sizes.notificationPopupWidth + notifPopup.outerMargin * 2
-            implicitHeight: Math.min(
-                listview.contentHeight + notifPopup.outerMargin * 2,
-                (notifPopup.screen?.height ?? 1080) - Appearance.sizes.barHeight - 8
-            )
-
-            NotificationListView {
-                id: listview
-                anchors {
-                    fill: parent
-                    margins: notifPopup.outerMargin
-                }
-                popup: true
+        Connections {
+            target: ModuleLoader
+            function onRegistryLoaded() {
+                root._instantiateOverlays()
             }
         }
-        OnScreenDisplay {}
+    }
+
+    property var _overlayObjects: []
+    property var _overlayIds: ({})
+
+    function _instantiateOverlays() {
+        if (root._overlayObjects.length > 0)
+            return
+        const overlays = ModuleLoader.overlays
+        for (let i = 0; i < overlays.length; i++) {
+            const entry = overlays[i]
+            if (!entry || !entry.component || root._overlayIds[entry.id]) {
+                if (entry && entry.id && !entry.component)
+                    console.warn("[Bar] overlay has no component:", entry.id)
+                continue
+            }
+            const comp = Qt.createComponent(entry.component)
+            if (comp.status !== Component.Ready) {
+                console.warn("[Bar] overlay failed to load:", entry.id, comp.errorString())
+                continue
+            }
+            const obj = comp.createObject(root)
+            if (obj) {
+                root._overlayIds[entry.id] = true
+                root._overlayObjects.push(obj)
+                console.log("[Bar] overlay loaded:", entry.id)
+            }
+        }
     }
 }
 

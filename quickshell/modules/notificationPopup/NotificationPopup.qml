@@ -32,9 +32,9 @@ Scope {
         }
 
         margins {
-            top: root.barOnBottom ? 0 : Appearance.sizes.barHeight + 4
-            bottom: root.barOnBottom ? Appearance.sizes.barHeight + 4 : 0
-            right: 4
+            top: root.barOnBottom ? 0 : BarPopupGeometry.windowTopMargin
+            bottom: root.barOnBottom ? BarPopupGeometry.windowTopMargin : 0
+            right: BarPopupGeometry.rightGap
         }
 
         mask: Region {

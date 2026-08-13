@@ -715,12 +715,17 @@ Singleton {
             manager.invoke(id, params)
         }
 
-        function list(): var {
-            return manager.getActionList()
+        // Returns JSON TEXT, not var: this Quickshell build's IPC does not
+        // serialize list/object returns (bools work; arrays print empty).
+        // Upstream serialization gap — tracked as K8 in
+        // docs/reviews/2026-08-14-full-review.md. Consumers parse the JSON.
+        function list(): string {
+            return JSON.stringify(manager.getActionList())
         }
 
-        function query(id: string): var {
-            return manager.query(id)
+        function query(id: string): string {
+            const result = manager.query(id)
+            return result === null ? "" : JSON.stringify(result)
         }
 
         function isAvailable(id: string): bool {

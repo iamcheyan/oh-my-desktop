@@ -111,7 +111,16 @@ merge_manifest() {
           ($mod[0].contributes.services // ($mod[0].capabilities // {}).services // [])
          ) |
          .contributes.actions += ($mod[0].contributes.actions // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource)) |
-         .contributes.overviewProviders += ($mod[0].contributes.overviewProviders // [] | map(.moduleId = (.moduleId // $mid) | .source = $msource)) |
+         .contributes.overviewProviders += (
+          ($mod[0].contributes.overviewProviders // ($mod[0].capabilities // {}).overviewProviders // [])
+           | map(if .component then . + {component: ("file://" + $mdir + "/" + .component)} else . end
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
+         ) |
+         .contributes.overlays += (
+          ($mod[0].contributes.overlays // ($mod[0].capabilities // {}).overlays // [])
+           | map(if .component then . + {component: ("file://" + $mdir + "/" + .component)} else . end
+                | .moduleId = (.moduleId // $mid) | .source = $msource)
+         ) |
          .contributes.launchers += (
           ($mod[0].contributes.launchers // [])
            | map(.moduleId = (.moduleId // $mid) | .source = $msource)
