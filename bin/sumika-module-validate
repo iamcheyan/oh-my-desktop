@@ -29,8 +29,9 @@ ACTION_ID_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
 SEMVER_PATTERN = re.compile(r'^\d+\.\d+\.\d+')
 APP_ID_PATTERN = re.compile(r'^[a-zA-Z0-9._-]+$')
 WIDGET_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
+SERVICE_ID_PATTERN = re.compile(r'^[a-z][a-zA-Z0-9-]*$')
 INSTANCE_PATTERN = re.compile(r'^sumika-[a-z][a-z0-9-]*$')
-HANDLER_PATTERN = re.compile(r'^(ipc:|action:)[a-zA-Z0-9._-]+$')
+HANDLER_PATTERN = re.compile(r'^(ipc:|action:|process:)[a-zA-Z0-9._: -]+$')
 PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9.-]*$')
 LAUNCHER_ID_PATTERN = re.compile(r'^sumika-[a-z][a-z0-9-]*$')
 
@@ -125,7 +126,7 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
                 errors.append(error(module_id, f"#contributes.widgets[{i}].id", f"invalid id '{wid}'"))
 
             slot = w.get("slot")
-            if slot and slot not in ("left", "right"):
+            if slot and slot not in ("left", "right", "center"):
                 errors.append(error(module_id, f"#contributes.widgets[{i}].slot", f"invalid slot '{slot}'"))
 
             # Check component path — MUST exist in module root
@@ -226,15 +227,15 @@ def validate_v2(data: dict, module_root: str, module_id: str) -> tuple:
             full_path = os.path.join(module_root, component)
             if component and not os.path.exists(full_path):
                 warnings.append(warn(module_id, f"#contributes.popupSections[{i}].component", f"file not found: {component}"))
-
-        # Service IDs
+        # Service IDs (schema: array of strings; tolerate {id: ...} objects)
         seen_svc_ids = set()
         for i, svc in enumerate(contributes.get("services", [])):
-            if svc in seen_svc_ids:
-                warnings.append(warn(module_id, f"#contributes.services[{i}]", f"duplicate service '{svc}'"))
-            seen_svc_ids.add(svc)
-            if not SERVICE_ID_PATTERN.match(str(svc)):
-                errors.append(error(module_id, f"#contributes.services[{i}]", f"invalid service id '{svc}'"))
+            svc_id = svc.get("id") if isinstance(svc, dict) else svc
+            if svc_id in seen_svc_ids:
+                warnings.append(warn(module_id, f"#contributes.services[{i}]", f"duplicate service '{svc_id}'"))
+            seen_svc_ids.add(svc_id)
+            if not SERVICE_ID_PATTERN.match(str(svc_id)):
+                errors.append(error(module_id, f"#contributes.services[{i}]", f"invalid service id '{svc_id}'"))
         # Launchers (desktop entries)
         seen_launcher_ids = set()
         for i, ln in enumerate(contributes.get("launchers", [])):
@@ -311,7 +312,7 @@ def validate_v1_as_v2(data: dict, module_root: str, module_id: str) -> tuple:
             if not WIDGET_ID_PATTERN.match(str(wid)):
                 errors.append(error(module_id, f"#capabilities.barButtons[{i}].id", f"invalid id '{wid}'"))
             slot = bb.get("slot")
-            if slot and slot not in ("left", "right"):
+            if slot and slot not in ("left", "right", "center"):
                 errors.append(error(module_id, f"#capabilities.barButtons[{i}].slot", f"invalid slot '{slot}'"))
             component = bb.get("component", "")
             if ".." in str(component):

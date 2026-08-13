@@ -31,7 +31,10 @@ unset _sumika_root
 # locked and the bar is merely stuck). NEVER use `systemctl --user restart
 # sumika-bar.service` to bypass this guard — it kills the bar unconditionally
 # and is what caused the "Oopsie daisy" crash during development.
-_bar_pattern="/usr/bin/quickshell -p ${SUMIKA_SHELL_ROOT}/apps/sumika-bar"
+# Path-agnostic: matches any quickshell binary location (user installs use
+# ~/.local/bin/quickshell; the old /usr/bin-only patterns missed them, so
+# restarts left stacked bars and the lock guard failed open).
+_bar_pattern="quickshell -p ${SUMIKA_SHELL_ROOT}/apps/sumika-bar"
 _force=0
 quickshell_only=0
 for _arg in "$@"; do
@@ -59,12 +62,9 @@ fi
 unset _lock_state _bar_pattern
 
 # ── Kill old quickshell processes ─────────────────────────────────────────
-# pkill targets only quickshell binaries by command line.
-# Do NOT use `systemctl stop` — it destroys the unit cgroup, killing user
-# apps (terminals, Firefox) that inherited the bar's cgroup.
-pkill -f "/usr/bin/quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
+pkill -f "quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
 sleep 0.3
-pkill -9 -f "/usr/bin/quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
+pkill -9 -f "quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
 sleep 0.2
 
 # ── Orphaned subprocess cleanup ───────────────────────────────────────────

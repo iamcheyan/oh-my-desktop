@@ -1,0 +1,73 @@
+#!/bin/bash
+# sumika-hyprland-toggle — read/flip boolean toggles persisted as marker
+# files under $SUMIKA_SHELL_STATE_HOME/toggles/hypr/<name>.lua
+#
+# The monitor/window toggle scripts in share/bin/ call this family
+# (toggle / toggle-enabled / toggle-disabled); previously those helpers
+# did not exist anywhere and every call silently exited 127.
+#
+# Usage:
+#   sumika-hyprland-toggle <name> on|off|flip
+#   sumika-hyprland-toggle <name>          # print current state: on|off
+#   sumika-hyprland-toggle-enabled <name>  # exit 0 when on
+#   sumika-hyprland-toggle-disabled <name> # exit 0 when off
+
+set -u
+
+state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+toggle_dir="$state_home/toggles/hypr"
+
+cmd="${0##*/}"
+name="${1:-}"
+
+if [[ -z "$name" ]]; then
+  echo "usage: $cmd <toggle-name> [on|off|flip]" >&2
+  exit 2
+fi
+
+flag_file="$toggle_dir/$name.lua"
+
+state() {
+  [[ -f "$flag_file" ]] && echo off || echo on
+}
+
+write_state() {
+  mkdir -p "$toggle_dir"
+  if [[ "$1" == "off" ]]; then
+    printf 'return true\n' >"$flag_file"
+  else
+    rm -f "$flag_file"
+  fi
+}
+
+case "$cmd" in
+  sumika-hyprland-toggle-enabled)
+    [[ "$(state)" == "on" ]]
+    ;;
+  sumika-hyprland-toggle-disabled)
+    [[ "$(state)" == "off" ]]
+    ;;
+  sumika-hyprland-toggle)
+    action="${2:-print}"
+    case "$action" in
+      on|off|flip)
+        if [[ "$action" == "flip" ]]; then
+          [[ "$(state)" == "on" ]] && write_state off || write_state on
+        else
+          write_state "$action"
+        fi
+        ;;
+      print|"")
+        state
+        ;;
+      *)
+        echo "usage: $cmd <name> [on|off|flip]" >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "unknown helper name: $cmd" >&2
+    exit 2
+    ;;
+esac

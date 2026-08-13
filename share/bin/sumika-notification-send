@@ -1,0 +1,24 @@
+#!/bin/bash
+# sumika-notification-send — thin notify-send wrapper kept for the
+# share/bin monitor/window scripts that historically called it with
+# dunst-style flags (-g hint, -i icon). Translates to notify-send args
+# and falls back silently when no notification daemon is available.
+
+set -u
+
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -g) shift ;;                       # urgency/icon hint — drop
+    -i) shift; [[ $# -gt 0 ]] && { args+=( -i "$1" ); shift; } ;;
+    *) args+=( "$1" ); shift ;;
+  esac
+done
+
+if command -v notify-send >/dev/null 2>&1; then
+  notify-send "${args[@]}" 2>/dev/null || true
+fi
+
+# No daemon or delivery failed: swallow — callers treat notifications as
+# best-effort feedback, never as control flow.
+exit 0

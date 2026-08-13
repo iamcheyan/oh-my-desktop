@@ -23,7 +23,7 @@
 
 set -euo pipefail
 
-ROOT="${SUMIKA_SHELL_ROOT:-$HOME/development/OMD}"
+ROOT="${SUMIKA_SHELL_ROOT:-$(cd "$(dirname "$0")/.." && pwd -P)}"
 
 usage() {
   sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
@@ -35,7 +35,17 @@ cmd="$1"
 shift || true
 
 labwc_env="$ROOT/labwc/environment"
-hypr_input="$ROOT/hypr/input.lua"
+# The session loads repo hypr/*.lua first, then the user override dir
+# (~/.config/sumika-shell/hypr/) on top — the override masks the repo file.
+# Read and write the override when it exists so set/get see the effective
+# config instead of the masked repo default.
+_config_home="${SUMIKA_SHELL_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/sumika-shell}"
+_user_hypr_input="$_config_home/hypr/input.lua"
+if [ -f "$_user_hypr_input" ]; then
+  hypr_input="$_user_hypr_input"
+else
+  hypr_input="$ROOT/hypr/input.lua"
+fi
 
 # Current layout list. labwc: XKB_DEFAULT_LAYOUT. Hyprland: kb_layout.
 current_layout_list() {

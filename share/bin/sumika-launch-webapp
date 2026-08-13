@@ -3,11 +3,45 @@
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>
 
-browser=$(xdg-settings get default-web-browser)
+set -u
 
-case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+url="${1:?usage: sumika-launch-webapp <url> [extra-args...]}"
+shift || true
+
+# Resolve the real default browser desktop entry (Firefox and other
+# non-chromium defaults are valid — the old script coerced everything
+# unknown to chromium.desktop, which breaks webapp launch entirely when
+# chromium isn't installed).
+browser="$(xdg-settings get default-web-browser 2>/dev/null || true)"
+[[ -n "$browser" ]] || browser="chromium.desktop"
+
+desktop_file=""
+for dir in ~/.local/share/applications ~/.nix-profile/share/applications /usr/local/share/applications /usr/share/applications; do
+  if [[ -f "$dir/$browser" ]]; then
+    desktop_file="$dir/$browser"
+    break
+  fi
+done
+
+if [[ -z "$desktop_file" ]]; then
+  echo "sumika-launch-webapp: desktop entry for '$browser' not found" >&2
+  exit 1
+fi
+
+exec_cmd="$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop_file" | head -1)"
+if [[ -z "$exec_cmd" ]]; then
+  echo "sumika-launch-webapp: no Exec= in '$desktop_file'" >&2
+  exit 1
+fi
+exec_cmd="${exec_cmd/env //}"  # drop env wrapper token if present
+
+case "$browser" in
+  google-chrome* | chromium* | brave* | microsoft-edge* | opera* | vivaldi* | helium*)
+    # Chromium family supports webapp mode.
+    exec setsid uwsm-app -- "$exec_cmd" --app="$url" "$@"
+    ;;
+  *)
+    # Non-chromium default (Firefox etc.): open as a normal window.
+    exec setsid uwsm-app -- "$exec_cmd" "$url" "$@"
+    ;;
 esac
-
-exec setsid uwsm-app -- $(sed -n 's/^Exec=\([^ ]*\).*/\1/p' {~/.local,~/.nix-profile,/usr}/share/applications/$browser 2>/dev/null | head -1) --app="$1" "${@:2}"

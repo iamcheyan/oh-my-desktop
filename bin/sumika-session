@@ -98,11 +98,10 @@ def hypr_close_window(address):
         return subprocess.CompletedProcess([], 0)
 
     hypr_lua(f'hl.dsp.focus({{ window = "address:{address}" }})')
-    hypr("dispatch", "focuswindow", f"address:{address}")
     time.sleep(0.08)
     if active_window_address() == address:
-        return hypr("dispatch", "killactive")
-    return hypr("dispatch", "closewindow", f"address:{address}")
+        hypr_lua(f'hl.dsp.window.kill({{ window = "address:{address}" }})')
+    hypr_lua(f'hl.dsp.window.close({{ window = "address:{address}" }})')
 
 
 def active_window_address():
@@ -157,11 +156,17 @@ def current_focus_state(clients):
     }
 
 
-def hypr_focus_workspace(wsid):
+def hypr_focus_workspace(wsid, name=None):
     """Switch the active monitor to the given workspace. Unified with
     focus_workspace_id — both use the Omarchy Lua dispatch syntax."""
     if isinstance(wsid, int) and wsid < 0:
-        return hypr("dispatch", "togglespecialworkspace")
+        # Special workspace. `hyprctl dispatch toggpecialworkspace` (native
+        # form) is a Lua syntax error on Hyprland 0.55+ — and toggling
+        # without a name would toggle the WRONG special workspace.
+        ws_name = name or f"special:{abs(wsid)}"
+        hypr_lua(f'hl.dsp.workspace.toggle_special({{ name = "{ws_name}" }})')
+        time.sleep(0.08)
+        return subprocess.CompletedProcess([], 0)
     if wsid:
         hypr_lua(f'hl.dsp.focus({{ workspace = "{wsid}" }})')
         time.sleep(0.08)
@@ -1603,9 +1608,13 @@ def move_client_to_workspace(address, workspace):
             return True
         time.sleep(0.08)
 
-    # Keep a native dispatcher fallback because session restore runs while
-    # monitors and workspaces are still settling during login.
-    hypr("dispatch", "movetoworkspacesilent", f"{target},address:{address}")
+    # Lua fallback (the native dispatcher name is a syntax error on the
+    # Hyprland 0.55+ Lua dispatch backend). window.move accepts a workspace
+    # selector (verified live); workspace.move needs a monitor.
+    hypr_lua(
+        f'hl.dsp.window.move({{ workspace = {json.dumps(target)}, '
+        f'window = "address:{address}" }})'
+    )
     deadline = time.time() + 0.8
     while time.time() < deadline:
         client = hypr_clients_by_address().get(address) or {}
@@ -1633,7 +1642,7 @@ def place_client(client, record):
                 file=sys.stderr,
             )
     if record.get("floating"):
-        hypr_lua(f'hl.dsp.setfloating({{ address = "{address}" }})')
+        hypr_lua(f'hl.dsp.window.float({{ window = "address:{address}", action = "set" }})')
         size = record.get("size") or []
         at = record.get("at") or []
         at_relative = record.get("atRelative") or []
@@ -1651,13 +1660,23 @@ def place_client(client, record):
                         at = [at_relative[0] + mon.get("x", 0), at_relative[1] + mon.get("y", 0)]
                 except Exception:
                     pass
+        # Hyprland 0.55+ parses `hyprctl dispatch` args as Lua — native
+        # dispatcher names (resizewindowpixel / movewindowpixel) are syntax
+        # errors there. Verified live: window.resize/move take x/y ints;
+        # fullscreen takes mode (not the legacy 0/1 int).
         if len(size) == 2:
-            hypr("dispatch", "resizewindowpixel", f"exact {int(size[0])} {int(size[1])},address:{address}")
+            hypr_lua(
+                f'hl.dsp.window.resize({{ window = "address:{address}", '
+                f'x = {int(size[0])}, y = {int(size[1])} }})'
+            )
         if len(at) == 2:
-            hypr("dispatch", "movewindowpixel", f"exact {int(at[0])} {int(at[1])},address:{address}")
+            hypr_lua(
+                f'hl.dsp.window.move({{ window = "address:{address}", '
+                f'x = {int(at[0])}, y = {int(at[1])} }})'
+            )
     if int(record.get("fullscreen") or 0) > 0:
-        hypr("dispatch", "focuswindow", f"address:{address}")
-        hypr("dispatch", "fullscreen", "1")
+        hypr_lua(f'hl.dsp.focus({{ window = "address:{address}" }})')
+        hypr_lua(f'hl.dsp.window.fullscreen({{ window = "address:{address}", mode = "fullscreen" }})')
 
 
 
@@ -1707,7 +1726,6 @@ def restore_focus(data, restored_addresses):
     hypr_focus_workspace(wsid)
     if new_address:
         hypr_lua(f'hl.dsp.focus({{ window = "address:{new_address}" }})')
-        hypr("dispatch", "focuswindow", f"address:{new_address}")
 
 
 SNAPSHOT_VERSION = 1
@@ -1827,8 +1845,9 @@ def _restore_impl():
             hypr_focus_workspace(wsid)
             time.sleep(0.12)
         elif isinstance(wsid, int) and wsid < 0:
-            # Special workspace — toggle it on the current monitor.
-            hypr("dispatch", "togglespecialworkspace")
+            # Special workspace — toggle it on the current monitor, by name.
+            ws_name = ((records[0].get("workspace") or {}).get("name") or "") if records else ""
+            hypr_focus_workspace(wsid, ws_name or None)
             time.sleep(0.12)
 
         for record in records:

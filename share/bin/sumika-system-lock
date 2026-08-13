@@ -25,20 +25,18 @@ pkill -f io.github.iamcheyan.sumika.screensaver
 # activating the WlSessionLock surface.
 _qs_bin="${SUMIKA_QS_BIN:-qs}"
 if "${_qs_bin}" -p "$SUMIKA_ROOT/apps/sumika-bar" ipc call lock activate >/dev/null 2>&1; then
-  # Quickshell Lock activated successfully.
-  if [[ ${SUMIKA_LOCK_ONLY:-false} != "true" ]]; then
-    (
-      sleep 3
-      # Wait for lock screen to be active
-      sleep 2
-      # Brightness gamma module not available in single-repo architecture
-      true
-    ) &
-  fi
   exit 0
 fi
 
-# No lock mechanism available. As a last resort, set screenLocked via
-# hyprctl so at least Hyprland knows a lock was requested (prevents the
-# "Oopsie daisy" fallback from showing without any lock attempt).
-echo "WARNING: No lock screen available (bar not running)" >&2
+# Bar IPC failed: fall back to loginctl lock-session (logind's locker,
+# configured via /etc/systemd/logind.conf HandleLidSwitch etc.), then to
+# hyprctl's builtin. SECURITY: never exit 0 without a lock — hypridle
+# treats exit 0 as "locked" and would suspend an unlocked session.
+if command -v loginctl >/dev/null 2>&1; then
+  if loginctl lock-session >/dev/null 2>&1; then
+    exit 0
+  fi
+fi
+
+echo "ERROR: No lock screen available (bar not running, loginctl lock-session failed)" >&2
+exit 1
