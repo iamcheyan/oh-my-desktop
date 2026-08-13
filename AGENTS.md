@@ -25,10 +25,10 @@ Re-run safely after pulls.
 |Role|Path|Managed by|
 |---|---|---|
 |Code + QML + assets|`~/development/OMD/`|git|
-|All core modules (bar, wifi, settings, launcher, audio, display, overview, systray, power-indicator, clipboard, etc.)|`OMD/quickshell/modules/` (12 core modules)|git (main repo)|
+|All core modules (bar, wifi, settings, launcher, audio, display, overview, systray, power-indicator, clipboard, etc.)|`OMD/quickshell/modules/` (17 core module dirs)|git (main repo)|
 |User config (overrides, launchers, keyboard profiles, notifications)|`~/.config/sumika-shell/`|chezmoi|
 |Extensions|`~/.local/share/sumika-shell/extensions/<id>/`|user-installed, discovered at startup|
-|Theme library|`~/development/OMD/share/themes/` (22 themes)|git|
+|Theme library|`~/.local/share/sumika-shell/extensions/theme-settings/themes/` (22 themes)|extension-owned|
 |Terminal configs (foot/kitty/alacritty/ghostty)|`~/.config/{foot,kitty,...}/`|chezmoi|
 |Runtime state (themes, wallpaper, keyd generated config)|`~/.local/state/sumika-shell/`|generated, not committed|
 
@@ -53,14 +53,14 @@ not contain repository executables.
 
 - **Hyprland**: `hypr/hyprland.lua` loads `hypr/default/` then `hypr/*.lua`.
 * **Quickshell config**: user override at `~/.config/sumika-shell/sumika.json` (unified config via sumika.json), baseline at `defaults/config/quickshell/config.json`.
-- **Themes**: `OmarchyTheme.qml` reads `~/.local/state/sumika-shell/theme/current/colors.toml`; 22 themes in `share/themes/`.
+- **Themes**: `OmarchyTheme.qml` reads `~/.local/state/sumika-shell/theme/current/colors.toml`; 22 themes ship in the theme-settings extension (`extensions/theme-settings/themes/`).
 - **Wallpaper**: `swaybg` via autostart; `sumika-wallpaper` handles rotation. State at `~/.local/state/sumika-shell/wallpaper/`.
 - **Quickshell Shell UI**: `quickshell/` root with `modules/` subdirectories for each component.
 - **Services**: `quickshell/services/` — QML singletons via `import qs.services`.
 - **TUI style**: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 - **Extensions**: `~/.local/share/sumika-shell/extensions/<id>/` — see [Extensions](#extensions) section below.
-- **Core modules vs Extensions**: 12 core modules live in `quickshell/modules/` and are always available. External extensions cannot override core modules — they are silently skipped on ID conflict. The manifest ID is canonical; a QML-safe directory name may differ (for example `notification-popup` uses `notificationPopup/`).
+- **Core modules vs Extensions**: Core modules live in `quickshell/modules/` and are always available. External extensions cannot override core modules — they are silently skipped on ID conflict. The manifest ID is canonical; a QML-safe directory name may differ (for example `notification-popup` uses `notificationPopup/`).
 
 ## Editing
 
@@ -69,7 +69,7 @@ not contain repository executables.
 - Shared widgets: `quickshell/modules/common/widgets/`.
 - Services: QML singletons via `import qs.services`.
 - TUI style: `common/TuiStyle.qml` — add tokens there, not hard-coded colors.
-- Default module QML: `modules/<name>/` — 12 core modules in this repo.
+- Default module QML: `modules/<name>/` — core modules in this repo.
 - **Bar popups**: `BarStatusPopup.qml` — do NOT add per-module `XxxInfoPopup.qml`.
 
 ### Core Modules (Product Floor)
