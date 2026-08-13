@@ -67,20 +67,32 @@ after each batch.
   registers handlers itself.
 - ActionManager same-owner re-registration replaces silently.
 
-## KNOWN — High, needs a decision (not fixed)
+## KNOWN High — closed in the 2026-08-14 finish pass
 
-| # | Where | Issue | Options |
-|---|---|---|---|
-| K1 | `file-backup/polkit/50-sumika-backup.rules` | Polkit rule returns YES for **any** pkexec command line containing the substring `mount.cifs` — any active local user gets passwordless root (`pkexec bash -c 'mount.cifs # <payload>'`) | (a) dedicated root helper + own .policy action (correct); (b) exact-match argv0 + group restriction (quick) |
-| K2 | `keyboard-remap/share/polkit-1/rules.d/50-sumika-keyboard.rules` | Same class: substring match on `/etc/keyd/sumika.conf` etc. in any bash payload | same |
-| K3 | `windows-vm/bin/sumika-settings-windows-vm` | RDP connect path requires `$SUMIKA_SHELL_ROOT/scripts/windows-rdp` which doesn't exist; compose file stores VM password world-readable (no chmod 600, unescaped YAML); `remove` rm -rf's env-derived dirs with no sanity guard | ship extension-local rdp launcher; validate+chmod; guard rm targets |
-| K4 | `input-method/config/schemas.json` | Bundled fallback has `"schemas": []` — fresh installs get a popup whose buttons do nothing (works only where the user hand-created the config) | ship the 4-schema default; drive popup Repeater from config |
-| K5 | `voice/bin/omarchy-voice-transcribe` | Daemon socket at fixed `/tmp/sumika-voice.sock`, chmod 0666, transcribes any client-supplied path — local arbitrary-file oracle on multi-user hosts | move to `$XDG_RUNTIME_DIR` 0600 |
-| K6 | `sasayaki internal/service` | Data races: recorder fields written under `stateMu` read under `opMu`; `opTranslate`/`testSpeechOnly` read unlocked; `Shutdown` can stall 120s racing engine spawn; second `serve` steals a live socket | Go fixes — one lock owner; add stopCh case; dial-before-listen |
-| K7 | `quickshell/core/runtime/ModuleLoader.qml` | `overlays` contributions collected but never instantiated — `notification-popup` overlay and `display/HyprsunsetOverlay.qml` (night light) never load via registry (night light only starts via clock's ≤60 s fallback) | instantiate Repeater in bar ShellRoot |
-| K8 | `qs ipc ... call action list/query` | Returns empty output for list/object returns on this Quickshell build (bools work) — `sumika-action list/status` shows nothing | upstream Quickshell IPC serialization; workaround: string returns |
+All K items below were triaged in the finish pass. K3–K8 are **FIXED
+(2026-08-14)**; K1/K2 carry the quick reversible hardening with the complete
+root-helper redesign parked as **DEC-001 (WAITING)** in `DECISIONS_PENDING.md`.
+Extension fixes ship as repacked tarballs under `website/downloads/` (version
+bumped, patch level). Details:
+
+| # | Where | Status |
+|---|---|---|
+| K1 | `file-backup` polkit rule | **FIXED (2026-08-14)** — rule now pins exact argv0 (`mount.cifs`/`umount` only, no bash wrappers), requires active session + `wheel`/`sumika` group. 16-case polkit-engine simulation passes (malicious `pkexec bash -c 'mount.cifs # payload'` rejected; legit mounts allowed). Full root-helper + own `.policy` = **DEC-001 (WAITING)**. Shipped in `sumika-ext-file-backup.tar.gz` v2.0.1. |
+| K2 | `keyboard-remap` polkit rule + `omarchy-keyboard-apply` | **FIXED (2026-08-14)** — apply payload pinned to a single exact shape the rule validates byte-for-byte (path may not contain quotes/whitespace/`;`/`$`); program must be bash; active + group required. Non-systemd fallback dropped from the pkexec payload (falls back to run0/sudo with password). Same simulation suite. Shipped in `sumika-ext-keyboard-remap.tar.gz` v1.0.1. Root-helper redesign: **DEC-001**. |
+| K3 | `windows-vm` script | **FIXED (2026-08-14)** — compose file now written `0600` with YAML-escaped credentials (verified: round-trips `pa$s "quote"\slash` exactly through a YAML parser); `remove` rm -rf guarded by `safe_rm_rf` (exact defaults whitelisted; env overrides must be ≥2 levels under `$HOME` and outside Documents/.config/.local/…; 12-case matrix passes); missing `scripts/windows-rdp` shipped (reads port + creds from compose, execs xfreerdp3/xfreerdp). Shipped v2.0.1. |
+| K4 | `input-method` schemas | **FIXED (2026-08-14)** — bundled `config/schemas.json` now carries the 4 default schemas (sbzr, sbzr_mix, easy_en, jaroomaji); popup Repeater driven by `im.schemas` from the config (hardcoded list kept only as display fallback). Fresh installs get working buttons; `sumika-input-method set <id>` no longer rejects every schema. Shipped v2.0.1. |
+| K5 | `voice` daemon socket | **FIXED (2026-08-14)** — socket moved to `$XDG_RUNTIME_DIR/sumika-voice.sock` (bind under 0177 umask + explicit chmod 0600); pid file, recording wav/pid, cancel flag and all status probes moved off `/tmp`; stale legacy `/tmp` socket is unlinked with a warning. Daemon unit test (stubbed sherpa-onnx) verifies: socket in runtime dir, mode 0600, legacy cleanup, client round-trip. Shipped v1.0.1. |
+| K6 | `sasayaki` data races | **FIXED (2026-08-14)** — `opTranslate`/`testSpeechOnly` now snapshotted under `opMu` (were read unlocked in the pipeline goroutine); `recordingPath`/`recordingGeneration` reads in `finishRecording`/`Cancel` moved under `stateMu`; `Shutdown` now cancels a daemon `shutdownCtx` first so in-flight engine calls return promptly (pipeline ctx derives from it) and the worker is shut down outside `opMu`; `Run` dials the socket before unlinking so a second start can no longer steal a live daemon's socket. Also fixed a crash the new regression test exposed: `finishRecording` now flips the phase to `Transcribing` synchronously, so `Cancel` can never deref a nil recorder in the old `Recording` window (original tree panics on `TestConcurrentOperationsNoRace`; fixed tree passes `go test -race ./...`). Shipped v1.0.1. Note: public `github.com/iamcheyan/sasayaki` is an unrelated scaffold (README+go.mod only) — the shipped extension source is canonical; upstream sync is a separate task. |
+| K7 | `ModuleLoader.overlays` never instantiated | **FIXED (2026-08-14)** — registry generator (`quickshell/scripts/quickshell`) now stamps absolute `file://` component paths + `moduleId` for `overlays` (and `overviewProviders`, same gap); bar `ShellRoot` instantiates registry overlays once (createObject, id-deduped, guarded by `registryLoaded`) and the previously hardcoded duplicates were removed (`OnScreenDisplay {}` + inline notification PanelWindow; `notificationPopup/NotificationPopup.qml` now uses `BarPopupGeometry` margins to keep visuals). Registry generation verified: 3 overlays (hyprsunset, notification-popup, on-screen-display), all component paths exist. No extension declares overlays, so no double-instance risk from the extension side. GUI verification pending (no compositor on the fix machine) — check `/tmp/sumika-bar.log` for `[Bar] overlay loaded:` lines after `sumika-restart`. |
+| K8 | `qs ipc call action list/query` empty | **FIXED (2026-08-14, workaround)** — `action.list`/`action.query` now return JSON **strings** (bools were the only serializable return type on this build); `sumika-action` normalizes possibly-quoted CLI output (bare vs quoted both parse; jq handles either). Upstream Quickshell IPC serialization gap remains — if a future quickshell serializes `var` returns, the string form still works. |
 
 ## KNOWN — Medium/low (documented, deferred)
+
+Partial progress 2026-08-14: screenshot's fixed `/tmp/sumika-screenshot-active`
+flag + temp edit path moved to `$XDG_RUNTIME_DIR` (v2.0.1); voice's `/tmp`
+wav/pid/cancel paths fixed with K5 (v1.0.1). The `mktemp`-based screenshot
+intermediates stay in `/tmp` deliberately (mktemp is 0600-random; safe).
+Everything else below remains deferred as originally documented.
 
 - `windows-vm`: desktop entry Exec/icon assume core-repo paths; settings page
   `du -sb` over VM storage every 5–10 s; phase detection flips to error on any
