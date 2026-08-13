@@ -136,7 +136,7 @@
       <action name="Execute" command="sumika-action wifi.launch" />
     </keybind>
     <keybind key="W-C-a">
-      <action name="Execute" command="sumika-launch-profile audio" />
+      <action name="Execute" command="sumika-action audio.launch" />
     </keybind>
     <keybind key="W-Space">
       <action name="Execute" command="sumika-action input-method.cycle" />

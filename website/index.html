@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sumika Shell — modular desktop shell for Hyprland</title>
+<meta name="description" content="Sumika Shell — a modular, extension-driven desktop shell for Hyprland built with Quickshell. 17 core modules, 9 extensions, 22 themes.">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2320b2aa'/></svg>">
+</head>
+<body>
+<nav class="nav"><div class="nav-inner">
+  <a class="brand" href="index.html"><span class="brand-mark"></span>Sumika Shell</a>
+  <div class="nav-links">
+    <a href="index.html" class="active">Home</a>
+    <a href="store.html">Extensions</a>
+    <a href="https://github.com/iamcheyan/oh-my-desktop">GitHub</a>
+    <a class="nav-cta" href="store.html">Get Started</a>
+  </div>
+</div></nav>
+
+<header class="hero">
+  <div class="container hero-grid">
+    <div>
+      <h1>Your desktop,<br><span class="grad">composed like an app store.</span></h1>
+      <p class="lead">Sumika Shell is a modular desktop shell for Hyprland, built with Quickshell.
+      A lean core of 17 modules plus drop-in extensions — voice input, screenshots, backups,
+      a Windows VM, 22 themes — discovered at startup, never compiled in.</p>
+      <div class="hero-badges">
+        <span class="badge"><b>17</b> core modules</span>
+        <span class="badge"><b>9</b> extensions</span>
+        <span class="badge"><b>22</b> themes</span>
+        <span class="badge">Hyprland · Wayland</span>
+        <span class="badge">aarch64 + x86_64</span>
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="store.html">Browse extensions</a>
+        <a class="btn btn-ghost" href="https://github.com/iamcheyan/oh-my-desktop">View on GitHub</a>
+      </div>
+    </div>
+    <figure class="hero-shot" style="margin:0">
+      <img src="assets/img/hero-desktop.webp" alt="Sumika Shell desktop with top bar" width="1600" height="1039">
+      <figcaption>Live session — Hyprland + Quickshell top bar, oceanblack theme</figcaption>
+    </figure>
+  </div>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="kicker">Why Sumika</div>
+      <h2>A shell designed like a platform</h2>
+      <p>Core owns the minimum usable desktop; everything else is an isolated extension with its own
+      QML, helpers and dependencies. Install only what you use.</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card"><h3><span class="icon">🧩</span>Core / extension boundary</h3>
+        <p>Extensions live in <code>~/.local/share/sumika-shell/extensions/</code> and are discovered at
+        startup. Core always wins on ID conflicts — an extension can never shadow or break the shell.</p></div>
+      <div class="card"><h3><span class="icon">⚡</span>Zero-hardcode bar</h3>
+        <p>Every bar widget loads through the module registry — no feature branches in shell code.
+        Extensions contribute bar buttons, popups, settings pages and launchers declaratively.</p></div>
+      <div class="card"><h3><span class="icon">🎨</span>Theming to the bone</h3>
+        <p>22 curated themes cover shell, terminal, editor and lock screen, generated from one
+        <code>colors.toml</code> per theme. Apply instantly, preview before you commit.</p></div>
+      <div class="card"><h3><span class="icon">⌨️</span>TUI-first settings</h3>
+        <p>Deep configuration lives in keyboard-driven TUIs (backup, keyboard remap, themes, VM)
+        launched into floating terminal windows with stable app-ids.</p></div>
+      <div class="card"><h3><span class="icon">🔒</span>Safe to tinker</h3>
+        <p><code>sumika-doctor</code> diagnoses the session; <code>sumika-restart</code> guards against
+        killing a locked bar. Lock screen lives in the shell process — no third-party locker.</p></div>
+      <div class="card"><h3><span class="icon">📦</span>Sane dependency story</h3>
+        <p>Core installs a minimal package set. Each extension declares and manages its own
+        dependencies — installing one never expands the core footprint.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="kicker">Architecture</div>
+      <h2>Four layers, one contract</h2>
+      <p>Strict dependency direction: extensions may import core, never the reverse.</p>
+    </div>
+    <div class="arch">
+      <div class="card"><div class="num">01</div><h3>Session</h3>
+        <p><code>sumika-session</code> boots Hyprland, exports the path API and starts systemd units.</p></div>
+      <div class="card"><div class="num">02</div><h3>Compositor</h3>
+        <p>Hyprland with Lua config: bindings, monitors, window rules. labwc fallback config included.</p></div>
+      <div class="card"><div class="num">03</div><h3>Shell UI</h3>
+        <p>Quickshell QML: bar, popups, overview, launcher, notifications, lock screen.</p></div>
+      <div class="card"><div class="num">04</div><h3>Services</h3>
+        <p>QML singletons for audio, network, power, workspaces, brightness, MPRIS, tray, Bluetooth.</p></div>
+    </div>
+    <h3 style="margin-top:2.4rem">Core modules</h3>
+    <div class="chips" style="margin-top:0.9rem">
+      <span class="chip">bar <small>layout</small></span>
+      <span class="chip">workspaces</span>
+      <span class="chip">launcher</span>
+      <span class="chip">overview</span>
+      <span class="chip">clock</span>
+      <span class="chip">systray</span>
+      <span class="chip">power-indicator</span>
+      <span class="chip">wifi</span>
+      <span class="chip">audio</span>
+      <span class="chip">display</span>
+      <span class="chip">clipboard</span>
+      <span class="chip">notification-popup</span>
+      <span class="chip">settings</span>
+      <span class="chip">lock</span>
+      <span class="chip">polkit</span>
+      <span class="chip">on-screen-display</span>
+      <span class="chip">active-window <small>via extension</small></span>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="kicker">Themes</div>
+      <h2>22 themes, one command away</h2>
+      <p>Every theme covers the shell, terminal, editor and lock screen. Previews below are generated
+      from the actual theme files — what you see is what ships.</p>
+    </div>
+    <div class="themes">
+<!--THEMES:BEGIN-->
+<div class="theme-card"><img src="assets/themes/catppuccin.webp" alt="Catppuccin theme preview" loading="lazy"><div class="name"><b>Catppuccin</b></div></div>
+<div class="theme-card"><img src="assets/themes/catppuccin-latte.webp" alt="Catppuccin Latte theme preview" loading="lazy"><div class="name"><b>Catppuccin Latte</b></div></div>
+<div class="theme-card"><img src="assets/themes/ethereal.webp" alt="Ethereal theme preview" loading="lazy"><div class="name"><b>Ethereal</b></div></div>
+<div class="theme-card"><img src="assets/themes/everforest.webp" alt="Everforest theme preview" loading="lazy"><div class="name"><b>Everforest</b></div></div>
+<div class="theme-card"><img src="assets/themes/flexoki-light.webp" alt="Flexoki Light theme preview" loading="lazy"><div class="name"><b>Flexoki Light</b></div></div>
+<div class="theme-card"><img src="assets/themes/gruvbox.webp" alt="Gruvbox theme preview" loading="lazy"><div class="name"><b>Gruvbox</b></div></div>
+<div class="theme-card"><img src="assets/themes/hackerman.webp" alt="Hackerman theme preview" loading="lazy"><div class="name"><b>Hackerman</b></div></div>
+<div class="theme-card"><img src="assets/themes/kanagawa.webp" alt="Kanagawa theme preview" loading="lazy"><div class="name"><b>Kanagawa</b></div></div>
+<div class="theme-card"><img src="assets/themes/last-horizon.webp" alt="Last Horizon theme preview" loading="lazy"><div class="name"><b>Last Horizon</b></div></div>
+<div class="theme-card"><img src="assets/themes/lumon.webp" alt="Lumon theme preview" loading="lazy"><div class="name"><b>Lumon</b></div></div>
+<div class="theme-card"><img src="assets/themes/matte-black.webp" alt="Matte Black theme preview" loading="lazy"><div class="name"><b>Matte Black</b></div></div>
+<div class="theme-card"><img src="assets/themes/miasma.webp" alt="Miasma theme preview" loading="lazy"><div class="name"><b>Miasma</b></div></div>
+<div class="theme-card"><img src="assets/themes/nord.webp" alt="Nord theme preview" loading="lazy"><div class="name"><b>Nord</b></div></div>
+<div class="theme-card"><img src="assets/themes/oceanblack.webp" alt="Oceanblack theme preview" loading="lazy"><div class="name"><b>Oceanblack</b></div></div>
+<div class="theme-card"><img src="assets/themes/osaka-jade.webp" alt="Osaka Jade theme preview" loading="lazy"><div class="name"><b>Osaka Jade</b></div></div>
+<div class="theme-card"><img src="assets/themes/retro-82.webp" alt="Retro 82 theme preview" loading="lazy"><div class="name"><b>Retro 82</b></div></div>
+<div class="theme-card"><img src="assets/themes/ristretto.webp" alt="Ristretto theme preview" loading="lazy"><div class="name"><b>Ristretto</b></div></div>
+<div class="theme-card"><img src="assets/themes/rose-pine.webp" alt="Rose Pine theme preview" loading="lazy"><div class="name"><b>Rose Pine</b></div></div>
+<div class="theme-card"><img src="assets/themes/solitude.webp" alt="Solitude theme preview" loading="lazy"><div class="name"><b>Solitude</b></div></div>
+<div class="theme-card"><img src="assets/themes/tokyo-night.webp" alt="Tokyo Night theme preview" loading="lazy"><div class="name"><b>Tokyo Night</b></div></div>
+<div class="theme-card"><img src="assets/themes/vantablack.webp" alt="Vantablack theme preview" loading="lazy"><div class="name"><b>Vantablack</b></div></div>
+<div class="theme-card"><img src="assets/themes/white.webp" alt="White theme preview" loading="lazy"><div class="name"><b>White</b></div></div>
+<!--THEMES:END-->
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div class="kicker">Get started</div>
+      <h2>Install in one command</h2>
+      <p>Clone the repository and run the installer; it sets up the Quickshell symlink and the
+      Sumika session. Extensions install separately from the store.</p>
+    </div>
+    <pre><code>git clone git@github.com:iamcheyan/oh-my-desktop.git ~/development/OMD
+cd ~/development/OMD &amp;&amp; ./Init.sh
+
+# after installing any extension:
+sumika-restart   # reload the shell (lock-safe)
+sumika-doctor    # diagnose the session</code></pre>
+    <div class="hero-actions mt-2">
+      <a class="btn btn-primary" href="store.html">Browse the extension store</a>
+      <a class="btn btn-ghost" href="https://github.com/iamcheyan/oh-my-desktop">Read the docs</a>
+    </div>
+  </div>
+</section>
+
+<footer><div class="container">
+  <div>Sumika Shell — modular desktop shell for Hyprland, built with Quickshell.</div>
+  <div><a href="https://github.com/iamcheyan/oh-my-desktop">GitHub</a> · <a href="store.html">Extensions</a> · <a href="https://github.com/iamcheyan/sasayaki">Sasayaki</a></div>
+</div></footer>
+<script src="assets/js/store.js" defer></script>
+</body>
+</html>

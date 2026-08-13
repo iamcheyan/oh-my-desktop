@@ -4,6 +4,7 @@
   "name": "Audio",
   "version": "2.0.0",
   "kind": "shared",
+  "actionsProvider": "module-actions.qml",
   "contributes": {
     "widgets": [
       {

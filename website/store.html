@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extensions · Sumika Shell</title>
+<meta name="description" content="Sumika Shell — a modular, extension-driven desktop shell for Hyprland built with Quickshell.">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2320b2aa'/></svg>">
+</head>
+<body>
+<nav class="nav"><div class="nav-inner">
+  <a class="brand" href="index.html"><span class="brand-mark"></span>Sumika Shell</a>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="store.html" class="active">Extensions</a>
+    <a href="https://github.com/iamcheyan/oh-my-desktop">GitHub</a>
+    <a class="nav-cta" href="store.html">Get Started</a>
+  </div>
+</div></nav>
+<main class="container section">
+  <div class="section-head">
+    <div class="kicker">Extension Store</div>
+    <h2>Browse extensions</h2>
+    <p>Optional modules drop into <code>~/.local/share/sumika-shell/extensions/</code> and are discovered
+    at shell startup. Core modules always win on ID conflicts — extensions can never shadow core.</p>
+  </div>
+  <div class="store-toolbar">
+    <input class="search" id="store-search" type="search" placeholder="Search extensions…" aria-label="Search extensions">
+    <button class="filter-btn active" data-filter="all">All</button><button class="filter-btn" data-filter="input">Input</button><button class="filter-btn" data-filter="hardware">Hardware</button><button class="filter-btn" data-filter="utilities">Utilities</button><button class="filter-btn" data-filter="system">System</button><button class="filter-btn" data-filter="appearance">Appearance</button>
+  </div>
+  <div class="store-grid" id="store-grid"><div class="ext-card" data-href="extensions/sasayaki.html" data-category="input" data-name="sasayaki voice input 语音输入（ささやき） local voice input &amp; speech-to-text engine written in go.">
+  <a class="ext-top" href="extensions/sasayaki.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">🎙️</div>
+    <div>
+      <div class="ext-title">Sasayaki Voice Input</div>
+      <div class="ext-namezh">语音输入（ささやき）</div>
+    </div>
+  </a>
+  <p class="ext-desc">Local voice input &amp; speech-to-text engine written in Go.</p>
+  <div class="ext-meta">
+    <span class="tag">v1.0.0</span>
+    <span class="tag">Input</span>
+    <span>140 KB</span>
+    <a href="https://github.com/iamcheyan/sasayaki" class="tag" onclick="event.stopPropagation()">repo ↗</a>
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/voice.html" data-category="input" data-name="voice input 语音输入 voice input and speech-to-text with a bar button and settings page.">
+  <a class="ext-top" href="extensions/voice.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">🎤</div>
+    <div>
+      <div class="ext-title">Voice Input</div>
+      <div class="ext-namezh">语音输入</div>
+    </div>
+  </a>
+  <p class="ext-desc">Voice input and speech-to-text with a bar button and settings page.</p>
+  <div class="ext-meta">
+    <span class="tag">v1.0.0</span>
+    <span class="tag">Input</span>
+    <span>72 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/input-method.html" data-category="input" data-name="input method 输入法 fcitx5 input method management in the bar.">
+  <a class="ext-top" href="extensions/input-method.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">かな</div>
+    <div>
+      <div class="ext-title">Input Method</div>
+      <div class="ext-namezh">输入法</div>
+    </div>
+  </a>
+  <p class="ext-desc">Fcitx5 input method management in the bar.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">Input</span>
+    <span>8 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/keyboard-remap.html" data-category="hardware" data-name="keyboard remap 键盘重映射 keyd-based keyboard profiles, remapping and function-row behavior.">
+  <a class="ext-top" href="extensions/keyboard-remap.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">⌨️</div>
+    <div>
+      <div class="ext-title">Keyboard Remap</div>
+      <div class="ext-namezh">键盘重映射</div>
+    </div>
+  </a>
+  <p class="ext-desc">keyd-based keyboard profiles, remapping and function-row behavior.</p>
+  <div class="ext-meta">
+    <span class="tag">v1.0.0</span>
+    <span class="tag">Hardware</span>
+    <span>76 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/screenshot.html" data-category="utilities" data-name="screenshot 截图工具 fullscreen / region screenshots and screen recording from the bar.">
+  <a class="ext-top" href="extensions/screenshot.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">📸</div>
+    <div>
+      <div class="ext-title">Screenshot</div>
+      <div class="ext-namezh">截图工具</div>
+    </div>
+  </a>
+  <p class="ext-desc">Fullscreen / region screenshots and screen recording from the bar.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">Utilities</span>
+    <span>40 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/file-backup.html" data-category="system" data-name="musubi file backup 文件备份与分发 rsync / samba backup and config distribution with a full tui.">
+  <a class="ext-top" href="extensions/file-backup.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">☁️</div>
+    <div>
+      <div class="ext-title">Musubi File Backup</div>
+      <div class="ext-namezh">文件备份与分发</div>
+    </div>
+  </a>
+  <p class="ext-desc">rsync / Samba backup and config distribution with a full TUI.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">System</span>
+    <span>996 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/windows-vm.html" data-category="system" data-name="windows vm windows 虚拟机 qemu / winapps / lookingglass windows vm management.">
+  <a class="ext-top" href="extensions/windows-vm.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">🪟</div>
+    <div>
+      <div class="ext-title">Windows VM</div>
+      <div class="ext-namezh">Windows 虚拟机</div>
+    </div>
+  </a>
+  <p class="ext-desc">QEMU / WinApps / LookingGlass Windows VM management.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">System</span>
+    <span>24 KB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/theme-settings.html" data-category="appearance" data-name="theme settings 主题设置 theme picker with 22 built-in themes, effects and color scheme management.">
+  <a class="ext-top" href="extensions/theme-settings.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">🎨</div>
+    <div>
+      <div class="ext-title">Theme Settings</div>
+      <div class="ext-namezh">主题设置</div>
+    </div>
+  </a>
+  <p class="ext-desc">Theme picker with 22 built-in themes, effects and color scheme management.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">Appearance</span>
+    <span>11 MB</span>
+    
+  </div>
+</div>
+<div class="ext-card" data-href="extensions/active-window.html" data-category="appearance" data-name="active window 当前窗口与桌面状态 active window title, icon and desktop state in the left bar.">
+  <a class="ext-top" href="extensions/active-window.html" style="color:inherit;text-decoration:none">
+    <div class="ext-icon">🪟</div>
+    <div>
+      <div class="ext-title">Active Window</div>
+      <div class="ext-namezh">当前窗口与桌面状态</div>
+    </div>
+  </a>
+  <p class="ext-desc">Active window title, icon and desktop state in the left bar.</p>
+  <div class="ext-meta">
+    <span class="tag">v2.0.0</span>
+    <span class="tag">Appearance</span>
+    <span>32 KB</span>
+    
+  </div>
+</div></div>
+  <p class="empty-note hidden" id="store-empty">No extensions match your search.</p>
+</main>
+<footer><div class="container">
+  <div>Sumika Shell — modular desktop shell for Hyprland, built with Quickshell.</div>
+  <div><a href="https://github.com/iamcheyan/oh-my-desktop">GitHub</a> · <a href="store.html">Extensions</a> · <a href="https://github.com/iamcheyan/sasayaki">Sasayaki</a></div>
+</div></footer>
+<script src="assets/js/store.js" defer></script>
+</body>
+</html>

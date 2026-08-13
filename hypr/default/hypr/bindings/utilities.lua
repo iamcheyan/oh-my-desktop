@@ -17,9 +17,11 @@ o.bind("SUPER + PRINT", "Color picker", paths.root .. "/bin/sumika-action displa
 o.bind("PRINT", "Screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
 o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", paths.root .. "/bin/sumika-action screenshot.capture-ocr")
 
-o.bind("SUPER + CTRL + A", "Audio controls", { sumika = "audio" })
-o.bind("SUPER + CTRL + B", "Bluetooth controls", { sumika = "bluetooth" })
-o.bind("SUPER + CTRL + W", "Wifi controls", { sumika = "wifi" })
+-- Audio/Bluetooth open real registered actions (sumika-launch-profile has
+-- no audio/bluetooth/wifi profiles — those bindings were dead). WiFi is
+-- already bound in hypr/bindings.lua via wifi.launch; do not double-bind.
+o.bind("SUPER + CTRL + A", "Audio controls", paths.root .. "/bin/sumika-action audio.launch")
+o.bind("SUPER + CTRL + B", "Bluetooth controls", paths.root .. "/bin/sumika-action bluetooth.launch")
 o.bind("SUPER + CTRL + T", "Activity", { tui = "btop" })
 
 o.bind("SUPER + CTRL + Z", "Zoom in", function()
