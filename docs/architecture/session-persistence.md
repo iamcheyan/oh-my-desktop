@@ -58,10 +58,13 @@ marker (plus the `save-requested` flag). The next time `sumika-bar` starts,
 true, it shows the restore overlay and runs `sumika-session restore-auto`.
 
 `restore-auto` consumes the marker before restoring so a normal Quickshell
-reload does not repeatedly launch duplicate windows. `SessionAutoRestore` also
-consumes the marker when it skips restore (windows already open), and ignores
-a marker whose `savedAt` is older than a week, so a stale marker never
-restores a long-expired desktop.
+reload does not repeatedly launch duplicate windows. `SessionAutoRestore`
+ignores a marker whose `savedAt` is older than a week, so a stale marker
+never restores a long-expired desktop. It does not check the current window
+count: on a cold boot, autostart programs open windows before the bar's
+startup delay elapses, which would falsely signal a non-empty desktop and
+disarm the marker. The marker's own consume-on-restore semantics are
+sufficient to prevent reload re-triggering.
 
 Empty snapshots are rejected. If `sumika-session save`, `save-close`, or
 `save-auto` finds no mapped Hyprland clients, it prints a skipped result and
