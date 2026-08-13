@@ -14,7 +14,7 @@ Scope {
     id: root
 
     property string sessionCommand: Directories.root + "/bin/sumika-session"
-    required property string restoreAction
+    property string restoreAction: "restore-auto"
     property int expectedCount: 0
     property int restoredCount: 0
     property string statusText: expectedCount > 0 ? `Restoring ${expectedCount} windows` : "Restoring workspace snapshot"

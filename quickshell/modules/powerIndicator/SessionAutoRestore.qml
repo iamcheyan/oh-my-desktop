@@ -72,9 +72,20 @@ Scope {
                             root.expectedCount = 0;
                             return;
                         }
-                        // Count real app windows via the compositor-agnostic
-                        // chain in clientCountProc.
-                        clientCountProc.running = true;
+                        // Proceed to monitor readiness check. The marker is
+                        // consumed (unlinked) by restore-auto itself, so a
+                        // bar reload after a successful restore will not
+                        // re-trigger: status will report autoRestore=false.
+                        // Checking the window count here is unreliable on a
+                        // cold boot because autostart programs (kitty session
+                        // restore, polkit, etc.) open windows before the bar
+                        // finishes its 1.8s startup delay, causing a false
+                        // "desktop not empty" skip that disarms the marker
+                        // and prevents auto-restore from ever running.
+                        root.expectedCount = data.count || 0;
+                        root.expectedMonitorCount = data.monitorCount || 0;
+                        root.monitorReadyAttempts = 0;
+                        monitorReadyCheck.start();
                     } else {
                         root.expectedCount = 0;
                     }
@@ -86,65 +97,8 @@ Scope {
     }
 
     Process {
-        id: clientCountProc
-        // Compositor-agnostic app-window count:
-        //   Hyprland -> hyprctl (guarded by HYPRLAND_INSTANCE_SIGNATURE)
-        //   wlroots  -> wlrctl toplevel list (foreign-toplevel protocol;
-        //               excludes layer-shell surfaces such as the bar's
-        //               own panels and popups)
-        //   neither  -> -1 (unknown — caller treats this as "do not restore")
-        command: ["bash", "-c",
-            "if [ -n \"$HYPRLAND_INSTANCE_SIGNATURE\" ] && command -v hyprctl >/dev/null 2>&1; then " +
-            "  hyprctl -j clients | jq 'length' 2>/dev/null; " +
-            "elif command -v wlrctl >/dev/null 2>&1; then " +
-            "  wlrctl toplevel list 2>/dev/null | wc -l; " +
-            "else echo -1; fi"]
-        running: false
-        stdout: StdioCollector {
-            id: clientCountOut
-            onStreamFinished: {
-                try {
-                    const raw = (clientCountOut.text || "").trim();
-                    // Empty/whitespace output means the tool is present but
-                    // failed (broken compositor, jq parse error). Treat it
-                    // as unknown (-1), not 0, so we never restore into a
-                    // desktop we cannot prove is empty.
-                    const openWindows = (raw === "" || raw === "-1") ? -1 : (parseInt(raw) || -1);
-                    if (openWindows > 0) {
-                        // Windows already open (a Quickshell reload with apps
-                        // running). Consume the marker so a later cold boot
-                        // does not restore this possibly stale snapshot.
-                        console.log("[SessionAutoRestore] Skipping auto-restore:", openWindows, "app windows already open")
-                        root.disarmMarker();
-                        root.expectedCount = 0;
-                        return;
-                    }
-                    if (openWindows === -1) {
-                        // No window enumeration available on this compositor.
-                        // Fail safe: never auto-restore into a desktop we
-                        // cannot prove is empty. Consume the marker too so it
-                        // does not linger.
-                        console.log("[SessionAutoRestore] Skipping auto-restore: no reliable window enumeration")
-                        root.disarmMarker();
-                        root.expectedCount = 0;
-                        return;
-                    }
-                    // Reuse the parsed status from the root property.
-                    root.expectedCount = root.statusData.count || 0;
-                    root.expectedMonitorCount = root.statusData.monitorCount || 0;
-                    root.monitorReadyAttempts = 0;
-                    monitorReadyCheck.start();
-                } catch (e) {
-                    console.log("[SessionAutoRestore] client count failed:", e)
-                    root.expectedCount = 0;
-                }
-            }
-        }
-    }
-
-    Process {
         id: monitorCountProc
-        // Same fallback chain as clientCountProc: Hyprland -> hyprctl,
+        // Compositor-agnostic monitor count: Hyprland -> hyprctl,
         // wlroots -> wlr-randr, neither -> -1 (accepted after max attempts).
         command: ["bash", "-c",
             "if [ -n \"$HYPRLAND_INSTANCE_SIGNATURE\" ] && command -v hyprctl >/dev/null 2>&1; then " +
