@@ -60,7 +60,7 @@ Scope {
                 try {
                     const data = JSON.parse(statusOut.text);
                     root.statusData = data;
-                    if (data.autoRestore === true && data.saved === true) {
+                    if (data.autoRestore === true && data.saved === true && !restoreLoader.active) {
                         // Age gate: ignore a marker whose snapshot is older
                         // than maxMarkerAge so a stale marker never restores
                         // an expired desktop.

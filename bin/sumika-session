@@ -1001,9 +1001,16 @@ def save_auto(requested=True):
     worth restoring when the marker is already armed."""
     data = save()
     if not data:
-        # Empty save: no clients captured (compositor gone, or all windows
-        # closed). Do not arm a stale restore — the design doc forbids it.
-        _disarm_restore()
+        # Empty save: no clients captured. On Hyprland this means the
+        # compositor was already gone or all windows were closed, so disarming
+        # the marker is correct (do not arm a stale restore — design doc).
+        # On a non-Hyprland compositor (labwc) snapshot_clients() cannot reach
+        # hyprctl, so an empty result is a false negative, not proof of an
+        # empty desktop: preserve the existing marker instead of disarming,
+        # so a snapshot armed by a prior Hyprland session survives a labwc
+        # interlude and still restores on the next Hyprland start.
+        if _hypr_available():
+            _disarm_restore()
         return None
 
     _arm_restore(data.get("savedAt", int(time.time())))
@@ -1870,11 +1877,19 @@ def restore_auto():
     if not AUTO_RESTORE_FILE.exists():
         print(json.dumps({"armed": False, "restored": 0, "count": 0}))
         return 0
-    try:
-        AUTO_RESTORE_FILE.unlink()
-    except FileNotFoundError:
-        pass
-    return restore()
+    # Run restore first, delete the marker only on success. If restore fails
+    # (hyprctl unavailable, snapshot invalid, etc.) the marker survives so
+    # the next boot can retry. restore_lock prevents concurrent runs, and a
+    # partial restore (some windows already launched) is acceptable: the
+    # retry will re-launch missing ones — better than silently losing the
+    # auto-restore on a transient failure.
+    exit_code = restore()
+    if exit_code == 0:
+        try:
+            AUTO_RESTORE_FILE.unlink()
+        except FileNotFoundError:
+            pass
+    return exit_code
 
 
 def disarm():
