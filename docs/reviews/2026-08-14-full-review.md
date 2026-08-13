@@ -5,6 +5,7 @@ scripts) + all 9 installed extensions. Findings are grouped by severity and
 status: **FIXED** (committed), **KNOWN** (documented, not changed), **WONTFIX**
 (intentional behavior).
 
+
 Review method: five parallel read-only scouts (core QML, shell scripts,
 compositor configs, extensions A/B) with every claim verified against source
 before acting; fixes applied in batches with a shell restart + log check
@@ -126,6 +127,48 @@ after each batch.
   overlap.
 - AGENTS.md drift: says 12 core modules / themes in `share/themes/` — actual:
   17 module dirs, themes live in the theme-settings extension.
+
+## FIXED — Script layer (second batch)
+
+| # | Where | Bug |
+|---|---|---|
+| S1 | `share/bin/sumika-hyprland-*` | The `sumika-hyprland-toggle{,-enabled,-disabled}` + `sumika-notification-send` helper family **did not exist anywhere** — monitor-internal, monitor-internal-mirror, window-gaps-toggle, single-square-aspect-toggle silently exited 127 on every call, wired to live bindings and lid actions. Implemented over the marker-file contract `toggles/hypr/<name>.lua` the Lua config loads |
+| S2 | `bin/sumika-session` | Every native `hyprctl dispatch` (resizewindowpixel, movewindowpixel, focuswindow, fullscreen, killactive, closewindow, movetoworkspacesilent, togglespecialworkspace) is a **Lua syntax error on Hyprland 0.55+ that still exits 0** — floating size/position, fullscreen, and special-workspace restore were all dead. Converted to verified `hl.dsp.*` forms |
+| S3 | `bin/sumika-module-validate` | Undefined `SERVICE_ID_PATTERN` — validator crashed on `contributes.services` and the module was silently dropped from the registry; also rejected the schema-legal `center` slot and `process:` handlers |
+| S4 | `share/bin/sumika-launch-webapp` | Non-chromium default browsers coerced to `chromium.desktop` → empty Exec → webapp launch broken for Firefox-default users |
+| S5 | `bin/sumika-kb-layout` | Read/wrote the repo `hypr/input.lua` that the user override masks — `get` reported `us` while `jp` was active; `set` was a no-op for override users |
+| S6 | `share/bin/sumika-system-lock` | Failed open: exit 0 with no lock — hypridle would suspend an unlocked session. Now falls back to `loginctl lock-session`, exits nonzero without a lock |
+| S7 | `bin/sumika-restart` | Hardcoded `/usr/bin/quickshell` in pkill + lock-guard patterns — user-local installs left stacked bars and the WlSessionLock guard failed open |
+
+## KNOWN — Script layer (deferred)
+
+- `sumika-session`: unguarded `notify-send` (missing binary aborts save after
+  snapshot write but before arming restore); non-atomic `last.json`; TOCTOU
+  restore lock.
+- `sumika-keep-awake`: PID-reuse liveness on a persistent pid file (can kill
+  an innocent process after reboot).
+- `sumika-sni-reconcile`: misses unique-name SNI registrations (verified 0
+  matches with 1 item registered).
+- `sumika-doctor`: PAM check misses `/usr/lib64` (Fedora); predictable `/tmp`
+  output file; dead `check_link()`.
+- `sumika-sync-launchers`: zombie sweep would delete user-authored
+  `sumika-*.desktop` (no ownership marker).
+- `sumika-launch-or-focus`: unquoted `eval exec setsid $LAUNCH_COMMAND`;
+  regex-injection into jq `test()`; dead native fallback.
+- `sumika-launch-tui`: `foot -e` fallback broken (foot has no `-e`).
+- `sumika_tui_framework.py`: curses color-pair collisions (swatch pair 9 =
+  C_PANEL; image pool stomps reserved pairs 31/32).
+- `lib/paths.sh`: `BASH_SOURCE` breaks real-POSIX `/bin/sh` (dash);
+  `lib/config.sh` is entirely dead code.
+- `Init.sh`: predictable `/tmp` download; labwc build failure aborts silently
+  under `set -eu`; migration collision makes reruns non-idempotent; `read -p`
+  auto-proceeds on EOF.
+- `quickshell/scripts/quickshell`: duplicate-instance guard false-positives on
+  `qs ipc call` probes; registry-empty diagnostic can never fire;
+  `QS_COMPOSITOR=hyprland` hardcoded.
+- Verified clean: bin→share wrapper uniformity, session-save systemd ordering,
+  system-sleep Bluetooth hook, migrate.sh atomicity, no curl|sh, no hardcoded
+  credentials.
 
 ## WONTFIX / verified-not-bugs
 
