@@ -75,6 +75,12 @@ for slot = 1, 10 do
   })
 end
 
+-- SUPER+D: jump to the last blank workspace (or create a fresh one after the
+-- highest). Pressing again while that scratch workspace is still empty returns
+-- to the workspace you came from; if it now has content, another blank
+-- workspace is opened instead. State lives in $SUMIKA_SHELL_STATE_HOME.
+o.bind("SUPER + D", "Toggle blank workspace", paths.root .. "/bin/sumika-hyprland-workspace-scratch-toggle")
+
 -- Esc closes active bar menus/popups (transparent so apps still get it when no menu is open)
 hl.bind("ESCAPE", hl.dsp.exec_cmd(paths.root .. '/bin/sumika-action menus.close 2>/dev/null'), {
   ignore_mods = true, transparent = true, non_consuming = true, description = "Close active bar menus"
@@ -115,18 +121,37 @@ for _, key in ipairs(interrupt_keys) do
 end
 
 local function read_sasayaki_bindings()
+  local data_home = os.getenv("XDG_DATA_HOME") or (paths.home .. "/.local/share")
+  local extensions_dir = os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or (data_home .. "/sumika-shell/extensions")
+  -- Use absolute paths: the Hyprland process PATH does not include
+  -- extensions/bin, so bare command names silently fail and the bindings
+  -- fall back to ALT+A/code:472. Note the sasayaki subcommand is `bindings`,
+  -- NOT `hypr-bindings` (the latter is the voice helper's name).
+  local candidates = {
+    { extensions_dir .. "/sasayaki/sasayaki", "bindings" },
+    { extensions_dir .. "/voice/bin/sumika-voice-translate", "hypr-bindings" },
+    { "sasayaki", "bindings" },
+  }
   local result = { voice = {}, translation = nil }
-  local process = io.popen("sasayaki bindings 2>/dev/null")
-  if process then
-    for line in process:lines() do
-      local kind, binding = line:match("^([^\t]+)\t(.+)$")
-      if kind == "voice" and binding and binding ~= "" then
-        table.insert(result.voice, binding)
-      elseif kind == "translation" and binding and binding ~= "" then
-        result.translation = binding
+  for _, c in ipairs(candidates) do
+    local process = io.popen("'" .. c[1]:gsub("'", "'\\''") .. "' " .. c[2] .. " 2>/dev/null")
+    if process then
+      local any = false
+      for line in process:lines() do
+        local kind, binding = line:match("^([^\t]+)\t(.+)$")
+        if kind == "voice" and binding and binding ~= "" then
+          table.insert(result.voice, binding)
+          any = true
+        elseif kind == "translation" and binding and binding ~= "" then
+          result.translation = binding
+          any = true
+        end
+      end
+      process:close()
+      if any and #result.voice > 0 then
+        break
       end
     end
-    process:close()
   end
   return result
 end

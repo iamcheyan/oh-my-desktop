@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=SUPER+D — jump to the last blank workspace; press again on an
+# empty scratch to return to the previous workspace, or open another new
+# workspace if the current one already has content.
+#
+# Behavior (per key press):
+#   1. If the active workspace is the empty scratch workspace this key opened
+#      (and nothing was opened there), switch back to the workspace we came
+#      from and forget the scratch.
+#   2. Otherwise switch to the last (highest-numbered) blank workspace; if
+#      none exists, create a fresh one after the highest workspace id.
+#      Remember the current workspace as the return target.
+#
+# Hyprland 0.55+ uses the Lua dispatch backend, so workspace switching goes
+# through `hyprctl dispatch 'hl.dsp.focus({ workspace = "N" })'` (the whole
+# argument is one Lua expression). `hyprctl dispatch workspace N` is rejected
+# because the args are parsed as Lua.
+
+set -euo pipefail
+
+state_home="${SUMIKA_SHELL_STATE_HOME:-${XDG_STATE_HOME:-$HOME/.local/state}/sumika-shell}"
+state_file="$state_home/scratch-workspace"
+
+active_id=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.id')
+active_windows=$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.windows')
+
+# Scratch state format: "<return_workspace_id> <scratch_workspace_id>"
+state_return=""
+state_scratch=""
+if [[ -f "$state_file" ]]; then
+  read -r state_return state_scratch < "$state_file" || true
+fi
+
+switch_workspace() { hyprctl dispatch "hl.dsp.focus({ workspace = \"$1\" })" >/dev/null 2>&1; }
+
+# Case 1: we are on the empty scratch workspace → go back.
+if [[ -n "$state_scratch" && "$active_id" == "$state_scratch" && "$active_windows" == "0" ]]; then
+  switch_workspace "$state_return"
+  rm -f "$state_file"
+  exit 0
+fi
+
+# Case 2: go to the last blank workspace, or create a new one after the highest.
+# Only regular workspaces (positive ids) participate; special/named are ignored.
+all_workspaces=$(hyprctl workspaces -j 2>/dev/null | jq -c '[.[] | select(.id > 0) | {id: .id, windows: .windows}]')
+target=$(jq -r '[.[] | select(.windows == 0) | .id] | if length > 0 then max else 0 end' <<<"$all_workspaces")
+if [[ "$target" == "0" ]]; then
+  target=$(jq -r '[.[] | .id] | if length > 0 then max + 1 else 1 end' <<<"$all_workspaces")
+fi
+
+mkdir -p "$state_home"
+printf '%s %s\n' "$active_id" "$target" > "$state_file"
+switch_workspace "$target"
