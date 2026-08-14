@@ -60,22 +60,28 @@ between Hyprland dying and `sumika-session-save.service` ExecStop running.
 When the compositor dies first, `hyprctl -j clients` exits 4. Historically
 that exception crashed `save-auto-if-stale` after it had already consumed
 the `save-requested` flag, leaving neither a fresh snapshot nor an armed
-marker — the recurring "auto-restore didn't come back" bug.
+marker — the recurring "auto-restore didn't come back" bug. This also fires
+on suspend/resume crashes (the compositor dies on resume before ExecStop).
 
 Two mechanisms make the save path immune to this race:
 
 1. **CompositorGone handling.** When Hyprland should be reachable but its
-   IPC does not answer, `save-auto` keeps the existing `last.json` and arms
-   `restore-on-next-start` against the snapshot's mtime (or disarms when the
-   user did not opt in). The teardown save never crashes; worst case it
-   restores a snapshot that is one rolling interval old.
+   IPC does not answer, `save-auto` arms `restore-on-next-start` whenever the
+   rolling snapshot has real windows — regardless of the `save-requested`
+   flag. CompositorGone is never a user opt-out (opt-outs go through the UI
+   path while the compositor is alive and disarm via the empty-save branch);
+   it is an unexpected death (suspend/resume crash, fast poweroff, Hyprland
+   crash). The teardown save can no longer crash; worst case it restores a
+   snapshot that is one rolling interval old.
 2. **Rolling snapshots.** `sumika-session-rolling-save.timer` (5 min,
    graphical-session-scoped) runs `sumika-session save-rolling`, which
    writes `last.json` only when the restorable window set changed
    (fingerprint over class/workspace/geometry/launch command — never titles
    or `focusHistoryID`, which churn constantly). It never touches the marker
-   and stays silent. Result: `last.json` is at most ~5 minutes stale at any
-   shutdown, whatever kills the compositor first.
+   and stays silent. It also skips while a restore is in progress (live
+   restore-lock PID), so it never overwrites the snapshot being restored
+   with a half-restored desktop. Result: `last.json` is at most ~5 minutes
+   stale at any shutdown, whatever kills the compositor first.
 
 When checked, Sumika Shell runs `sumika-session save-auto-if-stale` before the
 system action. This saves `last.json` and writes the `restore-on-next-start`

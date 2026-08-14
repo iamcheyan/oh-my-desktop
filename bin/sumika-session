@@ -1041,13 +1041,16 @@ def save_auto(requested=True):
     try:
         data = save()
     except CompositorGone:
-        # Teardown race (the bug that repeatedly killed auto-restore): logind
-        # kills the session scope — and Hyprland with it — before the user
-        # manager runs ExecStop, so hyprctl exits 4 and the old code crashed
-        # out with neither a fresh snapshot nor an armed marker. The rolling
-        # save timer keeps last.json at most one interval old, so keep it and
-        # arm restore against its mtime instead of crashing.
-        if requested and LAST_FILE.exists() and _existing_client_count() > 0:
+        # The compositor died before we could snapshot it — a suspend/resume
+        # crash, a fast poweroff, a Hyprland crash. This is never a user
+        # opt-out (opt-outs go through the UI path while the compositor is
+        # still alive and hit the empty-save disarm below), so arm restore
+        # whenever the rolling save left a snapshot with real windows in it,
+        # regardless of the save-requested flag. The recurring bug was that
+        # this path crashed and left neither snapshot nor marker; the rolling
+        # timer keeps the snapshot fresh, and this arm makes the next session
+        # actually use it.
+        if LAST_FILE.exists() and _existing_client_count() > 0:
             _arm_restore(int(LAST_FILE.stat().st_mtime))
             print(json.dumps({"saved": False, "skipped": True, "reason": "compositor-gone", "armed": True}))
         else:
@@ -1089,6 +1092,19 @@ def _client_fingerprint(client):
         ensure_ascii=False,
     )
 
+def _restore_in_progress():
+    """True if a session restore is running (a live PID holds the restore
+    lock). Used by the rolling save to avoid snapshotting a half-restored
+    desktop and overwriting the snapshot currently being restored."""
+    try:
+        if not RESTORE_LOCK.exists():
+            return False
+        pid = int(RESTORE_LOCK.read_text().strip())
+        return pid > 0 and Path(f"/proc/{pid}").exists()
+    except Exception:
+        return False
+
+
 
 def save_rolling():
     """Silent periodic snapshot for the rolling-save timer. Writes last.json
@@ -1098,7 +1114,9 @@ def save_rolling():
     This is what makes auto-restore immune to teardown races: when logind
     kills the compositor before the ExecStop snapshot can run, last.json is
     at most one timer interval old instead of one session old."""
-    if not _hypr_available():
+    if _restore_in_progress():
+        # A restore is mid-flight: snapshotting now would capture a
+        # half-restored desktop and overwrite the snapshot being restored.
         return
     if _snapshot_is_recent():
         # The UI or the teardown path wrote a snapshot moments ago.
