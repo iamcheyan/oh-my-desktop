@@ -151,12 +151,13 @@ Everything else below remains deferred as originally documented.
 | S5 | `bin/sumika-kb-layout` | Read/wrote the repo `hypr/input.lua` that the user override masks — `get` reported `us` while `jp` was active; `set` was a no-op for override users |
 | S6 | `share/bin/sumika-system-lock` | Failed open: exit 0 with no lock — hypridle would suspend an unlocked session. Now falls back to `loginctl lock-session`, exits nonzero without a lock |
 | S7 | `bin/sumika-restart` | Hardcoded `/usr/bin/quickshell` in pkill + lock-guard patterns — user-local installs left stacked bars and the WlSessionLock guard failed open |
+| S8 | `bin/sumika-session` + `share/systemd/` | **The recurring auto-restore killer**: at shutdown logind kills the Hyprland session scope before the user manager runs `sumika-session-save.service` ExecStop, so `hyprctl -j clients` exits 4 and the unhandled exception crashed `save-auto-if-stale` *after* consuming the save-requested flag — no fresh snapshot, no marker; the next login then restored a stale snapshot or nothing. Fixed with `CompositorGone` handling (keep snapshot, arm against mtime) + a 5-minute rolling-save timer (`save-rolling`, change-fingerprinted, silent, never touches the marker) so `last.json` is at most ~5 min stale regardless of teardown ordering. Full analysis: `docs/architecture/session-persistence.md` § Teardown Race |
 
 ## KNOWN — Script layer (deferred)
 
-- `sumika-session`: unguarded `notify-send` (missing binary aborts save after
-  snapshot write but before arming restore); non-atomic `last.json`; TOCTOU
-  restore lock.
+- `sumika-session`: TOCTOU restore lock (save-arming races are now closed:
+  notify-send is guarded, `last.json` writes are atomic, compositor-gone
+  teardown no longer crashes).
 - `sumika-keep-awake`: PID-reuse liveness on a persistent pid file (can kill
   an innocent process after reboot).
 - `sumika-sni-reconcile`: misses unique-name SNI registrations (verified 0

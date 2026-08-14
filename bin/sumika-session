@@ -787,8 +787,42 @@ def launch_command(client):
     }
 
 
+class CompositorGone(RuntimeError):
+    """Hyprland should be reachable (env signature + hyprctl present) but its
+    IPC socket no longer answers. This is the teardown race: logind kills the
+    session scope (and with it the compositor) before the user manager runs
+    ExecStop, so any snapshot taken there must not crash the save path."""
+
+
+def _atomic_write_json(path, data):
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _notify(summary, body):
+    # notify-send is cosmetic; a missing binary must never abort a save that
+    # has already reached (or is about to reach) disk.
+    try:
+        subprocess.run(
+            ["notify-send", summary, body, "-a", "Session", "-i", "archive"],
+            stderr=subprocess.DEVNULL,
+        )
+    except (FileNotFoundError, OSError):
+        pass
+
+
 def snapshot_clients():
-    clients = run_json("hyprctl", "-j", "clients")
+    try:
+        clients = run_json("hyprctl", "-j", "clients")
+    except (subprocess.CalledProcessError, json.JSONDecodeError, OSError) as e:
+        # One short retry covers a transiently busy socket; a second failure
+        # with the env signature present means the compositor is gone.
+        time.sleep(0.5)
+        try:
+            clients = run_json("hyprctl", "-j", "clients")
+        except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
+            raise CompositorGone(f"hyprctl -j clients failed: {e}") from e
     # Build monitor index -> name mapping so we can record which monitor
     # each workspace belonged to at snapshot time.
     try:
@@ -860,7 +894,7 @@ def save():
             "count": 0,
             "path": str(LAST_FILE),
         }))
-        subprocess.run(["notify-send", "Session saved (empty)", "No windows to save — nothing was written", "-a", "Session", "-i", "archive"], stderr=subprocess.DEVNULL)
+        _notify("Session saved (empty)", "No windows to save — nothing was written")
         return None
 
     data = {
@@ -888,7 +922,7 @@ def save():
                 shutil.copy2(LAST_FILE, LAST_BAK_FILE)
             except Exception:
                 pass
-        LAST_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_write_json(LAST_FILE, data)
     workspace_keys = {
         (
             client.get("monitorName") or str(client.get("monitor", -1)),
@@ -922,7 +956,7 @@ def save():
             term_info += f", {len(terminal_sessions)} sessions"
         notify_parts.append(term_info)
     notify_body = " · ".join(notify_parts)
-    subprocess.run(["notify-send", notify_summary, notify_body, "-a", "Session", "-i", "archive"], stderr=subprocess.DEVNULL)
+    _notify(notify_summary, notify_body)
     return data
 
 
@@ -1004,7 +1038,22 @@ def save_auto(requested=True):
     marker instead of arming a restore for a desktop the user did not ask to
     save. A non-empty save still arms: a snapshot with real windows is always
     worth restoring when the marker is already armed."""
-    data = save()
+    try:
+        data = save()
+    except CompositorGone:
+        # Teardown race (the bug that repeatedly killed auto-restore): logind
+        # kills the session scope — and Hyprland with it — before the user
+        # manager runs ExecStop, so hyprctl exits 4 and the old code crashed
+        # out with neither a fresh snapshot nor an armed marker. The rolling
+        # save timer keeps last.json at most one interval old, so keep it and
+        # arm restore against its mtime instead of crashing.
+        if requested and LAST_FILE.exists() and _existing_client_count() > 0:
+            _arm_restore(int(LAST_FILE.stat().st_mtime))
+            print(json.dumps({"saved": False, "skipped": True, "reason": "compositor-gone", "armed": True}))
+        else:
+            _disarm_restore()
+            print(json.dumps({"saved": False, "skipped": True, "reason": "compositor-gone", "armed": False}))
+        return None
     if not data:
         # Empty save: no clients captured. On Hyprland this means the
         # compositor was already gone or all windows were closed, so disarming
@@ -1020,6 +1069,70 @@ def save_auto(requested=True):
 
     _arm_restore(data.get("savedAt", int(time.time())))
     return data
+
+
+_ROLLING_FP_FIELDS = (
+    # Layout-relevant fields only. Title/initialTitle carry live counters
+    # (terminal PIDs, tab names) and focusHistoryID is a global monotonic
+    # counter — all three churn without any restorable change, which would
+    # make the rolling save rewrite last.json on every timer tick.
+    "class", "initialClass", "workspace",
+    "monitorName", "atRelative", "size", "floating", "fullscreen",
+    "command",
+)
+
+
+def _client_fingerprint(client):
+    return json.dumps(
+        {k: client.get(k) for k in _ROLLING_FP_FIELDS},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+
+
+def save_rolling():
+    """Silent periodic snapshot for the rolling-save timer. Writes last.json
+    only when the restorable window set actually changed, never touches the
+    restore marker, and prints nothing so it can run every few minutes.
+
+    This is what makes auto-restore immune to teardown races: when logind
+    kills the compositor before the ExecStop snapshot can run, last.json is
+    at most one timer interval old instead of one session old."""
+    if not _hypr_available():
+        return
+    if _snapshot_is_recent():
+        # The UI or the teardown path wrote a snapshot moments ago.
+        return
+    try:
+        clients = snapshot_clients()
+    except CompositorGone:
+        # Stale signature from a dead compositor (session switch, teardown).
+        return
+    if not clients:
+        return
+    try:
+        existing = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        existing = None
+    old = existing.get("clients") if isinstance(existing, dict) else None
+    if old:
+        if sorted(_client_fingerprint(c) for c in old) == \
+                sorted(_client_fingerprint(c) for c in clients):
+            # Unchanged desktop — preserve last.json mtime so staleness
+            # checks keep meaning what they say.
+            return
+    if LAST_FILE.exists():
+        try:
+            shutil.copy2(LAST_FILE, LAST_BAK_FILE)
+        except Exception:
+            pass
+    _atomic_write_json(LAST_FILE, {
+        "version": 1,
+        "savedAt": int(time.time()),
+        "focus": current_focus_state(clients),
+        "clients": clients,
+        "rolling": True,
+    })
 
 
 def write_kitty_session_file(record, index):
@@ -1934,13 +2047,18 @@ def clear():
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "save":
-        save()
+        try:
+            save()
+        except CompositorGone as e:
+            print(json.dumps({"saved": False, "skipped": True, "reason": "compositor-gone", "error": str(e)}))
     elif cmd in ("save-auto", "save-for-next-start"):
         save_auto(requested=True)
     elif cmd == "save-requested":
         save_requested()
     elif cmd in ("save-auto-if-stale", "save-if-stale"):
         save_auto_if_stale()
+    elif cmd == "save-rolling":
+        save_rolling()
     elif cmd == "preview":
         preview()
     elif cmd == "preview-saved":
@@ -1960,7 +2078,7 @@ def main():
     elif cmd == "status":
         status()
     else:
-        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-requested|save-auto-if-stale|save-close|restore|restore-auto|disarm|clear", file=sys.stderr)
+        print("usage: sumika-session status|preview|preview-saved|save|save-auto|save-requested|save-auto-if-stale|save-rolling|save-close|restore|restore-auto|disarm|clear", file=sys.stderr)
         raise SystemExit(2)
 
 

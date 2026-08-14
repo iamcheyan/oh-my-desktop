@@ -51,6 +51,32 @@ it, an empty or compositor-gone save unlinks the restore marker instead of
 arming a stale restore, so an unchecked shutdown or an all-windows-closed
 shutdown does not restore anything on the next login.
 
+## Teardown Race (why a plain ExecStop snapshot is not enough)
+
+Hyprland runs in a logind session scope, not a user unit. At shutdown,
+logind kills the session scope — and with it the compositor — independently
+of the user manager's unit teardown, so there is **no ordering guarantee**
+between Hyprland dying and `sumika-session-save.service` ExecStop running.
+When the compositor dies first, `hyprctl -j clients` exits 4. Historically
+that exception crashed `save-auto-if-stale` after it had already consumed
+the `save-requested` flag, leaving neither a fresh snapshot nor an armed
+marker — the recurring "auto-restore didn't come back" bug.
+
+Two mechanisms make the save path immune to this race:
+
+1. **CompositorGone handling.** When Hyprland should be reachable but its
+   IPC does not answer, `save-auto` keeps the existing `last.json` and arms
+   `restore-on-next-start` against the snapshot's mtime (or disarms when the
+   user did not opt in). The teardown save never crashes; worst case it
+   restores a snapshot that is one rolling interval old.
+2. **Rolling snapshots.** `sumika-session-rolling-save.timer` (5 min,
+   graphical-session-scoped) runs `sumika-session save-rolling`, which
+   writes `last.json` only when the restorable window set changed
+   (fingerprint over class/workspace/geometry/launch command — never titles
+   or `focusHistoryID`, which churn constantly). It never touches the marker
+   and stays silent. Result: `last.json` is at most ~5 minutes stale at any
+   shutdown, whatever kills the compositor first.
+
 When checked, Sumika Shell runs `sumika-session save-auto-if-stale` before the
 system action. This saves `last.json` and writes the `restore-on-next-start`
 marker (plus the `save-requested` flag). The next time `sumika-bar` starts,

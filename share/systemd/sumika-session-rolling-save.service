@@ -1,0 +1,20 @@
+# Rolling Sumika session snapshot (run by sumika-session-rolling-save.timer).
+#
+# The teardown snapshot (sumika-session-save.service ExecStop) races against
+# logind killing the session scope: Hyprland often dies before the user
+# manager reaches ExecStop, and hyprctl then exits 4. When that happens the
+# teardown path keeps last.json as-is and arms restore against its mtime —
+# which is only useful if last.json is fresh. This unit is what keeps it
+# fresh: every run writes last.json when the restorable window set changed
+# (no-op otherwise). It never touches the restore marker.
+#
+# Rendered from @SUMIKA_SHELL_ROOT@ by sumika-restart at every session start;
+# do not edit the copy under $SUMIKA_SHELL_STATE_HOME/systemd/.
+
+[Unit]
+Description=Sumika rolling session snapshot
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=@SUMIKA_SHELL_ROOT@/bin/sumika-session save-rolling

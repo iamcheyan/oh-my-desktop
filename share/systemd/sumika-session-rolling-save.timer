@@ -1,0 +1,16 @@
+# Timer for the rolling Sumika session snapshot. Bound to
+# graphical-session.target (not timers.target) so it only runs while a
+# graphical session is active. Rendered by sumika-restart; see
+# sumika-session-rolling-save.service for why this exists.
+
+[Unit]
+Description=Periodic Sumika session snapshot
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=1min
+Unit=sumika-session-rolling-save.service
+
+[Install]
+WantedBy=graphical-session.target
