@@ -34,7 +34,7 @@ unset _sumika_root
 # Path-agnostic: matches any quickshell binary location (user installs use
 # ~/.local/bin/quickshell; the old /usr/bin-only patterns missed them, so
 # restarts left stacked bars and the lock guard failed open).
-_bar_pattern="quickshell -p ${SUMIKA_SHELL_ROOT}/apps/sumika-bar"
+_bar_pattern="(quickshell|qs) -p ${SUMIKA_SHELL_ROOT}/apps/sumika-bar"
 _force=0
 quickshell_only=0
 for _arg in "$@"; do
@@ -62,9 +62,9 @@ fi
 unset _lock_state _bar_pattern
 
 # ── Kill old quickshell processes ─────────────────────────────────────────
-pkill -f "quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
+pkill -f "(quickshell|qs) -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
 sleep 0.3
-pkill -9 -f "quickshell -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
+pkill -9 -f "(quickshell|qs) -p ${SUMIKA_SHELL_ROOT}/" 2>/dev/null || true
 sleep 0.2
 
 # ── Orphaned subprocess cleanup ───────────────────────────────────────────
@@ -177,7 +177,13 @@ start_app() {
     fi
 
     if command -v systemd-run >/dev/null 2>&1 && systemctl --user is-active default.target >/dev/null 2>&1; then
-        systemd-run --user --unit="$app" --collect \
+        # No --collect: it unloads the transient unit (even from the failed
+        # state) immediately, racing the Restart= job — observed as
+        # "Failed to schedule restart job: Unit sumika-bar.service not found"
+        # right after a SIGKILL, leaving the desktop without a bar. A failed
+        # unit now lingers for inspection until the cleanup block above
+        # (reset-failed + rm transient + daemon-reload) runs on next reload.
+        systemd-run --user --unit="$app" \
             --property=KillMode=process \
             --property=Restart=on-failure \
             --property=RestartSec=2 \

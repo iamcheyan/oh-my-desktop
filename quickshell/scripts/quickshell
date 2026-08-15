@@ -52,12 +52,52 @@ mkdir -p "$qml_import_root"
 ln -sfn "$repo_root/quickshell" "$qml_import_root/qs"
 export QML_IMPORT_PATH="$qml_import_root${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
 
+# Qt5Compat.GraphicalEffects is imported by core QML (RippleButton, TuiShell,
+# LockSurface, ...) but is NOT part of the quickshell closure on NixOS — it
+# normally arrives via the session's QML2_IMPORT_PATH (imported into the user
+# manager when a KDE app registers its environment). When the user-manager
+# env lacks it (fresh boot race, nixos-rebuild switch, `systemd-run` from a
+# bare shell), quickshell dies at startup with `module
+# "Qt5Compat.GraphicalEffects" is not installed` and crash-loops. Resolve
+# the current store path directly; no-op where the glob finds nothing.
+qt5compat_qml="$(ls -d /nix/store/*-qt5compat-*/lib/qt-6/qml 2>/dev/null | head -n 1)"
+if [ -n "$qt5compat_qml" ]; then
+    case ":${QML_IMPORT_PATH}:" in
+        *":${qt5compat_qml}:"*) ;;
+        *) export QML_IMPORT_PATH="$QML_IMPORT_PATH:$qt5compat_qml" ;;
+    esac
+fi
+
+# Same story for org.kde.kirigami: the polkit agent's QtQuick.Controls
+# resolve through the breeze style, which imports kirigami. Without it the
+# polkit shell crash-loops exactly like the qt5compat case above.
+kirigami_qml="$(ls -d /nix/store/*kirigami*/lib/qt-6/qml 2>/dev/null | head -n 1)"
+if [ -n "$kirigami_qml" ]; then
+    case ":${QML_IMPORT_PATH}:" in
+        *":${kirigami_qml}:"*) ;;
+        *) export QML_IMPORT_PATH="$QML_IMPORT_PATH:$kirigami_qml" ;;
+    esac
+fi
+
 # ---------------------------------------------------------------
 # Registry generation — always generated, independent of master switch.
 # Outputs v2 schema (schemaVersion=2) with contributes.widgets/popupSections/
 # settingsPages/services/actions/overviewProviders.
 # ---------------------------------------------------------------
-registry_file="$registry_dir/modules.json"
+# Lightweight apps (polkit agent, standalone overview/launcher) don't scan
+# extensions. They must NOT clobber the full-session registry the bar wrote:
+# a core-only overwrite of modules.json cascades into sumika-sync-launchers
+# deleting every extension .desktop launcher as a zombie. Give them their
+# own registry file and never let them run the desktop sync below.
+lightweight_app=false
+case "$SUMIKA_APP_DIR" in
+  */sumika-polkit|*/overview|*/launcher) lightweight_app=true ;;
+esac
+if [ "$lightweight_app" = true ]; then
+  registry_file="$registry_dir/modules-lite.json"
+else
+  registry_file="$registry_dir/modules.json"
+fi
 
 # v2 empty template
 registry='{"schemaVersion":2,"modules":[],"contributes":{"widgets":[],"popupSections":[],"settingsPages":[],"services":[],"actions":[],"overviewProviders":[],"overlays":[],"launchers":[]}}'
@@ -194,8 +234,17 @@ fi
 # Scan for user-installed extensions in the standard directory.
 # Extensions are loaded after core modules and cannot override core IDs.
 # Each extension has: <extensions_dir>/<id>/module.json
+#
+# Lightweight apps (polkit, overview, launcher) don't use extension QML
+# or services — skip scanning to save ~30-50 MB of QML compilation and
+# avoid loading extension-provided singletons that waste memory/CPU.
 extensions_dir="${SUMIKA_SHELL_EXTENSIONS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/sumika-shell/extensions}"
 ext_qml_root="${registry_dir}/qml_ext"
+# Lightweight apps skip extension QML/services (flag computed above, before
+# the registry file is chosen).
+if [ "$lightweight_app" = true ]; then
+  extensions_dir=""
+fi
 if [ -d "$extensions_dir" ] && command -v jq >/dev/null 2>&1; then
     mkdir -p "$ext_qml_root/qs/modules"
     for ext_mod_json in "$extensions_dir"/*/module.json; do
@@ -261,7 +310,10 @@ fi
 # Reconcile ~/.local/share/applications/sumika-*.desktop with the registry's
 # contributes.launchers. Creates entries for enabled modules, removes entries
 # for disabled/uninstalled modules. See bin/sumika-sync-launchers.
-if [ -x "$repo_root/bin/sumika-sync-launchers" ]; then
+# Only full-session startups (bar, settings) reconcile desktop launchers —
+# they are the ones that scan extensions. A lightweight app's registry view
+# is core-only; syncing from it would delete every extension launcher.
+if [ "$lightweight_app" != true ] && [ -x "$repo_root/bin/sumika-sync-launchers" ]; then
     "$repo_root/bin/sumika-sync-launchers" --quiet || true
 fi
 repair_config_json() {
@@ -287,14 +339,37 @@ repair_config_json() {
 
 repair_config_json
 
-# Guard against duplicate instances: match any process whose command line
-# contains the config dir path (catches both the final `quickshell -p <dir>`
-# process and the intermediate `sh .../scripts/quickshell <dir>` script).
-# Exclude our own PID so we don't match ourselves.
+# Guard against duplicate instances.
+#
+# A real instance has exactly one of these shapes:
+#   <quickshell-binary> -p <config_dir>              (exe basename quickshell|qs)
+#   sh <repo>/quickshell/scripts/quickshell <config_dir>  (this script, pre-exec)
+#
+# History: this guard used to match ANY process whose cmdline contained the
+# config dir anywhere. That false-positived on leftovers — a SIGKILLed bar
+# (KillMode=process) leaves bash/nmcli/sleep children alive, and `qs -p <dir>
+# ipc call ...` helpers carry the dir mid-cmdline — so a fresh start silently
+# exited 0. Exit 0 is success: Restart=on-failure stayed quiet and the desktop
+# sat at bare wallpaper. Now we only count cmdlines ENDING in the config dir
+# whose /proc/<pid>/exe is a quickshell binary (or that still run this script),
+# skip zombies, and log the skip so /tmp/<app>.log always shows why.
 own_pid=$$
-if pgrep -af "${config_dir}( |$)" 2>/dev/null | grep -v "^${own_pid} " >/dev/null 2>&1; then
+for _gpid in $(pgrep -f "${config_dir}\$" 2>/dev/null); do
+    [ "$_gpid" = "$own_pid" ] && continue
+    _gstate=$(awk '{print $3}' "/proc/$_gpid/stat" 2>/dev/null) || continue
+    [ "$_gstate" = "Z" ] && continue
+    _gexe=$(readlink "/proc/$_gpid/exe" 2>/dev/null) || continue
+    case "$_gexe" in
+        */quickshell|*/qs) ;;
+        *)
+            tr '\0' ' ' < "/proc/$_gpid/cmdline" 2>/dev/null | grep -q "scripts/quickshell " || continue
+            ;;
+    esac
+    _gcmd=$(tr '\0' ' ' < "/proc/$_gpid/cmdline" 2>/dev/null) || _gcmd="(gone)"
+    echo "[sumika] instance already running (pid $_gpid: ${_gcmd% }) — skipping start" >&2
     exit 0
-fi
+done
+unset _gpid _gstate _gexe _gcmd
 
 runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 wayland_display="${WAYLAND_DISPLAY:-}"
