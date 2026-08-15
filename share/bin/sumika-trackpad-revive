@@ -285,6 +285,22 @@ fi
 
 discover || { echo "sumika-trackpad-revive: no SPI-attached trackpad found" >&2; exit 2; }
 
+# ── Root-cause mitigation ────────────────────────────────────────────────────
+# The SPI controller runtime-suspends on idle (power/control=auto) and its
+# resume path is what wedges: after a bad resume the transport shows
+# "status message mismatch" and the trackpad delivers nothing until the
+# handshake is re-run. Pinning runtime PM to "on" keeps the controller awake
+# and prevents the wedge from forming. Idempotent; runs on every invocation
+# so anything flipping it back gets corrected within one timer tick.
+ensure_pm() {
+    local c d
+    c="/sys/bus/platform/devices/$IRQ_LABEL/power/control"
+    [ -w "$c" ] && echo on > "$c" 2>/dev/null || true
+    d="/sys/bus/spi/devices/$SPI_DEV/power/control"
+    [ -w "$d" ] && echo on > "$d" 2>/dev/null || true
+}
+ensure_pm
+
 case "$MODE" in
     status)
         echo "name:        $TP_NAME"

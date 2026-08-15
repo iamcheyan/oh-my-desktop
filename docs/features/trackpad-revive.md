@@ -16,7 +16,10 @@ MacBook（Apple Silicon, Asahi）上触摸板完全无反应，但：
 |A. 风暴死|~900/s 疯狂中断，报文全被丢|首次冷启动出现|
 |B. 静默死|触摸时也归零|level-1 重绑后数分钟内出现|
 
-键盘与触摸板共用同一条 SPI 传输（spi1.0），两种死型下键盘都可能仍"正常"。
+
+## 根因（最强嫌疑）：SPI 控制器运行时挂起唤醒失败
+
+`/sys/bus/platform/devices/39b10c000.spi/power/control` 默认 `auto`——空闲时内核把控制器挂起（`runtime_status=suspended`），输入事件到来再唤醒。实测死锁期间控制器常停留在 suspended/风暴态，重绑日志反复出现 `status message mismatch`（唤醒后 SPI 握手全乱）。**缓解**：把控制器与 `spi1.0` 的 `power/control` 固定为 `on`（脚本 `ensure_pm()` 每次运行都强制执行）。2026-08-15 晚间启用后待观察；升级到 7.1.6 内核无效（同样死锁），当天 12:23 一次 1848 包的 `dnf upgrade` 后开始频发（升级前 18 小时会话零死锁）。
 
 ## 修复 = 重跑 SPI 握手（unbind/bind）
 
