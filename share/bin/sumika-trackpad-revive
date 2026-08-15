@@ -77,7 +77,10 @@ discover() {
 
     IRQ_LABEL=$(grep -o '[0-9a-f]*\.spi' <<<"$sysfs" | head -n1)
     SPI_DEV=$(grep -o 'spi[0-9]*\.[0-9]*' <<<"$sysfs" | tail -n1)
-    HID_ID=$(grep -oE '[0-9A-F]{4}:[0-9A-F]{4}:[0-9A-F]{4}\.[0-9]{4}' <<<"$sysfs" | head -n1)
+    # NOTE: the instance suffix is HEX — after several rebinds the counter
+    # passes 0009 and sessions like "000A" appear; [0-9]{4} would silently
+    # stop matching and the whole auto-heal goes blind.
+    HID_ID=$(grep -oE '[0-9A-F]{4}:[0-9A-F]{4}:[0-9A-F]{4}\.[0-9A-F]{4}' <<<"$sysfs" | head -n1)
     SPI_DRV_DIR=/sys/bus/spi/drivers/spi-hid-apple-of
 
     # Internal keyboard event node — same SPI controller, our bus-liveness probe.
@@ -164,6 +167,41 @@ spi_rebind() {   # full transport re-handshake; keyboard drops ~L2_GAP s
     return 1
 }
 
+STORM_THRESHOLD=100     # IRQ/s sustained with no touch = controller storm
+
+storm_active() {   # rc 0 = controller still storming after a rebind
+    local c1 c2
+    c1=$(irq_count "$IRQ_LABEL") || c1=0
+    sleep "$WINDOW_SECONDS"
+    c2=$(irq_count "$IRQ_LABEL") || c2=0
+    LAST_RATE=$(( (c2 - c1) / WINDOW_SECONDS ))
+    [ "$LAST_RATE" -ge "$STORM_THRESHOLD" ]
+}
+
+controller_rebind() {   # reset the SPI controller itself (last resort)
+    # The controller platform device name IS the IRQ label (e.g. 39b10c000.spi).
+    local dev="$IRQ_LABEL" drv=/sys/bus/platform/drivers/apple-spi
+    local err=/tmp/.sumika-tp-ctrl-err.$$ attempt
+    [ -d "$drv" ] || { log "controller rebind unavailable: no apple-spi driver"; return 1; }
+    for attempt in 1 2 3; do
+        if echo "$dev" > "$drv/unbind" 2>"$err"; then
+            sleep 4
+            if echo "$dev" > "$drv/bind" 2>"$err"; then
+                rm -f "$err"
+                log "rebound SPI controller $dev attempt=$attempt (keyboard dropped)"
+                return 0
+            fi
+            log "controller bind $dev failed attempt=$attempt: $(tr '\n' ' ' < "$err")"
+        else
+            log "controller unbind $dev failed attempt=$attempt: $(tr '\n' ' ' < "$err")"
+        fi
+        sleep 2
+    done
+    log "controller rebind FAILED for $dev: $(tr '\n' ' ' < "$err")"
+    rm -f "$err"
+    return 1
+}
+
 hid_rebind() {   # manual only: trackpad HID session, keyboard unaffected
     local drv
     drv=$(basename "$(readlink -f "/sys/bus/hid/devices/$HID_ID/driver" 2>/dev/null)" 2>/dev/null)
@@ -186,6 +224,19 @@ revive() {   # $1 = full (SPI rebind) | hid (manual experiment)
         hid_rebind || { echo "trackpad: HID rebind failed" >&2; return 1; }
     else
         spi_rebind || { echo "trackpad: SPI rebind failed" >&2; return 1; }
+        sleep 2
+        discover || return 1
+        # A storm persists with no touch needed to observe it: if the device
+        # rebind left the controller storming, escalate to controller reset.
+        if storm_active; then
+            log "storm persists after device rebind (${LAST_RATE}/s) → controller rebind"
+            controller_rebind || { echo "trackpad: controller rebind failed" >&2; return 1; }
+            sleep 3
+            discover || return 1
+            if storm_active; then
+                log "storm persists after controller rebind (${LAST_RATE}/s)"
+            fi
+        fi
     fi
     sleep 2
     discover || return 1

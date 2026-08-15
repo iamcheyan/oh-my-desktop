@@ -28,9 +28,14 @@ sumika-trackpad-revive --force      # 跳过检测，直接 SPI 重绑
 sumika-trackpad-revive --force-hid  # 仅实验用：只重绑 HID（见下，不可靠）
 ```
 
-复活动作是整条 SPI 传输重绑（`spi1.0` unbind → 3s → bind）。**键盘会断开约 5 秒**（共用总线，预期）。需要 root（脚本经 `sudo -n` 自提升，依赖 NOPASSWD）。成功时弹 swayosd 提示，日志在 `~/.local/state/sumika-shell/trackpad-revive.log`。
+复活分两级，自动按需升级：
 
-**为什么不逐级升级**：只重绑触摸板 HID 设备（magicmouse）曾恢复过报文流，但数分钟后触摸板再次死锁（静默死）。自动路径直奔 SPI 整绑——实测两次均完全复活。
+1. **设备级**：`spi1.0` 在 `spi-hid-apple-of` 上 unbind → 3s → bind。键盘断约 5 秒（共用总线，预期）。
+2. **控制器级**：设备重绑后若 IRQ 风暴仍 ≥100/s（无需触摸即可观测），升级为 `39b10c000.spi` 在 `apple-spi` 上 unbind/bind，3 轮重试。2026-08-15 实测设备重绑后风暴不停的一次被此路径救回。
+
+需要 root（脚本经 `sudo -n` 自提升，依赖 NOPASSWD）。成功时弹 swayosd 提示，日志在 `~/.local/state/sumika-shell/trackpad-revive.log`。
+
+**为什么不做 HID 级自动升级**：只重绑触摸板 HID 设备（magicmouse）曾恢复过报文流，但数分钟后触摸板再次死锁（静默死）。自动路径直奔 SPI 整绑。
 
 ## 检测签名（`check_health`，无需用户配合）
 
@@ -52,6 +57,8 @@ sumika-trackpad-revive --force-hid  # 仅实验用：只重绑 HID（见下，�
 - 触摸板重绑后 event 节点号会变（input9→input10→…），**每次检测前重新 discover**，不要缓存。
 - SPI HID 的 hidraw/事件权限是 root:input 0600，脚本整体 sudo 运行。
 - **卡死的传输层可能让 sysfs unbind/bind 写入直接失败**（2026-08-15 20:28 实测：unbind 失败、错误被 `2>/dev/null` 吞掉、service 3 秒退出）。rebind 必须捕获错误文本写日志并重试（脚本已做：两轮尝试 + bind 单独补试）。
+- **HID 实例号是十六进制**：重绑多次后实例号过 0009 会出现 `000A`、`000C`…（2026-08-15 实测第 9 次重绑后 `[0-9]{4}` 正则失配，整个自愈变瞎 20 分钟）。实例后缀必须用 `[0-9A-F]{4}`。
+- dmesg 用单调时钟、journal 用墙钟——NTP 校时后两者会差几十分钟，交叉核对事件时**别拿墙钟直接换算 dmesg 时间戳**，容易误判"重绑没生效"。
 - **风暴死有时会自行解除**（同日 20:28:41 检测到死锁、20:29:48 已恢复，期间零重绑痕迹）。timer 每分钟重跑天然形成重试兜底。
 
 ## 自动自愈
