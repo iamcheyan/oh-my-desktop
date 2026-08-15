@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # sumika-hyprland-toggle — read/flip boolean toggles persisted as marker
 # files under $SUMIKA_SHELL_STATE_HOME/toggles/hypr/<name>.lua
 #

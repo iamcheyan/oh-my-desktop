@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.functions

@@ -154,6 +154,13 @@ Singleton {
     on_ModulesEnabledChanged: loader.syncLaunchers()
 
     function syncLaunchers() {
+        // Only the full-session shell (bar / settings) owns the desktop
+        // launcher lifecycle. Lightweight standalone apps (polkit agent,
+        // on-demand launcher/overview) load modules-lite.json, whose
+        // contributes.launchers is empty — syncing from that view would
+        // delete every extension .desktop entry as a zombie.
+        if (loader.registryPath.endsWith("modules-lite.json"))
+            return
         const bin = Directories.root
         if (!bin) return
         Quickshell.execDetached([bin + "/bin/sumika-sync-launchers", "--quiet"])

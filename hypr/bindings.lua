@@ -125,14 +125,14 @@ local function read_sasayaki_bindings()
   local extensions_dir = os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or (data_home .. "/sumika-shell/extensions")
   -- Use absolute paths: the Hyprland process PATH does not include
   -- extensions/bin, so bare command names silently fail and the bindings
-  -- fall back to ALT+A/code:472. Note the sasayaki subcommand is `bindings`,
+  -- fall back to ALT+A. Note the sasayaki subcommand is `bindings`,
   -- NOT `hypr-bindings` (the latter is the voice helper's name).
   local candidates = {
     { extensions_dir .. "/sasayaki/sasayaki", "bindings" },
     { extensions_dir .. "/voice/bin/sumika-voice-translate", "hypr-bindings" },
     { "sasayaki", "bindings" },
   }
-  local result = { voice = {}, translation = nil }
+  local result = { voice = {}, voicetap = {}, translation = nil }
   for _, c in ipairs(candidates) do
     local process = io.popen("'" .. c[1]:gsub("'", "'\\''") .. "' " .. c[2] .. " 2>/dev/null")
     if process then
@@ -144,6 +144,9 @@ local function read_sasayaki_bindings()
           any = true
         elseif kind == "translation" and binding and binding ~= "" then
           result.translation = binding
+          any = true
+        elseif kind == "voicetap" and binding and binding ~= "" then
+          table.insert(result.voicetap, binding)
           any = true
         end
       end
@@ -158,11 +161,28 @@ end
 
 local voice_config = read_sasayaki_bindings()
 if #voice_config.voice == 0 then
-  voice_config.voice = { "ALT + A", "code:472" }
+  voice_config.voice = { "ALT + A" }
 end
 
 for _, key in ipairs(voice_config.voice) do
     o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action sasayaki.toggle")
+end
+
+-- CapsLock wake (`sasayaki capslock on`): tap the CapsLock-position key to
+-- toggle voice input in every state — swap on or off, any layout.
+--   * code:66 — the caps-lock keycode. Covers the unswapped caps position
+--     and the bottom-left key when ctrl-caps-swap moves the capslock ROLE
+--     there. Stable across XKB keysym remaps (compose:caps). Kept
+--     transparent so caps/compose behavior still reaches clients.
+--   * F24 — emitted by keyd overload(leftcontrol, f24) on the caps
+--     position when the swap preset is active with wake on: hold = Ctrl
+--     (chords untouched), bare tap = F24. Consumed: no app expects it.
+-- Both are release-only, so they fire exactly on a completed bare tap.
+for _, tap in ipairs(voice_config.voicetap) do
+  hl.bind(tap, hl.dsp.exec_cmd(paths.root .. "/bin/sumika-action sasayaki.toggle"), {
+    release = true,
+    transparent = tap:sub(1, 5) == "code:",
+    description = "Voice input (CapsLock tap)" })
 end
 -- Dedicated translation trigger captured by Sumika KeyTest:
 -- bind HANGUL · XKB keycode 130 · evdev 122.

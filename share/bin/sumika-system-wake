@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Sumika Shell — session wake handler.
 # Runs from hypridle after_sleep_cmd when the system resumes from suspend.

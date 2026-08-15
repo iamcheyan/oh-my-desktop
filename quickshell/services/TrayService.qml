@@ -1,4 +1,5 @@
 pragma Singleton
+pragma ComponentBehavior: Bound
 
 import qs.modules.common
 import QtQuick
@@ -36,6 +37,12 @@ Singleton {
                 if (values[i]) next.push(values[i]);
             }
         }
+        // Assign only when the snapshot actually changed. Replacing allItems
+        // with a fresh array re-evaluates every derived list and repaints
+        // the bar's tray region twice a second even when nothing moved.
+        const cur = root.allItems;
+        if (cur.length === next.length && next.every((v, i) => v === cur[i]))
+            return;
         root.allItems = next;
     }
 

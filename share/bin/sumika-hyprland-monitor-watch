@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # omarchy:summary=Watch Hyprland monitor events and repair monitor and wallpaper state
 

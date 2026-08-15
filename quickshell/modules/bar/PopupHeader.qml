@@ -1,5 +1,6 @@
 // PopupHeader — GNOME Quick Settings style header row.
 // Icon (no background badge) + title + subtitle, optional trailing actions.
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick

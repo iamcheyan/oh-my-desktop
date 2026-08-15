@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Reload the BCM4377 Bluetooth module after resume.
 #
 # On Apple Silicon (Asahi) the Broadcom BCM4377 controller's firmware

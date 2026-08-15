@@ -1,6 +1,7 @@
 import QtQuick
 import qs.services
 pragma Singleton
+pragma ComponentBehavior: Bound
 
 QtObject {
     id: root

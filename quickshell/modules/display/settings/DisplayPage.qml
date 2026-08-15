@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import qs.modules.common
@@ -160,6 +161,28 @@ ColumnLayout {
             displayState: configState
             output: root.selectedOutput
             settingsRoot: root.settingsRoot
+        }
+    }
+
+    SettingsCard {
+        title: "Performance Mode"
+        subtitle: "Controls Hyprland blur and window animations"
+
+        SettingsDropdownRow {
+            Layout.fillWidth: true
+            label: "Visual quality"
+            description: "Performance: no blur, no animations (fastest). Balanced: light blur + animations. Visuals: full blur (heaviest)."
+            currentValue: Persistent.states.display?.optimization ?? "balanced"
+            options: [
+                { value: "performance", label: "Performance" },
+                { value: "balanced", label: "Balanced" },
+                { value: "visuals", label: "Visuals" }
+            ]
+            onValueChanged: (value) => {
+                Persistent.states.display = Persistent.states.display || {}
+                Persistent.states.display.optimization = value
+                Persistent.applyDisplayOptimization()
+            }
         }
     }
 

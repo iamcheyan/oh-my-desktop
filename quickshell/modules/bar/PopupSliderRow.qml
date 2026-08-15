@@ -10,6 +10,7 @@
 //       onMoved: value => Audio.setSinkVolume(value)
 //       onIconClicked: Audio.toggleMute()
 //   }
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick

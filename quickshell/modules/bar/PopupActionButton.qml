@@ -1,6 +1,7 @@
 // PopupActionButton — standardized header action icon.
 // 36×36px touch target, 22px MaterialSymbol, hover background.
 // Use in popup header rows for settings gears, clear buttons, etc.
+pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.widgets

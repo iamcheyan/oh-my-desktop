@@ -157,6 +157,15 @@ def sumika_desktop_files_on_disk(apps_dir: Path) -> set:
 
 def sync(dry_run: bool = False, quiet: bool = False) -> int:
     reg_path = registry_path()
+    if reg_path.name == "modules-lite.json":
+        # Lightweight apps (polkit agent, on-demand launcher/overview) carry a
+        # core-only registry with empty contributes.launchers. Reconciling
+        # from it would delete every extension launcher as a zombie. The
+        # desktop lifecycle belongs to the full-session shell only.
+        if not quiet:
+            print("[sync-launchers] refusing lite registry — full shell owns desktop files", file=sys.stderr)
+        return 0
+
     if not reg_path.is_file():
         if not quiet:
             print(f"[sync-launchers] no registry at {reg_path}", file=sys.stderr)

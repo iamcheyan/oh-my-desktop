@@ -1,5 +1,6 @@
 // IconActionRow — full-width evenly-spaced icon buttons.
 // Each child should be a PopupIconButton.
+pragma ComponentBehavior: Bound
 import qs
 import QtQuick
 import QtQuick.Layouts

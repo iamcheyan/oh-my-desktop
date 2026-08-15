@@ -50,6 +50,7 @@ Singleton {
         rebuildTypedNodeLists()
         loadDeviceAliases()
         loadDeviceLevels()
+        refreshCardProfiles()
     }
 
     // ── Display name resolution ──────────────────────────────────────────
@@ -127,7 +128,132 @@ Singleton {
 
     Connections {
         target: Pipewire.nodes
-        function onValuesChanged() { root.rebuildTypedNodeLists() }
+        function onValuesChanged() {
+            root.rebuildTypedNodeLists()
+            // Profile switches recreate nodes; re-read card profiles.
+            cardProfileRefreshTimer.restart()
+        }
+    }
+
+    // ── Card profiles (ALSA profile switching / recovery) ───────────────
+    // Profiles are not exposed via the Quickshell Pipewire API, so they are
+    // read from `pactl -f json list cards`. pactl emits profiles either as
+    // an object map (name -> info) or as an array; both are handled.
+    property var cardProfiles: []
+
+    readonly property var switchableCards: {
+        const out = []
+        for (const card of root.cardProfiles) {
+            // Skip "off" (disables the card) and unavailable profiles;
+            // cards left with fewer than two options need no switcher.
+            const list = card.profiles.filter(p => p.name !== "off" && p.available)
+            if (list.length >= 2)
+                out.push({
+                    name: card.name,
+                    description: card.description,
+                    activeProfile: card.activeProfile,
+                    profiles: list
+                })
+        }
+        return out
+    }
+
+    function refreshCardProfiles() {
+        if (cardProfileReadProc.running)
+            return
+        cardProfileReadProc.running = true
+    }
+
+    function parseCardProfiles(text) {
+        if (!text || text.trim() === "")
+            return []
+        let cards
+        try {
+            cards = JSON.parse(text)
+        } catch (e) {
+            return []
+        }
+        if (!Array.isArray(cards))
+            return []
+        const out = []
+        for (const card of cards) {
+            if (!card || typeof card.name !== "string" || card.name.length === 0)
+                continue
+            const raw = card.profiles
+            if (!raw || typeof raw !== "object")
+                continue
+            const entries = Array.isArray(raw)
+                ? raw.map(p => [p?.name, p])
+                : Object.keys(raw).map(key => [key, raw[key]])
+            const profiles = []
+            for (const [name, info] of entries) {
+                if (typeof name !== "string" || name.length === 0)
+                    continue
+                profiles.push({
+                    name: name,
+                    description: info?.description ?? "",
+                    priority: info?.priority ?? 0,
+                    available: info?.available !== false
+                })
+            }
+            profiles.sort((a, b) => (b.priority - a.priority) || a.name.localeCompare(b.name))
+            out.push({
+                name: card.name,
+                description: card?.properties?.["device.description"] ?? card.name,
+                activeProfile: typeof card.active_profile === "string" ? card.active_profile : "",
+                profiles: profiles
+            })
+        }
+        return out
+    }
+
+    function setCardProfile(cardName, profileName) {
+        if (!cardName || !profileName)
+            return false
+        cardProfileSetProc.command = ["pactl", "set-card-profile", cardName, profileName]
+        cardProfileSetProc.running = true
+        return true
+    }
+
+    function friendlyProfileName(profileName) {
+        if (!profileName)
+            return ""
+        if (profileName === "pro-audio")
+            return "Pro Audio (raw)"
+        const match = profileName.match(/^HiFi\s*\((.+)\)$/)
+        if (!match)
+            return profileName
+        const labels = {
+            "Headphones": "Headphones",
+            "Speaker": "Speakers",
+            "Mic1": "Mic 1",
+            "Mic2": "Mic 2"
+        }
+        const tokens = match[1].split(",").map(t => labels[t.trim()] ?? t.trim())
+        return "HiFi · " + tokens.join(", ")
+    }
+
+    Process {
+        id: cardProfileReadProc
+        running: false
+        command: ["pactl", "-f", "json", "list", "cards"]
+        stdout: StdioCollector {
+            id: cardProfileCollector
+            onStreamFinished: root.cardProfiles = root.parseCardProfiles(cardProfileCollector.text)
+        }
+    }
+
+    Process {
+        id: cardProfileSetProc
+        running: false
+        onExited: (exitCode, exitStatus) => cardProfileRefreshTimer.restart()
+    }
+
+    Timer {
+        id: cardProfileRefreshTimer
+        interval: 600
+        repeat: false
+        onTriggered: root.refreshCardProfiles()
     }
 
     // ── Device selection ─────────────────────────────────────────────────
@@ -537,6 +663,12 @@ Singleton {
                 root.restoreNodeLevel(root.source)
         }
         function onSinkChanged() {
+            // Node replaced (profile switch / device change): the volume
+            // protection baseline must restart from the new node, or its
+            // first volume event looks like an "Illegal increment" jump
+            // from the dead node's lastVolume.
+            sinkProtection.lastReady = false
+            sinkProtection.lastVolume = 0
             if (root.sink)
                 Qt.callLater(() => root.restoreNodeLevel(root.sink))
         }
@@ -572,6 +704,7 @@ Singleton {
     }
 
     Connections {
+        id: sinkProtection
         target: sink?.audio ?? null
         property bool lastReady: false
         property real lastVolume: 0

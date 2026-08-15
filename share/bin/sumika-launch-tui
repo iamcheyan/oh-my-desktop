@@ -1,17 +1,40 @@
 #!/usr/bin/env bash
 
 # Sumika Shell implementation for terminal TUI launchers.
+# Usage: sumika-launch-tui [-a APP_ID] <command> [args...]
+#
+# The app-id is derived from the command's basename (alnum only). Use -a when
+# the launched command is not a named TUI script and the app-id must stay
+# stable (e.g. "$EDITOR config" behind a registered id). The terminal
+# fallback chain lives only here — do not duplicate it per launcher.
+
+app_id_override=""
+while [[ $# -gt 0 && "$1" == -* ]]; do
+  case "$1" in
+    -a|--app-id) app_id_override="${2:-}"; shift 2 ;;
+    --app-id=*) app_id_override="${1#*=}"; shift ;;
+    *) printf 'sumika-launch-tui: unknown option %s\n' "$1" >&2; exit 2 ;;
+  esac
+done
 
 component_id="$(basename "$1" | tr -cd '[:alnum:]')"
-app_id="io.github.iamcheyan.sumika.${component_id}"
+app_id="${app_id_override:-io.github.iamcheyan.sumika.${component_id}}"
 
 if command -v xdg-terminal-exec >/dev/null 2>&1; then
   launch=(xdg-terminal-exec --app-id="$app_id" -e "$1" "${@:2}")
 else
+  # Fallback terminals must still publish the same app-id, or the
+  # hypr/looknfeel.lua sumika_tui_ids float rules never match and the
+  # TUI opens tiled instead of centered 1180x760.
   launch=()
   for terminal in kitty foot ghostty alacritty; do
     if command -v "$terminal" >/dev/null 2>&1; then
-      launch=("$terminal" -e "$1" "${@:2}")
+      case "$terminal" in
+        kitty) launch=(kitty --class "$app_id" -e "$1" "${@:2}") ;;
+        foot) launch=(foot --app-id "$app_id" "$1" "${@:2}") ;;
+        ghostty) launch=(ghostty --class "$app_id" -e "$1" "${@:2}") ;;
+        alacritty) launch=(alacritty --class "$app_id,$app_id" -e "$1" "${@:2}") ;;
+      esac
       break
     fi
   done

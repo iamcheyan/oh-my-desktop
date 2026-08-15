@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # sumika-modules — Sumika Shell core module list.
 #
 # Usage: sumika-modules <command> [args]

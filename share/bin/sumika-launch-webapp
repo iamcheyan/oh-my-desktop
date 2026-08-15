@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # omarchy:summary=Launch a URL as a web app in the default supported browser
 # omarchy:args=<url>

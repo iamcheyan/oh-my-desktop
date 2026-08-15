@@ -107,9 +107,16 @@ class PageRegressionTests(unittest.TestCase):
             model.run_action("remove", "--yes")
         finally:
             self.vm.S.run_cmd_bg = original
-        self.assertEqual(
-            captured[0][:3], ("sumika-settings-windows-vm", "remove", "--yes")
+        import os
+        backend = os.path.join(
+            EXTENSIONS, "windows-vm/bin/sumika-settings-windows-vm"
         )
+        # The VM TUI must call its backend by ABSOLUTE path: the shared
+        # framework resolves bare names against the core repo bin/, where the
+        # backend does not exist (v2.0.0 regression: every check reported
+        # failed with "No such file or directory").
+        self.assertEqual(captured[0][:3], (backend, "remove", "--yes"))
+        self.assertTrue(os.path.isfile(backend))
 
 
 if __name__ == "__main__":

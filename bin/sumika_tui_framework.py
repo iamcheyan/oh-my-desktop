@@ -234,8 +234,10 @@ ATTR_OVERLAY = 0
 TAG_STYLE    = {}
 
 # ── backend ──────────────────────────────────────────────────────────────
-def run_cmd(name, *args):
+def run_cmd(name, *args, timeout=15):
     # If name is absolute, use it directly; otherwise look in the Sumika bin directory.
+    # Default timeout suits status probes; long actions (installs, compose up)
+    # must pass a larger timeout or they get SIGKILLed mid-run.
     if os.path.isabs(name):
         path = name
     else:
@@ -244,7 +246,7 @@ def run_cmd(name, *args):
         r = subprocess.run(
             [path, *args], stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, errors="replace", timeout=15, cwd=SUMIKA_SHELL_ROOT,
+            text=True, errors="replace", timeout=timeout, cwd=SUMIKA_SHELL_ROOT,
         )
         lines = [line for line in r.stdout.splitlines() if line]
         error = "" if r.returncode == 0 else f"exit {r.returncode}"
@@ -252,9 +254,9 @@ def run_cmd(name, *args):
     except Exception as e:
         return [str(e)], str(e)
 
-def run_cmd_bg(name, *args, callback=None):
+def run_cmd_bg(name, *args, callback=None, timeout=15):
     def _w():
-        lines, err = run_cmd(name, *args)
+        lines, err = run_cmd(name, *args, timeout=timeout)
         if callback:
             _callback_queue.put((callback, lines, err))
     threading.Thread(target=_w, daemon=True).start()

@@ -36,7 +36,20 @@ Singleton {
         Quickshell.env("SUMIKA_SHELL_ROOT")
         ?? "/dev/null/SUMIKA_SHELL_ROOT_UNSET"
     )
-    readonly property string cosmicIcons: "/usr/share/icons/Cosmic/scalable"
+    // Icon themes live in <data prefix>/share/icons. XDG_DATA_DIRS lists user
+    // prefixes first and the system-wide prefix last (/usr/share on Arch,
+    // /run/current-system/sw/share on NixOS), so the last /share entry is the
+    // canonical system icon location on both layouts.
+    readonly property string cosmicIcons: {
+        const dirs = (Quickshell.env("XDG_DATA_DIRS") ?? "/usr/share").split(":");
+        let path = "/usr/share/icons/Cosmic/scalable";
+        for (let i = 0; i < dirs.length; i++) {
+            if (dirs[i].endsWith("/share")) {
+                path = `${dirs[i]}/icons/Cosmic/scalable`;
+            }
+        }
+        return path;
+    }
     property string assetsPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/assets`)
     property string scriptPath: FileUtils.trimFileProtocol(`${Directories.root}/quickshell/scripts`)
     property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)

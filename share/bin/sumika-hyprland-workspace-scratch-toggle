@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # omarchy:summary=SUPER+D — jump to the last blank workspace; press again on an
 # empty scratch to return to the previous workspace, or open another new

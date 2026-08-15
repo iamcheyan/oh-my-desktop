@@ -1,4 +1,5 @@
 
+pragma ComponentBehavior: Bound
 import "widgets"
 import "../../services"
 import QtQuick

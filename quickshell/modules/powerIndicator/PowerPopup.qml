@@ -319,7 +319,21 @@ Item {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: ServiceManager.power.powerProfiles.setProfile(modelData.id)
+                                onClicked: {
+                                    // 档位驱动显示特效：performance/power-saver → 全关特效
+                                    // （省电也要 GPU 少干活），balanced → 轻特效。
+                                    // settings 显示页的开关保留为手动覆盖。
+                                    const profile = modelData.id;
+                                    if (profile === "performance" || profile === "power-saver") {
+                                        Persistent.states.display = Persistent.states.display || {};
+                                        Persistent.states.display.optimization = "performance";
+                                    } else if (profile === "balanced") {
+                                        Persistent.states.display = Persistent.states.display || {};
+                                        Persistent.states.display.optimization = "balanced";
+                                    }
+                                    Persistent.applyDisplayOptimization();
+                                    ServiceManager.power.powerProfiles.setProfile(profile);
+                                }
                             }
                         }
                     }
@@ -426,6 +440,13 @@ Item {
                     label: "Sleep"
                     hoverAccent: TuiStyle.info
                     onClicked: batteryStack.requestAction("sleep", "Sleep")
+                }
+                PopupIconButtonDark {
+                    icon: "download"
+                    label: "Hibernate"
+                    visible: batteryStack.hibernateAvailable
+                    hoverAccent: TuiStyle.accent
+                    onClicked: batteryStack.requestAction("hibernate", "Hibernate")
                 }
                 PopupIconButtonDark {
                     icon: "restart_alt"

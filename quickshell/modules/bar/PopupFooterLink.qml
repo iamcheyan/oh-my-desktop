@@ -1,4 +1,5 @@
 // Popup adapter for the footer navigation row (Add new Wi-Fi... / Add new Bluetooth...).
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.settings

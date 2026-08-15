@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import qs.services
 import QtQuick
 import Quickshell

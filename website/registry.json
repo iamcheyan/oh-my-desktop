@@ -164,7 +164,7 @@
       "id": "windows-vm",
       "name": "Windows VM",
       "nameZh": "Windows 虚拟机",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "category": "system",
       "summary": "Dockurr Windows VM lifecycle: install, run, RDP, web console.",
       "description": "Full lifecycle manager for a Dockurr Windows 11 VM in Docker: requirement checks (KVM/docker/compose/FreeRDP/disk), guided install with resource-derived defaults, start/stop, web console, RDP connect, live log/progress monitoring, and a guarded destructive remove. QML settings page, curses TUI, and bar popup all drive the same CLI.",
@@ -184,7 +184,7 @@
         "jq"
       ],
       "download": "downloads/sumika-ext-windows-vm.tar.gz",
-      "size": "24 KB",
+      "size": "25 KB",
       "icon": "desktop_windows"
     },
     {

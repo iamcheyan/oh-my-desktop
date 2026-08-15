@@ -4,6 +4,7 @@
 //@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
 //@ pragma Env QT_IM_MODULE=fcitx
 
+pragma ComponentBehavior: Bound
 import "modules/clipboard"
 import "services"
 import "modules/clipboard/widgets"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # sumika-notification-send — thin notify-send wrapper kept for the
 # share/bin monitor/window scripts that historically called it with
 # dunst-style flags (-g hint, -i icon). Translates to notify-send args

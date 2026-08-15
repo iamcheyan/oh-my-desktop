@@ -1,4 +1,5 @@
 // ToolLauncherRow — row icon + title + subtitle for the tools popup.
+pragma ComponentBehavior: Bound
 import qs.modules.common.widgets
 import QtQuick
 

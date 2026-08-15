@@ -1,5 +1,6 @@
 // PopupIconButton — individual icon button for IconActionRow.
 // Modern dark popup style with soft borders, surface bg, and accent hover feedback.
+pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.widgets

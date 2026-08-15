@@ -1,5 +1,6 @@
 // PopupDeviceRow — GNOME Quick Settings current-device row.
 // Icon (plain white, no badge) + name + detail, status right-aligned white.
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick

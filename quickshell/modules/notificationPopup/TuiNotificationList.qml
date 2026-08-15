@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import qs
 import qs.core.runtime
 import qs.modules.common
@@ -8,7 +9,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-// removed dead import
+import Quickshell.Services.Notifications  // NotificationUrgency enum — was "removed dead import" but is required
 
 Item {
     id: root

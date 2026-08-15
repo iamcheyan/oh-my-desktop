@@ -69,6 +69,12 @@
 - **`sumika.json` 的 `modules.disabled` / `modules.enabled` 变化** → `ModuleLoader.qml` 的 `on_DisabledModulesChanged` / `on_ModulesEnabledChanged` 调用 `syncLaunchers()` → 拉起 `sumika-sync-launchers --quiet`
 - **registry 加载完成** → `ModuleLoader.registryLoaded()` 调用 `loader.syncLaunchers()`
 
+**不变量：只有完整会话 shell（bar / settings）拥有 desktop 生命周期。**
+轻量应用（polkit agent、按需 launcher/overview）使用 `modules-lite.json`
+（仅核心模块、`contributes.launchers` 为空），且 `ModuleLoader.syncLaunchers()`
+与 `sumika-sync-launchers` 双层拒绝从 lite 注册表同步——否则空视图会把
+所有扩展 `.desktop` 当僵尸删除。
+
 ---
 
 ## 架构组件

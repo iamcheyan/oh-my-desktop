@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # omarchy:summary=Launch a TUI or focus an existing terminal window for it
 # omarchy:args=<command> [args...]

@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 Singleton {
@@ -15,23 +16,38 @@ Singleton {
     property string previousHyprlandInstanceSignature: ""
     property bool isNewHyprlandInstance: previousHyprlandInstanceSignature !== states.hyprlandInstanceSignature
 
+    function applyDisplayOptimization() {
+        const mode = root.states.display?.optimization ?? "balanced"
+        let evalStr = ""
+        if (mode === "performance") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })"
+        } else if (mode === "balanced") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })"
+        } else if (mode === "visuals") {
+            evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })"
+        }
+        if (evalStr !== "")
+            Quickshell.execDetached(["hyprctl", "eval", evalStr])
+    }
+
     onReadyChanged: {
         root.previousHyprlandInstanceSignature = root.states.hyprlandInstanceSignature
         root.states.hyprlandInstanceSignature = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || ""
 
-        if (root.ready) {
-            const mode = root.states.display?.optimization ?? "balanced"
-            let evalStr = ""
-            if (mode === "performance") {
-                evalStr = "hl.config({ decoration = { blur = { enabled = false } }, animations = { enabled = false } })"
-            } else if (mode === "balanced") {
-                evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 1 } }, animations = { enabled = true } })"
-            } else if (mode === "visuals") {
-                evalStr = "hl.config({ decoration = { blur = { enabled = true, passes = 2 } }, animations = { enabled = true } })"
-            }
-            if (evalStr !== "") {
-                Quickshell.execDetached(["hyprctl", "eval", evalStr])
-            }
+        if (root.ready)
+            applyDisplayOptimization()
+    }
+
+    // `hyprctl reload` re-evaluates the config files, re-enabling the file
+    // defaults (blur passes=2, animations on) and stomping the optimization
+    // this singleton applied at startup. Re-apply after every config reload
+    // so the chosen mode stays authoritative, not just a startup patch.
+    Connections {
+        target: Hyprland
+
+        function onRawEvent(event) {
+            if (event.name === "configreloaded")
+                applyDisplayOptimization()
         }
     }
 

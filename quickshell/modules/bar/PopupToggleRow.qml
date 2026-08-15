@@ -1,4 +1,5 @@
 // Compact popup adapter for the shared settings toggle row.
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick

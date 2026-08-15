@@ -1,4 +1,5 @@
 pragma Singleton
+pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
@@ -16,8 +17,11 @@ Singleton {
     property var cachedLayoutCodes: ({})
     property string currentLayoutName: ""
     property string currentLayoutCode: ""
-    // For the service
+    // For the service. NixOS has no /usr tree — fall back to the
+    // xkeyboard-config package in the store so layout-name→code lookup
+    // still works (otherwise the bar xkb indicator renders empty).
     property string baseLayoutFilePath: "/usr/share/X11/xkb/rules/base.lst"
+    property string baseLayoutFileFallback: "/nix/store/*-xkeyboard-config*/share/X11/xkb/rules/base.lst"
     property bool needsLayoutRefresh: false
     // labwc has no Hyprland IPC; skip the devices poll (empty stdout →
     // JSON.parse error) and leave layout state at its defaults.
@@ -36,7 +40,7 @@ Singleton {
     // Get the layout code from the base.lst file by grabbing the line with the current layout name
     Process {
         id: getLayoutProc
-        command: ["cat", root.baseLayoutFilePath]
+        command: ["sh", "-c", `cat ${root.baseLayoutFilePath} 2>/dev/null; cat ${root.baseLayoutFileFallback} 2>/dev/null`]
 
         stdout: StdioCollector {
             id: layoutCollector

@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -10,7 +11,7 @@ MouseArea {
 
     property int leadingPadding: 10
     property int trailingPadding: 10
-    readonly property int buttonHeight: 28
+    readonly property int buttonHeight: Math.min(28, Math.floor(Appearance.sizes.baseBarHeight))
 
     implicitWidth: label.implicitWidth + leadingPadding + trailingPadding
     implicitHeight: buttonHeight

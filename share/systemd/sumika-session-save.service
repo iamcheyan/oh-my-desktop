@@ -25,7 +25,10 @@ After=sumika-bar.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/true
+# /bin/sh -c true: /bin/true does not exist on non-merged-usr distros
+# (NixOS ships only /bin/sh in /bin), and bare names are not PATH-resolved
+# in ExecStart= (needs ExecSearchPath=). /bin/sh exists everywhere.
+ExecStart=/bin/sh -c true
 ExecStop=@SUMIKA_SHELL_ROOT@/bin/sumika-session save-auto-if-stale
 
 [Install]

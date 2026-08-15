@@ -1,5 +1,7 @@
 // AudioPopup.qml — Audio controls popup with volume, devices, and media player.
+pragma ComponentBehavior: Bound
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
@@ -543,6 +545,116 @@ Item {
             }
         }
 
+        // ── Card profiles ─────────────────────────────────────────────
+        // Recovery switcher: a wrong card profile (e.g. pro-audio) can
+        // hide devices entirely; this exposes the choice in the popup.
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+            visible: ServiceManager.audio.switchableCards.length > 0
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+                color: TuiStyle.line
+                opacity: TuiStyle.dividerOpacity
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                Layout.leftMargin: 20
+                Layout.rightMargin: 16
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+                text: "Profile"
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.weight: Font.DemiBold
+                color: TuiStyle.dim
+            }
+
+            Repeater {
+                model: ServiceManager.audio.switchableCards
+                delegate: ColumnLayout {
+                    id: cardDelegate
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: 0
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 20
+                        Layout.rightMargin: 16
+                        Layout.bottomMargin: 2
+                        text: cardDelegate.modelData.description
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: TuiStyle.muted
+                        elide: Text.ElideRight
+                    }
+
+                    Repeater {
+                        model: cardDelegate.modelData.profiles
+                        delegate: MouseArea {
+                            id: profileRow
+                            required property var modelData
+                            readonly property bool isActive:
+                                modelData.name === cardDelegate.modelData.activeProfile
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 32
+                            implicitHeight: 32
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                audioPanel.pinOpen();
+                                if (!profileRow.isActive)
+                                    ServiceManager.audio.setCardProfile(
+                                        cardDelegate.modelData.name, profileRow.modelData.name);
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: profileRow.isActive
+                                    ? Qt.rgba(TuiStyle.accent.r, TuiStyle.accent.g, TuiStyle.accent.b, 0.12)
+                                    : (profileRow.pressed
+                                        ? TuiStyle.selection
+                                        : (profileRow.containsMouse ? TuiStyle.surfaceHover : "transparent"))
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 36
+                                    anchors.rightMargin: 16
+                                    spacing: 8
+
+                                    MaterialSymbol {
+                                        text: profileRow.isActive ? "check" : "tune"
+                                        iconSize: 14
+                                        color: profileRow.isActive ? TuiStyle.accent : TuiStyle.muted
+                                        Layout.preferredWidth: 18
+                                    }
+
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        text: ServiceManager.audio.friendlyProfileName(profileRow.modelData.name)
+                                        color: profileRow.isActive ? TuiStyle.accent : TuiStyle.fg
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: profileRow.isActive ? Font.DemiBold : Font.Normal
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 8
+            }
+        }
+
     }
 
     // Prefer WheelHandler over a full-panel MouseArea so device rows
@@ -558,6 +670,16 @@ Item {
                 else if (r.steps < 0) ServiceManager.audio.decrementVolume()
             }
             event.accepted = true
+        }
+    }
+
+    // Re-read card profiles when the popup opens so changes made outside
+    // the shell (pavucontrol, wpctl) are reflected immediately.
+    Connections {
+        target: GlobalStates
+        function onBarPopupTypeChanged() {
+            if (GlobalStates.barPopupType === "audio")
+                ServiceManager.audio.refreshCardProfiles()
         }
     }
 }

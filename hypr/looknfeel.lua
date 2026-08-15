@@ -52,6 +52,12 @@ local sumika_tui_ids = {
   "settingstui",
   "themetui",
   "sumikasettingswallpapertui",
+  "sumikasettingsthemetui",
+  "sumikasettingsvmtui",
+  "sumikaocrtui",
+  "sumikasettingskeyboardtui",
+  "editsasayakiconfig",
+  "sasayakidiagnose",
 }
 for _, id in ipairs(sumika_tui_ids) do
   o.window("io.github.iamcheyan.sumika." .. id, tui_rule)

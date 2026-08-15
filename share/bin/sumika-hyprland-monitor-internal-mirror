@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # omarchy:summary=Enable, disable, toggle, or recover mirroring the internal display to an external monitor
 # omarchy:args=<on|off|toggle|recover>

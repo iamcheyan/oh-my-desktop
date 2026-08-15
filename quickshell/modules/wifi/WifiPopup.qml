@@ -1,4 +1,5 @@
 // WifiPopup.qml — Wi-Fi networks + Bluetooth popup.
+pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.functions

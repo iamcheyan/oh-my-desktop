@@ -4,6 +4,7 @@
 //   quickshell/services/HoverInfoService.qml
 //   quickshell/modules/common/widgets/HoverInfoPopup.qml
 //   Each module's HoverInfo.qml
+pragma ComponentBehavior: Bound
 import qs
 import qs.modules.common
 import qs.modules.common.widgets

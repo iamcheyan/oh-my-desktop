@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import qs.modules.settings
 import QtQuick
 import QtQuick.Controls

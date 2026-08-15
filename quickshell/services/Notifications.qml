@@ -433,7 +433,15 @@ Singleton {
         notifFileView.reload()
     }
 
+    // Only the bar instance should process notifications. Other quickshell
+    // instances (polkit, overview, launcher) import qs.services transitively
+    // and would waste CPU processing notification history + creating QML
+    // objects for every notification. The Quickshell framework will still
+    // attempt D-Bus registration (harmless 2-line warning), but our code stays idle.
+    readonly property bool active: Quickshell.env("SUMIKA_APP_DIR", "").endsWith("sumika-bar")
+
     Component.onCompleted: {
+        if (!root.active) return
         root.writeMutedAppsFile();
         refresh()
     }
@@ -442,6 +450,7 @@ Singleton {
         id: notifFileView
         path: Qt.resolvedUrl(filePath)
         onLoaded: {
+            if (!root.active) return
             const fileContents = notifFileView.text()
             root.list = JSON.parse(fileContents).map((notif) => {
                 return notifComponent.createObject(root, {

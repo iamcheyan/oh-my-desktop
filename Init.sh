@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -eu
 
 # Sumika Shell setup script.
 # Installs dependencies and creates runtime symlinks from ~ into this repo.
-# Run after cloning:  git clone ... ~/development/OMD && cd ~/development/OMD && ./Init.sh
+# Run after cloning anywhere:  git clone ... <clone-dir> && cd <clone-dir> && ./Init.sh
 
 REPO="$(cd "$(dirname "$0")" && pwd -P)"
 
@@ -1149,7 +1149,7 @@ install_session_files() {
 
     mkdir -p "$HOME/.local/bin"
     cat >"$HOME/.local/bin/uwsm-app" <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 if [[ ${SUMIKA_FORCE_NO_UWSM:-0} == 1 ]]; then
@@ -1168,7 +1168,7 @@ EOF
     ok "  $HOME/.local/bin/uwsm-app"
 
     sudo tee /usr/local/bin/sumika-hyprland-session >/dev/null <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
@@ -1261,7 +1261,7 @@ install_labwc_session() {
     ok "  labwc-workspace daemon -> ~/.local/bin/labwc-workspace"
 
     sudo tee /usr/local/bin/sumika-labwc-upstream-session >/dev/null <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 export SUMIKA_SHELL_ROOT="__REPO_ROOT__"
@@ -1305,7 +1305,7 @@ install_nixos_session_files() {
 
     mkdir -p "$HOME/.local/bin"
     cat >"$HOME/.local/bin/uwsm-app" <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 if [[ ${SUMIKA_FORCE_NO_UWSM:-0} == 1 ]]; then

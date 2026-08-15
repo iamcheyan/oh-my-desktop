@@ -339,16 +339,18 @@ is owned by the Appearance page and `bin/sumika-wallpaper`.
 
 ## Windows VM Page
 
-The Windows VM page is backed by:
+The Windows VM page is backed by the `windows-vm` extension's helper:
 
 ```text
-bin/sumika-settings-windows-vm
+~/.local/share/sumika-shell/extensions/windows-vm/bin/sumika-settings-windows-vm
 ```
 
 This helper is the Windows VM panel backend for the full VM lifecycle:
 status, resource checks, one-click default install, start, connect, stop,
-logs, web console, and confirmed removal. The old interactive
-`share/bin/omarchy-windows-vm` script is no longer the Settings page contract.
+logs, web console, and confirmed removal. The helper self-locates its
+extension root (never trust the session `SUMIKA_SHELL_ROOT`, which points at
+the core repo). The old interactive `share/bin/omarchy-windows-vm` script is
+no longer the Settings page contract.
 
 Status is returned as simple `key=value` lines:
 
@@ -362,6 +364,7 @@ dockerDaemon=true|false
 dockerAccess=true|false
 dockerSocket=true|false
 dockerGroupMember=true|false
+dockerGroupPending=true|false
 dockerError=...
 compose=true|false
 freerdp=true|false
