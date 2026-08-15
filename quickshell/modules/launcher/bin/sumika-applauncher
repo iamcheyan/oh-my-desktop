@@ -82,6 +82,12 @@ case "${1:-toggle}" in
             launch_direct
         fi
         ;;
+    close)
+        if is_running; then
+            ipc_call close
+        fi
+        # No instance → nothing to close; exit quietly.
+        ;;
     warm)
         # Pre-warm: start resident+hidden if not already running. No-op if alive.
         if is_running; then
