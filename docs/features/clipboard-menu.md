@@ -82,6 +82,59 @@ left as an image while the terminal receives a path, OpenCode imports both and
 shows the image twice (`sumika-clip-*.png` plus `clipboard`). The original image
 remains available in cliphist history.
 
+### SSH-aware remote path
+
+Both image→path entry points (`sumika-clipboard-paste --path/--smart` and
+`sumika-kitty-smart-paste`) ask `bin/sumika-clipboard-image-path` where the
+path should live before writing the clipboard. When the focused terminal runs
+an ssh session, the image is streamed to the remote `/tmp` and the REMOTE path
+is pasted — a local path would not exist on the machine that reads it:
+
+1. Resolve the focused terminal (Hyprland `activewindow` pid; kitty remote
+   `ls` window pid as the labwc fallback) and walk its `/proc` tree for an
+   `ssh` process. The root must cover exactly the tab the user types in:
+   kitty hosts every tab in one process, so the walk root is scoped to the
+   focused tab's shell pid (focused OS window → active tab → focused window)
+   — walking kitty's whole tree would pick up ssh sessions from OTHER tabs
+   and misdirect local pastes to a remote host. Terminals that share one
+   process across tabs but expose no per-tab query (wezterm, ghostty,
+   konsole) are skipped entirely: no detection, historical local path. tmux
+   clients found in the tree are followed into their server session (matched
+   by `client_pid`, so other attached sessions are never probed) because
+   pane processes are parented by the tmux server, not by the terminal
+   window.
+
+BatchMode guarantees no password prompt can hang the paste: password-only
+hosts, unreachable machines and key-verification failures all fall back to
+the historical local path, and the notification says so. Limitations: only
+the first ssh hop is visible (nested ssh or a tmux running on the remote
+host cannot be resolved locally), and zellij panes are not followed.
+
+`SUMIKA_CLIPBOARD_SSH_IMAGE=0` disables the remote attempt entirely.
+Diagnostics: `sumika-clipboard-image-path --probe` (prints the detected
+session) and `${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard/ssh-image.log`.
+
+### Exactly-once (duplicate paste suppression)
+
+A fast re-trigger (kitty key repeat, double Ctrl+Shift+V) used to paste the
+path twice: each run mints a NEW timestamped path, so the payload-hash dedupe
+in `sumika-paste-at-cursor` never matched; after the first paste the Wayland
+clipboard holds the path TEXT — or kitty's own clipboard buffer re-offers the
+previous image — so the second trigger pasted again. Three layers now make
+one user action one paste:
+
+1. `sumika-clipboard-image-path` keys a dedupe state on the image CONTENT
+   (sha256, window `SUMIKA_CLIPBOARD_IMAGE_DEDUPE_MS`, default 1200 ms) and
+   exits 3 on a repeat; both callers treat 3 as "already pasted, do nothing".
+2. The helper records the minted path in
+   `$XDG_RUNTIME_DIR/sumika-clipboard/last-path`; the kitty text branch
+   refuses to paste that exact path again within
+   `SUMIKA_CLIPBOARD_PATH_GUARD_MS` (default 2000 ms).
+3. Both image-path flows inject with `SUMIKA_PASTE_DEDUPE_MS=1200` (default
+   500) so identical path payloads collapse into one injection.
+
+Deliberate repeats outside those windows behave as before.
+
 ## Performance Rules
 
 - Keep the process on demand; do not add it to the persistent Quickshell apps.

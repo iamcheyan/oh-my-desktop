@@ -2,6 +2,9 @@
 # Decode one cliphist entry and paste it through the shared paste transport.
 # Keeping this in one executable avoids subtly different QML shell snippets for
 # normal paste, smart terminal paste, and explicit image-path paste.
+# Image-path paste is SSH-aware: sumika-clipboard-image-path streams the image
+# to the focused terminal's ssh destination when one is running, so the pasted
+# path exists on the machine that will read it.
 
 set -u
 IFS=$'\n\t'
@@ -86,16 +89,29 @@ esac
 
 if [ "$force_path" -eq 1 ] || { [ "$mode" = smart ] && [ "$is_image" -eq 1 ] && [ "$is_terminal" -eq 1 ]; }; then
     [ "$is_image" -eq 1 ] || exit 1
-    stamp=$(date +%s%N)
-    extension=$(file -b --extension "$decoded" 2>/dev/null | tr -cd '[:alnum:]' | head -c 8)
-    [ -n "$extension" ] || extension=png
-    image_path="/tmp/sumika-clip-${stamp}.${extension}"
-    cp -- "$decoded" "$image_path" || exit 1
+    # SSH-aware target resolution: when the focused terminal runs an ssh
+    # session the image is streamed to the remote /tmp and the REMOTE path
+    # is pasted; any failure falls back to the local /tmp path.
+    # Exactly-once: exit 3 = this image content was already resolved (and
+    # pasted) moments ago — a re-trigger, not a new user intent. Do nothing.
+    rc=0
+    line=$(sumika-clipboard-image-path -- "$decoded" 2>/dev/null) || rc=$?
+    [ "$rc" -eq 3 ] && exit 0
+    [ "$rc" -eq 0 ] || exit 1
+    image_path=${line%%$'\t'*}
+    note=${line#*$'\t'}
+    [ "$note" = "$line" ] && note=""
     printf '%s' "$image_path" > "$payload"
     wl-copy < "$payload" || exit 1
-    SUMIKA_PASTE_SOURCE=clipboard SUMIKA_PASTE_DELAY=0.05 \
+    # Wider dedupe than the default 500ms: rapid re-triggers carry the same
+    # path payload and must collapse into one injection.
+    SUMIKA_PASTE_SOURCE=clipboard SUMIKA_PASTE_DELAY=0.05 SUMIKA_PASTE_DEDUPE_MS=1200 \
         sumika-paste-at-cursor --file "$payload" auto "$window_class" || exit 1
-    notify-send -t 2000 'Clipboard' "Pasted image path: $image_path" 2>/dev/null || true
+    if [ -n "$note" ]; then
+        notify-send -t 2000 'Clipboard' "Pasted image path: $image_path ($note)" 2>/dev/null || true
+    else
+        notify-send -t 2000 'Clipboard' "Pasted image path: $image_path" 2>/dev/null || true
+    fi
     exit 0
 fi
 

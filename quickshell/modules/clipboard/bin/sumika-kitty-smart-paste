@@ -9,6 +9,9 @@ set -eu
 # holds an image, save it to a temp file and type its PATH into the terminal
 # (most CLI tools accept a path argument). Otherwise paste the clipboard text
 # normally.
+# If this window runs an ssh session, sumika-clipboard-image-path streams the
+# image to the remote /tmp instead, and the REMOTE path is typed into the
+# terminal (a local path would not exist on the remote side).
 #
 # Injection is delegated to the same central helper used by voice input and
 # the clipboard menu. That gives all Sumika Shell paste paths one payload snapshot,
@@ -62,8 +65,26 @@ fi
 PASTE_HELPER="sumika-paste-at-cursor"
 paste_payload() {
   payload_file="$1"
-  SUMIKA_PASTE_SOURCE=kitty-shortcut SUMIKA_PASTE_DELAY=0 \
+  dedupe_ms="${2:-500}"
+  SUMIKA_PASTE_SOURCE=kitty-shortcut SUMIKA_PASTE_DELAY=0 SUMIKA_PASTE_DEDUPE_MS="$dedupe_ms" \
     "$PASTE_HELPER" --file "$payload_file" auto kitty activewindow
+}
+
+# Exactly-once guard, layer 2: after an image->path paste the Wayland
+# clipboard holds the path TEXT we ourselves just wrote. A rapid re-trigger
+# (key repeat / double Ctrl+Shift+V) lands in the text branch below and
+# would paste that path a SECOND time — the "image shows two paths" bug.
+# Refuse payloads that are the path we minted moments ago.
+suppress_repeat_path() {
+  state="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard/last-path"
+  [ -f "$state" ] || return 1
+  read -r pts ppath < "$state" || return 1
+  case "$pts" in ''|*[!0-9]*) return 1 ;; esac
+  ptxt=$(cat "$1" 2>/dev/null) || return 1
+  ptxt=$(printf '%s' "$ptxt" | sed 's/[[:space:]]*$//')
+  [ "$ptxt" = "$ppath" ] || return 1
+  now=$(date +%s%3N 2>/dev/null); case "$now" in ''|*[!0-9]*) now="$(date +%s)000" ;; esac
+  [ $((now - pts)) -lt "${SUMIKA_CLIPBOARD_PATH_GUARD_MS:-2000}" ]
 }
 
 # First image MIME type offered by the clipboard, if any.
@@ -85,18 +106,41 @@ if [ -n "$mime" ]; then
     wl-paste -t image/png > "$tmp" 2>/dev/null || true
   fi
 
-  if [ -s "$tmp" ]; then
+  # SSH-aware: when this kitty window runs an ssh session, the image is
+  # streamed to the remote /tmp and the REMOTE path is pasted instead of a
+  # local one that would not exist on the remote side.
+  # Exactly-once guard, layer 1: exit 3 = same image content resolved (and
+  # pasted) moments ago — a re-trigger, not a new intent. Do nothing.
+  rc=0
+  line=$(sumika-clipboard-image-path --ext "$ext" -- "$tmp" 2>/dev/null) || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    rm -f "$tmp"
+    log "suppressed duplicate image paste"
+    exit 0
+  fi
+  [ "$rc" -eq 0 ] || line=""
+  if [ -n "$line" ]; then
+    TAB=$(printf '\t')
+    img_path=${line%%"$TAB"*}
+    img_note=${line#*"$TAB"}
+    [ "$img_note" = "$line" ] && img_note=""
+    rm -f "$tmp"
+
     # Keep the Wayland clipboard and the bracketed-paste payload in sync.
     # Image-aware TUIs such as OpenCode inspect the clipboard when they receive
     # a paste event. Leaving the original image there makes them attach both
     # that image and the decoded path sent below.
     payload=$(mktemp)
     trap 'rm -f "$payload"' EXIT
-    printf '%s ' "$tmp" > "$payload"
+    printf '%s ' "$img_path" > "$payload"
     wl-copy < "$payload"
-    paste_payload "$payload"
-    log "image->path $tmp"
-    notify-send -t 2000 '📋 已粘贴图片路径' "$tmp" 2>/dev/null || true
+    paste_payload "$payload" 1200
+    log "image->path $img_path note=$img_note"
+    if [ -n "$img_note" ]; then
+      notify-send -t 2000 '📋 已粘贴图片路径' "$img_path ($img_note)" 2>/dev/null || true
+    else
+      notify-send -t 2000 '📋 已粘贴图片路径' "$img_path" 2>/dev/null || true
+    fi
     exit 0
   fi
   rm -f "$tmp"
@@ -108,4 +152,8 @@ payload=$(mktemp)
 trap 'rm -f "$payload"' EXIT
 wl-paste 2>/dev/null > "$payload"
 [ -s "$payload" ] || exit 0
+if suppress_repeat_path "$payload"; then
+  log "suppressed repeat paste of generated path"
+  exit 0
+fi
 paste_payload "$payload"

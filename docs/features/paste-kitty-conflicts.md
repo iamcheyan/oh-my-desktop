@@ -172,8 +172,11 @@ bracketed paste 标记的内容时，kitty 会把**当前 Wayland 剪贴板里�
    焦点未知、放弃 remote 路径）；
 3. 调用 `kitty @ send-text --match id:<id> --from-file <payload> --bracketed-paste auto`
    直接把 payload 文本注入目标窗口，CLI/TUI 会收到一个完整的 bracketed-paste
-   transaction。发送前临时 `wl-copy -c`，发送后恢复 payload，从而规避 OMP 的
-   OSC 5522 二次读取；
+   transaction。发送前把剪贴板临时填成**一个空格**（`printf ' ' | wl-copy`，而非
+   `wl-copy -c` 清空），150ms 后恢复 payload。空而非空格会让本地 omp 的
+   `readText()` 得到空串，每次粘贴都弹 "Clipboard is empty" 提醒（远程 omp 无
+   wl-paste，静默跳过）；空格非空、非图片、非路径，omp 的 OSC 5522 回读最多往
+   输入框插一个尾随空格，无副作用，从而规避 OMP 的二次读取重复；
 4. 仅当 `send-text` 不可用时，才降级到 `kitty @ action paste_from_clipboard`
    （kitty 原生粘贴），再降级到 wtype 合成按键。
 

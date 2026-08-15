@@ -170,11 +170,13 @@ PACKAGES_QT_GTK=(
 PACKAGES_NIXOS_PROFILE=(
     hyprland hypridle hyprpicker quickshell
     xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
-    pipewire wireplumber pavucontrol
+    pipewire wireplumber pavucontrol alsa-utils
     networkmanager bluez brightnessctl ddcutil wlr-randr
-    grim slurp wf-recorder wl-clipboard hyprsunset swaybg
+    grim slurp wf-recorder wl-clipboard wtype hyprsunset swaybg
     power-profiles-daemon gnome-keyring libsecret
     foot jq curl fontconfig unzip python3 ffmpeg
+    file cliphist imagemagick swappy satty libnotify
+    go gcc nerd-fonts.meslo-lg
     zenity
 
     # Common desktop/work applications used by the reference Sumika setup.
