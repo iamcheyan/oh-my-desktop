@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import qs
+import qs.services
 import qs.core.runtime
 import qs.modules.common
 import qs.modules.common.widgets
@@ -45,39 +46,44 @@ Item { // Bar content region
         return null;
     }
 
-    // "Is there an activated, maximized toplevel on this bar's screen?" — via
-    // zwlr_foreign_toplevel_management_v1 (labwc 0.20+, Hyprland, sway).
-    // `activated` excludes minimized / unfocused windows: when nothing on
-    // this screen is focused, the bar's title falls back to the OS name (see
-    // ActiveWindow.displayTitle) and the bar must turn fully transparent
-    // (transparentOnEmptyDesktop). `screens` limits the match to this bar's
-    // output on multi-monitor setups. Same lookup pattern as
-    // ActiveWindow.focusedToplevel — direct property reads (`activated`,
-    // `maximized`, `screens`) are dependency-tracked, and toplevels
-    // add/remove re-evaluates the binding.
-    readonly property bool workspaceHasMaximized: {
+    // "Does this bar's workspace currently show any window?" — drives
+    // transparentOnEmptyDesktop. Two paths:
+    // - Hyprland: exact workspace semantics via HyprlandData (hyprctl IPC
+    //   clients carry workspace.id/mapped/hidden), scoped to the workspace
+    //   active on this bar's monitor.
+    // - Other compositors (labwc, sway): zwlr_foreign_toplevel_management_v1
+    //   approximation — an activated, maximized toplevel reporting this
+    //   screen. Toplevel `screens` does not track workspaces on labwc, so a
+    //   maximized window is the closest "this desktop is occupied" signal.
+    readonly property bool workspaceHasWindows: {
+        if (HyprlandData.hyprlandIpcAvailable) {
+            const barScreen = root.screen?.name ?? "";
+            const wsId = HyprlandData.monitors.find(mon => (mon.name ?? "") === barScreen)
+                ?.activeWorkspace?.id ?? 0;
+            const has = HyprlandData.workspaceHasVisibleWindows(wsId);
+            return has;
+        }
         const barScreen = root.screen?.name ?? "";
         const list = ToplevelManager.toplevels.values;
         for (let i = 0; i < list.length; i++) {
             const t = list[i];
             if (t.activated && t.maximized
-                    && t.screens.some(s => s.name === barScreen)) {
+                    && t.screens.some(s => s.name === barScreen))
                 return true;
-            }
         }
         return false;
     }
-    // No maximized window on this workspace => fully transparent. Maximized
-    // window present => configured opacity (backgroundOpacity, e.g. 50 => 50%).
+    // No visible window on this workspace => fully transparent. Any visible
+    // window => configured opacity (backgroundOpacity, e.g. 50 => 50%).
     readonly property color barBackgroundColor:
         !Config.options.bar.showBackground ? "transparent" :
         Config.options.bar.transparentOnEmptyDesktop
-            ? (root.workspaceHasMaximized ? root.barOpaqueColor : "transparent")
+            ? (root.workspaceHasWindows ? root.barOpaqueColor : "transparent")
             : root.barOpaqueColor
 
     // Background shadow
     Loader {
-        active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow && root.workspaceHasMaximized
+        active: Config.options.bar.showBackground && Config.options.bar.cornerStyle === 1 && Config.options.bar.floatStyleShadow && root.workspaceHasWindows
         anchors.fill: barBackground
         sourceComponent: StyledRectangularShadow {
             anchors.fill: undefined // The loader's anchors act on this, and this should not have any anchor
