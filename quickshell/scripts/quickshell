@@ -35,6 +35,10 @@ export SUMIKA_APP_DIR="$config_dir"
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 export SUMIKA_SHELL_ROOT="$repo_root"
 export SUMIKA_QUICKSHELL_DIR="$repo_root/quickshell"
+# Core helper commands (sumika-detach, sumika-settings, sumika-restart, ...)
+# are part of the repository, not a system package.  Keep them available to
+# every Quickshell child, including the on-demand app launcher.
+export PATH="$repo_root/bin:$PATH"
 
 # Runtime directory for generated state (module registry, QML symlinks, etc.)
 registry_dir="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"
