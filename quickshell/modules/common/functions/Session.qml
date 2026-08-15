@@ -46,7 +46,10 @@ Singleton {
     }
 
     function suspend(saveCurrentSession) {
-        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave("systemctl suspend || loginctl suspend", saveCurrentSession)]);
+        // Route through sumika-keep-awake so an active Keep Awake inhibitor
+        // (which only guards automatic suspend triggers) is lifted for this
+        // explicit request and re-armed after resume.
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`"${Directories.root}/bin/sumika-keep-awake" suspend`, saveCurrentSession)]);
     }
 
     function withOptionalSessionSave(command, saveCurrentSession) {
@@ -71,7 +74,8 @@ Singleton {
     }
 
     function hibernate(saveCurrentSession) {
-        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`systemctl hibernate || loginctl hibernate`, saveCurrentSession)]);
+        // See suspend(): bypass Keep Awake for explicit hibernate requests.
+        Quickshell.execDetached(["bash", "-lc", withOptionalSessionSave(`"${Directories.root}/bin/sumika-keep-awake" hibernate`, saveCurrentSession)]);
     }
 
     function poweroff(saveCurrentSession) {

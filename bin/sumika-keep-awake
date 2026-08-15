@@ -2,12 +2,17 @@
 # sumika-keep-awake — Keep the machine running with the lid closed (long tasks).
 #
 # Registers a block-mode systemd inhibitor for handle-lid-switch and sleep so
-# closing the lid (or any suspend request) does not freeze running work.
+# closing the lid (or any automatic suspend request) does not freeze running
+# work. The inhibitor only guards *automatic* suspend triggers (lid close,
+# hypridle); manual Sleep/Hibernate from the power UI must bypass it — those
+# go through the `suspend`/`hibernate` subcommands below, which lift the
+# inhibitor for the request and re-arm it after resume.
+#
 # State is persisted in $SUMIKA_SHELL_STATE_HOME/keep-awake{,.pid} so the mode
 # survives bar reloads and is re-asserted on session start (hypr/autostart.lua
 # runs `sumika-keep-awake ensure`).
 #
-# Usage: sumika-keep-awake <on|off|status|ensure>
+# Usage: sumika-keep-awake <on|off|status|ensure|suspend|hibernate>
 
 set -u
 
@@ -54,6 +59,42 @@ stop_inhibitor() {
     echo "off"
 }
 
+release_inhibitor() {
+    # Temporarily drop the block lock so logind accepts the manual request.
+    if inhibitor_alive; then
+        kill "$(cat "$pid_file")" 2>/dev/null || true
+        rm -f "$pid_file"
+        # Wait until logind has actually released the lock (usually instant).
+        local i
+        for ((i = 0; i < 30; i++)); do
+            systemd-inhibit --list --mode=block 2>/dev/null | grep -q "sumika-keep-awake" || return 0
+            sleep 0.1
+        done
+    fi
+}
+
+do_suspend()   { systemctl suspend   || loginctl suspend; }
+do_hibernate() { systemctl hibernate || loginctl hibernate; }
+
+# Manual power action: bypass Keep Awake, run the request, then re-arm the
+# inhibitor if the mode is still on. `systemctl hibernate|suspend` returns
+# before the machine freezes, so an inline re-arm races logind's sleep
+# transaction and can fail silently. The scheduled `ensure` closes that gap:
+# systemd --user timers run on CLOCK_MONOTONIC, which pauses while the
+# machine sleeps, so the re-assert lands ~1 min after resume in every path
+# (successful sleep, refused sleep, or crash of the inline attempt).
+power_action() {
+    release_inhibitor
+    "$@"
+    local rc=$?
+    if [[ -f "$state_file" ]]; then
+        start_inhibitor >/dev/null 2>&1
+        systemd-run --user --unit=sumika-keep-awake-reassert --on-active=1min \
+            --collect "${BASH_SOURCE[0]}" ensure >/dev/null 2>&1 || true
+    fi
+    return $rc
+}
+
 cmd="${1:-status}"
 case "$cmd" in
     on)     start_inhibitor ;;
@@ -68,8 +109,10 @@ case "$cmd" in
     status)
         if inhibitor_alive; then echo "on"; else echo "off"; fi
         ;;
+    suspend)   power_action do_suspend ;;
+    hibernate) power_action do_hibernate ;;
     *)
-        echo "usage: sumika-keep-awake <on|off|status|ensure>" >&2
+        echo "usage: sumika-keep-awake <on|off|status|ensure|suspend|hibernate>" >&2
         exit 2
         ;;
 esac

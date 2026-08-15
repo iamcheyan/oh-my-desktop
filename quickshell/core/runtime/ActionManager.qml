@@ -326,14 +326,14 @@ Singleton {
         }, {description: "Power off the computer"})
 
         this.register("session.suspend", "core", "Suspend", {
-            type: "shell",
-            command: `systemctl suspend || loginctl suspend`
-        }, {description: "Suspend to RAM"})
+            type: "qml",
+            call: function() { Session.suspend(false) }
+        }, {description: "Suspend to RAM (bypasses Keep Awake)"})
 
         this.register("session.hibernate", "core", "Hibernate", {
-            type: "shell",
-            command: `systemctl hibernate || loginctl hibernate`
-        }, {description: "Suspend to disk"})
+            type: "qml",
+            call: function() { Session.hibernate(false) }
+        }, {description: "Suspend to disk (bypasses Keep Awake)"})
 
         this.register("session.reboot.save", "core", "Reboot after saving session", {
             type: "shell",

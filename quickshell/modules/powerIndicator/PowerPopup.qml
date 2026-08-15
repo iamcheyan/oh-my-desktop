@@ -418,7 +418,7 @@ Item {
                 }
             }
 
-            // ── Section 1: Power Controls (4-Column Equal-Width Row) ──
+            // ── Section 1: System Controls (power actions) ──
             SectionLabel {
                 Layout.leftMargin: 20
                 Layout.rightMargin: 20
@@ -428,13 +428,6 @@ Item {
             }
 
             IconActionRow {
-                PopupIconButtonDark {
-                    icon: "lock"
-                    label: "Lock"
-                    visible: LockService.lockHandler !== null
-                    hoverAccent: TuiStyle.accent
-                    onClicked: batteryStack.requestAction("lock", "Lock")
-                }
                 PopupIconButtonDark {
                     icon: "dark_mode"
                     label: "Sleep"
@@ -464,7 +457,7 @@ Item {
                 }
             }
 
-            // ── Section 2: Session & Utilities (2-Column Grid) ──
+            // ── Section 2: Session & Utilities ──
             SectionLabel {
                 Layout.leftMargin: 20
                 Layout.rightMargin: 20
@@ -474,6 +467,13 @@ Item {
             }
 
             IconActionRow {
+                PopupIconButtonDark {
+                    icon: "lock"
+                    label: "Lock"
+                    visible: LockService.lockHandler !== null
+                    hoverAccent: TuiStyle.accent
+                    onClicked: batteryStack.requestAction("lock", "Lock")
+                }
                 PopupIconButtonDark {
                     icon: "logout"
                     label: "Log Out"

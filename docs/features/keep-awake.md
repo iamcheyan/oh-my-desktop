@@ -27,10 +27,12 @@ bar reloads while it is enabled.
 ## CLI
 
 ```
-sumika-keep-awake on      # enable (idempotent)
-sumika-keep-awake off     # disable, kill inhibitor
-sumika-keep-awake status  # on|off (alive check, not just the state file)
-sumika-keep-awake ensure  # re-assert persisted state (used at session start)
+sumika-keep-awake on        # enable (idempotent)
+sumika-keep-awake off       # disable, kill inhibitor
+sumika-keep-awake status    # on|off (alive check, not just the state file)
+sumika-keep-awake ensure    # re-assert persisted state (used at session start)
+sumika-keep-awake suspend   # manual Suspend: lift inhibitor, suspend, re-arm
+sumika-keep-awake hibernate # manual Hibernate: lift inhibitor, hibernate, re-arm
 ```
 
 ## UI
@@ -43,8 +45,11 @@ power profiles. It reads the state file via `FileView` and drives
 
 - **Idle lock still applies.** After 152 s of no input the screen locks
   (hypridle → `sumika-lock`); the machine stays awake and tasks keep running.
-- **The Sleep button in the power popup will not suspend** while Keep Awake is
-  on — that is intentional (block-mode `sleep`).
+- **Manual Sleep/Hibernate bypass the inhibitor.** The mode only guards
+  *automatic* suspend triggers (lid close, hypridle). The power popup and
+  power context menu call `sumika-keep-awake suspend|hibernate`, which lifts
+  the block lock for the request and re-arms it after resume (or after a
+  failed request) while the mode is still on.
 - **Power draw**: with the lid closed the machine keeps running at full
   performance — expect battery drain and heat. The mode is designed for
   docked/plugged long-task scenarios.
