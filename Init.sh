@@ -162,6 +162,22 @@ PACKAGES_QT_GTK=(
     kvantum
 )
 
+# NixOS user-profile fallbacks.  A declarative NixOS module is preferred, but
+# Init.sh must also be useful on a freshly installed system where the user has
+# not yet added Sumika to their flake.  These names are nixpkgs flake attrs,
+# not distro package names; they are installed into the user's profile and do
+# not mutate /etc/nixos.
+PACKAGES_NIXOS_PROFILE=(
+    hyprland hypridle hyprpicker quickshell
+    xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
+    pipewire wireplumber pavucontrol
+    networkmanager bluez brightnessctl ddcutil wlr-randr
+    grim slurp wf-recorder wl-clipboard hyprsunset swaybg
+    power-profiles-daemon gnome-keyring libsecret
+    foot jq curl fontconfig unzip python3 ffmpeg
+    zenity
+)
+
 # ── Package name mapping ──────────────────────────────────────────────────────
 get_debian_pkg() {
     case "$1" in
@@ -406,6 +422,31 @@ install_packages() {
             return 1
             ;;
     esac
+}
+
+install_nixos_profile_dependencies() {
+    info "Installing Sumika Shell runtime through the Nix user profile..."
+
+    if ! command -v nix >/dev/null 2>&1; then
+        err "Nix is not available. Install Nix/NixOS first, then rerun Init.sh."
+        return 1
+    fi
+
+    local attrs=()
+    local pkg
+    for pkg in "${PACKAGES_NIXOS_PROFILE[@]}"; do
+        attrs+=("nixpkgs#$pkg")
+    done
+
+    # NixOS users commonly disable nix-command/flakes globally.  Enabling the
+    # features for this invocation keeps Init.sh self-contained and does not
+    # rewrite nix.conf.
+    if nix --extra-experimental-features 'nix-command flakes' profile add "${attrs[@]}"; then
+        ok "NixOS runtime dependencies installed in ~/.nix-profile"
+    else
+        err "Nix profile installation failed. See the Nix output above."
+        return 1
+    fi
 }
 
 install_nixos_system_config() {
@@ -860,7 +901,20 @@ install_all_dependencies() {
     echo
 
     if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
-        install_nixos_system_config
+        install_nixos_profile_dependencies
+
+        # A flake-managed host must be changed in its own repository.  Never
+        # overwrite /etc/nixos/configuration.nix behind the user's back.
+        # Conventional non-flake installs may opt into the legacy helper with
+        # SUMIKA_NIXOS_APPLY_SYSTEM=1.
+        if [[ "${SUMIKA_NIXOS_APPLY_SYSTEM:-0}" == "1" ]]; then
+            install_nixos_system_config
+        elif [[ -f "$HOME/nixos-config/flake.nix" ]] || [[ -f "$REPO/flake.nix" ]]; then
+            warn "Flake-managed NixOS detected; leaving the host configuration untouched."
+            warn "Add the Sumika module/package list to your flake and run nixos-rebuild switch."
+        else
+            warn "No flake detected. The runtime profile is ready; set SUMIKA_NIXOS_APPLY_SYSTEM=1 to configure the host session."
+        fi
         echo
 
         info "═══ Fonts & Icons ═══"
