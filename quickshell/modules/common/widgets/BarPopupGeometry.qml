@@ -29,7 +29,7 @@ QtObject {
     //   }
     //
     // Visual card position (after the menu's own outerPadding):
-    //   top bar: button.bottom + gap + outerPadding = 46 (default)
+    //   top bar: button.bottom + gap + outerPadding = 46 (32px notch-bar default; 40 without notch)
     //   ────────────────────────────────────────────
 
     readonly property real barGap: Appearance.sizes.barGap
@@ -44,7 +44,7 @@ QtObject {
     // from the button); for a bottom bar it goes on margins.top.
     //
     //   gap = (barHeight - itemHeight) / 2 + barGap
-    //        = (32 - 28) / 2 + 4 = 6  (with defaults)
+    //        = (32 - 28) / 2 + 4 = 6  (32px notch-bar defaults; 3 without notch)
     //
     // ContextMenuWindow / SysTrayMenu add their own outerPadding (=elevationMargin=10)
     // inside the window, so the visual card lands at:

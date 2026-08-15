@@ -39,6 +39,13 @@ export SUMIKA_QUICKSHELL_DIR="$repo_root/quickshell"
 # are part of the repository, not a system package.  Keep them available to
 # every Quickshell child, including the on-demand app launcher.
 export PATH="$repo_root/bin:$PATH"
+# Apple-host marker for bar notch sizing (read synchronously by HostInfo.qml;
+# the async QML Process there is only a fallback for bare `qs -p` dev runs).
+if [ -r /proc/device-tree/model ] && head -c 16 /proc/device-tree/model | grep -q '^Apple'; then
+    export SUMIKA_HOST_APPLE=1
+else
+    export SUMIKA_HOST_APPLE=0
+fi
 
 # Runtime directory for generated state (module registry, QML symlinks, etc.)
 registry_dir="${SUMIKA_SHELL_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sumika-shell}"

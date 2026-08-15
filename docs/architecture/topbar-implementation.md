@@ -38,12 +38,16 @@ extension API; see
 
 ## Shared Geometry
 
-Right-side contributions use shared configuration tokens:
+Right-side contributions read **derived tokens**, never the raw config:
 
-- `Config.options.bar.rightIconSlotWidth` for stable hit-area width;
-- `Config.options.bar.rightIconSize` for glyph size;
+- `Appearance.sizes.rightIconSlotSize` — circular slot diameter, the configured
+  `bar.rightIconSlotWidth` capped at `baseBarHeight`;
+- `Appearance.sizes.rightIconSize` — glyph size scaled to keep the designed
+  20:28 icon:slot ratio on short bars (never grows past `bar.rightIconSize`);
 - `Config.options.bar.rightModuleSpacing` for inter-module spacing;
-- `Appearance.sizes.baseBarHeight` for bar height.
+- `Appearance.sizes.baseBarHeight` for bar height — `32` when
+  `HostInfo.screenHasNotch` (Apple panel taller than 16:10), else `26`.
+  See `docs/platform/asahi-notch.md` for the detection contract.
 
 Feature buttons must not add asymmetric outer margins to compensate for a
 glyph. Optical balancing belongs in `BarNerdIcon`; spacing belongs in the row.
@@ -74,7 +78,7 @@ inspect `quickshell/registry/builtin/bar.json` for the effective order.
 | Per-monitor window and IPC | `quickshell/modules/bar/Bar.qml` |
 | Slot layout and failure containment | `quickshell/modules/bar/BarContent.qml` |
 | Built-in contributions | `quickshell/registry/builtin/bar.json` |
-| Registry loader | `quickshell/services/ModuleLoader.qml` |
+| Notch detection | `quickshell/services/HostInfo.qml` |
 | Unified status popup | `quickshell/modules/bar/BarStatusPopup.qml` |
 | Style tokens | `quickshell/modules/common/TuiStyle.qml` |
 | Icon geometry | `quickshell/modules/common/widgets/BarNerdIcon.qml` |

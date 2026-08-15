@@ -17,7 +17,7 @@ Item {
     visible: true
     width: trayRow.implicitWidth
     implicitWidth: trayRow.implicitWidth
-    implicitHeight: Config.options.bar.rightIconSlotWidth
+    implicitHeight: Appearance.sizes.rightIconSlotSize
 
     property alias trayModel: trayRepeater.model
     readonly property var trayItems: TrayService.trayItems ?? []

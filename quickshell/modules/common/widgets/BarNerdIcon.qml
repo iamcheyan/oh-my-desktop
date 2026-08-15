@@ -8,7 +8,7 @@ Item {
 
     property alias text: icon.text
     property color color: Appearance.colors.colBarText
-    property real iconSize: Config.options.bar.rightIconSize
+    property real iconSize: Appearance.sizes.rightIconSize
     property bool opticalBalance: true
     property real targetInkSize: iconSize * 0.82
     property real minOpticalScale: 0.82
@@ -22,8 +22,8 @@ Item {
         ? Math.max(minOpticalScale, Math.min(maxOpticalScale, targetInkSize / measuredInkSize))
         : 1
 
-    implicitWidth: Config.options.bar.rightIconSize
-    implicitHeight: Config.options.bar.rightIconSize
+    implicitWidth: Appearance.sizes.rightIconSize
+    implicitHeight: Appearance.sizes.rightIconSize
 
     TextMetrics {
         id: iconMetrics

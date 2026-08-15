@@ -22,8 +22,8 @@ Item {
 
     component IconSlot: Item {
         default property alias contents: slotContent.data
-        implicitWidth: Config.options.bar.rightIconSlotWidth
-        implicitHeight: Config.options.bar.rightIconSlotWidth
+        implicitWidth: Appearance.sizes.rightIconSlotSize
+        implicitHeight: Appearance.sizes.rightIconSlotSize
         Item {
             id: slotContent
             anchors.centerIn: parent
@@ -33,9 +33,9 @@ Item {
     component BarIconButton: RippleButton {
         id: iconButton
         property string popupType: ""
-        Layout.preferredWidth: Config.options.bar.rightIconSlotWidth
-        Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
-        buttonRadius: Config.options.bar.rightIconSlotWidth / 2
+        Layout.preferredWidth: Appearance.sizes.rightIconSlotSize
+        Layout.preferredHeight: Appearance.sizes.rightIconSlotSize
+        buttonRadius: Appearance.sizes.rightIconSlotSize / 2
         colBackground: "transparent"
         colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
         colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)
@@ -68,8 +68,8 @@ Item {
             id: xkbButton
             popupType: "xkb"
             visible: xkbIndicator.active
-            Layout.preferredWidth: visible ? Config.options.bar.rightIconSlotWidth : 0
-            Layout.preferredHeight: Config.options.bar.rightIconSlotWidth
+            Layout.preferredWidth: visible ? Appearance.sizes.rightIconSlotSize : 0
+            Layout.preferredHeight: Appearance.sizes.rightIconSlotSize
             IconSlot {
                 anchors.centerIn: parent
                 HyprlandXkbIndicator {

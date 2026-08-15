@@ -1,4 +1,5 @@
 module qs.services
+singleton HostInfo 1.0 HostInfo.qml
 singleton HyprlandXkb 1.0 HyprlandXkb.qml
 singleton Idle 1.0 Idle.qml
 singleton KeyringStorage 1.0 KeyringStorage.qml

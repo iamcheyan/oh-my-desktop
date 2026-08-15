@@ -67,15 +67,15 @@ Item {
     signal menuOpened(qsWindow: var)
     signal menuClosed()
 
-    implicitWidth: Config.options.bar.rightIconSlotWidth
-    implicitHeight: Config.options.bar.rightIconSlotWidth
+    implicitWidth: Appearance.sizes.rightIconSlotSize
+    implicitHeight: Appearance.sizes.rightIconSlotSize
 
     RippleButton {
         id: button
         anchors.centerIn: parent
-        width: Config.options.bar.rightIconSlotWidth
-        height: Config.options.bar.rightIconSlotWidth
-        buttonRadius: Config.options.bar.rightIconSlotWidth / 2
+        width: Appearance.sizes.rightIconSlotSize
+        height: Appearance.sizes.rightIconSlotSize
+        buttonRadius: Appearance.sizes.rightIconSlotSize / 2
         colBackground: "transparent"
         colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
         colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)
@@ -117,8 +117,8 @@ Item {
         opacity: 1
         source: root.itemIconSource
         anchors.centerIn: button
-        width: Math.round(Config.options.bar.rightIconSize * 0.82)
-        height: Math.round(Config.options.bar.rightIconSize * 0.82)
+        width: Math.round(Appearance.sizes.rightIconSize * 0.82)
+        height: Math.round(Appearance.sizes.rightIconSize * 0.82)
     }
 
 
@@ -126,7 +126,7 @@ Item {
         visible: root.useArrowIcon || root.useNetworkFallbackIcon || root.useInputKeyboardFallback
         anchors.centerIn: button
         text: root.useInputKeyboardFallback ? "keyboard" : (root.useNetworkFallbackIcon ? "sync_alt" : "arrow_forward")
-        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
+        iconSize: Math.round(Appearance.sizes.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 
@@ -135,7 +135,7 @@ Item {
         visible: !root.useArrowIcon && !root.useNetworkFallbackIcon && !root.useInputKeyboardFallback && !root.hasValidIcon
         anchors.centerIn: button
         text: root.isInputMethod ? "keyboard" : "expand_more"
-        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
+        iconSize: Math.round(Appearance.sizes.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 
@@ -164,7 +164,7 @@ Item {
             && (!root.hasValidIcon || root.iconLoadFailed)
         anchors.centerIn: button
         text: root.isInputMethod ? "keyboard" : "apps"
-        iconSize: Math.round(Config.options.bar.rightIconSize * 0.82)
+        iconSize: Math.round(Appearance.sizes.rightIconSize * 0.82)
         color: Appearance.colors.colBarText
     }
 

@@ -55,6 +55,56 @@ hl.monitor({ output = "eDP-1", mode = "3024x1964@120", position = "0x0", scale =
 不再通过旧版配置文件的 `centerModules` / `rightModules`
 调整位置。Quickshell 热重载即可生效；HDMI 等外接显示器不受影响。
 
+## Bar 高度自适应刘海
+
+Bar 高度不是固定值, 由 `quickshell/services/HostInfo.qml` 的
+`screenHasNotch` 判定驱动 (`quickshell/modules/common/Appearance.qml`):
+
+```qml
+property real baseBarHeight: HostInfo.screenHasNotch ? 32 : 26
+```
+
+- **有刘海 (32px)**: bar 需要盖住顶部刘海物理遮挡区, 保持原高度。
+- **无刘海 (26px)**: 外接显示器/非 Apple 主机用更矮的 bar。
+
+### 检测原理
+
+两个条件同时满足才判定有刘海:
+
+1. **Apple 主机**: `scripts/quickshell` 启动时同步读 `/proc/device-tree/model`,
+   以 `SUMIKA_HOST_APPLE=1/0` 环境变量导出。QML 单例是懒加载的,
+   异步 `Process` 读 model 会和首次高度求值竞态, 所以必须由 wrapper
+   在引擎启动前导出。裸 `qs -p`(仅开发场景)时 HostInfo 内部的 `Process`
+   作为回退, 约 50ms 后响应式翻转。
+2. **屏幕宽高比 < 1.595**: 刘海面板物理上是 ~1.54 (如 3024x1964),
+   无刘海面板是标准 16:10 (1.6)。阈值取中间值留出 scale 取整余量。
+   用 Apple 主机做前置条件, 排除其他厂商 3:2 面板误判。
+
+> 注意: 判定是**全局**的 —— 任一屏幕有刘海, 所有屏幕的 bar 都是 32。
+> 合盖外接 (只剩 16:10 外屏) 时降为 26。按屏高度需要重构 Bar.qml, 未做。
+
+### 图标随 bar 等比缩放
+
+右侧图标槽和图标尺寸按设计比例 `icon:slot = 20:28` 随 bar 高度缩放,
+避免矮 bar 下图标溢出或 hover 圆环贴边 (`Appearance.qml`):
+
+```qml
+property real rightIconSlotSize: Math.min(Config.options.bar.rightIconSlotWidth, baseBarHeight)
+property real rightIconSize: Config.options.bar.rightIconSize
+    * Math.min(1, rightIconSlotSize / Config.options.bar.rightIconSlotWidth)
+```
+
+| bar | slot | icon | 托盘图标(×0.82) |
+|---|---|---|---|
+| 32 (刘海) | 28 | 20 | 16 |
+| 26 (无刘海) | 26 | 18.57 | 15 |
+| 20 (假设) | 20 | 14.29 | 12 |
+
+配置项 `bar.rightIconSlotWidth` / `bar.rightIconSize` 语义不变 (期望值),
+渲染时统一取派生 token `Appearance.sizes.rightIconSlotSize` /
+`Appearance.sizes.rightIconSize`。比例封顶 1: bar 变高图标不会超过配置值,
+但用户显式配大的值 (如 icon > slot) 不会被吞。
+
 ## 回退
 
 ```sh

@@ -12,16 +12,16 @@ Item {
     id: root
     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
     Layout.fillHeight: true
-    implicitWidth: Config.options.bar.rightIconSlotWidth
-    implicitHeight: Config.options.bar.rightIconSlotWidth
+    implicitWidth: Appearance.sizes.rightIconSlotSize
+    implicitHeight: Appearance.sizes.rightIconSlotSize
     property string moduleId: "wifi"
 
     RippleButton {
         id: wifiButton
         anchors.centerIn: parent
-        width: Config.options.bar.rightIconSlotWidth
-        height: Config.options.bar.rightIconSlotWidth
-        buttonRadius: Config.options.bar.rightIconSlotWidth / 2
+        width: Appearance.sizes.rightIconSlotSize
+        height: Appearance.sizes.rightIconSlotSize
+        buttonRadius: Appearance.sizes.rightIconSlotSize / 2
         colBackground: "transparent"
         colBackgroundHover: Qt.rgba(1, 1, 1, 0.10)
         colBackgroundToggled: Qt.rgba(1, 1, 1, 0.18)

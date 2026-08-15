@@ -1,8 +1,9 @@
+pragma Singleton
+pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import qs.modules.common.functions
-pragma Singleton
-pragma ComponentBehavior: Bound
+import qs.services
 
 Singleton {
     id: root
@@ -365,9 +366,18 @@ Singleton {
     }
 
     sizes: QtObject {
-        property real baseBarHeight: 32
+        // MacBooks with a display notch need a taller bar so the cutout stays
+        // covered (32); notch-less hosts get the slimmer bar (26).
+        property real baseBarHeight: HostInfo.screenHasNotch ? 32 : 26
         property real barHeight: Config.options.bar.cornerStyle === 1 ? 
             (baseBarHeight + root.sizes.hyprlandGapsOut * 2) : baseBarHeight
+        // Circular icon slot for right-side bar modules, capped at the bar
+        // height so a short (notch-less) bar never clips the configured slot.
+        property real rightIconSlotSize: Math.min(Config.options.bar.rightIconSlotWidth, baseBarHeight)
+        // Icon size scaled with the slot so the designed icon:slot ratio
+        // (20:28) survives short bars; never grows past the configured size.
+        property real rightIconSize: Config.options.bar.rightIconSize
+            * Math.min(1, rightIconSlotSize / Config.options.bar.rightIconSlotWidth)
         property real barCenterSideModuleWidth: 360
         property real barCenterSideModuleWidthShortened: 280
         property real barCenterSideModuleWidthHellaShortened: 190
