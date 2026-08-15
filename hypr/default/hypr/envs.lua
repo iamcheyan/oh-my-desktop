@@ -26,6 +26,9 @@ local kdethemes = {
   "/usr/lib/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so",
   "/usr/lib64/qt5/plugins/platformthemes/libqkde.so",
   "/usr/lib/qt5/plugins/platformthemes/libqkde.so",
+  -- NixOS: plugins live in the system profile, not /usr/lib.
+  "/run/current-system/sw/lib/qt-6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so",
+  "/run/current-system/sw/lib/qt-5/plugins/platformthemes/libqkde.so",
 }
 for _, path in ipairs(kdethemes) do
   local f = io.open(path, "r")
@@ -37,12 +40,14 @@ for _, path in ipairs(kdethemes) do
 end
 
 if has_kde then
+  -- Native KDE integration: platform theme + widget style (Breeze) both
+  -- come from kdeglobals; do not force a style override here.
   hl.env("QT_QPA_PLATFORMTHEME", "kde")
 else
   hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
+  hl.env("QT_STYLE_OVERRIDE", "kvantum")
 end
 
-hl.env("QT_STYLE_OVERRIDE", "kvantum")
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "wayland")
 hl.env("OZONE_PLATFORM", "wayland")
