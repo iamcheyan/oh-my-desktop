@@ -15,7 +15,9 @@ ContextMenuWindow {
     property bool hibernateAvailable: false
 
     Process {
-        command: ["bash", "-c", "grep -q disk /sys/power/state 2>/dev/null && echo YES || echo NO"]
+        // Same gate as the power popup: disk-swap partition must exist,
+        // not just kernel hibernate support.
+        command: ["bash", "-c", "grep -q disk /sys/power/state 2>/dev/null && swapon --noheadings 2>/dev/null | grep -v zram | grep -qw partition && echo YES || echo NO"]
         running: true
         stdout: StdioCollector {
             onStreamFinished: root.hibernateAvailable = text.trim() === "YES"

@@ -128,7 +128,10 @@ Item {
 
     Process {
         id: hibernateCheck
-        command: ["bash", "-c", "grep -q disk /sys/power/state && echo YES || echo NO"]
+        // Hibernate needs a disk-backed (non-zram) swap partition to hold the
+        // image; kernel "disk" support alone is not sufficient on machines
+        // installed without a swap partition.
+        command: ["bash", "-c", "grep -q disk /sys/power/state && swapon --noheadings 2>/dev/null | grep -v zram | grep -qw partition && echo YES || echo NO"]
         stdout: StdioCollector {
             onStreamFinished: {
                 batteryStack.hibernateAvailable = text.trim() === "YES"
