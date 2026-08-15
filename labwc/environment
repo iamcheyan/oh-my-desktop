@@ -14,11 +14,15 @@ XKB_DEFAULT_LAYOUT=jp,us
 XCURSOR_SIZE=24
 XDG_SESSION_TYPE=wayland
 
+# Firefox HiDPI opt-in: this machine is 2x. Non-HiDPI machines delete the
+# FIREFOX_FORCE_HIDPI line — wrapper then passes through untouched.
+#
 # Force all apps to use Wayland.
 GDK_BACKEND=wayland,x11,*
 QT_QPA_PLATFORM=wayland;xcb
 QT_QPA_PLATFORMTHEME=qt6ct
 QT_STYLE_OVERRIDE=kvantum
+FIREFOX_FORCE_HIDPI=1
 MOZ_ENABLE_WAYLAND=1
 ELECTRON_OZONE_PLATFORM_HINT=wayland
 OZONE_PLATFORM=wayland
