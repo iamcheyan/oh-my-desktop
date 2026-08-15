@@ -135,10 +135,13 @@ Singleton {
 
     // Smart paste: like paste(), but when the entry is an image AND the
     // focused window is a terminal (kitty / alacritty / foot / wezterm / ...),
-    // paste the image as a /tmp file PATH instead — terminals can't render
-    // image data, but most CLI tools accept a path argument. So clicking an
-    // image in the clipboard manager pastes it as a path in a terminal
-    // without needing the dedicated "paste as path" (⇲) button.
+    // paste the image as a file PATH instead — terminals can't render
+    // image data, but most CLI tools accept a path argument. The path is
+    // SSH-aware (see bin/sumika-clipboard-image-path): when the terminal
+    // runs an ssh session the image is streamed to the remote /tmp and the
+    // remote path is pasted. So clicking an image in the clipboard manager
+    // pastes it as a path in a terminal without needing the dedicated
+    // "paste as path" (⇲) button.
     function pasteSmart(entry) {
         if (!root.entryIsImage(entry)) {
             root.paste(entry);

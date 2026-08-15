@@ -326,8 +326,9 @@ labwc 官方 0.20.1 暴露了整条粘贴栈所需的协议（`wayland-info` 实
   同根因（见 `docs/features/paste-kitty-conflicts.md`）。sasayaki `sendToKitty`
   主路径改为 `kitty @ send-text --stdin --bracketed-paste auto` 直接注入 payload
   （transport `kitty-bracketed-send`），`paste_from_clipboard` 降为 send-text 失败
-  时的 fallback（`kitty-native-paste`）；注入前 `wl-copy -c` 清剪贴板防 OSC 5522
-  双粘贴，成功后 50ms 恢复 payload。voice 扩展的 `omarchy-paste-at-cursor` 同步修复。
+  时的 fallback（`kitty-native-paste`）；注入前把剪贴板填成一个空格（防 OSC 5522
+  双粘贴，同时避免本地 omp 弹 "Clipboard is empty"），成功后 150ms 恢复 payload。
+  voice 扩展的 `omarchy-paste-at-cursor` 同步修复。
 - **多 kitty 实例下的粘贴聚焦约束**（2026-08-09 实测）：wlroots 系合成器
   （labwc/sway）的 `zwlr_foreign_toplevel_handle_v1` 没有 pid 事件，sasayaki
   只能靠 glob `/tmp/mykitty-*` 枚举实例。旧实现无聚焦要求时直接取第一个

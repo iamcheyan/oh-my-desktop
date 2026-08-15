@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+# Resolve the paste target path for a clipboard image, SSH-aware.
+#
+# Terminals cannot render image clipboard data, so Sumika pastes images into
+# terminals as a file PATH. When the focused terminal runs an SSH session, a
+# local /tmp path is useless: the shell that receives the text lives on the
+# remote host. This helper detects the session, streams the image to the
+# remote /tmp through the same ssh destination (ssh-config aliases,
+# ControlMaster and ProxyJump apply transparently), and prints the remote
+# path. Every failure falls back to the historical local-path behavior, so
+# the paste itself is never blocked.
+#
+# Usage: sumika-clipboard-image-path [--ext EXT] [--root-pid PID] [--probe] IMAGE
+# Output: "PATH<TAB>NOTE" (NOTE is empty for a plain local paste)
+#   remote ok       -> /tmp/sumika-clip-*.png    ssh <destination>
+#   remote failed   -> /tmp/sumika-clip-*.png    local (ssh transfer failed)
+#   no ssh session  -> /tmp/sumika-clip-*.png    (empty NOTE)
+# Exit codes: 0 path printed; 1 not an image / unreadable; 2 usage;
+#   3 duplicate suppressed — the SAME image content was resolved (and pasted)
+#   within SUMIKA_CLIPBOARD_IMAGE_DEDUPE_MS (default 1200). Callers exit 0.
+# Env: SUMIKA_CLIPBOARD_SSH_IMAGE=0 disables the remote attempt entirely
+#      SUMIKA_SSH_CONNECT_TIMEOUT  ssh ConnectTimeout (default 5)
+#      SUMIKA_CLIPBOARD_IMAGE_DEDUPE_MS  duplicate-image window (default 1200)
+
+set -u
+IFS=$'\n\t'
+
+ext=""
+root_pid_override=""
+root_pid_seen=0
+probe=0
+image=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --ext) ext="${2:-}"; shift 2 ;;
+        --root-pid) root_pid_override="${2:-}"; root_pid_seen=1; shift 2 ;;
+        --probe) probe=1; shift ;;
+        --) shift; image="${1:-}"; shift ;;
+        -*) echo "usage: sumika-clipboard-image-path [--ext EXT] [--root-pid PID] [--probe] IMAGE" >&2; exit 2 ;;
+        *) image="$1"; shift ;;
+    esac
+done
+if [ "$root_pid_seen" = 1 ]; then
+    case "$root_pid_override" in ''|*[!0-9]*)
+        echo "sumika-clipboard-image-path: --root-pid requires a numeric pid" >&2
+        exit 2 ;;
+    esac
+fi
+[ -n "$image" ] && [ -r "$image" ] || exit 1
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard"
+mkdir -p "$runtime_dir" 2>/dev/null || true
+log_file="$runtime_dir/ssh-image.log"
+log_line() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >> "$log_file" 2>/dev/null || true; }
+
+# ---- image sanity ----------------------------------------------------------
+if ! file -b --mime-type "$image" 2>/dev/null | grep -q '^image/'; then
+    exit 1
+fi
+
+now_ms() {
+    value="$(date +%s%3N 2>/dev/null || true)"
+    case "$value" in
+        *N*|"") printf '%s000' "$(date +%s)" ;;
+        *) printf '%s' "$value" ;;
+    esac
+}
+
+# Remember the path we just minted so paste entry points can refuse to
+# re-paste it as text (see the exactly-once guards in the callers).
+record_last_path() { # $1 = path about to be pasted
+    printf '%s %s\n' "$(now_ms)" "$1" > "$runtime_dir/last-path" 2>/dev/null || true
+}
+
+# Exactly-once guard, layer 1: a rapid re-trigger (kitty key repeat, double
+# Ctrl+Shift+V, QML double-fire) must not turn one user action into two
+# pastes. Keyed by image CONTENT: each run would mint a NEW timestamped path,
+# which defeats the payload-hash dedupe in sumika-paste-at-cursor. The state
+# keeps the first hit's timestamp, so suppressed hits cannot extend the
+# window. Probe mode is exempt (diagnostics must stay observable).
+if [ "$probe" != 1 ] && command -v sha256sum >/dev/null 2>&1; then
+    image_digest=$(sha256sum "$image" 2>/dev/null | awk '{print $1}')
+    if [ -n "$image_digest" ]; then
+        dedupe_ms="${SUMIKA_CLIPBOARD_IMAGE_DEDUPE_MS:-1200}"
+        dstate="$runtime_dir/img-dedupe-${image_digest:0:24}"
+        exec 8>"$runtime_dir/img-dedupe.lock"
+        if command -v flock >/dev/null 2>&1; then flock -x 8; fi
+        dprev=$(cat "$dstate" 2>/dev/null || printf '0')
+        case "$dprev" in *[!0-9]*|"") dprev=0 ;; esac
+        dnow=$(now_ms)
+        delapsed=$((dnow - dprev))
+        if [ "$delapsed" -ge 0 ] && [ "$delapsed" -lt "$dedupe_ms" ]; then
+            log_line "suppressed duplicate image paste (elapsed ${delapsed}ms < ${dedupe_ms}ms)"
+            exit 3
+        fi
+        printf '%s' "$dnow" > "$dstate"
+        if command -v flock >/dev/null 2>&1; then flock -u 8; fi
+    fi
+fi
+if [ -z "$ext" ]; then
+    ext=$(file -b --extension "$image" 2>/dev/null | tr -cd '[:alnum:]' | head -c 8)
+fi
+[ -n "$ext" ] || ext=png
+
+stamp=$(date +%s%N)
+local_path="/tmp/sumika-clip-${stamp}.${ext}"
+
+emit_local() { # $1 = NOTE (may be empty)
+    cp -- "$image" "$local_path" || exit 1
+    record_last_path "$local_path"
+    printf '%s\t%s\n' "$local_path" "${1:-}"
+    exit 0
+}
+
+if [ "${SUMIKA_CLIPBOARD_SSH_IMAGE:-1}" = "0" ]; then
+    emit_local ""
+fi
+command -v ssh >/dev/null 2>&1 || emit_local ""
+
+# ---- /proc helpers ----------------------------------------------------------
+proc_comm() { tr -d '[:space:]' < "/proc/$1/comm" 2>/dev/null; }
+proc_argv() { tr '\0' '\n' < "/proc/$1/cmdline" 2>/dev/null; }
+
+# BFS over a process subtree (children via /proc/<pid>/task/*/children).
+# Bounded (24 levels, 500 pids) so a pathological tree cannot stall a paste.
+tree_pids() {
+    local IFS=$' \n\t'
+    local current="$1" next pid kids depth=0 total=1
+    printf '%s\n' "$current"
+    while [ "$depth" -lt 24 ]; do
+        next=""
+        for pid in $current; do
+            [ -d "/proc/$pid" ] || continue
+            kids=$(cat /proc/$pid/task/*/children 2>/dev/null | tr '\n' ' ')
+            kids=${kids%${kids##*[! ]}}
+            [ -n "$kids" ] || continue
+            printf '%s\n' $kids
+            next="$next $kids"
+            total=$((total + $(printf '%s' $kids | wc -w)))
+        done
+        [ -n "${next// }" ] || break
+        [ "$total" -le 500 ] || break
+        current="${next# }"
+        depth=$((depth + 1))
+    done
+}
+
+# Find the ssh pid running inside the tmux session a client is attached to.
+# Pane processes belong to the tmux SERVER, not to the terminal window, so
+# the tree walk alone cannot see them. The client's socket fd cannot be
+# mapped to a path either: /proc/net/unix only lists bound/listening sockets,
+# not connect()ed client sockets. Instead, ask every tmux server socket for
+# its clients and match by client pid — that also yields the exact session,
+# so the user's other attached sessions are never probed.
+ssh_via_tmux_client() {
+    local IFS=$' \n\t'
+    local client="$1" dir sock cpid csess sess pane_pids pid found rc=1
+    command -v tmux >/dev/null 2>&1 || return 1
+    dir="${TMUX_TMPDIR:-/tmp}/tmux-$(id -u)"
+    for sock in "$dir"/*; do
+        [ -S "$sock" ] || continue
+        sess=""
+        while IFS=' ' read -r cpid csess; do
+            [ "$cpid" = "$client" ] && { sess="$csess"; break; }
+        done < <(tmux -S "$sock" list-clients -F '#{client_pid} #{session_id}' 2>/dev/null)
+        [ -n "$sess" ] || continue
+        pane_pids=$(tmux -S "$sock" list-panes -a -F '#{session_id} #{window_active} #{pane_active} #{pane_pid}' 2>/dev/null \
+            | awk -v s="$sess" '$1 == s && $2 == "1" && $3 == "1" {print $4}')
+        # Depth guard: a pane can itself run `tmux attach` (nested local
+        # tmux), which would otherwise recurse resolve <-> tmux forever.
+        TMUX_DEPTH=$((TMUX_DEPTH + 1))
+        if [ "$TMUX_DEPTH" -le 4 ]; then
+            for pid in $pane_pids; do
+                found=$(resolve_ssh_under "$pid") && { printf '%s' "$found"; rc=0; break; }
+            done
+        fi
+        TMUX_DEPTH=$((TMUX_DEPTH - 1))
+        [ "$rc" = 0 ] && return 0
+    done
+    return 1
+}
+
+# First ssh process in the subtree of $1. tmux clients in the tree are
+# followed into their server's pane (second pass) because ssh under tmux is
+# parented by the tmux server.
+resolve_ssh_under() {
+    local IFS=$' \n\t'
+    local root="$1" list pid comm found
+    list=$(tree_pids "$root" | tr '\n' ' ')
+    for pid in $list; do
+        [ "$(proc_comm "$pid")" = ssh ] && { printf '%s' "$pid"; return 0; }
+    done
+    for pid in $list; do
+        # tmux sets per-role process titles: "tmux: client", "tmux: server".
+        case "$(proc_comm "$pid")" in
+            tmux|tmux:*) found=$(ssh_via_tmux_client "$pid") && { printf '%s' "$found"; return 0; } ;;
+        esac
+    done
+    return 1
+}
+
+# ---- focused terminal roots -------------------------------------------------
+# The root whose subtree is walked for ssh. Correctness requirement: the root
+# must cover exactly the tab the user is typing in. One process per window
+# (foot, alacritty, ...) → the window pid is already exact. Multi-tab
+# single-process terminals need the focused tab's shell pid instead; walking
+# their whole tree would pick up ssh sessions from OTHER tabs.
+
+# Terminals hosting every tab/window inside one process. kitty is scoped
+# precisely via remote control; the others have no reliable local query, so
+# no detection (historical local-path behavior) rather than misdetection.
+needs_tab_scoping() {
+    case "$1" in
+        kitty) return 0 ;;
+        wezterm|ghostty|com.mitchellh.ghostty|konsole|org.kde.konsole) return 2 ;;
+        *) return 1 ;;
+    esac
+}
+
+kitty_socket_candidates() {
+    local s apid
+    if [ -n "${KITTY_LISTEN_ON:-}" ]; then
+        printf '%s\n' "$KITTY_LISTEN_ON"
+    fi
+    if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        apid=$(hyprctl -j activewindow 2>/dev/null | jq -r '.pid // empty' 2>/dev/null || true)
+        [ -n "$apid" ] && [ -S "/tmp/mykitty-$apid" ] && printf 'unix:/tmp/mykitty-%s\n' "$apid"
+    fi
+    for s in /tmp/mykitty /tmp/mykitty-* /tmp/kitty "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+        [ -S "$s" ] && printf 'unix:%s\n' "$s"
+    done
+}
+
+# Shell pid of the kitty window the user is typing in. Selection: focused OS
+# window -> active tab -> focused window (window is_focused is PER TAB, so
+# the active tab must be selected first). When no OS window reports focus
+# (e.g. a layer-shell menu briefly holds keyboard focus) a single OS window
+# is still exact — its active tab is the visible one.
+kitty_focused_shell_pid() {
+    local to ls_out pid
+    while IFS= read -r to; do
+        [ -n "$to" ] || continue
+        command -v kitty >/dev/null 2>&1 || return 1
+        ls_out=$(kitty @ --to "$to" ls 2>/dev/null) || continue
+        pid=$(printf '%s' "$ls_out" | jq -r '
+            . as $root
+            | ((map(select(.is_focused)) | .[0]) // null) as $osw
+            | (if $osw == null and ($root | length) == 1 then $root[0] else $osw end) as $w
+            | if $w == null then empty
+              else (($w.tabs | map(select(.is_active)) | .[0]) // $w.tabs[0]) as $tab
+              | (($tab.windows | map(select(.is_focused)) | .[0]) // $tab.windows[0] | .pid // empty)
+              end' 2>/dev/null)
+        [ -n "$pid" ] && { printf '%s' "$pid"; return 0; }
+    done < <(kitty_socket_candidates)
+    return 1
+}
+
+candidate_roots() {
+    local root comm
+    if [ -n "$root_pid_override" ]; then
+        printf '%s\n' "$root_pid_override"
+        return
+    fi
+    if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        root=$(hyprctl -j activewindow 2>/dev/null | jq -r '.pid // empty' 2>/dev/null || true)
+    else
+        root=""
+    fi
+    if [ -z "$root" ] || [ ! -d "/proc/$root" ]; then
+        # No compositor IPC (labwc): kitty's own focus report is the only signal.
+        if command -v kitty >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+            kitty_focused_shell_pid || true
+        fi
+        return
+    fi
+    comm=$(proc_comm "$root")
+    needs_tab_scoping "$comm"; scope=$?
+    if [ "$scope" = 0 ]; then
+        # kitty: walk only the focused tab's shell subtree. If remote control
+        # cannot resolve it (socket disabled), walk nothing — the whole-tree
+        # walk would see other tabs' ssh sessions.
+        if command -v kitty >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+            kitty_focused_shell_pid || true
+        fi
+    elif [ "$scope" = 2 ]; then
+        : # multi-tab terminal without a precise query: no detection
+    else
+        printf '%s\n' "$root"
+    fi
+}
+TMUX_DEPTH=0
+# ---- ssh command line parsing -----------------------------------------------
+# Reuse the destination of the detected session. Connection-relevant options
+# are forwarded (-p -l -i -F -J -o -4 -6, in both "-p 22" and "-p22" forms);
+# everything after the destination is the remote command and is dropped (the
+# transfer must not run inside e.g. "ssh host tmux attach").
+SSH_DEST=""
+SSH_OPTS=()
+parse_ssh_cmdline() {
+    local pid="$1" argv=() i=1 n a opt rest
+    mapfile -t argv < <(proc_argv "$pid")
+    n=${#argv[@]}
+    [ "$n" -ge 2 ] || return 1
+    while [ "$i" -lt "$n" ]; do
+        a=${argv[$i]}
+        case "$a" in
+            --)
+                i=$((i + 1))
+                [ "$i" -lt "$n" ] && SSH_DEST=${argv[$i]}
+                break ;;
+            -p|-l|-i|-F|-J|-o)
+                i=$((i + 1))
+                [ "$i" -lt "$n" ] || return 1
+                SSH_OPTS+=("$a" "${argv[$i]}") ;;
+            -[pliFJo]?*)
+                opt=${a:0:2}
+                rest=${a:2}
+                SSH_OPTS+=("$opt" "$rest") ;;
+            -[bcDeEILmOQRSWw]) # value options that do not survive a fresh connection
+                i=$((i + 1)) ;;
+            -4|-6) SSH_OPTS+=("$a") ;;
+            -*) ;;
+            *) SSH_DEST="$a"; break ;;
+        esac
+        i=$((i + 1))
+    done
+    [ -n "$SSH_DEST" ] || return 1
+    case "$SSH_DEST" in -*) return 1 ;; esac
+    return 0
+}
+
+remote_path="/tmp/sumika-clip-${stamp}.${ext}"
+remote_transfer() {
+    local timeout="${SUMIKA_SSH_CONNECT_TIMEOUT:-5}"
+    # BatchMode guarantees no password prompt can hang the paste: key-only
+    # auth, fail fast, caller falls back to the local path.
+    ssh -o BatchMode=yes -o ConnectTimeout="$timeout" \
+        ${SSH_OPTS[@]+"${SSH_OPTS[@]}"} "$SSH_DEST" \
+        "cat > '$remote_path' && [ -s '$remote_path' ]" \
+        < "$image" >> "$log_file" 2>&1
+}
+
+# ---- main -------------------------------------------------------------------
+ssh_pid=""
+resolved_root=""
+for root in $(candidate_roots); do
+    case "$root" in ''|*[!0-9]*) continue ;; esac
+    [ -d "/proc/$root" ] || continue
+    ssh_pid=$(resolve_ssh_under "$root") && { resolved_root=$root; break; }
+    ssh_pid=""
+done
+
+if [ -n "$ssh_pid" ]; then
+    if parse_ssh_cmdline "$ssh_pid"; then
+        if [ "$probe" = 1 ]; then
+            printf 'root=%s ssh_pid=%s dest=%s opts=%s\n' "$resolved_root" "$ssh_pid" "$SSH_DEST" "$(printf '%s ' ${SSH_OPTS[@]+"${SSH_OPTS[@]}"})"
+            exit 0
+        fi
+        log_line "detected ssh pid=$ssh_pid dest=$SSH_DEST opts=${SSH_OPTS[*]:-}"
+        if remote_transfer; then
+            log_line "remote ok dest=$SSH_DEST path=$remote_path"
+            record_last_path "$remote_path"
+            printf '%s\tssh %s\n' "$remote_path" "$SSH_DEST"
+            exit 0
+        fi
+        log_line "remote FAILED dest=$SSH_DEST (falling back to local path)"
+        [ "$probe" = 1 ] || emit_local "local (ssh transfer failed)"
+    elif [ "$probe" = 1 ]; then
+        printf 'root=%s ssh_pid=%s dest=unparsed\n' "$resolved_root" "$ssh_pid"
+        exit 0
+    fi
+elif [ "$probe" = 1 ]; then
+    printf 'root=%s ssh_pid=none\n' "${resolved_root:-none}"
+    exit 0
+fi
+
+emit_local ""
