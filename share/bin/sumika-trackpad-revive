@@ -83,9 +83,12 @@ discover() {
     HID_ID=$(grep -oE '[0-9A-F]{4}:[0-9A-F]{4}:[0-9A-F]{4}\.[0-9A-F]{4}' <<<"$sysfs" | head -n1)
     SPI_DRV_DIR=/sys/bus/spi/drivers/spi-hid-apple-of
 
-    # Internal keyboard event node — same SPI controller, our bus-liveness probe.
+    # Session-activity node. The PHYSICAL internal keyboard is grabbed by
+    # keyd (EVIOCGRAB), so reading its event node always yields zero bytes
+    # even while the user types. The keyd VIRTUAL keyboard is un-grabbed and
+    # mirrors real keystrokes — use it as the "session is active" signal.
     KB_EVENT=$(awk -v RS='' \
-        '/N: Name=.*[Kk]eyboard/ && /S: Sysfs=.*\/spi/ {print; exit}' /proc/bus/input/devices \
+        '/N: Name=.*keyd virtual keyboard/ {print; exit}' /proc/bus/input/devices \
         | sed -n 's/^H: Handlers=.*\(event[0-9]*\).*$/\1/p' | head -n1)
 
     [ -n "$IRQ_LABEL" ] && [ -n "$SPI_DEV" ] && [ -n "$HID_ID" ] \
@@ -125,6 +128,7 @@ check_health() {   # sets VERDICT (idle|healthy|dead); rc 0 = healthy-or-idle
     c2=$(irq_count "$IRQ_LABEL") || c2=0
     wait "$kb_pid" 2>/dev/null && kb_rc=0
     KB_SEEN=$(( 1 - kb_rc ))
+    TP_RC=$tp_rc
     delta=$(( c2 - c1 ))
     LAST_RATE=$(( delta / WINDOW_SECONDS ))
 
@@ -133,9 +137,38 @@ check_health() {   # sets VERDICT (idle|healthy|dead); rc 0 = healthy-or-idle
         if [ "$tp_rc" -eq 0 ]; then VERDICT=healthy; return 0; fi
         VERDICT=dead; return 1
     fi
-    # No controller traffic. Keyboard events with a frozen bus = wedged.
+    # No controller traffic: with the keyd virtual node as the activity
+    # signal, typing during the window with a frozen controller still means
+    # the transport itself is wedged (typing must move the bus).
     if [ "$kb_rc" -eq 0 ]; then VERDICT=dead; return 1; fi
     VERDICT=idle; return 0
+}
+
+# ── Silent-wedge blind-spot closer ───────────────────────────────────────────
+# In a silent wedge the controller IRQ freezes entirely, so "touched but no
+# events" is indistinguishable from "nobody touching" during a 3s window.
+# Heuristic: a healthy trackpad under active use always produces SOME events
+# over tens of minutes. If the session is active (keystrokes seen) yet the
+# trackpad has produced no events for STALE_MINUTES, rebind preventively.
+STALE_MINUTES=30
+STAMP_FILE="$STATE_HOME/trackpad-revive.last-seen"
+
+stamp_update() { date +%s > "$STAMP_FILE" 2>/dev/null || true; }
+stamp_age_s() {
+    local last
+    last=$(cat "$STAMP_FILE" 2>/dev/null) || { echo 0; return; }
+    echo $(( $(date +%s) - last ))
+}
+maybe_preventive_revive() {   # $1 = tp probe rc from check_health (1 = no events)
+    [ "$1" -ne 0 ] || { stamp_update; return 1; }
+    # Trackpad silent this window. Only act when the session is active.
+    [ "$KB_SEEN" -eq 1 ] || return 1
+    local age
+    age=$(stamp_age_s)
+    [ "$age" -ge $((STALE_MINUTES * 60)) ] || return 1
+    log "preventive revive: session active, trackpad silent for ${age}s"
+    echo "trackpad: silent ${age}s under active session → preventive revive" >&2
+    return 0
 }
 
 spi_rebind() {   # full transport re-handshake; keyboard drops ~L2_GAP s
@@ -332,8 +365,18 @@ case "$MODE" in
         exit 1
         ;;
     auto)
-        if check_health; then report_healthy; exit 0; fi
-        revive full && exit 0
-        exit 1
+        check_health
+        if [ "$VERDICT" = dead ]; then
+            revive full && exit 0
+            exit 1
+        fi
+        # healthy or idle: keep the last-seen stamp fresh, then consider the
+        # silent-wedge preventive revive (closes the idle blind spot).
+        if maybe_preventive_revive "$TP_RC"; then
+            revive full && exit 0
+            exit 1
+        fi
+        report_healthy
+        exit 0
         ;;
 esac
