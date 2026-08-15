@@ -369,14 +369,35 @@ for _gpid in $(pgrep -f "${config_dir}\$" 2>/dev/null); do
     case "$_gexe" in
         */quickshell|*/qs) ;;
         *)
-            tr '\0' ' ' < "/proc/$_gpid/cmdline" 2>/dev/null | grep -q "scripts/quickshell " || continue
+            # Pre-exec instance of this script appears as
+            # [<interpreter>, <this script>, <config_dir>...] (shebang keeps
+            # the interpreter as argv0). Match only when argv[0] or argv[1]
+            # resolves to this script itself — wrappers (timeout/nohup/env)
+            # carry the script path deeper in argv and must not match
+            # (observed: `timeout 10 .../scripts/quickshell <dir>` was
+            # misdetected as a live instance, silently skipping the start).
+            _gself=$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")
+            _gmatch=""
+            for _gcand in $(cut -d '' -f1 "/proc/$_gpid/cmdline" 2>/dev/null) \
+                          $(cut -d '' -f2 "/proc/$_gpid/cmdline" 2>/dev/null); do
+                [ -n "$_gcand" ] || continue
+                case "$_gcand" in
+                    /*) _gres=$(readlink -f "$_gcand" 2>/dev/null || printf '') ;;
+                    *)  _gres=$(readlink -f "/proc/$_gpid/cwd/$_gcand" 2>/dev/null || printf '') ;;
+                esac
+                if [ "$_gres" = "$_gself" ]; then
+                    _gmatch=1
+                    break
+                fi
+            done
+            [ -n "$_gmatch" ] || continue
             ;;
     esac
     _gcmd=$(tr '\0' ' ' < "/proc/$_gpid/cmdline" 2>/dev/null) || _gcmd="(gone)"
     echo "[sumika] instance already running (pid $_gpid: ${_gcmd% }) — skipping start" >&2
     exit 0
 done
-unset _gpid _gstate _gexe _gcmd
+unset _gpid _gstate _gexe _gcmd _gself _gcand _gres _gmatch
 
 runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 wayland_display="${WAYLAND_DISPLAY:-}"
