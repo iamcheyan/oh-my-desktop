@@ -1,0 +1,272 @@
+#!/bin/bash
+# omarchy:summary=Revive an Apple SPI trackpad whose transport session deadlocked
+# omarchy:args=[--check|--status|--force|--force-hid]
+
+# ── What this fixes ──────────────────────────────────────────────────────────
+# On Apple Silicon (Asahi), the internal trackpad talks HID over an SPI
+# transport (driver: spi-hid-apple-of, HID layer: magicmouse). The transport
+# session can deadlock silently — observed on a MacBook Pro M1 Max, Fedora
+# Asahi, kernel 6.19.14, two distinct presentations:
+#   A. storm-dead:  controller asserts ~900 IRQ/s, zero HID reports delivered
+#   B. silent-dead: controller IRQ stops entirely (even while touched)
+# In both the device stays fully probed, the cursor never moves, and no
+# kernel error is logged. Re-running the SPI handshake (unbind/bind) revives.
+#
+# ── Detection signature (passive, no user cooperation needed) ───────────────
+#   touch  := controller IRQ delta over the window ≥ IRQ_TOUCH_THRESHOLD
+#   dead-A := touch AND zero trackpad events during the window
+#   dead-B := keyboard events arrive (typing!) AND controller IRQ delta ≈ 0 —
+#             the keyboard shares the SPI controller, so typing MUST move the
+#             bus; if it doesn't, the controller is wedged
+#   idle   := no touch, no keyboard traffic → skip (cannot tell)
+#
+# ── Revive ────────────────────────────────────────────────────────────────────
+# Straight to the full SPI transport rebind (unbind → 3s → bind). The keyboard
+# shares the bus and drops for a few seconds — expected. A milder HID-only
+# rebind is NOT used by auto: it restored the report flow once but the pad
+# died again minutes later (silent-dead). Manual-only via --force-hid.
+#
+# Exit codes: 0 healthy/revived/idle · 1 still dead after revive · 2 no Apple
+# SPI trackpad / unsupported / need root · 3 usage.
+
+set -u
+
+STATE_HOME="${SUMIKA_SHELL_STATE_HOME:-$HOME/.local/state/sumika-shell}"
+# Under sudo, log into the invoking user's state dir.
+if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != root ]; then
+    STATE_HOME="/home/$SUDO_USER/.local/state/sumika-shell"
+fi
+LOG_FILE="$STATE_HOME/trackpad-revive.log"
+
+IRQ_TOUCH_THRESHOLD=50   # controller IRQ delta over the window above this = touch
+WINDOW_SECONDS=3         # measurement window (also the event-probe timeout)
+L2_GAP=3                 # seconds between SPI unbind and bind
+
+TP_NAME="" TP_EVENT="" KB_EVENT="" SPI_DEV="" SPI_DRV_DIR="" HID_ID="" IRQ_LABEL=""
+VERDICT=idle KB_SEEN=0 LAST_RATE=0
+
+log() {
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null
+    echo "$(date '+%F %T') $*" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+notify_user() {
+    # Best-effort on-screen cue; never fails the revive.
+    [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER:-}" != root ] || return 0
+    su -s /bin/bash "$SUDO_USER" -c \
+        "command -v sumika-swayosd-client >/dev/null 2>&1 && \
+         sumika-swayosd-client --custom-icon input-touchpad-symbolic \
+         --custom-message 'Trackpad revived' >/dev/null 2>&1 || true" \
+        >/dev/null 2>&1 || true
+}
+
+# ── Discovery ────────────────────────────────────────────────────────────────
+# Parse /proc/bus/input/devices stanzas; derive topology from the sysfs path:
+#   /devices/platform/soc/39b10c000.spi/spi_master/spi1/spi1.0/001C:05AC:0342.0006/input/input12
+#     → IRQ label "39b10c000.spi", SPI device "spi1.0", HID id "001C:05AC:0342.0006"
+discover() {
+    local stanza sysfs
+    stanza=$(awk -v RS='' \
+        '/N: Name=.*[Tt]rackpad/ && /S: Sysfs=.*\/spi/ {print; exit}' /proc/bus/input/devices)
+    [ -n "$stanza" ] || return 1
+
+    TP_NAME=$(sed -n 's/^N: Name="\(.*\)"$/\1/p' <<<"$stanza")
+    sysfs=$(sed -n 's/^S: Sysfs=\(.*\)$/\1/p' <<<"$stanza")
+    TP_EVENT=$(sed -n 's/^H: Handlers=.*\(event[0-9]*\).*$/\1/p' <<<"$stanza" | head -n1)
+    [ -n "$TP_NAME" ] && [ -n "$sysfs" ] && [ -n "$TP_EVENT" ] || return 1
+
+    IRQ_LABEL=$(grep -o '[0-9a-f]*\.spi' <<<"$sysfs" | head -n1)
+    SPI_DEV=$(grep -o 'spi[0-9]*\.[0-9]*' <<<"$sysfs" | tail -n1)
+    HID_ID=$(grep -oE '[0-9A-F]{4}:[0-9A-F]{4}:[0-9A-F]{4}\.[0-9]{4}' <<<"$sysfs" | head -n1)
+    SPI_DRV_DIR=/sys/bus/spi/drivers/spi-hid-apple-of
+
+    # Internal keyboard event node — same SPI controller, our bus-liveness probe.
+    KB_EVENT=$(awk -v RS='' \
+        '/N: Name=.*[Kk]eyboard/ && /S: Sysfs=.*\/spi/ {print; exit}' /proc/bus/input/devices \
+        | sed -n 's/^H: Handlers=.*\(event[0-9]*\).*$/\1/p' | head -n1)
+
+    [ -n "$IRQ_LABEL" ] && [ -n "$SPI_DEV" ] && [ -n "$HID_ID" ] \
+        && [ -d "$SPI_DRV_DIR" ] || return 1
+    return 0
+}
+
+irq_count() {   # $1 = IRQ label → total count across CPUs
+    awk -F: -v lbl="$1" 'index($0, lbl) {
+        n = split($2, f, " "); s = 0
+        for (i = 1; i <= n; i++) s += f[i]
+        print s; exit
+    }' /proc/interrupts
+}
+
+# Read an event node for the window; rc 0 iff at least one event byte
+# arrived. NOTE: dd/head on evdev fail instantly with EINVAL (they issue
+# pread, unsupported on character devices) — cat is the reliable reader.
+saw_events() {   # $1 = event node
+    local out
+    [ -n "$1" ] || return 1
+    out=$(mktemp /tmp/.sumika-tp-probe.XXXXXX)
+    timeout $((WINDOW_SECONDS + 1)) cat "/dev/input/$1" > "$out" 2>/dev/null
+    [ -s "$out" ]
+    local rc=$?
+    rm -f "$out"
+    return "$rc"
+}
+
+check_health() {   # sets VERDICT (idle|healthy|dead); rc 0 = healthy-or-idle
+    local c1 c2 delta tp_rc=1 kb_rc=1
+    saw_events "$KB_EVENT" &
+    local kb_pid=$!
+    c1=$(irq_count "$IRQ_LABEL") || c1=0
+    saw_events "$TP_EVENT"
+    tp_rc=$?
+    c2=$(irq_count "$IRQ_LABEL") || c2=0
+    wait "$kb_pid" 2>/dev/null && kb_rc=0
+    KB_SEEN=$(( 1 - kb_rc ))
+    delta=$(( c2 - c1 ))
+    LAST_RATE=$(( delta / WINDOW_SECONDS ))
+
+    if [ "$delta" -ge "$IRQ_TOUCH_THRESHOLD" ]; then
+        # Controller traffic (a finger): healthy only if reports arrived.
+        if [ "$tp_rc" -eq 0 ]; then VERDICT=healthy; return 0; fi
+        VERDICT=dead; return 1
+    fi
+    # No controller traffic. Keyboard events with a frozen bus = wedged.
+    if [ "$kb_rc" -eq 0 ]; then VERDICT=dead; return 1; fi
+    VERDICT=idle; return 0
+}
+
+spi_rebind() {   # full transport re-handshake; keyboard drops ~L2_GAP s
+    local err=/tmp/.sumika-tp-revive-err.$$ attempt
+    for attempt in 1 2; do
+        if echo "$SPI_DEV" > "$SPI_DRV_DIR/unbind" 2>"$err"; then
+            sleep "$L2_GAP"
+            if echo "$SPI_DEV" > "$SPI_DRV_DIR/bind" 2>"$err"; then
+                rm -f "$err"
+                log "rebound SPI transport $SPI_DEV attempt=$attempt (keyboard dropped ${L2_GAP}s)"
+                return 0
+            fi
+            log "bind $SPI_DEV failed attempt=$attempt: $(tr '\n' ' ' < "$err")"
+            # unbind succeeded but bind failed: retry bind once more before
+            # the full cycle, the device may need a beat to re-register.
+            sleep 1
+            if echo "$SPI_DEV" > "$SPI_DRV_DIR/bind" 2>"$err"; then
+                rm -f "$err"
+                log "rebound SPI transport $SPI_DEV attempt=$attempt bind-retry ok"
+                return 0
+            fi
+        else
+            log "unbind $SPI_DEV failed attempt=$attempt: $(tr '\n' ' ' < "$err")"
+        fi
+        sleep 1
+    done
+    log "SPI rebind FAILED both attempts: $(tr '\n' ' ' < "$err")"
+    rm -f "$err"
+    return 1
+}
+
+hid_rebind() {   # manual only: trackpad HID session, keyboard unaffected
+    local drv
+    drv=$(basename "$(readlink -f "/sys/bus/hid/devices/$HID_ID/driver" 2>/dev/null)" 2>/dev/null)
+    [ -n "$drv" ] && [ -d "/sys/bus/hid/drivers/$drv" ] || return 1
+    echo "$HID_ID" > "/sys/bus/hid/drivers/$drv/unbind" 2>/dev/null || return 1
+    sleep 1
+    echo "$HID_ID" > "/sys/bus/hid/drivers/$drv/bind" 2>/dev/null || return 1
+    log "rebound HID device $HID_ID (driver $drv)"
+}
+
+report_healthy() {
+    echo "trackpad: $VERDICT (irq ${LAST_RATE}/s, kb $KB_SEEN)"
+    return 0
+}
+
+revive() {   # $1 = full (SPI rebind) | hid (manual experiment)
+    local mode="$1"
+    log "revive start mode=$mode verdict=$VERDICT irq=${LAST_RATE}/s kb=$KB_SEEN"
+    if [ "$mode" = hid ]; then
+        hid_rebind || { echo "trackpad: HID rebind failed" >&2; return 1; }
+    else
+        spi_rebind || { echo "trackpad: SPI rebind failed" >&2; return 1; }
+    fi
+    sleep 2
+    discover || return 1
+    # Without touch/keyboard traffic we cannot positively confirm; report the
+    # rebind outcome via the non-dead verdicts (idle counts as success —
+    # a wedged bus would have shown keyboard-driven death instead).
+    check_health
+    if [ "$VERDICT" != dead ]; then
+        log "revive ok mode=$mode verdict=$VERDICT irq=${LAST_RATE}/s"
+        echo "trackpad: revived (mode=$mode, $VERDICT, irq ${LAST_RATE}/s)"
+        notify_user
+        return 0
+    fi
+    log "revive FAILED mode=$mode verdict=$VERDICT irq=${LAST_RATE}/s"
+    echo "trackpad: STILL DEAD after revive" >&2
+    return 1
+}
+
+usage() {
+    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+    echo "usage: sumika-trackpad-revive [--check|--status|--force|--force-hid]"
+    exit 3
+}
+
+MODE=auto
+case "${1:-}" in
+    "")          MODE=auto ;;
+    --check)     MODE=check ;;
+    --status)    MODE=status ;;
+    --force|--force-full) MODE=force ;;
+    --force-hid) MODE=forcehid ;;
+    -h|--help)   usage ;;
+    *)           usage ;;
+esac
+
+# Root: read the event nodes + write sysfs bind/unbind. Passwordless sudo
+# (sudoers NOPASSWD) is the deployment assumption on Sumika hosts.
+if [ "$(id -u)" != 0 ]; then
+    if sudo -n true 2>/dev/null; then
+        exec sudo -n "$0" "$@"
+    else
+        echo "sumika-trackpad-revive: need root; passwordless sudo is required" >&2
+        exit 2
+    fi
+fi
+
+discover || { echo "sumika-trackpad-revive: no SPI-attached trackpad found" >&2; exit 2; }
+
+case "$MODE" in
+    status)
+        echo "name:        $TP_NAME"
+        echo "event node:  /dev/input/$TP_EVENT"
+        echo "kb event:    ${KB_EVENT:+/dev/input/$KB_EVENT}"
+        echo "irq label:   $IRQ_LABEL"
+        echo "spi device:  $SPI_DEV (driver $(basename "$(readlink -f "$SPI_DRV_DIR/$SPI_DEV/driver" 2>/dev/null)" 2>/dev/null))"
+        echo "hid device:  $HID_ID (driver $(basename "$(readlink -f "/sys/bus/hid/devices/$HID_ID/driver" 2>/dev/null)" 2>/dev/null))"
+        echo "log:         $LOG_FILE"
+        exit 0
+        ;;
+    check)
+        if check_health; then report_healthy; else
+            echo "trackpad: DEAD (touch irq ${LAST_RATE}/s, kb events $KB_SEEN)" >&2
+            exit 1
+        fi
+        exit 0
+        ;;
+    force)
+        LAST_RATE=0 KB_SEEN=0
+        VERDICT=dead
+        revive full && exit 0
+        exit 1
+        ;;
+    forcehid)
+        LAST_RATE=0 KB_SEEN=0
+        VERDICT=dead
+        revive hid && exit 0
+        exit 1
+        ;;
+    auto)
+        if check_health; then report_healthy; exit 0; fi
+        revive full && exit 0
+        exit 1
+        ;;
+esac

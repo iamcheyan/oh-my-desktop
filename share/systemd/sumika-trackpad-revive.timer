@@ -1,0 +1,15 @@
+# Runs the trackpad revive check every minute. The healthy-path check costs
+# two /proc/interrupts reads (~instant); the expensive event probe only runs
+# when an IRQ storm is present, and rebinds only on the full storm+no-events
+# signature. See sumika-trackpad-revive.service for context.
+
+[Unit]
+Description=Check the Apple SPI trackpad for transport deadlock
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

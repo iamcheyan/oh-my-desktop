@@ -1,0 +1,18 @@
+# Self-heal an Apple SPI trackpad whose HID-over-SPI transport deadlocked.
+#
+# Symptom: the trackpad is fully probed but delivers zero reports while the
+# SPI controller storms ~900 IRQ/s (cursor dead, no kernel errors). The
+# revive script detects that signature and re-runs the SPI handshake.
+# Inert on non-Apple-SPI hardware (ConditionPathExists + script exit 2).
+#
+# Rendered from @SUMIKA_SHELL_ROOT@ by sumika-restart at every session start;
+# do not edit the copy under $SUMIKA_SHELL_STATE_HOME/systemd/.
+# Docs: docs/features/trackpad-revive.md
+
+[Unit]
+Description=Revive Apple SPI trackpad on transport deadlock
+ConditionPathExists=/sys/bus/spi/drivers/spi-hid-apple-of
+
+[Service]
+Type=oneshot
+ExecStart=@SUMIKA_SHELL_ROOT@/bin/sumika-trackpad-revive
