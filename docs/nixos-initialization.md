@@ -18,7 +18,8 @@ cd ~/development/OMD
 4. 安装字体检查和基础工具。
 5. 迁移旧 OMD 命名空间的配置（如果存在），创建 `~/.config/quickshell` 和 hypridle 运行时链接。
 6. 修复壁纸运行状态、安装自定义 launcher，并创建 `uwsm-app` 兼容包装器。
-7. 保留用户的 `~/.config/sumika-shell` 和 `.env`，不把凭据写入仓库。
+7. 安装参考工作环境中的常用应用：Alacritty、Blender、Chromium、MPV、Neovim、OBS Studio、Xournal++、Godot、Ranger、Syncthing、LibreOffice、wdisplays、Pinta、btop/htop，以及 Kdenlive、Filelight、KDE Connect、Spectacle、qt6ct；同时安装 `glib`、`gtk3`、`xdg-utils`，保证启动器能通过 `gtk-launch`/`gio` 打开 `.desktop`。
+8. 安装 chezmoi，保留用户的 `~/.config/sumika-shell` 和 `.env`，不把凭据写入仓库。
 
 如果检测到 `~/nixos-config/flake.nix`，脚本不会修改 `/etc/nixos/configuration.nix`，也不会猜测用户的 host 名称。需要把以下内容加入自己的 flake/module：
 

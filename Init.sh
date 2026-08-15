@@ -176,6 +176,15 @@ PACKAGES_NIXOS_PROFILE=(
     power-profiles-daemon gnome-keyring libsecret
     foot jq curl fontconfig unzip python3 ffmpeg
     zenity
+
+    # Common desktop/work applications used by the reference Sumika setup.
+    # Keep these in the initializer so a fresh NixOS host has the same
+    # launcher entries and can execute them immediately.
+    alacritty btop blender chromium mpv neovim obs-studio xournalpp
+    godot ranger syncthing libreoffice wdisplays pinta htop
+    kdePackages.kdenlive kdePackages.filelight kdePackages.kdeconnect-kde
+    kdePackages.spectacle qt6Packages.qt6ct
+    glib gtk3 xdg-utils chezmoi
 )
 
 # ── Package name mapping ──────────────────────────────────────────────────────
@@ -1429,6 +1438,10 @@ main() {
     echo "  - Core tools (jq, curl, Python, ffmpeg)"
     echo "  - Fonts/icons (Noto, Nerd Fonts, Material Symbols)"
     echo "  - Qt/GTK integration"
+    if [[ "$DISTRO_FAMILY" == "nixos" ]]; then
+        echo "  - NixOS reference applications (browser, editor, media, office, graphics, display tools)"
+        echo "  - chezmoi + GTK/GIO desktop-launch support"
+    fi
     echo
     echo "Optional extensions install their own dependencies separately"
     echo "(screenshot/record reuse grim+slurp+wf-recorder from Core)."
