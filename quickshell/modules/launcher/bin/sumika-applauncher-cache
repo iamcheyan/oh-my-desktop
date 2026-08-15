@@ -12,13 +12,25 @@ cache_dir="$SUMIKA_SHELL_STATE_HOME/applauncher"
 cache_file="$cache_dir/apps.json"
 mkdir -p "$cache_dir"
 
-# Collect .desktop file directories in order of highest to lowest precedence
+# Collect .desktop file directories in order of highest to lowest precedence.
+# Do not assume a traditional /usr layout: NixOS user profiles expose
+# applications through $XDG_DATA_DIRS (usually ~/.nix-profile/share), while
+# Flatpak has both per-user and system export directories.
 dirs=""
 if [ -d "$HOME/.local/share/applications" ]; then dirs="$dirs $HOME/.local/share/applications"; fi
 if [ -d "$HOME/.local/share/flatpak/exports/share/applications" ]; then dirs="$dirs $HOME/.local/share/flatpak/exports/share/applications"; fi
 if [ -d "/usr/local/share/applications" ]; then dirs="$dirs /usr/local/share/applications"; fi
-if [ -d "/usr/share/applications" ]; then dirs="$dirs /usr/share/applications"; fi
 if [ -d "/var/lib/flatpak/exports/share/applications" ]; then dirs="$dirs /var/lib/flatpak/exports/share/applications"; fi
+
+data_dirs="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+old_ifs="$IFS"
+IFS=:
+for data_dir in $data_dirs; do
+    [ -n "$data_dir" ] || continue
+    app_dir="$data_dir/applications"
+    [ -d "$app_dir" ] && dirs="$dirs $app_dir"
+done
+IFS="$old_ifs"
 
 # Generate JSON array of apps
 {
