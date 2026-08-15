@@ -367,7 +367,7 @@ Singleton {
 
         this.register("overview.toggle", "core", "Toggle overview", {
             type: "process",
-            command: [overviewCmd]
+            command: [overviewCmd, "toggle"]
         }, {description: "Toggle the workspace overview"})
 
         // App launcher — uses canonical sumika-applauncher script

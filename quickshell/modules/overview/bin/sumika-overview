@@ -70,7 +70,7 @@ launch_and_ipc() {
     return 1
 }
 
-case "${1:-toggle}" in
+case "${1:-warm}" in
     warm)
         # Pre-warm: start the process hidden if not already running.
         if ! is_running; then
