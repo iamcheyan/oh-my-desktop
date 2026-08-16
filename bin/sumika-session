@@ -5,8 +5,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
+
+ 
 
 
 _state_home = os.environ.get("SUMIKA_SHELL_STATE_HOME") or os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "sumika-shell")
@@ -805,9 +808,27 @@ class CompositorGone(RuntimeError):
 
 
 def _atomic_write_json(path, data):
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_name = tmp.name
+            json.dump(data, tmp, ensure_ascii=False, indent=2)
+        os.replace(tmp_name, path)
+    except Exception:
+        if tmp_name:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
+        raise
+
 
 
 def _notify(summary, body):
@@ -978,6 +999,23 @@ def _snapshot_is_recent(max_age=15):
     except (OSError, FileNotFoundError):
         return False
     return (time.time() - mtime) < max_age
+def _snapshot_is_rolling():
+    try:
+        data = json.loads(LAST_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("rolling") is True
+
+
+def _compositor_is_reachable():
+    if not _hypr_available():
+        return True
+    try:
+        run_json("hyprctl", "-j", "clients")
+    except Exception:
+        return False
+    return True
+
 
 
 def _arm_restore(saved_at):
@@ -1029,6 +1067,13 @@ def save_auto_if_stale(save_requested_flag=False):
     if _snapshot_is_recent() and AUTO_RESTORE_FILE.exists():
         # UI already saved + armed. Nothing to do.
         print(json.dumps({"saved": False, "skipped": True, "reason": "recent", "armed": True}))
+        return None
+    if _snapshot_is_recent() and _snapshot_is_rolling() and not _compositor_is_reachable():
+        # The rolling timer may have written the snapshot immediately before
+        # teardown. Preserve it for the next login instead of treating the
+        # recent mtime as proof that the compositor is still alive.
+        _arm_restore(int(LAST_FILE.stat().st_mtime))
+        print(json.dumps({"saved": False, "skipped": True, "reason": "compositor-gone", "armed": True}))
         return None
     if _snapshot_is_recent():
         # UI saved but didn't arm (save without save-auto). Arm restore only

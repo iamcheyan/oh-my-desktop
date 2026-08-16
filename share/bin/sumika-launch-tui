@@ -17,6 +17,13 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
   esac
 done
 
+if [[ -n "$app_id_override" && ! "$app_id_override" =~ ^[[:alnum:].]+$ ]]; then
+  printf 'sumika-launch-tui: invalid app-id %s (use only letters, digits, and dots)\n' \
+    "$app_id_override" >&2
+  exit 2
+fi
+
+
 component_id="$(basename "$1" | tr -cd '[:alnum:]')"
 app_id="${app_id_override:-io.github.iamcheyan.sumika.${component_id}}"
 
