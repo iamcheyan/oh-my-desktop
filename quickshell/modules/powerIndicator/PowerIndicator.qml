@@ -65,21 +65,6 @@ Item {
         anchors.centerIn: parent
         spacing: Config.options.bar.rightModuleSpacing
 
-        BarIconButton {
-            id: xkbButton
-            popupType: "xkb"
-            visible: xkbIndicator.active
-            Layout.preferredWidth: visible ? Appearance.sizes.rightIconSlotSize : 0
-            Layout.preferredHeight: Appearance.sizes.rightIconSlotSize
-            IconSlot {
-                anchors.centerIn: parent
-                HyprlandXkbIndicator {
-                    id: xkbIndicator
-                    anchors.centerIn: parent
-                    color: container.colText
-                }
-            }
-        }
 
         BarIconButton {
             id: powerButton

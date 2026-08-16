@@ -23,7 +23,10 @@ Item { // Bar content region
 
     property var screen: root.QsWindow.window?.screen
 
-    // Fixed widgets at the rightmost positions (power always last, clock before it)
+    // Fixed widgets at the rightmost positions (power always last; clock
+    // sits before it on notched hosts where the center is physically
+    readonly property bool clockInCenter: !HostInfo.screenHasNotch
+
     readonly property var _fixedWidgetIds: ["clock", "power-indicator"]
 
     readonly property var _movableRightButtons: {
@@ -149,6 +152,19 @@ Item { // Bar content region
             horizontalCenter: parent.horizontalCenter
         }
         width: 0
+
+        // On notchless hosts the clock lives in the screen center (the
+        // notch counterpart stays in the right row below). Only one of the
+        // two clock loaders is ever active.
+        Loader {
+            anchors.centerIn: parent
+            source: root._findFixedWidget("clock")?.component ?? ""
+            active: root.clockInCenter && source !== ""
+            visible: active
+            onStatusChanged: if (status === Loader.Error) {
+                console.warn("[Module] Center clock widget load failed:", source)
+            }
+        }
     }
 
     FocusedScrollMouseArea { // Right side
@@ -201,18 +217,19 @@ Item { // Bar content region
                 }
             }
 
-            // Fixed clock widget — always second from right
+            // Fixed clock widget — second from right only on notched
+            // hosts; notchless hosts render it in centerSection above.
             Loader {
                 source: root._findFixedWidget("clock")?.component ?? ""
-                active: source !== ""
-                visible: source !== ""
+                active: !root.clockInCenter && source !== ""
+                visible: active
                 Layout.alignment: Qt.AlignVCenter
                 onStatusChanged: if (status === Loader.Error) {
                     console.warn("[Module] Fixed clock widget load failed:", source)
                 }
             }
 
-            // Fixed power indicator (power + xkb) — always far right
+            // Fixed power indicator — always far right
             Loader {
                 source: root._findFixedWidget("power-indicator")?.component ?? ""
                 active: source !== ""
