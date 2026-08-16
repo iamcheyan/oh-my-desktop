@@ -77,14 +77,95 @@ stop_existing() {
         pid=$(cat "$pid_file" 2>/dev/null || true)
     fi
     if [ -n "$pid" ] && [ "$pid" != "$$" ] && kill -0 "$pid" 2>/dev/null; then
-        kill -TERM "$pid" 2>/dev/null || true
+        # Kill the whole descendant tree, not just the daemon shell: a wedged
+        # wl-paste grandchild survives the death of its parent bash and would
+        # keep holding the stuck clipboard transfer as an init orphan.
+        local -a tree
+        tree=($pid $(descendant_pids "$pid"))
+        kill -TERM "${tree[@]}" 2>/dev/null || true
         for _ in {1..20}; do
             kill -0 "$pid" 2>/dev/null || break
             sleep 0.1
         done
-        kill -KILL "$pid" 2>/dev/null || true
+        kill -KILL "${tree[@]}" 2>/dev/null || true
     fi
     rm -f "$pid_file"
+}
+
+# ── Wedge detection ────────────────────────────────────────────────────────
+# A healthy event callback finishes within ~66 s worst case (every wl-paste
+# read is bounded; see sumika-clipboard-store-event). A clipboard owner that
+# dies mid-transfer used to leave wl-paste reading a dead pipe FOREVER, and
+# wl-paste --watch does not dispatch the next event until the callback exits
+# — the whole history silently died while the daemon looked perfectly alive
+# to `is_running`. Repair (run by every sumika-restart reload) therefore also
+# checks for stuck wl-paste descendants and restarts the tree when found.
+WEDGE_AGE="${SUMIKA_CLIPBOARD_WEDGE_AGE:-120}"
+
+descendant_pids() {
+    # Full descendant walk of $1 (the watcher tree spans three levels:
+    # wl-paste --watch -> callback bash -> wl-paste). Killing only direct
+    # children leaves a wedged grandchild wl-paste alive, reparented to init,
+    # still holding the stuck transfer.
+    local root="$1" pid child
+    local -a stack=("$root") out=()
+    local -A seen=()
+    while [ "${#stack[@]}" -gt 0 ]; do
+        pid="${stack[0]}"
+        stack=("${stack[@]:1}")
+        [ -n "$pid" ] || continue
+        [ -z "${seen[$pid]:-}" ] || continue
+        seen[$pid]=1
+        for child in $(pgrep -P "$pid" 2>/dev/null); do
+            out+=("$child")
+            stack+=("$child")
+        done
+    done
+    printf '%s\n' ${out[@]+"${out[@]}"}
+}
+
+proc_age() {
+    # Age in seconds from /proc/PID/stat starttime (pure procfs: no ps dep).
+    local pid="$1" stat start hz uptime
+    stat=$(cat "/proc/$pid/stat" 2>/dev/null) || return 1
+    stat="${stat#*) }"                       # comm may contain spaces/parens
+    start=$(printf '%s\n' "$stat" | awk '{print $20}')
+    [ -n "$start" ] || return 1
+    hz=$(getconf CLK_TCK 2>/dev/null || echo 100)
+    uptime=$(awk '{print int($1)}' /proc/uptime 2>/dev/null) || return 1
+    echo $(( uptime - start / hz ))
+}
+
+watcher_is_wedged() {
+    # True when anything inside an event callback outlives its bounded
+    # lifetime. The callback script itself (sumika-clipboard-store-event)
+    # covers every hang mode — a stuck wl-paste, a hung cliphist, a blocked
+    # IPC — because the callback bash lives exactly as long as its slowest
+    # child. A bare non-watcher wl-paste is kept as a second pattern in case
+    # the callback shell already exited around a surviving child. The
+    # wl-paste --watch process is long-lived by design and is excluded.
+    local daemon_pid="$1" child cmd age
+    for child in $(descendant_pids "$daemon_pid"); do
+        cmd=$(tr '\0' ' ' < "/proc/$child/cmdline" 2>/dev/null) || continue
+        # Exclude the watcher first: its cmdline contains BOTH wl-paste and
+        # the callback script path (as the --watch argument), so a later
+        # store-event match would flag the long-lived watcher itself and
+        # false-positive on every repair once it ages past WEDGE_AGE.
+        case "$cmd" in
+            *wl-paste*"--watch"*) continue ;;
+        esac
+        case "$cmd" in
+            *sumika-clipboard-store-event*) ;;
+            *wl-paste*) ;;
+            *) continue ;;
+        esac
+        age=$(proc_age "$child") || continue
+        if [ "$age" -ge "$WEDGE_AGE" ]; then
+            echo "$log_tag wedge detected: $child (age=${age}s) stuck: $cmd" >&2
+            return 0
+        fi
+    done
+    return 1
 }
 
 status() {
@@ -118,7 +199,22 @@ case "${1:-start}" in
         # Prefer the existing managed unit. This keeps a repair inside the
         # same systemd cgroup and preserves Restart=on-failure.
         if is_running; then
-            exit 0
+            # Alive is not healthy: a stuck wl-paste callback wedges the
+            # watcher while looking perfectly running (see Wedge detection
+            # above). sumika-restart calls repair on every reload, so this
+            # check makes a reload self-heal a wedged history watcher.
+            daemon_pid=$(cat "$pid_file" 2>/dev/null || true)
+            if [ -n "$daemon_pid" ] && watcher_is_wedged "$daemon_pid"; then
+                stop_existing
+                if command -v systemctl >/dev/null 2>&1 \
+                    && [ "$(systemctl --user show -P LoadState sumika-clipboard-store.service 2>/dev/null || true)" = "loaded" ]; then
+                    systemctl --user restart sumika-clipboard-store.service >/dev/null 2>&1 || true
+                    exit 0
+                fi
+                # fall through to the fresh-unit path below
+            else
+                exit 0
+            fi
         fi
         if command -v systemctl >/dev/null 2>&1 \
             && [ "$(systemctl --user show -P LoadState sumika-clipboard-store.service 2>/dev/null || true)" = "loaded" ]; then

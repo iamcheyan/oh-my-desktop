@@ -98,7 +98,9 @@ Singleton {
             }
         }
         const dir = ClipboardStyle.cliphistDecode
-        const keepPattern = [...referenced].join("|")
+        // Keep "<num>.preview.png" thumbnails for referenced entries; this
+        // also prunes legacy extensionless original-image caches.
+        const keepPattern = [...referenced].map(n => n + "\\.preview\\.png").join("|")
         Quickshell.execDetached(["bash", "-c",
             `mkdir -p '${dir}'; for f in "${dir}"/*; do [ -f "$f" ] || continue; n=$(basename "$f"); if printf '%s\\n' "$n" | grep -Eq '^(${keepPattern})$'; then :; else rm -f "$f"; fi; done`])
     }
@@ -154,9 +156,9 @@ Singleton {
 
     Process {
         id: deleteProc
+        command: ["bash", "-c", `echo '${ClipboardStyle.shellSingleQuoteEscape(deleteProc.pendingEntry)}' | ${root.cliphistBinary} delete && rm -f '${ClipboardStyle.cliphistDecode}/${deleteProc.pendingEntryNum}' '${ClipboardStyle.cliphistDecode}/${deleteProc.pendingEntryNum}.preview.png'`]
         property string pendingEntry: ""
         property string pendingEntryNum: ""
-        command: ["bash", "-c", `echo '${ClipboardStyle.shellSingleQuoteEscape(deleteProc.pendingEntry)}' | ${root.cliphistBinary} delete && rm -f '${ClipboardStyle.cliphistDecode}/${deleteProc.pendingEntryNum}'`]
         function deleteEntry(entry) {
             deleteProc.pendingEntry = entry;
             const match = root.reEntryNumber.exec(entry);

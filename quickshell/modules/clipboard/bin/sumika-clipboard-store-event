@@ -71,10 +71,17 @@ store_event() {
     find "$hash_dir" -type f -mmin +2 -delete 2>/dev/null || true
 }
 
+# Every wl-paste below runs under `timeout`. A clipboard owner that vanishes
+# mid-transfer leaves wl-paste reading a dead pipe forever; wl-paste --watch
+# does not spawn the next event callback until the previous one exits, so one
+# unbounded read silently stops ALL clipboard history (observed: an image/png
+# offer from a dying screenshot provider wedged the watcher for hours while
+# every text copy vanished). Bounded reads make the worst case one failed
+# event, not a dead history.
 mime=""
 types_seen=""
 for attempt in {1..10}; do
-    current_types=$(wl-paste --list-types 2>/dev/null || true)
+    current_types=$(timeout 2 wl-paste --list-types 2>/dev/null || true)
     current_mime=$(printf '%s\n' "$current_types" | awk '/^image\// {print; exit}')
     if [ -n "$current_types" ]; then
         types_seen="$current_types"
@@ -95,7 +102,7 @@ fi
 if [ -n "$mime" ]; then
     copied=1
     for attempt in {1..8}; do
-        if wl-paste --type "$mime" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        if timeout 5 wl-paste --type "$mime" > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
             copied=0
             break
         fi
@@ -105,7 +112,7 @@ if [ -n "$mime" ]; then
         store_event "$mime"
     else
         # Fall back to raw wl-paste if specific MIME type fetch failed
-        if wl-paste > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        if timeout 5 wl-paste > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
             store_event
         else
             log_event "image read failed mime=$mime types=$(printf '%s' "$types_seen" | tr '\n' ',')"
@@ -114,7 +121,7 @@ if [ -n "$mime" ]; then
 else
     copied=1
     for attempt in {1..5}; do
-        if wl-paste --no-newline > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        if timeout 5 wl-paste --no-newline > "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
             copied=0
             break
         fi

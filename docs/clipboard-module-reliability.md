@@ -48,9 +48,35 @@ MIME list. It waits briefly and prefers `image/*`. If the MIME list is still
 unavailable, the event is ignored. Unknown binary data must never be read via
 the text protocol and stored as text.
 
-Text is stored only when the offer has a non-empty MIME list and contains a
-visible character. Entries containing `/tmp/sumika-clip-` are generated paste
-transport payloads and are intentionally ignored to prevent feedback loops.
+Text is stored only when the offer has a non-empty MIME list and contains
+a visible character. Entries containing `/tmp/sumika-clip-` are generated
+paste transport payloads and are intentionally ignored to prevent feedback
+loops.
+
+### Bounded reads
+
+Every `wl-paste` invocation in the event callback runs under `timeout`
+(2 s for MIME listing, 5 s for payload reads). A clipboard owner that dies
+mid-transfer leaves `wl-paste` reading a dead pipe forever, and `wl-paste
+--watch` does not spawn the next callback until the previous one exits — one
+unbounded read therefore stops ALL clipboard history silently. The worst case
+with timeouts is a single failed event. The display resolver used by both
+scripts is bounded the same way.
+
+### Wedge self-heal on reload
+
+`repair` (invoked by every `sumika-restart` reload and by the
+`clipboard.store-repair` action) does not just check that the daemon PID is
+alive — it walks the daemon's process tree and flags an event callback
+(`sumika-clipboard-store-event`, or a bare non-`--watch` `wl-paste`) older
+than `SUMIKA_CLIPBOARD_WEDGE_AGE` (default 120 s, above the ~66 s bounded
+callback worst case). A stuck callback wedges `wl-paste --watch` while the
+daemon looks perfectly alive, so PID liveness alone cannot detect it. On
+detection, repair kills the whole descendant tree (a hung grandchild survives
+its parent's death) and restarts the managed systemd unit — a plain reload
+therefore recovers a dead clipboard history. The `wl-paste --watch` process
+itself is long-lived and is explicitly excluded from the age check.
+
 
 ### Deduplication
 

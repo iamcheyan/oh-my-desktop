@@ -10,9 +10,14 @@ Rectangle {
     property real maxWidth: 0
     property real maxHeight: 0
     property bool active: true
-
     property string imageDecodePath: ClipboardStyle.cliphistDecode
     property string imageSource: ""
+    // Preview thumbnails are scaled to at most ~2x the largest preview box
+    // (380x300) with magick — crisp on hidpi, but ~25x smaller and ~25x
+    // cheaper to decode in QML than the original screenshot PNG
+    // (e.g. 3840x2160 -> 720x405). Falls back to the raw decode when
+    // magick is unavailable or chokes on the format.
+    readonly property string thumbGeometry: "720x500>"
 
     readonly property var imageMeta: {
         if (!root.entry)
@@ -34,17 +39,15 @@ Rectangle {
     radius: ClipboardStyle.radius
     implicitHeight: Math.max(0, imageHeight * scale)
     implicitWidth: Math.max(0, imageWidth * scale)
-    clip: true
-
     function decodeImage() {
         if (entry && active && entryNumber > 0) {
             imageSource = "";
             checkAndDecode.running = false;
             const num = entryNumber;
-            const filePath = `${imageDecodePath}/${num}`;
-            checkAndDecode.pendingFilePath = filePath;
+            const thumbPath = `${imageDecodePath}/${num}.preview.png`;
+            checkAndDecode.pendingFilePath = thumbPath;
             checkAndDecode.command = ["bash", "-c",
-                `mkdir -p '${imageDecodePath}'; if [ ! -s '${filePath}' ]; then tmp='${filePath}.tmp.'$$; trap 'rm -f "$tmp"' EXIT; printf '%s' '${num}' | ${Cliphist.cliphistBinary} decode > "$tmp" 2>/dev/null && [ -s "$tmp" ] && mv -f "$tmp" '${filePath}'; fi`];
+                `mkdir -p '${imageDecodePath}'; if [ ! -s '${thumbPath}' ]; then tmp='${thumbPath}.tmp.'$$; raw="$tmp.rawtmp"; trap 'rm -f "$tmp" "$raw"' EXIT; printf '%s' '${num}' | ${Cliphist.cliphistBinary} decode > "$raw" 2>/dev/null || exit 1; [ -s "$raw" ] || exit 1; if command -v magick >/dev/null 2>&1 && magick "$raw[0]" -auto-orient -strip -resize '${thumbGeometry}' png:"$tmp" 2>/dev/null && [ -s "$tmp" ]; then :; else cp -f "$raw" "$tmp"; fi; mv -f "$tmp" '${thumbPath}'; fi`];
             checkAndDecode.running = true;
         } else {
             imageSource = "";
