@@ -38,6 +38,15 @@ buffers are never preserved by Hyprland itself. Sumika Shell restores window cla
 workspace, geometry, launch command, terminal working directory, and attached
 terminal multiplexer sessions when they can be detected.
 
+Multiplexer detection in kitty panes uses three layers: the pane's reported
+command (`last_reported_cmdline`, requires kitty shell integration — on NixOS
+the wrapper injects `KITTY_SHELL_INTEGRATION="enabled no-rc"`, so `~/dotfiles/zshrc`
+loads the integration script manually), the pane's own cmdline, and finally a
+process-tree scan of the pane pid from `kitty @ ls`. The last layer makes
+capture work even in panes whose shells never got integration (panes opened
+before the zshrc fix, `sh -c` wrappers), so their tmux/zellij sessions no
+longer degrade to bare shells on restore.
+
 ## Shutdown Save Gate
 
 Session-ending actions go through a screen-centered confirmation overlay with

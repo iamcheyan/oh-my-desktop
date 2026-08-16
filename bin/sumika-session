@@ -456,7 +456,12 @@ def kitty_window_attach(window):
     kitty. Fall back to the process cmdline when the reported line is empty.
     A bare `tmux new-session -A` without a session name cannot be restored
     headlessly (tmux refuses to open a terminal), so it degrades to a plain
-    shell instead of replaying a broken command."""
+    shell instead of replaying a broken command.
+    When neither source names a multiplexer, scan the pane's descendants via
+    the window pid from kitty's ls JSON. Shell integration can be absent
+    entirely (KITTY_SHELL_INTEGRATION=no-rc on NixOS, or panes whose shells
+    predate the zshrc integration loader) — without this scan their tmux
+    sessions silently degrade to bare shells on restore."""
     reported = (window.get("last_reported_cmdline") or "").strip()
     reported_argv = reported.split() if reported else []
     candidates = [window.get("cmdline") or [], reported_argv]
@@ -478,6 +483,11 @@ def kitty_window_attach(window):
         if info.get("type") == "tmux" and not info.get("name"):
             return None
         return terminal_attach_command(info)
+    pid = window.get("pid")
+    if pid:
+        info = terminal_session_info(int(pid))
+        if info and not (info.get("type") == "tmux" and not info.get("name")):
+            return terminal_attach_command(info)
     return None
 
 def kitty_pane_command(window):

@@ -367,8 +367,8 @@ Singleton {
 
     sizes: QtObject {
         // MacBooks with a display notch need a taller bar so the cutout stays
-        // covered (32); notch-less hosts get the slimmer bar (25).
-        property real baseBarHeight: HostInfo.screenHasNotch ? 32 : 25
+        // covered (32); notch-less hosts get 28.
+        property real baseBarHeight: HostInfo.screenHasNotch ? 32 : 28
         property real barHeight: Config.options.bar.cornerStyle === 1 ? 
             (baseBarHeight + root.sizes.hyprlandGapsOut * 2) : baseBarHeight
         // Circular icon slot for right-side bar modules, capped at the bar
