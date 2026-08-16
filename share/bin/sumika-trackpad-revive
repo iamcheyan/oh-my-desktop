@@ -128,6 +128,8 @@ check_health() {   # sets VERDICT (idle|healthy|dead); rc 0 = healthy-or-idle
     c2=$(irq_count "$IRQ_LABEL") || c2=0
     wait "$kb_pid" 2>/dev/null && kb_rc=0
     KB_SEEN=$(( 1 - kb_rc ))
+    [ "$KB_SEEN" -eq 1 ] && date +%s > "$KB_STAMP_FILE" 2>/dev/null || true
+
     TP_RC=$tp_rc
     delta=$(( c2 - c1 ))
     LAST_RATE=$(( delta / WINDOW_SECONDS ))
@@ -152,6 +154,8 @@ check_health() {   # sets VERDICT (idle|healthy|dead); rc 0 = healthy-or-idle
 # trackpad has produced no events for STALE_MINUTES, rebind preventively.
 STALE_MINUTES=30
 STAMP_FILE="$STATE_HOME/trackpad-revive.last-seen"
+KB_STAMP_FILE="$STATE_HOME/trackpad-revive.kb-seen"
+
 
 stamp_update() { date +%s > "$STAMP_FILE" 2>/dev/null || true; }
 stamp_age_s() {
@@ -159,15 +163,24 @@ stamp_age_s() {
     last=$(cat "$STAMP_FILE" 2>/dev/null) || { echo 0; return; }
     echo $(( $(date +%s) - last ))
 }
+
+kb_age_s() {
+    local last
+    last=$(cat "$KB_STAMP_FILE" 2>/dev/null) || { echo 999999999; return; }
+    echo $(( $(date +%s) - last ))
+}
+
 maybe_preventive_revive() {   # $1 = tp probe rc from check_health (1 = no events)
     [ "$1" -ne 0 ] || { stamp_update; return 1; }
-    # Trackpad silent this window. Only act when the session is active.
-    [ "$KB_SEEN" -eq 1 ] || return 1
+    # Trackpad silent this window. Only act when the session was recently
+    # active; keyboard activity in this exact probe window is already handled
+    # as a normal dead verdict by check_health.
+    [ "$(kb_age_s)" -le 180 ] || return 1
     local age
     age=$(stamp_age_s)
     [ "$age" -ge $((STALE_MINUTES * 60)) ] || return 1
-    log "preventive revive: session active, trackpad silent for ${age}s"
-    echo "trackpad: silent ${age}s under active session → preventive revive" >&2
+    log "preventive revive: recent session activity, trackpad silent for ${age}s"
+    echo "trackpad: silent ${age}s after recent session activity → preventive revive" >&2
     return 0
 }
 
