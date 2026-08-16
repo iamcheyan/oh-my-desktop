@@ -123,46 +123,43 @@ end
 local function read_sasayaki_bindings()
   local data_home = os.getenv("XDG_DATA_HOME") or (paths.home .. "/.local/share")
   local extensions_dir = os.getenv("SUMIKA_SHELL_EXTENSIONS_DIR") or (data_home .. "/sumika-shell/extensions")
-  -- Use absolute paths: the Hyprland process PATH does not include
-  -- extensions/bin, so bare command names silently fail and the bindings
-  -- fall back to ALT+A. Note the sasayaki subcommand is `bindings`,
-  -- NOT `hypr-bindings` (the latter is the voice helper's name).
-  local candidates = {
-    { extensions_dir .. "/sasayaki/sasayaki", "bindings" },
-    { extensions_dir .. "/voice/bin/sumika-voice-translate", "hypr-bindings" },
-    { "sasayaki", "bindings" },
-  }
+  -- Single provider: the sasayaki extension binary, with a PATH fallback.
+  -- The retired `voice` extension helper was removed as a candidate — it
+  -- re-registered historical binds (ALT+A, HANGUL_HANJA, …) on every
+  -- reload, resurrecting them after the user turned every wake key off.
+  -- Resolve the binary up front and run exactly ONE popen: iterating
+  -- candidates and breaking on pipe-close status does not work (close()
+  -- return is unreliable in the sandboxed io library), and running both
+  -- candidates registered every bind twice.
+  local bin = extensions_dir .. "/sasayaki/sasayaki"
+  local probe = io.open(bin, "r")
+  if probe then
+    probe:close()
+  else
+    bin = "sasayaki" -- Hyprland PATH lookup (login shell PATH usually has ~/.local/bin)
+  end
   local result = { voice = {}, voicetap = {}, translation = nil }
-  for _, c in ipairs(candidates) do
-    local process = io.popen("'" .. c[1]:gsub("'", "'\\''") .. "' " .. c[2] .. " 2>/dev/null")
-    if process then
-      local any = false
-      for line in process:lines() do
-        local kind, binding = line:match("^([^\t]+)\t(.+)$")
-        if kind == "voice" and binding and binding ~= "" then
-          table.insert(result.voice, binding)
-          any = true
-        elseif kind == "translation" and binding and binding ~= "" then
-          result.translation = binding
-          any = true
-        elseif kind == "voicetap" and binding and binding ~= "" then
-          table.insert(result.voicetap, binding)
-          any = true
-        end
-      end
-      process:close()
-      if any and #result.voice > 0 then
-        break
+  local process = io.popen("'" .. bin:gsub("'", "'\\''") .. "' bindings 2>/dev/null")
+  if process then
+    for line in process:lines() do
+      local kind, binding = line:match("^([^\t]+)\t(.+)$")
+      if kind == "voice" and binding and binding ~= "" then
+        table.insert(result.voice, binding)
+      elseif kind == "translation" and binding and binding ~= "" then
+        result.translation = binding
+      elseif kind == "voicetap" and binding and binding ~= "" then
+        table.insert(result.voicetap, binding)
       end
     end
+    process:close()
   end
   return result
 end
 
 local voice_config = read_sasayaki_bindings()
-if #voice_config.voice == 0 then
-  voice_config.voice = { "ALT + A" }
-end
+-- No default voice binding: a hard-wired ALT+A conflicted with other
+-- setups. Users opt in via voice_bindings in ~/.config/sasayaki/config.json;
+-- wake keys (voicetap below) are configured independently.
 
 for _, key in ipairs(voice_config.voice) do
     o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action sasayaki.toggle")
@@ -192,8 +189,8 @@ end
 -- bind HANGUL · XKB keycode 130 · evdev 122.
 o.bind(voice_config.translation or "HANGUL", "Translated voice input toggle", paths.root .. "/bin/sumika-action sasayaki.translate-toggle")
 o.bind("ALT + SHIFT + A", "Repair Sasayaki", paths.root .. "/bin/sumika-action sasayaki.repair")
-o.bind("ALT + S", "Region screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
-o.bind("ALT + SHIFT + S", "Region screenshot (edit)", paths.root .. "/bin/sumika-action screenshot.capture-edit")
+-- Screenshot binds live in hypr/screenshot.lua (editable from the bar's
+-- screenshot menu → "Screenshot Settings").
 
 o.bind("ALT + V", "Clipboard manager", paths.root .. "/bin/sumika-action clipboard.toggle")
 -- o.bind("SUPER + H", nil, "voxtype record toggle")

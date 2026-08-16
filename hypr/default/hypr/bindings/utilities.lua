@@ -11,11 +11,8 @@ o.bind("SUPER + CTRL + Delete", "Toggle laptop display", paths.root .. "/bin/sum
 o.bind("SUPER + CTRL + ALT + Delete", "Toggle laptop display mirroring", paths.root .. "/bin/sumika-action display.internal-mirror-toggle")
 o.bind("switch:on:Lid Switch", nil, paths.root .. "/bin/sumika-action display.lid-close", { locked = true })
 o.bind("switch:off:Lid Switch", nil, paths.root .. "/bin/sumika-action display.lid-open", { locked = true })
--- Region selector lives in the on-demand sumika-screenshot process.
--- Re-press while open cancels (handled inside sumika-screenshot).
-o.bind("SUPER + PRINT", "Color picker", paths.root .. "/bin/sumika-action display.color-picker")
-o.bind("PRINT", "Screenshot", paths.root .. "/bin/sumika-action screenshot.capture")
-o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", paths.root .. "/bin/sumika-action screenshot.capture-ocr")
+-- Screenshot/capture binds (PRINT, SUPER+PRINT, SUPER+CTRL+PRINT) moved to
+-- hypr/screenshot.lua — the user-editable screenshot shortcut file.
 
 -- Audio/Bluetooth open real registered actions (sumika-launch-profile has
 -- no audio/bluetooth/wifi profiles — those bindings were dead). WiFi is

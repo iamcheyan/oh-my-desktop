@@ -55,6 +55,7 @@ require("default.hypr.base")
 dofile(sumika_root .. "/hypr/monitors.lua")
 require("input")
 require("bindings")
+require("screenshot")
 require("looknfeel")
 require("autostart")
 

@@ -332,21 +332,17 @@
     <!-- ═══════════════════════════════════════════════════════════════
          Voice input (Sasayaki extension)
          ═══════════════════════════════════════════════════════════════
-         Mirrors hypr/bindings.lua's read_sasayaki_bindings() — the keys
-         below are the current output of `sasayaki bindings` (voice: 4 keys,
-         translation: 1 key). Hyprland reads them dynamically from
-         ~/.config/sasayaki/config.json; labwc rc.xml cannot, so this block
-         must be updated manually if voice_bindings change. -->
-    <!-- Voice input toggle (voice_bindings) -->
-    <keybind key="Hangul_Hanja">
+         Hyprland reads voice binds dynamically from `sasayaki bindings`
+         (opt-in voice_bindings; wake keys are release-only keycode binds
+         labwc cannot express). labwc must hardcode: default is NONE —
+         uncomment and edit to taste if you want a modifier shortcut.
+         The old 4-key set (Hangul_Hanja/XF86Fn/XF86Tools) came from the
+         retired voice extension and is gone. -->
+    <!-- Voice input toggle (opt-in; edit key to taste)
+    <keybind key="A-S-v">
       <action name="Execute" command="sumika-action sasayaki.toggle" />
     </keybind>
-    <keybind key="XF86Fn">
-      <action name="Execute" command="sumika-action sasayaki.toggle" />
-    </keybind>
-    <keybind key="XF86Tools">
-      <action name="Execute" command="sumika-action sasayaki.toggle" />
-    </keybind>
+    -->
     <!-- Translation voice input (translation_binding) -->
     <keybind key="Hangul">
       <action name="Execute" command="sumika-action sasayaki.translate-toggle" />

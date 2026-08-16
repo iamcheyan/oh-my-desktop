@@ -57,6 +57,7 @@ local sumika_tui_ids = {
   "sumikaocrtui",
   "sumikasettingskeyboardtui",
   "editsasayakiconfig",
+  "editscreenshotbinds",
   "sasayakidiagnose",
 }
 for _, id in ipairs(sumika_tui_ids) do
