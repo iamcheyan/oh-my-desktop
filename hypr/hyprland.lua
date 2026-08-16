@@ -55,7 +55,9 @@ require("default.hypr.base")
 dofile(sumika_root .. "/hypr/monitors.lua")
 require("input")
 require("bindings")
-require("screenshot")
+-- screenshot.lua is user-edited from the settings menu; reload it every time
+-- instead of using require(), whose module cache would keep old bindings.
+dofile(sumika_root .. "/hypr/screenshot.lua")
 require("looknfeel")
 require("autostart")
 
