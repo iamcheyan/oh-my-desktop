@@ -168,21 +168,25 @@ for _, key in ipairs(voice_config.voice) do
     o.bind(key, "Voice input toggle", paths.root .. "/bin/sumika-action sasayaki.toggle")
 end
 
--- CapsLock wake (`sasayaki capslock on`): tap the CapsLock-position key to
--- toggle voice input in every state — swap on or off, any layout.
---   * code:66 — the caps-lock keycode. Covers the unswapped caps position
---     and the bottom-left key when ctrl-caps-swap moves the capslock ROLE
---     there. Stable across XKB keysym remaps (compose:caps). Kept
---     transparent so caps/compose behavior still reaches clients.
---   * F24 — emitted by keyd overload(leftcontrol, f24) on the caps
---     position when the swap preset is active with wake on: hold = Ctrl
+-- Voice wake keys (`sasayaki wake <key> on`): tapping the enabled key alone
+-- toggles voice input — chord-safe in every state (swap on or off, any
+-- layout). One line per enabled key, all handled generically:
+--   * code:66 — the CapsLock hardware keycode (also covers the bottom-left
+--     key when ctrl-caps-swap moves the capslock ROLE there). Stable across
+--     XKB keysym remaps (compose:caps). Transparent: caps/compose behavior
+--     still reaches clients.
+--   * code:37 / code:105 — the physical Left/Right Ctrl keycodes, same
+--     release-only transparent semantics. Chords like Ctrl+C never fire the
+--     bind because another key intervenes before release.
+--   * F24 — emitted by keyd overload(control, f24) on the caps position
+--     when the swap preset is active with caps wake on: hold = Ctrl
 --     (chords untouched), bare tap = F24. Consumed: no app expects it.
--- Both are release-only, so they fire exactly on a completed bare tap.
+-- All are release-only, so they fire exactly on a completed bare tap.
 for _, tap in ipairs(voice_config.voicetap) do
   hl.bind(tap, hl.dsp.exec_cmd(paths.root .. "/bin/sumika-action sasayaki.toggle"), {
     release = true,
     transparent = tap:sub(1, 5) == "code:",
-    description = "Voice input (CapsLock tap)" })
+    description = "Voice input (wake key tap)" })
 end
 -- Dedicated translation trigger captured by Sumika KeyTest:
 -- bind HANGUL · XKB keycode 130 · evdev 122.
