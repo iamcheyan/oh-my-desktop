@@ -22,7 +22,14 @@
 
 if [ -z "${SUMIKA_SHELL_ROOT:-}" ] || [ ! -d "$SUMIKA_SHELL_ROOT" ]; then
     # Try resolving from this file's location: lib/ -> repo root
-    _paths_self="${BASH_SOURCE[0]:-$0}"
+    # BASH_SOURCE (array) is bash-only and aborts under dash/POSIX sh with
+    # "Bad substitution". When sourced with '.', POSIX sh keeps the caller's
+    # $0 — same repo-root resolution from scripts/, bin/, ... callers.
+    if [ -n "${BASH_VERSION:-}" ]; then
+        _paths_self="${BASH_SOURCE[0]}"
+    else
+        _paths_self="$0"
+    fi
     if [ -f "$_paths_self" ]; then
         _paths_dir=$(cd -P "$(dirname "$_paths_self")/.." && pwd -P 2>/dev/null) || _paths_dir=""
         if [ -n "$_paths_dir" ] && [ -f "$_paths_dir/Init.sh" ]; then
