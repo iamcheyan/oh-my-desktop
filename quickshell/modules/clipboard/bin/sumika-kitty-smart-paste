@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Smart paste for kitty — image→path in terminal.
+# Smart paste for kitty — image→path in terminal (Linux/Wayland).
 # Mapped to Ctrl+Shift+V in kitty.conf:
 #   map ctrl+shift+v launch --type=background sumika-kitty-smart-paste
 #
@@ -14,69 +14,290 @@ set -eu
 # terminal (a local path would not exist on the remote side).
 #
 # Injection is delegated to the same central helper used by voice input and
-# the clipboard menu. That gives all Sumika Shell paste paths one payload snapshot,
-# one target resolver and one duplicate-suppression gate.
+# the clipboard menu (sumika-paste-at-cursor). That gives all Sumika Shell
+# paste paths one payload snapshot, one target resolver and one
+# duplicate-suppression gate. We do NOT bypass it with a raw `kitty @
+# send-text`/`paste_from_clipboard`: doing so would drop the helper's payload
+# dedupe, XWayland handling and mode resolution, and would break the voice /
+# clipboard-menu integration that shares it.
+#
+# Reliability features ported from the macOS reference (kept Linux-native):
+#   • socket_alive() — every candidate socket is validated with
+#     `kitty @ --to ... ls`; stale KITTY_LISTEN_ON is rejected and unset so
+#     child helpers (sumika-clipboard-image-path reads it too) also fall back.
+#   • atomic mkdir single-flight lock with stale-PID cleanup — one key press
+#     produces exactly one injection; a duplicate key event exits silently.
+#   • after an image→path paste the clipboard is cleared to whitespace, NOT
+#     the generated path, so a re-trigger can never paste the path a second
+#     time and image-aware TUIs do not attach both the bitmap and the path.
+#   • last-image cache — a later intentional press with a blank/whitespace
+#     clipboard reuses the last screenshot and re-runs the path/injection
+#     pipeline (including SSH re-transfer). A newly copied image replaces it.
+#   • --probe diagnostics and --print-socket (kept).
 
 LOG=/tmp/sumika-kitty-smart-paste.log
 log() { echo "$(date '+%H:%M:%S') $*" >> "$LOG" 2>/dev/null || true; }
 
+# ── kitty binary ────────────────────────────────────────────────────────
+# The background launch from kitty.conf may inherit a minimal PATH that omits
+# the kitty executable. Resolve an absolute binary so socket validation and
+# diagnostics never depend on PATH lookup at call time.
+KITTY_BIN=""
+if command -v kitty >/dev/null 2>&1; then
+  KITTY_BIN=kitty
+fi
+if [ -z "$KITTY_BIN" ]; then
+  for _kb in /usr/bin/kitty /usr/local/bin/kitty "$HOME/.local/bin/kitty"; do
+    if [ -x "$_kb" ]; then KITTY_BIN="$_kb"; break; fi
+  done
+  unset _kb
+fi
+
+# ── socket resolution ───────────────────────────────────────────────────
+# A stale unix socket remains as a file after kitty exits; `[ -S ]` is not
+# enough. Probe each candidate with `kitty @ ls` and keep only one that
+# answers. Falls back through: KITTY_LISTEN_ON → Hyprland active-window →
+# parent-process walk → newest live /tmp/mykitty-* → unvalidated last resort.
+socket_alive() {
+  [ -n "$1" ] || return 1
+  [ -n "$KITTY_BIN" ] || return 1
+  "$KITTY_BIN" @ --to "$1" ls >/dev/null 2>&1
+}
+
 resolve_socket() {
+  # 1. KITTY_LISTEN_ON — only if it still answers. (Stale values are unset in
+  #    the parent shell before this subshell runs; this is a belt-and-suspenders
+  #    re-check.)
   if [ -n "${KITTY_LISTEN_ON:-}" ]; then
-    echo "$KITTY_LISTEN_ON"; return
+    case "$KITTY_LISTEN_ON" in
+      unix:*)
+        _p=${KITTY_LISTEN_ON#unix:}
+        if [ -S "$_p" ] && socket_alive "$KITTY_LISTEN_ON"; then
+          echo "$KITTY_LISTEN_ON"; unset _p; return 0
+        fi
+        ;;
+      *)
+        if socket_alive "$KITTY_LISTEN_ON"; then
+          echo "$KITTY_LISTEN_ON"; return 0
+        fi
+        ;;
+    esac
+    unset _p
   fi
 
-  active_pid=$(hyprctl activewindow -j 2>/dev/null | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)
-  if [ -n "$active_pid" ] && [ -S "/tmp/mykitty-$active_pid" ]; then
-    echo "unix:/tmp/mykitty-$active_pid"; return
+  # 2. Hyprland active window → /tmp/mykitty-<pid>.
+  if command -v hyprctl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    _apid=$(hyprctl activewindow -j 2>/dev/null \
+      | jq -r 'select(.class? | test("kitty"; "i")) | .pid // empty' 2>/dev/null || true)
+    if [ -n "$_apid" ] && [ -S "/tmp/mykitty-$_apid" ] \
+       && socket_alive "unix:/tmp/mykitty-$_apid"; then
+      echo "unix:/tmp/mykitty-$_apid"; unset _apid; return 0
+    fi
+    unset _apid
   fi
 
-  p=$$
-  for _ in 1 2 3 4 5 6; do
-    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
-    [ -z "$p" ] || [ "$p" = 0 ] && break
-    name=$(ps -o comm= -p "$p" 2>/dev/null | tr -d ' ')
-    if [ "$name" = "kitty" ] && [ -S "/tmp/mykitty-$p" ]; then
-      echo "unix:/tmp/mykitty-$p"; return
+  # 3. Parent-process walk to the launching kitty instance.
+  _p=$$
+  _i=0
+  while [ "$_i" -lt 6 ]; do
+    _p=$(ps -o ppid= -p "$_p" 2>/dev/null | tr -d ' ')
+    [ -n "$_p" ] && [ "$_p" != 0 ] || break
+    _name=$(ps -o comm= -p "$_p" 2>/dev/null | tr -d ' ')
+    if [ "$_name" = kitty ] && [ -S "/tmp/mykitty-$_p" ] \
+       && socket_alive "unix:/tmp/mykitty-$_p"; then
+      echo "unix:/tmp/mykitty-$_p"; unset _p _i _name; return 0
     fi
+    _i=$((_i + 1))
   done
-  set -- /tmp/mykitty-*
-  if [ $# -eq 1 ] && [ -S "$1" ]; then
-    echo "unix:$1"; return
-  fi
-  if [ -S /tmp/mykitty ]; then
-    echo "unix:/tmp/mykitty"; return
-  fi
-  for sock in /tmp/mykitty-*; do
-    if [ -S "$sock" ]; then
-      echo "unix:$sock"; return
-    fi
+  unset _p _i _name
+
+  # 4. Newest LIVE /tmp/mykitty-* / /tmp/mykitty / XDG runtime kitty socket.
+  _best=""; _best_m=0
+  for _cand in /tmp/mykitty /tmp/mykitty-* /tmp/kitty \
+               "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/kitty-"*; do
+    [ -S "$_cand" ] || continue
+    socket_alive "unix:$_cand" || continue
+    _m=$(stat -c %Y "$_cand" 2>/dev/null || echo 0)
+    if [ "$_m" -ge "$_best_m" ]; then _best="$_cand"; _best_m=$_m; fi
   done
+  if [ -n "$_best" ]; then echo "unix:$_best"; unset _cand _best _best_m _m; return 0; fi
+  unset _cand _best _best_m _m
+
+  # 5. Last resort: a single socket candidate without validation. The central
+  #    paste helper re-validates sockets itself, so a non-answering candidate
+  #    here only degrades diagnostics, never the actual injection.
+  for _sock in /tmp/mykitty-*; do
+    [ -S "$_sock" ] && { echo "unix:$_sock"; unset _sock; return 0; }
+  done
+  unset _sock
   echo "unix:/tmp/mykitty"
 }
 
+# Validate KITTY_LISTEN_ON in the PARENT shell so a stale value can be unset
+# for this process and every child helper (sumika-clipboard-image-path lists
+# KITTY_LISTEN_ON first in its own socket candidates). resolve_socket runs in
+# a command-substitution subshell and cannot mutate our environment.
+if [ -n "${KITTY_LISTEN_ON:-}" ]; then
+  _sl_alive=0
+  case "$KITTY_LISTEN_ON" in
+    unix:*)
+      _sl_path=${KITTY_LISTEN_ON#unix:}
+      if [ -S "$_sl_path" ] && socket_alive "$KITTY_LISTEN_ON"; then _sl_alive=1; fi
+      unset _sl_path
+      ;;
+    *)
+      if socket_alive "$KITTY_LISTEN_ON"; then _sl_alive=1; fi
+      ;;
+  esac
+  if [ "$_sl_alive" != 1 ]; then
+    log "KITTY_LISTEN_ON stale/unreachable, unsetting: $KITTY_LISTEN_ON"
+    unset KITTY_LISTEN_ON
+  fi
+  unset _sl_alive
+fi
+
 KC=$(resolve_socket)
-log "socket=$KC"
+log "socket=$KC kitty_bin=${KITTY_BIN:-<none>} win=${KITTY_WINDOW_ID:-<unset>}"
 
 if [ "${1:-}" = "--print-socket" ]; then
   echo "$KC"
   exit 0
 fi
 
-PASTE_HELPER="sumika-paste-at-cursor"
-paste_payload() {
-  payload_file="$1"
-  dedupe_ms="${2:-500}"
-  SUMIKA_PASTE_SOURCE=kitty-shortcut SUMIKA_PASTE_DELAY=0 SUMIKA_PASTE_DEDUPE_MS="$dedupe_ms" \
-    "$PASTE_HELPER" --file "$payload_file" auto kitty activewindow
+# ── runtime dir, last-image cache, single-flight lock ───────────────────
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard"
+mkdir -p "$RUNTIME_DIR" 2>/dev/null || true
+LAST_IMG="$RUNTIME_DIR/last-image.png"
+
+LOCK_DIR="$RUNTIME_DIR/run.lock"
+LOCK_HELD=0
+PAYLOAD_TMP=""
+
+release_run_lock() {
+  if [ "$LOCK_HELD" = 1 ]; then
+    rm -rf "$LOCK_DIR"
+    LOCK_HELD=0
+  fi
 }
 
-# Exactly-once guard, layer 2: after an image->path paste the Wayland
-# clipboard holds the path TEXT we ourselves just wrote. A rapid re-trigger
-# (key repeat / double Ctrl+Shift+V) lands in the text branch below and
-# would paste that path a SECOND time — the "image shows two paths" bug.
-# Refuse payloads that are the path we minted moments ago.
+# mkdir is atomic on Linux: a concurrent invoker cannot create the same dir.
+# Stale owners (kitty killed mid-paste) are reclaimed by checking /proc/<pid>.
+acquire_run_lock() {
+  _i=0
+  while [ "$_i" -lt 5 ]; do
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+      printf '%s' "$$" > "$LOCK_DIR/pid"
+      LOCK_HELD=1
+      unset _i
+      return 0
+    fi
+    _old=$(cat "$LOCK_DIR/pid" 2>/dev/null || true)
+    if [ -n "$_old" ] && [ ! -d "/proc/$_old" ]; then
+      rm -rf "$LOCK_DIR"        # stale owner — reclaim and retry
+      _i=$((_i + 1))
+      continue
+    fi
+    unset _i _old
+    return 1
+  done
+  unset _i _old
+  return 1
+}
+
+cleanup() {
+  [ -n "$PAYLOAD_TMP" ] && rm -f "$PAYLOAD_TMP"
+  release_run_lock
+}
+
+# ── probe mode ──────────────────────────────────────────────────────────
+if [ "${1:-}" = "--probe" ]; then
+  echo "platform=$(uname -s)"
+  echo "listen_on=${KITTY_LISTEN_ON:-<unset>}"
+  echo "socket=${KC:-<none>}"
+  echo "kitty_bin=${KITTY_BIN:-<none>}"
+  echo "kitty_window_id=${KITTY_WINDOW_ID:-<unset>}"
+  _pmime=$(wl-paste -l 2>/dev/null | grep -m1 '^image/' || true)
+  if [ -n "$_pmime" ]; then
+    echo "clipboard=image ($_pmime)"
+  else
+    _pbuf=$(mktemp)
+    wl-paste 2>/dev/null > "$_pbuf" || true
+    echo "clipboard=text ($(wc -c < "$_pbuf" | tr -d ' ') bytes)"
+    rm -f "$_pbuf"
+  fi
+  unset _pmime _pbuf
+  if [ -s "$LAST_IMG" ]; then
+    echo "last_image=$LAST_IMG ($(wc -c < "$LAST_IMG" | tr -d ' ') bytes)"
+  else
+    echo "last_image=<none>"
+  fi
+  echo "paste_helper=$(command -v sumika-paste-at-cursor 2>/dev/null || echo '<none>')"
+  echo "image_path_helper=$(command -v sumika-clipboard-image-path 2>/dev/null || echo '<none>')"
+  echo "notify_send=$(command -v notify-send 2>/dev/null || echo '<none>')"
+  if [ -d "$LOCK_DIR" ]; then
+    _lp=$(cat "$LOCK_DIR/pid" 2>/dev/null || echo '?')
+    echo "lock=busy owner_pid=$_lp"
+  else
+    echo "lock=idle"
+  fi
+  unset _lp
+  exit 0
+fi
+
+# ── paste helper ────────────────────────────────────────────────────────
+PASTE_HELPER="sumika-paste-at-cursor"
+
+# KITTY_WINDOW_ID compatibility note:
+# The macOS reference injects via `kitty @ send-text --match id:$KITTY_WINDOW_ID`
+# and prefers $KITTY_WINDOW_ID because background launch inherits the source
+# window id (is_focused can be false while @ ls runs off-thread). Here we keep
+# delegating to sumika-paste-at-cursor, whose CLI target is a Hyprland window
+# reference ("activewindow" or "address:0x...."), NOT a kitty window id. The
+# helper resolves the kitty window id itself from `kitty @ ls` and targets it
+# with `--match id:<id>`. It therefore cannot accept $KITTY_WINDOW_ID directly,
+# and changing its interface is out of scope (it is the shared paste path for
+# voice input and the clipboard menu). We preserve the existing
+# `auto kitty activewindow` target resolution and only surface
+# $KITTY_WINDOW_ID in the log/probe for diagnostics.
+paste_payload() {
+  _pp_file="$1"
+  _pp_dedupe="${2:-500}"
+  SUMIKA_PASTE_SOURCE=kitty-shortcut SUMIKA_PASTE_DELAY=0 \
+    SUMIKA_PASTE_DEDUPE_MS="$_pp_dedupe" \
+    "$PASTE_HELPER" --file "$_pp_file" auto kitty activewindow
+  unset _pp_file _pp_dedupe
+}
+
+# Clear the Wayland clipboard to a single whitespace payload. Used before and
+# after image injection so image-aware TUIs (OpenCode/OMP) never attach both
+# the bitmap and the decoded path, and so the post-paste clipboard is blank
+# (enabling last-image reuse on the next intentional press).
+clear_clipboard_whitespace() {
+  command -v wl-copy >/dev/null 2>&1 || return 0
+  printf ' ' | wl-copy 2>/dev/null || true
+}
+
+clipboard_is_blank() {
+  command -v wl-paste >/dev/null 2>&1 || return 1
+  _cb=$(mktemp)
+  wl-paste 2>/dev/null > "$_cb" || true
+  if [ ! -s "$_cb" ] || [ -z "$(tr -d '[:space:]' < "$_cb")" ]; then
+    rm -f "$_cb"; unset _cb; return 0
+  fi
+  rm -f "$_cb"; unset _cb; return 1
+}
+
+remember_local_image() {
+  cp -- "$1" "$LAST_IMG" 2>/dev/null || true
+}
+
+# Exactly-once guard, layer 2 (legacy text-path suppression): after an
+# image→path paste the Wayland clipboard used to hold the path TEXT we wrote
+# back, so a rapid re-trigger landing in the text branch would paste that path
+# a SECOND time. We no longer write the path back, but keep this guard for any
+# path that still reaches the text branch (e.g. another tool restored it).
 suppress_repeat_path() {
-  state="${XDG_RUNTIME_DIR:-/tmp}/sumika-clipboard/last-path"
+  state="$RUNTIME_DIR/last-path"
   [ -f "$state" ] || return 1
   read -r pts ppath < "$state" || return 1
   case "$pts" in ''|*[!0-9]*) return 1 ;; esac
@@ -86,6 +307,85 @@ suppress_repeat_path() {
   now=$(date +%s%3N 2>/dev/null); case "$now" in ''|*[!0-9]*) now="$(date +%s)000" ;; esac
   [ $((now - pts)) -lt "${SUMIKA_CLIPBOARD_PATH_GUARD_MS:-2000}" ]
 }
+
+# ── image → path pipeline ───────────────────────────────────────────────
+# $1 = local image file (the raw clipboard bitmap or the last-image cache),
+# $2 = extension. Re-runs sumika-clipboard-image-path (which re-detects SSH
+# and re-streams when needed) so a reused last-image still resolves the
+# correct remote path.
+paste_image_file() {
+  _pf_src="$1"
+  _pf_ext="${2:-png}"
+
+  # sumika-clipboard-image-path exit 3 = same image content resolved within
+  # SUMIKA_CLIPBOARD_IMAGE_DEDUPE_MS — a re-trigger, not a new intent. Do
+  # nothing. This composes with the single-flight lock: the lock stops
+  # concurrent key events; the content dedupe stops near-simultaneous ones
+  # that slipped past the lock window.
+  _rc=0
+  _line=$(sumika-clipboard-image-path --ext "$_pf_ext" -- "$_pf_src" 2>/dev/null) || _rc=$?
+  if [ "$_rc" -eq 3 ]; then
+    log "suppressed duplicate image paste (content dedupe)"
+    unset _pf_src _pf_ext _rc _line
+    return 3
+  fi
+  [ "$_rc" -eq 0 ] || _line=""
+  if [ -z "$_line" ]; then
+    log "image-path resolver failed rc=$_rc"
+    unset _pf_src _pf_ext _rc _line
+    return 1
+  fi
+
+  TAB=$(printf '\t')
+  _img_path=${_line%%"$TAB"*}
+  _img_note=${_line#*"$TAB"}
+  [ "$_img_note" = "$_line" ] && _img_note=""
+
+  _payload=$(mktemp)
+  PAYLOAD_TMP="$_payload"
+  printf '%s ' "$_img_path" > "$_payload"
+
+  # Clear the image clipboard to whitespace BEFORE injection so image-aware
+  # TUIs do not attach both the bitmap and the path. We do NOT write the
+  # generated path back to the clipboard (the old `wl-copy < $payload` made a
+  # re-trigger paste the path a second time). The central paste helper also
+  # clears to space internally and restores the payload ~150ms after sending
+  # for its own OMP read-back contract; we clear once more on return so the
+  # final clipboard state is whitespace — a re-trigger is safe and the next
+  # intentional press with a blank clipboard reuses last-image.
+  clear_clipboard_whitespace
+
+  _pprc=0
+  paste_payload "$_payload" 1200 || _pprc=$?
+  rm -f "$_payload"
+  PAYLOAD_TMP=""
+
+  # Override the helper's payload restoration: final clipboard = whitespace.
+  clear_clipboard_whitespace
+
+  if [ "$_pprc" -ne 0 ]; then
+    log "image paste inject failed rc=$_pprc path=$_img_path"
+  else
+    log "image->path $_img_path note=$_img_note"
+  fi
+  if [ -n "$_img_note" ]; then
+    notify-send -t 2000 '📋 已粘贴图片路径' "$_img_path ($_img_note)" 2>/dev/null || true
+  else
+    notify-send -t 2000 '📋 已粘贴图片路径' "$_img_path" 2>/dev/null || true
+  fi
+  unset _pf_src _pf_ext _rc _line _img_path _img_note _payload _pprc
+  return 0
+}
+
+# ── main ────────────────────────────────────────────────────────────────
+# Single-flight lock: one key press = one injection. A duplicate key event
+# (key repeat, Ctrl+Shift+V + Ctrl+V both firing when Shift is released
+# early) finds the lock held and exits with a log line and NO injection.
+if ! acquire_run_lock; then
+  log "busy: duplicate key event suppressed (one-press-one-injection)"
+  exit 0
+fi
+trap cleanup EXIT
 
 # First image MIME type offered by the clipboard, if any.
 mime=$(wl-paste -l 2>/dev/null | grep -m1 '^image/' || true)
@@ -100,60 +400,53 @@ if [ -n "$mime" ]; then
   [ "$ext" = jpeg ] && ext=jpg
 
   ts=$(date +%s%N)
-  tmp="/tmp/sumika-clip-${ts}.${ext}"
+  tmp_img="/tmp/sumika-clip-${ts}.${ext}"
 
-  if ! wl-paste -t "image/${fmt}" > "$tmp" 2>/dev/null; then
-    wl-paste -t image/png > "$tmp" 2>/dev/null || true
-  fi
-
-  # SSH-aware: when this kitty window runs an ssh session, the image is
-  # streamed to the remote /tmp and the REMOTE path is pasted instead of a
-  # local one that would not exist on the remote side.
-  # Exactly-once guard, layer 1: exit 3 = same image content resolved (and
-  # pasted) moments ago — a re-trigger, not a new intent. Do nothing.
-  rc=0
-  line=$(sumika-clipboard-image-path --ext "$ext" -- "$tmp" 2>/dev/null) || rc=$?
-  if [ "$rc" -eq 3 ]; then
-    rm -f "$tmp"
-    log "suppressed duplicate image paste"
+  if { wl-paste -t "image/$fmt" > "$tmp_img" 2>/dev/null \
+         || wl-paste -t image/png > "$tmp_img" 2>/dev/null; } && [ -s "$tmp_img" ]; then
+    # Cache the successfully-read local image so a later intentional press
+    # with a blank clipboard can reuse it. A newly copied image overwrites
+    # this cache (every successful read reaches here).
+    remember_local_image "$tmp_img"
+    paste_image_file "$tmp_img" "$ext" || true
+    rm -f "$tmp_img"
     exit 0
   fi
-  [ "$rc" -eq 0 ] || line=""
-  if [ -n "$line" ]; then
-    TAB=$(printf '\t')
-    img_path=${line%%"$TAB"*}
-    img_note=${line#*"$TAB"}
-    [ "$img_note" = "$line" ] && img_note=""
-    rm -f "$tmp"
-
-    # Keep the Wayland clipboard and the bracketed-paste payload in sync.
-    # Image-aware TUIs such as OpenCode inspect the clipboard when they receive
-    # a paste event. Leaving the original image there makes them attach both
-    # that image and the decoded path sent below.
-    payload=$(mktemp)
-    trap 'rm -f "$payload"' EXIT
-    printf '%s ' "$img_path" > "$payload"
-    wl-copy < "$payload"
-    paste_payload "$payload" 1200
-    log "image->path $img_path note=$img_note"
-    if [ -n "$img_note" ]; then
-      notify-send -t 2000 '📋 已粘贴图片路径' "$img_path ($img_note)" 2>/dev/null || true
-    else
-      notify-send -t 2000 '📋 已粘贴图片路径' "$img_path" 2>/dev/null || true
-    fi
-    exit 0
-  fi
-  rm -f "$tmp"
+  rm -f "$tmp_img"
 fi
 
-# No image (or image decode failed): paste the clipboard text normally.
-log "text paste"
-payload=$(mktemp)
-trap 'rm -f "$payload"' EXIT
-wl-paste 2>/dev/null > "$payload"
-[ -s "$payload" ] || exit 0
-if suppress_repeat_path "$payload"; then
-  log "suppressed repeat paste of generated path"
+# No image on the clipboard. If it is blank/whitespace AND we have a cached
+# screenshot, the user is pressing paste again on purpose after we wiped the
+# clipboard — reuse the last image and re-run the path/injection pipeline.
+# (This is the "paste image → delete path → press again → path reappears"
+# flow. The single-flight lock and content dedupe still suppress ACCIDENTAL
+# rapid re-triggers; only presses outside those windows reach here.)
+if clipboard_is_blank && [ -s "$LAST_IMG" ]; then
+  log "reuse last image $LAST_IMG"
+  paste_image_file "$LAST_IMG" png || true
   exit 0
 fi
-paste_payload "$payload"
+
+if clipboard_is_blank; then
+  log "blank clipboard, nothing to paste"
+  exit 0
+fi
+
+# Non-blank text: paste through the central helper. Native `kitty @
+# paste_from_clipboard` is intentionally NOT used here — it would bypass the
+# shared dedupe/target/XWayland logic and break Sumika voice/clipboard-menu
+# integration. One press → one paste transaction via the helper.
+log "text paste"
+payload=$(mktemp)
+PAYLOAD_TMP="$payload"
+wl-paste 2>/dev/null > "$payload" || true
+if [ ! -s "$payload" ]; then
+  rm -f "$payload"; PAYLOAD_TMP=""; exit 0
+fi
+if suppress_repeat_path "$payload"; then
+  log "suppressed repeat paste of generated path"
+  rm -f "$payload"; PAYLOAD_TMP=""; exit 0
+fi
+paste_payload "$payload" || true
+rm -f "$payload"
+PAYLOAD_TMP=""
